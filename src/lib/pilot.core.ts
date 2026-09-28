@@ -290,13 +290,35 @@ export function electricianSelectionBlocker(choice: ElectricianChoice, cand: Ele
 export const SLA_WARN_H = 24, SLA_BREACH_H = 48;
 export type SlaInput = { assigned_at: string; first_response_at?: string | null; booking_confirmed_at?: string | null; cannot_attend_at?: string | null };
 export function appointmentSla(a: SlaInput, now = new Date()) {
-  if (a.booking_confirmed_at) return { state: "booked" as const, hours: 0, canRequestAnother: false, message: "Booking confirmed" };
+  if (a.booking_confirmed_at) return { state: "booked" as const, hours: 0, canRequestAnother: false, message: "Confirmed" };
   const since = (now.getTime() - Date.parse(a.assigned_at)) / 3_600_000;
   const responded = !!a.first_response_at;
-  if (a.cannot_attend_at) return { state: "exception" as const, hours: since, canRequestAnother: true, message: "Electrician cannot attend in time – request another electrician" };
-  if (since >= SLA_BREACH_H) return { state: "exception" as const, hours: since, canRequestAnother: true, message: responded ? "No confirmed booking after 48h – SLA exception" : "No response after 48h – SLA exception" };
-  if (since >= SLA_WARN_H && !responded) return { state: "attention" as const, hours: since, canRequestAnother: false, message: "No response after 24h – needs attention" };
-  return { state: "ok" as const, hours: since, canRequestAnother: false, message: responded ? "Coordinating a time" : "Awaiting electrician response" };
+  if (a.cannot_attend_at) return { state: "exception" as const, hours: since, canRequestAnother: true, message: "Electrician can't attend in time — request another electrician" };
+  if (since >= SLA_BREACH_H) return { state: "exception" as const, hours: since, canRequestAnother: true, message: responded ? "No booking agreed after 48 hours — request another electrician" : "No response after 48 hours — request another electrician" };
+  if (since >= SLA_WARN_H && !responded) return { state: "attention" as const, hours: since, canRequestAnother: false, message: "No response for 24 hours — HI VIC is monitoring this" };
+  return { state: "ok" as const, hours: since, canRequestAnother: false, message: responded ? "Agreeing a time" : "Waiting for electrician" };
+}
+
+/**
+ * Assessment visits have ONE normal scheduling path: proposals accepted in AppointmentPanel.
+ * A direct assessment booking is an admin-only override and needs a reason (audited).
+ * Rectification/installation direct bookings keep their existing rules.
+ */
+export function directBookingBlocker(kind: "assessment" | "rectification" | "installation", role: string, overrideReason?: string | null): string | null {
+  if (kind !== "assessment") return null;
+  if (role !== "admin") return "Assessment visits are arranged by proposing a time and having the other party accept it.";
+  if (!overrideReason || overrideReason.trim().length < 5) return "An admin override needs a reason (at least 5 characters).";
+  return null;
+}
+
+/**
+ * Owner/installer electrician reassignment route. `release` removes the electrician immediately
+ * (only after 48h without a booking or when they said they can't attend); otherwise the request goes to HI VIC review
+ * and the electrician stays assigned.
+ */
+export function electricianReassignmentRoute(role: string, sla: { canRequestAnother: boolean }): "release" | "review" {
+  if (role === "admin") return "release";
+  return sla.canRequestAnother ? "release" : "review";
 }
 
 export type Proposal = { id: string; status: string; proposer_role: string; starts_at: string };
