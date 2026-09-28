@@ -47,7 +47,7 @@ async function evaluateStored(j: StoredJob, jobId: string) {
   const facts = resolveGate1Facts(j.properties as StoredProperty | null, {
     lifeSupportStatus: j.life_support_status,
     preliminaryOutcome: j.eligibility_decision_source === "preliminary" ? j.eligibility_outcome : null,
-  }, ws?.min_building_age_years ?? 2, year, (intel ?? []) as IntelFact[]);
+  }, ws?.min_building_age_years ?? 5, year, (intel ?? []) as IntelFact[]);
   return { facts, d: evaluateGate1(facts) };
 }
 

@@ -123,7 +123,7 @@ describe("autoAdvance", () => {
 });
 
 import { evaluateGate1, type Gate1Facts } from "../src/lib/eligibility.core";
-const g: Gate1Facts = { state: "VIC", postcode: "3056", occupancy: "owner_occupied", isResidential: true, yearBuilt: 1990, yearBuiltVerified: true, minBuildingAgeYears: 2, lifeSupportStatus: "no", previousCeilingUpgrade: false, flatRoofOrAccessConcern: false, preliminaryOutcome: null, currentYear: 2026 };
+const g: Gate1Facts = { state: "VIC", postcode: "3056", occupancy: "owner_occupied", isResidential: true, yearBuilt: 1990, yearBuiltVerified: true, minBuildingAgeYears: 5, lifeSupportStatus: "no", previousCeilingUpgrade: false, flatRoofOrAccessConcern: false, preliminaryOutcome: null, currentYear: 2026 };
 describe("Gate 1 auto-decision", () => {
   test("clear facts auto-pass", () => expect(evaluateGate1(g).outcome).toBe("likely_eligible"));
   test("hard rules auto-fail", () => {
