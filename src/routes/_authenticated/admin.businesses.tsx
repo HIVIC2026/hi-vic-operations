@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
-import { BusinessProfile } from "@/components/portal/business";
+import { BusinessProfile, MeasurementStandardCard } from "@/components/portal/business";
 import { useAction } from "@/hooks/use-me";
 import { runPartnerExpirySweep, saveBusiness } from "@/lib/pilot.functions";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ function Businesses() {
       </div>
       <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
         <div className="space-y-2">
+          <MeasurementStandardCard />
           <div className="rounded-xl border bg-card p-3">
             <Input placeholder="New business name" value={name} onChange={(e) => setName(e.target.value)} />
             <div className="mt-2 flex gap-2"><select className="h-10 flex-1 rounded border bg-background px-2 text-sm" value={type} onChange={(e) => setType(e.target.value as typeof type)}><option value="eec_installer">Installer</option><option value="rec">Electrician / REC</option></select>
