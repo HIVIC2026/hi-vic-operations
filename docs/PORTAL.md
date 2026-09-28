@@ -171,3 +171,7 @@ Workflow: enquiry → eligibility → assessment booking → PIESA + measure-up 
 - Statuses: draft → consumer_signed_pending_install → installer_signed_pending_install / final_details_pending → effective_complete; variation_required when installer/product/area (>5%)/price (>$1)/scope changes – customer reconfirms.
 - Scheduling needs a signed acceptance; Ready for VEEC needs effective_complete.
 - Official wording is pasted and approved by an admin at /admin/compliance (versioned, immutable). Nothing is signable until approved. Retention: 7 years.
+
+## Pipeline lanes & auto-progression
+Board lanes group detailed stages (`PIPELINE_PHASES`): Enquiries · Site assessment · Quote & approval · Deposit · Rectification · Installation · Evidence/AP/VEEC · Complete; On hold/Cancelled are a separate toggle. Cards keep the exact stage, next action and a "Waiting on" signal.
+`autoAdvanceJob` runs after every state-changing action and on Pipeline load (`autoAdvancePipeline`, portal state only). Always manual: eligibility decision, choosing electrician/installer, customer quote acceptance, measure-up review, AP/compliance judgement, deposit override, VEEC data entry.
