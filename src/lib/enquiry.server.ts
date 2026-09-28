@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
-import { PRELIM_STAGE_ALLOWED_FROM, preliminaryEligibilityFields } from "./enquiry.core";
+import { planBase44Job } from "./enquiry.core";
 
 export const enquirySchema = z.object({
   external_enquiry_id: z.string().min(1).max(100).optional(),
@@ -20,6 +20,9 @@ export const enquirySchema = z.object({
   eligibility_outcome: z.enum(["likely_eligible", "needs_onsite_confirmation", "does_not_appear_eligible"]).optional().nullable(),
   eligibility_reason: z.string().trim().max(2000).optional().nullable(),
   source_reference: z.string().trim().max(100).optional().nullable(),
+  life_support_status: z.enum(["yes", "no", "unknown"]).optional().nullable(),
+  preliminary_outcome: z.enum(["likely_eligible", "needs_onsite_confirmation", "does_not_appear_eligible"]).optional().nullable(),
+  preliminary_reasons: z.array(z.string().max(500)).max(20).optional().nullable(),
 });
 export type EnquiryInput = z.infer<typeof enquirySchema>;
 
@@ -53,23 +56,16 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     estimated_area_unknown: input.area_unknown ?? input.estimated_area_m2 == null,
     life_support: input.life_support ?? false,
   };
-  // Preliminary eligibility is accepted only from the signed Base44 webhook, never from portal/installer intake.
-  const prelim = source === "base44" ? preliminaryEligibilityFields(input.eligibility_outcome, input.eligibility_reason) : null;
-  const prelimDetails = { external_enquiry_id: input.external_enquiry_id ?? null, source_reference: input.source_reference ?? null, eligibility_outcome: input.eligibility_outcome ?? null, preliminary: true };
+  // Preliminary eligibility / life-support status are accepted only from the signed Base44 webhook.
+  const plan = source === "base44" ? planBase44Job(input, existingJob ? { stage: existingJob.stage } : null) : null;
 
   if (existingJob) {
     await admin.from("properties").update(propFields).eq("id", existingJob.property_id);
-    let update: TablesUpdate<"jobs"> = { ...jobFields };
-    let moved = false;
-    if (prelim) {
-      const { stage, ...rest } = prelim;
-      update = { ...update, ...rest };
-      if ((PRELIM_STAGE_ALLOWED_FROM as readonly string[]).includes(existingJob.stage) && existingJob.stage !== stage) { update.stage = stage; moved = true; }
-    }
+    const update = { ...jobFields, ...(plan?.patch ?? {}), ...(plan?.moveTo ? { stage: plan.moveTo } : {}) } as TablesUpdate<"jobs">;
     const { error: ue } = await admin.from("jobs").update(update).eq("id", existingJob.id);
     if (ue) throw new Error(ue.message);
-    await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, prelimDetails,
-      moved ? { from: existingJob.stage, to: "eligibility_review" } : {});
+    await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, plan?.details ?? {},
+      plan?.moveTo ? { from: existingJob.stage as never, to: plan.moveTo } : {});
     return { job_id: existingJob.id, job_number: existingJob.job_number, created: false };
   }
   const { data: prop, error: pe } = await admin.from("properties").insert(propFields).select("id").single();
@@ -78,7 +74,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     .from("jobs")
     .insert({
       ...jobFields, property_id: prop.id, owner_id: owner!.id, source, external_enquiry_id: input.external_enquiry_id ?? null, next_action: "Review eligibility",
-      ...(prelim ?? {}),
+      ...((plan ? { ...plan.patch, stage: "eligibility_review" } : {}) as TablesUpdate<"jobs">),
       business_unit: "hivic", // explicit: this portal only creates Home Insulation Victoria jobs
       channel: origin.channel,
       ...(origin.channel === "installer_sourced"
@@ -88,11 +84,13 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     .select("id, job_number")
     .single();
   if (je) throw new Error(je.message);
-  await logEvent(job.id, actorId, "enquiry_received", `Enquiry received (${source})`, prelimDetails, { to: "new_enquiry" });
-  if (prelim) {
+  await logEvent(job.id, actorId, "enquiry_received", `Enquiry received (${source})`, plan?.details ?? {}, { to: "new_enquiry" });
+  if (plan) {
     await logEvent(job.id, actorId, "preliminary_eligibility_recorded",
-      `Website preliminary eligibility: ${prelim.eligibility_outcome.replace(/_/g, " ")} (admin confirmation required)`, prelimDetails,
-      { from: "new_enquiry", to: "eligibility_review" });
+      plan.outcome
+        ? `Website preliminary result: ${plan.outcome.replace(/_/g, " ")} (Gate 1 admin review required)`
+        : "Website enquiry received without a preliminary result (Gate 1 admin review required)",
+      plan.details, { from: "new_enquiry", to: "eligibility_review" });
   }
   await logEvent(job.id, actorId, "job_source_recorded",
     origin.channel === "installer_sourced" ? "Job source: Installer-sourced (attribution locked)" : "Job source: HI VIC-sourced",
