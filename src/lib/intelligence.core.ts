@@ -122,9 +122,9 @@ export function parseZone(fc: FC): Fact[] {
 // ---------- Ceiling area source hierarchy ----------
 export type AreaTier = "A" | "B" | "C" | "D" | "E" | "F";
 export const TIER_LABEL: Record<AreaTier, string> = {
-  A: "Partner/imported measured ceiling area", B: "Sourced floor plan", C: "Verified building footprint", D: "Sourced listing floor area", E: "Aerial/manual geometry", F: "Owner estimate",
+  A: "Partner/imported measured ceiling area", B: "Sourced floor plan", C: "Verified building footprint", D: "Sourced listing floor area", E: "Building ground footprint estimate (aerial/Solar)", F: "Owner estimate",
 };
-export const TIER_CONFIDENCE: Record<AreaTier, Confidence> = { A: "very_high", B: "high", C: "medium", D: "low", E: "low", F: "low" };
+export const TIER_CONFIDENCE: Record<AreaTier, Confidence> = { A: "very_high", B: "high", C: "medium", D: "low", E: "medium", F: "low" };
 const RANK: Record<AreaTier, number> = { A: 6, B: 5, C: 4, D: 3, E: 2, F: 1 };
 export type AreaEstimate = { id?: string; tier: AreaTier; net_m2: number | null; created_at?: string; method?: string };
 /** A candidate may only replace the current estimate if it is from an equal-or-stronger tier. */
@@ -141,12 +141,12 @@ export const PARCEL_AREA_IS_NEVER_CEILING_AREA = true;
 // ---------- Age evidence ----------
 export type AgeStatus = "strong_over_5y" | "supporting_over_5y" | "recent_under_5y" | "unknown";
 /** Age status from a sourced date. Only 'historical_imagery_same_footprint' or partner/direct records are strong; listings are supporting only. */
-export function ageStatusFor(e: { date: string | null; kind: "historical_imagery_same_footprint" | "direct_record" | "listing_year_built" | "none" }, referenceDate: string): AgeStatus {
+export function ageStatusFor(e: { date: string | null; kind: "historical_imagery_same_footprint" | "direct_record" | "listing_year_built" | "imagery_building_detected" | "none" }, referenceDate: string): AgeStatus {
   if (!e.date || e.kind === "none") return "unknown";
   const ref = new Date(referenceDate); const d = new Date(e.date);
   const fiveBefore = new Date(ref); fiveBefore.setFullYear(ref.getFullYear() - 5);
   const older = d <= fiveBefore;
-  if (e.kind === "listing_year_built") return older ? "supporting_over_5y" : "unknown"; // listing year cannot prove "recent" for the relevant ceiling either
+  if (e.kind === "listing_year_built" || e.kind === "imagery_building_detected") return older ? "supporting_over_5y" : "unknown"; // listing year cannot prove "recent" for the relevant ceiling either
   if (older) return "strong_over_5y";
   return e.kind === "direct_record" ? "recent_under_5y" : "unknown";
 }
@@ -186,6 +186,7 @@ export function recommendGate1(i: Gate1Input): Recommendation {
   const strongRes = (i.nccClass.direct && (i.nccClass.value === "class1" || i.nccClass.value === "class2_sou")) || i.residentialLikelihood === "high";
   if (!strongRes) review.push(i.residentialLikelihood === "medium" ? "Residential zoning is an indicator only – NCC class not proven" : "Residential / NCC class not evidenced");
   if (i.ageStatus === "unknown") review.push("Ceiling age (> 5 years) not evidenced");
+  else if (i.ageStatus === "supporting_over_5y") review.push("Ceiling age supported only by listing/imagery date – needs direct evidence");
   if (i.recentExtensionRisk !== "no") review.push(i.recentExtensionRisk === "yes" ? "Recent extension / added storey risk" : "Recent extension / added storey risk unknown");
   if (i.roofForm === "low_slope_flat" || i.roofForm === "mixed") review.push("Flat / low-slope or mixed roof – confirm cavity or exposed roof onsite (not a disqualifier)");
   else if (i.roofForm === "unknown") review.push("Roof form unknown");
@@ -200,7 +201,7 @@ export function gate1InputFromFacts(facts: Fact[], referenceDate: string): Gate1
   const v = (k: string) => facts.find((f) => f.key === k);
   const val = <T,>(k: string, d: T): T => (v(k)?.value ?? d) as T;
   const age = v("age_evidence");
-  const ageVal = (age?.value ?? null) as { date: string | null; kind: "historical_imagery_same_footprint" | "direct_record" | "listing_year_built" | "none" } | null;
+  const ageVal = (age?.value ?? null) as { date: string | null; kind: "historical_imagery_same_footprint" | "direct_record" | "listing_year_built" | "imagery_building_detected" | "none" } | null;
   const ncc = v("ncc_class_evidence");
   return {
     addressVerified: (v("address_verified")?.value as boolean | undefined) ?? null,

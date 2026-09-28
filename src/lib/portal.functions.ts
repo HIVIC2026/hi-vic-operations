@@ -1128,6 +1128,28 @@ export const runPropertyIntelligenceFn = createServerFn({ method: "POST" }).midd
     return { status: r?.status ?? "error", outcome: r?.recommendation?.outcome ?? null };
   });
 
+export const getProviderHealth = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { providerConfigFromEnv, providerStatuses } = await import("./providers.gather");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: last } = await supabaseAdmin.from("property_intelligence_runs").select("id").eq("job_id", data.jobId).order("started_at", { ascending: false }).limit(1).maybeSingle();
+    const { data: checks } = last ? await supabaseAdmin.from("property_source_checks").select("source_key, status, error").eq("run_id", last.id) : { data: [] };
+    return providerStatuses(providerConfigFromEnv(process.env as Record<string, string | undefined>), checks ?? []);
+  });
+
+export const floorplanLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: fp } = await supabaseAdmin.from("property_floorplans").select("storage_path, storage_policy").eq("id", data.id).single();
+    if (!fp?.storage_path || fp.storage_policy !== "store_permitted") throw new WorkflowError("This floor plan is not stored in the portal – the licence setting does not permit copying.");
+    const { data: s } = await supabaseAdmin.storage.from("job-files").createSignedUrl(fp.storage_path, 300);
+    return { url: s?.signedUrl ?? null };
+  });
+
 export const markIntelligenceReviewed = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, note: z.string().trim().min(3).max(2000) }).parse(d))
   .handler(async ({ data, context }) => {
