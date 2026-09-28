@@ -13,6 +13,7 @@ const check = (n: string, ok: boolean, info = "") => { R.push([n, ok, info]); co
 const OWNER = "00000000-0000-0000-0000-00000000f006", ADMIN = "36b849de-1cde-425c-a05d-623f8985bbd6", INST = "c5cb2a3d-06c1-49b6-877f-39f7944ad710", ELEC = "97364af5-17da-43c6-93aa-372fda5b597f";
 
 // ---- fake Xero ----
+const RUN = Date.now().toString(36);
 const X = { contacts: [{ ContactID: "FAKE-C1", Name: "Daniel Rossi", EmailAddress: "" }] as any[], invoices: [] as any[], posts: [] as any[], amountPaid: 0 };
 const fake: XeroCall = async (path, init = {}) => {
   const m = init.method ?? "GET"; const p = decodeURIComponent(path);
@@ -24,7 +25,7 @@ const fake: XeroCall = async (path, init = {}) => {
   if (p === "/api.xro/2.0/Invoices" && m === "POST") {
     const key = init.headers?.["Idempotency-Key"]; const prior = X.invoices.find((i) => i._key === key);
     if (prior) return { Invoices: [prior] };
-    const i = { InvoiceID: `FAKE-I${X.invoices.length + 1}`, InvoiceNumber: `FAKE-${X.invoices.length + 1}`, Status: "AUTHORISED", _key: key, ...init.body.Invoices[0] }; X.invoices.push(i); return { Invoices: [i] };
+    const i = { InvoiceID: `FAKE-${RUN}-I${X.invoices.length + 1}`, InvoiceNumber: `FAKE-${X.invoices.length + 1}`, Status: "AUTHORISED", _key: key, ...init.body.Invoices[0] }; X.invoices.push(i); return { Invoices: [i] };
   }
   const g = /^\/api\.xro\/2\.0\/Invoices\/(.+)$/.exec(p);
   if (g && m === "GET") { const i = X.invoices.find((v) => v.InvoiceID === g[1]); return { Invoices: [{ ...i, AmountPaid: X.amountPaid, Payments: X.amountPaid ? [{ Date: "/Date(1790000000000)/", Amount: X.amountPaid }] : [] }] }; }
@@ -64,7 +65,7 @@ check("S3 payload lines once + VEEC negative", P.LineItems.length === 4 && P.Lin
 check("S3 totals exact, Inclusive, reference, tracking", sum === total && P.LineAmountTypes === "Inclusive" && P.Reference === `HI VIC ${job!.job_number}` && P.LineItems.every((l: any) => l.Tracking?.[0]?.Name === "Projects" && l.Tracking[0].Option === "Home Insulation Victoria"), `sum=${sum} ref=${P.Reference}`);
 check("S3 existing contact reused", P.Contact.ContactID === "FAKE-C1" || X.contacts.length === 2, `contacts=${X.contacts.length}`);
 ({ data: invs } = await db.from("invoices").select("*").eq("job_id", J));
-check("S3 linked, due date = acceptance date before install", invs![0].xero_invoice_id === "FAKE-I1" && P.DueDate === invs![0].deposit_due_date && invs![0].balance_due_date === null);
+check("S3 linked, due date = acceptance date before install", invs![0].xero_invoice_id === X.invoices[0]?.InvoiceID && P.DueDate === invs![0].deposit_due_date && invs![0].balance_due_date === null);
 
 // 4 deposit request flag
 const blk = async (to: any) => stageEntryBlockers(J, to);
@@ -118,7 +119,7 @@ check("S11 remaining = total - paid, due = install date", Math.round((ov!.total_
 await pushInvoiceToXero(I, ADMIN, fake); await syncInvoiceFromXero(I, ADMIN, fake);
 await db.from("invoices").update({ xero_invoice_id: null }).eq("id", I); await pushInvoiceToXero(I, ADMIN, fake); // lost link → lookup by reference
 ({ data: invs } = await db.from("invoices").select("*").eq("job_id", J));
-check("S13 retries: 1 fake Xero invoice, 1 contact, 1 POST, relinked", X.invoices.length === 1 && X.contacts.length === 1 && X.posts.filter((p) => p.path === "/api.xro/2.0/Invoices").length === 1 && invs![0].xero_invoice_id === "FAKE-I1");
+check("S13 retries: 1 fake Xero invoice, 1 contact, 1 POST, relinked", X.invoices.length === 1 && X.contacts.length === 1 && X.posts.filter((p) => p.path === "/api.xro/2.0/Invoices").length === 1 && invs![0].xero_invoice_id === X.invoices[0]?.InvoiceID);
 // 14 override
 let threw = false; try { buildDepositOverride(invs![0] as any, "", ADMIN, "x"); } catch { threw = true; }
 await db.from("invoices").update({ deposit_paid_at: null, total_paid: 0, status: "deposit_due" }).eq("id", I);
