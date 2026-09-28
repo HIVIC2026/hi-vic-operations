@@ -602,7 +602,7 @@ export const acceptOwnerAuthority = auth()
   .handler(async ({ data, context }) => {
     // Only the owner themself may give authority.
     await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["owner"]);
-    const { ip, userAgent } = requestMeta();
+    const { ip, userAgent } = await requestMeta();
     await acceptAuthority({ authorityId: data.authorityId, actorId: context.userId, over18: data.over18, authorised: data.authorised, assistance: data.assistance, signatureName: data.signatureName, ip, userAgent });
     return { ok: true };
   });
