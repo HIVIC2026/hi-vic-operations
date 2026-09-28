@@ -6,8 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAction } from "@/hooks/use-me";
 import {
   acceptOwnerAuthority, confirmEvidenceUpload, createBooking, declineOwnerAuthority, getAuthorityDocUrl, getEvidenceUrl, getInvoiceInternals,
-  getJobBlockers, overrideDepositGate, requestEvidenceUpload, requestOwnerAuthority, respondToQuote, retryXeroPush, revokeOwnerAuthority,
-  sendMessage, simulateXeroPayment, cancelBooking, syncInvoice, verifyEvidence, viewOwnerAuthority,
+  getJobBlockers, overrideDepositGate, requestEvidenceUpload, requestOwnerAuthority, respondToQuote, revokeOwnerAuthority,
+  sendMessage, cancelBooking, syncInvoice, verifyEvidence, viewOwnerAuthority,
 } from "@/lib/portal.functions";
 import { EVIDENCE_STATUS_LABEL, STAGE_LABEL, aud, fmtDate, fmtDateTime } from "@/lib/workflow";
 import { ASSISTANCE_LABEL } from "@/lib/authority";
@@ -256,9 +256,7 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
 // ---------------- Payments ----------------
 export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: boolean }) {
   const sync = useAction(syncInvoice);
-  const retry = useAction(retryXeroPush);
   const override = useAction(overrideDepositGate);
-  const simulate = useAction(simulateXeroPayment);
   const internalsFn = useServerFn(getInvoiceInternals);
   const { data } = useQuery({
     queryKey: ["invoices", jobId],
@@ -301,7 +299,6 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" disabled={!!x?.sync_lock_at && Date.now() - Date.parse(x.sync_lock_at) < 120000} onClick={() => sync({ invoiceId: i.id! }, "Xero sync finished")}>{x?.xero_invoice_id ? "Sync with Xero" : "Send to Xero (safe retry)"}</Button>
                   {!i.deposit_cleared && <Button size="sm" variant="outline" onClick={() => { const r = prompt("Reason for overriding the deposit gate (required, permanently audited)"); if (r) override({ invoiceId: i.id!, reason: r }, "Override recorded"); }}>Override deposit gate</Button>}
-                  {!x?.xero_invoice_id && x?.last_synced_at === undefined && <Button size="sm" variant="ghost" onClick={() => { const a = prompt("TESTING ONLY (Xero not connected): total amount paid", String(i.deposit_amount)); if (a) simulate({ invoiceId: i.id!, amountPaid: Number(a) }, "Payment applied"); }}>Simulate payment (test)</Button>
                 </div>
               )}
             </div>
