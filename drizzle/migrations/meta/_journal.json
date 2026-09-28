@@ -8,6 +8,13 @@
       "when": 1790570552201,
       "tag": "0000_hivic_core_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790571282882,
+      "tag": "0001_payments_xero",
+      "breakpoints": true
     }
   ]
 }
