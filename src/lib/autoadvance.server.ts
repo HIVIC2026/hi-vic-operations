@@ -57,9 +57,9 @@ export async function autoAdvanceJob(jobId: string, actorId: string | null, _rea
         const { advanceSiteRequirements } = await import("./requirements.server");
         const pre = await stageEntryBlockers(jobId, "assessment_complete");
         if (pre.length) return false;
-        return (await advanceSiteRequirements(jobId, actorId)).advanced;
+        return (await advanceSiteRequirements(jobId, actorId as string)).advanced;
       },
-      generateQuotes: () => generateInstallerQuotes(jobId, actorId).then(() => undefined),
+      generateQuotes: () => generateInstallerQuotes(jobId, actorId as string).then(() => undefined),
     }, opts);
   } catch (e) {
     if (e instanceof WorkflowError) return null;
