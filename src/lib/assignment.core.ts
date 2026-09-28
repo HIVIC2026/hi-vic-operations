@@ -2,12 +2,14 @@
 // Official declaration / consumer-rights wording is NEVER defined here: it comes from versioned,
 // admin-approved compliance_templates rows. Missing wording = configuration blocker.
 
+import type { Json } from "@/integrations/supabase/types";
+
 export type AssignmentStatus =
   | "draft" | "consumer_signed_pending_install" | "final_details_pending" | "installer_signed_pending_install"
   | "variation_required" | "effective_complete" | "cancelled";
 
 export type TemplateKey = "consumer_declaration" | "consumer_rights" | "esc_consent" | "installer_declaration" | "ap_declaration";
-export type Template = { template_key: string; version: string; body: string; approved: boolean; is_active: boolean; required: boolean; form_fields?: unknown };
+export type Template = { template_key: string; version: string; body: string; approved: boolean; is_active: boolean; required: boolean; form_fields?: Json };
 
 /** Structured field an electronic form renders. Defined per template version by admin; never free-typed wording. */
 export type FormField = { key: string; label: string; type: "text" | "number" | "date" | "select" | "checkbox"; required: boolean; options?: string[]; help?: string };
