@@ -1,0 +1,2 @@
+ALTER TABLE public.compliance_templates DROP CONSTRAINT compliance_templates_template_key_check;
+ALTER TABLE public.compliance_templates ADD CONSTRAINT compliance_templates_template_key_check CHECK (template_key = ANY (ARRAY['consumer_declaration'::text, 'consumer_rights'::text, 'esc_consent'::text, 'installer_declaration'::text, 'ap_declaration'::text]));

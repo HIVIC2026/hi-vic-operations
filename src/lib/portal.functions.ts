@@ -473,7 +473,7 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
     quoteId: uuid, accept: z.boolean(), consent: z.boolean().optional(), reason: z.string().max(1000).optional(),
     signing: z.object({
       signatoryName: z.string().trim().min(2).max(200), authorityType: z.enum(["owner", "authorised_representative"]), over18: z.boolean(),
-      readConsumerInfo: z.boolean(), acceptDeclaration: z.boolean(), acceptAssignment: z.boolean(), signatureName: z.string().trim().max(200),
+      readConsumerInfo: z.boolean(), acceptDeclaration: z.boolean(), acceptAssignment: z.boolean(), acceptEscConsent: z.boolean().optional(), signatureName: z.string().trim().max(200),
       assistance: z.enum(["none", "interpreter", "support_understanding", "both"]),
     }).optional(),
   }).parse(d))
@@ -624,13 +624,22 @@ export const createBooking = createServerFn({ method: "POST" }).middleware([requ
     if (data.kind === "installation") {
       const blocked = installationDateBlocker(await piesaStatus(data.jobId), data.start);
       if (blocked) throw new WorkflowError(blocked);
+      const { bookingLeadBlocker } = await import("./esc.core");
+      const lead = bookingLeadBlocker(data.start, new Date().toISOString());
+      if (lead) throw new WorkflowError(lead);
     }
     if (data.kind !== "assessment") { const cb = await commercialBlocker(data.jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
     if (data.kind !== "assessment" && !(await depositCleared(data.jobId)))
       throw new WorkflowError("Blocked: the 50% deposit has not been paid.");
     await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", data.jobId).eq("kind", data.kind).in("status", ["proposed", "confirmed"]);
     await admin.from("bookings").insert({ job_id: data.jobId, kind: data.kind, contractor_id: contractor.user_id, scheduled_start: data.start, booked_by: context.userId, notes: data.notes ?? null, status: "confirmed" });
-    if (data.kind === "installation") await setInstallDueDate(data.jobId, data.start, context.userId);
+    if (data.kind === "installation") {
+      await setInstallDueDate(data.jobId, data.start, context.userId);
+      const { regenerateEscNotification } = await import("./esc.server");
+      await regenerateEscNotification(data.jobId, context.userId);
+      const { reevaluateIntelligence } = await import("./intelligence.server");
+      await reevaluateIntelligence(data.jobId, context.userId, "installation date set");
+    }
     const when = new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
     if (stage === target) await logEvent(data.jobId, context.userId, "booking_rescheduled", `${data.kind} rescheduled to ${when} by ${role}`);
     else await transition(data.jobId, target, context.userId, `${data.kind.charAt(0).toUpperCase() + data.kind.slice(1)} booked for ${when} by ${role}`);
@@ -646,7 +655,11 @@ export const cancelBooking = createServerFn({ method: "POST" }).middleware([requ
     const { data: rows } = await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", data.jobId).eq("kind", data.kind).in("status", ["proposed", "confirmed"]).select("id");
     if (!rows?.length) throw new WorkflowError(`No active ${data.kind} booking to cancel.`);
     await logEvent(data.jobId, context.userId, "booking_cancelled", `${data.kind} booking cancelled: ${data.reason}`, { booking_ids: rows.map((r) => r.id) });
-    if (data.kind === "installation") await clearInstallDueDate(data.jobId, context.userId);
+    if (data.kind === "installation") {
+      await clearInstallDueDate(data.jobId, context.userId);
+      const { regenerateEscNotification } = await import("./esc.server");
+      await regenerateEscNotification(data.jobId, context.userId);
+    }
     return { ok: true };
   });
 
@@ -959,7 +972,7 @@ export const getAcceptancePackage = createServerFn({ method: "POST" }).middlewar
     await requireJobRole(context.supabase, q.job_id, ["owner", "admin"]);
     const templates = await loadTemplates();
     const pick = (k: TemplateKey) => templates.find((t) => t.template_key === k && t.approved) ?? null;
-    return { pkg: await buildAcceptancePackage(data.quoteId), consumerDeclaration: pick("consumer_declaration"), consumerRights: pick("consumer_rights"), blockers: templateBlockers(templates, "consumer") };
+    return { pkg: await buildAcceptancePackage(data.quoteId), consumerDeclaration: pick("consumer_declaration"), consumerRights: pick("consumer_rights"), escConsent: pick("esc_consent"), blockers: templateBlockers(templates, "consumer") };
   });
 
 export const getAssignment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -1028,7 +1041,7 @@ export const listComplianceTemplates = createServerFn({ method: "POST" }).middle
 });
 
 export const addComplianceTemplate = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ template_key: z.enum(["consumer_declaration", "consumer_rights", "installer_declaration", "ap_declaration"]), version: z.string().trim().min(1).max(50), body: z.string().trim().min(20).max(50000), source_note: z.string().max(1000).optional(), required: z.boolean().default(true) }).parse(d))
+  .inputValidator((d) => z.object({ template_key: z.enum(["consumer_declaration", "consumer_rights", "esc_consent", "installer_declaration", "ap_declaration"]), version: z.string().trim().min(1).max(50), body: z.string().trim().min(20).max(50000), source_note: z.string().max(1000).optional(), required: z.boolean().default(true) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { error } = await admin.from("compliance_templates").insert({ ...data, source_note: data.source_note ?? null, created_by: context.userId });
@@ -1045,5 +1058,88 @@ export const approveComplianceTemplate = createServerFn({ method: "POST" }).midd
     await admin.from("compliance_templates").update({ is_active: false }).eq("template_key", t.template_key).eq("is_active", true);
     const { error } = await admin.from("compliance_templates").update({ approved: true, approved_by: context.userId, approved_at: new Date().toISOString(), is_active: true }).eq("id", data.id);
     if (error) throw new WorkflowError(error.message);
+    return { ok: true };
+  });
+
+
+// ---------- Gate 1 Property Intelligence (information only) ----------
+export const runPropertyIntelligenceFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { runPropertyIntelligence } = await import("./intelligence.server");
+    const r = await runPropertyIntelligence(data.jobId, context.userId, "admin_rerun");
+    return { status: r?.status ?? "error", outcome: r?.recommendation?.outcome ?? null };
+  });
+
+export const markIntelligenceReviewed = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, note: z.string().trim().min(3).max(2000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    await logEvent(data.jobId, context.userId, "property_intelligence_reviewed", `Admin reviewed property evidence: ${data.note}`, {}, { internal: true });
+    return { ok: true };
+  });
+
+// ---------- ESC pre-install notification + PIESA delivery ----------
+export const getInstallReadiness = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, data.jobId, ["admin", "installer", "electrician"]);
+    const { installReadiness } = await import("./esc.server");
+    return installReadiness(data.jobId);
+  });
+
+export const recordPiesaDelivery = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, recipient: z.enum(["owner", "installer"]), deliveredAt: z.string().datetime({ offset: true }), method: z.enum(["portal", "email", "in_person", "post"]), documentId: uuid.optional(), notes: z.string().max(1000).optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    if (new Date(data.deliveredAt).getTime() > Date.now() + 60_000) throw new WorkflowError("Delivery time cannot be in the future.");
+    const { data: cur } = await admin.from("piesa_records").select("id").eq("job_id", data.jobId).eq("is_current", true).maybeSingle();
+    if (!cur) throw new WorkflowError("No current PIESA record to deliver.");
+    await admin.from("piesa_deliveries").insert({ job_id: data.jobId, piesa_record_id: cur.id, recipient: data.recipient, delivered_at: data.deliveredAt, method: data.method, document_id: data.documentId ?? null, notes: data.notes ?? null, recorded_by: context.userId });
+    await logEvent(data.jobId, context.userId, "piesa_copy_delivered", `Signed PIESA copy delivered to ${data.recipient} (${data.method}) at ${data.deliveredAt}`, { piesa_record_id: cur.id });
+    return { ok: true };
+  });
+
+export const regenerateEscNotificationFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { regenerateEscNotification } = await import("./esc.server");
+    return { id: await regenerateEscNotification(data.jobId, context.userId) };
+  });
+
+export const submitEscNotification = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ notificationId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { submitEscViaAdapter } = await import("./esc.server");
+    await submitEscViaAdapter(data.notificationId, context.userId);
+    return { ok: true };
+  });
+
+export const recordEscSubmissionFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ notificationId: uuid, reference: z.string().trim().min(3).max(200), sentAt: z.string().datetime({ offset: true }), method: z.enum(["manual_portal", "manual_email"]), confirmed: z.literal(true) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { recordEscSubmission } = await import("./esc.server");
+    await recordEscSubmission({ ...data, actorId: context.userId });
+    return { ok: true };
+  });
+
+export const addEscConfig = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ version: z.string().trim().min(1).max(50), fields: z.array(z.object({ key: z.string().regex(/^[a-z0-9_]{2,60}$/), label: z.string().trim().min(2).max(200) })).max(50), source_note: z.string().trim().min(5).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    await admin.from("esc_notification_config").insert({ version: data.version, required_fields: data.fields, source_note: data.source_note, created_by: context.userId });
+    return { ok: true };
+  });
+
+export const approveEscConfig = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    await admin.from("esc_notification_config").update({ is_active: false }).eq("is_active", true);
+    await admin.from("esc_notification_config").update({ approved: true, approved_by: context.userId, approved_at: new Date().toISOString(), is_active: true }).eq("id", data.id);
     return { ok: true };
   });

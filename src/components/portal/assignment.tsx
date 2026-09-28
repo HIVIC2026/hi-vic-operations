@@ -42,6 +42,7 @@ export function AcceptanceFlow({ quoteId, onClose }: { quoteId: string; onClose:
   const [readInfo, setReadInfo] = useState(false);
   const [decl, setDecl] = useState(false);
   const [assign, setAssign] = useState(false);
+  const [escOk, setEscOk] = useState(false);
   const [assist, setAssist] = useState<keyof typeof ASSISTANCE_LABEL>("none");
   const [sig, setSig] = useState("");
   if (!data) return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -85,6 +86,8 @@ export function AcceptanceFlow({ quoteId, onClose }: { quoteId: string; onClose:
           <label className="flex items-start gap-3"><Checkbox className="mt-0.5 h-5 w-5" checked={over18} onCheckedChange={(v) => setOver18(!!v)} /> I am 18 years of age or older.</label>
           <label className="flex items-start gap-3"><Checkbox className="mt-0.5 h-5 w-5" checked={decl} onCheckedChange={(v) => setDecl(!!v)} /> I make the declarations above.</label>
           <label className="flex items-start gap-3"><Checkbox className="mt-0.5 h-5 w-5" checked={assign} onCheckedChange={(v) => setAssign(!!v)} /> I assign all rights to create VEECs from this Activity 48 job to {pkg.ap_legal_entity}. I understand this takes effect only once the installation has been completed.</label>
+          {data.escConsent ? <pre className="max-h-60 overflow-y-auto whitespace-pre-wrap rounded border p-3 leading-relaxed">{data.escConsent.body}</pre> : <p className="text-danger">ESC information-sharing consent wording not yet configured.</p>}
+          <label className="flex items-start gap-3"><Checkbox className="mt-0.5 h-5 w-5" checked={escOk} onCheckedChange={(v) => setEscOk(!!v)} /> I give my written consent to the information sharing described above.</label>
           <div><div className="mb-1 font-medium">Do you need any assistance?</div><div className="grid gap-2 sm:grid-cols-2">{(Object.keys(ASSISTANCE_LABEL) as (keyof typeof ASSISTANCE_LABEL)[]).map((k) => <Button key={k} size="field" variant={assist === k ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal" onClick={() => setAssist(k)}>{ASSISTANCE_LABEL[k]}</Button>)}</div></div>
         </div>
       )}
@@ -92,8 +95,8 @@ export function AcceptanceFlow({ quoteId, onClose }: { quoteId: string; onClose:
         <div className="space-y-3 text-sm">
           <p>Type your full name to sign. You'll get a signed copy straight away in Documents.</p>
           <Input className="h-12" value={sig} placeholder={pkg.consumer.name} onChange={(e) => setSig(e.target.value)} />
-          <Button size="field" className="w-full" disabled={data.blockers.length > 0 || sig.trim().length < 2 || !over18 || !decl || !assign || !readInfo}
-            onClick={async () => { await respond({ quoteId, accept: true, consent: true, signing: { signatoryName: authorityType === "owner" ? pkg.consumer.name : sig, authorityType, over18, readConsumerInfo: readInfo, acceptDeclaration: decl, acceptAssignment: assign, signatureName: sig, assistance: assist } }, "Signed – your deposit invoice is on its way"); onClose(); }}>
+          <Button size="field" className="w-full" disabled={data.blockers.length > 0 || sig.trim().length < 2 || !over18 || !decl || !assign || !readInfo || !escOk}
+            onClick={async () => { await respond({ quoteId, accept: true, consent: true, signing: { signatoryName: authorityType === "owner" ? pkg.consumer.name : sig, authorityType, over18, readConsumerInfo: readInfo, acceptDeclaration: decl, acceptAssignment: assign, acceptEscConsent: escOk, signatureName: sig, assistance: assist } }, "Signed – your deposit invoice is on its way"); onClose(); }}>
             Sign and accept – pay 50% deposit next
           </Button>
         </div>

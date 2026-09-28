@@ -1,3 +1,4 @@
+import { addressHash } from "./intelligence.core";
 import { z } from "zod";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -61,12 +62,15 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
   const plan = source === "base44" ? planBase44Job(input, existingJob ? { stage: existingJob.stage } : null) : null;
 
   if (existingJob) {
+    const { data: before } = await admin.from("properties").select("address_line, suburb, postcode").eq("id", existingJob.property_id).single();
     await admin.from("properties").update(propFields).eq("id", existingJob.property_id);
+    const addrChanged = !!before && addressHash(before.address_line, before.suburb, before.postcode) !== addressHash(propFields.address_line, propFields.suburb, propFields.postcode);
     const update = { ...jobFields, ...(plan?.patch ?? {}) } as TablesUpdate<"jobs">; // never changes stage
     const { error: ue } = await admin.from("jobs").update(update).eq("id", existingJob.id);
     if (ue) throw new Error(ue.message);
     await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, plan?.details ?? {});
     await runGate1(existingJob.id, actorId);
+    await afterEnquiry(existingJob.id, actorId, addrChanged ? "address changed" : null);
     return { job_id: existingJob.id, job_number: existingJob.job_number, created: false };
   }
   const { data: prop, error: pe } = await admin.from("properties").insert(propFields).select("id").single();
@@ -97,7 +101,24 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     origin.channel === "installer_sourced" ? "Job source: Installer-sourced (attribution locked)" : "Job source: HI VIC-sourced",
     origin.channel === "installer_sourced" ? { channel: origin.channel, originating_installer_business_id: origin.businessId, originating_installer_user_id: origin.userId, commercial_model: "not_configured" } : { channel: origin.channel });
   await runGate1(job.id, actorId);
+  await afterEnquiry(job.id, actorId, "new enquiry");
   return { job_id: job.id, job_number: job.job_number, created: true };
+}
+
+/** Property intelligence after the job is committed. Information only; failures never fail the enquiry. */
+async function afterEnquiry(jobId: string, actorId: string | null, reason: string | null) {
+  try {
+    const intel = await import("./intelligence.server");
+    const { data: p } = await admin.from("jobs").select("properties(address_line, suburb, postcode)").eq("id", jobId).single();
+    const pr = p?.properties as { address_line: string; suburb: string | null; postcode: string | null } | null;
+    if (reason === "address changed") await intel.markIntelligenceStale(jobId, "address changed");
+    const why = reason === "new enquiry" ? reason : pr ? await intel.needsRerun(jobId, addressHash(pr.address_line, pr.suburb, pr.postcode)) : null;
+    if (why) await intel.runPropertyIntelligence(jobId, actorId, why);
+    const { regenerateEscNotification } = await import("./esc.server");
+    await regenerateEscNotification(jobId, actorId); // owner/address change stales a prepared ESC notice
+  } catch (e) {
+    console.error("property intelligence failed", (e as Error).message);
+  }
 }
 
 /** Deterministic Gate 1 auto-decision + safe progression (never throws for workflow reasons). */

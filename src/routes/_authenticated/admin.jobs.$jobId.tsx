@@ -9,6 +9,7 @@ import { AdminAssignmentPanel, AssignmentStatusInline } from "@/components/porta
 import { AdminAuthorityPanel, BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, PaymentsPanel, QuotesPanel, Section, TimelinePanel, useJob } from "@/components/portal/panels";
 import { MittiCard, PriceItemForm } from "@/components/portal/mitti";
 import { RequirementCards } from "@/components/portal/requirements";
+import { EscInstallPanel, PropertyIntelligenceCard } from "@/components/portal/intelligence";
 
 const TABS: [string, string][] = [
   ["overview", "Overview"], ["eligibility", "Eligibility"], ["authority", "Owner Authority"], ["assessment", "Measure-up & Electrical"],
@@ -59,6 +60,7 @@ function JobDetail() {
         </TabsList>
         <TabsContent value="overview" className="grid gap-4 lg:grid-cols-2">
           <div className="lg:col-span-2"><RequirementCards jobId={jobId} isAdmin job={job} /></div>
+          <div className="lg:col-span-2"><PropertyIntelligenceCard jobId={jobId} /></div>
           <Section title="Status summary">
             <dl className="grid grid-cols-2 gap-1 text-sm">
               <dt className="text-muted-foreground">Acceptance / VEEC assignment</dt><dd><AssignmentStatusInline jobId={jobId} /></dd>
@@ -73,7 +75,7 @@ function JobDetail() {
           <Assignments jobId={jobId} />
           <HoldControls jobId={jobId} stage={job.stage!} />
         </TabsContent>
-        <TabsContent value="eligibility"><EligibilityForm jobId={jobId} /></TabsContent>
+        <TabsContent value="eligibility" className="space-y-4"><PropertyIntelligenceCard jobId={jobId} /><EligibilityForm jobId={jobId} /></TabsContent>
         <TabsContent value="authority" className="space-y-4"><AdminAssignmentPanel jobId={jobId} /><details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Legacy Owner Authority history (no longer a gate)</summary><div className="mt-3"><AdminAuthorityPanel jobId={jobId} /></div></details></TabsContent>
         <TabsContent value="assessment" className="space-y-4"><RequirementCards jobId={jobId} isAdmin job={job} /><BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /></TabsContent>
         <TabsContent value="piesa" className="space-y-4">
@@ -88,7 +90,7 @@ function JobDetail() {
         <TabsContent value="scheduling" className="grid gap-4 lg:grid-cols-3">
           <BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><BookingPanel jobId={jobId} kind="rectification" canBook isAdmin /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin />
         </TabsContent>
-        <TabsContent value="installation" className="space-y-4"><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /></TabsContent>
+        <TabsContent value="installation" className="space-y-4"><EscInstallPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /></TabsContent>
         <TabsContent value="evidence"><EvidencePanel jobId={jobId} role="admin" /></TabsContent>
         <TabsContent value="compliance"><Compliance jobId={jobId} /></TabsContent>
         <TabsContent value="veec"><Veec jobId={jobId} /></TabsContent>
