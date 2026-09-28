@@ -28,12 +28,12 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => data.session && navigate({ to: "/home" }));
+    supabase.auth.getSession().then(({ data }) => { if (data.session) navigate({ to: "/home" }); });
     const { data } = supabase.auth.onAuthStateChange((_e, s) => { if (s) navigate({ to: "/home" }); });
     return () => data.subscription.unsubscribe();
   }, [navigate]);
 
-    supabase.auth.getSession().then(({ data }) => { if (data.session) navigate({ to: "/home" }); });
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     const res =
@@ -41,7 +41,7 @@ function AuthPage() {
         ? await supabase.auth.signInWithPassword({ email, password })
         : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin + "/home", data: { full_name: name } } });
     setBusy(false);
-    if (res.error) return toast.error(res.error.message);
+    if (res.error) { toast.error(res.error.message); return; }
     if (mode === "up" && !res.data.session) toast.success("Check your email to confirm your account.");
   };
 
