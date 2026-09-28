@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAction } from "@/hooks/use-me";
-import { createEnquiry } from "@/lib/portal.functions";
+import { createEnquiry, sweepAuthorities } from "@/lib/portal.functions";
+import { useServerFn } from "@tanstack/react-start";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({ meta: [{ title: "Pipeline – HI VIC Portal" }, { name: "description", content: "HI VIC operational job pipeline." }, { property: "og:title", content: "Pipeline – HI VIC Portal" }, { property: "og:description", content: "HI VIC operational job pipeline." }] }),
@@ -22,23 +23,25 @@ export const Route = createFileRoute("/_authenticated/admin/")({
 function Pipeline() {
   const [q, setQ] = useState("");
   const [view, setView] = useState<"board" | "list">("board");
+  const sweep = useServerFn(sweepAuthorities);
   const { data: jobs = [] } = useQuery({
     queryKey: ["pipeline"],
-    queryFn: async () => (await supabase.from("job_overview").select("*").order("last_activity_at", { ascending: false })).data ?? [],
+    queryFn: async () => (await sweep().catch(() => null), await supabase.from("job_overview").select("*").order("last_activity_at", { ascending: false })).data ?? [],
   });
   const filtered = useMemo(() => {
     const s = q.toLowerCase();
     return jobs.filter((j) => !s || [j.job_number, j.property_address, j.owner_name, j.electrician_name, j.installer_name].some((v) => v?.toLowerCase().includes(s)));
   }, [jobs, q]);
   const byStage = (st: Stage) => filtered.filter((j) => j.stage === st);
-  const warnings = jobs.filter((j) => j.urgency === "red" || j.urgency === "expired" || j.payment_status === "overdue" || j.payment_status === "xero_sync_error").length;
+  const warnings = jobs.filter((j) => j.urgency === "red" || j.urgency === "expired" || j.payment_status === "overdue" || j.payment_status === "xero_sync_error" || (j.authority_status !== "accepted" && !["new_enquiry", "eligibility_review", "complete", "cancelled"].includes(j.stage ?? ""))).length;
+  const noAuth = jobs.filter((j) => j.authority_status !== "accepted" && !["new_enquiry", "eligibility_review", "complete", "cancelled"].includes(j.stage ?? "")).length;
 
   return (
     <AppShell wide>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Pipeline</h1>
-          <p className="text-sm text-muted-foreground">{jobs.length} jobs · {warnings} need attention</p>
+          <p className="text-sm text-muted-foreground">{jobs.length} jobs · {warnings} need attention · <span className="font-semibold text-danger">{noAuth} missing valid Owner Authority</span></p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search job, address, person" className="w-64 pl-8" /></div>

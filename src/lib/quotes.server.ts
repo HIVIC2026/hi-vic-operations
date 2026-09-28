@@ -91,6 +91,14 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
 
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]);
 
+  // Known rectification scope (owner-approved) is folded into every option so the single accepted
+  // total – and therefore the 50% deposit – covers the whole job. Lines stay itemised.
+  const { data: rectQuote } = await admin.from("quotes").select("id, quote_items(*)").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const rectLines = ((rectQuote?.quote_items ?? []) as { code: string | null; description: string; quantity: number; unit: string; unit_price_inc_gst: number; line_total_inc_gst: number; is_other: boolean; explanation: string | null }[])
+    .map((l) => ({ code: l.code, description: `Electrical rectification: ${l.description}`, quantity: Number(l.quantity), unit: l.unit, unit_price_inc_gst: Number(l.unit_price_inc_gst), line_total_inc_gst: Number(l.line_total_inc_gst), is_other: l.is_other, explanation: l.explanation }));
+  const rectTotal = r2(rectLines.reduce((a, l) => a + l.line_total_inc_gst, 0));
+  const gstMul = 1 + Number(settings.gst_rate);
+
   const created: string[] = [];
   for (const code of settings.installer_option_codes) {
     const product = byCode(code);
@@ -104,18 +112,22 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
       travel: byCode("TRAVEL") ?? null,
       settings: { ...settings, access_loadings: settings.access_loadings as Record<string, number> },
     });
+    const subtotal = r2(calc.subtotal_inc_gst + rectTotal);
     const { data: q, error } = await admin
       .from("quotes")
       .insert({
-        job_id: jobId, kind: "installation", option_label: product.description, option_code: code, status: "issued",
-        rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: calc.subtotal_inc_gst,
-        gst_amount: calc.gst_amount, veec_discount_inc_gst: calc.veec_discount_inc_gst,
-        customer_total_inc_gst: calc.customer_total_inc_gst, created_by: actorId,
+        job_id: jobId, kind: "installation", option_label: rectLines.length ? `${product.description} + electrical rectification` : product.description, option_code: code, status: "issued",
+        rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal,
+        gst_amount: r2(subtotal - subtotal / gstMul), veec_discount_inc_gst: calc.veec_discount_inc_gst,
+        customer_total_inc_gst: r2(subtotal - calc.veec_discount_inc_gst), created_by: actorId,
       })
       .select("id")
       .single();
     if (error || !q) throw new Error(error?.message);
-    await admin.from("quote_items").insert(calc.items.map((i) => ({ ...i, quote_id: q.id })));
+    await admin.from("quote_items").insert([
+      ...calc.items.map((i) => ({ ...i, quote_id: q.id })),
+      ...rectLines.map((l, i) => ({ ...l, quote_id: q.id, sort: 100 + i })),
+    ]);
     const { loading, ...internals } = calc.internals;
     await admin.from("quote_internals").insert({ quote_id: q.id, ...internals, calc_snapshot: { loading, assessment_id: a.id, rate_card_version: card.version, pricing_version: settings.version, access: a.access_difficulty } });
     created.push(q.id);

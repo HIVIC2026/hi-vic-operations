@@ -9,7 +9,9 @@ import { adjustQuote as adjustQuoteImpl, deriveRectificationItems, generateInsta
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { STAGE_LABEL, type Stage } from "./workflow";
 import { applyPaidAmount, createInvoiceForQuote, pushInvoiceToXero, syncInvoiceFromXero } from "./xero.server";
-import { depositCleared, pendingDepositKind } from "./workflow.server";
+import { AUTHORITY_BLOCKER, depositCleared } from "./workflow.server";
+import { acceptAuthority, authorityValid, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
+import { getRequest } from "@tanstack/react-start/server";
 
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
 
@@ -35,6 +37,8 @@ export const setEligibility = auth()
     await logEvent(data.jobId, context.userId, "eligibility_set", `Eligibility: ${data.outcome.replaceAll("_", " ")}`, { reason: data.reason, next_action: data.nextAction });
     if (data.outcome !== "does_not_appear_eligible" && (stage === "new_enquiry" || stage === "eligibility_review")) {
       await transition(data.jobId, "awaiting_electrician", context.userId, "Eligibility passed – awaiting electrician", {}, { nextAction: data.nextAction });
+      // Job is proceeding: Owner Authority must be requested now (before any onsite booking).
+      if (!(await authorityValid(data.jobId))) await requestAuthority(data.jobId, context.userId, "initial");
     } else if (stage === "new_enquiry") {
       await transition(data.jobId, "eligibility_review", context.userId, "Moved to eligibility review", {}, { nextAction: data.nextAction });
     }
@@ -204,7 +208,8 @@ export const recordPiesa = auth()
     await logEvent(data.jobId, context.userId, "piesa_recorded", `PIESA (${data.kind.replace("_", " ")}) ${data.outcome} on ${data.completedDate}`);
     if (data.kind === "post_rectification" && data.outcome === "pass") {
       await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", data.jobId).in("check_key", ["rectification", "electrical_assessment"]);
-      await transition(data.jobId, "ready_for_installer_quotes", context.userId, "Rectification complete, PIESA passed");
+      await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "rectification").eq("status", "confirmed");
+      await transition(data.jobId, "installation_scheduling", context.userId, "Rectification complete, PIESA passed – installation scheduling unlocked");
     }
     return { ok: true };
   });
@@ -240,31 +245,41 @@ export const adjustQuote = auth()
   });
 
 export const respondToQuote = auth()
-  .inputValidator((d) => z.object({ quoteId: uuid, accept: z.boolean(), consent: z.boolean().optional() }).parse(d))
+  .inputValidator((d) => z.object({ quoteId: uuid, accept: z.boolean(), consent: z.boolean().optional(), reason: z.string().max(1000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: q } = await admin.from("quotes").select("*").eq("id", data.quoteId).single();
     if (!q) throw new WorkflowError("Quote not found");
     await requireJobRole(context.supabase, q.job_id, ["owner", "admin"]);
     if (q.status !== "issued") throw new WorkflowError("This quote is no longer open.");
-    if (data.accept && !data.consent) throw new WorkflowError("Please confirm your consent to proceed.");
+    if (data.accept && !data.consent) throw new WorkflowError("Please confirm to proceed.");
     const stage = await getStage(q.job_id);
     const expected: Stage = q.kind === "rectification" ? "awaiting_owner_rectification_approval" : "awaiting_quote_acceptance";
     if (stage !== expected) throw new WorkflowError("This quote can't be actioned at the current stage.");
     if (!data.accept) {
       await admin.from("quotes").update({ status: "declined" }).eq("id", q.id);
-      await logEvent(q.job_id, context.userId, "quote_declined", `${q.option_label} declined`);
+      await logEvent(q.job_id, context.userId, "quote_declined", `${q.option_label} declined`, { reason: data.reason });
       return { ok: true };
     }
-    if (q.kind === "installation") {
-      const p = await piesaStatus(q.job_id);
-      if (p?.piesa_expired) throw new WorkflowError("The electrical safety assessment has expired. HI VIC will arrange a reassessment.");
-    }
+    if (!(await authorityValid(q.job_id))) throw new WorkflowError(`${AUTHORITY_BLOCKER} before accepting quotes.`);
     await admin.from("quotes").update({ status: "accepted", accepted_at: new Date().toISOString(), accepted_by: context.userId }).eq("id", q.id);
     await admin.from("quotes").update({ status: "superseded" }).eq("job_id", q.job_id).eq("kind", q.kind).eq("status", "issued");
-    await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST) and consents to works and VEEC assignment.` }, { onConflict: "job_id,kind" });
+
+    if (q.kind === "rectification") {
+      // Scope approval only – no invoice. The rectification lines are folded into the final installation quote.
+      await logEvent(q.job_id, context.userId, "rectification_scope_approved", `Owner approved rectification scope (${q.customer_total_inc_gst} inc GST)`, { quote_id: q.id });
+      await transition(q.job_id, "ready_for_installer_quotes", context.userId, "Rectification scope approved – preparing final installation quotes");
+      await genInstaller(q.job_id, context.userId);
+      await transition(q.job_id, "awaiting_quote_acceptance", context.userId, "Final installation quotes (incl. rectification) issued to owner");
+      return { ok: true };
+    }
+
+    const p = await piesaStatus(q.job_id);
+    const { count: rect } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("status", "required");
+    if (!rect && p?.piesa_expired) throw new WorkflowError("The electrical safety assessment has expired. HI VIC will arrange a reassessment.");
+    await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): 50% deposit due now, balance due on installation day.` }, { onConflict: "job_id,kind" });
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", q.job_id).eq("check_key", "owner_consent");
     await logEvent(q.job_id, context.userId, "quote_accepted", `${q.option_label} accepted`, { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst });
-    await transition(q.job_id, "awaiting_deposit_payment", context.userId, q.kind === "rectification" ? "Owner approved rectification – 50% deposit due" : "Owner accepted installation quote – 50% deposit due");
+    await transition(q.job_id, "awaiting_deposit_payment", context.userId, "Owner accepted final installation quote – 50% deposit due");
     await createInvoiceForQuote(q.id, context.userId);
     await advanceAfterDeposit(q.job_id, context.userId);
     return { ok: true };
@@ -273,9 +288,15 @@ export const respondToQuote = auth()
 // ---------- Payments (Xero mirror + gates) ----------
 async function advanceAfterDeposit(jobId: string, actorId: string) {
   if ((await getStage(jobId)) !== "awaiting_deposit_payment") return;
-  const kind = await pendingDepositKind(jobId);
-  if (!kind || !(await depositCleared(jobId, kind))) return;
-  await transition(jobId, kind === "rectification" ? "rectification_scheduling" : "installation_scheduling", actorId, "Deposit cleared – scheduling unlocked");
+  if (!(await depositCleared(jobId))) return;
+  const { count } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "required");
+  const to: Stage = (count ?? 0) > 0 ? "rectification_scheduling" : "installation_scheduling";
+  try {
+    await transition(jobId, to, actorId, `Deposit cleared – ${to === "rectification_scheduling" ? "rectification" : "installation"} scheduling unlocked`);
+  } catch (e) {
+    // Deposit is cleared but another hard gate (e.g. authority, PIESA) still blocks; stays visible as a blocker.
+    if (!(e instanceof WorkflowError)) throw e;
+  }
 }
 
 export const syncInvoice = auth()
@@ -301,10 +322,12 @@ export const overrideDepositGate = auth()
   .inputValidator((d) => z.object({ invoiceId: uuid, reason: z.string().trim().min(5).max(1000) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { data: inv } = await admin.from("invoices").select("job_id").eq("id", data.invoiceId).single();
+    const { data: inv } = await admin.from("invoices").select("job_id, status, deposit_paid_at, total_paid").eq("id", data.invoiceId).single();
     if (!inv) throw new WorkflowError("Invoice not found");
-    await admin.from("payment_overrides").insert({ invoice_id: data.invoiceId, job_id: inv.job_id, gate: "deposit", reason: data.reason, overridden_by: context.userId });
-    await logEvent(inv.job_id, context.userId, "payment_override", `Deposit gate overridden by admin: ${data.reason}`, { invoice_id: data.invoiceId });
+    const before = { invoice_status: inv.status, deposit_paid_at: inv.deposit_paid_at, total_paid: inv.total_paid, deposit_gate: "locked", stage: await getStage(inv.job_id) };
+    const after = { ...before, deposit_gate: "overridden" };
+    await admin.from("payment_overrides").insert({ invoice_id: data.invoiceId, job_id: inv.job_id, gate: "deposit", reason: data.reason, overridden_by: context.userId, before_state: before, after_state: after });
+    await logEvent(inv.job_id, context.userId, "payment_override", `Deposit gate overridden by admin: ${data.reason}`, { invoice_id: data.invoiceId, before, after });
     await advanceAfterDeposit(inv.job_id, context.userId);
     return { ok: true };
   });
@@ -344,7 +367,8 @@ export const createBooking = auth()
       if (p?.install_deadline && data.start.slice(0, 10) > p.install_deadline)
         throw new WorkflowError(`Installation must be before the PIESA deadline (${p.install_deadline}).`);
     }
-    if (data.kind !== "assessment" && !(await depositCleared(data.jobId, data.kind)))
+    if (!(await authorityValid(data.jobId))) throw new WorkflowError(`Blocked: ${AUTHORITY_BLOCKER}.`);
+    if (data.kind !== "assessment" && !(await depositCleared(data.jobId)))
       throw new WorkflowError("Blocked: the 50% deposit has not been paid.");
     if (data.kind === "installation") {
       const { data: inv } = await admin.from("invoices").select("id").eq("job_id", data.jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -456,6 +480,7 @@ export const runComplianceReview = auth()
     const auto: Record<string, boolean> = {
       eligibility: job?.eligibility_outcome === "likely_eligible" || job?.eligibility_outcome === "needs_onsite_confirmation",
       owner_consent: kinds.has("owner_consent"),
+      owner_authority: await authorityValid(data.jobId),
       electrical_assessment: p?.piesa_outcome === "pass",
       rectification: (openRect ?? 0) === 0,
       installation_evidence: (ev ?? []).every((e) => e.status === "verified"),
@@ -540,4 +565,84 @@ export const getJobBlockers = auth()
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer", "owner"]);
     return nextStepBlockers(data.jobId);
+  });
+
+// ---------- Owner Authority ----------
+async function authorityJob(id: string) {
+  const { data } = await admin.from("owner_authorities").select("job_id").eq("id", id).single();
+  if (!data) throw new WorkflowError("Authority not found");
+  return data.job_id;
+}
+
+export const requestOwnerAuthority = auth()
+  .inputValidator((d) => z.object({ jobId: uuid, reason: z.enum(["initial", "renewal", "resend"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    await requestAuthority(data.jobId, context.userId, data.reason);
+    return { ok: true };
+  });
+
+export const revokeOwnerAuthority = auth()
+  .inputValidator((d) => z.object({ authorityId: uuid, reason: z.string().trim().min(5).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["admin", "owner"]);
+    await revokeAuthority(data.authorityId, context.userId, data.reason);
+    return { ok: true };
+  });
+
+export const viewOwnerAuthority = auth()
+  .inputValidator((d) => z.object({ authorityId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const role = await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["owner", "admin"]);
+    if (role === "owner") await markViewed(data.authorityId, context.userId);
+    return { ok: true };
+  });
+
+export const acceptOwnerAuthority = auth()
+  .inputValidator((d) => z.object({ authorityId: uuid, over18: z.literal(true), authorised: z.literal(true), assistance: z.enum(["none", "interpreter", "support_understanding", "both"]), signatureName: z.string().trim().min(2).max(200) }).parse(d))
+  .handler(async ({ data, context }) => {
+    // Only the owner themself may give authority.
+    await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["owner"]);
+    const req = getRequest();
+    const ip = req.headers.get("cf-connecting-ip") ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    await acceptAuthority({ authorityId: data.authorityId, actorId: context.userId, over18: data.over18, authorised: data.authorised, assistance: data.assistance, signatureName: data.signatureName, ip, userAgent: req.headers.get("user-agent") });
+    return { ok: true };
+  });
+
+export const declineOwnerAuthority = auth()
+  .inputValidator((d) => z.object({ authorityId: uuid, reason: z.string().trim().min(2).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["owner"]);
+    await declineAuthority(data.authorityId, context.userId, data.reason);
+    return { ok: true };
+  });
+
+export const getAuthorityDocUrl = auth()
+  .inputValidator((d) => z.object({ authorityId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: a } = await context.supabase.from("owner_authorities").select("document_path").eq("id", data.authorityId).maybeSingle();
+    if (!a?.document_path) throw new WorkflowError("No locked document available");
+    const { data: s, error } = await admin.storage.from("job-files").createSignedUrl(a.document_path, 300);
+    if (error || !s) throw new Error(error?.message);
+    return { url: s.signedUrl };
+  });
+
+/** Admin: mark expired authorities across all jobs (audited). */
+export const sweepAuthorities = auth().handler(async ({ context }) => {
+  await requireAdmin(context.supabase);
+  const { data } = await admin.from("owner_authorities").select("job_id").eq("status", "accepted").lt("expires_at", new Date().toISOString());
+  for (const j of new Set((data ?? []).map((r) => r.job_id))) await sweepAuthorityExpiry(j);
+  return { swept: data?.length ?? 0 };
+});
+
+/** Admin-only internal Xero identifiers and sync state (hidden from owners/trades at column level). */
+export const getInvoiceInternals = auth()
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: inv } = await admin.from("invoices").select("id, xero_contact_id, xero_invoice_id, xero_reference, xero_invoice_status, last_synced_at, last_sync_error").eq("job_id", data.jobId);
+    const { data: ov } = await admin.from("payment_overrides").select("id, invoice_id, reason, created_at, overridden_by").eq("job_id", data.jobId);
+    const ids = [...new Set((ov ?? []).map((o) => o.overridden_by))];
+    const { data: profs } = ids.length ? await admin.from("profiles").select("id, full_name").in("id", ids) : { data: [] };
+    return { invoices: inv ?? [], overrides: (ov ?? []).map((o) => ({ ...o, by: profs?.find((p) => p.id === o.overridden_by)?.full_name ?? null })) };
   });

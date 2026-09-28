@@ -92,9 +92,10 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
   if (!inv.xero_invoice_id) return pushInvoiceToXero(invoiceId, actorId);
   try {
     const tid = await tenant();
-    const r = (await xeroFetch(`/api.xro/2.0/Invoices/${inv.xero_invoice_id}`, {}, tid)) as { Invoices: { AmountPaid: number; OnlineInvoiceUrl?: string }[] };
+    const r = (await xeroFetch(`/api.xro/2.0/Invoices/${inv.xero_invoice_id}`, {}, tid)) as { Invoices: { AmountPaid: number; Status?: string; OnlineInvoiceUrl?: string }[] };
     await applyPaidAmount(invoiceId, Number(r.Invoices[0]?.AmountPaid ?? 0), actorId);
-    await admin.from("invoices").update({ last_synced_at: new Date().toISOString(), last_sync_error: null }).eq("id", invoiceId);
+    await admin.from("invoices").update({ xero_invoice_status: r.Invoices[0]?.Status ?? null, last_synced_at: new Date().toISOString(), last_sync_error: null }).eq("id", invoiceId);
+    await syncLog(invoiceId, true, { direction: "inbound", amount_paid: r.Invoices[0]?.AmountPaid });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await admin.from("invoices").update({ last_sync_error: msg, last_synced_at: new Date().toISOString() }).eq("id", invoiceId);
@@ -116,6 +117,7 @@ export async function applyPaidAmount(invoiceId: string, paid: number, actorId: 
   }
   if (paid >= Number(inv.total_inc_gst) && inv.status !== "fully_paid") {
     patch["status"] = "fully_paid";
+    patch["balance_paid_at"] = new Date().toISOString();
     await logEvent(inv.job_id, actorId, "balance_paid", "Balance paid – invoice fully paid", { invoice_id: invoiceId });
   }
   await admin.from("invoices").update(patch as never).eq("id", invoiceId);

@@ -634,6 +634,7 @@ export type Database = {
         Row: {
           balance_amount: number
           balance_due_date: string | null
+          balance_paid_at: string | null
           created_at: string
           deposit_amount: number
           deposit_due_date: string
@@ -653,12 +654,14 @@ export type Database = {
           xero_contact_id: string | null
           xero_invoice_id: string | null
           xero_invoice_number: string | null
+          xero_invoice_status: string | null
           xero_online_url: string | null
           xero_reference: string | null
         }
         Insert: {
           balance_amount: number
           balance_due_date?: string | null
+          balance_paid_at?: string | null
           created_at?: string
           deposit_amount: number
           deposit_due_date?: string
@@ -678,12 +681,14 @@ export type Database = {
           xero_contact_id?: string | null
           xero_invoice_id?: string | null
           xero_invoice_number?: string | null
+          xero_invoice_status?: string | null
           xero_online_url?: string | null
           xero_reference?: string | null
         }
         Update: {
           balance_amount?: number
           balance_due_date?: string | null
+          balance_paid_at?: string | null
           created_at?: string
           deposit_amount?: number
           deposit_due_date?: string
@@ -703,6 +708,7 @@ export type Database = {
           xero_contact_id?: string | null
           xero_invoice_id?: string | null
           xero_invoice_number?: string | null
+          xero_invoice_status?: string | null
           xero_online_url?: string | null
           xero_reference?: string | null
         }
@@ -995,6 +1001,206 @@ export type Database = {
           },
         ]
       }
+      owner_authorities: {
+        Row: {
+          acceptance_method: string | null
+          accepted_at: string | null
+          accepted_by: string | null
+          ap_legal_entity: string
+          assistance_requirement:
+            | Database["public"]["Enums"]["assistance_requirement"]
+            | null
+          confirmed_over_18: boolean | null
+          confirmed_owner_or_authorised: boolean | null
+          created_at: string
+          decline_reason: string | null
+          declined_at: string | null
+          document_path: string | null
+          document_sha256: string | null
+          event_ids: string[]
+          expired_at: string | null
+          expires_at: string | null
+          id: string
+          ip_address: string | null
+          job_id: string
+          owner_email: string | null
+          owner_full_name: string
+          owner_id: string
+          owner_phone: string | null
+          property_address: string
+          property_id: string
+          requested_at: string
+          requested_by: string | null
+          revocation_reason: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          scope_snapshot: string
+          signature_name: string | null
+          status: Database["public"]["Enums"]["authority_status"]
+          updated_at: string
+          user_agent: string | null
+          version: number
+          viewed_at: string | null
+          wording_snapshot: string
+          wording_version: string
+        }
+        Insert: {
+          acceptance_method?: string | null
+          accepted_at?: string | null
+          accepted_by?: string | null
+          ap_legal_entity?: string
+          assistance_requirement?:
+            | Database["public"]["Enums"]["assistance_requirement"]
+            | null
+          confirmed_over_18?: boolean | null
+          confirmed_owner_or_authorised?: boolean | null
+          created_at?: string
+          decline_reason?: string | null
+          declined_at?: string | null
+          document_path?: string | null
+          document_sha256?: string | null
+          event_ids?: string[]
+          expired_at?: string | null
+          expires_at?: string | null
+          id?: string
+          ip_address?: string | null
+          job_id: string
+          owner_email?: string | null
+          owner_full_name: string
+          owner_id: string
+          owner_phone?: string | null
+          property_address: string
+          property_id: string
+          requested_at?: string
+          requested_by?: string | null
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scope_snapshot: string
+          signature_name?: string | null
+          status?: Database["public"]["Enums"]["authority_status"]
+          updated_at?: string
+          user_agent?: string | null
+          version: number
+          viewed_at?: string | null
+          wording_snapshot: string
+          wording_version: string
+        }
+        Update: {
+          acceptance_method?: string | null
+          accepted_at?: string | null
+          accepted_by?: string | null
+          ap_legal_entity?: string
+          assistance_requirement?:
+            | Database["public"]["Enums"]["assistance_requirement"]
+            | null
+          confirmed_over_18?: boolean | null
+          confirmed_owner_or_authorised?: boolean | null
+          created_at?: string
+          decline_reason?: string | null
+          declined_at?: string | null
+          document_path?: string | null
+          document_sha256?: string | null
+          event_ids?: string[]
+          expired_at?: string | null
+          expires_at?: string | null
+          id?: string
+          ip_address?: string | null
+          job_id?: string
+          owner_email?: string | null
+          owner_full_name?: string
+          owner_id?: string
+          owner_phone?: string | null
+          property_address?: string
+          property_id?: string
+          requested_at?: string
+          requested_by?: string | null
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          scope_snapshot?: string
+          signature_name?: string | null
+          status?: Database["public"]["Enums"]["authority_status"]
+          updated_at?: string
+          user_agent?: string | null
+          version?: number
+          viewed_at?: string | null
+          wording_snapshot?: string
+          wording_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_authorities_accepted_by_fkey"
+            columns: ["accepted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_authorities_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_authorities_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "owner_authorities_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_authorities_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["owner_id"]
+          },
+          {
+            foreignKeyName: "owner_authorities_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "owners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_authorities_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "owner_authorities_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_authorities_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_authorities_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       owners: {
         Row: {
           created_at: string
@@ -1038,6 +1244,8 @@ export type Database = {
       }
       payment_overrides: {
         Row: {
+          after_state: Json | null
+          before_state: Json | null
           created_at: string
           gate: string
           id: string
@@ -1047,6 +1255,8 @@ export type Database = {
           reason: string
         }
         Insert: {
+          after_state?: Json | null
+          before_state?: Json | null
           created_at?: string
           gate: string
           id?: string
@@ -1056,6 +1266,8 @@ export type Database = {
           reason: string
         }
         Update: {
+          after_state?: Json | null
+          before_state?: Json | null
           created_at?: string
           gate?: string
           id?: string
@@ -1070,6 +1282,13 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoice_payment_state"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_overrides_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoice_status"
             referencedColumns: ["id"]
           },
           {
@@ -1975,6 +2194,7 @@ export type Database = {
       }
       workflow_settings: {
         Row: {
+          authority_validity_months: number
           id: number
           min_building_age_years: number
           piesa_install_window_days: number
@@ -1983,6 +2203,7 @@ export type Database = {
           urgency_red_days: number
         }
         Insert: {
+          authority_validity_months?: number
           id?: number
           min_building_age_years?: number
           piesa_install_window_days?: number
@@ -1991,6 +2212,7 @@ export type Database = {
           urgency_red_days?: number
         }
         Update: {
+          authority_validity_months?: number
           id?: number
           min_building_age_years?: number
           piesa_install_window_days?: number
@@ -2115,10 +2337,108 @@ export type Database = {
           },
         ]
       }
+      invoice_status: {
+        Row: {
+          balance_amount: number | null
+          balance_due_date: string | null
+          balance_paid_at: string | null
+          created_at: string | null
+          deposit_amount: number | null
+          deposit_cleared: boolean | null
+          deposit_due_date: string | null
+          deposit_paid_amount: number | null
+          deposit_paid_at: string | null
+          deposit_pct: number | null
+          effective_status: Database["public"]["Enums"]["payment_status"] | null
+          id: string | null
+          job_id: string | null
+          kind: Database["public"]["Enums"]["quote_kind"] | null
+          quote_id: string | null
+          total_inc_gst: number | null
+          total_paid: number | null
+          xero_invoice_number: string | null
+          xero_online_url: string | null
+        }
+        Insert: {
+          balance_amount?: number | null
+          balance_due_date?: string | null
+          balance_paid_at?: string | null
+          created_at?: string | null
+          deposit_amount?: number | null
+          deposit_cleared?: never
+          deposit_due_date?: string | null
+          deposit_paid_amount?: number | null
+          deposit_paid_at?: string | null
+          deposit_pct?: number | null
+          effective_status?: never
+          id?: string | null
+          job_id?: string | null
+          kind?: Database["public"]["Enums"]["quote_kind"] | null
+          quote_id?: string | null
+          total_inc_gst?: number | null
+          total_paid?: number | null
+          xero_invoice_number?: string | null
+          xero_online_url?: string | null
+        }
+        Update: {
+          balance_amount?: number | null
+          balance_due_date?: string | null
+          balance_paid_at?: string | null
+          created_at?: string | null
+          deposit_amount?: number | null
+          deposit_cleared?: never
+          deposit_due_date?: string | null
+          deposit_paid_amount?: number | null
+          deposit_paid_at?: string | null
+          deposit_pct?: number | null
+          effective_status?: never
+          id?: string | null
+          job_id?: string | null
+          kind?: Database["public"]["Enums"]["quote_kind"] | null
+          quote_id?: string | null
+          total_inc_gst?: number | null
+          total_paid?: number | null
+          xero_invoice_number?: string | null
+          xero_online_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: true
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_overview: {
         Row: {
+          authority_expires_at: string | null
+          authority_status: string | null
           created_at: string | null
           days_remaining: number | null
+          deposit_cleared: boolean | null
           electrician_id: string | null
           electrician_name: string | null
           eligibility_outcome:
@@ -2148,14 +2468,14 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "job_assignments_user_id_fkey"
-            columns: ["electrician_id"]
+            columns: ["installer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "job_assignments_user_id_fkey"
-            columns: ["installer_id"]
+            columns: ["electrician_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2184,12 +2504,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      invoice_deposit_cleared: { Args: { _inv: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_job_owner: { Args: { _job: string; _user: string }; Returns: boolean }
       job_assignment_role: {
         Args: { _job: string; _user: string }
         Returns: Database["public"]["Enums"]["assignment_role"]
       }
+      job_authority_expires_at: { Args: { _job: string }; Returns: string }
+      job_authority_status: { Args: { _job: string }; Returns: string }
+      job_deposit_cleared: { Args: { _job: string }; Returns: boolean }
       my_job_role: { Args: { _job: string }; Returns: string }
       shares_job_with: { Args: { _profile: string }; Returns: boolean }
     }
@@ -2202,6 +2526,19 @@ export type Database = {
         | "owner"
         | "property_manager"
       assignment_role: "electrician" | "installer" | "property_manager"
+      assistance_requirement:
+        | "none"
+        | "interpreter"
+        | "support_understanding"
+        | "both"
+      authority_status:
+        | "not_requested"
+        | "sent"
+        | "viewed"
+        | "accepted"
+        | "declined"
+        | "expired"
+        | "revoked"
       booking_kind: "assessment" | "rectification" | "installation"
       booking_status: "proposed" | "confirmed" | "completed" | "cancelled"
       business_type:
@@ -2404,6 +2741,21 @@ export const Constants = {
         "property_manager",
       ],
       assignment_role: ["electrician", "installer", "property_manager"],
+      assistance_requirement: [
+        "none",
+        "interpreter",
+        "support_understanding",
+        "both",
+      ],
+      authority_status: [
+        "not_requested",
+        "sent",
+        "viewed",
+        "accepted",
+        "declined",
+        "expired",
+        "revoked",
+      ],
       booking_kind: ["assessment", "rectification", "installation"],
       booking_status: ["proposed", "confirmed", "completed", "cancelled"],
       business_type: [

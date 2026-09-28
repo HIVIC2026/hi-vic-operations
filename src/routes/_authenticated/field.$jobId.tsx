@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Check, HeartPulse, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
-import { PaymentBadge, Pill, StageBadge, UrgencyBadge } from "@/components/portal/badges";
+import { AuthorityBadge, Pill, StageBadge, UrgencyBadge } from "@/components/portal/badges";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, Section, useJob } from "@/components/portal/panels";
 import { useAction } from "@/hooks/use-me";
 import { addOtherRectItem, completeAssessment, completeInstallation, recordPiesa, removeRectItem, saveAssessment, submitDeclaration, submitForApReview } from "@/lib/portal.functions";
@@ -31,7 +31,7 @@ function FieldJob() {
         <div className="text-xs font-bold text-primary">{job.job_number}</div>
         <h1 className="text-xl font-bold">{job.property_address}</h1>
         <div className="mt-1 flex items-center gap-2 text-sm">{job.owner_name}{job.owner_phone && <a href={`tel:${job.owner_phone}`} className="inline-flex items-center gap-1 font-semibold text-primary"><Phone className="h-4 w-4" /> Call</a>}</div>
-        <div className="mt-2 flex flex-wrap gap-1.5"><StageBadge stage={job.stage} /><PaymentBadge status={job.payment_status} /><UrgencyBadge urgency={job.urgency} days={job.days_remaining} />{job.life_support && <Pill t="bad"><HeartPulse className="mr-1 h-3 w-3" /> Life support</Pill>}</div>
+        <div className="mt-2 flex flex-wrap gap-1.5"><StageBadge stage={job.stage} /><AuthorityBadge status={job.authority_status} />{job.deposit_cleared ? <Pill t="good">Deposit cleared</Pill> : null}<UrgencyBadge urgency={job.urgency} days={job.days_remaining} />{job.life_support && <Pill t="bad"><HeartPulse className="mr-1 h-3 w-3" /> Life support</Pill>}</div>
         <p className="mt-2 rounded bg-accent px-2 py-1 text-sm font-medium text-accent-foreground">Next: {job.next_action}</p>
       </div>
       <div className="mb-4"><BlockersPanel jobId={jobId} /></div>
@@ -117,7 +117,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
         </>
       )}
       {["rectification_scheduling", "rectification_booked", "awaiting_deposit_payment"].includes(stage) && (
-        <BookingPanel jobId={jobId} kind="rectification" canBook={stage !== "awaiting_deposit_payment"} />
+        stage === "awaiting_deposit_payment" ? <Section title="Rectification booking"><p className="text-sm font-medium text-danger">Locked – awaiting owner's 50% deposit. Booking details will appear here once paid.</p></Section> : <BookingPanel jobId={jobId} kind="rectification" canBook />
       )}
       {stage === "rectification_booked" && <PiesaForm jobId={jobId} kind="post_rectification" title="Rectification complete – record PIESA sign-off" />}
       {expired && <PiesaForm jobId={jobId} kind="reassessment" title="PIESA window expired – record reassessment" />}
@@ -186,7 +186,10 @@ function InstallerFlow({ jobId, stage }: { jobId: string; stage: string }) {
           </dl>
         </Section>
       )}
-      {["awaiting_deposit_payment", "installation_scheduling", "installation_booked"].includes(stage) && <BookingPanel jobId={jobId} kind="installation" canBook={stage !== "awaiting_deposit_payment"} />}
+      {stage === "awaiting_deposit_payment" && <Section title="Installation booking"><p className="text-sm font-medium text-danger">Locked – awaiting owner's 50% deposit.</p></Section>}
+      {["installation_scheduling", "installation_booked"].includes(stage) && <BookingPanel jobId={jobId} kind="installation" canBook />}
+      {a && ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling"].includes(stage) && <Section title="Scope">
+        <p className="text-sm">Install ceiling insulation to {a.measured_area_m2} m²{a.removal_required ? `, remove ${a.removal_m2} m² existing` : ""}. Access: {a.access_difficulty}.</p></Section>}
       {["installation_booked", "evidence_outstanding", "ap_review"].includes(stage) && <EvidencePanel jobId={jobId} role="installer" gates={["installation"]} />}
       {stage === "installation_booked" && <Button size="field" className="w-full" onClick={() => done({ jobId }, "Installation complete")}><Check /> Installation complete</Button>}
       {stage === "evidence_outstanding" && (
