@@ -39,14 +39,20 @@ export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
 const PIESA_WINDOW_STAGES: Stage[] = ["installation_scheduling", "installation_booked", "evidence_outstanding"];
 
 /**
- * Owner Authority is NO LONGER a pre-assessment gate (records kept as history). The customer signs one
- * Customer Acceptance & VEEC Assignment at quote acceptance; it only becomes effective after installation.
+ * Activity 48 sequence: the customer signs a commercial Customer Agreement / Quote Acceptance (unlocks invoice/deposit);
+ * ESC owner consent is a separate pre-install record; the final VEEC assignment is prepared and signed only post-install.
  */
-export const CONSUMER_SIGN_BLOCKER = "Customer Acceptance & VEEC Assignment not signed by the customer.";
-export const ASSIGNMENT_VEEC_BLOCKER = "Customer Acceptance & VEEC Assignment not yet effective.";
+export const CONSUMER_SIGN_BLOCKER = "Customer Agreement / Quote Acceptance not signed by the customer.";
+export const ASSIGNMENT_VEEC_BLOCKER = "Final Activity 48 VEEC assignment not yet effective.";
 
+export async function agreementSigned(jobId: string): Promise<boolean> {
+  const { data } = await admin.from("customer_agreements").select("id").eq("job_id", jobId).eq("status", "signed").maybeSingle();
+  return !!data;
+}
+
+/** Status of the FINAL post-install VEEC assignment (legacy quote-time records never count). */
 export async function assignmentStatus(jobId: string): Promise<string | null> {
-  const { data } = await admin.from("customer_assignments").select("status").eq("job_id", jobId).neq("status", "cancelled").maybeSingle();
+  const { data } = await admin.from("customer_assignments").select("status").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").maybeSingle();
   return (data?.status as string | undefined) ?? null;
 }
 
@@ -147,8 +153,7 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
   const piesa = await piesaStatus(jobId);
 
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {
-    const st = await assignmentStatus(jobId);
-    if (!st || st === "draft") blockers.push(CONSUMER_SIGN_BLOCKER);
+    if (!(await agreementSigned(jobId))) blockers.push(CONSUMER_SIGN_BLOCKER);
   }
   if (to === "ready_for_veec") {
     const st = await assignmentStatus(jobId);

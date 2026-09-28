@@ -55,7 +55,7 @@ export function planStep(stage: Stage, f: AdvanceFacts, opts: { allowApPromotion
       return f.installQuotesIssued ? t("awaiting_quote_acceptance", "Installation quotes issued to owner") : { kind: "generate_quotes", to: "awaiting_quote_acceptance", summary: "Installation quotes auto-generated from active rate cards and issued to owner" };
     case "awaiting_quote_acceptance":
       if (!f.installQuoteAccepted) return stop("Owner must accept an installation quote");
-      if (!f.consumerSigned) return stop("Customer Acceptance & VEEC Assignment not signed");
+      if (!f.consumerSigned) return stop("Customer Agreement / Quote Acceptance not signed");
       if (!f.invoiceExists) return stop("Xero invoice not yet created");
       return t("awaiting_deposit_payment", "Owner accepted final installation quote – 50% deposit due");
     case "awaiting_deposit_payment":
