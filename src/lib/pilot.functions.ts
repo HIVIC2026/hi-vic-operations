@@ -610,8 +610,7 @@ export const reviewPartnerMethod = createServerFn({ method: "POST" }).middleware
     const at = new Date().toISOString();
     const patch = data.action === "approve" ? { status: "approved", approved_by: context.userId, approved_at: at, approval_reason: data.reason } : { status: "retired", approval_reason: data.reason };
     const { data: row } = await admin.from("partner_measurement_methods").update(patch).eq("id", data.id).select("business_id, version").single();
-    const { data: ws } = await admin.from("workflow_settings").select("id").limit(1).single();
-    if (ws) await admin.from("workflow_events").insert({ job_id: null, actor_id: context.userId, event_type: "partner_measurement_method_" + data.action, message: `Partner measurement method ${row?.version} ${data.action}d: ${data.reason}`, details: { method_id: data.id, business_id: row?.business_id } as Json } as never);
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "partner_measurement_method_" + data.action, summary: `Partner measurement method ${row?.version} ${data.action}d: ${data.reason}`, details: { method_id: data.id, business_id: row?.business_id } as Json });
     return { ok: true };
   });
 
@@ -634,6 +633,6 @@ export const setMeasurementStandard = createServerFn({ method: "POST" }).middlew
       measurement_standard_version: data.version ?? null, measurement_standard_approved: data.approved, measurement_variance_tolerance_pct: data.tolerancePct,
       measurement_standard_approved_by: data.approved ? context.userId : null, measurement_standard_approved_at: data.approved ? new Date().toISOString() : null,
     }).eq("id", ws.id);
-    await admin.from("workflow_events").insert({ job_id: null, actor_id: context.userId, event_type: "measurement_standard_updated", message: `Measurement standard ${data.version ?? "(none)"} ${data.approved ? "approved" : "not approved"}; tolerance ${data.tolerancePct ?? "not set"}: ${data.reason}`, details: data as unknown as Json } as never);
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "measurement_standard_updated", summary: `Measurement standard ${data.version ?? "(none)"} ${data.approved ? "approved" : "not approved"}; tolerance ${data.tolerancePct ?? "not set"}: ${data.reason}`, details: data as unknown as Json });
     return { ok: true };
   });
