@@ -206,10 +206,12 @@ export async function sha256Hex(text: string): Promise<string> {
 }
 
 export const MEDIA_ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime", "video/webm"] as const;
+// Matches the live Base44 homeowner limits: <=6 persisted files (schema tolerates 10), 25 MB each, 40 MB total.
 export const MEDIA_MAX_FILES = 10;
-export const MEDIA_MAX_IMAGE_BYTES = 20 * 1024 * 1024;
-export const MEDIA_MAX_VIDEO_BYTES = 50 * 1024 * 1024;
-export const MEDIA_MAX_TOTAL_BYTES = 150 * 1024 * 1024;
+export const MEDIA_MAX_FILE_BYTES = 25 * 1024 * 1024;
+export const MEDIA_MAX_IMAGE_BYTES = MEDIA_MAX_FILE_BYTES;
+export const MEDIA_MAX_VIDEO_BYTES = MEDIA_MAX_FILE_BYTES;
+export const MEDIA_MAX_TOTAL_BYTES = 40 * 1024 * 1024;
 export const MEDIA_FETCH_TIMEOUT_MS = 20_000;
 
 export type Base44Media = { source_id: string; name: string; mime_type: string; signed_url: string };
@@ -245,4 +247,17 @@ export function planMediaImport(media: readonly Base44Media[] | null | undefined
 export function mediaStoragePath(jobId: string, sourceId: string, name: string) {
   const sid = String(sourceId).replace(/[^\w\-]+/g, "_").slice(0, 60) || "src";
   return `${jobId}/intake/base44/${sid}-${sanitizeFilename(name)}`;
+}
+
+const EXISTING_INSULATION_KEYS = ["declared_existing_insulation", "existing_insulation", "has_existing_insulation", "current_insulation"];
+const TOP_FLOOR_KEYS = ["declared_top_floor", "top_floor", "is_top_floor", "top_floor_unit", "top_storey"];
+const answerText = (v: unknown): string | null => {
+  if (v === true) return "yes"; if (v === false) return "no";
+  if (typeof v === "string" && v.trim()) return v.trim().slice(0, 120);
+  return null;
+};
+/** Owner-declared existing insulation / top-floor answers from the Base44 answer snapshot (declared, never verified). */
+export function declaredExtras(answers: Record<string, unknown> | null | undefined) {
+  const pick = (keys: string[]) => { for (const k of keys) { const t = answerText(answers?.[k]); if (t) return t; } return null; };
+  return { existing_insulation: pick(EXISTING_INSULATION_KEYS), top_floor: pick(TOP_FLOOR_KEYS) };
 }

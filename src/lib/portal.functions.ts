@@ -837,12 +837,14 @@ export const updateVeec = createServerFn({ method: "POST" }).middleware([require
 
 // ---------- Comms / exceptions ----------
 export const sendMessage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, body: z.string().trim().min(1).max(4000), internal: z.boolean().optional(), channel: z.enum(["portal", "phone", "sms", "email"]).optional() }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, body: z.string().trim().min(1).max(4000), internal: z.boolean().optional(), channel: z.enum(["portal", "phone", "sms", "email"]).optional(), audience: z.enum(["customer", "trade"]).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer", "owner"]);
     if (data.channel === "email" || data.channel === "sms") {
-      const { assertCustomerCommsEnabled } = await import("./comms.server");
-      await assertCustomerCommsEnabled(`${data.channel} message`);
+      const { assertCustomerCommsEnabled, assertCustomerDeliveryAllowed } = await import("./comms.server");
+      // Owners can receive this unless explicitly trade-only: then the owner's contact consent is also required.
+      if ((data.audience ?? "customer") === "customer") await assertCustomerDeliveryAllowed(data.jobId, `${data.channel} message`);
+      else await assertCustomerCommsEnabled(`${data.channel} message`);
     }
     await admin.from("messages").insert({ job_id: data.jobId, sender_id: context.userId, body: data.body, internal: role === "admin" ? !!data.internal : false, channel: data.channel ?? "portal" });
     await admin.from("jobs").update({ last_activity_at: new Date().toISOString() }).eq("id", data.jobId);
@@ -899,8 +901,8 @@ export const requestOwnerAuthority = createServerFn({ method: "POST" }).middlewa
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     // Legacy authority requests mark a customer-facing request as "sent" – blocked entirely while locked.
-    const { assertCustomerCommsEnabled } = await import("./comms.server");
-    await assertCustomerCommsEnabled("owner authority request");
+    const { assertCustomerDeliveryAllowed } = await import("./comms.server");
+    await assertCustomerDeliveryAllowed(data.jobId, "owner authority request");
     await requestAuthority(data.jobId, context.userId, data.reason);
     return { ok: true };
   });
@@ -985,6 +987,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       reference: job?.external_enquiry_id ?? null, source: job?.source ?? null, state: prop?.state ?? null, occupancy: prop?.occupancy ?? null,
       lifeSupport: job?.life_support_status ?? null, area: job?.estimated_area_unknown ? null : job?.estimated_area_m2 ?? null,
       consent: consents?.[0] ?? null, declared: b44?.declared ?? null,
+      declaredExtras: (await import("./enquiry.core")).declaredExtras(b44?.raw?.answers ?? null),
       screening: { outcome: job?.eligibility_outcome ?? null, reasons: job?.eligibility_reason ?? null, raw: b44?.raw?.screening ?? null },
       research: b44?.research ?? null, media: links, lastMediaFailure: fails?.[0] ?? null,
       raw: b44?.raw ?? null,
@@ -992,6 +995,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       reference: string | null; source: string | null; state: string | null; occupancy: string | null; lifeSupport: string | null; area: number | null;
       consent: { consent_status: string; consent_version: string | null; consented_at: string | null; age_confirmed: boolean | null; assistance: string | null; contact_preference: string | null; created_at: string } | null;
       declared: { property_type: string | null; over_five_years: string | null; previous_upgrade: string | null } | null;
+      declaredExtras: { existing_insulation: string | null; top_floor: string | null };
       screening: { outcome: string | null; reasons: string | null; raw: Json };
       research: { status: string | null; evidence_summary: string | null; first_appearance_year: number | null; premises_classification: string | null } | null;
       media: { id: string; name: string; mime: string | null; size: number | null; url: string | null }[];

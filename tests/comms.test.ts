@@ -34,7 +34,10 @@ describe("pre-launch communications lock", () => {
     const send = pf.slice(pf.indexOf("export const sendMessage"), pf.indexOf("export const requestReassignment"));
     expect(send).toContain("assertCustomerCommsEnabled");
     const auth = pf.slice(pf.indexOf("export const requestOwnerAuthority"), pf.indexOf("export const revokeOwnerAuthority"));
-    expect(auth).toContain("assertCustomerCommsEnabled");
+    expect(auth).toContain("assertCustomerDeliveryAllowed"); // global lock + owner contact consent
+    const c = readFileSync("src/lib/comms.server.ts", "utf8");
+    const allowed = c.slice(c.indexOf("export async function assertCustomerDeliveryAllowed"));
+    expect(allowed.indexOf("assertCustomerCommsEnabled")).toBeLessThan(allowed.indexOf("assertOwnerContactConsent"));
   });
   test("lock fails closed by default", () => {
     const c = readFileSync("src/lib/comms.server.ts", "utf8");

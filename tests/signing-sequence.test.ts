@@ -108,8 +108,9 @@ describe("final assignment availability + snapshot", () => {
 });
 
 describe("communications lock", () => {
-  test("final copy and consent copy delivery depend on customerCommsEnabled (default locked)", () => {
+  test("final copy and consent copy delivery depend on the global lock then owner consent (default locked)", () => {
     const a = readFileSync("src/lib/assignment.server.ts", "utf8"), c = readFileSync("src/lib/consent.server.ts", "utf8");
-    for (const s of [a, c]) { expect(s).toContain("customerCommsEnabled"); expect(s).toContain("pending_comms_lock"); expect(s).not.toMatch(/sendEmail|twilio|resend/i); }
+    for (const s of [a, c]) { expect(s).toContain("customerDeliveryState"); expect(s).not.toMatch(/sendEmail|twilio|resend/i); }
+    expect(readFileSync("src/lib/comms.server.ts", "utf8")).toContain(`if (!(await customerCommsEnabled())) return "pending_comms_lock";`);
   });
 });

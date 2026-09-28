@@ -1,12 +1,12 @@
 // Full Base44 intake handoff: snapshots, consent, media copy (fake storage/fetch), Gate 1 safety. Run: bun test ./tests/
 import { describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { buildBase44Evidence, buildBase44Raw, isFetchableMediaUrl, mediaStoragePath, normaliseState, planBase44Job, planContactConsent, planMediaImport, sanitizeFilename, MEDIA_MAX_IMAGE_BYTES } from "../src/lib/enquiry.core";
+import { buildBase44Evidence, buildBase44Raw, isFetchableMediaUrl, mediaStoragePath, normaliseState, planBase44Job, planContactConsent, planMediaImport, sanitizeFilename, declaredExtras, MEDIA_MAX_IMAGE_BYTES, MEDIA_MAX_VIDEO_BYTES, MEDIA_MAX_TOTAL_BYTES } from "../src/lib/enquiry.core";
 import { evaluateGate1, resolveGate1Facts, type StoredProperty } from "../src/lib/eligibility.core";
 
 // ---- in-memory fake backend for intake.server ----
 type Row = Record<string, any>;
-const db: Record<string, Row[]> = { documents: [], owner_contact_consents: [], workflow_events: [], external_sync_logs: [] };
+const db: Record<string, Row[]> = { workflow_settings: [{ customer_comms_enabled: false }], documents: [], owner_contact_consents: [], workflow_events: [], external_sync_logs: [] };
 const stored = new Map<string, number>();
 function q(table: string) {
   const filters: [string, unknown][] = [];
@@ -25,7 +25,7 @@ function q(table: string) {
 }
 const fakeAdmin = { from: q, storage: { from: () => ({ upload: async (p: string, b: ArrayBuffer) => { stored.set(p, b.byteLength); return { error: null }; } }) } };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fakeAdmin }));
-mock.module("../src/lib/workflow.server", () => ({ logEvent: async (job_id: string, _a: unknown, event_type: string, summary: string, details: unknown) => { db.workflow_events!.push({ job_id, event_type, summary, details }); } }));
+mock.module("../src/lib/workflow.server", () => ({ WorkflowError: class WorkflowError extends Error {}, logEvent: async (job_id: string, _a: unknown, event_type: string, summary: string, details: unknown) => { db.workflow_events!.push({ job_id, event_type, summary, details }); } }));
 const { importBase44Media, recordContactConsent } = await import("../src/lib/intake.server");
 const { enquirySchema } = await import("../src/lib/enquiry.server");
 
@@ -137,5 +137,50 @@ describe("communications", () => {
     const src = readFileSync("src/lib/intake.server.ts", "utf8") + readFileSync("src/lib/enquiry.server.ts", "utf8");
     expect(src).not.toMatch(/sendMessage|sendEmail|sms|resend|twilio/i);
     expect(readFileSync("drizzle/migrations/0028_base44_full_intake_handoff.sql", "utf8")).not.toContain("customer_comms_enabled");
+  });
+});
+
+describe("follow-up: Base44 limits, consent guard, extra declarations", () => {
+  test("limits match Base44: 25 MB per file (image and video), 40 MB total", () => {
+    expect(MEDIA_MAX_IMAGE_BYTES).toBe(25 * 1024 * 1024);
+    expect(MEDIA_MAX_VIDEO_BYTES).toBe(25 * 1024 * 1024);
+    expect(MEDIA_MAX_TOTAL_BYTES).toBe(40 * 1024 * 1024);
+  });
+  test("a 24 MB video is accepted; 25 MB + 1 rejected; total over 40 MB stops further copies", async () => {
+    const mb = 1024 * 1024;
+    const v = (id: string) => img(id, { mime_type: "video/mp4" });
+    expect((await importBase44Media("job-v1", [v("v1")], okFetch(24 * mb))).copied).toBe(1);
+    expect((await importBase44Media("job-v2", [v("v2")], okFetch(25 * mb + 1))).failed).toBe(1);
+    const r = await importBase44Media("job-v3", [v("a"), v("b")], okFetch(21 * mb));
+    expect(r).toEqual({ copied: 1, skipped: 0, failed: 1 });
+  });
+  test("consent guard: granted passes, missing/not_granted blocks, legacy job without record blocks", async () => {
+    const { hasCurrentOwnerContactConsent, assertOwnerContactConsent, assertCustomerDeliveryAllowed, customerDeliveryState } = await import("../src/lib/comms.server");
+    await recordContactConsent("job-g", "own", { contact_consent: true, contact_consent_version: "v1" });
+    await recordContactConsent("job-n", "own", { contact_consent: false });
+    expect(await hasCurrentOwnerContactConsent("job-g")).toBe(true);
+    expect(await hasCurrentOwnerContactConsent("job-n")).toBe(false);
+    expect(await hasCurrentOwnerContactConsent("legacy-job")).toBe(false);
+    await expect(assertOwnerContactConsent("legacy-job", "email")).rejects.toThrow(/No contact consent/);
+    // global lock is checked first and still fails closed even with consent
+    await expect(assertCustomerDeliveryAllowed("job-g", "email")).rejects.toThrow(/PRE-LAUNCH/);
+    expect(await customerDeliveryState("job-g")).toBe("pending_comms_lock");
+    db.workflow_settings![0]!["customer_comms_enabled"] = true;
+    expect(await customerDeliveryState("job-g")).toBe("ready_to_send");
+    expect(await customerDeliveryState("job-n")).toBe("not_ready");
+    await expect(assertCustomerDeliveryAllowed("job-n", "email")).rejects.toThrow(/No contact consent/);
+    db.workflow_settings![0]!["customer_comms_enabled"] = false;
+  });
+  test("owner-targeting delivery paths require both locks; portal and trade-only paths do not need consent", () => {
+    const pf = readFileSync("src/lib/portal.functions.ts", "utf8");
+    expect(pf).toContain('await assertCustomerDeliveryAllowed(data.jobId, `${data.channel} message`)');
+    expect(pf).toContain('await assertCustomerDeliveryAllowed(data.jobId, "owner authority request")');
+    expect(pf).toMatch(/if \(data\.channel === "email" \|\| data\.channel === "sms"\)/); // portal messages untouched
+    expect(readFileSync("src/lib/assignment.server.ts", "utf8")).toContain("customerDeliveryState(jobId)");
+    expect(readFileSync("src/lib/consent.server.ts", "utf8")).toContain("customerDeliveryState(p.jobId)");
+  });
+  test("existing insulation and top-floor answers are picked up as declared", () => {
+    expect(declaredExtras({ existing_insulation: "no", is_top_floor: true })).toEqual({ existing_insulation: "no", top_floor: "yes" });
+    expect(declaredExtras(null)).toEqual({ existing_insulation: null, top_floor: null });
   });
 });
