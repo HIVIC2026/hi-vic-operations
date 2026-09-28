@@ -10,7 +10,7 @@ import { adjustQuote as adjustQuoteImpl, deriveRectificationItems, generateInsta
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { STAGE_LABEL, type Stage } from "./workflow";
 import { applyPaidAmount, createInvoiceForQuote, pushInvoiceToXero, syncInvoiceFromXero } from "./xero.server";
-import { AUTHORITY_BLOCKER, depositCleared } from "./workflow.server";
+import { AUTHORITY_BLOCKER, commercialBlocker, depositCleared } from "./workflow.server";
 import { acceptAuthority, authorityValid, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
 
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
@@ -45,6 +45,36 @@ export const setEligibility = createServerFn({ method: "POST" }).middleware([req
     return { ok: true };
   });
 
+// Installer-sourced intake: an approved EEC installer submits its own customer/property.
+export const submitInstallerJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => enquirySchema.omit({ external_enquiry_id: true }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: isInstaller } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "installer" });
+    if (!isInstaller) throw new WorkflowError("Only approved installers can submit jobs.");
+    const { data: prof } = await admin.from("profiles").select("business_id, full_name, businesses(name, business_type, is_active)").eq("id", context.userId).single();
+    const biz = prof?.businesses as { name: string; business_type: string; is_active: boolean } | null;
+    if (!prof?.business_id || !biz || biz.business_type !== "eec_installer" || !biz.is_active)
+      throw new WorkflowError("Your account isn't linked to an approved EEC installer business yet. Ask HI VIC to set this up.");
+    const res = await upsertEnquiry(data, "installer_portal", context.userId, { channel: "installer_sourced", businessId: prof.business_id, userId: context.userId });
+    await admin.from("job_assignments").insert({ job_id: res.job_id, user_id: context.userId, role: "installer", business_id: prof.business_id, assigned_by: context.userId });
+    await logEvent(res.job_id, context.userId, "contractor_assigned", `Installer assigned (originating installer): ${prof.full_name ?? "installer"} – ${biz.name}`);
+    return res;
+  });
+
+export const setCommercialModel = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, model: z.enum(["hivic_invoices_owner", "installer_invoices_owner", "not_configured"]), reason: z.string().trim().min(5).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: j } = await admin.from("jobs").select("channel, commercial_model").eq("id", data.jobId).single();
+    if (!j) throw new WorkflowError("Job not found");
+    if (j.channel !== "installer_sourced") throw new WorkflowError("HI VIC-sourced jobs always use HI VIC invoicing.");
+    const { count } = await admin.from("invoices").select("id", { count: "exact", head: true }).eq("job_id", data.jobId);
+    if (count) throw new WorkflowError("An invoice already exists – the invoice route can no longer change.");
+    await admin.from("jobs").update({ commercial_model: data.model, commercial_model_set_by: context.userId, commercial_model_set_at: new Date().toISOString() }).eq("id", data.jobId);
+    await logEvent(data.jobId, context.userId, "commercial_model_set", `Invoice route set: ${data.model.replaceAll("_", " ")}`, { before: j.commercial_model, after: data.model, reason: data.reason });
+    return { ok: true };
+  });
+
 // ---------- Assignments / users ----------
 export const assignContractor = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, userId: uuid, role: z.enum(["electrician", "installer"]) }).parse(d))
@@ -56,7 +86,9 @@ export const assignContractor = createServerFn({ method: "POST" }).middleware([r
     await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: "reassigned" }).eq("job_id", data.jobId).eq("role", data.role).eq("active", true);
     await admin.from("job_assignments").insert({ job_id: data.jobId, user_id: data.userId, role: data.role, business_id: prof?.business_id ?? null, assigned_by: context.userId });
     await admin.from("reassignment_requests").update({ status: "actioned", resolved_by: context.userId, resolved_at: new Date().toISOString() }).eq("job_id", data.jobId).eq("role", data.role).eq("status", "open");
-    await logEvent(data.jobId, context.userId, "contractor_assigned", `${data.role === "electrician" ? "Electrician" : "Installer"} assigned: ${prof?.full_name ?? "user"}`);
+    const { data: src } = await admin.from("jobs").select("channel, originating_installer_user_id").eq("id", data.jobId).single();
+    const awayFromOrigin = data.role === "installer" && src?.channel === "installer_sourced" && src.originating_installer_user_id !== data.userId;
+    await logEvent(data.jobId, context.userId, "contractor_assigned", `${data.role === "electrician" ? "Electrician" : "Installer"} assigned: ${prof?.full_name ?? "user"}${awayFromOrigin ? " (admin reassignment away from originating installer – attribution unchanged)" : ""}`);
     if (data.role === "electrician" && (await getStage(data.jobId)) === "awaiting_electrician")
       await transition(data.jobId, "assessment_booking", context.userId, "Electrician assigned – booking measure-up");
     return { ok: true };
@@ -272,6 +304,8 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
     if (!(await authorityValid(q.job_id))) throw new WorkflowError(`${AUTHORITY_BLOCKER} before accepting quotes.`);
     // All gates are checked BEFORE the quote is marked accepted, so a blocked acceptance leaves nothing half-done.
     if (q.kind === "installation") {
+      const cb = await commercialBlocker(q.job_id);
+      if (cb) throw new WorkflowError(`Blocked: ${cb}`);
       const p = await piesaStatus(q.job_id);
       const { count: rect } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("status", "required");
       if (!rect && p?.piesa_expired) throw new WorkflowError("The electrical safety assessment has expired. HI VIC will arrange a reassessment.");
@@ -381,6 +415,7 @@ export const createBooking = createServerFn({ method: "POST" }).middleware([requ
         throw new WorkflowError(`Installation must be before the PIESA deadline (${p.install_deadline}).`);
     }
     if (!(await authorityValid(data.jobId))) throw new WorkflowError(`Blocked: ${AUTHORITY_BLOCKER}.`);
+    if (data.kind !== "assessment") { const cb = await commercialBlocker(data.jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
     if (data.kind !== "assessment" && !(await depositCleared(data.jobId)))
       throw new WorkflowError("Blocked: the 50% deposit has not been paid.");
     if (data.kind === "installation") {

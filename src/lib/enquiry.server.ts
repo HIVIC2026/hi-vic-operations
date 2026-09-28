@@ -18,7 +18,9 @@ export const enquirySchema = z.object({
 export type EnquiryInput = z.infer<typeof enquirySchema>;
 
 /** Create/update owner, property and job from an enquiry. Idempotent on external_enquiry_id. */
-export async function upsertEnquiry(input: EnquiryInput, source: string, actorId: string | null) {
+export type JobOrigin = { channel: "hivic_sourced" } | { channel: "installer_sourced"; businessId: string; userId: string };
+
+export async function upsertEnquiry(input: EnquiryInput, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }) {
   const email = input.email.toLowerCase();
   let { data: owner } = await admin.from("owners").select("id").ilike("email", email).maybeSingle();
   if (owner) {
@@ -56,10 +58,19 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
   if (pe) throw new Error(pe.message);
   const { data: job, error: je } = await admin
     .from("jobs")
-    .insert({ ...jobFields, property_id: prop.id, owner_id: owner!.id, source, external_enquiry_id: input.external_enquiry_id ?? null, next_action: "Review eligibility" })
+    .insert({
+      ...jobFields, property_id: prop.id, owner_id: owner!.id, source, external_enquiry_id: input.external_enquiry_id ?? null, next_action: "Review eligibility",
+      channel: origin.channel,
+      ...(origin.channel === "installer_sourced"
+        ? { originating_installer_business_id: origin.businessId, originating_installer_user_id: origin.userId, commercial_model: "not_configured" as const }
+        : {}),
+    })
     .select("id, job_number")
     .single();
   if (je) throw new Error(je.message);
   await logEvent(job.id, actorId, "enquiry_received", `Enquiry received (${source})`, {}, { to: "new_enquiry" });
+  await logEvent(job.id, actorId, "job_source_recorded",
+    origin.channel === "installer_sourced" ? "Job source: Installer-sourced (attribution locked)" : "Job source: HI VIC-sourced",
+    origin.channel === "installer_sourced" ? { channel: origin.channel, originating_installer_business_id: origin.businessId, originating_installer_user_id: origin.userId, commercial_model: "not_configured" } : { channel: origin.channel });
   return { job_id: job.id, job_number: job.job_number, created: true };
 }
