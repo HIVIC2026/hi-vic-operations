@@ -23,6 +23,7 @@ export const Route = createFileRoute("/_authenticated/admin/")({
 function Pipeline() {
   const [q, setQ] = useState("");
   const [view, setView] = useState<"board" | "list">("board");
+  const [source, setSource] = useState<"all" | "hivic_sourced" | "installer_sourced">("all");
   const sweep = useServerFn(sweepAuthorities);
   const { data: jobs = [] } = useQuery({
     queryKey: ["pipeline"],
@@ -30,8 +31,8 @@ function Pipeline() {
   });
   const filtered = useMemo(() => {
     const s = q.toLowerCase();
-    return jobs.filter((j) => !s || [j.job_number, j.property_address, j.owner_name, j.electrician_name, j.installer_name].some((v) => v?.toLowerCase().includes(s)));
-  }, [jobs, q]);
+    return jobs.filter((j) => source === "all" || j.channel === source).filter((j) => !s || [j.job_number, j.property_address, j.owner_name, j.electrician_name, j.installer_name].some((v) => v?.toLowerCase().includes(s)));
+  }, [jobs, q, source]);
   const byStage = (st: Stage) => filtered.filter((j) => j.stage === st);
   const warnings = jobs.filter((j) => j.urgency === "red" || j.urgency === "expired" || j.payment_status === "overdue" || j.payment_status === "xero_sync_error" || (j.authority_status !== "accepted" && !["new_enquiry", "eligibility_review", "complete", "cancelled"].includes(j.stage ?? ""))).length;
   const noAuth = jobs.filter((j) => j.authority_status !== "accepted" && !["new_enquiry", "eligibility_review", "complete", "cancelled"].includes(j.stage ?? "")).length;
@@ -45,6 +46,9 @@ function Pipeline() {
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search job, address, person" className="w-64 pl-8" /></div>
+          <select aria-label="Job source" className="h-9 rounded-md border bg-background px-2 text-sm" value={source} onChange={(e) => setSource(e.target.value as typeof source)}>
+            <option value="all">All sources</option><option value="hivic_sourced">HI VIC-sourced</option><option value="installer_sourced">Installer-sourced</option>
+          </select>
           <Button variant="outline" onClick={() => setView(view === "board" ? "list" : "board")}>{view === "board" ? "List view" : "Board view"}</Button>
           <NewEnquiry />
         </div>

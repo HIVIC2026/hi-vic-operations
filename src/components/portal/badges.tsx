@@ -39,3 +39,9 @@ export function AuthorityBadge({ status }: { status: string | null | undefined }
   const label: Record<string, string> = { not_requested: "No Owner Authority", sent: "Authority sent", viewed: "Authority viewed", accepted: "Authority valid", declined: "Authority declined", expired: "Authority expired", revoked: "Authority revoked" };
   return <Pill t={t}>{label[s] ?? s}</Pill>;
 }
+
+export function SourceBadge({ channel, business }: { channel: string | null | undefined; business?: string | null }) {
+  if (channel === "installer_sourced") return <Pill t="info">Installer-sourced{business ? ` · ${business}` : ""}</Pill>;
+  if (channel === "hivic_sourced") return <Pill t="neutral">HI VIC-sourced</Pill>;
+  return null;
+}
