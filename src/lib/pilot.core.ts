@@ -107,7 +107,7 @@ export function extractFromText(text: string): Extracted {
   out.full_name = f(name, "label"); out.email = f(email, "pattern"); out.phone = f(phone, "pattern");
   if (addr) {
     const m = addr.match(/^(.*?),?\s+([A-Za-z][A-Za-z \-']+?)\s+(?:VIC|Vic|Victoria)?\s*(3\d{3})$/);
-    if (m) { out.address_line = f(m[1].replace(/,$/, ""), "label"); out.suburb = f(m[2].trim(), "label"); out.postcode = f(m[3], "label"); }
+    if (m) { out.address_line = f(m[1]!.replace(/,$/, ""), "label"); out.suburb = f(m[2]!.trim(), "label"); out.postcode = f(m[3]!, "label"); }
     else { out.address_line = f(addr, "label", "uncertain"); out.postcode = f(addr.match(/\b3\d{3}\b/)?.[0] ?? null, "pattern", "uncertain"); }
   }
   out.external_reference = f(label(/^(?:job|lead|ref|reference|job no\.?|job number|quote no\.?)\s*[:#\-]\s*([A-Z0-9\-_/]+)/im), "label");
@@ -128,7 +128,7 @@ export function extractFromText(text: string): Extracted {
   out.swms_status = f(label(/^(?:swms)(?: status)?\s*[:\-]\s*(.+)$/im), "label");
   out.electrician_name = f(label(/^(?:electrician|sparky)\s*[:\-]\s*(.+)$/im), "label");
   out.notes = f(label(/^(?:notes?|comments?)\s*[:\-]\s*([\s\S]+?)(?:\n\s*\n|$)/im), "label");
-  const lines = [...t.matchAll(/^\s*[-*•]?\s*([A-Za-z][^\n$]{2,80}?)\s*[:\-]?\s*\$\s*([\d,]+(?:\.\d{1,2})?)\s*$/gm)].map((m) => ({ description: m[1].trim(), amount: num(m[2]) }));
+  const lines = [...t.matchAll(/^\s*[-*•]?\s*([A-Za-z][^\n$]{2,80}?)\s*[:\-]?\s*\$\s*([\d,]+(?:\.\d{1,2})?)\s*$/gm)].map((m) => ({ description: m[1]!.trim(), amount: num(m[2]) }));
   if (lines.length) out.quote_lines = lines.slice(0, 40);
   return out;
 }
@@ -166,7 +166,7 @@ export function extractFromCsvRow(r: Record<string, string>): Extracted {
   for (const k of IMPORT_FIELDS) {
     const col = CSV_ALIASES[k].find((a) => r[a] != null && r[a] !== "");
     const raw = col ? r[col] : null;
-    let v: string | number | boolean | null = raw;
+    let v: string | number | boolean | null = raw ?? null;
     if (raw != null && ["measured_area_m2", "removal_m2", "existing_r_value", "r_value"].includes(k)) v = num(raw.replace(/[^\d.,]/g, ""));
     if (raw != null && k === "removal_required") v = /^(y|yes|true|1)$/i.test(raw);
     out[k] = f(v, col ? `csv:${col}` : "csv", v == null ? "missing" : "found");
@@ -178,7 +178,7 @@ export function extractFromCsvRow(r: Record<string, string>): Extracted {
 export function mergeExtracted(...parts: Extracted[]): Extracted {
   const out: Extracted = {};
   for (const p of parts) for (const k of IMPORT_FIELDS) {
-    const n = p[k]; if (!n || n.value == null) { out[k] ??= n ?? f(null, "none"); continue; }
+    const n = p[k]; if (!n || n.value == null) { out[k] ??= (n ?? f(null, "none")) as Fact; continue; }
     const cur = out[k];
     if (!cur || cur.value == null) out[k] = n;
     else if (String(cur.value).toLowerCase() !== String(n.value).toLowerCase()) out[k] = { ...cur, confidence: "uncertain", source: `${cur.source} vs ${n.source}` };
@@ -306,7 +306,7 @@ export function offerRespondBlocker(o: { status: string; expires_at: string | nu
 }
 
 // ---------- Partner pricing ----------
-export type PartnerLine = { code?: string | null; description: string; category: string; unit: string; quantity: number; supplier_unit_ex_gst: number; justification?: string | null };
+export type PartnerLine = { code?: string | null | undefined; description: string; category: string; unit: string; quantity: number; supplier_unit_ex_gst: number; justification?: string | null | undefined };
 export const EXTRA_CATEGORIES = ["tile_lift", "metal_sheet_access", "removal", "difficult_access", "other"] as const;
 export function partnerLineBlockers(lines: PartnerLine[]): string[] {
   const b: string[] = [];
@@ -325,7 +325,7 @@ export function revisionBlocker(version: number, reason: string | null | undefin
 }
 
 /** Customer-facing co-branded snapshot. Never includes supplier cost or margin. */
-export function cobrandSnapshot(p: { partnerName: string; partnerLogoUrl?: string | null; partnerAbn?: string | null; relationshipOwner: "hivic" | "installer" }) {
+export function cobrandSnapshot(p: { partnerName: string; partnerLogoUrl?: string | null | undefined; partnerAbn?: string | null | undefined; relationshipOwner: "hivic" | "installer" }) {
   return {
     installation_partner: { name: p.partnerName, logo_url: p.partnerLogoUrl ?? null, abn: p.partnerAbn ?? null },
     accredited_provider: { name: AP_ENTITY, role: "Accredited Provider (VEU Activity 48)" },

@@ -47,7 +47,7 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
     }
     if (!adminUser) {
       await requireMember(context.userId, id, true);
-      delete (patch as Record<string, unknown>).commercial_route; // commercial route is HI VIC-controlled
+      delete (patch as Record<string, unknown>)["commercial_route"]; // commercial route is HI VIC-controlled
     }
     const { data: before } = await admin.from("businesses").select("*").eq("id", id).single();
     if (!before) throw new WorkflowError("Business not found");
@@ -212,7 +212,7 @@ export const getPartnerProfile = createServerFn({ method: "POST" }).middleware([
     if (!business) return null;
     const [{ data: creds }, { data: members }, { data: rels }, { data: agreements }, { data: cards }, { data: electricians }] = await Promise.all([
       admin.from("business_credentials").select("*").eq("business_id", id).order("created_at"),
-      admin.from("business_members").select("user_id, member_role, active, profiles(full_name, email)").eq("business_id", id),
+      admin.from("business_members").select("user_id, member_role, active, profiles!business_members_user_id_fkey(full_name, email)").eq("business_id", id),
       admin.from("partner_relationships").select("id, electrician_business_id, preferred, active, businesses!partner_relationships_electrician_business_id_fkey(name, onboarding_status)").eq("installer_business_id", id),
       admin.from("partner_agreements").select("version, signer_name, signed_at, snapshot_sha256").eq("business_id", id).order("signed_at", { ascending: false }),
       admin.from("rate_cards").select("id, kind, name, version, effective_from, is_active").eq("business_id", id).order("version", { ascending: false }),
@@ -326,10 +326,10 @@ export const electricianOptions = createServerFn({ method: "POST" }).middleware(
     await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
     const { cands, site } = await electricianCandidates(data.jobId);
     const ranked = rankElectricians(cands, site);
-    const { data: members } = await admin.from("business_members").select("business_id, user_id, profiles(full_name)").in("business_id", ranked.map((r) => r.id).length ? ranked.map((r) => r.id) : ["00000000-0000-0000-0000-000000000000"]).eq("active", true);
+    const { data: members } = await admin.from("business_members").select("business_id, user_id, profiles!business_members_user_id_fkey(full_name)").in("business_id", ranked.map((r) => r.id).length ? ranked.map((r) => r.id) : ["00000000-0000-0000-0000-000000000000"]).eq("active", true);
     const { data: noms } = await admin.from("electrician_nominations").select("id, contact_name, business_name, status, created_at").eq("job_id", data.jobId);
     const { data: j } = await admin.from("jobs").select("electrician_choice").eq("id", data.jobId).single();
-    return { ranked: ranked.map((r) => ({ ...r, preferred: cands.find((c) => c.id === r.id)?.preferred ?? false, people: (members ?? []).filter((m) => m.business_id === r.id).map((m) => ({ id: m.user_id, name: (m.profiles as { full_name: string | null } | null)?.full_name ?? "Electrician" })) })), nominations: noms ?? [], choice: j?.electrician_choice ?? null };
+    return { ranked: ranked.map((r) => ({ ...r, preferred: cands.find((c) => c.id === r.id)?.preferred ?? false, people: (members ?? []).filter((m) => m.business_id === r.id).map((m) => ({ id: m.user_id, name: (m.profiles as unknown as { full_name: string | null } | null)?.full_name ?? "Electrician" })) })), nominations: noms ?? [], choice: j?.electrician_choice ?? null };
   });
 
 export const chooseElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -349,7 +349,7 @@ export const chooseElectrician = createServerFn({ method: "POST" }).middleware([
       if (!data.nomination) throw new WorkflowError("Enter the electrician's details.");
       const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", data.jobId).eq("role", "installer").eq("active", true).maybeSingle();
       // Internal record only: no invitation is sent while customer communications are locked.
-      await admin.from("electrician_nominations").insert({ ...data.nomination, job_id: data.jobId, nominated_by: context.userId, nominating_business_id: inst?.business_id ?? null, status: "invite_pending_comms" });
+      await admin.from("electrician_nominations").insert({ contact_name: data.nomination.contact_name, business_name: data.nomination.business_name ?? null, email: data.nomination.email ?? null, phone: data.nomination.phone ?? null, licence_number: data.nomination.licence_number ?? null, rec_number: data.nomination.rec_number ?? null, nominated_for: data.nomination.nominated_for, job_id: data.jobId, nominated_by: context.userId, nominating_business_id: inst?.business_id ?? null, status: "invite_pending_comms" });
       await logEvent(data.jobId, context.userId, "electrician_nominated", `Electrician nominated: ${data.nomination.contact_name} – waiting for HI VIC onboarding (not yet approved)`);
       await admin.from("jobs").update({ next_action: "Waiting for nominated electrician onboarding" }).eq("id", data.jobId);
       return { ok: true, assigned: false };
@@ -543,7 +543,7 @@ export const partnerDashboard = createServerFn({ method: "GET" }).middleware([re
     const mine = await myBusinesses(context.userId);
     const ids = [...mine.keys()];
     if (!ids.length) return null;
-    const bizId = ids[0];
+    const bizId = ids[0]!;
     const isBizAdmin = mine.get(bizId) === "business_admin";
     const { business, credentials } = await loadBusiness(bizId);
     const { data: offers } = await admin.from("partner_offers").select("id, status, summary, offered_at, expires_at").eq("business_id", bizId).eq("status", "pending");
@@ -562,7 +562,7 @@ export const partnerDashboard = createServerFn({ method: "GET" }).middleware([re
     const cards = await Promise.all((jobs ?? []).map(async (j) => {
       const e = elec?.find((x) => x.job_id === j.id);
       const deposit = (inv as unknown as { job_id: string; deposit_cleared: boolean | null }[] | null)?.find((x) => x.job_id === j.id);
-      const { TRANSITIONS } = await import("./workflow");
+      const { TRANSITIONS } = await import("./workflow.server");
       const next = TRANSITIONS[j.stage as keyof typeof TRANSITIONS]?.[0];
       const blockers = next ? await stageEntryBlockers(j.id, next).catch(() => []) : [];
       return {
