@@ -16,7 +16,7 @@ export type FormField = { key: string; label: string; type: "text" | "number" | 
 export const NOT_READY: Record<TemplateKey, string> = {
   consumer_declaration: "Customer signing is not ready: add the current Activity 48 consumer declaration.",
   consumer_rights: "Customer signing is not ready: add the current VEU consumer information and consumer rights.",
-  esc_consent: "Customer signing is not ready: add the current ESC information-sharing consent wording.",
+  esc_consent: "Customer signing is not ready: add the current ESC information sharing consent wording.",
   installer_declaration: "Installer sign-off is not ready: add the current Activity 48 installer declaration.",
   ap_declaration: "AP sign-off is not ready: approve the current Accredited Person declaration.",
 };

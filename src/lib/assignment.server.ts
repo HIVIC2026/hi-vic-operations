@@ -3,13 +3,13 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { AP_LEGAL_ENTITY } from "./authority";
 import {
-  ASSIGNMENT_EVENTS as EV, activeTemplate, consumerSignBlockers, evaluateAssignment, materialChanges, retainUntil, sha256Hex, stableJson, templateBlockers,
+  ASSIGNMENT_EVENTS as EV, activeTemplate, apDeclarationRequired, formFieldBlockers, parseFormFields, pickFieldValues, resolveInstalledDetails, type FieldValue, consumerSignBlockers, evaluateAssignment, materialChanges, retainUntil, sha256Hex, stableJson, templateBlockers,
   type ConsumerSignInput, type Snapshot, type Template,
 } from "./assignment.core";
 import { WorkflowError, logEvent } from "./workflow.server";
 
 export async function loadTemplates(): Promise<Template[]> {
-  const { data } = await admin.from("compliance_templates").select("template_key, version, body, approved, is_active, required").eq("is_active", true);
+  const { data } = await admin.from("compliance_templates").select("template_key, version, body, approved, is_active, required, form_fields").eq("is_active", true);
   return (data ?? []) as Template[];
 }
 
@@ -156,7 +156,7 @@ export async function reconfirmVariation(p: { variationId: string; actorId: stri
 }
 
 /** Installer signs final declaration with installed product + actual m². Material differences raise a variation. */
-export async function signInstaller(p: { jobId: string; actorId: string; installedProduct: string; installedArea: number; signatureName: string; ip: string | null; userAgent: string | null }) {
+export async function signInstaller(p: { jobId: string; actorId: string; asQuotedProduct: boolean; installedProduct?: string | null; installedArea: number; fieldValues: Record<string, FieldValue>; signatureName: string; ip: string | null; userAgent: string | null }) {
   const a = await currentAssignment(p.jobId);
   if (!a) throw new WorkflowError("Customer acceptance has not been signed yet.");
   if (a.installer_signed_at) throw new WorkflowError("Installer declaration already signed.");
@@ -164,6 +164,13 @@ export async function signInstaller(p: { jobId: string; actorId: string; install
   const tb = templateBlockers(templates, "final");
   if (tb.length) throw new WorkflowError(tb.join(" "));
   const decl = activeTemplate(templates, "installer_declaration")!;
+  const resolved = resolveInstalledDetails({ asQuotedProduct: p.asQuotedProduct, product: p.installedProduct ?? null, area: p.installedArea }, { product: a.quoted_product });
+  if ("error" in resolved) throw new WorkflowError(resolved.error);
+  const defs = parseFormFields(decl.form_fields);
+  const fb = formFieldBlockers(defs, p.fieldValues);
+  if (fb.length) throw new WorkflowError(fb.join(" "));
+  const fieldValues = pickFieldValues(defs, p.fieldValues);
+  const installedProduct = resolved.product, installedArea = resolved.area;
   const ap = activeTemplate(templates, "ap_declaration");
   const inst = await installerFacts(p.jobId);
   if (inst.installer_user_id !== p.actorId) {
@@ -171,19 +178,19 @@ export async function signInstaller(p: { jobId: string; actorId: string; install
     if (!isAdm) throw new WorkflowError("Only the assigned installer can sign this declaration.");
   }
   const now = new Date().toISOString();
-  const snap = { declaration: { version: decl.version, body: decl.body }, installer: inst, installed_product: p.installedProduct, installed_area_m2: p.installedArea, signature: { typed_name: p.signatureName, at: now, ip: p.ip, user_agent: p.userAgent, user_id: p.actorId } };
+  const snap = { declaration: { version: decl.version, body: decl.body, fields: defs }, installer: inst, installed_as_quoted: p.asQuotedProduct, installed_product: installedProduct, installed_area_m2: installedArea, field_values: fieldValues, signature: { typed_name: p.signatureName, at: now, ip: p.ip, user_agent: p.userAgent, user_id: p.actorId } };
   const hash = await sha256Hex(stableJson(snap));
   await admin.from("customer_assignments").update({
     installer_user_id: inst.installer_user_id, installer_business_id: inst.installer_business_id, installer_name: inst.name, installer_business_name: inst.business,
     installer_abn: inst.abn, installer_licence: inst.licence, installer_declaration_version: decl.version, installer_signature_name: p.signatureName,
-    installer_signed_at: now, installer_ip: p.ip, installer_user_agent: p.userAgent, installed_product: p.installedProduct, installed_area_m2: p.installedArea,
+    installer_signed_at: now, installer_ip: p.ip, installer_user_agent: p.userAgent, installed_product: installedProduct, installed_area_m2: installedArea, installer_form_values: fieldValues as unknown as Json,
     installer_snapshot: snap as unknown as Json, installer_snapshot_sha256: hash, ap_declaration_version: ap?.version ?? null,
   }).eq("id", a.id);
   await admin.from("declarations").upsert({ job_id: p.jobId, kind: "installer_declaration", declared_by: p.actorId, statement: `${decl.version}: ${decl.body}`, declared_at: now }, { onConflict: "job_id,kind" });
-  await logEvent(p.jobId, p.actorId, EV.INSTALLER_DECLARATION_SIGNED, `Installer declaration signed (${decl.version}) – ${p.installedProduct}, ${p.installedArea} m²`, { assignment_id: a.id, sha256: hash });
+  await logEvent(p.jobId, p.actorId, EV.INSTALLER_DECLARATION_SIGNED, `Installer declaration signed (${decl.version}) – ${installedProduct}, ${installedArea} m²`, { assignment_id: a.id, sha256: hash });
   const base = await baselineSnapshot(a);
-  const changes = materialChanges(base, { installer_user_id: inst.installer_user_id, installer_business_id: inst.installer_business_id, product: p.installedProduct, area_m2: p.installedArea });
-  if (changes.length) await raiseVariation(p.jobId, p.actorId, changes, { ...base, installer_user_id: inst.installer_user_id, installer_business_id: inst.installer_business_id, product: p.installedProduct, area_m2: p.installedArea });
+  const changes = materialChanges(base, { installer_user_id: inst.installer_user_id, installer_business_id: inst.installer_business_id, product: installedProduct, area_m2: installedArea });
+  if (changes.length) await raiseVariation(p.jobId, p.actorId, changes, { ...base, installer_user_id: inst.installer_user_id, installer_business_id: inst.installer_business_id, product: installedProduct, area_m2: installedArea });
   await evaluateAndApply(p.jobId, p.actorId);
 }
 
@@ -196,7 +203,7 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
   const templates = await loadTemplates();
   const r = evaluateAssignment({
     status: a.status, consumerSigned: !!a.consumer_signed_at, installationCompleted: !!job?.installation_completed_at, installerSigned: !!a.installer_signed_at,
-    installedProduct: a.installed_product, installedArea: a.installed_area_m2 != null ? Number(a.installed_area_m2) : null, openVariation: (openVar ?? 0) > 0, templates,
+    installedProduct: a.installed_product, installedArea: a.installed_area_m2 != null ? Number(a.installed_area_m2) : null, openVariation: (openVar ?? 0) > 0, templates, apSigned: !!a.ap_signed_at,
   });
   if (r.status === a.status) return r;
   if (r.status !== "effective_complete") {
@@ -204,10 +211,20 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
     return r;
   }
   const now = new Date();
-  const finalText = [`COMPLETED VEEC ASSIGNMENT – ${a.ap_legal_entity}`, `Job ${job?.job_number} · effective ${now.toISOString()}`, "", `Consumer signed ${a.consumer_signed_at} (sha256 ${a.consumer_snapshot_sha256})`,
-    `Installer signed ${a.installer_signed_at} (sha256 ${a.installer_snapshot_sha256})`, `Installer: ${a.installer_name ?? ""} ${a.installer_business_name ?? ""} ABN ${a.installer_abn ?? "-"} Licence ${a.installer_licence ?? "-"}`,
-    `Installed product: ${a.installed_product} · Installed area: ${a.installed_area_m2} m²`, `Declarations: consumer ${a.consumer_declaration_version}, rights ${a.consumer_rights_version}, installer ${a.installer_declaration_version}${a.ap_declaration_version ? `, AP ${a.ap_declaration_version}` : ""}`,
-    "", "Consumer snapshot:", stableJson(a.consumer_snapshot), "", "Installer snapshot:", stableJson(a.installer_snapshot)].join("\n");
+  const fv = (a.installer_form_values ?? {}) as Record<string, unknown>;
+  const instSnap = (a.installer_snapshot ?? {}) as { declaration?: { body?: string; fields?: { key: string; label: string }[] } };
+  const finalText = [`COMPLETED CUSTOMER ACCEPTANCE & VEEC ASSIGNMENT – ${a.ap_legal_entity}`, `Job ${job?.job_number} · effective ${now.toISOString()}`, "",
+    "CUSTOMER", `Signatory: ${a.signatory_name} (${a.signatory_authority_type}) · ${a.signatory_email ?? ""} ${a.signatory_phone ?? ""}`,
+    `Signed ${a.consumer_signed_at} · typed signature "${a.consumer_signature_name}" · IP ${a.consumer_ip ?? "unknown"}`,
+    `Wording: consumer declaration ${a.consumer_declaration_version} · consumer rights ${a.consumer_rights_version} · ESC consent ${a.esc_consent_version ?? "-"}`,
+    `Quoted: ${a.quoted_product} · ${a.quoted_area_m2 ?? "TBC"} m² · final price ${Number(a.final_customer_price_inc_gst).toFixed(2)} inc GST (VEU benefit ${Number(a.veu_benefit_inc_gst).toFixed(2)})`, "",
+    "INSTALLER", `${a.installer_name ?? ""} ${a.installer_business_name ? `(${a.installer_business_name})` : ""} · ABN ${a.installer_abn ?? "-"} · Licence ${a.installer_licence ?? "-"}`,
+    `Installed product: ${a.installed_product} · Installed area: ${a.installed_area_m2} m²`,
+    ...(instSnap.declaration?.fields ?? []).map((f) => `${f.label}: ${String(fv[f.key] ?? "—")}`),
+    `Installer declaration ${a.installer_declaration_version}:`, instSnap.declaration?.body ?? "", `Signed ${a.installer_signed_at} · typed signature "${a.installer_signature_name}"`, "",
+    ...(a.ap_signed_at ? ["ACCREDITED PERSON", `AP declaration ${a.ap_declaration_version} signed ${a.ap_signed_at} by "${a.ap_signature_name}" (sha256 ${a.ap_snapshot_sha256})`, ""] : []),
+    `Consumer record sha256 ${a.consumer_snapshot_sha256} · Installer record sha256 ${a.installer_snapshot_sha256}`, "",
+    "Machine-readable records:", stableJson(a.consumer_snapshot), stableJson(a.installer_snapshot), stableJson(a.ap_details ?? null)].join("\n");
   const hash = await sha256Hex(finalText);
   const path = await storeCopy(jobId, `${jobId}/assignment/final-${hash.slice(0, 12)}.txt`, finalText, "Completed VEEC Assignment (final copy)", actorId ?? a.consumer_signed_by ?? null);
   await admin.from("customer_assignments").update({ status: "effective_complete", effective_at: now.toISOString(), completed_at: now.toISOString(), final_copy_path: path, final_copy_at: path ? now.toISOString() : null }).eq("id", a.id);
@@ -215,3 +232,23 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
   await logEvent(jobId, actorId, EV.VEEC_ASSIGNMENT_EFFECTIVE, "VEEC assignment effective – final completed copy generated", { assignment_id: a.id, sha256: hash });
   return r;
 }
+
+/** HI VIC internal AP/assignee declaration: all known fields prefilled; admin reviews and signs electronically. */
+export async function signApDeclaration(p: { jobId: string; actorId: string; signatureName: string; ip: string | null; userAgent: string | null }) {
+  const a = await currentAssignment(p.jobId);
+  if (!a) throw new WorkflowError("The customer has not signed yet.");
+  if (a.ap_signed_at) throw new WorkflowError("AP declaration already signed.");
+  const templates = await loadTemplates();
+  const ap = activeTemplate(templates, "ap_declaration");
+  if (!ap) throw new WorkflowError("AP sign-off is not ready: approve the current Accredited Person declaration.");
+  if (!a.installer_signed_at) throw new WorkflowError("Wait for the installer to finalise and sign first.");
+  const now = new Date().toISOString();
+  const snap = { declaration: { version: ap.version, body: ap.body }, entity: a.ap_legal_entity, job_id: p.jobId, installed_product: a.installed_product, installed_area_m2: a.installed_area_m2,
+    consumer_sha256: a.consumer_snapshot_sha256, installer_sha256: a.installer_snapshot_sha256, signature: { typed_name: p.signatureName, at: now, ip: p.ip, user_agent: p.userAgent, user_id: p.actorId } };
+  const hash = await sha256Hex(stableJson(snap));
+  await admin.from("customer_assignments").update({ ap_declaration_version: ap.version, ap_details: snap as unknown as Json, ap_signed_at: now, ap_signed_by: p.actorId, ap_signature_name: p.signatureName, ap_snapshot_sha256: hash }).eq("id", a.id);
+  await logEvent(p.jobId, p.actorId, "AP_DECLARATION_SIGNED", `HI VIC AP declaration signed (${ap.version})`, { assignment_id: a.id, sha256: hash });
+  await evaluateAndApply(p.jobId, p.actorId);
+}
+
+export { apDeclarationRequired };
