@@ -71,7 +71,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
 
 /** Read-only view of Mitti-synced assessment fields (electrician doesn't enter them twice). */
 export function MittiSyncedFields({ a: raw }: { a: Record<string, unknown> }) {
-  const a = raw as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const a = raw as { [k in "measured_area_m2"|"insulation_present"|"existing_r_value"|"removal_required"|"removal_m2"|"access_difficulty"|"downlights_qty"|"downlights_upgrade_qty"|"exhaust_fans_qty"|"exhaust_fans_clearance_qty"|"switchboard_condition"|"rcds_present"|"rcds_required_qty"|"life_support_confirmed"|"piesa_outcome"|"assessed_on"|"hazards"|"notes"]: unknown };
   const f = (v: unknown) => (v === true ? "Yes" : v === false ? "No" : v == null || v === "" ? "—" : String(v));
   const rows: [string, unknown][] = [
     ["Measured area (m²)", a.measured_area_m2], ["Insulation present", a.insulation_present], ["Existing R-value", a.existing_r_value],
