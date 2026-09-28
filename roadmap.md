@@ -13,3 +13,4 @@
 - [ ] Blocked on user: approve Activity 48 / ESC consent / partner agreement wording in Compliance Setup
 - [ ] Blocked on EasyMate: API/webhook/export access for automatic two-way sync (manual import works now)
 - [ ] Blocked on user: set up ReInsulate business + team accounts, documents and rate card; supervised Xero supplier sync
+- [x] Refinement 1: assessment scheduling = one proposal flow; admin override audited; 24/48h + can't-agree review

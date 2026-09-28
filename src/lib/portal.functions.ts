@@ -105,6 +105,7 @@ export const assignContractor = createServerFn({ method: "POST" }).middleware([r
     await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: "reassigned" }).eq("job_id", data.jobId).eq("role", data.role).eq("active", true);
     await admin.from("job_assignments").insert({ job_id: data.jobId, user_id: data.userId, role: data.role, business_id: prof?.business_id ?? null, assigned_by: context.userId });
     await admin.from("reassignment_requests").update({ status: "actioned", resolved_by: context.userId, resolved_at: new Date().toISOString() }).eq("job_id", data.jobId).eq("role", data.role).eq("status", "open");
+    if (data.role === "electrician") await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", data.jobId).in("kind", ["assessment", "rectification"]).eq("status", "proposed");
     const { data: src } = await admin.from("jobs").select("channel, originating_installer_user_id").eq("id", data.jobId).single();
     const awayFromOrigin = data.role === "installer" && src?.channel === "installer_sourced" && src.originating_installer_user_id !== data.userId;
     await logEvent(data.jobId, context.userId, "contractor_assigned", `${data.role === "electrician" ? "Electrician" : "Installer"} assigned: ${prof?.full_name ?? "user"}${awayFromOrigin ? " (admin reassignment away from originating installer – attribution unchanged)" : ""}`);
@@ -653,12 +654,19 @@ export const simulateXeroPayment = createServerFn({ method: "POST" }).middleware
 
 // ---------- Gate 4: bookings ----------
 export const createBooking = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["assessment", "rectification", "installation"]), start: z.string().datetime({ offset: true }), notes: z.string().max(1000).optional() }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["assessment", "rectification", "installation"]), start: z.string().datetime({ offset: true }), notes: z.string().max(1000).optional(), overrideReason: z.string().trim().max(1000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const need = data.kind === "installation" ? "installer" : "electrician";
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "owner", need]);
+    const { directBookingBlocker } = await import("./pilot.core");
+    const blocked = directBookingBlocker(data.kind, role, data.overrideReason);
+    if (blocked) throw new WorkflowError(blocked);
     const { confirmBooking } = await import("./booking.server");
-    await confirmBooking(data.jobId, data.kind, data.start, context.userId, role, data.notes);
+    if (data.kind === "assessment") {
+      await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", data.jobId).eq("kind", "assessment").eq("status", "proposed");
+      await logEvent(data.jobId, context.userId, "admin_booking_override", `Admin override: assessment booking set directly for ${new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}`, { reason: data.overrideReason, start: data.start });
+    }
+    await confirmBooking(data.jobId, data.kind, data.start, context.userId, role === "admin" && data.kind === "assessment" ? "admin (override)" : role, data.notes);
     return { ok: true };
   });
 
@@ -842,12 +850,14 @@ export const sendMessage = createServerFn({ method: "POST" }).middleware([requir
   });
 
 export const requestReassignment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, role: z.enum(["electrician", "installer"]), reason: z.string().trim().min(5).max(2000) }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, role: z.enum(["electrician", "installer"]), reason: z.string().trim().min(5).max(2000), cantAgreeTime: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
+    // Review-only: never unassigns. Automatic electrician release lives in requestAnotherElectrician (48h / cannot-attend rules).
     await requireJobRole(context.supabase, data.jobId, ["owner", "admin"]);
-    await admin.from("reassignment_requests").insert({ job_id: data.jobId, role: data.role, requested_by: context.userId, reason: data.reason });
-    await logEvent(data.jobId, context.userId, "reassignment_requested", `Owner requested a different ${data.role}`, { reason: data.reason });
-    await admin.from("jobs").update({ next_action: `Reassign ${data.role} (owner request)` }).eq("id", data.jobId);
+    const reason = data.cantAgreeTime ? `Can't agree a suitable time: ${data.reason}` : data.reason;
+    await admin.from("reassignment_requests").insert({ job_id: data.jobId, role: data.role, requested_by: context.userId, reason });
+    await logEvent(data.jobId, context.userId, data.cantAgreeTime ? "reassignment_review_requested" : "reassignment_requested", data.cantAgreeTime ? "Owner can't agree a time with the electrician – HI VIC to review (electrician stays assigned)" : `Owner requested a different ${data.role}`, { reason });
+    await admin.from("jobs").update({ next_action: `Review ${data.role} reassignment request (owner)` }).eq("id", data.jobId);
     return { ok: true };
   });
 

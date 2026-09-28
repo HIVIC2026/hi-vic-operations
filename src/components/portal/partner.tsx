@@ -13,6 +13,7 @@ import {
   chooseElectrician, coordinationState, electricianOptions, markCannotAttend, offerToPartner, proposeTime, requestAnotherElectrician,
   respondToProposal, setRelationshipOwner, submitPartnerProposal, withdrawOffer,
 } from "@/lib/pilot.functions";
+import { createBooking, requestReassignment } from "@/lib/portal.functions";
 import { EXTRA_CATEGORIES, supplierTotal, type PartnerLine } from "@/lib/pilot.core";
 
 const when = (s: string) => new Date(s).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -80,55 +81,95 @@ export function ElectricianChoicePanel({ jobId }: { jobId: string }) {
   );
 }
 
-/** Propose / accept / decline visit times. Accepting writes the real booking. */
+/**
+ * The ONE normal scheduling path for assessment visits: propose / accept / suggest another time.
+ * Accepting writes the real booking through the central booking gate. Rescheduling = a new proposal.
+ */
 export function AppointmentPanel({ jobId, kind = "assessment" }: { jobId: string; kind?: "assessment" | "rectification" | "installation" }) {
   const load = useServerFn(coordinationState);
   const { data, refetch } = useQuery({ queryKey: ["coord", jobId], queryFn: () => load({ data: { jobId } }) });
   const propose = useAction(proposeTime);
   const respond = useAction(respondToProposal);
   const another = useAction(requestAnotherElectrician);
+  const review = useAction(requestReassignment);
   const cannot = useAction(markCannotAttend);
   const [start, setStart] = useState("");
   const [note, setNote] = useState("");
   const [reason, setReason] = useState("");
+  const [showCantAgree, setShowCantAgree] = useState(false);
   if (!data) return null;
   const open = data.proposals.filter((p) => p.kind === kind && p.status === "proposed");
-  const hist = data.proposals.filter((p) => p.kind === kind && p.status !== "proposed").slice(0, 6);
+  const hist = data.proposals.filter((p) => p.kind === kind && p.status !== "proposed").slice(0, data.role === "admin" ? 30 : 6);
+  const booked = data.confirmed.find((b) => b.kind === kind);
+  const sla = data.electrician?.sla ?? null;
+  const isOwner = data.role === "owner";
+  const releaseAllowed = kind === "assessment" && data.electrician && data.role !== "electrician" && (sla?.canRequestAnother || data.role === "admin");
+  const statusLine = booked ? null : isOwner && sla?.state === "attention" ? sla.message : sla && sla.state !== "ok" ? sla.message : null;
   return (
-    <Section title="Arrange the visit" action={<SlaPill sla={data.electrician?.sla ?? null} />}>
-      {!data.electrician && kind === "assessment" ? <p className="text-sm text-muted-foreground">An electrician hasn't been assigned yet.</p> : <>
+    <Section title="Arrange the visit" action={<SlaPill sla={booked ? { state: "booked", message: "Confirmed" } : sla} />}>
+      {!data.electrician && kind === "assessment" ? <p className="text-sm text-muted-foreground">Waiting for electrician – HI VIC is arranging one.</p> : <>
         {data.electrician && <p className="mb-2 text-sm">Electrician: <span className="font-medium">{data.electrician.name}</span></p>}
+        {booked && <p className="mb-2 rounded-lg bg-success-soft p-3 text-sm font-medium text-success">Confirmed: {when(booked.scheduled_start)}</p>}
+        {statusLine && <p className={`mb-2 rounded-lg p-3 text-sm font-medium ${sla?.state === "exception" ? "bg-danger-soft text-danger" : "bg-warning-soft text-warning"}`}>{statusLine}</p>}
+        {data.openRequests.length > 0 && <p className="mb-2 rounded-lg bg-muted p-3 text-sm">HI VIC is reviewing a request to change electrician. {data.role === "admin" ? `Reason: ${data.openRequests.map((r) => r.reason).join("; ")}` : "Your electrician stays booked in until HI VIC decides."}</p>}
         {open.map((p) => (
           <div key={p.id} className="mb-2 rounded-lg border p-3">
             <div className="font-medium">{when(p.starts_at)}</div>
-            <div className="text-xs text-muted-foreground">Proposed by {p.proposer_role}{p.note ? ` – ${p.note}` : ""}</div>
-            {p.proposer_role !== data.role && <div className="mt-2 grid grid-cols-2 gap-2">
-              <Button size="field" onClick={async () => { await respond({ proposalId: p.id, action: "accept" }, "Booking confirmed"); refetch(); }}>Accept</Button>
+            <div className="text-xs text-muted-foreground">Suggested by {p.proposer_role === data.role ? "you" : p.proposer_role}{p.note ? ` – ${p.note}` : ""}</div>
+            {p.proposer_role !== data.role ? <div className="mt-2 grid grid-cols-2 gap-2">
+              <Button size="field" onClick={async () => { await respond({ proposalId: p.id, action: "accept" }, "Confirmed"); refetch(); }}>Accept this time</Button>
               <Button size="field" variant="outline" onClick={async () => { await respond({ proposalId: p.id, action: "decline" }, "Declined"); refetch(); }}>Decline</Button>
-            </div>}
-            {p.proposer_role === data.role && <div className="mt-1 text-xs text-muted-foreground">Waiting for the other party to respond.</div>}
+            </div> : <div className="mt-1 text-xs text-muted-foreground">Waiting for the other party to respond.</div>}
           </div>
         ))}
         <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-          <Input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} className="h-12" />
+          <Input type="datetime-local" aria-label="Proposed time" value={start} onChange={(e) => setStart(e.target.value)} className="h-12" />
           <Input placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} className="h-12" />
-          <Button size="field" disabled={!start} onClick={async () => { await propose({ jobId, kind, start: new Date(start).toISOString(), note: note || null }, "Time proposed"); setStart(""); setNote(""); refetch(); }}>{open.length ? "Propose another time" : "Propose a time"}</Button>
+          <Button size="field" disabled={!start} onClick={async () => { await propose({ jobId, kind, start: new Date(start).toISOString(), note: note || null }, "Time proposed"); setStart(""); setNote(""); refetch(); }}>{open.length || booked ? "Suggest another time" : "Propose a time"}</Button>
         </div>
-        {hist.length > 0 && <details className="mt-2 text-sm"><summary className="cursor-pointer text-muted-foreground">Earlier proposals</summary>{hist.map((p) => <div key={p.id}>{when(p.starts_at)} – {p.status} ({p.proposer_role})</div>)}</details>}
-        {data.role === "electrician" && kind === "assessment" && (
+        {booked && <p className="mt-1 text-xs text-muted-foreground">Need to change the confirmed time? Suggest another time – the current booking stays until the new time is accepted.</p>}
+        {hist.length > 0 && <details className="mt-2 text-sm" open={data.role === "admin"}><summary className="cursor-pointer text-muted-foreground">{data.role === "admin" ? "Coordination history" : "Earlier times"}</summary>{hist.map((p) => <div key={p.id}>{when(p.starts_at)} – {p.status} ({p.proposer_role}){p.response_note ? ` – ${p.response_note}` : ""}</div>)}</details>}
+        {data.role === "electrician" && kind === "assessment" && !booked && (
           <div className="mt-3 border-t pt-3">
             <Textarea placeholder="Can't attend in time? Tell HI VIC why" value={reason} onChange={(e) => setReason(e.target.value)} />
             <Button className="mt-2 w-full" variant="outline" size="field" disabled={reason.trim().length < 3} onClick={async () => { await cannot({ jobId, reason }, "HI VIC notified"); setReason(""); refetch(); }}>I can't attend in time</Button>
           </div>
         )}
-        {data.role !== "electrician" && kind === "assessment" && data.electrician && (data.electrician.sla.state === "exception" || data.role === "admin") && (
+        {releaseAllowed && (
           <div className="mt-3 border-t pt-3">
             <Textarea placeholder="Why do you need another electrician?" value={reason} onChange={(e) => setReason(e.target.value)} />
             <Button className="mt-2 w-full" variant="outline" size="field" disabled={reason.trim().length < 3} onClick={async () => { await another({ jobId, reason }, "Another electrician requested"); setReason(""); refetch(); }}>Request another electrician</Button>
           </div>
         )}
+        {isOwner && kind === "assessment" && data.electrician && !releaseAllowed && !booked && data.openRequests.length === 0 && (
+          <div className="mt-3 border-t pt-3">
+            {!showCantAgree ? <Button variant="ghost" className="w-full" onClick={() => setShowCantAgree(true)}>We can't agree on a suitable time</Button> : <>
+              <Textarea placeholder="Tell HI VIC what's happening" value={reason} onChange={(e) => setReason(e.target.value)} />
+              <Button className="mt-2 w-full" variant="outline" size="field" disabled={reason.trim().length < 5} onClick={async () => { await review({ jobId, role: "electrician", reason, cantAgreeTime: true }, "Sent to HI VIC for review"); setReason(""); setShowCantAgree(false); refetch(); }}>Ask HI VIC to review</Button>
+              <p className="mt-1 text-xs text-muted-foreground">Your electrician stays assigned while HI VIC reviews this.</p>
+            </>}
+          </div>
+        )}
       </>}
     </Section>
+  );
+}
+
+/** Admin-only emergency path: set an assessment booking directly. Needs a reason; permanently audited. */
+export function AdminBookingOverride({ jobId }: { jobId: string }) {
+  const book = useAction(createBooking);
+  const [start, setStart] = useState("");
+  const [reason, setReason] = useState("");
+  return (
+    <details className="rounded-xl border border-danger/30 p-3">
+      <summary className="cursor-pointer text-sm font-medium text-danger">Admin override / set booking directly</summary>
+      <p className="mt-2 text-xs text-muted-foreground">Not the normal path – use only if the visit can't be arranged through proposals. Recorded permanently with your reason.</p>
+      <div className="mt-2 grid gap-2">
+        <Input type="datetime-local" aria-label="Override booking time" value={start} onChange={(e) => setStart(e.target.value)} className="h-10" />
+        <Textarea placeholder="Reason for override (required)" value={reason} onChange={(e) => setReason(e.target.value)} />
+        <Button variant="destructive" disabled={!start || reason.trim().length < 5} onClick={async () => { await book({ jobId, kind: "assessment", start: new Date(start).toISOString(), overrideReason: reason }, "Override booking saved"); setStart(""); setReason(""); }}>Set assessment booking (override)</Button>
+      </div>
+    </details>
   );
 }
 
