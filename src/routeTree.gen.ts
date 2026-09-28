@@ -20,6 +20,7 @@ import { Route as AuthenticatedFieldJobIdRouteImport } from './routes/_authentic
 import { Route as AuthenticatedOwnerIndexRouteImport } from './routes/_authenticated/owner.index'
 import { Route as AuthenticatedOwnerJobIdRouteImport } from './routes/_authenticated/owner.$jobId'
 import { Route as ApiPublicEnquiryRouteImport } from './routes/api/public/enquiry'
+import { Route as ApiPublicPartnerEnquiryRouteImport } from './routes/api/public/partner-enquiry'
 import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authenticated/admin.jobs.$jobId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -76,6 +77,11 @@ const ApiPublicEnquiryRoute = ApiPublicEnquiryRouteImport.update({
   path: '/api/public/enquiry',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicPartnerEnquiryRoute = ApiPublicPartnerEnquiryRouteImport.update({
+  id: '/api/public/partner-enquiry',
+  path: '/api/public/partner-enquiry',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminJobsJobIdRoute =
   AuthenticatedAdminJobsJobIdRouteImport.update({
     id: '/admin/jobs/$jobId',
@@ -91,6 +97,7 @@ export interface FileRoutesByFullPath {
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
+  '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/field/': typeof AuthenticatedFieldIndexRoute
   '/owner/': typeof AuthenticatedOwnerIndexRoute
@@ -104,6 +111,7 @@ export interface FileRoutesByTo {
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
+  '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/field': typeof AuthenticatedFieldIndexRoute
   '/owner': typeof AuthenticatedOwnerIndexRoute
@@ -119,6 +127,7 @@ export interface FileRoutesById {
   '/_authenticated/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/_authenticated/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
+  '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/field/': typeof AuthenticatedFieldIndexRoute
   '/_authenticated/owner/': typeof AuthenticatedOwnerIndexRoute
@@ -134,6 +143,7 @@ export interface FileRouteTypes {
     | '/field/$jobId'
     | '/owner/$jobId'
     | '/api/public/enquiry'
+    | '/api/public/partner-enquiry'
     | '/admin/'
     | '/field/'
     | '/owner/'
@@ -147,6 +157,7 @@ export interface FileRouteTypes {
     | '/field/$jobId'
     | '/owner/$jobId'
     | '/api/public/enquiry'
+    | '/api/public/partner-enquiry'
     | '/admin'
     | '/field'
     | '/owner'
@@ -161,6 +172,7 @@ export interface FileRouteTypes {
     | '/_authenticated/field/$jobId'
     | '/_authenticated/owner/$jobId'
     | '/api/public/enquiry'
+    | '/api/public/partner-enquiry'
     | '/_authenticated/admin/'
     | '/_authenticated/field/'
     | '/_authenticated/owner/'
@@ -172,6 +184,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
+  ApiPublicPartnerEnquiryRoute: typeof ApiPublicPartnerEnquiryRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -253,6 +266,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicEnquiryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/partner-enquiry': {
+      id: '/api/public/partner-enquiry'
+      path: '/api/public/partner-enquiry'
+      fullPath: '/api/public/partner-enquiry'
+      preLoaderRoute: typeof ApiPublicPartnerEnquiryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/jobs/$jobId': {
       id: '/_authenticated/admin/jobs/$jobId'
       path: '/admin/jobs/$jobId'
@@ -293,6 +313,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
+  ApiPublicPartnerEnquiryRoute: ApiPublicPartnerEnquiryRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -880,3 +880,21 @@ export const getInvoiceInternals = createServerFn({ method: "POST" }).middleware
     const { data: jb } = await admin.from("jobs").select("business_unit").eq("id", data.jobId).maybeSingle();
     return { xeroAllowed: jb?.business_unit === "hivic", invoices: (inv ?? []).map((i) => ({ ...i, deposit_request_raised_by_name: profs?.find((p) => p.id === i.deposit_request_raised_by)?.full_name ?? null })), overrides: (ov ?? []).map((o) => ({ ...o, by: profs?.find((p) => p.id === o.overridden_by)?.full_name ?? null })) };
   });
+
+export const updatePartnerEnquiry = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: uuid, status: z.enum(["new", "contacted", "onboarding", "approved", "declined", "closed"]).optional(), internal_notes: z.string().max(5000).nullable().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const now = new Date().toISOString();
+    const patch: Record<string, unknown> = {};
+    if (data.internal_notes !== undefined) patch.internal_notes = data.internal_notes;
+    if (data.status) {
+      patch.status = data.status; patch.status_changed_by = context.userId;
+      if (data.status === "contacted") patch.contacted_at = now;
+      if (data.status === "approved") patch.approved_at = now;
+      if (data.status === "declined") patch.declined_at = now;
+    }
+    const { error } = await admin.from("partner_enquiries").update(patch).eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
