@@ -15,6 +15,13 @@
       "when": 1790571282882,
       "tag": "0001_payments_xero",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790571980187,
+      "tag": "0002_owner_authority_and_payment_hardening",
+      "breakpoints": true
     }
   ]
 }
