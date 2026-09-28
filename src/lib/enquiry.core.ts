@@ -249,8 +249,10 @@ export function mediaStoragePath(jobId: string, sourceId: string, name: string) 
   return `${jobId}/intake/base44/${sid}-${sanitizeFilename(name)}`;
 }
 
-const EXISTING_INSULATION_KEYS = ["declared_existing_insulation", "existing_insulation", "has_existing_insulation", "current_insulation"];
-const TOP_FLOOR_KEYS = ["declared_top_floor", "top_floor", "is_top_floor", "top_floor_unit", "top_storey"];
+// Base44 stores the homeowner answers under `answers.insulation` and `answers.top_floor`;
+// older/alternative spellings are kept as fallbacks only.
+const EXISTING_INSULATION_KEYS = ["insulation", "declared_existing_insulation", "existing_insulation", "has_existing_insulation", "current_insulation"];
+const TOP_FLOOR_KEYS = ["top_floor", "declared_top_floor", "is_top_floor", "top_floor_unit", "top_storey"];
 const answerText = (v: unknown): string | null => {
   if (v === true) return "yes"; if (v === false) return "no";
   if (typeof v === "string" && v.trim()) return v.trim().slice(0, 120);

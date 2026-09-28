@@ -183,4 +183,12 @@ describe("follow-up: Base44 limits, consent guard, extra declarations", () => {
     expect(declaredExtras({ existing_insulation: "no", is_top_floor: true })).toEqual({ existing_insulation: "no", top_floor: "yes" });
     expect(declaredExtras(null)).toEqual({ existing_insulation: null, top_floor: null });
   });
+  test("reads the live Base44 answer keys insulation and top_floor", () => {
+    expect(declaredExtras({ insulation: "yes", top_floor: "no" })).toEqual({ existing_insulation: "yes", top_floor: "no" });
+    expect(declaredExtras({ insulation: false, top_floor: false })).toEqual({ existing_insulation: "no", top_floor: "no" });
+    // live keys win over legacy spellings when both are present
+    expect(declaredExtras({ insulation: "yes", existing_insulation: "no", top_floor: "yes", is_top_floor: "no" }))
+      .toEqual({ existing_insulation: "yes", top_floor: "yes" });
+    expect(declaredExtras({ other: "x" })).toEqual({ existing_insulation: null, top_floor: null });
+  });
 });
