@@ -598,7 +598,7 @@ export const savePartnerMethod = createServerFn({ method: "POST" }).middleware([
   .handler(async ({ data, context }) => {
     if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.businessId, true);
     const { businessId, ...rest } = data;
-    const { error } = await admin.from("partner_measurement_methods").insert({ ...rest, business_id: businessId, status: "draft", created_by: context.userId });
+    const { error } = await admin.from("partner_measurement_methods").insert({ ...rest, tools: rest.tools ?? null, evidence_expected: rest.evidence_expected ?? null, exclusions_rule: rest.exclusions_rule ?? null, business_id: businessId, status: "draft", created_by: context.userId });
     if (error) throw new WorkflowError(error.code === "23505" ? "That version already exists – use a new version number." : error.message);
     return { ok: true };
   });
