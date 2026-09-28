@@ -5,7 +5,7 @@ import { z } from "zod";
 import { withRequestMeta } from "./request-meta";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { WorkflowError, logEvent, nextStepBlockers, piesaStatus, requireAdmin, requireJobRole, transition, getStage } from "./workflow.server";
+import { WorkflowError, logEvent, nextStepBlockers, stageEntryBlockers, piesaStatus, requireAdmin, requireJobRole, transition, getStage } from "./workflow.server";
 import { adjustQuote as adjustQuoteImpl, deriveRectificationItems, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { STAGE_LABEL, type Stage } from "./workflow";
@@ -227,6 +227,9 @@ export const generateInstallerQuotes = createServerFn({ method: "POST" }).middle
     await requireAdmin(context.supabase);
     const stage = await getStage(data.jobId);
     if (!["ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(stage)) throw new WorkflowError("Quotes can only be generated once the job is Ready for Installer Quotes.");
+    // Check the gates BEFORE issuing quotes so none are issued to the owner while the job is blocked.
+    const pre = (await stageEntryBlockers(data.jobId, "awaiting_quote_acceptance")).filter((b) => b !== "No installation quotes issued.");
+    if (pre.length) throw new WorkflowError(`Blocked: ${pre.join(" • ")}`);
     await genInstaller(data.jobId, context.userId);
     if (stage === "ready_for_installer_quotes") await transition(data.jobId, "awaiting_quote_acceptance", context.userId, "Installation quotes issued to owner");
     return { ok: true };
@@ -370,6 +373,7 @@ export const createBooking = createServerFn({ method: "POST" }).middleware([requ
     if (!contractor) throw new WorkflowError(`No ${need} assigned yet.`);
     if (data.kind === "installation") {
       const p = await piesaStatus(data.jobId);
+      if (p?.piesa_expired) throw new WorkflowError(`Blocked: PIESA 30-day window expired on ${p.install_deadline}. Electrician must record a reassessment first.`);
       if (p?.install_deadline && data.start.slice(0, 10) > p.install_deadline)
         throw new WorkflowError(`Installation must be before the PIESA deadline (${p.install_deadline}).`);
     }
