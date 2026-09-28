@@ -51,6 +51,12 @@ export async function autoAdvanceJob(jobId: string, actorId: string, _reason: st
       facts: () => loadAdvanceFacts(jobId),
       blockers: (to) => stageEntryBlockers(jobId, to),
       transition: (to, summary) => transition(jobId, to, actorId, summary, { auto: true }),
+      completeSite: async () => {
+        const { advanceSiteRequirements } = await import("./requirements.server");
+        const pre = await stageEntryBlockers(jobId, "assessment_complete");
+        if (pre.length) return false;
+        return (await advanceSiteRequirements(jobId, actorId)).advanced;
+      },
       generateQuotes: () => generateInstallerQuotes(jobId, actorId).then(() => undefined),
     }, opts);
   } catch (e) {
@@ -61,7 +67,7 @@ export async function autoAdvanceJob(jobId: string, actorId: string, _reason: st
 
 /** Sweep open jobs (portal state only). */
 export async function autoAdvanceOpenJobs(actorId: string) {
-  const { data } = await admin.from("jobs").select("id").not("stage", "in", "(complete,cancelled,on_hold,new_enquiry,eligibility_review,ap_review)");
+  const { data } = await admin.from("jobs").select("id").not("stage", "in", "(complete,cancelled,on_hold,ap_review)");
   let moved = 0;
   for (const j of data ?? []) {
     const r = await autoAdvanceJob(j.id, actorId, "pipeline sweep");

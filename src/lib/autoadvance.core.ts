@@ -25,6 +25,7 @@ export type AdvanceFacts = {
 export type Step =
   | { kind: "transition"; to: Stage; summary: string }
   | { kind: "generate_quotes"; to: Stage; summary: string }
+  | { kind: "complete_site"; to: Stage; summary: string }
   | { kind: "stop"; reason: string };
 
 export const TERMINAL: Stage[] = ["complete", "on_hold", "cancelled"];
@@ -42,7 +43,8 @@ export function planStep(stage: Stage, f: AdvanceFacts, opts: { allowApPromotion
     case "assessment_booking":
       return f.assessmentBookingConfirmed ? t("assessment_booked", "Assessment booking confirmed") : stop("Assessment booking not confirmed");
     case "assessment_booked":
-      return t("assessment_complete", "Site requirements complete – measure-up accepted and PIESA recorded");
+      // Delegated to advanceSiteRequirements (derives rectification scope + routing through transition()).
+      return { kind: "complete_site", to: "assessment_complete", summary: "Site requirements complete" };
     case "assessment_complete":
       return f.openRectItems > 0 ? t("rectification_required", `${f.openRectItems} rectification item(s) required`) : t("ready_for_installer_quotes", "No rectification required – ready for installer quotes");
     case "rectification_required":
@@ -87,6 +89,8 @@ export type AdvanceDeps = {
   blockers: (to: Stage) => Promise<string[]>;
   transition: (to: Stage, summary: string) => Promise<void>;
   generateQuotes: () => Promise<void>;
+  /** Runs the site-requirements completion; returns false when measure-up/PIESA are still outstanding. */
+  completeSite: () => Promise<boolean>;
 };
 
 export type AdvanceResult = { from: Stage; to: Stage; steps: Stage[]; stoppedBecause: string };
@@ -103,6 +107,13 @@ export async function runAutoAdvance(deps: AdvanceDeps, opts: { allowApPromotion
     if (TERMINAL.includes(stage)) return { from, to: stage, steps, stoppedBecause: `Job is ${stage.replaceAll("_", " ")}` };
     const step = planStep(stage, await deps.facts(), opts);
     if (step.kind === "stop") return { from, to: stage, steps, stoppedBecause: step.reason };
+    if (step.kind === "complete_site") {
+      const ok = await deps.completeSite();
+      const next = await deps.getStage();
+      if (!ok || next === stage) return { from, to: next, steps, stoppedBecause: "Site requirements outstanding (measure-up and/or electrical/PIESA)" };
+      stage = next; steps.push(stage); seen.add(stage);
+      continue;
+    }
     const blockers = (await deps.blockers(step.to)).filter((b) => !(step.kind === "generate_quotes" && b === "No installation quotes issued."));
     if (blockers.length) return { from, to: stage, steps, stoppedBecause: `Blocked: ${blockers.join(" • ")}` };
     if (step.kind === "generate_quotes") {
