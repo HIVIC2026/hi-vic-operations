@@ -11,7 +11,7 @@ export const Route = createFileRoute("/api/public/enquiry")({
         const keyId = request.headers.get("x-hivic-key-id");
         if (keyId && keyId !== BASE44_KEY_ID) return Response.json({ error: "Unknown key id" }, { status: 401 });
         const body = await request.text();
-        if (body.length > 100_000) return Response.json({ error: "Payload too large" }, { status: 413 });
+        if (body.length > 400_000) return Response.json({ error: "Payload too large" }, { status: 413 });
         // Verify BEFORE parsing anything.
         if (!(await verifyEd25519(body, request.headers.get("x-hivic-signature")))) {
           return Response.json({ error: "Invalid signature" }, { status: 401 });

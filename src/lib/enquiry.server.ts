@@ -3,7 +3,11 @@ import { z } from "zod";
 import type { Json, TablesUpdate } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
-import { buildBase44Evidence, planBase44Job } from "./enquiry.core";
+import { buildBase44Evidence, buildBase44Raw, normaliseState, planBase44Job } from "./enquiry.core";
+import { recordContactConsent, importBase44Media } from "./intake.server";
+
+/** A JSON object snapshot capped at 60KB serialised. */
+const boundedJson = z.record(z.string(), z.unknown()).refine((o) => JSON.stringify(o).length <= 60_000, "snapshot too large");
 
 export const enquirySchema = z.object({
   external_enquiry_id: z.string().min(1).max(100).optional(),
@@ -41,6 +45,24 @@ export const enquirySchema = z.object({
     access_concern_detected: z.boolean().optional().nullable(),
     verified_floor_plan_url: z.string().trim().url().max(1000).refine((u) => u.startsWith("https://"), "https only").optional().nullable(),
   }).optional().nullable(),
+  // Full Base44 handoff (0028). Snapshots are bounded JSON objects; declarations stay declared.
+  state: z.string().trim().max(10).optional().nullable(),
+  contact_consent: z.boolean().optional().nullable(),
+  contact_consent_version: z.string().trim().max(60).optional().nullable(),
+  contact_consented_at: z.string().datetime({ offset: true }).optional().nullable(),
+  age_confirmed: z.boolean().optional().nullable(),
+  assistance: z.enum(["none", "interpreter", "contract_support", "both"]).optional().nullable(),
+  contact_preference: z.string().trim().max(60).optional().nullable(),
+  base44_answers: boundedJson.optional().nullable(),
+  base44_screening: boundedJson.optional().nullable(),
+  base44_ai_observations: boundedJson.optional().nullable(),
+  property_research_raw: boundedJson.optional().nullable(),
+  media: z.array(z.object({
+    source_id: z.string().trim().min(1).max(200),
+    name: z.string().trim().min(1).max(300),
+    mime_type: z.string().trim().max(100),
+    signed_url: z.string().trim().url().max(4000).refine((u) => u.startsWith("https://"), "https only"),
+  })).max(10).optional().nullable(),
 });
 export type EnquiryInput = z.infer<typeof enquirySchema>;
 
@@ -68,7 +90,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     ? (await admin.from("jobs").select("id, property_id, stage, job_number").eq("external_enquiry_id", input.external_enquiry_id).maybeSingle()).data
     : null;
 
-  const propFields = { owner_id: owner!.id, address_line: input.address_line, suburb: input.suburb ?? null, postcode: input.postcode ?? null, occupancy: input.occupancy ?? null };
+  const propFields = { owner_id: owner!.id, address_line: input.address_line, suburb: input.suburb ?? null, postcode: input.postcode ?? null, occupancy: input.occupancy ?? null, ...(normaliseState(input.state) ? { state: normaliseState(input.state)! } : {}) };
   const jobFields = {
     estimated_area_m2: input.area_unknown ? null : input.estimated_area_m2 ?? null,
     estimated_area_unknown: input.area_unknown ?? input.estimated_area_m2 == null,
@@ -86,6 +108,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     const { error: ue } = await admin.from("jobs").update(update).eq("id", existingJob.id);
     if (ue) throw new Error(ue.message);
     await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, plan?.details ?? {});
+    if (source === "base44") await completeIntake(existingJob.id, owner!.id, input);
     await runGate1(existingJob.id, actorId);
     await afterEnquiry(existingJob.id, actorId, addrChanged ? "address changed" : null);
     return { job_id: existingJob.id, job_number: existingJob.job_number, created: false };
@@ -117,6 +140,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
   await logEvent(job.id, actorId, "job_source_recorded",
     origin.channel === "installer_sourced" ? "Job source: Installer-sourced (attribution locked)" : "Job source: HI VIC-sourced",
     origin.channel === "installer_sourced" ? { channel: origin.channel, originating_installer_business_id: origin.businessId, originating_installer_user_id: origin.userId, commercial_model: "not_configured" } : { channel: origin.channel });
+  if (source === "base44") await completeIntake(job.id, owner!.id, input);
   await runGate1(job.id, actorId);
   await afterEnquiry(job.id, actorId, "new enquiry");
   return { job_id: job.id, job_number: job.job_number, created: true };
@@ -147,5 +171,12 @@ async function runGate1(jobId: string, actorId: string | null) {
 /** Merge Base44 Gate 1 evidence under enrichment.base44 without touching other keys (e.g. verified portal facts). */
 function mergeEvidence(existing: unknown, input: EnquiryInput): Json {
   const base = existing && typeof existing === "object" && !Array.isArray(existing) ? (existing as Record<string, unknown>) : {};
-  return { ...base, base44: buildBase44Evidence(input) } as Json;
+  return { ...base, base44: { ...buildBase44Evidence(input), raw: buildBase44Raw(input) } } as Json;
+}
+
+/** Consent + media are stored before Gate 1/intelligence run. Media failures never fail the enquiry. */
+async function completeIntake(jobId: string, ownerId: string, input: EnquiryInput) {
+  await recordContactConsent(jobId, ownerId, input);
+  try { await importBase44Media(jobId, input.media ?? []); }
+  catch (e) { console.error("base44 media import failed", (e as Error).message); }
 }
