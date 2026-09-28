@@ -1,7 +1,7 @@
 // Pure, runtime-agnostic helpers for the Base44 -> portal enquiry handoff (no DB, no env). Tested in tests/enquiry.core.test.ts.
 
 /** Trusted Base44 Ed25519 public key (SPKI DER, base64). Public by design — no secret required. */
-export const BASE44_PUBLIC_KEY_SPKI_B64 = "MCowBQYDK2VwAyEAikcE2fW33d6kz6J2lUxiFCw4suzHhYcFkC7uSM84RjY=";
+export const BASE44_PUBLIC_KEY_SPKI_B64 = "MCowBQYDK2VwAyEA4ZW3Pv8Mb6v9e684gaMN3HHB8qGLvW6LCMOPU7ki6U0=";
 export const BASE44_KEY_ID = "base44-v1";
 
 function b64ToBytes(b64: string): Uint8Array<ArrayBuffer> | null {
