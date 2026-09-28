@@ -7,9 +7,10 @@ import { AppShell } from "@/components/portal/AppShell";
 import { AuthorityBadge, PaymentBadge, Pill, SourceBadge, StageBadge, UrgencyBadge } from "@/components/portal/badges";
 import { AdminAuthorityPanel, BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, PaymentsPanel, QuotesPanel, Section, TimelinePanel, useJob } from "@/components/portal/panels";
 import { MittiCard, PriceItemForm } from "@/components/portal/mitti";
+import { RequirementCards } from "@/components/portal/requirements";
 
 const TABS: [string, string][] = [
-  ["overview", "Overview"], ["eligibility", "Eligibility"], ["authority", "Owner Authority"], ["assessment", "Electrician / Assessment"],
+  ["overview", "Overview"], ["eligibility", "Eligibility"], ["authority", "Owner Authority"], ["assessment", "Measure-up & Electrical"],
   ["piesa", "PIESA"], ["rectification", "Rectification"], ["quotes", "Quotes"], ["payments", "Xero / Payments"], ["scheduling", "Scheduling"],
   ["installation", "Installation"], ["evidence", "Evidence"], ["compliance", "Compliance / AP Review"], ["veec", "VEEC"], ["messages", "Messages"], ["history", "Audit History"],
 ];
@@ -56,6 +57,7 @@ function JobDetail() {
           {TABS.map(([v, l]) => <TabsTrigger key={v} value={v}>{l}</TabsTrigger>)}
         </TabsList>
         <TabsContent value="overview" className="grid gap-4 lg:grid-cols-2">
+          <div className="lg:col-span-2"><RequirementCards jobId={jobId} isAdmin job={job} /></div>
           <Section title="Status summary">
             <dl className="grid grid-cols-2 gap-1 text-sm">
               <dt className="text-muted-foreground">Owner Authority</dt><dd><AuthorityBadge status={job.authority_status} /> {job.authority_expires_at && <span className="text-xs">until {fmtDate(job.authority_expires_at)}</span>}</dd>
@@ -72,7 +74,7 @@ function JobDetail() {
         </TabsContent>
         <TabsContent value="eligibility"><EligibilityForm jobId={jobId} /></TabsContent>
         <TabsContent value="authority"><AdminAuthorityPanel jobId={jobId} /></TabsContent>
-        <TabsContent value="assessment" className="space-y-4"><BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /></TabsContent>
+        <TabsContent value="assessment" className="space-y-4"><RequirementCards jobId={jobId} isAdmin job={job} /><BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /></TabsContent>
         <TabsContent value="piesa" className="space-y-4">
           <Section title="PIESA 30-day installation window">
             {job.piesa_date ? <p className="text-sm">Current PIESA {fmtDate(job.piesa_date)} → install by <strong>{fmtDate(job.install_deadline)}</strong> ({job.days_remaining} days) <UrgencyBadge urgency={job.urgency} days={job.days_remaining} /></p> : <p className="text-sm text-muted-foreground">No PIESA recorded yet.</p>}
@@ -224,8 +226,7 @@ function AssessmentView({ jobId, part }: { jobId: string; part: "assessment" | "
   if (!data.a && part === "assessment") return <Section title="Assessment"><p className="text-sm text-muted-foreground">Not started by the electrician yet.</p></Section>;
   const a = data.a ?? ({} as NonNullable<typeof data.a>);
   const rows: [string, unknown][] = [
-    ["Status", a.status], ["Measured area", a.measured_area_m2 && `${a.measured_area_m2} m²`], ["Insulation present", a.insulation_present], ["Existing R-value", a.existing_r_value],
-    ["Removal", a.removal_required ? `${a.removal_m2} m²` : a.removal_required], ["Access", a.access_difficulty], ["Downlights", a.downlights_qty != null && `${a.downlights_qty} × ${a.downlights_type ?? ""} (${a.downlights_upgrade_qty ?? 0} to upgrade)`],
+    ["Status", a.status], ["Downlights", a.downlights_qty != null && `${a.downlights_qty} × ${a.downlights_type ?? ""} (${a.downlights_upgrade_qty ?? 0} to upgrade)`],
     ["Exhaust fans", a.exhaust_fans_qty != null && `${a.exhaust_fans_qty} (${a.exhaust_fans_clearance_qty ?? 0} need clearance)`], ["Hazards", a.hazards], ["Switchboard", a.switchboard_condition], ["RCDs present", a.rcds_present],
     ["RCDs required", a.rcds_required_qty], ["Life support", a.life_support_confirmed], ["PIESA outcome", a.piesa_outcome], ["Assessed on", a.assessed_on], ["Mitti ID", a.external_mitti_id ? `${a.external_mitti_id} (${a.mitti_sync_status})` : a.mitti_sync_status], ["Notes", a.notes],
   ];
@@ -243,7 +244,7 @@ function AssessmentView({ jobId, part }: { jobId: string; part: "assessment" | "
       </Section>
     );
   return (
-    <Section title="Gate 2 · Measure-up & electrical safety">
+    <Section title="Electrical assessment record">
       <dl className="grid grid-cols-2 gap-1 text-sm">{rows.map(([k, v]) => <Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd>{fmt(v)}</dd></Fragment>)}</dl>
     </Section>
   );
