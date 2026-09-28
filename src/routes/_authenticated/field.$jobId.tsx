@@ -86,7 +86,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
       {a?.external_mitti_id && (assessing || locked) && (
         <>
           <MittiCard jobId={jobId} isAdmin={false} />
-          {!locked && <MittiSyncedFields a={a as unknown as Record<string, unknown>} />}
+          {<MittiSyncedFields a={a as unknown as Record<string, unknown>} />}
           {!locked && <EvidencePanel jobId={jobId} role="electrician" gates={["assessment", "electrical"]} />}
           {!locked && <OtherItems jobId={jobId} editable />}
           {!locked && <Button size="field" className="w-full" onClick={() => complete({ jobId }, "Assessment complete")}><Check /> Complete assessment</Button>}
