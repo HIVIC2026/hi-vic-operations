@@ -1,3 +1,12 @@
 # Roadmap
 - [x] Property Intelligence engine + ESC pre-install controls
 - [x] Read-only Mitti configuration/usage check (no writes)
+- [ ] Activity 48 signing sequence correction (agreement / ESC consent / installer decl / final assignment) — in progress
+- [ ] ReInsulate pilot A: partner business + team onboarding, expiry blockers, Xero contact readiness
+- [ ] ReInsulate pilot B: import existing job (files/CSV/paste/source ref) -> draft -> confirm screen
+- [ ] ReInsulate pilot C: electrician selection / preferred relationships / nominated onboarding
+- [ ] ReInsulate pilot D: appointment coordination + 24/48h SLA + reassignment
+- [ ] ReInsulate pilot E: offer HI VIC jobs to partner (opportunities)
+- [ ] ReInsulate pilot F: co-branded quote, supplier cost vs customer price, manual price audit
+- [ ] ReInsulate pilot G: partner dashboard + business profile page
+- [ ] ReInsulate pilot H: tests
