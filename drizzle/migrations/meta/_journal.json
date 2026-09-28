@@ -29,6 +29,13 @@
       "when": 1790573637719,
       "tag": "0003_owner_authority_starts_at",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790574791950,
+      "tag": "0004_job_acquisition_channel",
+      "breakpoints": true
     }
   ]
 }
