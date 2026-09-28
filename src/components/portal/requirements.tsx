@@ -84,7 +84,7 @@ export function RequirementCards({ jobId, isAdmin, job }: { jobId: string; isAdm
         <div><div className="text-xs font-semibold uppercase">Visit scope</div><div className="font-semibold">{s.label}</div>{s.nextAction && <div className="text-xs">{s.nextAction}</div>}</div>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <Section title="Ceiling / insulation measure-up" action={<Pill t={M_TONE[s.measurement.state]}>{M_LABEL[s.measurement.state]}</Pill>}>
+        <Section title="Ceiling / insulation measure-up" action={<Pill t={M_TONE[s.measurement.state] ?? "neutral"}>{M_LABEL[s.measurement.state]}</Pill>}>
           <Ruler className="mb-2 h-4 w-4 text-muted-foreground" />
           <MeasurementDetails m={m} />
           {s.measurement.state !== "accepted" && s.measurement.missing.length > 0 && <p className="mt-2 text-xs text-danger">Missing: {s.measurement.missing.map((f) => MEASURE_FIELD_LABEL[f]).join(", ")}</p>}
