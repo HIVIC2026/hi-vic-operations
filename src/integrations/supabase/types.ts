@@ -2736,6 +2736,7 @@ export type Database = {
       }
       property_area_estimates: {
         Row: {
+          calculation: Json | null
           confidence: string
           created_at: string
           created_by: string | null
@@ -2757,6 +2758,7 @@ export type Database = {
           tier: string
         }
         Insert: {
+          calculation?: Json | null
           confidence: string
           created_at?: string
           created_by?: string | null
@@ -2778,6 +2780,7 @@ export type Database = {
           tier: string
         }
         Update: {
+          calculation?: Json | null
           confidence?: string
           created_at?: string
           created_by?: string | null
@@ -2975,6 +2978,106 @@ export type Database = {
           },
           {
             foreignKeyName: "property_facts_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "property_intelligence_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_floorplans: {
+        Row: {
+          captured_date: string | null
+          id: string
+          is_candidate: boolean
+          job_id: string
+          metadata: Json | null
+          needs_review: boolean
+          property_id: string
+          provider: string
+          provider_image_id: string | null
+          provider_property_id: string | null
+          provider_url: string | null
+          retrieved_at: string
+          review_reason: string | null
+          run_id: string | null
+          storage_path: string | null
+          storage_policy: string
+        }
+        Insert: {
+          captured_date?: string | null
+          id?: string
+          is_candidate?: boolean
+          job_id: string
+          metadata?: Json | null
+          needs_review?: boolean
+          property_id: string
+          provider: string
+          provider_image_id?: string | null
+          provider_property_id?: string | null
+          provider_url?: string | null
+          retrieved_at?: string
+          review_reason?: string | null
+          run_id?: string | null
+          storage_path?: string | null
+          storage_policy: string
+        }
+        Update: {
+          captured_date?: string | null
+          id?: string
+          is_candidate?: boolean
+          job_id?: string
+          metadata?: Json | null
+          needs_review?: boolean
+          property_id?: string
+          provider?: string
+          provider_image_id?: string | null
+          provider_property_id?: string | null
+          provider_url?: string | null
+          retrieved_at?: string
+          review_reason?: string | null
+          run_id?: string | null
+          storage_path?: string | null
+          storage_policy?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_floorplans_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_floorplans_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "property_floorplans_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_floorplans_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_floorplans_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_floorplans_run_id_fkey"
             columns: ["run_id"]
             isOneToOne: false
             referencedRelation: "property_intelligence_runs"
