@@ -663,6 +663,168 @@ export type Database = {
           },
         ]
       }
+      customer_agreements: {
+        Row: {
+          agreement_wording_version: string | null
+          ap_legal_entity: string
+          assistance_requirement:
+            | Database["public"]["Enums"]["assistance_requirement"]
+            | null
+          consumer_rights_version: string | null
+          copy_path: string | null
+          created_at: string
+          final_customer_price_inc_gst: number
+          id: string
+          installer_business_id: string | null
+          installer_business_name: string | null
+          installer_name: string | null
+          installer_user_id: string | null
+          ip: string | null
+          job_id: string
+          payment_terms: string | null
+          price_before_benefit_inc_gst: number
+          property_address: string | null
+          quote_id: string
+          quote_version: number
+          quoted_area_m2: number | null
+          quoted_product: string | null
+          record_origin: string
+          rectification_scope: Json
+          retain_until: string | null
+          signatory_authority_type: string
+          signatory_email: string | null
+          signatory_name: string
+          signatory_over_18: boolean
+          signatory_phone: string | null
+          signature_name: string
+          signed_at: string
+          signed_by: string | null
+          snapshot: Json
+          snapshot_sha256: string
+          status: string
+          user_agent: string | null
+          veu_benefit_inc_gst: number
+        }
+        Insert: {
+          agreement_wording_version?: string | null
+          ap_legal_entity: string
+          assistance_requirement?:
+            | Database["public"]["Enums"]["assistance_requirement"]
+            | null
+          consumer_rights_version?: string | null
+          copy_path?: string | null
+          created_at?: string
+          final_customer_price_inc_gst: number
+          id?: string
+          installer_business_id?: string | null
+          installer_business_name?: string | null
+          installer_name?: string | null
+          installer_user_id?: string | null
+          ip?: string | null
+          job_id: string
+          payment_terms?: string | null
+          price_before_benefit_inc_gst: number
+          property_address?: string | null
+          quote_id: string
+          quote_version: number
+          quoted_area_m2?: number | null
+          quoted_product?: string | null
+          record_origin?: string
+          rectification_scope?: Json
+          retain_until?: string | null
+          signatory_authority_type: string
+          signatory_email?: string | null
+          signatory_name: string
+          signatory_over_18?: boolean
+          signatory_phone?: string | null
+          signature_name: string
+          signed_at: string
+          signed_by?: string | null
+          snapshot: Json
+          snapshot_sha256: string
+          status?: string
+          user_agent?: string | null
+          veu_benefit_inc_gst: number
+        }
+        Update: {
+          agreement_wording_version?: string | null
+          ap_legal_entity?: string
+          assistance_requirement?:
+            | Database["public"]["Enums"]["assistance_requirement"]
+            | null
+          consumer_rights_version?: string | null
+          copy_path?: string | null
+          created_at?: string
+          final_customer_price_inc_gst?: number
+          id?: string
+          installer_business_id?: string | null
+          installer_business_name?: string | null
+          installer_name?: string | null
+          installer_user_id?: string | null
+          ip?: string | null
+          job_id?: string
+          payment_terms?: string | null
+          price_before_benefit_inc_gst?: number
+          property_address?: string | null
+          quote_id?: string
+          quote_version?: number
+          quoted_area_m2?: number | null
+          quoted_product?: string | null
+          record_origin?: string
+          rectification_scope?: Json
+          retain_until?: string | null
+          signatory_authority_type?: string
+          signatory_email?: string | null
+          signatory_name?: string
+          signatory_over_18?: boolean
+          signatory_phone?: string | null
+          signature_name?: string
+          signed_at?: string
+          signed_by?: string | null
+          snapshot?: Json
+          snapshot_sha256?: string
+          status?: string
+          user_agent?: string | null
+          veu_benefit_inc_gst?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_agreements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_agreements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "customer_agreements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_agreements_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_agreements_signed_by_fkey"
+            columns: ["signed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_assignments: {
         Row: {
           ap_declaration_version: string | null
@@ -690,18 +852,24 @@ export type Database = {
           consumer_user_agent: string | null
           copy_sent_at: string | null
           created_at: string
+          customer_agreement_id: string | null
+          delivery_status: string
           effective_at: string | null
           esc_consent_signed_at: string | null
           esc_consent_version: string | null
           final_copy_at: string | null
           final_copy_path: string | null
           final_customer_price_inc_gst: number | null
+          final_facts: Json | null
+          final_facts_sha256: string | null
           id: string
           installed_area_m2: number | null
           installed_product: string | null
+          installed_r_value: string | null
           installer_abn: string | null
           installer_business_id: string | null
           installer_business_name: string | null
+          installer_declaration_id: string | null
           installer_declaration_version: string | null
           installer_form_values: Json | null
           installer_ip: string | null
@@ -714,11 +882,13 @@ export type Database = {
           installer_user_agent: string | null
           installer_user_id: string | null
           job_id: string
+          prepared_at: string | null
           price_before_benefit_inc_gst: number | null
           quote_id: string
           quote_version: number
           quoted_area_m2: number | null
           quoted_product: string | null
+          record_kind: string
           retain_until: string | null
           signatory_authority_type: string | null
           signatory_email: string | null
@@ -756,18 +926,24 @@ export type Database = {
           consumer_user_agent?: string | null
           copy_sent_at?: string | null
           created_at?: string
+          customer_agreement_id?: string | null
+          delivery_status?: string
           effective_at?: string | null
           esc_consent_signed_at?: string | null
           esc_consent_version?: string | null
           final_copy_at?: string | null
           final_copy_path?: string | null
           final_customer_price_inc_gst?: number | null
+          final_facts?: Json | null
+          final_facts_sha256?: string | null
           id?: string
           installed_area_m2?: number | null
           installed_product?: string | null
+          installed_r_value?: string | null
           installer_abn?: string | null
           installer_business_id?: string | null
           installer_business_name?: string | null
+          installer_declaration_id?: string | null
           installer_declaration_version?: string | null
           installer_form_values?: Json | null
           installer_ip?: string | null
@@ -780,11 +956,13 @@ export type Database = {
           installer_user_agent?: string | null
           installer_user_id?: string | null
           job_id: string
+          prepared_at?: string | null
           price_before_benefit_inc_gst?: number | null
           quote_id: string
           quote_version: number
           quoted_area_m2?: number | null
           quoted_product?: string | null
+          record_kind?: string
           retain_until?: string | null
           signatory_authority_type?: string | null
           signatory_email?: string | null
@@ -822,18 +1000,24 @@ export type Database = {
           consumer_user_agent?: string | null
           copy_sent_at?: string | null
           created_at?: string
+          customer_agreement_id?: string | null
+          delivery_status?: string
           effective_at?: string | null
           esc_consent_signed_at?: string | null
           esc_consent_version?: string | null
           final_copy_at?: string | null
           final_copy_path?: string | null
           final_customer_price_inc_gst?: number | null
+          final_facts?: Json | null
+          final_facts_sha256?: string | null
           id?: string
           installed_area_m2?: number | null
           installed_product?: string | null
+          installed_r_value?: string | null
           installer_abn?: string | null
           installer_business_id?: string | null
           installer_business_name?: string | null
+          installer_declaration_id?: string | null
           installer_declaration_version?: string | null
           installer_form_values?: Json | null
           installer_ip?: string | null
@@ -846,11 +1030,13 @@ export type Database = {
           installer_user_agent?: string | null
           installer_user_id?: string | null
           job_id?: string
+          prepared_at?: string | null
           price_before_benefit_inc_gst?: number | null
           quote_id?: string
           quote_version?: number
           quoted_area_m2?: number | null
           quoted_product?: string | null
+          record_kind?: string
           retain_until?: string | null
           signatory_authority_type?: string | null
           signatory_email?: string | null
@@ -871,10 +1057,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "customer_assignments_customer_agreement_id_fkey"
+            columns: ["customer_agreement_id"]
+            isOneToOne: false
+            referencedRelation: "customer_agreements"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "customer_assignments_installer_business_id_fkey"
             columns: ["installer_business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_assignments_installer_declaration_id_fkey"
+            columns: ["installer_declaration_id"]
+            isOneToOne: false
+            referencedRelation: "installer_declarations"
             referencedColumns: ["id"]
           },
           {
@@ -1091,10 +1291,12 @@ export type Database = {
           booking_id: string | null
           config_version: string | null
           consent_assignment_id: string | null
+          consent_id: string | null
           consent_signed_at: string | null
           consent_template_version: string | null
           created_at: string
           due_by: string
+          earliest_send_at: string | null
           id: string
           installation_days: Json
           job_id: string
@@ -1119,10 +1321,12 @@ export type Database = {
           booking_id?: string | null
           config_version?: string | null
           consent_assignment_id?: string | null
+          consent_id?: string | null
           consent_signed_at?: string | null
           consent_template_version?: string | null
           created_at?: string
           due_by: string
+          earliest_send_at?: string | null
           id?: string
           installation_days?: Json
           job_id: string
@@ -1147,10 +1351,12 @@ export type Database = {
           booking_id?: string | null
           config_version?: string | null
           consent_assignment_id?: string | null
+          consent_id?: string | null
           consent_signed_at?: string | null
           consent_template_version?: string | null
           created_at?: string
           due_by?: string
+          earliest_send_at?: string | null
           id?: string
           installation_days?: Json
           job_id?: string
@@ -1184,6 +1390,13 @@ export type Database = {
             columns: ["consent_assignment_id"]
             isOneToOne: false
             referencedRelation: "customer_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "esc_notifications_consent_id_fkey"
+            columns: ["consent_id"]
+            isOneToOne: false
+            referencedRelation: "owner_esc_consents"
             referencedColumns: ["id"]
           },
           {
@@ -1403,6 +1616,127 @@ export type Database = {
           system?: string
         }
         Relationships: []
+      }
+      installer_declarations: {
+        Row: {
+          created_at: string
+          field_values: Json
+          id: string
+          installed_area_m2: number
+          installed_product: string
+          installed_r_value: string | null
+          installer_abn: string | null
+          installer_business_id: string | null
+          installer_business_name: string | null
+          installer_licence: string | null
+          installer_name: string | null
+          installer_user_id: string | null
+          ip: string | null
+          job_id: string
+          signature_name: string
+          signed_at: string
+          signed_by: string | null
+          snapshot: Json
+          snapshot_sha256: string
+          status: string
+          template_version: string
+          user_agent: string | null
+          zones: Json
+        }
+        Insert: {
+          created_at?: string
+          field_values?: Json
+          id?: string
+          installed_area_m2: number
+          installed_product: string
+          installed_r_value?: string | null
+          installer_abn?: string | null
+          installer_business_id?: string | null
+          installer_business_name?: string | null
+          installer_licence?: string | null
+          installer_name?: string | null
+          installer_user_id?: string | null
+          ip?: string | null
+          job_id: string
+          signature_name: string
+          signed_at: string
+          signed_by?: string | null
+          snapshot: Json
+          snapshot_sha256: string
+          status?: string
+          template_version: string
+          user_agent?: string | null
+          zones?: Json
+        }
+        Update: {
+          created_at?: string
+          field_values?: Json
+          id?: string
+          installed_area_m2?: number
+          installed_product?: string
+          installed_r_value?: string | null
+          installer_abn?: string | null
+          installer_business_id?: string | null
+          installer_business_name?: string | null
+          installer_licence?: string | null
+          installer_name?: string | null
+          installer_user_id?: string | null
+          ip?: string | null
+          job_id?: string
+          signature_name?: string
+          signed_at?: string
+          signed_by?: string | null
+          snapshot?: Json
+          snapshot_sha256?: string
+          status?: string
+          template_version?: string
+          user_agent?: string | null
+          zones?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "installer_declarations_installer_business_id_fkey"
+            columns: ["installer_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "installer_declarations_installer_user_id_fkey"
+            columns: ["installer_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "installer_declarations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "installer_declarations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "installer_declarations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "installer_declarations_signed_by_fkey"
+            columns: ["signed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       invoices: {
         Row: {
@@ -2166,6 +2500,157 @@ export type Database = {
           {
             foreignKeyName: "owner_authorities_revoked_by_fkey"
             columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owner_esc_consents: {
+        Row: {
+          ap_ip: string | null
+          ap_legal_entity: string
+          ap_purpose_explained: boolean | null
+          ap_rep_name: string | null
+          ap_signed_at: string | null
+          ap_signed_by: string | null
+          ap_user_agent: string | null
+          booking_id: string | null
+          copy_path: string | null
+          created_at: string
+          delivery_status: string
+          id: string
+          installation_days: Json
+          job_id: string
+          owner_authority_type: string | null
+          owner_contact: Json
+          owner_ip: string | null
+          owner_signatory_name: string | null
+          owner_signature_name: string | null
+          owner_signed_at: string | null
+          owner_signed_by: string | null
+          owner_user_agent: string | null
+          premises_address: string
+          scheduled_end: string | null
+          scheduled_start: string
+          signed_sha256: string | null
+          snapshot: Json
+          snapshot_sha256: string
+          stale_reason: string | null
+          status: string
+          template_version: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          ap_ip?: string | null
+          ap_legal_entity: string
+          ap_purpose_explained?: boolean | null
+          ap_rep_name?: string | null
+          ap_signed_at?: string | null
+          ap_signed_by?: string | null
+          ap_user_agent?: string | null
+          booking_id?: string | null
+          copy_path?: string | null
+          created_at?: string
+          delivery_status?: string
+          id?: string
+          installation_days?: Json
+          job_id: string
+          owner_authority_type?: string | null
+          owner_contact?: Json
+          owner_ip?: string | null
+          owner_signatory_name?: string | null
+          owner_signature_name?: string | null
+          owner_signed_at?: string | null
+          owner_signed_by?: string | null
+          owner_user_agent?: string | null
+          premises_address: string
+          scheduled_end?: string | null
+          scheduled_start: string
+          signed_sha256?: string | null
+          snapshot: Json
+          snapshot_sha256: string
+          stale_reason?: string | null
+          status?: string
+          template_version?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          ap_ip?: string | null
+          ap_legal_entity?: string
+          ap_purpose_explained?: boolean | null
+          ap_rep_name?: string | null
+          ap_signed_at?: string | null
+          ap_signed_by?: string | null
+          ap_user_agent?: string | null
+          booking_id?: string | null
+          copy_path?: string | null
+          created_at?: string
+          delivery_status?: string
+          id?: string
+          installation_days?: Json
+          job_id?: string
+          owner_authority_type?: string | null
+          owner_contact?: Json
+          owner_ip?: string | null
+          owner_signatory_name?: string | null
+          owner_signature_name?: string | null
+          owner_signed_at?: string | null
+          owner_signed_by?: string | null
+          owner_user_agent?: string | null
+          premises_address?: string
+          scheduled_end?: string | null
+          scheduled_start?: string
+          signed_sha256?: string | null
+          snapshot?: Json
+          snapshot_sha256?: string
+          stale_reason?: string | null
+          status?: string
+          template_version?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_esc_consents_ap_signed_by_fkey"
+            columns: ["ap_signed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_esc_consents_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_esc_consents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_esc_consents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "owner_esc_consents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_esc_consents_owner_signed_by_fkey"
+            columns: ["owner_signed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -4266,6 +4751,9 @@ export type Database = {
         | "variation_required"
         | "effective_complete"
         | "cancelled"
+        | "awaiting_installer_signature"
+        | "awaiting_ap_signature"
+        | "awaiting_consumer_signature"
       assistance_requirement:
         | "none"
         | "interpreter"
@@ -4496,6 +4984,9 @@ export const Constants = {
         "variation_required",
         "effective_complete",
         "cancelled",
+        "awaiting_installer_signature",
+        "awaiting_ap_signature",
+        "awaiting_consumer_signature",
       ],
       assistance_requirement: [
         "none",

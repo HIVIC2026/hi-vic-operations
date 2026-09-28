@@ -13,8 +13,9 @@ import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
 import { applyPaidAmount, clearInstallDueDate, createInvoiceForQuote, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
 import { buildDepositOverride, depositRequestPatch } from "./invoice.lifecycle";
 import { commercialBlocker, depositCleared } from "./workflow.server";
-import { assertConsumerCanSign, assignmentEffective, buildAcceptancePackage, evaluateAndApply, loadTemplates, raiseVariation, reconfirmVariation, signConsumer, signInstaller } from "./assignment.server";
+import { assertAgreementCanSign, assignmentEffective, buildAcceptancePackage, currentAgreement, currentAssignment, currentInstallerDeclaration, loadTemplates, prepareFinalAssignment, raiseVariation, reconfirmVariation, signCustomerAgreement, signFinalAssignment, signInstallerDecl } from "./assignment.server";
 import { ASSIGNMENT_EVENTS, parseFormFields, prefillRows, setupStatus, templateBlockers, type TemplateKey } from "./assignment.core";
+import { consentValidityBlockers } from "./consent.core";
 import { autoAdvanceJob, autoAdvanceOpenJobs } from "./autoadvance.server";
 import { acceptAuthority, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
 
@@ -474,7 +475,7 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
     quoteId: uuid, accept: z.boolean(), consent: z.boolean().optional(), reason: z.string().max(1000).optional(),
     signing: z.object({
       signatoryName: z.string().trim().min(2).max(200), authorityType: z.enum(["owner", "authorised_representative"]), over18: z.boolean(),
-      readConsumerInfo: z.boolean(), acceptDeclaration: z.boolean(), acceptAssignment: z.boolean(), acceptEscConsent: z.boolean().optional(), signatureName: z.string().trim().max(200),
+      readConsumerInfo: z.boolean(), acceptAgreement: z.boolean(), signatureName: z.string().trim().max(200),
       assistance: z.enum(["none", "interpreter", "support_understanding", "both"]),
     }).optional(),
   }).parse(d))
@@ -492,12 +493,14 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
       await logEvent(q.job_id, context.userId, "quote_declined", `${q.option_label} declined`, { reason: data.reason });
       return { ok: true };
     }
-    // Installation acceptance = Customer Acceptance & VEEC Assignment. Only the customer signs.
+    // Installation acceptance = Customer Agreement / Quote Acceptance (commercial only). It is NOT the VEEC
+    // assignment and NOT the ESC consent – those are separate later records.
     if (q.kind === "installation") {
-      if (!data.signing) throw new WorkflowError("The customer must review and sign the acceptance & VEEC assignment to accept this quote.");
+      if (!data.signing) throw new WorkflowError("The customer must review and sign the customer agreement to accept this quote.");
       const { data: isOwner } = await context.supabase.rpc("is_job_owner", { _job: q.job_id, _user: context.userId });
-      if (!isOwner) throw new WorkflowError("Only the customer can sign the acceptance.");
-      await assertConsumerCanSign(data.signing);
+      if (!isOwner) throw new WorkflowError("Only the customer can sign the agreement.");
+      const { assistance: _a, ...chk } = data.signing;
+      await assertAgreementCanSign(chk);
     }
     // All gates are checked BEFORE the quote is marked accepted, so a blocked acceptance leaves nothing half-done.
     if (q.kind === "installation") {
@@ -509,7 +512,7 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
     }
     if (q.kind === "installation" && data.signing) {
       const { assistance, ...input } = data.signing;
-      await signConsumer({ quoteId: q.id, actorId: context.userId, input, assistance, ip: context.ip, userAgent: context.userAgent });
+      await signCustomerAgreement({ quoteId: q.id, actorId: context.userId, input, assistance, ip: context.ip, userAgent: context.userAgent });
     }
     await admin.from("quotes").update({ status: "accepted", accepted_at: new Date().toISOString(), accepted_by: context.userId }).eq("id", q.id);
     await admin.from("quotes").update({ status: "superseded" }).eq("job_id", q.job_id).eq("kind", q.kind).eq("status", "issued");
@@ -526,7 +529,7 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
 
     await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): 50% deposit due now, balance due on installation day.` }, { onConflict: "job_id,kind" });
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", q.job_id).eq("check_key", "owner_consent");
-    await logEvent(q.job_id, context.userId, ASSIGNMENT_EVENTS.QUOTE_ACCEPTED, `${q.option_label} accepted with signed customer acceptance`, { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst });
+    await logEvent(q.job_id, context.userId, ASSIGNMENT_EVENTS.QUOTE_ACCEPTED, `${q.option_label} accepted with signed Customer Agreement / Quote Acceptance`, { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst });
     await transition(q.job_id, "awaiting_deposit_payment", context.userId, "Owner accepted final installation quote – 50% deposit due");
     await createInvoiceForQuote(q.id, context.userId);
     await advanceAfterDeposit(q.job_id, context.userId);

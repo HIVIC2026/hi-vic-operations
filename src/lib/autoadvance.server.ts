@@ -1,7 +1,7 @@
 // ONE authoritative auto-progression entry point. Uses transition() + stageEntryBlockers() only; never
 // calls Xero or Mitti — it evaluates portal state already stored.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { assignmentStatus, getStage, stageEntryBlockers, transition, depositCleared, WorkflowError } from "./workflow.server";
+import { agreementSigned, getStage, stageEntryBlockers, transition, depositCleared, WorkflowError } from "./workflow.server";
 import { generateInstallerQuotes } from "./quotes.server";
 import { runAutoAdvance, type AdvanceFacts, type AdvanceResult } from "./autoadvance.core";
 
@@ -11,8 +11,9 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
   const head = { count: "exact" as const, head: true };
   const [{ data: job }, st] = await Promise.all([
     admin.from("jobs").select("eligibility_outcome, eligibility_set_by, eligibility_decision_source, installation_completed_at").eq("id", jobId).single(),
-    assignmentStatus(jobId),
+    agreementSigned(jobId),
   ]);
+  const declared = (await count(admin.from("installer_declarations").select("id", head).eq("job_id", jobId).eq("status", "signed"))) > 0;
   const q = (kind: "installation" | "rectification", status: "issued" | "accepted") => count(admin.from("quotes").select("id", head).eq("job_id", jobId).eq("kind", kind).eq("status", status));
   const booking = (kind: "assessment" | "rectification" | "installation") => count(admin.from("bookings").select("id", head).eq("job_id", jobId).eq("kind", kind).eq("status", "confirmed"));
   const [elec, rect, rqi, rqa, iqi, iqa, inv, ab, rb, ib, veec] = await Promise.all([
@@ -32,13 +33,13 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
     rectQuoteAccepted: rqa > 0,
     installQuotesIssued: iqi > 0,
     installQuoteAccepted: iqa > 0,
-    consumerSigned: !!st && st !== "draft",
+    consumerSigned: st,
     invoiceExists: inv > 0,
     depositCleared: await depositCleared(jobId),
     rectBookingConfirmed: rb > 0,
     installBookingConfirmed: ib > 0,
     installationCompleted: !!job?.installation_completed_at,
-    installerDeclarationSigned: ["installer_signed_pending_install", "final_details_pending", "effective_complete"].includes(st ?? ""),
+    installerDeclarationSigned: declared,
     veecLodged: veec > 0,
   };
 }

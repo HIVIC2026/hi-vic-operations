@@ -1,7 +1,7 @@
 // Client-safe Owner Authority vocabulary + the current authority wording (versioned).
 // Changing the wording = bump AUTHORITY_WORDING_VERSION. Accepted authorities keep their own snapshot.
 
-export const AP_LEGAL_ENTITY = "DC Construction Solutions trading as Home Insulation Victoria";
+export const AP_LEGAL_ENTITY = "DC Construction Solutions Pty Ltd t/a Home Insulation Victoria";
 export const AUTHORITY_WORDING_VERSION = "OA-2026.1";
 
 export const AUTHORITY_SCOPE =
