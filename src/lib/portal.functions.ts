@@ -566,3 +566,83 @@ export const getJobBlockers = auth()
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer", "owner"]);
     return nextStepBlockers(data.jobId);
   });
+
+// ---------- Owner Authority ----------
+async function authorityJob(id: string) {
+  const { data } = await admin.from("owner_authorities").select("job_id").eq("id", id).single();
+  if (!data) throw new WorkflowError("Authority not found");
+  return data.job_id;
+}
+
+export const requestOwnerAuthority = auth()
+  .inputValidator((d) => z.object({ jobId: uuid, reason: z.enum(["initial", "renewal", "resend"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    await requestAuthority(data.jobId, context.userId, data.reason);
+    return { ok: true };
+  });
+
+export const revokeOwnerAuthority = auth()
+  .inputValidator((d) => z.object({ authorityId: uuid, reason: z.string().trim().min(5).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["admin", "owner"]);
+    await revokeAuthority(data.authorityId, context.userId, data.reason);
+    return { ok: true };
+  });
+
+export const viewOwnerAuthority = auth()
+  .inputValidator((d) => z.object({ authorityId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const role = await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["owner", "admin"]);
+    if (role === "owner") await markViewed(data.authorityId, context.userId);
+    return { ok: true };
+  });
+
+export const acceptOwnerAuthority = auth()
+  .inputValidator((d) => z.object({ authorityId: uuid, over18: z.literal(true), authorised: z.literal(true), assistance: z.enum(["none", "interpreter", "support_understanding", "both"]), signatureName: z.string().trim().min(2).max(200) }).parse(d))
+  .handler(async ({ data, context }) => {
+    // Only the owner themself may give authority.
+    await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["owner"]);
+    const req = getRequest();
+    const ip = req.headers.get("cf-connecting-ip") ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    await acceptAuthority({ authorityId: data.authorityId, actorId: context.userId, over18: data.over18, authorised: data.authorised, assistance: data.assistance, signatureName: data.signatureName, ip, userAgent: req.headers.get("user-agent") });
+    return { ok: true };
+  });
+
+export const declineOwnerAuthority = auth()
+  .inputValidator((d) => z.object({ authorityId: uuid, reason: z.string().trim().min(2).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["owner"]);
+    await declineAuthority(data.authorityId, context.userId, data.reason);
+    return { ok: true };
+  });
+
+export const getAuthorityDocUrl = auth()
+  .inputValidator((d) => z.object({ authorityId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: a } = await context.supabase.from("owner_authorities").select("document_path").eq("id", data.authorityId).maybeSingle();
+    if (!a?.document_path) throw new WorkflowError("No locked document available");
+    const { data: s, error } = await admin.storage.from("job-files").createSignedUrl(a.document_path, 300);
+    if (error || !s) throw new Error(error?.message);
+    return { url: s.signedUrl };
+  });
+
+/** Admin: mark expired authorities across all jobs (audited). */
+export const sweepAuthorities = auth().handler(async ({ context }) => {
+  await requireAdmin(context.supabase);
+  const { data } = await admin.from("owner_authorities").select("job_id").eq("status", "accepted").lt("expires_at", new Date().toISOString());
+  for (const j of new Set((data ?? []).map((r) => r.job_id))) await sweepAuthorityExpiry(j);
+  return { swept: data?.length ?? 0 };
+});
+
+/** Admin-only internal Xero identifiers and sync state (hidden from owners/trades at column level). */
+export const getInvoiceInternals = auth()
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: inv } = await admin.from("invoices").select("id, xero_contact_id, xero_invoice_id, xero_reference, xero_invoice_status, last_synced_at, last_sync_error").eq("job_id", data.jobId);
+    const { data: ov } = await admin.from("payment_overrides").select("id, invoice_id, reason, created_at, overridden_by").eq("job_id", data.jobId);
+    const ids = [...new Set((ov ?? []).map((o) => o.overridden_by))];
+    const { data: profs } = ids.length ? await admin.from("profiles").select("id, full_name").in("id", ids) : { data: [] };
+    return { invoices: inv ?? [], overrides: (ov ?? []).map((o) => ({ ...o, by: profs?.find((p) => p.id === o.overridden_by)?.full_name ?? null })) };
+  });
