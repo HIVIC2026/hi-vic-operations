@@ -6,7 +6,7 @@ import { withRequestMeta } from "./request-meta";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent, nextStepBlockers, stageEntryBlockers, piesaStatus, requireAdmin, requireJobRole, transition, getStage } from "./workflow.server";
-import { adjustQuote as adjustQuoteImpl, deriveRectificationItems, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
+import { adjustQuote as adjustQuoteImpl, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
 import { applyPaidAmount, clearInstallDueDate, createInvoiceForQuote, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";

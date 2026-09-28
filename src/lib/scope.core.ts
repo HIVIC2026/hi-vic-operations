@@ -29,10 +29,10 @@ export const MEASURE_FIELD_LABEL: Record<MeasureField, string> = {
   access_difficulty: "access difficulty",
 };
 
-export type MeasurementValues = Partial<{
-  measured_area_m2: number | null; insulation_present: boolean | null; existing_r_value: number | null;
-  removal_required: boolean | null; removal_m2: number | null; access_difficulty: "easy" | "moderate" | "difficult" | null;
-}>;
+export type MeasurementValues = {
+  measured_area_m2?: number | null | undefined; insulation_present?: boolean | null | undefined; existing_r_value?: number | null | undefined;
+  removal_required?: boolean | null | undefined; removal_m2?: number | null | undefined; access_difficulty?: "easy" | "moderate" | "difficult" | null | undefined;
+};
 export type MeasurementLike = MeasurementValues & {
   id?: string; status: "draft" | "needs_review" | "complete" | "rejected"; is_current?: boolean;
   source_role?: string; external_source?: string | null; external_id?: string | null; review_flags?: unknown;
