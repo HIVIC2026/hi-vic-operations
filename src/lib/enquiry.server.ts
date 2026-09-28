@@ -74,7 +74,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     .from("jobs")
     .insert({
       ...jobFields, property_id: prop.id, owner_id: owner!.id, source, external_enquiry_id: input.external_enquiry_id ?? null, next_action: "Review eligibility",
-      ...(plan ? { ...plan.patch, stage: "eligibility_review" as const } : {}),
+      ...((plan ? { ...plan.patch, stage: "eligibility_review" } : {}) as TablesUpdate<"jobs">),
       business_unit: "hivic", // explicit: this portal only creates Home Insulation Victoria jobs
       channel: origin.channel,
       ...(origin.channel === "installer_sourced"

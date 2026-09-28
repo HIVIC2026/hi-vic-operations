@@ -33,7 +33,7 @@ export const Route = createFileRoute("/api/public/enquiry")({
         const ref = { external_enquiry_id: parsed.data.external_enquiry_id ?? null, source_reference: parsed.data.source_reference ?? null, key_id: keyId ?? null };
         try {
           const result = await upsertEnquiry(parsed.data, "base44", null);
-          await supabaseAdmin.from("external_sync_logs").insert({ system: "base44", direction: "inbound", entity_type: "job", entity_id: result.job_id, status: "synced", payload: { ...ref, created: result.created, eligibility_outcome: parsed.data.eligibility_outcome ?? null } });
+          await supabaseAdmin.from("external_sync_logs").insert({ system: "base44", direction: "inbound", entity_type: "job", entity_id: result.job_id, status: "synced", payload: { ...ref, created: result.created, preliminary_outcome: parsed.data.preliminary_outcome ?? parsed.data.eligibility_outcome ?? null, life_support_status: parsed.data.life_support_status ?? null } });
           return Response.json({ ok: true, ...result });
         } catch (e) {
           console.error("enquiry webhook failed", e);
