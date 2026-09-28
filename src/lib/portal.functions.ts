@@ -615,39 +615,8 @@ export const createBooking = createServerFn({ method: "POST" }).middleware([requ
   .handler(async ({ data, context }) => {
     const need = data.kind === "installation" ? "installer" : "electrician";
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "owner", need]);
-    const stage = await getStage(data.jobId);
-    const map: Record<string, [Stage[], Stage]> = {
-      assessment: [["assessment_booking", "assessment_booked"], "assessment_booked"],
-      rectification: [["rectification_scheduling", "rectification_booked"], "rectification_booked"],
-      installation: [["installation_scheduling", "installation_booked"], "installation_booked"],
-    };
-    const [allowed, target] = map[data.kind]!;
-    if (!allowed.includes(stage)) throw new WorkflowError(`A ${data.kind} booking can't be made at ${STAGE_LABEL[stage]}.`);
-    const { data: contractor } = await admin.from("job_assignments").select("user_id").eq("job_id", data.jobId).eq("role", need).eq("active", true).maybeSingle();
-    if (!contractor) throw new WorkflowError(`No ${need} assigned yet.`);
-    if (data.kind === "installation") {
-      const blocked = installationDateBlocker(await piesaStatus(data.jobId), data.start);
-      if (blocked) throw new WorkflowError(blocked);
-      const { bookingLeadBlocker } = await import("./esc.core");
-      const lead = bookingLeadBlocker(data.start, new Date().toISOString());
-      if (lead) throw new WorkflowError(lead);
-    }
-    if (data.kind !== "assessment") { const cb = await commercialBlocker(data.jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
-    if (data.kind !== "assessment" && !(await depositCleared(data.jobId)))
-      throw new WorkflowError("Blocked: the 50% deposit has not been paid.");
-    await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", data.jobId).eq("kind", data.kind).in("status", ["proposed", "confirmed"]);
-    await admin.from("bookings").insert({ job_id: data.jobId, kind: data.kind, contractor_id: contractor.user_id, scheduled_start: data.start, booked_by: context.userId, notes: data.notes ?? null, status: "confirmed" });
-    if (data.kind === "installation") {
-      await setInstallDueDate(data.jobId, data.start, context.userId);
-      const { regenerateEscNotification } = await import("./esc.server");
-      await regenerateEscNotification(data.jobId, context.userId);
-      const { reevaluateIntelligence } = await import("./intelligence.server");
-      await reevaluateIntelligence(data.jobId, context.userId, "installation date set");
-    }
-    const when = new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
-    if (stage === target) await logEvent(data.jobId, context.userId, "booking_rescheduled", `${data.kind} rescheduled to ${when} by ${role}`);
-    else await transition(data.jobId, target, context.userId, `${data.kind.charAt(0).toUpperCase() + data.kind.slice(1)} booked for ${when} by ${role}`);
-    await autoAdvanceJob(data.jobId, context.userId, "booking confirmed");
+    const { confirmBooking } = await import("./booking.server");
+    await confirmBooking(data.jobId, data.kind, data.start, context.userId, role, data.notes);
     return { ok: true };
   });
 
