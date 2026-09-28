@@ -1,3 +1,4 @@
+import { EscConfigSection } from "@/components/portal/intelligence";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/_authenticated/admin/compliance")({
 const KEYS = [
   ["consumer_rights", "VEU consumer information & consumer rights"],
   ["consumer_declaration", "Consumer declarations & VEEC assignment"],
+  ["esc_consent", "Owner consent – ESC information sharing (Reg 23A)"],
   ["installer_declaration", "Installer declaration"],
   ["ap_declaration", "Accredited Person / assignee declaration (if required)"],
 ] as const;
@@ -51,7 +53,7 @@ function Compliance() {
             </section>
           ))}
         </div>
-        <section className="space-y-3 rounded-xl border bg-card p-4">
+        <div className="space-y-4"><section className="space-y-3 rounded-xl border bg-card p-4">
           <h2 className="font-semibold">Add a version</h2>
           <select className="h-10 w-full rounded border bg-background px-2" value={key} onChange={(e) => setKey(e.target.value as typeof key)}>{KEYS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           <Input placeholder="Version (e.g. ESC template date)" value={version} onChange={(e) => setVersion(e.target.value)} />
@@ -59,6 +61,7 @@ function Compliance() {
           <Textarea rows={16} placeholder="Exact official wording" value={body} onChange={(e) => setBody(e.target.value)} />
           <Button disabled={!version.trim() || body.trim().length < 20} onClick={async () => { await add({ template_key: key, version, body, source_note: note || undefined, required: true }, "Draft saved"); setBody(""); setVersion(""); setNote(""); }}>Save draft</Button>
         </section>
+        <EscConfigSection /></div>
       </div>
     </AppShell>
   );

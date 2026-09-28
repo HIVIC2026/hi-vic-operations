@@ -202,6 +202,12 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
       .maybeSingle();
     if (!inst) blockers.push("No installer assigned.");
   }
+  // ESC pre-install controls: installation may only be recorded when READY TO INSTALL held 24h before start.
+  if (to === "evidence_outstanding") {
+    const { installReadiness } = await import("./esc.server");
+    const r = await installReadiness(jobId);
+    for (const b of r.blockers) blockers.push(`Not ready to install: ${b}`);
+  }
   if (to === "ap_review" || to === "ready_for_veec") {
     const { data: reqs } = await admin
       .from("evidence_requirements")

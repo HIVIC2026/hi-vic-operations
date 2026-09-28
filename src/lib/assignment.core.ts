@@ -6,7 +6,7 @@ export type AssignmentStatus =
   | "draft" | "consumer_signed_pending_install" | "final_details_pending" | "installer_signed_pending_install"
   | "variation_required" | "effective_complete" | "cancelled";
 
-export type TemplateKey = "consumer_declaration" | "consumer_rights" | "installer_declaration" | "ap_declaration";
+export type TemplateKey = "consumer_declaration" | "consumer_rights" | "esc_consent" | "installer_declaration" | "ap_declaration";
 export type Template = { template_key: string; version: string; body: string; approved: boolean; is_active: boolean; required: boolean };
 
 export const ASSIGNMENT_LABEL: Record<AssignmentStatus, string> = {
@@ -22,6 +22,7 @@ export const ASSIGNMENT_LABEL: Record<AssignmentStatus, string> = {
 export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   consumer_declaration: "Consumer declaration & VEEC assignment wording (Activity 48)",
   consumer_rights: "VEU consumer information & cooling-off / consumer rights",
+  esc_consent: "Owner written consent – ESC information sharing (Regulation 23A / Activity 48)",
   installer_declaration: "Installer declaration (Activity 48)",
   ap_declaration: "Accredited Person / assignee declaration (if required by template)",
 };
@@ -48,7 +49,7 @@ export function activeTemplate(templates: Template[], key: TemplateKey): Templat
 
 /** Configuration blockers for a phase. Consumer phase needs consumer wording; final phase needs installer (+ AP if marked required). */
 export function templateBlockers(templates: Template[], phase: "consumer" | "final"): string[] {
-  const keys: TemplateKey[] = phase === "consumer" ? ["consumer_declaration", "consumer_rights"] : ["installer_declaration"];
+  const keys: TemplateKey[] = phase === "consumer" ? ["consumer_declaration", "consumer_rights", "esc_consent"] : ["installer_declaration"];
   const out = keys.filter((k) => !activeTemplate(templates, k)).map((k) => `Configuration required: approved "${TEMPLATE_LABEL[k]}" text not configured.`);
   if (phase === "final") {
     const ap = templates.find((t) => t.template_key === "ap_declaration" && t.is_active);
@@ -59,7 +60,7 @@ export function templateBlockers(templates: Template[], phase: "consumer" | "fin
 
 export type ConsumerSignInput = {
   signatoryName: string; authorityType: "owner" | "authorised_representative"; over18: boolean;
-  readConsumerInfo: boolean; acceptDeclaration: boolean; acceptAssignment: boolean; signatureName: string;
+  readConsumerInfo: boolean; acceptDeclaration: boolean; acceptAssignment: boolean; signatureName: string; acceptEscConsent?: boolean | undefined;
 };
 
 /** Validates the consumer signing step. Returns blockers (empty = can sign). */
@@ -69,6 +70,7 @@ export function consumerSignBlockers(i: ConsumerSignInput, templates: Template[]
   if (!i.readConsumerInfo) b.push("Please confirm you have read the VEU consumer information.");
   if (!i.acceptDeclaration) b.push("Please confirm the consumer declarations.");
   if (!i.acceptAssignment) b.push("Please confirm the assignment of VEEC rights.");
+  if (!i.acceptEscConsent) b.push("Please give written consent for the ESC information sharing.");
   if (i.signatureName.trim().length < 2) b.push("Type your full name to sign.");
   if (i.signatoryName.trim().length < 2) b.push("Signatory name is required.");
   return b;

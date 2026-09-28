@@ -2,15 +2,20 @@ import { describe, expect, test } from "bun:test";
 import { consumerSignBlockers, evaluateAssignment, materialChanges, templateBlockers, type Template } from "../src/lib/assignment.core";
 
 const T = (k: string, o: Partial<Template> = {}): Template => ({ template_key: k, version: "v1", body: "x".repeat(30), approved: true, is_active: true, required: true, ...o });
-const all = [T("consumer_declaration"), T("consumer_rights"), T("installer_declaration")];
-const sign = { signatoryName: "Jo", authorityType: "owner" as const, over18: true, readConsumerInfo: true, acceptDeclaration: true, acceptAssignment: true, signatureName: "Jo Citizen" };
+const all = [T("consumer_declaration"), T("consumer_rights"), T("esc_consent"), T("installer_declaration")];
+const sign = { signatoryName: "Jo", authorityType: "owner" as const, over18: true, readConsumerInfo: true, acceptDeclaration: true, acceptAssignment: true, acceptEscConsent: true, signatureName: "Jo Citizen" };
 const base = { status: "consumer_signed_pending_install" as const, consumerSigned: true, installationCompleted: true, installerSigned: true, installedProduct: "R5 batts", installedArea: 120, openVariation: false, templates: all };
 
 describe("customer acceptance & VEEC assignment", () => {
   test("signing blocked until official wording approved (never invented)", () => {
-    expect(templateBlockers([], "consumer").length).toBe(2);
-    expect(consumerSignBlockers(sign, [T("consumer_declaration", { approved: false }), T("consumer_rights")]).length).toBe(1);
+    expect(templateBlockers([], "consumer").length).toBe(3);
+    expect(consumerSignBlockers(sign, [T("consumer_declaration", { approved: false }), T("consumer_rights"), T("esc_consent")]).length).toBe(1);
     expect(consumerSignBlockers(sign, all)).toEqual([]);
+  });
+  test("quote acceptance blocked without approved ESC consent template", () => {
+    const b = consumerSignBlockers(sign, [T("consumer_declaration"), T("consumer_rights"), T("esc_consent", { approved: false })]);
+    expect(b.some((x) => x.includes("ESC information sharing"))).toBe(true);
+    expect(consumerSignBlockers({ ...sign, acceptEscConsent: false }, all).some((x) => x.includes("ESC"))).toBe(true);
   });
   test("all declarations + 18+ required", () => {
     expect(consumerSignBlockers({ ...sign, over18: false, acceptAssignment: false }, all).length).toBe(2);

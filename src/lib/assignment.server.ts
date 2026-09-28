@@ -87,10 +87,11 @@ export async function signConsumer(p: { quoteId: string; actorId: string; input:
   if (await currentAssignment(pkg.job_id)) throw new WorkflowError("A customer acceptance already exists for this job – use a variation.");
   const decl = activeTemplate(templates, "consumer_declaration")!;
   const rights = activeTemplate(templates, "consumer_rights")!;
+  const esc = activeTemplate(templates, "esc_consent")!;
   const now = new Date();
   const snapshot = {
     package: pkg, snapshot: snapOf(pkg),
-    consumer_declaration: { version: decl.version, body: decl.body }, consumer_rights: { version: rights.version, body: rights.body },
+    consumer_declaration: { version: decl.version, body: decl.body }, consumer_rights: { version: rights.version, body: rights.body }, esc_consent: { version: esc.version, body: esc.body, accepted: true },
     signatory: { name: p.input.signatoryName, authority_type: p.input.authorityType, over_18: p.input.over18, assistance: p.assistance },
     signature: { typed_name: p.input.signatureName, at: now.toISOString(), ip: p.ip, user_agent: p.userAgent, user_id: p.actorId },
     assignment_effective_rule: "Assignment becomes effective only after the eligible activity is undertaken and installer final details/declaration are complete.",
@@ -98,7 +99,7 @@ export async function signConsumer(p: { quoteId: string; actorId: string; input:
   const json = stableJson(snapshot);
   const hash = await sha256Hex(json);
   const copyText = [`CUSTOMER ACCEPTANCE & VEEC ASSIGNMENT – ${pkg.ap_legal_entity}`, `Job ${pkg.job_number} · Quote ${pkg.quote.option_label} v${pkg.quote.version}`, `Status: signed by consumer – NOT YET EFFECTIVE (effective after installation + installer declaration)`, "",
-    `Consumer rights information (${rights.version}):`, rights.body, "", `Consumer declaration (${decl.version}):`, decl.body, "",
+    `Consumer rights information (${rights.version}):`, rights.body, "", `Consumer declaration (${decl.version}):`, decl.body, "", `ESC information-sharing consent (${esc.version}):`, esc.body, "",
     `Property: ${pkg.property_address}`, `Signatory: ${p.input.signatoryName} (${p.input.authorityType})`, `Product: ${pkg.quoted_product} · Area: ${pkg.quoted_area_m2 ?? "TBC"} m²`,
     `Price before VEU benefit: ${pkg.price_before_benefit_inc_gst.toFixed(2)} · VEU benefit: ${pkg.veu_benefit_inc_gst.toFixed(2)} · Final price: ${pkg.final_customer_price_inc_gst.toFixed(2)} (inc GST)`,
     pkg.payment_terms, `Installer: ${pkg.installer.name ?? "To be confirmed"} ${pkg.installer.business ? `(${pkg.installer.business})` : ""}`, "",
@@ -108,7 +109,7 @@ export async function signConsumer(p: { quoteId: string; actorId: string; input:
     job_id: pkg.job_id, quote_id: pkg.quote.id, quote_version: pkg.quote.version, status: "consumer_signed_pending_install", ap_legal_entity: pkg.ap_legal_entity,
     signatory_name: p.input.signatoryName, signatory_email: pkg.consumer.email, signatory_phone: pkg.consumer.phone, signatory_authority_type: p.input.authorityType,
     signatory_over_18: p.input.over18, assistance_requirement: p.assistance, consumer_signature_name: p.input.signatureName, consumer_signed_at: now.toISOString(),
-    consumer_signed_by: p.actorId, consumer_ip: p.ip, consumer_user_agent: p.userAgent, consumer_declaration_version: decl.version, consumer_rights_version: rights.version,
+    consumer_signed_by: p.actorId, consumer_ip: p.ip, consumer_user_agent: p.userAgent, consumer_declaration_version: decl.version, consumer_rights_version: rights.version, esc_consent_version: esc.version, esc_consent_signed_at: now.toISOString(),
     consumer_snapshot: snapshot as unknown as Json, consumer_snapshot_sha256: hash, consumer_copy_path: path, copy_sent_at: path ? now.toISOString() : null,
     quoted_product: pkg.quoted_product, quoted_area_m2: pkg.quoted_area_m2, price_before_benefit_inc_gst: pkg.price_before_benefit_inc_gst,
     veu_benefit_inc_gst: pkg.veu_benefit_inc_gst, final_customer_price_inc_gst: pkg.final_customer_price_inc_gst,

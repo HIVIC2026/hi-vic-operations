@@ -684,6 +684,8 @@ export type Database = {
           copy_sent_at: string | null
           created_at: string
           effective_at: string | null
+          esc_consent_signed_at: string | null
+          esc_consent_version: string | null
           final_copy_at: string | null
           final_copy_path: string | null
           final_customer_price_inc_gst: number | null
@@ -743,6 +745,8 @@ export type Database = {
           copy_sent_at?: string | null
           created_at?: string
           effective_at?: string | null
+          esc_consent_signed_at?: string | null
+          esc_consent_version?: string | null
           final_copy_at?: string | null
           final_copy_path?: string | null
           final_customer_price_inc_gst?: number | null
@@ -802,6 +806,8 @@ export type Database = {
           copy_sent_at?: string | null
           created_at?: string
           effective_at?: string | null
+          esc_consent_signed_at?: string | null
+          esc_consent_version?: string | null
           final_copy_at?: string | null
           final_copy_path?: string | null
           final_customer_price_inc_gst?: number | null
@@ -1002,6 +1008,190 @@ export type Database = {
           {
             foreignKeyName: "documents_uploaded_by_fkey"
             columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      esc_notification_config: {
+        Row: {
+          approved: boolean
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          required_fields: Json
+          source_note: string | null
+          version: string
+        }
+        Insert: {
+          approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          required_fields?: Json
+          source_note?: string | null
+          version: string
+        }
+        Update: {
+          approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          required_fields?: Json
+          source_note?: string | null
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "esc_notification_config_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "esc_notification_config_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      esc_notifications: {
+        Row: {
+          booking_id: string | null
+          config_version: string | null
+          consent_assignment_id: string | null
+          consent_signed_at: string | null
+          consent_template_version: string | null
+          created_at: string
+          due_by: string
+          id: string
+          installation_days: Json
+          job_id: string
+          last_error: string | null
+          owner_contact: Json
+          payload_hash: string | null
+          payload_json: Json
+          payload_version: string | null
+          premises_address: string
+          response: Json | null
+          scheduled_end: string | null
+          scheduled_start: string
+          sent_at: string | null
+          status: string
+          submission_method: string | null
+          submission_reference: string | null
+          submitted_by: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          booking_id?: string | null
+          config_version?: string | null
+          consent_assignment_id?: string | null
+          consent_signed_at?: string | null
+          consent_template_version?: string | null
+          created_at?: string
+          due_by: string
+          id?: string
+          installation_days?: Json
+          job_id: string
+          last_error?: string | null
+          owner_contact?: Json
+          payload_hash?: string | null
+          payload_json?: Json
+          payload_version?: string | null
+          premises_address: string
+          response?: Json | null
+          scheduled_end?: string | null
+          scheduled_start: string
+          sent_at?: string | null
+          status?: string
+          submission_method?: string | null
+          submission_reference?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          booking_id?: string | null
+          config_version?: string | null
+          consent_assignment_id?: string | null
+          consent_signed_at?: string | null
+          consent_template_version?: string | null
+          created_at?: string
+          due_by?: string
+          id?: string
+          installation_days?: Json
+          job_id?: string
+          last_error?: string | null
+          owner_contact?: Json
+          payload_hash?: string | null
+          payload_json?: Json
+          payload_version?: string | null
+          premises_address?: string
+          response?: Json | null
+          scheduled_end?: string | null
+          scheduled_start?: string
+          sent_at?: string | null
+          status?: string
+          submission_method?: string | null
+          submission_reference?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "esc_notifications_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "esc_notifications_consent_assignment_id_fkey"
+            columns: ["consent_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "customer_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "esc_notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "esc_notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "esc_notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "esc_notifications_submitted_by_fkey"
+            columns: ["submitted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2116,6 +2306,88 @@ export type Database = {
           },
         ]
       }
+      piesa_deliveries: {
+        Row: {
+          created_at: string
+          delivered_at: string
+          document_id: string | null
+          id: string
+          job_id: string
+          method: string
+          notes: string | null
+          piesa_record_id: string
+          recipient: string
+          recorded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          delivered_at: string
+          document_id?: string | null
+          id?: string
+          job_id: string
+          method: string
+          notes?: string | null
+          piesa_record_id: string
+          recipient: string
+          recorded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          delivered_at?: string
+          document_id?: string | null
+          id?: string
+          job_id?: string
+          method?: string
+          notes?: string | null
+          piesa_record_id?: string
+          recipient?: string
+          recorded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "piesa_deliveries_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piesa_deliveries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piesa_deliveries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "piesa_deliveries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piesa_deliveries_piesa_record_id_fkey"
+            columns: ["piesa_record_id"]
+            isOneToOne: false
+            referencedRelation: "piesa_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piesa_deliveries_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       piesa_records: {
         Row: {
           assessment_id: string | null
@@ -2343,6 +2615,431 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_area_estimates: {
+        Row: {
+          confidence: string
+          created_at: string
+          created_by: string | null
+          document_id: string | null
+          excluded_m2: number | null
+          gross_m2: number | null
+          id: string
+          is_current: boolean
+          job_id: string
+          method: string
+          net_m2: number | null
+          notes: string | null
+          property_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          run_id: string | null
+          source_name: string
+          source_url: string | null
+          tier: string
+        }
+        Insert: {
+          confidence: string
+          created_at?: string
+          created_by?: string | null
+          document_id?: string | null
+          excluded_m2?: number | null
+          gross_m2?: number | null
+          id?: string
+          is_current?: boolean
+          job_id: string
+          method: string
+          net_m2?: number | null
+          notes?: string | null
+          property_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          run_id?: string | null
+          source_name: string
+          source_url?: string | null
+          tier: string
+        }
+        Update: {
+          confidence?: string
+          created_at?: string
+          created_by?: string | null
+          document_id?: string | null
+          excluded_m2?: number | null
+          gross_m2?: number | null
+          id?: string
+          is_current?: boolean
+          job_id?: string
+          method?: string
+          net_m2?: number | null
+          notes?: string | null
+          property_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          run_id?: string | null
+          source_name?: string
+          source_url?: string | null
+          tier?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_area_estimates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_area_estimates_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_area_estimates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_area_estimates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "property_area_estimates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_area_estimates_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_area_estimates_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_area_estimates_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_area_estimates_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "property_intelligence_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_facts: {
+        Row: {
+          check_status: string
+          confidence: string
+          created_at: string
+          evidence_kind: string
+          fact_key: string
+          id: string
+          is_current: boolean
+          is_stale: boolean
+          job_id: string
+          note: string | null
+          property_id: string
+          raw_hash: string | null
+          raw_snapshot: Json | null
+          retrieved_at: string
+          run_id: string | null
+          source_date: string | null
+          source_name: string
+          source_record_id: string | null
+          source_type: string
+          source_url: string | null
+          superseded_at: string | null
+          value: Json
+        }
+        Insert: {
+          check_status?: string
+          confidence?: string
+          created_at?: string
+          evidence_kind?: string
+          fact_key: string
+          id?: string
+          is_current?: boolean
+          is_stale?: boolean
+          job_id: string
+          note?: string | null
+          property_id: string
+          raw_hash?: string | null
+          raw_snapshot?: Json | null
+          retrieved_at?: string
+          run_id?: string | null
+          source_date?: string | null
+          source_name: string
+          source_record_id?: string | null
+          source_type: string
+          source_url?: string | null
+          superseded_at?: string | null
+          value?: Json
+        }
+        Update: {
+          check_status?: string
+          confidence?: string
+          created_at?: string
+          evidence_kind?: string
+          fact_key?: string
+          id?: string
+          is_current?: boolean
+          is_stale?: boolean
+          job_id?: string
+          note?: string | null
+          property_id?: string
+          raw_hash?: string | null
+          raw_snapshot?: Json | null
+          retrieved_at?: string
+          run_id?: string | null
+          source_date?: string | null
+          source_name?: string
+          source_record_id?: string | null
+          source_type?: string
+          source_url?: string | null
+          superseded_at?: string | null
+          value?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_facts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_facts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "property_facts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_facts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_facts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_facts_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "property_intelligence_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_intelligence_runs: {
+        Row: {
+          address_hash: string | null
+          completed_at: string | null
+          completeness_pct: number | null
+          created_by: string | null
+          error_summary: string | null
+          id: string
+          is_stale: boolean
+          job_id: string
+          next_action: string | null
+          property_id: string
+          reference_date: string
+          reference_date_basis: string
+          result: string | null
+          result_reason: string | null
+          ruleset_version: string
+          stale_reason: string | null
+          started_at: string
+          status: string
+          trigger: string
+        }
+        Insert: {
+          address_hash?: string | null
+          completed_at?: string | null
+          completeness_pct?: number | null
+          created_by?: string | null
+          error_summary?: string | null
+          id?: string
+          is_stale?: boolean
+          job_id: string
+          next_action?: string | null
+          property_id: string
+          reference_date: string
+          reference_date_basis?: string
+          result?: string | null
+          result_reason?: string | null
+          ruleset_version: string
+          stale_reason?: string | null
+          started_at?: string
+          status?: string
+          trigger?: string
+        }
+        Update: {
+          address_hash?: string | null
+          completed_at?: string | null
+          completeness_pct?: number | null
+          created_by?: string | null
+          error_summary?: string | null
+          id?: string
+          is_stale?: boolean
+          job_id?: string
+          next_action?: string | null
+          property_id?: string
+          reference_date?: string
+          reference_date_basis?: string
+          result?: string | null
+          result_reason?: string | null
+          ruleset_version?: string
+          stale_reason?: string | null
+          started_at?: string
+          status?: string
+          trigger?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_intelligence_runs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_intelligence_runs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_intelligence_runs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "property_intelligence_runs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_intelligence_runs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_intelligence_runs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_source_checks: {
+        Row: {
+          checked_at: string
+          error: string | null
+          http_status: number | null
+          id: string
+          job_id: string
+          latency_ms: number | null
+          retry_count: number
+          run_id: string
+          source_key: string
+          status: string
+        }
+        Insert: {
+          checked_at?: string
+          error?: string | null
+          http_status?: number | null
+          id?: string
+          job_id: string
+          latency_ms?: number | null
+          retry_count?: number
+          run_id: string
+          source_key: string
+          status: string
+        }
+        Update: {
+          checked_at?: string
+          error?: string | null
+          http_status?: number | null
+          id?: string
+          job_id?: string
+          latency_ms?: number | null
+          retry_count?: number
+          run_id?: string
+          source_key?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_source_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_source_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "property_source_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_source_checks_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "property_intelligence_runs"
             referencedColumns: ["id"]
           },
         ]

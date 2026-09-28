@@ -113,6 +113,20 @@
       "when": 1790599156210,
       "tag": "0015_gate1_auto_decision",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790599518485,
+      "tag": "0016_property_intelligence_and_esc_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790599802781,
+      "tag": "0017_esc_consent_template_key",
+      "breakpoints": true
     }
   ]
 }
