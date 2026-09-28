@@ -84,7 +84,7 @@ describe("property intelligence", () => {
 
 const start = "2026-10-10T00:00:00.000Z";
 const good: ReadinessInput = {
-  scheduledStart: start, consentSignedAt: "2026-10-01T00:00:00.000Z",
+  scheduledStart: start, consent: { status: "valid", scheduled_start: start, owner_signed_at: "2026-10-01T00:00:00.000Z", ap_signed_at: "2026-10-01T01:00:00.000Z" },
   notification: { status: "sent", sent_at: "2026-10-05T00:00:00.000Z", submission_reference: "ESC-123", scheduled_start: start },
   deliveries: { owner: "2026-10-05T00:00:00.000Z", installer: "2026-10-05T00:00:00.000Z" },
   piesa: { date: "2026-09-20", deadline: "2026-10-20", outcome: "pass" },
@@ -92,7 +92,7 @@ const good: ReadinessInput = {
 
 describe("ESC pre-install controls", () => {
   test("all conditions met => READY TO INSTALL", () => expect(readyToInstall(good)).toMatchObject({ ready: true, dueBy: escDueBy(start) }));
-  test("ESC consent <24h => blocked", () => expect(readyToInstall({ ...good, consentSignedAt: "2026-10-09T12:00:00.000Z" }).blockers.join()).toContain("consent"));
+  test("ESC consent <24h => blocked", () => expect(readyToInstall({ ...good, consent: { ...good.consent!, ap_signed_at: "2026-10-09T12:00:00.000Z" } }).blockers.join()).toContain("consent"));
   test("ESC notification unsent => blocked", () => expect(readyToInstall({ ...good, notification: { ...good.notification!, status: "ready", sent_at: null, submission_reference: null } }).ready).toBe(false));
   test("ESC notification <24h => blocked", () => expect(readyToInstall({ ...good, notification: { ...good.notification!, sent_at: "2026-10-09T06:00:00.000Z" } }).blockers.join()).toContain("less than 24h"));
   test("PIESA not delivered to both >=24h => blocked", () => {
