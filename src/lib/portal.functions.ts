@@ -886,7 +886,7 @@ export const updatePartnerEnquiry = createServerFn({ method: "POST" }).middlewar
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const now = new Date().toISOString();
-    const patch: Record<string, unknown> = {};
+    const patch: import("@/integrations/supabase/types").TablesUpdate<"partner_enquiries"> = {};
     if (data.internal_notes !== undefined) patch.internal_notes = data.internal_notes;
     if (data.status) {
       patch.status = data.status; patch.status_changed_by = context.userId;
