@@ -53,3 +53,15 @@ describe("Base44 Gate 1 evidence", () => {
     expect(d.rules.find((r) => r.key === "residential")?.source).toBe("properties.is_residential");
   });
 });
+
+describe("approved Gate 1 business rules", () => {
+  test("owner NO to previous upgrade passes on its own, stays declared", () => {
+    const r = decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "no", property_research: research })).rules.find((x) => x.key === "previous_upgrade")!;
+    expect(r).toMatchObject({ result: "pass", basis: "declared" });
+    expect(r.basis).not.toBe("verified");
+  });
+  test("minimum building age is 5 years", () => {
+    expect(decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "no", property_research: { ...research, first_appearance_year: Y - 3 } })).outcome).toBeNull();
+    expect(decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "no", property_research: { ...research, first_appearance_year: Y - 6 } })).rules.find((x) => x.key === "building_age")!.result).toBe("pass");
+  });
+});
