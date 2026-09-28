@@ -2,7 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { logEvent } from "./workflow.server";
-import { evaluateGate1, type Gate1Decision } from "./eligibility.core";
+import { evaluateGate1, resolveGate1Facts, type Gate1Decision, type StoredProperty } from "./eligibility.core";
 
 export const AUTO_FAIL_HOLD_PREFIX = "Gate 1 auto-decision: does not appear eligible";
 
@@ -12,20 +12,8 @@ export async function autoDecideEligibility(jobId: string): Promise<Gate1Decisio
     .eq("id", jobId).single();
   if (!j || !["new_enquiry", "eligibility_review"].includes(j.stage)) return null;
   if (j.eligibility_decision_source === "admin" || j.eligibility_decision_source === "system") return null; // admin decisions stand; system decides once
-  const p = j.properties as { state: string | null; postcode: string | null; occupancy: string | null; is_residential: boolean | null; year_built: number | null; enrichment: Record<string, unknown> | null } | null;
-  const e = (p?.enrichment ?? {}) as Record<string, unknown>;
-  const { data: ws } = await admin.from("workflow_settings").select("min_building_age_years").limit(1).maybeSingle();
-  const facts = {
-    state: p?.state ?? null, postcode: p?.postcode ?? null, occupancy: p?.occupancy ?? null,
-    isResidential: p?.is_residential ?? null, yearBuilt: p?.year_built ?? null, yearBuiltVerified: e["year_built_verified"] === true,
-    minBuildingAgeYears: ws?.min_building_age_years ?? 2,
-    lifeSupportStatus: j.life_support_status, previousCeilingUpgrade: typeof e["previous_ceiling_insulation_upgrade"] === "boolean" ? (e["previous_ceiling_insulation_upgrade"] as boolean) : null,
-    flatRoofOrAccessConcern: e["flat_roof"] === true || e["access_concern"] === true,
-    preliminaryOutcome: j.eligibility_decision_source === "preliminary" ? j.eligibility_outcome : null,
-    currentYear: Number(new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", year: "numeric" }).format(new Date())),
-  };
-  const d = evaluateGate1(facts);
-  const audit = { rules_passed: d.passed, rules_failed: d.failed, needs_review: d.review, facts, sources: ["properties", "properties.enrichment", "jobs.life_support_status", "workflow_settings"], decided_at: new Date().toISOString() };
+  const { facts, d } = await evaluateStored(j);
+  const audit = { rules_passed: d.passed, rules_failed: d.failed, needs_review: d.review, rules: d.rules, facts, sources: ["properties", "properties.enrichment (incl. base44 declared/research)", "jobs.life_support_status", "workflow_settings"], decided_at: new Date().toISOString() };
   if (!d.outcome) {
     // Unchanged review list -> no new event (idempotent sweeps).
     const prev = (j.eligibility_decision_rules as { needs_review?: string[] } | null)?.needs_review ?? [];
@@ -49,4 +37,28 @@ export async function autoDecideEligibility(jobId: string): Promise<Gate1Decisio
     await logEvent(jobId, null, "stage_changed", `Held out of workflow: ${hold}`, audit, { from: j.stage, to: "on_hold" });
   }
   return d;
+}
+
+type StoredJob = { eligibility_outcome: string | null; eligibility_decision_source: string | null; life_support_status: string | null; properties: unknown };
+async function evaluateStored(j: StoredJob) {
+  const { data: ws } = await admin.from("workflow_settings").select("min_building_age_years").limit(1).maybeSingle();
+  const year = Number(new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", year: "numeric" }).format(new Date()));
+  const facts = resolveGate1Facts(j.properties as StoredProperty | null, {
+    lifeSupportStatus: j.life_support_status,
+    preliminaryOutcome: j.eligibility_decision_source === "preliminary" ? j.eligibility_outcome : null,
+  }, ws?.min_building_age_years ?? 2, year);
+  return { facts, d: evaluateGate1(facts) };
+}
+
+/** Read-only: what the Gate 1 rules say right now, per rule, with source and declared/verified basis. */
+export async function previewGate1(jobId: string) {
+  const { data: j } = await admin.from("jobs")
+    .select("stage, eligibility_outcome, eligibility_decision_source, eligibility_decision_rules, eligibility_reason, life_support_status, properties(state, postcode, occupancy, is_residential, year_built, enrichment)")
+    .eq("id", jobId).single();
+  if (!j) return null;
+  const { d } = await evaluateStored(j);
+  return {
+    live: { outcome: d.outcome, rules: d.rules },
+    recorded: { outcome: j.eligibility_outcome, source: j.eligibility_decision_source, reason: j.eligibility_reason, rules: (j.eligibility_decision_rules as { rules?: unknown } | null)?.rules ?? null },
+  };
 }

@@ -932,6 +932,14 @@ export const autoAdvancePipeline = createServerFn({ method: "POST" }).middleware
   return autoAdvanceOpenJobs(context.userId);
 });
 
+export const getGate1Evidence = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { previewGate1 } = await import("./eligibility.server");
+    return previewGate1(data.jobId);
+  });
+
 export const getCommsStatus = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
   const { customerCommsEnabled } = await import("./comms.server");
