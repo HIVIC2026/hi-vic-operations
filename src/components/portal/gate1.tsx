@@ -23,15 +23,13 @@ export function Gate1EvidencePanel({ jobId }: { jobId: string }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-left text-xs uppercase text-muted-foreground">
-            <tr><th className="py-1 pr-3">Rule</th><th className="pr-3">Fact</th><th className="pr-3">Source</th><th className="pr-3">Basis</th><th className="pr-3">Result</th><th>Reason</th></tr>
+            <tr><th className="py-1 pr-3">Rule</th><th className="pr-3">Fact</th><th className="pr-3">Result</th><th>Reason</th></tr>
           </thead>
           <tbody>
             {live.rules.map((r) => (
               <tr key={r.key} className="border-t align-top">
                 <td className="py-1.5 pr-3 font-medium">{r.label}</td>
                 <td className="pr-3">{r.fact}</td>
-                <td className="pr-3 text-muted-foreground">{r.source}</td>
-                <td className="pr-3"><Pill t={r.basis === "verified" ? "good" : r.basis === "unknown" ? "warn" : "info"}>{r.basis}</Pill></td>
                 <td className="pr-3"><Pill t={RESULT[r.result]!.t}>{RESULT[r.result]!.l}</Pill></td>
                 <td>{r.reason}</td>
               </tr>
@@ -39,7 +37,7 @@ export function Gate1EvidencePanel({ jobId }: { jobId: string }) {
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">Owner declarations are shown as “declared” and never count as verified. Uncertain rules always go to human review.</p>
+      <p className="mt-2 text-xs text-muted-foreground">Uncertain rules always go to human review.</p>
     </section>
   );
 }

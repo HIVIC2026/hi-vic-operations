@@ -9,8 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { fmtDateTime } from "@/lib/workflow";
-import { TIER_LABEL, type AreaTier } from "@/lib/intelligence.core";
-import { floorplanLink, getProviderHealth, solarSmokeTest } from "@/lib/portal.functions";
 import { addEscConfig, approveEscConfig, getInstallReadiness, markIntelligenceReviewed, recordEscSubmissionFn, recordPiesaDelivery, regenerateEscNotificationFn, runPropertyIntelligenceFn, submitEscNotification } from "@/lib/portal.functions";
 
 const OUTCOME: Record<string, [string, "good" | "warn" | "bad"]> = {
@@ -20,52 +18,12 @@ const STATUS_TONE = { pass: "good", review: "warn", fail: "bad", unknown: "neutr
 type FactRow = { id: string; fact_key: string; value: unknown; check_status: string; source_name: string; source_url: string | null; source_record_id: string | null; source_date: string | null; retrieved_at: string; confidence: string; evidence_kind: string; note: string | null; is_stale: boolean };
 
 const ROWS: { label: string; keys: string[] }[] = [
-  { label: "Address", keys: ["address_verified", "normalized_address", "in_victoria", "property_identifier"] },
+  { label: "Address confirmed", keys: ["address_verified", "normalized_address", "in_victoria", "property_identifier"] },
   { label: "Residential", keys: ["residential_likelihood", "planning_zone", "ncc_class_evidence", "multi_assessment_property"] },
-  { label: "> 5 years", keys: ["age_evidence"] },
-  { label: "Roof / ceiling configuration", keys: ["roof_form", "roof_cavity_or_exposed_roof_likelihood"] },
-  { label: "Storey risk", keys: ["another_storey_above_relevant_ceiling", "recent_extension_or_added_storey_risk"] },
-  { label: "Floor plan", keys: ["floorplan_status"] },
-  { label: "Preliminary area", keys: ["preliminary_ceiling_area"] },
-  { label: "VEU location", keys: ["veu_location_zone"] },
+  { label: "Older than 5 years", keys: ["age_evidence"] },
 ];
 const show = (v: unknown) => v == null ? "Unknown" : typeof v === "object" ? Object.entries(v as Record<string, unknown>).filter(([, x]) => x != null).map(([k, x]) => `${k.replace(/_/g, " ")}: ${String(x)}`).join(" · ") : String(v).replace(/_/g, " ");
 const worst = (fs: FactRow[]) => fs.some((f) => f.check_status === "fail") ? "fail" : fs.some((f) => f.check_status === "review") ? "review" : fs.some((f) => f.check_status === "pass") ? "pass" : "unknown";
-
-function SolarCard({ jobId, facts, check }: { jobId: string; facts: FactRow[]; check: { status: string; error: string | null; checked_at?: string } | null }) {
-  const smoke = useServerFn(solarSmokeTest);
-  const [diag, setDiag] = useState<string | null>(null);
-  const f = (k: string) => facts.find((x) => x.fact_key === k);
-  const s = f("solar_summary"); const v = (s?.value ?? null) as import("@/lib/providers.core").SolarSummary | null;
-  const risk = (f("site_roof_risk")?.value as { flags?: string[] } | null)?.flags ?? [];
-  const conflict = f("solar_area_conflict");
-  const row = (l: string, x: unknown, u = "") => <div className="flex justify-between gap-2"><span className="text-muted-foreground">{l}</span><span>{x == null ? "—" : `${String(x)}${u}`}</span></div>;
-  return (
-    <div className="mb-3 rounded-md border p-3 text-xs">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <h3 className="font-bold uppercase tracking-wide text-muted-foreground">Google Solar (mapped remote estimate)</h3>
-        {check && <Pill t={check.status === "ok" ? "good" : check.status === "not_configured" ? "neutral" : "warn"}>{check.status.replace(/_/g, " ")}</Pill>}
-        {s && <Pill>{s.confidence} confidence</Pill>}
-        {risk.map((r) => <Pill key={r} t="warn">Site risk: {r}</Pill>)}
-        {conflict && <Pill t="warn">Area conflict – review</Pill>}
-        <Button size="sm" variant="outline" className="ml-auto" onClick={async () => { setDiag("Running…"); try { const r = await smoke({ data: { jobId } }); setDiag(JSON.stringify(r)); } catch (e) { setDiag((e as Error).message); } }}>Solar smoke test (read-only)</Button>
-      </div>
-      {check?.error && <p className="mb-2 text-muted-foreground">{check.error}</p>}
-      {v ? (
-        <div className="grid gap-x-6 gap-y-0.5 sm:grid-cols-2">
-          {row("Building ground area", v.building_ground_area_m2, " m²")}{row("Roof ground area", v.roof_ground_area_m2, " m²")}
-          {row("Roof surface area", v.roof_surface_area_m2, " m²")}{row("Roof segments", v.segment_count)}
-          {row("Weighted pitch", v.weighted_pitch_deg, "°")}{row("Pitch range", v.pitch_min_deg != null ? `${v.pitch_min_deg}–${v.pitch_max_deg}` : null, "°")}
-          {row("Low-slope share", v.low_slope_share != null ? Math.round(Number(v.low_slope_share) * 100) : null, "%")}{row("Roof form", String(v.roof_form).replace(/_/g, " "))}
-          {row("Imagery quality", v.imagery_quality)}{row("Imagery date", v.imagery_date)}
-          {row("Checked", s ? fmtDateTime(s.retrieved_at) : null)}{row("Basis", "mapped remote estimate – not measured ceiling area")}
-        </div>
-      ) : <p className="text-muted-foreground">No Solar data on the current run.</p>}
-      {conflict?.note && <p className="mt-2 text-warning-foreground">{conflict.note}</p>}
-      {diag && <pre className="mt-2 whitespace-pre-wrap break-all rounded bg-muted p-2">{diag}</pre>}
-    </div>
-  );
-}
 
 export function PropertyIntelligenceCard({ jobId }: { jobId: string }) {
   const rerun = useAction(runPropertyIntelligenceFn);
@@ -74,77 +32,43 @@ export function PropertyIntelligenceCard({ jobId }: { jobId: string }) {
   const { data } = useQuery({
     queryKey: ["intel", jobId],
     queryFn: async () => {
-      const [run, facts, areas, checks] = await Promise.all([
+      const [run, facts] = await Promise.all([
         supabase.from("property_intelligence_runs").select("*").eq("job_id", jobId).order("started_at", { ascending: false }).limit(1).maybeSingle(),
         supabase.from("property_facts").select("*").eq("job_id", jobId).eq("is_current", true),
-        supabase.from("property_area_estimates").select("*").eq("job_id", jobId).order("created_at", { ascending: false }),
-        supabase.from("property_source_checks").select("*").eq("job_id", jobId).order("checked_at", { ascending: false }).limit(20),
       ]);
-      return { run: run.data, facts: (facts.data ?? []) as FactRow[], areas: areas.data ?? [], checks: checks.data ?? [] };
+      return { run: run.data, facts: (facts.data ?? []) as FactRow[] };
     },
   });
-  const health = useServerFn(getProviderHealth);
-  const openFp = useServerFn(floorplanLink);
-  const { data: providers } = useQuery({ queryKey: ["intel-providers", jobId], queryFn: () => health({ data: { jobId } }) });
-  const { data: plans } = useQuery({ queryKey: ["intel-floorplans", jobId], queryFn: async () => (await supabase.from("property_floorplans").select("*").eq("job_id", jobId).order("captured_date", { ascending: false })).data ?? [] });
   const run = data?.run;
   const o = run?.result ? OUTCOME[run.result] : null;
   return (
     <Section title="Property Intelligence (preliminary – information only)" action={<Button size="sm" variant="outline" onClick={() => rerun({ jobId }, "Property intelligence re-run")}>Re-run property intelligence</Button>}>
-      <div className="mb-3 flex flex-wrap gap-1.5 text-xs">{(providers ?? []).map((p) => <span key={p.key} title={p.detail}><Pill t={p.state === "ready" || p.state === "configured" ? "good" : p.state === "not_configured" ? "neutral" : "warn"}>{p.label}: {p.state.replace(/_/g, " ")}</Pill></span>)}</div>
-      <SolarCard jobId={jobId} facts={data?.facts ?? []} check={(data?.checks ?? []).find((c) => c.source_key === "google_solar") ?? null} />
-      {!!plans?.length && (
-        <div className="mb-3 space-y-1 text-xs">
-          <h3 className="font-bold uppercase tracking-wide text-muted-foreground">Sourced floor plan – Pricefinder ({plans.length})</h3>
-          {plans.map((f) => <div key={f.id} className="flex flex-wrap items-center gap-2">{f.is_candidate && <Pill t="good">Best candidate</Pill>}{f.needs_review && <Pill t="warn">Review</Pill>}<span>{f.captured_date ?? "undated"} · ref {f.provider_image_id}</span><span className="text-muted-foreground">{f.review_reason}</span>
-            {f.storage_path ? <Button size="sm" variant="outline" onClick={async () => { const r = await openFp({ data: { id: f.id } }); if (r.url) window.open(r.url, "_blank"); }}>Open</Button> : <span className="text-muted-foreground">{f.storage_policy === "unknown" ? "Not stored – licence setting not confirmed" : "Provider reference only"}</span>}</div>)}
-        </div>
-      )}
       {!run ? <p className="text-sm text-muted-foreground">Not run yet.</p> : (
         <div className="space-y-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             {o ? <Pill t={o[1]}>{o[0]}</Pill> : <Pill>{run.status}</Pill>}
-            <span className="text-muted-foreground">Completeness {run.completeness_pct ?? 0}% · {run.status}{run.is_stale ? " · STALE" : ""} · ruleset {run.ruleset_version} · ref date {run.reference_date} ({run.reference_date_basis.replace("_", " ")})</span>
+            {run.is_stale && <Pill t="bad">Stale – re-run required</Pill>}
           </div>
           <p className="rounded bg-accent px-2 py-1.5 font-medium text-accent-foreground">{run.next_action}</p>
           {run.result_reason && <p className="text-xs text-muted-foreground">{run.result_reason}</p>}
-          {run.is_stale && <p className="text-xs font-semibold text-danger">Stale: {run.stale_reason} – re-run required.</p>}
-          <div>
-            <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">Remote evidence</h3>
-            <ul className="divide-y rounded border">
-              {ROWS.map((r) => {
-                const fs = data!.facts.filter((f) => r.keys.includes(f.fact_key));
-                const main = fs.find((f) => f.fact_key === r.keys[0]);
-                const st = worst(fs);
-                return (
-                  <li key={r.label} className="px-2 py-1.5">
-                    <details>
-                      <summary className="flex cursor-pointer items-center gap-2"><Pill t={STATUS_TONE[st as keyof typeof STATUS_TONE]} className="w-20 justify-center">{st.toUpperCase()}</Pill><span className="w-44 shrink-0 font-medium">{r.label}</span><span className="truncate">{show(main?.value)}</span><span className="ml-auto truncate text-xs text-muted-foreground">{main?.source_name ?? "No source"}</span></summary>
-                      <ul className="mt-2 space-y-1 pl-2 text-xs">{fs.map((f) => (
-                        <li key={f.id} className="rounded bg-muted p-2">
-                          <b>{f.fact_key.replace(/_/g, " ")}</b>: {show(f.value)} · {f.evidence_kind} · confidence {f.confidence}{f.is_stale ? " · stale" : ""}
-                          <div className="text-muted-foreground">{f.source_name}{f.source_record_id ? ` · id ${f.source_record_id}` : ""}{f.source_date ? ` · source date ${f.source_date}` : ""} · retrieved {fmtDateTime(f.retrieved_at)}{f.source_url && <> · <a className="underline" href={f.source_url} target="_blank" rel="noreferrer">source</a></>}</div>
-                          {f.note && <div>{f.note}</div>}
-                        </li>))}</ul>
-                    </details>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+          <ul className="divide-y rounded border">
+            {ROWS.map((r) => {
+              const fs = data!.facts.filter((f) => r.keys.includes(f.fact_key));
+              const main = fs.find((f) => f.fact_key === r.keys[0]);
+              const st = worst(fs);
+              return (
+                <li key={r.label} className="flex items-center gap-2 px-2 py-1.5">
+                  <Pill t={STATUS_TONE[st as keyof typeof STATUS_TONE]} className="w-20 justify-center">{st.toUpperCase()}</Pill>
+                  <span className="w-40 shrink-0 font-medium">{r.label}</span>
+                  <span className="truncate">{show(main?.value)}</span>
+                </li>
+              );
+            })}
+          </ul>
           <div>
             <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">Must be confirmed onsite</h3>
             <ul className="list-disc pl-5 text-xs"><li>Existing insulation type / R-value (&lt; R2.0; foil / uncompressed only)</li><li>All luminaires IC / IC-4</li><li>Electrical safety / PIESA</li><li>Measured relevant ceiling area (governs quote & VEEC)</li><li>Roof cavity or exposed roof above, and no storey above</li></ul>
           </div>
-          <details>
-            <summary className="cursor-pointer text-xs font-bold uppercase tracking-wide text-muted-foreground">Area source hierarchy ({data!.areas.length})</summary>
-            <p className="mt-1 text-xs text-muted-foreground">A partner measured → B floor plan → C licensed footprint → D listing → E building footprint estimate (Solar/aerial, not ceiling area) → F owner estimate. Parcel area is never used. Stronger evidence is never replaced by weaker.</p>
-            <ul className="mt-1 space-y-1 text-xs">{data!.areas.map((a) => <li key={a.id} className="flex gap-2">{a.is_current && <Pill t="good">Current</Pill>}<b>{a.tier}</b> {TIER_LABEL[a.tier as AreaTier]} · {Number(a.net_m2)} m² · {a.confidence} · {a.source_name}{a.notes ? ` · ${a.notes}` : ""}</li>)}</ul>
-          </details>
-          <details>
-            <summary className="cursor-pointer text-xs font-bold uppercase tracking-wide text-muted-foreground">Source checks</summary>
-            <ul className="mt-1 space-y-0.5 text-xs">{data!.checks.map((c) => <li key={c.id}>{c.source_key}: {c.status}{c.latency_ms != null ? ` · ${c.latency_ms} ms` : ""}{c.error ? ` · ${c.error}` : ""}</li>)}</ul>
-          </details>
           <div className="flex gap-2"><Input placeholder="Review note (what you checked)" value={note} onChange={(e) => setNote(e.target.value)} /><Button size="sm" variant="outline" disabled={note.trim().length < 3} onClick={async () => { await review({ jobId, note }, "Review recorded"); setNote(""); }}>Review evidence</Button></div>
         </div>
       )}
