@@ -2,6 +2,14 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { AP_LEGAL_ENTITY, AUTHORITY_SCOPE, AUTHORITY_WORDING_VERSION, authorityWording } from "./authority";
 import { WorkflowError, logEvent } from "./workflow.server";
+import { getRequest } from "@tanstack/react-start/server";
+
+/** Acceptance evidence: caller IP / user agent from the current request. */
+export function requestMeta() {
+  const req = getRequest();
+  const ip = req.headers.get("cf-connecting-ip") ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  return { ip, userAgent: req.headers.get("user-agent") };
+}
 
 async function linkEvent(authorityId: string, jobId: string) {
   const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).single();

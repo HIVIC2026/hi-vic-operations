@@ -10,8 +10,7 @@ import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { STAGE_LABEL, type Stage } from "./workflow";
 import { applyPaidAmount, createInvoiceForQuote, pushInvoiceToXero, syncInvoiceFromXero } from "./xero.server";
 import { AUTHORITY_BLOCKER, depositCleared } from "./workflow.server";
-import { acceptAuthority, authorityValid, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
-import { getRequest } from "@tanstack/react-start/server";
+import { acceptAuthority, authorityValid, requestMeta, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
 
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
 
@@ -603,9 +602,8 @@ export const acceptOwnerAuthority = auth()
   .handler(async ({ data, context }) => {
     // Only the owner themself may give authority.
     await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["owner"]);
-    const req = getRequest();
-    const ip = req.headers.get("cf-connecting-ip") ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-    await acceptAuthority({ authorityId: data.authorityId, actorId: context.userId, over18: data.over18, authorised: data.authorised, assistance: data.assistance, signatureName: data.signatureName, ip, userAgent: req.headers.get("user-agent") });
+    const { ip, userAgent } = requestMeta();
+    await acceptAuthority({ authorityId: data.authorityId, actorId: context.userId, over18: data.over18, authorised: data.authorised, assistance: data.assistance, signatureName: data.signatureName, ip, userAgent });
     return { ok: true };
   });
 
