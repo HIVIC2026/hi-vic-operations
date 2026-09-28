@@ -79,7 +79,11 @@ export async function createAssignMittiAudit(jobId: string, actorId: string, cal
       },
     });
   } catch (e) {
-    if (a && !measureOnly) await admin.from("assessments").update({ mitti_last_error: e instanceof Error ? e.message : "Mitti error" }).eq("id", a.id);
+    const msg = e instanceof Error ? e.message : "Mitti error";
+    if (!measureOnly) {
+      if (a) await admin.from("assessments").update({ mitti_last_error: msg }).eq("id", a.id);
+      else await admin.from("assessments").insert({ job_id: jobId, assessor_id: asg.user_id, mitti_last_error: msg, mitti_sync_status: "error", mitti_scope: scope.scope });
+    }
     throw wrap(e);
   }
   const now = new Date().toISOString();
