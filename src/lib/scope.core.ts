@@ -33,6 +33,11 @@ export type MeasurementValues = {
   measured_area_m2?: number | null | undefined; insulation_present?: boolean | null | undefined; existing_r_value?: number | null | undefined;
   removal_required?: boolean | null | undefined; removal_m2?: number | null | undefined; access_difficulty?: "easy" | "moderate" | "difficult" | null | undefined;
 };
+/** Values as written to the database (no undefined keys). */
+export type CleanMeasurementValues = Partial<{
+  measured_area_m2: number | null; insulation_present: boolean | null; existing_r_value: number | null;
+  removal_required: boolean | null; removal_m2: number | null; access_difficulty: "easy" | "moderate" | "difficult" | null;
+}>;
 export type MeasurementLike = MeasurementValues & {
   id?: string; status: "draft" | "needs_review" | "complete" | "rejected"; is_current?: boolean;
   source_role?: string; external_source?: string | null; external_id?: string | null; review_flags?: unknown;
@@ -103,8 +108,8 @@ export function deriveScope(input: { measurement: MeasurementLike | null; electr
 // ---------- Measurement update planning (manual entry, Mitti sync, imports) ----------
 export type MeasurementPlan =
   | { action: "skip"; reason: string }
-  | { action: "create"; values: MeasurementValues; source: "electrician" | "installer" | "admin_import" }
-  | { action: "update"; id: string; values: MeasurementValues; supplemented: MeasureField[] };
+  | { action: "create"; values: CleanMeasurementValues; source: "electrician" | "installer" | "admin_import" }
+  | { action: "update"; id: string; values: CleanMeasurementValues; supplemented: MeasureField[] };
 
 /**
  * Decide how incoming measure-up values may touch the current measurement.
@@ -117,7 +122,7 @@ export function planMeasurementUpdate(p: {
   scope: VisitScope; current: MeasurementLike | null; incoming: MeasurementValues;
   source: "electrician" | "installer" | "admin_import"; external?: { source: string; id: string } | null;
 }): MeasurementPlan {
-  const vals = Object.fromEntries(MEASURE_FIELDS.filter((k) => p.incoming[k] !== undefined && p.incoming[k] !== null).map((k) => [k, p.incoming[k]])) as MeasurementValues;
+  const vals = Object.fromEntries(MEASURE_FIELDS.filter((k) => p.incoming[k] !== undefined && p.incoming[k] !== null).map((k) => [k, p.incoming[k]])) as CleanMeasurementValues;
   const cur = p.current && p.current.status !== "rejected" ? p.current : null;
   if (!Object.keys(vals).length) return { action: "skip", reason: "No measure-up values supplied." };
   if (cur && measurementAccepted(cur)) return { action: "skip", reason: "An accepted measure-up already exists – it is not overwritten." };
@@ -126,7 +131,7 @@ export function planMeasurementUpdate(p: {
   if (!cur) return { action: "create", values: vals, source: p.source };
   if (p.scope === "ELECTRICAL_PLUS_MEASUREUP_COMPLETION" && cur.source_role !== p.source) {
     const allowed = new Set<MeasureField>([...missingMeasureFields(cur), ...flaggedFields(cur), ...MEASURE_FIELDS.filter((f) => cur[f] == null)]);
-    const filtered = Object.fromEntries(Object.entries(vals).filter(([k]) => allowed.has(k as MeasureField))) as MeasurementValues;
+    const filtered = Object.fromEntries(Object.entries(vals).filter(([k]) => allowed.has(k as MeasureField))) as CleanMeasurementValues;
     if (!Object.keys(filtered).length) return { action: "skip", reason: "No missing or flagged measure-up fields to complete." };
     return { action: "update", id: cur.id!, values: filtered, supplemented: Object.keys(filtered) as MeasureField[] };
   }
