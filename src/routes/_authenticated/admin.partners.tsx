@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { useAction } from "@/hooks/use-me";
@@ -91,7 +91,7 @@ function Detail({ row, onClose }: { row: Row; onClose: () => void }) {
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{row.company || row.name}</DialogTitle></DialogHeader>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-          {f.map(([k, v]) => <><dt key={`k${k}`} className="text-muted-foreground">{k}</dt><dd key={`v${k}`} className="whitespace-pre-wrap">{v ?? "—"}</dd></>)}
+          {f.map(([k, v]) => <Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd className="whitespace-pre-wrap">{v ?? "—"}</dd></Fragment>)}
         </dl>
         <div>
           <div className="mb-1 text-sm font-semibold">Status</div>
