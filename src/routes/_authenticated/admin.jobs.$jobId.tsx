@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { ArrowLeft, HeartPulse } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
@@ -175,7 +175,7 @@ function HoldControls({ jobId, stage }: { jobId: string; stage: string }) {
   );
 }
 
-function AssessmentView({ jobId }: { jobId: string }) {
+function AssessmentView({ jobId, part }: { jobId: string; part: "assessment" | "piesa" | "rectification" }) {
   const { data } = useQuery({
     queryKey: ["assessment", jobId],
     queryFn: async () => {
@@ -187,8 +187,9 @@ function AssessmentView({ jobId }: { jobId: string }) {
       return { a, items: items ?? [], piesa: piesa ?? [] };
     },
   });
-  if (!data?.a) return <Section title="Assessment"><p className="text-sm text-muted-foreground">Not started by the electrician yet.</p></Section>;
-  const a = data.a;
+  if (!data) return null;
+  if (!data.a && part === "assessment") return <Section title="Assessment"><p className="text-sm text-muted-foreground">Not started by the electrician yet.</p></Section>;
+  const a = data.a ?? ({} as NonNullable<typeof data.a>);
   const rows: [string, unknown][] = [
     ["Status", a.status], ["Measured area", a.measured_area_m2 && `${a.measured_area_m2} m²`], ["Insulation present", a.insulation_present], ["Existing R-value", a.existing_r_value],
     ["Removal", a.removal_required ? `${a.removal_m2} m²` : a.removal_required], ["Access", a.access_difficulty], ["Downlights", a.downlights_qty != null && `${a.downlights_qty} × ${a.downlights_type ?? ""} (${a.downlights_upgrade_qty ?? 0} to upgrade)`],
@@ -196,20 +197,22 @@ function AssessmentView({ jobId }: { jobId: string }) {
     ["RCDs required", a.rcds_required_qty], ["Life support", a.life_support_confirmed], ["PIESA outcome", a.piesa_outcome], ["Assessed on", a.assessed_on], ["Mitti ID", a.external_mitti_id ? `${a.external_mitti_id} (${a.mitti_sync_status})` : a.mitti_sync_status], ["Notes", a.notes],
   ];
   const fmt = (v: unknown) => (v === true ? "Yes" : v === false ? "No" : v == null || v === "" ? "—" : String(v));
-  return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <Section title="Gate 2 · Measure-up & electrical safety">
-        <dl className="grid grid-cols-2 gap-1 text-sm">{rows.map(([k, v]) => <><dt key={k} className="text-muted-foreground">{k}</dt><dd key={k + "v"}>{fmt(v)}</dd></>)}</dl>
+  if (part === "piesa")
+    return (
+      <Section title="PIESA records (entered once by the electrician)">
+        {data.piesa.length ? data.piesa.map((p) => <p key={p.id} className="text-sm">{fmtDate(p.completed_date)} · {p.kind.replace("_", " ")} · <strong>{p.outcome}</strong> {p.external_mitti_id && `· Mitti ${p.external_mitti_id}`} {p.is_current && <Pill t="good">current</Pill>}</p>) : <p className="text-sm text-muted-foreground">None.</p>}
       </Section>
-      <div className="space-y-4">
-        <Section title="Rectification items">
-          {data.items.length ? <ul className="space-y-1 text-sm">{data.items.map((i) => <li key={i.id} className="flex justify-between"><span>{i.description} × {Number(i.quantity)}{i.is_other && <span className="text-xs text-muted-foreground"> — {i.explanation}</span>}</span><Pill t={i.status === "completed" ? "good" : "warn"}>{i.status}</Pill></li>)}</ul> : <p className="text-sm text-muted-foreground">None.</p>}
-        </Section>
-        <Section title="PIESA records">
-          {data.piesa.map((p) => <p key={p.id} className="text-sm">{fmtDate(p.completed_date)} · {p.kind.replace("_", " ")} · <strong>{p.outcome}</strong> {p.is_current && <Pill t="good">current</Pill>}</p>)}
-        </Section>
-      </div>
-    </div>
+    );
+  if (part === "rectification")
+    return (
+      <Section title="Rectification items">
+        {data.items.length ? <ul className="space-y-1 text-sm">{data.items.map((i) => <li key={i.id} className="flex justify-between gap-2"><span>{i.description} × {Number(i.quantity)}{i.is_other && <span className="text-xs text-muted-foreground"> — {i.explanation}</span>}</span><Pill t={i.status === "completed" ? "good" : "warn"}>{i.status}</Pill></li>)}</ul> : <p className="text-sm text-muted-foreground">No rectification required.</p>}
+      </Section>
+    );
+  return (
+    <Section title="Gate 2 · Measure-up & electrical safety">
+      <dl className="grid grid-cols-2 gap-1 text-sm">{rows.map(([k, v]) => <Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd>{fmt(v)}</dd></Fragment>)}</dl>
+    </Section>
   );
 }
 
@@ -239,15 +242,15 @@ function AdminQuotes({ jobId }: { jobId: string }) {
               {data?.map((q) => {
                 const int = q.quote_internals as unknown as { cost_ex_gst: number; ap_margin_ex_gst: number; ap_fee_ex_gst: number } | null;
                 return (
-                  <>
-                    <tr key={q.id} className="border-t">
+                  <Fragment key={q.id}>
+                    <tr className="border-t">
                       <td className="p-2">{q.option_label} {q.manually_adjusted && <Pill t="warn">adjusted</Pill>}</td><td className="p-2">{q.status}</td>
                       <td className="p-2">{aud(int?.cost_ex_gst)}</td><td className="p-2">{aud(int?.ap_margin_ex_gst)}</td><td className="p-2">{aud(int?.ap_fee_ex_gst)}</td>
                       <td className="p-2 font-semibold">{aud(q.customer_total_inc_gst)}</td>
                       <td className="p-2">{q.status === "issued" && <Button size="sm" variant="outline" onClick={() => { setEditing(editing === q.id ? null : q.id); setEdits({}); setReason(""); }}>Adjust</Button>}</td>
                     </tr>
                     {editing === q.id && (
-                      <tr key={q.id + "e"}><td colSpan={7} className="bg-muted p-3">
+                      <tr><td colSpan={7} className="bg-muted p-3">
                         {q.quote_items.map((i) => (
                           <div key={i.id} className="mb-2 grid grid-cols-[1fr_90px_120px] items-center gap-2">
                             <span>{i.description}</span>
@@ -259,7 +262,7 @@ function AdminQuotes({ jobId }: { jobId: string }) {
                         <Button className="mt-2" disabled={reason.trim().length < 5} onClick={async () => { await adjust({ quoteId: q.id, reason, items: Object.entries(edits).map(([id, v]) => ({ id, ...v })) }, "Quote adjusted"); setEditing(null); }}>Save adjustment</Button>
                       </td></tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>
