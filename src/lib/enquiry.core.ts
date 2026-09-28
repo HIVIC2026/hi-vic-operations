@@ -243,5 +243,6 @@ export function planMediaImport(media: readonly Base44Media[] | null | undefined
 }
 
 export function mediaStoragePath(jobId: string, sourceId: string, name: string) {
-  return `${jobId}/intake/base44/${sanitizeFilename(sourceId).slice(0, 60)}-${sanitizeFilename(name)}`;
+  const sid = String(sourceId).replace(/[^\w\-]+/g, "_").slice(0, 60) || "src";
+  return `${jobId}/intake/base44/${sid}-${sanitizeFilename(name)}`;
 }
