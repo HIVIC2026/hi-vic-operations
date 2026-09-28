@@ -22,7 +22,7 @@ function from(t: string) {
   return q;
 }
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from, rpc: async () => ({ data: null, error: null }) } }));
-const { stageEntryBlockers, AUTHORITY_BLOCKER, COMMERCIAL_BLOCKER } = await import("../src/lib/workflow.server");
+const { stageEntryBlockers, CONSUMER_SIGN_BLOCKER, ASSIGNMENT_VEEC_BLOCKER, COMMERCIAL_BLOCKER } = await import("../src/lib/workflow.server");
 const { installationDateBlocker } = await import("../src/lib/workflow");
 
 const J = "job-1";
@@ -36,6 +36,7 @@ function seed(over: Partial<Record<string, Row[]>> = {}) {
     ceiling_measurements: [{ job_id: J, is_current: true, status: "complete", measured_area_m2: 120 }],
     quotes: [{ job_id: J, kind: "installation", status: "accepted" }],
     invoices: [{ id: "inv", job_id: J, kind: "installation", deposit_paid_at: "2026-09-21" }],
+    customer_assignments: [{ id: "ca", job_id: J, status: "consumer_signed_pending_install" }],
     payment_overrides: [], rectification_items: [], job_assignments: [], evidence_requirements: [], compliance_checks: [], veec_lodgements: [], workflow_events: [],
     ...over,
   };
@@ -71,9 +72,13 @@ describe("existing guards unchanged", () => {
     seed({ jobs: [{ id: J, channel: "installer_sourced", commercial_model: "not_configured" }] });
     expect(await stageEntryBlockers(J, "awaiting_deposit_payment")).toContain(COMMERCIAL_BLOCKER);
   });
-  test("13 Owner Authority and deposit scheduling gates unchanged", async () => {
+  test("13 assessment no longer needs Owner Authority; signing + deposit gates hold", async () => {
     seed({ owner_authorities: [] });
-    expect(await stageEntryBlockers(J, "assessment_booked")).toContain(AUTHORITY_BLOCKER);
+    expect(await stageEntryBlockers(J, "assessment_booked")).toEqual([]);
+    seed({ customer_assignments: [] });
+    expect(await stageEntryBlockers(J, "installation_scheduling")).toContain(CONSUMER_SIGN_BLOCKER);
+    seed();
+    expect(await stageEntryBlockers(J, "ready_for_veec")).toContain(ASSIGNMENT_VEEC_BLOCKER);
     seed({ invoices: [{ id: "inv", job_id: J, kind: "installation", deposit_paid_at: null }] });
     expect((await stageEntryBlockers(J, "rectification_scheduling")).some((b) => b.startsWith("50% deposit not paid"))).toBe(true);
     seed();
