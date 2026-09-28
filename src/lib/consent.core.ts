@@ -1,7 +1,7 @@
 // Owner ESC information-sharing consent – PURE rules (no I/O).
 // A separate pre-install event: generated only once an exact installation date exists, signed by the
 // owner/authorised representative AND confirmed by the AP representative, at least 24h before work.
-import { LEAD_MS } from "./esc.core";
+const LEAD_MS = 24 * 3600_000; // same 24h lead as esc.core (kept local to avoid a circular import)
 
 export const ESC_AP_LEGAL_NAME = "DC Construction Solutions Pty Ltd t/a Home Insulation Victoria";
 
