@@ -100,8 +100,8 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
       removalM2: a.removal_required ? Number(a.removal_m2 ?? 0) : 0,
       access: a.access_difficulty ?? "easy",
       product,
-      removal: byCode("REMOVAL"),
-      travel: byCode("TRAVEL"),
+      removal: byCode("REMOVAL") ?? null,
+      travel: byCode("TRAVEL") ?? null,
       settings: { ...settings, access_loadings: settings.access_loadings as Record<string, number> },
     });
     const { data: q, error } = await admin
@@ -116,7 +116,8 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
       .single();
     if (error || !q) throw new Error(error?.message);
     await admin.from("quote_items").insert(calc.items.map((i) => ({ ...i, quote_id: q.id })));
-    await admin.from("quote_internals").insert({ quote_id: q.id, ...calc.internals, calc_snapshot: { assessment_id: a.id, rate_card_version: card.version, pricing_version: settings.version, access: a.access_difficulty } });
+    const { loading, ...internals } = calc.internals;
+    await admin.from("quote_internals").insert({ quote_id: q.id, ...internals, calc_snapshot: { loading, assessment_id: a.id, rate_card_version: card.version, pricing_version: settings.version, access: a.access_difficulty } });
     created.push(q.id);
   }
   if (!created.length) throw new WorkflowError("Rate card has none of the configured quote option products.");

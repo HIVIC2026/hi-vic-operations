@@ -200,7 +200,7 @@ export const recordPiesa = auth()
       if (!p?.piesa_expired && stage !== "assessment_complete") throw new WorkflowError("Reassessment is only needed when the PIESA window has expired.");
     }
     await admin.from("piesa_records").update({ is_current: false }).eq("job_id", data.jobId).eq("is_current", true);
-    await admin.from("piesa_records").insert({ job_id: data.jobId, kind: data.kind, outcome: data.outcome, completed_date: data.completedDate, signed_off_by: context.userId, notes: data.notes });
+    await admin.from("piesa_records").insert({ job_id: data.jobId, kind: data.kind, outcome: data.outcome, completed_date: data.completedDate, signed_off_by: context.userId, notes: data.notes ?? null });
     await logEvent(data.jobId, context.userId, "piesa_recorded", `PIESA (${data.kind.replace("_", " ")}) ${data.outcome} on ${data.completedDate}`);
     if (data.kind === "post_rectification" && data.outcome === "pass") {
       await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", data.jobId).in("check_key", ["rectification", "electrical_assessment"]);
@@ -335,7 +335,7 @@ export const createBooking = auth()
       rectification: [["rectification_scheduling", "rectification_booked"], "rectification_booked"],
       installation: [["installation_scheduling", "installation_booked"], "installation_booked"],
     };
-    const [allowed, target] = map[data.kind];
+    const [allowed, target] = map[data.kind]!;
     if (!allowed.includes(stage)) throw new WorkflowError(`A ${data.kind} booking can't be made at ${STAGE_LABEL[stage]}.`);
     const { data: contractor } = await admin.from("job_assignments").select("user_id").eq("job_id", data.jobId).eq("role", need).eq("active", true).maybeSingle();
     if (!contractor) throw new WorkflowError(`No ${need} assigned yet.`);
@@ -354,7 +354,7 @@ export const createBooking = auth()
       }
     }
     await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", data.jobId).eq("kind", data.kind).in("status", ["proposed", "confirmed"]);
-    await admin.from("bookings").insert({ job_id: data.jobId, kind: data.kind, contractor_id: contractor.user_id, scheduled_start: data.start, booked_by: context.userId, notes: data.notes, status: "confirmed" });
+    await admin.from("bookings").insert({ job_id: data.jobId, kind: data.kind, contractor_id: contractor.user_id, scheduled_start: data.start, booked_by: context.userId, notes: data.notes ?? null, status: "confirmed" });
     const when = new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
     if (stage === target) await logEvent(data.jobId, context.userId, "booking_rescheduled", `${data.kind} rescheduled to ${when} by ${role}`);
     else await transition(data.jobId, target, context.userId, `${data.kind[0].toUpperCase() + data.kind.slice(1)} booked for ${when} by ${role}`);
@@ -437,7 +437,7 @@ export const verifyEvidence = auth()
     await requireAdmin(context.supabase);
     const { data: req } = await admin.from("evidence_requirements").select("job_id,label").eq("id", data.requirementId).single();
     if (!req) throw new WorkflowError("Not found");
-    await admin.from("evidence_requirements").update({ status: data.status, required: data.status === "not_required" ? false : true, verified_by: context.userId, verified_at: new Date().toISOString(), notes: data.notes }).eq("id", data.requirementId);
+    await admin.from("evidence_requirements").update({ status: data.status, required: data.status === "not_required" ? false : true, verified_by: context.userId, verified_at: new Date().toISOString(), notes: data.notes ?? null }).eq("id", data.requirementId);
     await logEvent(req.job_id, context.userId, "evidence_reviewed", `Evidence ${data.status.replace("_", " ")}: ${req.label}`, { notes: data.notes });
     return { ok: true };
   });
@@ -471,7 +471,7 @@ export const setComplianceCheck = auth()
   .inputValidator((d) => z.object({ checkId: uuid, status: z.enum(["pending", "pass", "fail"]), notes: z.string().max(2000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { data: c } = await admin.from("compliance_checks").update({ status: data.status, notes: data.notes, checked_by: context.userId, checked_at: new Date().toISOString() }).eq("id", data.checkId).select("job_id,label").single();
+    const { data: c } = await admin.from("compliance_checks").update({ status: data.status, notes: data.notes ?? null, checked_by: context.userId, checked_at: new Date().toISOString() }).eq("id", data.checkId).select("job_id,label").single();
     if (c) await logEvent(c.job_id, context.userId, "compliance_check", `${c.label}: ${data.status}`, { notes: data.notes }, { internal: true });
     return { ok: true };
   });
