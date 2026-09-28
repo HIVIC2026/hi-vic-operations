@@ -15,6 +15,8 @@ import { useAction } from "@/hooks/use-me";
 import { autoAdvancePipeline, createEnquiry, getCommsStatus, sweepAuthorities } from "@/lib/portal.functions";
 import { useServerFn } from "@tanstack/react-start";
 
+const ACCEPTANCE_STAGES = ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"];
+
 export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({ meta: [{ title: "Pipeline – HI VIC Portal" }, { name: "description", content: "HI VIC operational job pipeline." }, { property: "og:title", content: "Pipeline – HI VIC Portal" }, { property: "og:description", content: "HI VIC operational job pipeline." }] }),
   component: Pipeline,
@@ -43,8 +45,16 @@ function Pipeline() {
   }, [jobs, q, source]);
   const byPhase = (p: Phase) => filtered.filter((j) => phaseForStage(j.stage) === p);
   const lanes = PIPELINE_PHASES.filter((p) => phase === "all" || p.key === phase);
-  const warnings = jobs.filter((j) => j.urgency === "red" || j.urgency === "expired" || j.payment_status === "overdue" || j.payment_status === "xero_sync_error" || (j.authority_status !== "accepted" && !["new_enquiry", "eligibility_review", "complete", "cancelled"].includes(j.stage ?? ""))).length;
-  const noAuth = jobs.filter((j) => j.authority_status !== "accepted" && !["new_enquiry", "eligibility_review", "complete", "cancelled"].includes(j.stage ?? "")).length;
+  const { data: signedJobs } = useQuery({
+    queryKey: ["pipeline_assignments"],
+    queryFn: async () => new Set(((await supabase.from("customer_assignments").select("job_id, status")).data ?? []).filter((a) => a.status !== "draft" && a.status !== "cancelled").map((a) => a.job_id)),
+  });
+  // Customer Acceptance & VEEC Assignment is only required once an installation quote has been accepted.
+  const needsAcceptance = (j: JobRow) => ACCEPTANCE_STAGES.includes(j.stage ?? "") && !!signedJobs && !signedJobs.has(j.id!);
+  const piesaIssue = (j: JobRow) => j.urgency === "red" || j.urgency === "expired";
+  const paymentIssue = (j: JobRow) => j.payment_status === "overdue" || j.payment_status === "xero_sync_error";
+  const piesaCount = jobs.filter(piesaIssue).length, paymentCount = jobs.filter(paymentIssue).length, acceptanceCount = jobs.filter(needsAcceptance).length;
+  const warnings = jobs.filter((j) => piesaIssue(j) || paymentIssue(j) || needsAcceptance(j)).length;
 
   return (
     <AppShell wide>
@@ -57,7 +67,7 @@ function Pipeline() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Pipeline</h1>
-          <p className="text-sm text-muted-foreground">{jobs.length} jobs · {warnings} need attention · <span className="font-semibold text-danger">{noAuth} missing valid Owner Authority</span>{hiddenTest > 0 && <> · {hiddenTest} test jobs hidden</>}</p>
+          <p className="text-sm text-muted-foreground">{jobs.length} jobs · {warnings} need attention{warnings > 0 && <span className="font-semibold text-danger"> ({[piesaCount && `${piesaCount} PIESA deadline`, paymentCount && `${paymentCount} payment/Xero sync`, acceptanceCount && `${acceptanceCount} unsigned Customer Acceptance`].filter(Boolean).join(" · ")})</span>}{hiddenTest > 0 && <> · {hiddenTest} test jobs hidden</>}</p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search job, address, person" className="w-64 pl-8" /></div>

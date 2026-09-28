@@ -4,15 +4,16 @@ import { Fragment, useState } from "react";
 import { ArrowLeft, HeartPulse } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
-import { AuthorityBadge, PaymentBadge, Pill, SourceBadge, StageBadge, UrgencyBadge } from "@/components/portal/badges";
+import { PaymentBadge, Pill, SourceBadge, StageBadge, UrgencyBadge } from "@/components/portal/badges";
 import { AdminAssignmentPanel, AssignmentStatusInline } from "@/components/portal/assignment";
 import { AdminAuthorityPanel, BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, PaymentsPanel, QuotesPanel, Section, TimelinePanel, useJob } from "@/components/portal/panels";
 import { MittiCard, PriceItemForm } from "@/components/portal/mitti";
 import { RequirementCards } from "@/components/portal/requirements";
 import { EscInstallPanel, PropertyIntelligenceCard } from "@/components/portal/intelligence";
+import { Gate1EvidencePanel } from "@/components/portal/gate1";
 
 const TABS: [string, string][] = [
-  ["overview", "Overview"], ["eligibility", "Eligibility"], ["authority", "Owner Authority"], ["assessment", "Measure-up & Electrical"],
+  ["overview", "Overview"], ["eligibility", "Eligibility"], ["authority", "Acceptance & Assignment"], ["assessment", "Measure-up & Electrical"],
   ["piesa", "PIESA"], ["rectification", "Rectification"], ["quotes", "Quotes"], ["payments", "Xero / Payments"], ["scheduling", "Scheduling"],
   ["installation", "Installation"], ["evidence", "Evidence"], ["compliance", "Compliance / AP Review"], ["veec", "VEEC"], ["messages", "Messages"], ["history", "Audit History"],
 ];
@@ -46,7 +47,7 @@ function JobDetail() {
           <h1 className="text-2xl font-bold tracking-tight">{job.property_address}</h1>
           <p className="text-sm text-muted-foreground">{job.owner_name} · {job.owner_phone} · {job.owner_email}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            <StageBadge stage={job.stage} /><PaymentBadge status={job.payment_status} /><UrgencyBadge urgency={job.urgency} days={job.days_remaining} /><AuthorityBadge status={job.authority_status} /><SourceBadge channel={job.channel} business={job.originating_business_name} />
+            <StageBadge stage={job.stage} /><PaymentBadge status={job.payment_status} /><UrgencyBadge urgency={job.urgency} days={job.days_remaining} /><SourceBadge channel={job.channel} business={job.originating_business_name} />
             {job.life_support && <Pill t="bad"><HeartPulse className="mr-1 h-3 w-3" /> Life support</Pill>}
             {job.eligibility_outcome && <Pill t="info">{ELIGIBILITY_LABEL[job.eligibility_outcome]}</Pill>}
           </div>
@@ -75,7 +76,7 @@ function JobDetail() {
           <Assignments jobId={jobId} />
           <HoldControls jobId={jobId} stage={job.stage!} />
         </TabsContent>
-        <TabsContent value="eligibility" className="space-y-4"><PropertyIntelligenceCard jobId={jobId} /><EligibilityForm jobId={jobId} /></TabsContent>
+        <TabsContent value="eligibility" className="space-y-4"><Gate1EvidencePanel jobId={jobId} /><PropertyIntelligenceCard jobId={jobId} /><EligibilityForm jobId={jobId} /></TabsContent>
         <TabsContent value="authority" className="space-y-4"><AdminAssignmentPanel jobId={jobId} /><details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Legacy Owner Authority history (no longer a gate)</summary><div className="mt-3"><AdminAuthorityPanel jobId={jobId} /></div></details></TabsContent>
         <TabsContent value="assessment" className="space-y-4"><RequirementCards jobId={jobId} isAdmin job={job} /><BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /></TabsContent>
         <TabsContent value="piesa" className="space-y-4">
