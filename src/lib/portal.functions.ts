@@ -9,7 +9,7 @@ import { WorkflowError, logEvent, nextStepBlockers, stageEntryBlockers, piesaSta
 import { adjustQuote as adjustQuoteImpl, deriveRectificationItems, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { STAGE_LABEL, type Stage } from "./workflow";
-import { applyPaidAmount, createInvoiceForQuote, pushInvoiceToXero, syncInvoiceFromXero } from "./xero.server";
+import { applyPaidAmount, createInvoiceForQuote, refreshBalanceDueDate, syncInvoiceFromXero } from "./xero.server";
 import { AUTHORITY_BLOCKER, commercialBlocker, depositCleared } from "./workflow.server";
 import { acceptAuthority, authorityValid, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
 
@@ -359,7 +359,8 @@ export const retryXeroPush = createServerFn({ method: "POST" }).middleware([requ
   .inputValidator((d) => z.object({ invoiceId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    await pushInvoiceToXero(data.invoiceId, context.userId);
+    // Same safe path as Sync: pushes only if not linked, adopts an existing Xero invoice, lock-protected.
+    await syncInvoiceFromXero(data.invoiceId, context.userId);
     return { ok: true };
   });
 
@@ -424,6 +425,18 @@ export const createBooking = createServerFn({ method: "POST" }).middleware([requ
     const when = new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
     if (stage === target) await logEvent(data.jobId, context.userId, "booking_rescheduled", `${data.kind} rescheduled to ${when} by ${role}`);
     else await transition(data.jobId, target, context.userId, `${data.kind.charAt(0).toUpperCase() + data.kind.slice(1)} booked for ${when} by ${role}`);
+    return { ok: true };
+  });
+
+/** Admin-only: cancel the current booking of a kind. Installation cancellation clears the balance due date. */
+export const cancelBooking = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["assessment", "rectification", "installation"]), reason: z.string().trim().min(5).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: rows } = await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", data.jobId).eq("kind", data.kind).in("status", ["proposed", "confirmed"]).select("id");
+    if (!rows?.length) throw new WorkflowError(`No active ${data.kind} booking to cancel.`);
+    await logEvent(data.jobId, context.userId, "booking_cancelled", `${data.kind} booking cancelled: ${data.reason}`, { booking_ids: rows.map((r) => r.id) });
+    if (data.kind === "installation") await refreshBalanceDueDate(data.jobId, context.userId);
     return { ok: true };
   });
 
@@ -683,7 +696,7 @@ export const getInvoiceInternals = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { data: inv } = await admin.from("invoices").select("id, xero_contact_id, xero_invoice_id, xero_reference, xero_invoice_status, last_synced_at, last_sync_error").eq("job_id", data.jobId);
+    const { data: inv } = await admin.from("invoices").select("id, xero_contact_id, xero_invoice_id, xero_reference, xero_invoice_status, last_synced_at, last_sync_error, sync_lock_at").eq("job_id", data.jobId);
     const { data: ov } = await admin.from("payment_overrides").select("id, invoice_id, reason, created_at, overridden_by").eq("job_id", data.jobId);
     const ids = [...new Set((ov ?? []).map((o) => o.overridden_by))];
     const { data: profs } = ids.length ? await admin.from("profiles").select("id, full_name").in("id", ids) : { data: [] };

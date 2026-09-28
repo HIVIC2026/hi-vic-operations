@@ -20,7 +20,7 @@ async function rawFetch(path: string, init: { method?: string; body?: unknown; h
   if (!c) throw new Error("Xero is not connected");
   const res = await fetch(`${GATEWAY}${path}`, {
     method: init.method ?? "GET",
-    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
     headers: {
       Authorization: `Bearer ${c.lovable}`,
       "X-Connection-Api-Key": c.xero,
