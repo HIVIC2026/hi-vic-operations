@@ -523,6 +523,7 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
       await logEvent(q.job_id, context.userId, "rectification_scope_approved", `Owner approved rectification scope (${q.customer_total_inc_gst} inc GST)`, { quote_id: q.id });
       await transition(q.job_id, "ready_for_installer_quotes", context.userId, "Rectification scope approved – preparing final installation quotes");
       await genInstaller(q.job_id, context.userId);
+      { const { applyCobrand } = await import("./pilot.server"); await applyCobrand(q.job_id); }
       await transition(q.job_id, "awaiting_quote_acceptance", context.userId, "Final installation quotes (incl. rectification) issued to owner");
       await autoAdvanceJob(q.job_id, context.userId, "rectification approved");
       return { ok: true };
