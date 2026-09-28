@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { PRELIM_STAGE_ALLOWED_FROM, preliminaryEligibilityFields } from "./enquiry.core";
@@ -58,7 +59,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
 
   if (existingJob) {
     await admin.from("properties").update(propFields).eq("id", existingJob.property_id);
-    let update: Record<string, unknown> = { ...jobFields };
+    let update: TablesUpdate<"jobs"> = { ...jobFields };
     let moved = false;
     if (prelim) {
       const { stage, ...rest } = prelim;
