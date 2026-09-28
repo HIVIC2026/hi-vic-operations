@@ -3,6 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, FileUp, Lock, Paperclip, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { CUSTOMER_INVOICE_COLUMNS } from "@/lib/invoice.lifecycle";
+
+type CustomerInvoice = { id: string; job_id: string; part: "deposit" | "balance"; kind: string; xero_invoice_number: string | null; xero_online_url: string | null; total_inc_gst: number; amount_inc_gst: number; due_date: string | null; amount_paid: number; paid_at: string | null; deposit_cleared: boolean; effective_status: string; created_at: string };
 import { useAction } from "@/hooks/use-me";
 import {
   acceptOwnerAuthority, confirmEvidenceUpload, createBooking, declineOwnerAuthority, getAuthorityDocUrl, getEvidenceUrl, getInvoiceInternals,
@@ -260,30 +263,32 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
   const internalsFn = useServerFn(getInvoiceInternals);
   const { data } = useQuery({
     queryKey: ["invoices", jobId],
-    queryFn: async () => (await supabase.from("invoice_status").select("*").eq("job_id", jobId).order("created_at")).data ?? [],
+    queryFn: async () => (await supabase.from("invoice_status").select(CUSTOMER_INVOICE_COLUMNS.join(",")).eq("job_id", jobId).order("created_at")).data as unknown as CustomerInvoice[] ?? [],
   });
   const { data: internals } = useQuery({ queryKey: ["invoice-internals", jobId], enabled: isAdmin, queryFn: () => internalsFn({ data: { jobId } }) });
   return (
     <Section title="Xero invoice & payments">
       {!data?.length && <p className="text-sm text-muted-foreground">No invoice yet – raised in Xero when the owner accepts the final installation quote. 50% deposit is due immediately; the balance is due on installation day.</p>}
+      {data?.some((i) => i.part === "deposit") && !data.some((i) => i.part === "balance") && <p className="mb-2 text-xs text-muted-foreground">Balance 50% invoice is raised when the installation date is booked.</p>}
       <div className="space-y-3">
-        {(data ?? []).map((i) => {
+        {[...(data ?? [])].sort((a, b) => (a.part === b.part ? 0 : a.part === "deposit" ? -1 : 1)).map((i) => {
           const x = internals?.invoices.find((v) => v.id === i.id);
           const ov = internals?.overrides.filter((o) => o.invoice_id === i.id) ?? [];
+          const isDep = i.part === "deposit";
           return (
             <div key={i.id} className="rounded-lg border p-3 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="font-semibold capitalize">{i.kind} invoice {i.xero_invoice_number && `· ${i.xero_invoice_number}`}</div>
+                <div className="font-semibold">{isDep ? "Deposit 50%" : "Balance 50%"} {i.xero_invoice_number && <span className="font-normal text-muted-foreground">· {i.xero_invoice_number}</span>}</div>
                 <PaymentBadge status={i.effective_status} />
               </div>
               <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <div><dt className="text-xs text-muted-foreground">Total inc GST</dt><dd className="font-medium">{aud(i.total_inc_gst)}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">Deposit (50%) · due now</dt><dd className="font-medium">{aud(i.deposit_amount)} {i.deposit_paid_at ? <span className="text-xs text-success">paid {fmtDate(i.deposit_paid_at)}</span> : null}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">Balance · installation day</dt><dd className="font-medium">{aud(i.balance_amount)} {i.balance_due_date ? `due ${fmtDate(i.balance_due_date)}` : <span className="text-xs text-muted-foreground">date set when booked</span>}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">Paid to date</dt><dd className="font-medium">{aud(i.total_paid)} {i.balance_paid_at && <span className="text-xs text-success">fully paid {fmtDate(i.balance_paid_at)}</span>}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Amount inc GST</dt><dd className="font-medium">{aud(i.amount_inc_gst)}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Due</dt><dd className="font-medium">{i.due_date ? fmtDate(i.due_date) : <span className="text-xs text-muted-foreground">{isDep ? "now" : "set when installation is booked"}</span>}{isDep ? <span className="text-xs text-muted-foreground"> (due now)</span> : i.due_date ? <span className="text-xs text-muted-foreground"> (installation day)</span> : null}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Paid</dt><dd className="font-medium">{aud(i.amount_paid)} {i.paid_at && <span className="text-xs text-success">paid in full {fmtDate(i.paid_at)}</span>}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Accepted quote total</dt><dd className="font-medium">{aud(i.total_inc_gst)}</dd></div>
               </dl>
               {i.xero_online_url && <a href={i.xero_online_url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-semibold text-primary underline">View / pay invoice</a>}
-              {!i.deposit_cleared && <p className="mt-2 flex items-center gap-1 rounded bg-danger-soft px-2 py-1 text-xs font-semibold text-danger"><Lock className="h-3 w-3" /> Rectification and installation scheduling are locked until the 50% deposit is paid.</p>}
+              {isDep && !i.deposit_cleared && <p className="mt-2 flex items-center gap-1 rounded bg-danger-soft px-2 py-1 text-xs font-semibold text-danger"><Lock className="h-3 w-3" /> Rectification and installation scheduling are locked until the 50% deposit is paid.</p>}
               {isAdmin && x && (
                 <dl className="mt-3 grid grid-cols-2 gap-1 rounded bg-muted p-2 text-xs sm:grid-cols-3">
                   <div><dt className="text-muted-foreground">Xero contact</dt><dd className="break-all">{x.xero_contact_id ?? "—"}</dd></div>
@@ -291,6 +296,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
                   <div><dt className="text-muted-foreground">Xero status</dt><dd>{x.xero_invoice_status ?? "—"}</dd></div>
                   <div><dt className="text-muted-foreground">Reference</dt><dd>{x.xero_reference ?? "—"}</dd></div>
                   <div><dt className="text-muted-foreground">Last sync</dt><dd>{fmtDateTime(x.last_synced_at)}</dd></div>
+                  {x.xero_update_pending && <div><dt className="text-muted-foreground">Due date in Xero</dt><dd className="text-warning">Update pending (not yet sent)</dd></div>}
                 </dl>
               )}
               {isAdmin && x?.last_sync_error && <p className="mt-2 rounded bg-danger-soft px-2 py-1 text-xs text-danger">Xero sync error: {x.last_sync_error}</p>}
@@ -298,7 +304,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
               {isAdmin && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" disabled={!!x?.sync_lock_at && Date.now() - Date.parse(x.sync_lock_at) < 120000} onClick={() => sync({ invoiceId: i.id! }, "Xero sync finished")}>{x?.xero_invoice_id ? "Sync with Xero" : "Send to Xero (safe retry)"}</Button>
-                  {!i.deposit_cleared && <Button size="sm" variant="outline" onClick={() => { const r = prompt("Reason for overriding the deposit gate (required, permanently audited)"); if (r) override({ invoiceId: i.id!, reason: r }, "Override recorded"); }}>Override deposit gate</Button>}
+                  {isDep && !i.deposit_cleared && <Button size="sm" variant="outline" onClick={() => { const r = prompt("Reason for overriding the deposit gate (required, permanently audited)"); if (r) override({ invoiceId: i.id!, reason: r }, "Override recorded"); }}>Override deposit gate</Button>}
                 </div>
               )}
             </div>

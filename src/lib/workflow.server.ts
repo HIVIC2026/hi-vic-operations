@@ -101,6 +101,7 @@ export async function depositCleared(jobId: string) {
     .select("id, deposit_paid_at")
     .eq("job_id", jobId)
     .eq("kind", "installation")
+    .eq("part", "deposit")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
