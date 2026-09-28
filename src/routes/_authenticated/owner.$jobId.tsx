@@ -39,9 +39,9 @@ function OwnerJob() {
         <QuotesPanel jobId={jobId} canRespond />
         <PaymentsPanel jobId={jobId} isAdmin={false} />
         {bookKind === "assessment" && <AppointmentPanel jobId={jobId} />}
-        {bookKind && (bookKind === "assessment" || job.deposit_cleared) && <BookingPanel jobId={jobId} kind={bookKind} canBook />}
+        {bookKind && bookKind !== "assessment" && job.deposit_cleared && <BookingPanel jobId={jobId} kind={bookKind} canBook />}
         {s === "awaiting_deposit_payment" && <p className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">Booking opens as soon as your 50% deposit is received.</p>}
-        <ChangeTrade jobId={jobId} />
+        {job.installer_name && !["assessment_booking", "assessment_booked", "awaiting_electrician"].includes(s) && <ChangeTrade jobId={jobId} />}
         <DocumentsPanel jobId={jobId} />
         <MessagesPanel jobId={jobId} isAdmin={false} />
         <TimelinePanel jobId={jobId} />
@@ -51,14 +51,13 @@ function OwnerJob() {
 }
 
 function ChangeTrade({ jobId }: { jobId: string }) {
+  // Installer only. Electrician changes during the assessment go through "Arrange the visit" (48h / can't-attend rules).
   const req = useAction(requestReassignment);
-  const [role, setRole] = useState<"electrician" | "installer">("electrician");
   const [reason, setReason] = useState("");
   return (
-    <Section title="Can't reach your tradesperson?">
-      <div className="mb-2 grid grid-cols-2 gap-2">{(["electrician", "installer"] as const).map((r) => <Button key={r} size="field" variant={role === r ? "default" : "outline"} onClick={() => setRole(r)} className="capitalize">{r}</Button>)}</div>
+    <Section title="Can't reach your installer?">
       <Textarea placeholder="Tell us what happened" value={reason} onChange={(e) => setReason(e.target.value)} />
-      <Button className="mt-2 w-full" size="field" variant="outline" disabled={reason.trim().length < 5} onClick={async () => { await req({ jobId, role, reason }, "Request sent to HI VIC"); setReason(""); }}>Request a different {role}</Button>
+      <Button className="mt-2 w-full" size="field" variant="outline" disabled={reason.trim().length < 5} onClick={async () => { await req({ jobId, role: "installer", reason }, "Request sent to HI VIC"); setReason(""); }}>Ask HI VIC about a different installer</Button>
     </Section>
   );
 }

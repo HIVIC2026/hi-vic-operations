@@ -88,7 +88,6 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
 
   return (
     <>
-      {["assessment_booking", "assessment_booked"].includes(stage) && <BookingPanel jobId={jobId} kind="assessment" canBook />}
       {["rectification_scheduling", "rectification_booked", "awaiting_deposit_payment"].includes(stage) && (
         stage === "awaiting_deposit_payment" ? <Section title="Rectification booking"><p className="text-sm font-medium text-danger">Locked – awaiting owner's 50% deposit. Booking details will appear here once paid.</p></Section> : <BookingPanel jobId={jobId} kind="rectification" canBook />
       )}
