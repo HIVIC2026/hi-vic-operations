@@ -14,6 +14,7 @@ import { buildDepositOverride, depositRequestPatch } from "./invoice.lifecycle";
 import { commercialBlocker, depositCleared } from "./workflow.server";
 import { assertConsumerCanSign, assignmentEffective, buildAcceptancePackage, evaluateAndApply, loadTemplates, raiseVariation, reconfirmVariation, signConsumer, signInstaller } from "./assignment.server";
 import { ASSIGNMENT_EVENTS, templateBlockers, type TemplateKey } from "./assignment.core";
+import { autoAdvanceJob, autoAdvanceOpenJobs } from "./autoadvance.server";
 import { acceptAuthority, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
 
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
@@ -44,6 +45,7 @@ export const setEligibility = createServerFn({ method: "POST" }).middleware([req
       await transition(data.jobId, "eligibility_review", context.userId, "Moved to eligibility review", {}, { nextAction: data.nextAction });
     }
     await admin.from("compliance_checks").update({ status: data.outcome === "does_not_appear_eligible" ? "fail" : data.outcome === "likely_eligible" ? "pass" : "pending", checked_by: context.userId, checked_at: new Date().toISOString(), notes: data.reason }).eq("job_id", data.jobId).eq("check_key", "eligibility");
+    await autoAdvanceJob(data.jobId, context.userId, "eligibility");
     return { ok: true };
   });
 
@@ -93,6 +95,7 @@ export const assignContractor = createServerFn({ method: "POST" }).middleware([r
     await logEvent(data.jobId, context.userId, "contractor_assigned", `${data.role === "electrician" ? "Electrician" : "Installer"} assigned: ${prof?.full_name ?? "user"}${awayFromOrigin ? " (admin reassignment away from originating installer – attribution unchanged)" : ""}`);
     if (data.role === "electrician" && (await getStage(data.jobId)) === "awaiting_electrician")
       await transition(data.jobId, "assessment_booking", context.userId, "Electrician assigned – booking measure-up");
+    await autoAdvanceJob(data.jobId, context.userId, "contractor assigned");
     return { ok: true };
   });
 
@@ -225,7 +228,9 @@ export const completeMeasurement = createServerFn({ method: "POST" }).middleware
       ...(role === "admin" ? { reviewed_by: context.userId, reviewed_at: new Date().toISOString() } : {}),
     }).eq("id", m.id);
     await logEvent(data.jobId, context.userId, "measurement_completed", `Ceiling measure-up completed (${m.source_role}${own ? "" : `, completed by ${role}`}) – ${Number(m.measured_area_m2)} m²`, { measurement_id: m.id, source_role: m.source_role, supplemented_fields: m.supplemented_fields });
-    return advanceSiteRequirements(data.jobId, context.userId);
+    const res = await advanceSiteRequirements(data.jobId, context.userId);
+    await autoAdvanceJob(data.jobId, context.userId, "measure-up completed");
+    return res;
   });
 
 export const flagMeasurement = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -379,7 +384,9 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
       await admin.from("ceiling_measurements").update({ status: "complete", review_flags: [], completed_at: now, completed_by: m.completed_by ?? (m.source_role === "electrician" ? context.userId : null) }).eq("id", m.id);
       await logEvent(data.jobId, context.userId, "measurement_completed", `Ceiling measure-up completed onsite by electrician (${m.source_role} record) – ${Number(m.measured_area_m2)} m²`, { measurement_id: m.id, source_role: m.source_role, supplemented_fields: m.supplemented_fields });
     }
-    return advanceSiteRequirements(data.jobId, context.userId);
+    const res = await advanceSiteRequirements(data.jobId, context.userId);
+    await autoAdvanceJob(data.jobId, context.userId, "assessment completed");
+    return res;
   });
 
 /** Rectification complete + new PIESA; also the reassessment path when the 30-day window expired. */
@@ -410,6 +417,7 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
       await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "rectification").eq("status", "confirmed");
       await transition(data.jobId, "installation_scheduling", context.userId, "Rectification complete, PIESA passed – installation scheduling unlocked");
     }
+    await autoAdvanceJob(data.jobId, context.userId, "PIESA recorded");
     return { ok: true };
   });
 
@@ -425,6 +433,7 @@ export const generateInstallerQuotes = createServerFn({ method: "POST" }).middle
     if (pre.length) throw new WorkflowError(`Blocked: ${pre.join(" • ")}`);
     await genInstaller(data.jobId, context.userId);
     if (stage === "ready_for_installer_quotes") await transition(data.jobId, "awaiting_quote_acceptance", context.userId, "Installation quotes issued to owner");
+    await autoAdvanceJob(data.jobId, context.userId, "quotes generated");
     return { ok: true };
   });
 
@@ -497,6 +506,7 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
       await transition(q.job_id, "ready_for_installer_quotes", context.userId, "Rectification scope approved – preparing final installation quotes");
       await genInstaller(q.job_id, context.userId);
       await transition(q.job_id, "awaiting_quote_acceptance", context.userId, "Final installation quotes (incl. rectification) issued to owner");
+      await autoAdvanceJob(q.job_id, context.userId, "rectification approved");
       return { ok: true };
     }
 
@@ -510,18 +520,11 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
   });
 
 // ---------- Payments (Xero mirror + gates) ----------
+/** Deposit routing now lives in the central auto-advance helper (never bypasses blockers). */
 async function advanceAfterDeposit(jobId: string, actorId: string) {
-  if ((await getStage(jobId)) !== "awaiting_deposit_payment") return;
-  if (!(await depositCleared(jobId))) return;
-  await logEvent(jobId, actorId, ASSIGNMENT_EVENTS.DEPOSIT_PAID, "50% deposit confirmed – scheduling can unlock");
-  const { count } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "required");
-  const to: Stage = (count ?? 0) > 0 ? "rectification_scheduling" : "installation_scheduling";
-  try {
-    await transition(jobId, to, actorId, `Deposit cleared – ${to === "rectification_scheduling" ? "rectification" : "installation"} scheduling unlocked`);
-  } catch (e) {
-    // Deposit is cleared but another hard gate (e.g. authority, PIESA) still blocks; stays visible as a blocker.
-    if (!(e instanceof WorkflowError)) throw e;
-  }
+  if ((await getStage(jobId)) === "awaiting_deposit_payment" && (await depositCleared(jobId)))
+    await logEvent(jobId, actorId, ASSIGNMENT_EVENTS.DEPOSIT_PAID, "50% deposit confirmed – scheduling can unlock");
+  await autoAdvanceJob(jobId, actorId, "payment update");
 }
 
 export const syncInvoice = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -618,6 +621,7 @@ export const createBooking = createServerFn({ method: "POST" }).middleware([requ
     const when = new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
     if (stage === target) await logEvent(data.jobId, context.userId, "booking_rescheduled", `${data.kind} rescheduled to ${when} by ${role}`);
     else await transition(data.jobId, target, context.userId, `${data.kind.charAt(0).toUpperCase() + data.kind.slice(1)} booked for ${when} by ${role}`);
+    await autoAdvanceJob(data.jobId, context.userId, "booking confirmed");
     return { ok: true };
   });
 
@@ -643,6 +647,7 @@ export const completeInstallation = createServerFn({ method: "POST" }).middlewar
     await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "installation").eq("status", "confirmed");
     await logEvent(data.jobId, context.userId, ASSIGNMENT_EVENTS.INSTALLATION_COMPLETED, "Eligible installation undertaken");
     await evaluateAndApply(data.jobId, context.userId);
+    await autoAdvanceJob(data.jobId, context.userId, "installation completed");
     return { ok: true };
   });
 
@@ -653,6 +658,7 @@ export const submitDeclaration = createServerFn({ method: "POST" }).middleware([
     if (data.kind === "installer_declaration") throw new WorkflowError("Installer declarations are signed in the final VEEC assignment step (approved wording only).");
     await admin.from("declarations").upsert({ job_id: data.jobId, kind: data.kind, declared_by: context.userId, statement: data.statement, declared_at: new Date().toISOString() }, { onConflict: "job_id,kind" });
     await logEvent(data.jobId, context.userId, "declaration_submitted", `${data.kind.replace("_", " ")} signed`);
+    await autoAdvanceJob(data.jobId, context.userId, "declaration signed");
     return { ok: true };
   });
 
@@ -694,6 +700,7 @@ export const confirmEvidenceUpload = createServerFn({ method: "POST" }).middlewa
     await admin.from("evidence_files").insert({ requirement_id: req.id, job_id: req.job_id, storage_path: data.path, file_name: data.fileName, mime_type: data.mimeType, size_bytes: data.size, uploaded_by: context.userId });
     await admin.from("evidence_requirements").update({ status: "uploaded", verified_by: null, verified_at: null }).eq("id", req.id);
     await logEvent(req.job_id, context.userId, "evidence_uploaded", `Evidence uploaded: ${req.label}`, { file: data.fileName });
+    await autoAdvanceJob(req.job_id, context.userId, "evidence uploaded");
     return { ok: true };
   });
 
@@ -716,6 +723,7 @@ export const verifyEvidence = createServerFn({ method: "POST" }).middleware([req
     if (!req) throw new WorkflowError("Not found");
     await admin.from("evidence_requirements").update({ status: data.status, required: data.status === "not_required" ? false : true, verified_by: context.userId, verified_at: new Date().toISOString(), notes: data.notes ?? null }).eq("id", data.requirementId);
     await logEvent(req.job_id, context.userId, "evidence_reviewed", `Evidence ${data.status.replace("_", " ")}: ${req.label}`, { notes: data.notes });
+    await autoAdvanceJob(req.job_id, context.userId, "evidence reviewed", { allowApPromotion: true });
     return { ok: true };
   });
 
@@ -742,6 +750,7 @@ export const runComplianceReview = createServerFn({ method: "POST" }).middleware
     for (const [key, ok] of Object.entries(auto))
       await admin.from("compliance_checks").update({ status: ok ? "pass" : "fail", checked_by: context.userId, checked_at: new Date().toISOString(), notes: "Automated check" }).eq("job_id", data.jobId).eq("check_key", key);
     await logEvent(data.jobId, context.userId, "compliance_reviewed", "Automated compliance review run", auto, { internal: true });
+    await autoAdvanceJob(data.jobId, context.userId, "compliance review", { allowApPromotion: true });
     return { ok: true };
   });
 
@@ -751,6 +760,7 @@ export const setComplianceCheck = createServerFn({ method: "POST" }).middleware(
     await requireAdmin(context.supabase);
     const { data: c } = await admin.from("compliance_checks").update({ status: data.status, notes: data.notes ?? null, checked_by: context.userId, checked_at: new Date().toISOString() }).eq("id", data.checkId).select("job_id,label").single();
     if (c) await logEvent(c.job_id, context.userId, "compliance_check", `${c.label}: ${data.status}`, { notes: data.notes }, { internal: true });
+    if (c) await autoAdvanceJob(c.job_id, context.userId, "compliance check", { allowApPromotion: true });
     return { ok: true };
   });
 
@@ -773,6 +783,7 @@ export const updateVeec = createServerFn({ method: "POST" }).middleware([require
     await logEvent(jobId, context.userId, "veec_updated", `VEEC lodgement ${data.status.replace("_", " ")}`, rest, { internal: true });
     if (["submitted", "approved"].includes(data.status) && (await getStage(jobId)) === "ready_for_veec")
       await transition(jobId, "complete", context.userId, "VEEC lodged – job complete");
+    await autoAdvanceJob(jobId, context.userId, "VEEC updated");
     return { ok: true };
   });
 
@@ -882,6 +893,12 @@ export const getAuthorityDocUrl = createServerFn({ method: "POST" }).middleware(
   });
 
 /** Admin: mark expired authorities across all jobs (audited). */
+/** Admin-only pipeline sweep: advance any job whose stored portal state now allows it (no Xero/Mitti calls). */
+export const autoAdvancePipeline = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  await requireAdmin(context.supabase);
+  return autoAdvanceOpenJobs(context.userId);
+});
+
 export const sweepAuthorities = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
   const { data } = await admin.from("owner_authorities").select("job_id").eq("status", "accepted").lt("expires_at", new Date().toISOString());
@@ -953,6 +970,7 @@ export const signInstallerDeclaration = createServerFn({ method: "POST" }).middl
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["installer", "admin"]);
     await signInstaller({ ...data, actorId: context.userId, ip: context.ip, userAgent: context.userAgent });
+    await autoAdvanceJob(data.jobId, context.userId, "installer declaration signed");
     return { ok: true };
   });
 
