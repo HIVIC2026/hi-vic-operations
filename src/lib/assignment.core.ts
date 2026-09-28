@@ -1,8 +1,12 @@
 // Pure rules (no I/O) for the Activity 48 signing sequence. Four SEPARATE events:
-//   1. Customer Agreement / Quote Acceptance (commercial, before works) – unlocks invoice/deposit only.
+//   1. Quote stage (one signing experience, TWO distinguishable records):
+//      a) Customer Agreement / Quote Acceptance (commercial) – unlocks invoice/deposit.
+//      b) Binding CONDITIONAL VEEC assignment (customer_assignments, signed_stage quote_stage_conditional) –
+//         never effective until the prescribed activity is undertaken and final facts/signatures are complete.
 //   2. Owner ESC consent (after an exact installation date exists) – see consent.core.ts.
 //   3. Installer declaration (after installation).
-//   4. Final Activity 48 VEEC assignment (after installation + AP QA) – lead installer -> AP -> consumer.
+//   4. Final Activity 48 VEEC assignment completion (after installation + AP QA) – final facts populated on the SAME
+//      assignment record; lead installer -> AP; consumer re-signs only if the official form requires it or facts changed materially.
 // Official wording is NEVER defined here: it comes from versioned, admin-approved compliance_templates rows.
 
 import type { Json } from "@/integrations/supabase/types";
@@ -13,7 +17,7 @@ export type AssignmentStatus =
   | "variation_required" | "effective_complete" | "cancelled";
 
 export type TemplateKey = "customer_agreement" | "consumer_rights" | "esc_consent" | "installer_declaration" | "consumer_declaration" | "ap_declaration" | "partner_agreement";
-export type Template = { template_key: string; version: string; body: string; approved: boolean; is_active: boolean; required: boolean; form_fields?: Json };
+export type Template = { template_key: string; version: string; body: string; approved: boolean; is_active: boolean; required: boolean; form_fields?: Json; requires_final_consumer_signature?: boolean };
 
 /** Structured field an electronic form renders. Defined per template version by admin; never free-typed wording. */
 export type FormField = { key: string; label: string; type: "text" | "number" | "date" | "select" | "checkbox"; required: boolean; options?: string[]; help?: string };
@@ -24,14 +28,14 @@ export const NOT_READY: Record<TemplateKey, string> = {
   consumer_rights: "Customer agreement is not ready: add the current VEU consumer information and consumer rights.",
   esc_consent: "ESC owner consent is not ready: add the current ESC information-sharing consent form.",
   installer_declaration: "Installer declaration is not ready: add the current Activity 48 installer declaration.",
-  consumer_declaration: "Final VEEC assignment is not ready: add the current official Activity 48 VEEC assignment form.",
+  consumer_declaration: "VEEC assignment is not ready: add the current official Activity 48 VEEC assignment form (signed conditionally at quote acceptance).",
   ap_declaration: "AP sign-off is not ready: approve the current Accredited Person declaration.",
   partner_agreement: "Partner onboarding is not ready: approve the current HI VIC partner participation agreement.",
 };
 
 export const ASSIGNMENT_LABEL: Record<AssignmentStatus, string> = {
   draft: "Draft",
-  consumer_signed_pending_install: "Legacy quote-time record (history only)",
+  consumer_signed_pending_install: "Signed at quote – conditional, pending installation",
   final_details_pending: "Final details pending",
   installer_signed_pending_install: "Legacy – installer signed",
   awaiting_installer_signature: "Awaiting lead installer signature",
@@ -47,7 +51,7 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   consumer_rights: "VEU consumer information & consumer rights (quote acceptance, pre-install)",
   esc_consent: "ESC owner consent – information sharing (after booking, ≥24h before work)",
   installer_declaration: "Installer declaration (post-install)",
-  consumer_declaration: "Final Activity 48 VEEC assignment – official form (post-install)",
+  consumer_declaration: "Activity 48 VEEC assignment – official form (signed conditionally at quote; effective only after installation)",
   ap_declaration: "Accredited Person declaration (if required)",
   partner_agreement: "HI VIC partner participation agreement (installer / electrician onboarding)",
 };
@@ -55,6 +59,7 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
 export const ASSIGNMENT_EVENTS = {
   QUOTE_ACCEPTED: "QUOTE_ACCEPTED",
   CUSTOMER_AGREEMENT_SIGNED: "CUSTOMER_AGREEMENT_SIGNED",
+  CONDITIONAL_ASSIGNMENT_SIGNED: "CONDITIONAL_ASSIGNMENT_SIGNED",
   DEPOSIT_PAID: "DEPOSIT_PAID",
   INSTALLATION_COMPLETED: "INSTALLATION_COMPLETED",
   INSTALLER_DECLARATION_SIGNED: "INSTALLER_DECLARATION_SIGNED",
@@ -75,7 +80,7 @@ export function activeTemplate(templates: Template[], key: TemplateKey): Templat
 export type Phase = "agreement" | "consent" | "installer" | "final";
 /** Configuration blockers per event. Each event only needs its OWN wording. */
 export function templateBlockers(templates: Template[], phase: Phase): string[] {
-  const keys: TemplateKey[] = phase === "agreement" ? ["consumer_rights"] : phase === "consent" ? ["esc_consent"] : phase === "installer" ? ["installer_declaration"] : ["consumer_declaration"];
+  const keys: TemplateKey[] = phase === "agreement" ? ["consumer_rights", "consumer_declaration"] : phase === "consent" ? ["esc_consent"] : phase === "installer" ? ["installer_declaration"] : ["consumer_declaration"];
   const out = keys.filter((k) => !activeTemplate(templates, k)).map((k) => NOT_READY[k]);
   if (phase === "final") {
     const ap = templates.find((t) => t.template_key === "ap_declaration" && t.is_active);
@@ -88,6 +93,8 @@ export function templateBlockers(templates: Template[], phase: Phase): string[] 
 export type AgreementSignInput = {
   signatoryName: string; authorityType: "owner" | "authorised_representative"; over18: boolean;
   readConsumerInfo: boolean; acceptAgreement: boolean; signatureName: string;
+  /** Customer agrees to conditionally assign VEEC rights (effective only after the activity is undertaken). */
+  acceptAssignment: boolean;
 };
 
 export function agreementSignBlockers(i: AgreementSignInput, templates: Template[]): string[] {
@@ -95,6 +102,7 @@ export function agreementSignBlockers(i: AgreementSignInput, templates: Template
   if (!i.over18) b.push("Signatory must confirm they are 18 or older.");
   if (!i.readConsumerInfo) b.push("Please confirm you have read the VEU consumer information.");
   if (!i.acceptAgreement) b.push("Please confirm you accept the quote and agreement.");
+  if (!i.acceptAssignment) b.push("Please confirm the conditional assignment of VEEC rights.");
   if (i.signatureName.trim().length < 2) b.push("Type your full name to sign.");
   if (i.signatoryName.trim().length < 2) b.push("Signatory name is required.");
   return b;
@@ -129,9 +137,10 @@ export function apDeclarationRequired(templates: Template[]) {
 }
 
 /** Final assignment can only be prepared after installation, installer declaration, required evidence and during AP review. */
-export function finalAssignmentAvailability(i: { stage: string; installationCompleted: boolean; installerDeclared: boolean; evidenceMissing: string[]; agreementSigned: boolean; templates: Template[] }): string[] {
+export function finalAssignmentAvailability(i: { stage: string; installationCompleted: boolean; installerDeclared: boolean; evidenceMissing: string[]; agreementSigned: boolean; conditionalSigned?: boolean; templates: Template[] }): string[] {
   const b: string[] = [];
   if (!i.agreementSigned) b.push("Customer agreement / quote acceptance not signed");
+  if (i.conditionalSigned === false) b.push("Customer has not signed the conditional VEEC assignment at quote acceptance");
   if (!i.installationCompleted) b.push("Installation not yet completed");
   if (!i.installerDeclared) b.push("Installer declaration not signed");
   if (!["ap_review", "ready_for_veec"].includes(i.stage)) b.push("Final VEEC assignment is prepared during AP review (after evidence is uploaded)");
@@ -162,13 +171,22 @@ export const SIGNING_ORDER: Party[] = ["installer", "ap", "consumer"];
 export type FinalState = {
   status: AssignmentStatus; prepared: boolean; installerSigned: boolean; apSigned: boolean; consumerSigned: boolean;
   installedProduct: string | null; installedArea: number | null; openVariation: boolean; templates: Template[];
+  /** Consumer must sign again once final facts are known (official form rule). Default false. */
+  consumerFinalRequired?: boolean; consumerFinalSigned?: boolean;
 };
 
+/** Whether the official form requires a second consumer signature on final facts (admin-set per template version). */
+export function finalConsumerSignatureRequired(templates: Template[]): boolean {
+  return !!activeTemplate(templates, "consumer_declaration")?.requires_final_consumer_signature;
+}
+
 /** Enforces lead installer -> AP representative -> consumer. */
-export function signingOrderBlocker(s: Pick<FinalState, "status" | "installerSigned" | "apSigned" | "consumerSigned" | "openVariation">, party: Party): string | null {
+export function signingOrderBlocker(s: Pick<FinalState, "status" | "installerSigned" | "apSigned" | "consumerSigned" | "openVariation" | "consumerFinalRequired" | "consumerFinalSigned">, party: Party): string | null {
   if (s.status === "effective_complete" || s.status === "cancelled") return "This assignment is closed.";
   if (s.openVariation || s.status === "variation_required") return "A variation must be reconfirmed by the customer first.";
-  const done = { installer: s.installerSigned, ap: s.apSigned, consumer: s.consumerSigned };
+  if (s.status === "consumer_signed_pending_install" || s.status === "draft") return "Final assignment details are completed after installation and AP review.";
+  const consumerDone = s.consumerSigned && (!s.consumerFinalRequired || !!s.consumerFinalSigned);
+  const done = { installer: s.installerSigned, ap: s.apSigned, consumer: consumerDone };
   if (done[party]) return "Already signed.";
   const idx = SIGNING_ORDER.indexOf(party);
   const waiting = SIGNING_ORDER.slice(0, idx).find((p) => !done[p]);
@@ -178,7 +196,9 @@ export function signingOrderBlocker(s: Pick<FinalState, "status" | "installerSig
 /** The ONLY rule deciding the final assignment status. Effective only when all signatures + final facts + wording are complete. */
 export function evaluateAssignment(s: FinalState): { status: AssignmentStatus; missing: string[] } {
   if (s.status === "cancelled" || s.status === "effective_complete") return { status: s.status, missing: [] };
-  if (!s.prepared) return { status: "draft", missing: ["Final assignment not prepared"] };
+  if (!s.prepared) return s.consumerSigned
+    ? { status: "consumer_signed_pending_install", missing: ["Signed conditionally at quote – not effective until the activity is undertaken and final details are complete"] }
+    : { status: "draft", missing: ["Final assignment not prepared"] };
   if (s.openVariation || s.status === "variation_required") return { status: "variation_required", missing: ["Customer must reconfirm the variation"] };
   const facts: string[] = [];
   if (!s.installedProduct) facts.push("Final installed product not recorded");
@@ -188,6 +208,7 @@ export function evaluateAssignment(s: FinalState): { status: AssignmentStatus; m
   if (!s.installerSigned) return { status: "awaiting_installer_signature", missing: ["Lead installer has not signed"] };
   if (!s.apSigned) return { status: "awaiting_ap_signature", missing: ["AP representative has not signed"] };
   if (!s.consumerSigned) return { status: "awaiting_consumer_signature", missing: ["Customer has not signed"] };
+  if (s.consumerFinalRequired && !s.consumerFinalSigned) return { status: "awaiting_consumer_signature", missing: ["Customer must confirm the final assignment details (required by the official form)"] };
   return { status: "effective_complete", missing: [] };
 }
 
