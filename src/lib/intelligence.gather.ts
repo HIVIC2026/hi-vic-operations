@@ -1,6 +1,7 @@
 // Evidence gathering orchestration. No database; the network call is injected (tests use fixtures).
 // Each source is isolated: a failure yields a source-check error and "unknown" facts, never a thrown run.
 import { runProviders, type ProviderConfig, type ProviderHttp } from "./providers.gather";
+import { solarAreaConflict } from "./providers.core";
 import type { FloorplanRow, StoragePolicy } from "./providers.core";
 import { cqlString, normaliseAddress, parseAddress, parseProperty, parseZone, TIER_CONFIDENCE, VICMAP_WFS, type AreaTier, type Fact } from "./intelligence.core";
 
@@ -137,6 +138,12 @@ export async function gatherEvidence(i: GatherInput, fetchJson: FetchJson): Prom
     if (age && (age.value as { kind?: string } | null)?.kind === "none") {
       const sup = cur("age_supporting_pricefinder") ?? cur("age_supporting_solar");
       if (sup && (sup.value as { date?: string | null }).date) put({ ...sup, key: "age_evidence", status: "review" });
+    }
+    const solar = r.areas.find((a) => a.source_name === "Google Solar buildingInsights");
+    if (solar) {
+      const others = [...areas, ...r.areas.filter((a) => a !== solar), ...(i.partnerMeasurement ? [{ tier: "A", net_m2: i.partnerMeasurement.net_m2, source_name: i.partnerMeasurement.source }] : [])];
+      const c = solarAreaConflict(solar.net_m2, others as { tier: string; net_m2: number; source_name: string }[]);
+      if (c) put(c);
     }
     if (!i.partnerMeasurement) areas.push(...r.areas.map((a) => ({ ...a })));
   }
