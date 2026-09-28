@@ -41,7 +41,7 @@ export async function ensureInvoice(store: InvoiceStore, quote: { id: string; jo
   if (existing) return { row: existing, created: false };
   const total = Number(quote.customer_total_inc_gst);
   const { deposit, balance } = splitTotal(total);
-  const row = { job_id: quote.job_id, quote_id: quote.id, kind: quote.kind, status: "invoice_not_created", total_inc_gst: total, deposit_pct: 50, deposit_amount: deposit, balance_amount: balance, deposit_due_date: today };
+  const row = { job_id: quote.job_id, quote_id: quote.id, kind: quote.kind, status: "invoice_not_created", total_inc_gst: total, deposit_pct: 0.5, deposit_amount: deposit, balance_amount: balance, deposit_due_date: today };
   try {
     return { row: await store.insert(row), created: true };
   } catch (e) {
@@ -93,7 +93,7 @@ export const depositGateCleared = (row: Pick<InvoiceRow, "deposit_paid_at"> | nu
 /** Admin records that the native Xero 50% deposit request was raised. Operational only – never unlocks scheduling. */
 export function depositRequestPatch(row: Pick<InvoiceRow, "deposit_request_raised_at" | "deposit_amount" | "deposit_pct">, actorId: string, nowIso: string) {
   if (row.deposit_request_raised_at) throw new Error("The Xero deposit request is already recorded as raised.");
-  return { deposit_request_raised_at: nowIso, deposit_request_raised_by: actorId, deposit_request_amount: Number(row.deposit_amount), deposit_request_pct: Number(row.deposit_pct ?? 50) };
+  return { deposit_request_raised_at: nowIso, deposit_request_raised_by: actorId, deposit_request_amount: Number(row.deposit_amount), deposit_request_pct: Math.round(Number(row.deposit_pct ?? 0.5) * 100) };
 }
 
 /** Audited override record (deposit gate only). */
