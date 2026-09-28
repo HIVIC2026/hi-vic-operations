@@ -174,4 +174,4 @@ Workflow: enquiry → eligibility → assessment booking → PIESA + measure-up 
 
 ## Pipeline lanes & auto-progression
 Board lanes group detailed stages (`PIPELINE_PHASES`): Enquiries · Site assessment · Quote & approval · Deposit · Rectification · Installation · Evidence/AP/VEEC · Complete; On hold/Cancelled are a separate toggle. Cards keep the exact stage, next action and a "Waiting on" signal.
-`autoAdvanceJob` runs after every state-changing action and on Pipeline load (`autoAdvancePipeline`, portal state only). Always manual: eligibility decision, choosing electrician/installer, customer quote acceptance, measure-up review, AP/compliance judgement, deposit override, VEEC data entry.
+`autoAdvanceJob` runs after every state-changing action and on Pipeline load (`autoAdvancePipeline`, portal state only). Always manual: ambiguous Gate 1 eligibility (clear cases are auto-decided by `evaluateGate1`, audited, admin-overridable), choosing electrician/installer, customer quote acceptance, measure-up review, AP/compliance judgement, deposit override, VEEC data entry.

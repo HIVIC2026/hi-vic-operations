@@ -55,6 +55,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     estimated_area_m2: input.area_unknown ? null : input.estimated_area_m2 ?? null,
     estimated_area_unknown: input.area_unknown ?? input.estimated_area_m2 == null,
     life_support: input.life_support ?? false,
+    life_support_status: input.life_support_status ?? (input.life_support === true ? "yes" : null),
   };
   // Preliminary eligibility / life-support status are accepted only from the signed Base44 webhook.
   const plan = source === "base44" ? planBase44Job(input, existingJob ? { stage: existingJob.stage } : null) : null;
@@ -65,6 +66,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     const { error: ue } = await admin.from("jobs").update(update).eq("id", existingJob.id);
     if (ue) throw new Error(ue.message);
     await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, plan?.details ?? {});
+    await runGate1(existingJob.id, actorId);
     return { job_id: existingJob.id, job_number: existingJob.job_number, created: false };
   }
   const { data: prop, error: pe } = await admin.from("properties").insert(propFields).select("id").single();
@@ -94,5 +96,12 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
   await logEvent(job.id, actorId, "job_source_recorded",
     origin.channel === "installer_sourced" ? "Job source: Installer-sourced (attribution locked)" : "Job source: HI VIC-sourced",
     origin.channel === "installer_sourced" ? { channel: origin.channel, originating_installer_business_id: origin.businessId, originating_installer_user_id: origin.userId, commercial_model: "not_configured" } : { channel: origin.channel });
+  await runGate1(job.id, actorId);
   return { job_id: job.id, job_number: job.job_number, created: true };
+}
+
+/** Deterministic Gate 1 auto-decision + safe progression (never throws for workflow reasons). */
+async function runGate1(jobId: string, actorId: string | null) {
+  const { autoAdvanceJob } = await import("./autoadvance.server");
+  await autoAdvanceJob(jobId, actorId, "enquiry received");
 }

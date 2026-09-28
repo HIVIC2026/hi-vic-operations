@@ -17,7 +17,7 @@ type Sb = SupabaseClient<Database>;
 export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
   new_enquiry: ["eligibility_review", "awaiting_electrician"],
   eligibility_review: ["awaiting_electrician"],
-  awaiting_electrician: ["assessment_booking"],
+  awaiting_electrician: ["assessment_booking", "eligibility_review"], // back-step only for admin eligibility correction
   assessment_booking: ["assessment_booked"],
   assessment_booked: ["assessment_complete", "assessment_booking"],
   assessment_complete: ["rectification_required", "ready_for_installer_quotes"],
@@ -231,7 +231,7 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
 export async function transition(
   jobId: string,
   to: Stage,
-  actorId: string,
+  actorId: string | null,
   summary: string,
   details: Record<string, unknown> = {},
   opts: { nextAction?: string } = {},

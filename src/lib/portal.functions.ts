@@ -35,9 +35,22 @@ export const setEligibility = createServerFn({ method: "POST" }).middleware([req
   )
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const stage = await getStage(data.jobId);
-    await admin.from("jobs").update({ eligibility_outcome: data.outcome, eligibility_reason: data.reason, next_action: data.nextAction, eligibility_set_by: context.userId, eligibility_set_at: new Date().toISOString() }).eq("id", data.jobId);
-    await logEvent(data.jobId, context.userId, "eligibility_set", `Eligibility: ${data.outcome.replaceAll("_", " ")}`, { reason: data.reason, next_action: data.nextAction });
+    const { AUTO_FAIL_HOLD_PREFIX } = await import("./eligibility.server");
+    const { data: before } = await admin.from("jobs").select("stage, prior_stage, hold_reason, eligibility_outcome, eligibility_decision_source, eligibility_decision_rules").eq("id", data.jobId).single();
+    if (!before) throw new WorkflowError("Job not found");
+    // Admin correction of a system auto-fail: release the automatic hold back to Gate 1.
+    if (before.stage === "on_hold" && before.hold_reason?.startsWith(AUTO_FAIL_HOLD_PREFIX)) {
+      await admin.from("jobs").update({ stage: before.prior_stage ?? "eligibility_review", prior_stage: null, hold_reason: null }).eq("id", data.jobId);
+      await logEvent(data.jobId, context.userId, "stage_changed", "Auto-fail hold released by admin for Gate 1 correction", { reason: data.reason }, { from: "on_hold", to: before.prior_stage ?? "eligibility_review" });
+    }
+    let stage = await getStage(data.jobId);
+    await admin.from("jobs").update({ eligibility_outcome: data.outcome, eligibility_reason: data.reason, next_action: data.nextAction, eligibility_set_by: context.userId, eligibility_set_at: new Date().toISOString(), eligibility_decision_source: "admin" }).eq("id", data.jobId);
+    const overriding = before.eligibility_decision_source === "system";
+    await logEvent(data.jobId, context.userId, overriding ? "eligibility_override" : "eligibility_set", `${overriding ? "Admin override of system Gate 1 decision" : "Eligibility"}: ${data.outcome.replaceAll("_", " ")}`, { reason: data.reason, next_action: data.nextAction, previous_outcome: before.eligibility_outcome, previous_source: before.eligibility_decision_source, previous_rules: before.eligibility_decision_rules });
+    if (data.outcome === "does_not_appear_eligible" && stage === "awaiting_electrician") {
+      await transition(data.jobId, "eligibility_review", context.userId, "Admin corrected Gate 1 – back to eligibility review", { reason: data.reason }, { nextAction: data.nextAction });
+      stage = "eligibility_review";
+    }
     if (data.outcome !== "does_not_appear_eligible" && (stage === "new_enquiry" || stage === "eligibility_review")) {
       await transition(data.jobId, "awaiting_electrician", context.userId, "Eligibility passed – awaiting electrician", {}, { nextAction: data.nextAction });
       // Owner Authority is no longer requested before assessment; acceptance happens at quote acceptance.

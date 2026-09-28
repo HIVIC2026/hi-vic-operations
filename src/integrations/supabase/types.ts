@@ -1443,6 +1443,8 @@ export type Database = {
           commercial_model_set_at: string | null
           commercial_model_set_by: string | null
           created_at: string
+          eligibility_decision_rules: Json
+          eligibility_decision_source: string | null
           eligibility_outcome:
             | Database["public"]["Enums"]["eligibility_outcome"]
             | null
@@ -1458,6 +1460,7 @@ export type Database = {
           job_number: string
           last_activity_at: string
           life_support: boolean
+          life_support_status: string | null
           measure_up_responsibility: string
           next_action: string | null
           originating_installer_business_id: string | null
@@ -1477,6 +1480,8 @@ export type Database = {
           commercial_model_set_at?: string | null
           commercial_model_set_by?: string | null
           created_at?: string
+          eligibility_decision_rules?: Json
+          eligibility_decision_source?: string | null
           eligibility_outcome?:
             | Database["public"]["Enums"]["eligibility_outcome"]
             | null
@@ -1492,6 +1497,7 @@ export type Database = {
           job_number?: string
           last_activity_at?: string
           life_support?: boolean
+          life_support_status?: string | null
           measure_up_responsibility?: string
           next_action?: string | null
           originating_installer_business_id?: string | null
@@ -1511,6 +1517,8 @@ export type Database = {
           commercial_model_set_at?: string | null
           commercial_model_set_by?: string | null
           created_at?: string
+          eligibility_decision_rules?: Json
+          eligibility_decision_source?: string | null
           eligibility_outcome?:
             | Database["public"]["Enums"]["eligibility_outcome"]
             | null
@@ -1526,6 +1534,7 @@ export type Database = {
           job_number?: string
           last_activity_at?: string
           life_support?: boolean
+          life_support_status?: string | null
           measure_up_responsibility?: string
           next_action?: string | null
           originating_installer_business_id?: string | null
