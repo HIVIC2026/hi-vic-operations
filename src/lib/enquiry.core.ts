@@ -105,3 +105,43 @@ export function planBase44Job(input: Base44Fields, existing: { stage: string } |
   };
   return { kind: existing ? ("update" as const) : ("create" as const), patch, moveTo, details, outcome };
 }
+
+export type Base44EvidenceInput = {
+  declared_property_type?: string | null | undefined;
+  declared_over_five_years?: "yes" | "no" | "unknown" | null | undefined;
+  declared_previous_upgrade?: "yes" | "no" | "unknown" | null | undefined;
+  property_research?: {
+    status?: string | null | undefined; evidence_summary?: string | null | undefined; formatted_address?: string | null | undefined;
+    state?: string | null | undefined; postcode?: string | null | undefined; premises_classification?: string | null | undefined;
+    first_appearance_year?: number | null | undefined; age_evidence_source?: string | null | undefined;
+    flat_roof_detected?: boolean | null | undefined; access_concern_detected?: boolean | null | undefined; verified_floor_plan_url?: string | null | undefined;
+  } | null | undefined;
+};
+
+/**
+ * Pure: Base44 Gate 1 evidence with provenance. Owner declarations live under `declared` and are never
+ * promoted to verified. Research age is `age_verified` only when research is complete AND a first-appearance year exists.
+ */
+export function buildBase44Evidence(i: Base44EvidenceInput, now: Date = new Date()) {
+  const r = i.property_research ?? null;
+  const done = !!r?.status && ["complete", "completed", "verified", "success", "done"].includes(r.status.toLowerCase());
+  return {
+    source: "base44", received_at: now.toISOString(),
+    declared: {
+      basis: "owner_declaration",
+      property_type: i.declared_property_type ?? null,
+      over_five_years: i.declared_over_five_years ?? null,
+      previous_upgrade: i.declared_previous_upgrade ?? null,
+    },
+    research: r ? {
+      basis: "base44_property_research",
+      status: r.status ?? null, evidence_summary: r.evidence_summary ?? null,
+      formatted_address: r.formatted_address ?? null, state: r.state?.toUpperCase() ?? null, postcode: r.postcode ?? null,
+      premises_classification: r.premises_classification ?? null,
+      first_appearance_year: r.first_appearance_year ?? null, age_evidence_source: r.age_evidence_source ?? null,
+      age_verified: done && r.first_appearance_year != null,
+      flat_roof_detected: r.flat_roof_detected === true, access_concern_detected: r.access_concern_detected === true,
+      verified_floor_plan_url: r.verified_floor_plan_url ?? null,
+    } : null,
+  };
+}

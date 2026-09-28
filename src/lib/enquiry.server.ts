@@ -1,9 +1,9 @@
 import { addressHash } from "./intelligence.core";
 import { z } from "zod";
-import type { TablesUpdate } from "@/integrations/supabase/types";
+import type { Json, TablesUpdate } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
-import { planBase44Job } from "./enquiry.core";
+import { buildBase44Evidence, planBase44Job } from "./enquiry.core";
 
 export const enquirySchema = z.object({
   external_enquiry_id: z.string().min(1).max(100).optional(),
@@ -24,6 +24,23 @@ export const enquirySchema = z.object({
   life_support_status: z.enum(["yes", "no", "unknown"]).optional().nullable(),
   preliminary_outcome: z.enum(["likely_eligible", "needs_onsite_confirmation", "does_not_appear_eligible"]).optional().nullable(),
   preliminary_reasons: z.array(z.string().max(500)).max(20).optional().nullable(),
+  // Gate 1 evidence (Base44). Declarations stay declared; research is kept with its own status/provenance.
+  declared_property_type: z.string().trim().max(60).optional().nullable(),
+  declared_over_five_years: z.enum(["yes", "no", "unknown"]).optional().nullable(),
+  declared_previous_upgrade: z.enum(["yes", "no", "unknown"]).optional().nullable(),
+  property_research: z.object({
+    status: z.string().trim().max(40).optional().nullable(),
+    evidence_summary: z.string().trim().max(2000).optional().nullable(),
+    formatted_address: z.string().trim().max(300).optional().nullable(),
+    state: z.string().trim().max(10).optional().nullable(),
+    postcode: z.string().trim().max(10).optional().nullable(),
+    premises_classification: z.string().trim().max(100).optional().nullable(),
+    first_appearance_year: z.number().int().min(1800).max(2100).optional().nullable(),
+    age_evidence_source: z.string().trim().max(300).optional().nullable(),
+    flat_roof_detected: z.boolean().optional().nullable(),
+    access_concern_detected: z.boolean().optional().nullable(),
+    verified_floor_plan_url: z.string().trim().url().max(1000).refine((u) => u.startsWith("https://"), "https only").optional().nullable(),
+  }).optional().nullable(),
 });
 export type EnquiryInput = z.infer<typeof enquirySchema>;
 
@@ -62,8 +79,8 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
   const plan = source === "base44" ? planBase44Job(input, existingJob ? { stage: existingJob.stage } : null) : null;
 
   if (existingJob) {
-    const { data: before } = await admin.from("properties").select("address_line, suburb, postcode").eq("id", existingJob.property_id).single();
-    await admin.from("properties").update(propFields).eq("id", existingJob.property_id);
+    const { data: before } = await admin.from("properties").select("address_line, suburb, postcode, enrichment").eq("id", existingJob.property_id).single();
+    await admin.from("properties").update({ ...propFields, ...(source === "base44" ? { enrichment: mergeEvidence(before?.enrichment, input) } : {}) }).eq("id", existingJob.property_id);
     const addrChanged = !!before && addressHash(before.address_line, before.suburb, before.postcode) !== addressHash(propFields.address_line, propFields.suburb, propFields.postcode);
     const update = { ...jobFields, ...(plan?.patch ?? {}) } as TablesUpdate<"jobs">; // never changes stage
     const { error: ue } = await admin.from("jobs").update(update).eq("id", existingJob.id);
@@ -73,7 +90,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     await afterEnquiry(existingJob.id, actorId, addrChanged ? "address changed" : null);
     return { job_id: existingJob.id, job_number: existingJob.job_number, created: false };
   }
-  const { data: prop, error: pe } = await admin.from("properties").insert(propFields).select("id").single();
+  const { data: prop, error: pe } = await admin.from("properties").insert({ ...propFields, ...(source === "base44" ? { enrichment: mergeEvidence(null, input) } : {}) }).select("id").single();
   if (pe) throw new Error(pe.message);
   const { data: job, error: je } = await admin
     .from("jobs")
@@ -125,4 +142,10 @@ async function afterEnquiry(jobId: string, actorId: string | null, reason: strin
 async function runGate1(jobId: string, actorId: string | null) {
   const { autoAdvanceJob } = await import("./autoadvance.server");
   await autoAdvanceJob(jobId, actorId, "enquiry received");
+}
+
+/** Merge Base44 Gate 1 evidence under enrichment.base44 without touching other keys (e.g. verified portal facts). */
+function mergeEvidence(existing: unknown, input: EnquiryInput): Json {
+  const base = existing && typeof existing === "object" && !Array.isArray(existing) ? (existing as Record<string, unknown>) : {};
+  return { ...base, base44: buildBase44Evidence(input) } as Json;
 }
