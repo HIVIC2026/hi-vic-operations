@@ -4,7 +4,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import {
-  buildDueDateUpdate, buildInvoicePayload, evaluateXeroInvoice, findInvoiceByReference, findOrCreateContact, findTrackingOption,
+  assertHivicInvoice, assertHivicJob, assertHivicPayload, assertHivicReference, buildDueDateUpdate, buildInvoicePayload, evaluateXeroInvoice, findInvoiceByReference, findOrCreateContact, findTrackingOption,
   invoiceIdemKey, LOCK_STALE_MS, melbourneDate, quoteGuard, XERO_DUE_DATE_UPDATES_ENABLED, xeroReference, type XeroCall,
 } from "./xero.core";
 import { clearInstallDueDatePatch, ensureInvoice, installDueDatePatch, paymentPatch, xeroDueDate, type InvoiceRow, type InvoiceStore } from "./invoice.lifecycle";
@@ -73,6 +73,17 @@ async function claimLock(invoiceId: string) {
 }
 const releaseLock = (invoiceId: string) => admin.from("invoices").update({ sync_lock_at: null }).eq("id", invoiceId);
 
+/** Deepest barrier: load the job behind an invoice and require business_unit = 'hivic'. */
+export async function loadJobForInvoice(invoiceId: string) {
+  const { data } = await admin.from("invoices").select("jobs(business_unit)").eq("id", invoiceId).maybeSingle();
+  return (data?.jobs as unknown as { business_unit: string | null } | null) ?? null;
+}
+export const requireHivicInvoice = (invoiceId: string) => assertHivicInvoice(invoiceId, loadJobForInvoice);
+export async function requireHivicJob(jobId: string) {
+  const { data } = await admin.from("jobs").select("business_unit").eq("id", jobId).maybeSingle();
+  assertHivicJob(data);
+}
+
 async function jobInvoice(jobId: string) {
   const { data } = await admin.from("invoices").select("*").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
   return (data as unknown as InvoiceRow) ?? null;
@@ -82,6 +93,7 @@ async function jobInvoice(jobId: string) {
 export async function createInvoiceForQuote(quoteId: string, actorId: string) {
   const { data: q } = await admin.from("quotes").select("id, job_id, kind, status, option_label, customer_total_inc_gst").eq("id", quoteId).single();
   if (!q) throw new Error("Quote not found");
+  await requireHivicJob(q.job_id);
   const { row, created } = await ensureInvoice(dbStore, q, melbourneDate(new Date().toISOString()));
   if (created) await logEvent(q.job_id, actorId, "invoice_created_local", `Invoice raised for ${q.option_label}: ${row.total_inc_gst} inc GST. 50% deposit (${row.deposit_amount}) must be requested in Xero.`, { invoice_id: row.id, total_inc_gst: row.total_inc_gst });
   if (!row.xero_invoice_id) await pushInvoiceToXero(row.id, actorId);
@@ -90,6 +102,7 @@ export async function createInvoiceForQuote(quoteId: string, actorId: string) {
 
 /** Installation booked/rebooked: the same invoice's final due date = Melbourne-local installation date. */
 export async function setInstallDueDate(jobId: string, startIso: string, actorId: string) {
+  await requireHivicJob(jobId);
   const inv = await jobInvoice(jobId);
   if (!inv) return;
   const due = melbourneDate(startIso);
@@ -101,6 +114,7 @@ export async function setInstallDueDate(jobId: string, startIso: string, actorId
 
 /** Installation cancelled: final due date goes back to pending. */
 export async function clearInstallDueDate(jobId: string, actorId: string) {
+  await requireHivicJob(jobId);
   const inv = await jobInvoice(jobId);
   if (!inv) return;
   const patch = clearInstallDueDatePatch(inv);
@@ -110,6 +124,7 @@ export async function clearInstallDueDate(jobId: string, actorId: string) {
 }
 
 export async function pushInvoiceToXero(invoiceId: string, actorId: string | null, callOverride?: XeroCall) {
+  await requireHivicInvoice(invoiceId); // before any lookup, lock or Xero call
   const { data: inv } = await admin.from("invoices").select("*, quotes(status, customer_total_inc_gst, veec_discount_inc_gst, quote_items(description, quantity, unit_price_inc_gst, line_total_inc_gst, sort)), jobs(job_number, owners(id, full_name, email, xero_contact_id))").eq("id", invoiceId).single();
   if (!inv) throw new Error("Invoice not found");
   if (inv.xero_invoice_id) return; // already linked – never create a second Xero invoice
@@ -130,6 +145,7 @@ export async function pushInvoiceToXero(invoiceId: string, actorId: string | nul
       if (!contactId) contactId = (await findOrCreateContact(call, job.owners)).contactId;
       const items = [...quote.quote_items].sort((a, b) => a.sort - b.sort);
       const payload = buildInvoicePayload({ contactId: contactId!, jobNumber: job.job_number, dueDate, total: Number(inv.total_inc_gst), items, veecDiscount: quote.veec_discount_inc_gst, tracking });
+      assertHivicPayload(payload);
       const res = await call("/api.xro/2.0/Invoices", { method: "POST", headers: { "Idempotency-Key": invoiceIdemKey(invoiceId) }, body: payload });
       x = res.Invoices[0];
     }
@@ -150,6 +166,7 @@ export async function pushInvoiceToXero(invoiceId: string, actorId: string | nul
 
 /** Unified admin sync: push if not yet linked, otherwise pull payment state (and apply a pending due-date update when enabled). */
 export async function syncInvoiceFromXero(invoiceId: string, actorId: string | null, callOverride?: XeroCall) {
+  await requireHivicInvoice(invoiceId);
   const { data: inv } = await admin.from("invoices").select("*").eq("id", invoiceId).single();
   if (!inv) throw new Error("Invoice not found");
   if (!inv.xero_invoice_id) return pushInvoiceToXero(invoiceId, actorId, callOverride);
@@ -157,6 +174,7 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
   try {
     const call = callOverride ?? (await tenantCall());
     if (inv.xero_update_pending && inv.balance_due_date && XERO_DUE_DATE_UPDATES_ENABLED) {
+      assertHivicReference(inv.xero_reference);
       const u = buildDueDateUpdate(inv.xero_invoice_id, inv.balance_due_date, invoiceId);
       await call(u.path, { method: u.method, headers: u.headers, body: u.body });
       await admin.from("invoices").update({ xero_update_pending: false }).eq("id", invoiceId);
@@ -187,6 +205,7 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
 
 /** Single place that turns Xero's cumulative AmountPaid into deposit/balance state + audit events. */
 export async function applyPaidAmount(invoiceId: string, paid: number, actorId: string | null, depositReachedAt?: string | null) {
+  await requireHivicInvoice(invoiceId);
   const { data: inv } = await admin.from("invoices").select("*").eq("id", invoiceId).single();
   if (!inv) return;
   const { patch, events } = paymentPatch(inv as unknown as InvoiceRow, paid, depositReachedAt ?? null, new Date().toISOString());
