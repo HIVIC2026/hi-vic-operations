@@ -716,5 +716,6 @@ export const getInvoiceInternals = createServerFn({ method: "POST" }).middleware
     const { data: ov } = await admin.from("payment_overrides").select("id, invoice_id, reason, created_at, overridden_by").eq("job_id", data.jobId);
     const ids = [...new Set([...(ov ?? []).map((o) => o.overridden_by), ...(inv ?? []).map((i) => i.deposit_request_raised_by).filter((x): x is string => !!x)])];
     const { data: profs } = ids.length ? await admin.from("profiles").select("id, full_name").in("id", ids) : { data: [] };
-    return { invoices: (inv ?? []).map((i) => ({ ...i, deposit_request_raised_by_name: profs?.find((p) => p.id === i.deposit_request_raised_by)?.full_name ?? null })), overrides: (ov ?? []).map((o) => ({ ...o, by: profs?.find((p) => p.id === o.overridden_by)?.full_name ?? null })) };
+    const { data: jb } = await admin.from("jobs").select("business_unit").eq("id", data.jobId).maybeSingle();
+    return { xeroAllowed: jb?.business_unit === "hivic", invoices: (inv ?? []).map((i) => ({ ...i, deposit_request_raised_by_name: profs?.find((p) => p.id === i.deposit_request_raised_by)?.full_name ?? null })), overrides: (ov ?? []).map((o) => ({ ...o, by: profs?.find((p) => p.id === o.overridden_by)?.full_name ?? null })) };
   });

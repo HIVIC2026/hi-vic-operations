@@ -307,10 +307,11 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
               )}
               {isAdmin && x?.last_sync_error && <p className="mt-2 rounded bg-danger-soft px-2 py-1 text-xs text-danger">Xero sync error: {x.last_sync_error}</p>}
               {ov.map((o) => <p key={o.id} className="mt-2 rounded bg-warning-soft px-2 py-1 text-xs">Override by {o.by ?? "admin"} on {fmtDateTime(o.created_at)}: {o.reason}</p>)}
+              {isAdmin && internals && !internals.xeroAllowed && <p className="mt-2 rounded bg-danger-soft px-2 py-1 text-xs font-semibold text-danger">Xero automation blocked: this is not a Home Insulation Victoria job.</p>}
               {isAdmin && (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" disabled={!!x?.sync_lock_at && Date.now() - Date.parse(x.sync_lock_at) < 120000} onClick={() => sync({ invoiceId: i.id }, "Xero sync finished")}>{x?.xero_invoice_id ? "Sync with Xero" : "Send to Xero (safe retry)"}</Button>
-                  {x?.xero_invoice_id && !x.deposit_request_raised_at && <Button size="sm" variant="outline" onClick={() => { if (confirm(`Confirm the native Xero 50% deposit request (${aud(i.deposit_amount)}) has been raised in Xero? This does not unlock scheduling.`)) markRaised({ invoiceId: i.id }, "Deposit request recorded"); }}>Mark deposit request raised</Button>}
+                  {internals?.xeroAllowed !== false && <Button size="sm" variant="outline" disabled={!!x?.sync_lock_at && Date.now() - Date.parse(x.sync_lock_at) < 120000} onClick={() => sync({ invoiceId: i.id }, "Xero sync finished")}>{x?.xero_invoice_id ? "Sync with Xero" : "Send to Xero (safe retry)"}</Button>}
+                  {internals?.xeroAllowed && x?.xero_invoice_id && !x.deposit_request_raised_at && <Button size="sm" variant="outline" onClick={() => { if (confirm(`Confirm the native Xero 50% deposit request (${aud(i.deposit_amount)}) has been raised in Xero? This does not unlock scheduling.`)) markRaised({ invoiceId: i.id }, "Deposit request recorded"); }}>Mark deposit request raised</Button>}
                   {!i.deposit_cleared && <Button size="sm" variant="outline" onClick={() => { const r = prompt("Reason for overriding the deposit gate (required, permanently audited)"); if (r) override({ invoiceId: i.id, reason: r }, "Override recorded"); }}>Override deposit gate</Button>}
                 </div>
               )}

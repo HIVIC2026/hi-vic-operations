@@ -255,3 +255,52 @@ describe("privacy and compliance", () => {
     expect(installationDateBlocker({ piesa_expired: false, install_deadline: "2026-10-15" }, "2026-10-14T23:30:00Z")).toBeNull();
   });
 });
+
+// ---------- business-unit barrier ----------
+import { assertHivicInvoice, assertHivicJob, assertHivicPayload, assertHivicReference, NOT_HIVIC_ERROR } from "../src/lib/xero.core";
+describe("HI VIC business-unit barrier", () => {
+  test("hivic job passes", () => expect(() => assertHivicJob({ business_unit: "hivic" })).not.toThrow());
+  test("missing business_unit / missing job blocked", () => {
+    for (const j of [null, undefined, {}, { business_unit: null }, { business_unit: "" }]) expect(() => assertHivicJob(j as any)).toThrow(NOT_HIVIC_ERROR);
+  });
+  test("any non-hivic unit blocked (incl. near-misses)", () => {
+    for (const u of ["dc", "dc_construction", "HIVIC", "hivic ", "hi_vic"]) expect(() => assertHivicJob({ business_unit: u })).toThrow(NOT_HIVIC_ERROR);
+  });
+  test("both HI VIC channels pass", () => {
+    for (const channel of ["hivic_sourced", "installer_sourced"]) expect(() => assertHivicJob({ business_unit: "hivic", channel } as any)).not.toThrow();
+  });
+  test("caller-supplied invoice ID is resolved to its job and blocked if not hivic", async () => {
+    const jobs: Record<string, any> = { invHivic: { business_unit: "hivic" }, invDc: { business_unit: "dc" }, invOrphan: null };
+    const load = async (id: string) => jobs[id] ?? null;
+    await expect(assertHivicInvoice("invHivic", load)).resolves.toBeUndefined();
+    await expect(assertHivicInvoice("invDc", load)).rejects.toThrow(NOT_HIVIC_ERROR);
+    await expect(assertHivicInvoice("invOrphan", load)).rejects.toThrow(NOT_HIVIC_ERROR);
+    await expect(assertHivicInvoice("unknown", load)).rejects.toThrow(NOT_HIVIC_ERROR);
+  });
+  const tr = [{ Name: "Projects", Option: "Home Insulation Victoria" }];
+  test("payload guard: good HI VIC payload passes", () => {
+    const p = buildInvoicePayload({ contactId: "C", jobNumber: "HV-1", dueDate: "d", total: 100, items: [{ description: "x", quantity: 1, unit_price_inc_gst: 100, line_total_inc_gst: 100 }], veecDiscount: 0, tracking: { categoryName: "Projects", optionName: "Home Insulation Victoria" } });
+    expect(() => assertHivicPayload(p)).not.toThrow();
+  });
+  test("payload guard fails closed on wrong reference or tracking", () => {
+    expect(() => assertHivicPayload({ Invoices: [{ Reference: "DC 123", LineItems: [{ Tracking: tr }] }] })).toThrow("HI VIC");
+    expect(() => assertHivicPayload({ Invoices: [{ Reference: undefined, LineItems: [{ Tracking: tr }] }] })).toThrow("HI VIC");
+    expect(() => assertHivicPayload({ Invoices: [{ Reference: "HI VIC HV-1", LineItems: [{ Tracking: [{ Name: "Projects", Option: "DC Constructions" }] }] }] })).toThrow("Home Insulation Victoria");
+    expect(() => assertHivicPayload({ Invoices: [{ Reference: "HI VIC HV-1", LineItems: [{ Tracking: tr }, {}] }] })).toThrow("Home Insulation Victoria");
+    expect(() => assertHivicPayload({ Invoices: [{ Reference: "HI VIC HV-1", LineItems: [] }] })).toThrow();
+  });
+  test("reference lookups/updates only for HI VIC references; no broad search", async () => {
+    expect(() => assertHivicReference("INV-0042")).toThrow();
+    expect(() => assertHivicReference(null)).toThrow();
+    const calls: string[] = [];
+    const call: XeroCall = async (p) => { calls.push(p); return { Invoices: [] }; };
+    await expect(findInvoiceByReference(call, "DC job 55")).rejects.toThrow();
+    expect(calls.length).toBe(0);
+    await findInvoiceByReference(call, "HI VIC HV-1007");
+    expect(decodeURIComponent(calls[0]!)).toContain('Reference=="HI VIC HV-1007"');
+  });
+  test("tracking resolution fails closed when Home Insulation Victoria option is missing", async () => {
+    const call: XeroCall = async () => ({ TrackingCategories: [{ Name: "Projects", Status: "ACTIVE", Options: [{ Name: "DC Constructions", Status: "ACTIVE" }] }] });
+    await expect(findTrackingOption(call)).rejects.toThrow("not found");
+  });
+});
