@@ -163,3 +163,11 @@ Mitti: combined template unchanged; audits record `mitti_scope`. Sync splits the
 Backfill (migration 0011): every existing assessment with a measured area produced one current measurement (source electrician, Mitti ref kept, complete if the assessment was complete). `assessments.measured_area_m2` is deprecated for quoting.
 
 Tests: `tests/scope.core.test.ts` (scopes, planning, quote inputs, business-unit, trade view) and `tests/guards.test.ts` (central stage guards on a fake database: measurement gate, PIESA expiry, commercial gate, Owner Authority, deposit).
+
+## Customer Acceptance & VEEC Assignment (replaces Owner Authority gate)
+Workflow: enquiry → eligibility → assessment booking → PIESA + measure-up → quote → **Customer Acceptance & VEEC Assignment** → Xero invoice → 50% deposit → rectification → installation → installer final declaration → AP review → VEEC-ready.
+- Assessment booking no longer needs Owner Authority. Old authority records are kept as read-only history.
+- The customer signs once, at installation-quote acceptance (quote snapshot/version, property, consumer, product, area, installer, fees, before-VEU/benefit/final price, consumer info, declarations, typed signature, IP/user agent). A signed copy is stored privately and listed in Documents.
+- Statuses: draft → consumer_signed_pending_install → installer_signed_pending_install / final_details_pending → effective_complete; variation_required when installer/product/area (>5%)/price (>$1)/scope changes – customer reconfirms.
+- Scheduling needs a signed acceptance; Ready for VEEC needs effective_complete.
+- Official wording is pasted and approved by an admin at /admin/compliance (versioned, immutable). Nothing is signable until approved. Retention: 7 years.

@@ -99,6 +99,13 @@
       "when": 1790595002427,
       "tag": "0013_partner_enquiries",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790597208900,
+      "tag": "0014_customer_acceptance_veec_assignment",
+      "breakpoints": true
     }
   ]
 }

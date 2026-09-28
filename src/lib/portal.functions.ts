@@ -11,8 +11,10 @@ import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
 import { applyPaidAmount, clearInstallDueDate, createInvoiceForQuote, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
 import { buildDepositOverride, depositRequestPatch } from "./invoice.lifecycle";
-import { AUTHORITY_BLOCKER, commercialBlocker, depositCleared } from "./workflow.server";
-import { acceptAuthority, authorityValid, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
+import { commercialBlocker, depositCleared } from "./workflow.server";
+import { assertConsumerCanSign, assignmentEffective, buildAcceptancePackage, evaluateAndApply, loadTemplates, raiseVariation, reconfirmVariation, signConsumer, signInstaller } from "./assignment.server";
+import { ASSIGNMENT_EVENTS, templateBlockers, type TemplateKey } from "./assignment.core";
+import { acceptAuthority, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
 
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
 
@@ -37,8 +39,7 @@ export const setEligibility = createServerFn({ method: "POST" }).middleware([req
     await logEvent(data.jobId, context.userId, "eligibility_set", `Eligibility: ${data.outcome.replaceAll("_", " ")}`, { reason: data.reason, next_action: data.nextAction });
     if (data.outcome !== "does_not_appear_eligible" && (stage === "new_enquiry" || stage === "eligibility_review")) {
       await transition(data.jobId, "awaiting_electrician", context.userId, "Eligibility passed – awaiting electrician", {}, { nextAction: data.nextAction });
-      // Job is proceeding: Owner Authority must be requested now (before any onsite booking).
-      if (!(await authorityValid(data.jobId))) await requestAuthority(data.jobId, context.userId, "initial");
+      // Owner Authority is no longer requested before assessment; acceptance happens at quote acceptance.
     } else if (stage === "new_enquiry") {
       await transition(data.jobId, "eligibility_review", context.userId, "Moved to eligibility review", {}, { nextAction: data.nextAction });
     }
@@ -445,8 +446,15 @@ export const adjustQuote = createServerFn({ method: "POST" }).middleware([requir
     return { ok: true };
   });
 
-export const respondToQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ quoteId: uuid, accept: z.boolean(), consent: z.boolean().optional(), reason: z.string().max(1000).optional() }).parse(d))
+export const respondToQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
+  .inputValidator((d) => z.object({
+    quoteId: uuid, accept: z.boolean(), consent: z.boolean().optional(), reason: z.string().max(1000).optional(),
+    signing: z.object({
+      signatoryName: z.string().trim().min(2).max(200), authorityType: z.enum(["owner", "authorised_representative"]), over18: z.boolean(),
+      readConsumerInfo: z.boolean(), acceptDeclaration: z.boolean(), acceptAssignment: z.boolean(), signatureName: z.string().trim().max(200),
+      assistance: z.enum(["none", "interpreter", "support_understanding", "both"]),
+    }).optional(),
+  }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: q } = await admin.from("quotes").select("*").eq("id", data.quoteId).single();
     if (!q) throw new WorkflowError("Quote not found");
@@ -461,7 +469,13 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
       await logEvent(q.job_id, context.userId, "quote_declined", `${q.option_label} declined`, { reason: data.reason });
       return { ok: true };
     }
-    if (!(await authorityValid(q.job_id))) throw new WorkflowError(`${AUTHORITY_BLOCKER} before accepting quotes.`);
+    // Installation acceptance = Customer Acceptance & VEEC Assignment. Only the customer signs.
+    if (q.kind === "installation") {
+      if (!data.signing) throw new WorkflowError("The customer must review and sign the acceptance & VEEC assignment to accept this quote.");
+      const { data: isOwner } = await context.supabase.rpc("is_job_owner", { _job: q.job_id, _user: context.userId });
+      if (!isOwner) throw new WorkflowError("Only the customer can sign the acceptance.");
+      await assertConsumerCanSign(data.signing);
+    }
     // All gates are checked BEFORE the quote is marked accepted, so a blocked acceptance leaves nothing half-done.
     if (q.kind === "installation") {
       const cb = await commercialBlocker(q.job_id);
@@ -469,6 +483,10 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
       const p = await piesaStatus(q.job_id);
       const { count: rect } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("status", "required");
       if (!rect && p?.piesa_expired) throw new WorkflowError("The electrical safety assessment has expired. HI VIC will arrange a reassessment.");
+    }
+    if (q.kind === "installation" && data.signing) {
+      const { assistance, ...input } = data.signing;
+      await signConsumer({ quoteId: q.id, actorId: context.userId, input, assistance, ip: context.ip, userAgent: context.userAgent });
     }
     await admin.from("quotes").update({ status: "accepted", accepted_at: new Date().toISOString(), accepted_by: context.userId }).eq("id", q.id);
     await admin.from("quotes").update({ status: "superseded" }).eq("job_id", q.job_id).eq("kind", q.kind).eq("status", "issued");
@@ -484,7 +502,7 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
 
     await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): 50% deposit due now, balance due on installation day.` }, { onConflict: "job_id,kind" });
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", q.job_id).eq("check_key", "owner_consent");
-    await logEvent(q.job_id, context.userId, "quote_accepted", `${q.option_label} accepted`, { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst });
+    await logEvent(q.job_id, context.userId, ASSIGNMENT_EVENTS.QUOTE_ACCEPTED, `${q.option_label} accepted with signed customer acceptance`, { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst });
     await transition(q.job_id, "awaiting_deposit_payment", context.userId, "Owner accepted final installation quote – 50% deposit due");
     await createInvoiceForQuote(q.id, context.userId);
     await advanceAfterDeposit(q.job_id, context.userId);
@@ -495,6 +513,7 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
 async function advanceAfterDeposit(jobId: string, actorId: string) {
   if ((await getStage(jobId)) !== "awaiting_deposit_payment") return;
   if (!(await depositCleared(jobId))) return;
+  await logEvent(jobId, actorId, ASSIGNMENT_EVENTS.DEPOSIT_PAID, "50% deposit confirmed – scheduling can unlock");
   const { count } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "required");
   const to: Stage = (count ?? 0) > 0 ? "rectification_scheduling" : "installation_scheduling";
   try {
@@ -590,7 +609,6 @@ export const createBooking = createServerFn({ method: "POST" }).middleware([requ
       const blocked = installationDateBlocker(await piesaStatus(data.jobId), data.start);
       if (blocked) throw new WorkflowError(blocked);
     }
-    if (!(await authorityValid(data.jobId))) throw new WorkflowError(`Blocked: ${AUTHORITY_BLOCKER}.`);
     if (data.kind !== "assessment") { const cb = await commercialBlocker(data.jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
     if (data.kind !== "assessment" && !(await depositCleared(data.jobId)))
       throw new WorkflowError("Blocked: the 50% deposit has not been paid.");
@@ -623,6 +641,8 @@ export const completeInstallation = createServerFn({ method: "POST" }).middlewar
     await transition(data.jobId, "evidence_outstanding", context.userId, "Installation marked complete by installer");
     await admin.from("jobs").update({ installation_completed_at: new Date().toISOString() }).eq("id", data.jobId);
     await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "installation").eq("status", "confirmed");
+    await logEvent(data.jobId, context.userId, ASSIGNMENT_EVENTS.INSTALLATION_COMPLETED, "Eligible installation undertaken");
+    await evaluateAndApply(data.jobId, context.userId);
     return { ok: true };
   });
 
@@ -630,6 +650,7 @@ export const submitDeclaration = createServerFn({ method: "POST" }).middleware([
   .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["installer_declaration", "electrician_declaration"]), statement: z.string().trim().min(10).max(4000) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", data.kind === "installer_declaration" ? "installer" : "electrician"]);
+    if (data.kind === "installer_declaration") throw new WorkflowError("Installer declarations are signed in the final VEEC assignment step (approved wording only).");
     await admin.from("declarations").upsert({ job_id: data.jobId, kind: data.kind, declared_by: context.userId, statement: data.statement, declared_at: new Date().toISOString() }, { onConflict: "job_id,kind" });
     await logEvent(data.jobId, context.userId, "declaration_submitted", `${data.kind.replace("_", " ")} signed`);
     return { ok: true };
@@ -712,7 +733,7 @@ export const runComplianceReview = createServerFn({ method: "POST" }).middleware
     const auto: Record<string, boolean> = {
       eligibility: job?.eligibility_outcome === "likely_eligible" || job?.eligibility_outcome === "needs_onsite_confirmation",
       owner_consent: kinds.has("owner_consent"),
-      owner_authority: await authorityValid(data.jobId),
+      owner_authority: await assignmentEffective(data.jobId),
       electrical_assessment: p?.piesa_outcome === "pass",
       rectification: (openRect ?? 0) === 0,
       installation_evidence: (ev ?? []).every((e) => e.status === "verified"),
@@ -896,5 +917,102 @@ export const updatePartnerEnquiry = createServerFn({ method: "POST" }).middlewar
     }
     const { error } = await admin.from("partner_enquiries").update(patch).eq("id", data.id);
     if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// ---------- Customer Acceptance & VEEC Assignment ----------
+export const getAcceptancePackage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ quoteId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: q } = await admin.from("quotes").select("job_id, kind").eq("id", data.quoteId).single();
+    if (!q || q.kind !== "installation") throw new WorkflowError("Quote not found");
+    await requireJobRole(context.supabase, q.job_id, ["owner", "admin"]);
+    const templates = await loadTemplates();
+    const pick = (k: TemplateKey) => templates.find((t) => t.template_key === k && t.approved) ?? null;
+    return { pkg: await buildAcceptancePackage(data.quoteId), consumerDeclaration: pick("consumer_declaration"), consumerRights: pick("consumer_rights"), blockers: templateBlockers(templates, "consumer") };
+  });
+
+export const getAssignment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const role = await requireJobRole(context.supabase, data.jobId, ["admin", "owner", "installer"]);
+    const { data: a } = await admin.from("customer_assignments").select("*").eq("job_id", data.jobId).order("created_at", { ascending: false });
+    const { data: v } = await admin.from("assignment_variations").select("id, assignment_id, reasons, status, raised_at, reconfirmed_at, signature_name").eq("job_id", data.jobId).order("raised_at", { ascending: false });
+    const templates = await loadTemplates();
+    const cur = (a ?? []).find((x) => x.status !== "cancelled") ?? null;
+    const installerDeclaration = templates.find((t) => t.template_key === "installer_declaration" && t.approved) ?? null;
+    if (role === "installer") {
+      // Trades never see prices or consumer signature evidence.
+      return { role, current: cur ? { id: cur.id, status: cur.status, quoted_product: cur.quoted_product, quoted_area_m2: cur.quoted_area_m2, installer_signed_at: cur.installer_signed_at, installed_product: cur.installed_product, installed_area_m2: cur.installed_area_m2 } : null, history: [], variations: [], finalBlockers: templateBlockers(templates, "final"), installerDeclaration };
+    }
+    return { role, current: cur, history: a ?? [], variations: v ?? [], finalBlockers: templateBlockers(templates, "final"), installerDeclaration };
+  });
+
+export const signInstallerDeclaration = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
+  .inputValidator((d) => z.object({ jobId: uuid, installedProduct: z.string().trim().min(2).max(300), installedArea: z.number().positive().max(100000), signatureName: z.string().trim().min(2).max(200) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, data.jobId, ["installer", "admin"]);
+    await signInstaller({ ...data, actorId: context.userId, ip: context.ip, userAgent: context.userAgent });
+    return { ok: true };
+  });
+
+export const raiseAssignmentVariation = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, reason: z.string().trim().min(5).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: a } = await admin.from("customer_assignments").select("consumer_snapshot").eq("job_id", data.jobId).neq("status", "cancelled").maybeSingle();
+    if (!a) throw new WorkflowError("No customer acceptance on this job.");
+    const base = (a.consumer_snapshot as unknown as { snapshot: import("./assignment.core").Snapshot }).snapshot;
+    await raiseVariation(data.jobId, context.userId, [`Other material change: ${data.reason}`], base);
+    return { ok: true };
+  });
+
+export const reconfirmAssignmentVariation = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
+  .inputValidator((d) => z.object({ variationId: uuid, signatureName: z.string().trim().min(2).max(200) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: v } = await admin.from("assignment_variations").select("job_id").eq("id", data.variationId).single();
+    if (!v) throw new WorkflowError("Variation not found");
+    const { data: isOwner } = await context.supabase.rpc("is_job_owner", { _job: v.job_id, _user: context.userId });
+    if (!isOwner) throw new WorkflowError("Only the customer can reconfirm a variation.");
+    await reconfirmVariation({ variationId: data.variationId, actorId: context.userId, signatureName: data.signatureName, ip: context.ip, userAgent: context.userAgent });
+    return { ok: true };
+  });
+
+export const getAssignmentDocUrl = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ assignmentId: uuid, which: z.enum(["consumer", "final"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: a } = await context.supabase.from("customer_assignments").select("consumer_copy_path, final_copy_path").eq("id", data.assignmentId).maybeSingle();
+    const path = data.which === "consumer" ? a?.consumer_copy_path : a?.final_copy_path;
+    if (!path) throw new WorkflowError("No copy available");
+    const { data: s, error } = await admin.storage.from("job-files").createSignedUrl(path, 300);
+    if (error || !s) throw new Error(error?.message);
+    return { url: s.signedUrl };
+  });
+
+// Admin: versioned compliance wording. The portal never supplies official text itself.
+export const listComplianceTemplates = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  await requireAdmin(context.supabase);
+  const { data } = await admin.from("compliance_templates").select("*").order("template_key").order("created_at", { ascending: false });
+  return data ?? [];
+});
+
+export const addComplianceTemplate = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ template_key: z.enum(["consumer_declaration", "consumer_rights", "installer_declaration", "ap_declaration"]), version: z.string().trim().min(1).max(50), body: z.string().trim().min(20).max(50000), source_note: z.string().max(1000).optional(), required: z.boolean().default(true) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { error } = await admin.from("compliance_templates").insert({ ...data, source_note: data.source_note ?? null, created_by: context.userId });
+    if (error) throw new WorkflowError(error.message);
+    return { ok: true };
+  });
+
+export const approveComplianceTemplate = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: t } = await admin.from("compliance_templates").select("template_key").eq("id", data.id).single();
+    if (!t) throw new WorkflowError("Template not found");
+    await admin.from("compliance_templates").update({ is_active: false }).eq("template_key", t.template_key).eq("is_active", true);
+    const { error } = await admin.from("compliance_templates").update({ approved: true, approved_by: context.userId, approved_at: new Date().toISOString(), is_active: true }).eq("id", data.id);
+    if (error) throw new WorkflowError(error.message);
     return { ok: true };
   });

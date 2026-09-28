@@ -178,6 +178,103 @@ export type Database = {
           },
         ]
       }
+      assignment_variations: {
+        Row: {
+          assignment_id: string
+          id: string
+          ip_address: string | null
+          job_id: string
+          proposed_snapshot: Json
+          raised_at: string
+          raised_by: string | null
+          reasons: Json
+          reconfirmed_at: string | null
+          reconfirmed_by: string | null
+          resume_status: Database["public"]["Enums"]["assignment_status"]
+          signature_name: string | null
+          snapshot_sha256: string | null
+          status: string
+          user_agent: string | null
+        }
+        Insert: {
+          assignment_id: string
+          id?: string
+          ip_address?: string | null
+          job_id: string
+          proposed_snapshot: Json
+          raised_at?: string
+          raised_by?: string | null
+          reasons: Json
+          reconfirmed_at?: string | null
+          reconfirmed_by?: string | null
+          resume_status: Database["public"]["Enums"]["assignment_status"]
+          signature_name?: string | null
+          snapshot_sha256?: string | null
+          status?: string
+          user_agent?: string | null
+        }
+        Update: {
+          assignment_id?: string
+          id?: string
+          ip_address?: string | null
+          job_id?: string
+          proposed_snapshot?: Json
+          raised_at?: string
+          raised_by?: string | null
+          reasons?: Json
+          reconfirmed_at?: string | null
+          reconfirmed_by?: string | null
+          resume_status?: Database["public"]["Enums"]["assignment_status"]
+          signature_name?: string | null
+          snapshot_sha256?: string | null
+          status?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_variations_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "customer_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_variations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_variations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "assignment_variations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_variations_raised_by_fkey"
+            columns: ["raised_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_variations_reconfirmed_by_fkey"
+            columns: ["reconfirmed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           booked_by: string | null
@@ -499,6 +596,296 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compliance_templates: {
+        Row: {
+          approved: boolean
+          approved_at: string | null
+          approved_by: string | null
+          body: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          required: boolean
+          source_note: string | null
+          template_key: string
+          version: string
+        }
+        Insert: {
+          approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          body: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          required?: boolean
+          source_note?: string | null
+          template_key: string
+          version: string
+        }
+        Update: {
+          approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          required?: boolean
+          source_note?: string | null
+          template_key?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_templates_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_assignments: {
+        Row: {
+          ap_declaration_version: string | null
+          ap_details: Json
+          ap_legal_entity: string
+          assistance_requirement:
+            | Database["public"]["Enums"]["assistance_requirement"]
+            | null
+          cancel_reason: string | null
+          cancelled_at: string | null
+          completed_at: string | null
+          consumer_copy_path: string | null
+          consumer_declaration_version: string | null
+          consumer_ip: string | null
+          consumer_rights_version: string | null
+          consumer_signature_name: string | null
+          consumer_signed_at: string | null
+          consumer_signed_by: string | null
+          consumer_snapshot: Json | null
+          consumer_snapshot_sha256: string | null
+          consumer_user_agent: string | null
+          copy_sent_at: string | null
+          created_at: string
+          effective_at: string | null
+          final_copy_at: string | null
+          final_copy_path: string | null
+          final_customer_price_inc_gst: number | null
+          id: string
+          installed_area_m2: number | null
+          installed_product: string | null
+          installer_abn: string | null
+          installer_business_id: string | null
+          installer_business_name: string | null
+          installer_declaration_version: string | null
+          installer_ip: string | null
+          installer_licence: string | null
+          installer_name: string | null
+          installer_signature_name: string | null
+          installer_signed_at: string | null
+          installer_snapshot: Json | null
+          installer_snapshot_sha256: string | null
+          installer_user_agent: string | null
+          installer_user_id: string | null
+          job_id: string
+          price_before_benefit_inc_gst: number | null
+          quote_id: string
+          quote_version: number
+          quoted_area_m2: number | null
+          quoted_product: string | null
+          retain_until: string | null
+          signatory_authority_type: string | null
+          signatory_email: string | null
+          signatory_name: string | null
+          signatory_over_18: boolean | null
+          signatory_phone: string | null
+          status: Database["public"]["Enums"]["assignment_status"]
+          updated_at: string
+          variation_reasons: Json
+          veu_benefit_inc_gst: number | null
+        }
+        Insert: {
+          ap_declaration_version?: string | null
+          ap_details?: Json
+          ap_legal_entity: string
+          assistance_requirement?:
+            | Database["public"]["Enums"]["assistance_requirement"]
+            | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          consumer_copy_path?: string | null
+          consumer_declaration_version?: string | null
+          consumer_ip?: string | null
+          consumer_rights_version?: string | null
+          consumer_signature_name?: string | null
+          consumer_signed_at?: string | null
+          consumer_signed_by?: string | null
+          consumer_snapshot?: Json | null
+          consumer_snapshot_sha256?: string | null
+          consumer_user_agent?: string | null
+          copy_sent_at?: string | null
+          created_at?: string
+          effective_at?: string | null
+          final_copy_at?: string | null
+          final_copy_path?: string | null
+          final_customer_price_inc_gst?: number | null
+          id?: string
+          installed_area_m2?: number | null
+          installed_product?: string | null
+          installer_abn?: string | null
+          installer_business_id?: string | null
+          installer_business_name?: string | null
+          installer_declaration_version?: string | null
+          installer_ip?: string | null
+          installer_licence?: string | null
+          installer_name?: string | null
+          installer_signature_name?: string | null
+          installer_signed_at?: string | null
+          installer_snapshot?: Json | null
+          installer_snapshot_sha256?: string | null
+          installer_user_agent?: string | null
+          installer_user_id?: string | null
+          job_id: string
+          price_before_benefit_inc_gst?: number | null
+          quote_id: string
+          quote_version: number
+          quoted_area_m2?: number | null
+          quoted_product?: string | null
+          retain_until?: string | null
+          signatory_authority_type?: string | null
+          signatory_email?: string | null
+          signatory_name?: string | null
+          signatory_over_18?: boolean | null
+          signatory_phone?: string | null
+          status?: Database["public"]["Enums"]["assignment_status"]
+          updated_at?: string
+          variation_reasons?: Json
+          veu_benefit_inc_gst?: number | null
+        }
+        Update: {
+          ap_declaration_version?: string | null
+          ap_details?: Json
+          ap_legal_entity?: string
+          assistance_requirement?:
+            | Database["public"]["Enums"]["assistance_requirement"]
+            | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          consumer_copy_path?: string | null
+          consumer_declaration_version?: string | null
+          consumer_ip?: string | null
+          consumer_rights_version?: string | null
+          consumer_signature_name?: string | null
+          consumer_signed_at?: string | null
+          consumer_signed_by?: string | null
+          consumer_snapshot?: Json | null
+          consumer_snapshot_sha256?: string | null
+          consumer_user_agent?: string | null
+          copy_sent_at?: string | null
+          created_at?: string
+          effective_at?: string | null
+          final_copy_at?: string | null
+          final_copy_path?: string | null
+          final_customer_price_inc_gst?: number | null
+          id?: string
+          installed_area_m2?: number | null
+          installed_product?: string | null
+          installer_abn?: string | null
+          installer_business_id?: string | null
+          installer_business_name?: string | null
+          installer_declaration_version?: string | null
+          installer_ip?: string | null
+          installer_licence?: string | null
+          installer_name?: string | null
+          installer_signature_name?: string | null
+          installer_signed_at?: string | null
+          installer_snapshot?: Json | null
+          installer_snapshot_sha256?: string | null
+          installer_user_agent?: string | null
+          installer_user_id?: string | null
+          job_id?: string
+          price_before_benefit_inc_gst?: number | null
+          quote_id?: string
+          quote_version?: number
+          quoted_area_m2?: number | null
+          quoted_product?: string | null
+          retain_until?: string | null
+          signatory_authority_type?: string | null
+          signatory_email?: string | null
+          signatory_name?: string | null
+          signatory_over_18?: boolean | null
+          signatory_phone?: string | null
+          status?: Database["public"]["Enums"]["assignment_status"]
+          updated_at?: string
+          variation_reasons?: Json
+          veu_benefit_inc_gst?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_assignments_consumer_signed_by_fkey"
+            columns: ["consumer_signed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_assignments_installer_business_id_fkey"
+            columns: ["installer_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_assignments_installer_user_id_fkey"
+            columns: ["installer_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_assignments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_assignments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "customer_assignments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_assignments_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
             referencedColumns: ["id"]
           },
         ]
@@ -2944,6 +3331,14 @@ export type Database = {
         | "owner"
         | "property_manager"
       assignment_role: "electrician" | "installer" | "property_manager"
+      assignment_status:
+        | "draft"
+        | "consumer_signed_pending_install"
+        | "final_details_pending"
+        | "installer_signed_pending_install"
+        | "variation_required"
+        | "effective_complete"
+        | "cancelled"
       assistance_requirement:
         | "none"
         | "interpreter"
@@ -3166,6 +3561,15 @@ export const Constants = {
         "property_manager",
       ],
       assignment_role: ["electrician", "installer", "property_manager"],
+      assignment_status: [
+        "draft",
+        "consumer_signed_pending_install",
+        "final_details_pending",
+        "installer_signed_pending_install",
+        "variation_required",
+        "effective_complete",
+        "cancelled",
+      ],
       assistance_requirement: [
         "none",
         "interpreter",

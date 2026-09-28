@@ -9,7 +9,8 @@ import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, Section, use
 import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { MeasurementDetails, MeasurementForm, MeasurementReadOnly, useJobScope, useMeasurements } from "@/components/portal/requirements";
 import { useAction } from "@/hooks/use-me";
-import { addOtherRectItem, completeAssessment, completeInstallation, recordPiesa, removeRectItem, saveAssessment, submitDeclaration, submitForApReview } from "@/lib/portal.functions";
+import { InstallerFinalDeclaration } from "@/components/portal/assignment";
+import { addOtherRectItem, completeAssessment, completeInstallation, recordPiesa, removeRectItem, saveAssessment, submitForApReview } from "@/lib/portal.functions";
 import { aud } from "@/lib/workflow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -180,7 +181,6 @@ function PiesaForm({ jobId, kind, title }: { jobId: string; kind: "post_rectific
 // ---------- Installer ----------
 function InstallerFlow({ jobId, stage }: { jobId: string; stage: string }) {
   const done = useAction(completeInstallation);
-  const declare = useAction(submitDeclaration);
   const submit = useAction(submitForApReview);
   const { data: ms } = useMeasurements(jobId);
   const { data: scope } = useJobScope(jobId);
@@ -188,8 +188,6 @@ function InstallerFlow({ jobId, stage }: { jobId: string; stage: string }) {
   const m = ms?.current;
   const a = m?.status === "complete" ? { ...m, hazards: el?.hazards ?? null, downlights_qty: el?.downlights_qty ?? null } : null;
   const measuring = ["assessment_booking", "assessment_booked"].includes(stage) && !!scope?.installerTasks.includes("measure_up");
-  const { data: decl } = useQuery({ queryKey: ["decl", jobId], queryFn: async () => (await supabase.from("declarations").select("kind").eq("job_id", jobId)).data ?? [] });
-  const signed = decl?.some((d) => d.kind === "installer_declaration");
   return (
     <>
       {measuring && <MeasurementForm jobId={jobId} editable={["measured_area_m2", "insulation_present", "existing_r_value", "removal_required", "removal_m2", "access_difficulty"]} showComplete title="Your task: ceiling measure-up" />}
@@ -213,9 +211,7 @@ function InstallerFlow({ jobId, stage }: { jobId: string; stage: string }) {
       {stage === "installation_booked" && <Button size="field" className="w-full" onClick={() => done({ jobId }, "Installation complete")}><Check /> Installation complete</Button>}
       {stage === "evidence_outstanding" && (
         <Section title="Declaration & submit">
-          {signed ? <p className="mb-3 text-sm text-success">Installer declaration signed.</p> : (
-            <Button size="field" variant="outline" className="mb-3 w-full" onClick={() => declare({ jobId, kind: "installer_declaration", statement: "I declare the installation was completed in accordance with the VEU program requirements, product specifications and safety standards." }, "Declaration signed")}>Sign installer declaration</Button>
-          )}
+          <div className="mb-3"><InstallerFinalDeclaration jobId={jobId} /></div>
           <Button size="field" className="w-full" onClick={() => submit({ jobId }, "Submitted for review")}>Submit for HI VIC review</Button>
         </Section>
       )}

@@ -5,6 +5,7 @@ import { ArrowLeft, HeartPulse } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { AuthorityBadge, PaymentBadge, Pill, SourceBadge, StageBadge, UrgencyBadge } from "@/components/portal/badges";
+import { AdminAssignmentPanel, AssignmentStatusInline } from "@/components/portal/assignment";
 import { AdminAuthorityPanel, BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, PaymentsPanel, QuotesPanel, Section, TimelinePanel, useJob } from "@/components/portal/panels";
 import { MittiCard, PriceItemForm } from "@/components/portal/mitti";
 import { RequirementCards } from "@/components/portal/requirements";
@@ -60,7 +61,7 @@ function JobDetail() {
           <div className="lg:col-span-2"><RequirementCards jobId={jobId} isAdmin job={job} /></div>
           <Section title="Status summary">
             <dl className="grid grid-cols-2 gap-1 text-sm">
-              <dt className="text-muted-foreground">Owner Authority</dt><dd><AuthorityBadge status={job.authority_status} /> {job.authority_expires_at && <span className="text-xs">until {fmtDate(job.authority_expires_at)}</span>}</dd>
+              <dt className="text-muted-foreground">Acceptance / VEEC assignment</dt><dd><AssignmentStatusInline jobId={jobId} /></dd>
               <dt className="text-muted-foreground">Payment</dt><dd><PaymentBadge status={job.payment_status} /> {job.deposit_cleared ? <span className="text-xs text-success">deposit cleared</span> : <span className="text-xs text-danger">deposit not cleared</span>}</dd>
               <dt className="text-muted-foreground">PIESA</dt><dd>{job.piesa_date ? `${fmtDate(job.piesa_date)} → install by ${fmtDate(job.install_deadline)}` : "Not recorded"}</dd>
               <dt className="text-muted-foreground">Electrician</dt><dd>{job.electrician_name ?? "Unassigned"}</dd>
@@ -73,7 +74,7 @@ function JobDetail() {
           <HoldControls jobId={jobId} stage={job.stage!} />
         </TabsContent>
         <TabsContent value="eligibility"><EligibilityForm jobId={jobId} /></TabsContent>
-        <TabsContent value="authority"><AdminAuthorityPanel jobId={jobId} /></TabsContent>
+        <TabsContent value="authority" className="space-y-4"><AdminAssignmentPanel jobId={jobId} /><details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Legacy Owner Authority history (no longer a gate)</summary><div className="mt-3"><AdminAuthorityPanel jobId={jobId} /></div></details></TabsContent>
         <TabsContent value="assessment" className="space-y-4"><RequirementCards jobId={jobId} isAdmin job={job} /><BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /></TabsContent>
         <TabsContent value="piesa" className="space-y-4">
           <Section title="PIESA 30-day installation window">

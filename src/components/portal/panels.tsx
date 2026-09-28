@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { AcceptanceFlow } from "./assignment";
 import { AuthorityBadge, PaymentBadge, Pill } from "./badges";
 
 export function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
@@ -219,13 +220,15 @@ export function BookingPanel({ jobId, kind, canBook, isAdmin = false }: { jobId:
 // ---------------- Quotes (customer-facing) ----------------
 export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: boolean }) {
   const [consent, setConsent] = useState(false);
+  const [accepting, setAccepting] = useState<string | null>(null);
   const respond = useAction(respondToQuote);
   const { data } = useQuery({
     queryKey: ["quotes", jobId],
     queryFn: async () => (await supabase.from("quotes").select("*, quote_items(*)").eq("job_id", jobId).neq("status", "superseded").order("created_at")).data ?? [],
   });
   if (!data?.length) return <Section title="Quotes"><p className="text-sm text-muted-foreground">No quotes yet.</p></Section>;
-  const open = data.some((q) => q.status === "issued");
+  const open = data.some((q) => q.status === "issued" && q.kind === "rectification");
+  if (accepting) return <AcceptanceFlow quoteId={accepting} onClose={() => setAccepting(null)} />;
   return (
     <Section title="Quotes (all prices inc GST)">
       <div className="grid gap-3 md:grid-cols-3">
@@ -242,7 +245,9 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
             <div className="text-xs text-muted-foreground">{q.kind === "rectification" ? "Scope approval – included in your final installation quote (no payment yet)" : `50% deposit ${aud(Number(q.customer_total_inc_gst) / 2)} due on acceptance · balance on installation day`}</div>
             {canRespond && q.status === "issued" && (
               <div className="mt-3 flex gap-2">
-                <Button size="field" className="flex-1" disabled={!consent} onClick={() => respond({ quoteId: q.id, accept: true, consent }, "Accepted – deposit invoice on its way")}>Accept</Button>
+                {q.kind === "installation"
+                  ? <Button size="field" className="flex-1" onClick={() => setAccepting(q.id)}>Review & accept</Button>
+                  : <Button size="field" className="flex-1" disabled={!consent} onClick={() => respond({ quoteId: q.id, accept: true, consent }, "Scope approved")}>Approve scope</Button>}
                 {q.kind === "rectification" && <Button size="field" variant="outline" onClick={() => respond({ quoteId: q.id, accept: false }, "Declined")}>Decline</Button>}
               </div>
             )}
@@ -250,7 +255,7 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
         ))}
       </div>
       {canRespond && open && (
-        <label className="mt-3 flex items-start gap-2 text-sm"><Checkbox checked={consent} onCheckedChange={(v) => setConsent(!!v)} className="mt-0.5" /> I have reviewed these prices (inc GST). For the final installation quote, I understand a Xero invoice is issued with a 50% deposit due immediately and the balance due on installation day, and that no work can be scheduled until the deposit is paid.</label>
+        <label className="mt-3 flex items-start gap-2 text-sm"><Checkbox checked={consent} onCheckedChange={(v) => setConsent(!!v)} className="mt-0.5" /> I have reviewed the rectification scope and prices (inc GST). Nothing is payable yet – these lines are included in my final installation quote.</label>
       )}
     </Section>
   );
