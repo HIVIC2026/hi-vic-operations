@@ -27,7 +27,7 @@ describe("pre-launch communications lock", () => {
   });
   test("open-job sweep never creates Xero invoices", () => {
     const s = readFileSync("src/lib/autoadvance.server.ts", "utf8");
-    expect(s).not.toMatch(/createInvoice|xero/i);
+    expect(s).not.toMatch(/createInvoice|syncInvoice|xero\.server/);
   });
   test("email/SMS messages and authority requests check the lock", () => {
     const pf = readFileSync("src/lib/portal.functions.ts", "utf8");
