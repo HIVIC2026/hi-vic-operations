@@ -23,8 +23,8 @@ export function useMittiState(jobId: string) {
 }
 
 function status(a: { external_mitti_id: string | null; mitti_sync_status: string; mitti_completed: boolean; mitti_last_error: string | null; mitti_synced_at: string | null; mitti_modified_at: string | null } | null) {
+  if (a?.mitti_sync_status === "error" || a?.mitti_last_error) return ["Error", "bad"] as const;
   if (!a?.external_mitti_id) return ["Not created", "neutral"] as const;
-  if (a.mitti_sync_status === "error" || a.mitti_last_error) return ["Error", "bad"] as const;
   if (a.mitti_sync_status === "synced") return ["Synced", "good"] as const;
   if (a.mitti_modified_at || a.mitti_synced_at) return ["Waiting for Mitti completion", "warn"] as const;
   return ["Assigned", "warn"] as const;

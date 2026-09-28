@@ -22,8 +22,13 @@ export const realMittiCall: MittiCall = async (method, path, body) => {
     throw new MittiError("Mitti could not be reached. Try again shortly.");
   }
   if (!res.ok) {
-    console.error(`[mitti] ${method} ${path.split("/")[1]} -> ${res.status}`); // no token, no PII
-    throw new MittiError(res.status === 401 || res.status === 403 ? "Mitti rejected the API token." : res.status === 404 ? "Mitti record not found." : `Mitti request failed (${res.status}).`);
+    const detail = (await res.text().catch(() => "")).replace(/[\w.+-]+@[\w.-]+/g, "[email]").slice(0, 300);
+    console.error(`[mitti] ${method} ${path.split("/")[1]} -> ${res.status} ${detail}`); // no token, no PII
+    throw new MittiError(
+      res.status === 401 || res.status === 403 ? "Mitti rejected the API token."
+      : res.status === 404 ? "Mitti record not found."
+      : res.status === 400 ? "Mitti rejected the request (400) – check the assigned user's email is a real address registered in your Mitti account."
+      : `Mitti request failed (${res.status}).`);
   }
   const t = await res.text();
   return t ? JSON.parse(t) : {};
@@ -74,7 +79,11 @@ export async function createAssignMittiAudit(jobId: string, actorId: string, cal
       },
     });
   } catch (e) {
-    if (a && !measureOnly) await admin.from("assessments").update({ mitti_last_error: e instanceof Error ? e.message : "Mitti error" }).eq("id", a.id);
+    const msg = e instanceof Error ? e.message : "Mitti error";
+    if (!measureOnly) {
+      if (a) await admin.from("assessments").update({ mitti_last_error: msg }).eq("id", a.id);
+      else await admin.from("assessments").insert({ job_id: jobId, assessor_id: asg.user_id, mitti_last_error: msg, mitti_sync_status: "error", mitti_scope: scope.scope });
+    }
     throw wrap(e);
   }
   const now = new Date().toISOString();
