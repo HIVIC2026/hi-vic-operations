@@ -2,31 +2,30 @@
 // delegates to the central workflow/quote modules which write with the service role.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { withRequestMeta } from "./request-meta";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { WorkflowError, logEvent, nextStepBlockers, piesaStatus, requireAdmin, requireJobRole, transition, getStage } from "./workflow.server";
+import { WorkflowError, logEvent, nextStepBlockers, stageEntryBlockers, piesaStatus, requireAdmin, requireJobRole, transition, getStage } from "./workflow.server";
 import { adjustQuote as adjustQuoteImpl, deriveRectificationItems, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { STAGE_LABEL, type Stage } from "./workflow";
 import { applyPaidAmount, createInvoiceForQuote, pushInvoiceToXero, syncInvoiceFromXero } from "./xero.server";
 import { AUTHORITY_BLOCKER, depositCleared } from "./workflow.server";
 import { acceptAuthority, authorityValid, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
-import { getRequest } from "@tanstack/react-start/server";
 
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
 
 const uuid = z.string().uuid();
-const auth = () => createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]);
 
 // ---------- Gate 1 ----------
-export const createEnquiry = auth()
+export const createEnquiry = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => enquirySchema.parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     return upsertEnquiry(data, "portal", context.userId);
   });
 
-export const setEligibility = auth()
+export const setEligibility = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) =>
     z.object({ jobId: uuid, outcome: z.enum(["likely_eligible", "needs_onsite_confirmation", "does_not_appear_eligible"]), reason: z.string().trim().min(3).max(2000), nextAction: z.string().trim().min(2).max(300) }).parse(d),
   )
@@ -47,7 +46,7 @@ export const setEligibility = auth()
   });
 
 // ---------- Assignments / users ----------
-export const assignContractor = auth()
+export const assignContractor = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, userId: uuid, role: z.enum(["electrician", "installer"]) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -63,7 +62,7 @@ export const assignContractor = auth()
     return { ok: true };
   });
 
-export const setUserRole = auth()
+export const setUserRole = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ userId: uuid, role: z.enum(["admin", "electrician", "installer", "owner", "property_manager"]), grant: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -73,7 +72,7 @@ export const setUserRole = auth()
     return { ok: true };
   });
 
-export const setUserBusiness = auth()
+export const setUserBusiness = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ userId: uuid, businessId: uuid.nullable() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -105,7 +104,7 @@ const assessmentPatch = z.object({
   external_mitti_id: z.string().max(100).nullable(),
 }).partial();
 
-export const saveAssessment = auth()
+export const saveAssessment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, patch: assessmentPatch }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
@@ -116,7 +115,7 @@ export const saveAssessment = auth()
     return { ok: true, savedAt: new Date().toISOString() };
   });
 
-export const addOtherRectItem = auth()
+export const addOtherRectItem = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, description: z.string().trim().min(2).max(300), quantity: z.number().positive().max(1000), unitPriceIncGst: z.number().min(0).max(100000), explanation: z.string().trim().min(5).max(2000) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
@@ -129,7 +128,7 @@ export const addOtherRectItem = auth()
     return { ok: true };
   });
 
-export const removeRectItem = auth()
+export const removeRectItem = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ itemId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: it } = await admin.from("rectification_items").select("job_id,is_other,description").eq("id", data.itemId).single();
@@ -141,7 +140,7 @@ export const removeRectItem = auth()
     return { ok: true };
   });
 
-export const completeAssessment = auth()
+export const completeAssessment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
@@ -160,8 +159,11 @@ export const completeAssessment = auth()
     if (a.piesa_outcome === "pending") missing.push("PIESA outcome");
     if (!a.assessed_on) missing.push("assessment date");
     if (missing.length) throw new WorkflowError(`Still needed: ${missing.join(", ")}`);
-    const { data: ev } = await admin.from("evidence_requirements").select("label,status").eq("job_id", data.jobId).eq("gate", "assessment").eq("required", true);
-    const evMissing = (ev ?? []).filter((e) => !["uploaded", "verified"].includes(e.status)).map((e) => e.label);
+    const { data: ev } = await admin.from("evidence_requirements").select("label,status,gate,category").eq("job_id", data.jobId).eq("required", true);
+    // Assessment evidence always; the PIESA sign-off too when PIESA passed on this visit (no second electrician trip).
+    const evMissing = (ev ?? [])
+      .filter((e) => e.gate === "assessment" || (a.piesa_outcome === "pass" && e.category === "piesa_signoff"))
+      .filter((e) => !["uploaded", "verified"].includes(e.status)).map((e) => e.label);
     if (evMissing.length) throw new WorkflowError(`Upload evidence first: ${evMissing.join(", ")}`);
 
     const stage = await getStage(data.jobId);
@@ -188,7 +190,7 @@ export const completeAssessment = auth()
   });
 
 /** Rectification complete + new PIESA; also the reassessment path when the 30-day window expired. */
-export const recordPiesa = auth()
+export const recordPiesa = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["post_rectification", "reassessment"]), outcome: z.enum(["pass", "fail"]), completedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), notes: z.string().max(2000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
@@ -198,6 +200,10 @@ export const recordPiesa = auth()
       if (stage !== "rectification_booked") throw new WorkflowError("Rectification must be booked first.");
       const { data: ev } = await admin.from("evidence_requirements").select("status").eq("job_id", data.jobId).eq("category", "rectification_completion").single();
       if (ev && !["uploaded", "verified"].includes(ev.status)) throw new WorkflowError("Upload rectification completion evidence first.");
+      if (data.outcome === "pass") {
+        const { data: ps } = await admin.from("evidence_requirements").select("status").eq("job_id", data.jobId).eq("category", "piesa_signoff").single();
+        if (ps && !["uploaded", "verified"].includes(ps.status)) throw new WorkflowError("Upload the PIESA / electrical safety sign-off first.");
+      }
       await admin.from("rectification_items").update({ status: "completed" }).eq("job_id", data.jobId).eq("status", "required");
     } else {
       const p = await piesaStatus(data.jobId);
@@ -215,18 +221,21 @@ export const recordPiesa = auth()
   });
 
 // ---------- Gate 3: quotes ----------
-export const generateInstallerQuotes = auth()
+export const generateInstallerQuotes = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const stage = await getStage(data.jobId);
     if (!["ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(stage)) throw new WorkflowError("Quotes can only be generated once the job is Ready for Installer Quotes.");
+    // Check the gates BEFORE issuing quotes so none are issued to the owner while the job is blocked.
+    const pre = (await stageEntryBlockers(data.jobId, "awaiting_quote_acceptance")).filter((b) => b !== "No installation quotes issued.");
+    if (pre.length) throw new WorkflowError(`Blocked: ${pre.join(" • ")}`);
     await genInstaller(data.jobId, context.userId);
     if (stage === "ready_for_installer_quotes") await transition(data.jobId, "awaiting_quote_acceptance", context.userId, "Installation quotes issued to owner");
     return { ok: true };
   });
 
-export const regenerateRectificationQuote = auth()
+export const regenerateRectificationQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -236,7 +245,7 @@ export const regenerateRectificationQuote = auth()
     return { ok: true };
   });
 
-export const adjustQuote = auth()
+export const adjustQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ quoteId: uuid, reason: z.string().trim().min(5).max(1000), items: z.array(z.object({ id: uuid, quantity: z.number().min(0), unit_price_inc_gst: z.number().min(0) })), veecDiscount: z.number().min(0).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -244,7 +253,7 @@ export const adjustQuote = auth()
     return { ok: true };
   });
 
-export const respondToQuote = auth()
+export const respondToQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ quoteId: uuid, accept: z.boolean(), consent: z.boolean().optional(), reason: z.string().max(1000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: q } = await admin.from("quotes").select("*").eq("id", data.quoteId).single();
@@ -261,6 +270,12 @@ export const respondToQuote = auth()
       return { ok: true };
     }
     if (!(await authorityValid(q.job_id))) throw new WorkflowError(`${AUTHORITY_BLOCKER} before accepting quotes.`);
+    // All gates are checked BEFORE the quote is marked accepted, so a blocked acceptance leaves nothing half-done.
+    if (q.kind === "installation") {
+      const p = await piesaStatus(q.job_id);
+      const { count: rect } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("status", "required");
+      if (!rect && p?.piesa_expired) throw new WorkflowError("The electrical safety assessment has expired. HI VIC will arrange a reassessment.");
+    }
     await admin.from("quotes").update({ status: "accepted", accepted_at: new Date().toISOString(), accepted_by: context.userId }).eq("id", q.id);
     await admin.from("quotes").update({ status: "superseded" }).eq("job_id", q.job_id).eq("kind", q.kind).eq("status", "issued");
 
@@ -273,9 +288,6 @@ export const respondToQuote = auth()
       return { ok: true };
     }
 
-    const p = await piesaStatus(q.job_id);
-    const { count: rect } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("status", "required");
-    if (!rect && p?.piesa_expired) throw new WorkflowError("The electrical safety assessment has expired. HI VIC will arrange a reassessment.");
     await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): 50% deposit due now, balance due on installation day.` }, { onConflict: "job_id,kind" });
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", q.job_id).eq("check_key", "owner_consent");
     await logEvent(q.job_id, context.userId, "quote_accepted", `${q.option_label} accepted`, { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst });
@@ -299,7 +311,7 @@ async function advanceAfterDeposit(jobId: string, actorId: string) {
   }
 }
 
-export const syncInvoice = auth()
+export const syncInvoice = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ invoiceId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -309,7 +321,7 @@ export const syncInvoice = auth()
     return { ok: true };
   });
 
-export const retryXeroPush = auth()
+export const retryXeroPush = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ invoiceId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -318,7 +330,7 @@ export const retryXeroPush = auth()
   });
 
 /** Admin override of the deposit gate – reason required, permanently audited. */
-export const overrideDepositGate = auth()
+export const overrideDepositGate = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ invoiceId: uuid, reason: z.string().trim().min(5).max(1000) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -333,7 +345,7 @@ export const overrideDepositGate = auth()
   });
 
 /** Dev/testing only until Xero is connected: simulate a payment arriving from Xero. */
-export const simulateXeroPayment = auth()
+export const simulateXeroPayment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ invoiceId: uuid, amountPaid: z.number().min(0) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -347,7 +359,7 @@ export const simulateXeroPayment = auth()
   });
 
 // ---------- Gate 4: bookings ----------
-export const createBooking = auth()
+export const createBooking = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["assessment", "rectification", "installation"]), start: z.string().datetime({ offset: true }), notes: z.string().max(1000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const need = data.kind === "installation" ? "installer" : "electrician";
@@ -364,6 +376,7 @@ export const createBooking = auth()
     if (!contractor) throw new WorkflowError(`No ${need} assigned yet.`);
     if (data.kind === "installation") {
       const p = await piesaStatus(data.jobId);
+      if (p?.piesa_expired) throw new WorkflowError(`Blocked: PIESA 30-day window expired on ${p.install_deadline}. Electrician must record a reassessment first.`);
       if (p?.install_deadline && data.start.slice(0, 10) > p.install_deadline)
         throw new WorkflowError(`Installation must be before the PIESA deadline (${p.install_deadline}).`);
     }
@@ -386,7 +399,7 @@ export const createBooking = auth()
   });
 
 // ---------- Gate 5: installation & evidence ----------
-export const completeInstallation = auth()
+export const completeInstallation = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
@@ -396,7 +409,7 @@ export const completeInstallation = auth()
     return { ok: true };
   });
 
-export const submitDeclaration = auth()
+export const submitDeclaration = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["installer_declaration", "electrician_declaration"]), statement: z.string().trim().min(10).max(4000) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", data.kind === "installer_declaration" ? "installer" : "electrician"]);
@@ -405,7 +418,7 @@ export const submitDeclaration = auth()
     return { ok: true };
   });
 
-export const submitForApReview = auth()
+export const submitForApReview = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
@@ -421,7 +434,7 @@ async function requirementWithAccess(sb: Parameters<typeof requireJobRole>[0], r
   return req;
 }
 
-export const requestEvidenceUpload = auth()
+export const requestEvidenceUpload = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ requirementId: uuid, fileName: z.string().min(1).max(200), mimeType: z.string().max(100) }).parse(d))
   .handler(async ({ data, context }) => {
     const req = await requirementWithAccess(context.supabase, data.requirementId);
@@ -433,7 +446,7 @@ export const requestEvidenceUpload = auth()
     return { path, token: signed.token };
   });
 
-export const confirmEvidenceUpload = auth()
+export const confirmEvidenceUpload = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ requirementId: uuid, path: z.string().min(5).max(500), fileName: z.string().max(200), mimeType: z.string().max(100), size: z.number().int().min(0) }).parse(d))
   .handler(async ({ data, context }) => {
     const req = await requirementWithAccess(context.supabase, data.requirementId);
@@ -444,7 +457,7 @@ export const confirmEvidenceUpload = auth()
     return { ok: true };
   });
 
-export const getEvidenceUrl = auth()
+export const getEvidenceUrl = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ fileId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     // RLS-checked read proves the caller may see this file
@@ -455,7 +468,7 @@ export const getEvidenceUrl = auth()
     return { url: s.signedUrl };
   });
 
-export const verifyEvidence = auth()
+export const verifyEvidence = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ requirementId: uuid, status: z.enum(["verified", "rejected", "not_required", "outstanding"]), notes: z.string().max(2000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -467,7 +480,7 @@ export const verifyEvidence = auth()
   });
 
 // ---------- Gate 6: compliance & VEEC ----------
-export const runComplianceReview = auth()
+export const runComplianceReview = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -492,7 +505,7 @@ export const runComplianceReview = auth()
     return { ok: true };
   });
 
-export const setComplianceCheck = auth()
+export const setComplianceCheck = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ checkId: uuid, status: z.enum(["pending", "pass", "fail"]), notes: z.string().max(2000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -501,7 +514,7 @@ export const setComplianceCheck = auth()
     return { ok: true };
   });
 
-export const markReadyForVeec = auth()
+export const markReadyForVeec = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -509,11 +522,13 @@ export const markReadyForVeec = auth()
     return { ok: true };
   });
 
-export const updateVeec = auth()
+export const updateVeec = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, quantity: z.number().min(0).nullable(), status: z.enum(["not_submitted", "submitted", "approved", "rejected"]), submission_reference: z.string().max(100).nullable(), submitted_date: z.string().nullable(), notes: z.string().max(2000).nullable() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { jobId, ...rest } = data;
+    if (["submitted", "approved"].includes(data.status) && !["ready_for_veec", "complete"].includes(await getStage(jobId)))
+      throw new WorkflowError("VEEC can only be lodged once the job is Ready for VEEC.");
     await admin.from("veec_lodgements").update({ ...rest, updated_at: new Date().toISOString() }).eq("job_id", jobId);
     await logEvent(jobId, context.userId, "veec_updated", `VEEC lodgement ${data.status.replace("_", " ")}`, rest, { internal: true });
     if (["submitted", "approved"].includes(data.status) && (await getStage(jobId)) === "ready_for_veec")
@@ -522,7 +537,7 @@ export const updateVeec = auth()
   });
 
 // ---------- Comms / exceptions ----------
-export const sendMessage = auth()
+export const sendMessage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, body: z.string().trim().min(1).max(4000), internal: z.boolean().optional(), channel: z.enum(["portal", "phone", "sms", "email"]).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer", "owner"]);
@@ -531,7 +546,7 @@ export const sendMessage = auth()
     return { ok: true };
   });
 
-export const requestReassignment = auth()
+export const requestReassignment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, role: z.enum(["electrician", "installer"]), reason: z.string().trim().min(5).max(2000) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["owner", "admin"]);
@@ -541,7 +556,7 @@ export const requestReassignment = auth()
     return { ok: true };
   });
 
-export const setHold = auth()
+export const setHold = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, action: z.enum(["hold", "resume", "cancel"]), reason: z.string().trim().max(1000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -560,7 +575,7 @@ export const setHold = auth()
     return { ok: true };
   });
 
-export const getJobBlockers = auth()
+export const getJobBlockers = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer", "owner"]);
@@ -574,7 +589,7 @@ async function authorityJob(id: string) {
   return data.job_id;
 }
 
-export const requestOwnerAuthority = auth()
+export const requestOwnerAuthority = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, reason: z.enum(["initial", "renewal", "resend"]) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -582,7 +597,7 @@ export const requestOwnerAuthority = auth()
     return { ok: true };
   });
 
-export const revokeOwnerAuthority = auth()
+export const revokeOwnerAuthority = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ authorityId: uuid, reason: z.string().trim().min(5).max(1000) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["admin", "owner"]);
@@ -590,7 +605,7 @@ export const revokeOwnerAuthority = auth()
     return { ok: true };
   });
 
-export const viewOwnerAuthority = auth()
+export const viewOwnerAuthority = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ authorityId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["owner", "admin"]);
@@ -598,18 +613,17 @@ export const viewOwnerAuthority = auth()
     return { ok: true };
   });
 
-export const acceptOwnerAuthority = auth()
+export const acceptOwnerAuthority = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
   .inputValidator((d) => z.object({ authorityId: uuid, over18: z.literal(true), authorised: z.literal(true), assistance: z.enum(["none", "interpreter", "support_understanding", "both"]), signatureName: z.string().trim().min(2).max(200) }).parse(d))
   .handler(async ({ data, context }) => {
     // Only the owner themself may give authority.
     await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["owner"]);
-    const req = getRequest();
-    const ip = req.headers.get("cf-connecting-ip") ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-    await acceptAuthority({ authorityId: data.authorityId, actorId: context.userId, over18: data.over18, authorised: data.authorised, assistance: data.assistance, signatureName: data.signatureName, ip, userAgent: req.headers.get("user-agent") });
+    const { ip, userAgent } = context;
+    await acceptAuthority({ authorityId: data.authorityId, actorId: context.userId, over18: data.over18, authorised: data.authorised, assistance: data.assistance, signatureName: data.signatureName, ip, userAgent });
     return { ok: true };
   });
 
-export const declineOwnerAuthority = auth()
+export const declineOwnerAuthority = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ authorityId: uuid, reason: z.string().trim().min(2).max(1000) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["owner"]);
@@ -617,7 +631,7 @@ export const declineOwnerAuthority = auth()
     return { ok: true };
   });
 
-export const getAuthorityDocUrl = auth()
+export const getAuthorityDocUrl = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ authorityId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: a } = await context.supabase.from("owner_authorities").select("document_path").eq("id", data.authorityId).maybeSingle();
@@ -628,7 +642,7 @@ export const getAuthorityDocUrl = auth()
   });
 
 /** Admin: mark expired authorities across all jobs (audited). */
-export const sweepAuthorities = auth().handler(async ({ context }) => {
+export const sweepAuthorities = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
   const { data } = await admin.from("owner_authorities").select("job_id").eq("status", "accepted").lt("expires_at", new Date().toISOString());
   for (const j of new Set((data ?? []).map((r) => r.job_id))) await sweepAuthorityExpiry(j);
@@ -636,7 +650,7 @@ export const sweepAuthorities = auth().handler(async ({ context }) => {
 });
 
 /** Admin-only internal Xero identifiers and sync state (hidden from owners/trades at column level). */
-export const getInvoiceInternals = auth()
+export const getInvoiceInternals = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);

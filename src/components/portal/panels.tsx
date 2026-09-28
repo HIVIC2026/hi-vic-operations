@@ -93,7 +93,9 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
   const onFile = async (f: File) => {
     setBusy(true);
     try {
-      const { path, token } = await reqUpload({ requirementId: req.id, fileName: f.name, mimeType: f.type || "application/octet-stream" });
+      const up = await reqUpload({ requirementId: req.id, fileName: f.name, mimeType: f.type || "application/octet-stream" });
+      if (!up) return;
+      const { path, token } = up;
       const { error } = await supabase.storage.from("job-files").uploadToSignedUrl(path, token, f, { contentType: f.type });
       if (error) throw error;
       await confirm({ requirementId: req.id, path, fileName: f.name, mimeType: f.type, size: f.size }, "Uploaded");

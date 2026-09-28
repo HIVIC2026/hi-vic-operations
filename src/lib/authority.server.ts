@@ -3,6 +3,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { AP_LEGAL_ENTITY, AUTHORITY_SCOPE, AUTHORITY_WORDING_VERSION, authorityWording } from "./authority";
 import { WorkflowError, logEvent } from "./workflow.server";
 
+
 async function linkEvent(authorityId: string, jobId: string) {
   const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).single();
   const { data: a } = await admin.from("owner_authorities").select("event_ids").eq("id", authorityId).single();

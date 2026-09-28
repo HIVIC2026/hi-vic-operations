@@ -19,3 +19,5 @@
 - Internal pricing (cost/margin/fee) lives only in admin-only `quote_internals`; customer-facing prices in `quote_items` are inc GST. Why: never expose margins.
 - Evidence files live in the private `job-files` bucket, accessed only via server-issued signed URLs. Why: no public evidence URLs.
 - See `docs/PORTAL.md` for workflow and the security test matrix.
+- Write every server function as a literal `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chain; never wrap `createServerFn` in a helper factory. Why: the compiler only turns literal chains into server calls — a factory made handlers run in the browser.
+- Never import `@tanstack/react-start/server` in `*.functions.ts` or modules they import; read request data via a `createMiddleware().server()` (see `request-meta.ts`). Why: that import is denied in the browser bundle and crashes every page.

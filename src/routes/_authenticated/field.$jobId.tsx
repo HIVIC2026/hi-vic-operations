@@ -59,6 +59,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
     setF((p) => ({ ...p, [k]: v }));
     if (locked) return;
     const r = await save({ jobId, patch: { [k]: v } as never });
+    if (!r) return;
     setSaved(new Date(r.savedAt).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" }));
   };
   const num = (k: string) => (e: React.FocusEvent<HTMLInputElement>) => put(k, e.target.value === "" ? null : Number(e.target.value));
@@ -76,8 +77,15 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
   return (
     <>
       {["assessment_booking", "assessment_booked"].includes(stage) && <BookingPanel jobId={jobId} kind="assessment" canBook />}
+      {["rectification_scheduling", "rectification_booked", "awaiting_deposit_payment"].includes(stage) && (
+        stage === "awaiting_deposit_payment" ? <Section title="Rectification booking"><p className="text-sm font-medium text-danger">Locked – awaiting owner's 50% deposit. Booking details will appear here once paid.</p></Section> : <BookingPanel jobId={jobId} kind="rectification" canBook />
+      )}
+      {stage === "rectification_booked" && <PiesaForm jobId={jobId} kind="post_rectification" title="Rectification complete – record PIESA sign-off" />}
+      {expired && <PiesaForm jobId={jobId} kind="reassessment" title="PIESA window expired – record reassessment" />}
       {(assessing || locked) && (
-        <>
+        <details open={!locked} className="group">
+          <summary className={locked ? "mb-2 cursor-pointer list-none rounded-md border bg-card px-4 py-3 text-sm font-medium" : "hidden"}>Assessment (complete – locked) · tap to view</summary>
+          <div className="space-y-4">
           <div className="text-right text-xs text-muted-foreground">{locked ? "Assessment complete – locked" : saved ? `Autosaved ${saved}` : "Changes save automatically"}</div>
           <Section title="1 · Ceiling measure-up">
             <div className="grid gap-3">
@@ -114,13 +122,9 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
           <EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} />
           <OtherItems jobId={jobId} editable={!locked || stage === "awaiting_owner_rectification_approval"} />
           {!locked && <Button size="field" className="w-full" onClick={() => complete({ jobId }, "Assessment complete")}><Check /> Complete assessment</Button>}
-        </>
+          </div>
+        </details>
       )}
-      {["rectification_scheduling", "rectification_booked", "awaiting_deposit_payment"].includes(stage) && (
-        stage === "awaiting_deposit_payment" ? <Section title="Rectification booking"><p className="text-sm font-medium text-danger">Locked – awaiting owner's 50% deposit. Booking details will appear here once paid.</p></Section> : <BookingPanel jobId={jobId} kind="rectification" canBook />
-      )}
-      {stage === "rectification_booked" && <PiesaForm jobId={jobId} kind="post_rectification" title="Rectification complete – record PIESA sign-off" />}
-      {expired && <PiesaForm jobId={jobId} kind="reassessment" title="PIESA window expired – record reassessment" />}
     </>
   );
 }
