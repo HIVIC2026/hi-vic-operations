@@ -1642,6 +1642,103 @@ export type Database = {
           },
         ]
       }
+      job_communications: {
+        Row: {
+          attachment_refs: Json
+          body: string
+          channel: string
+          created_at: string
+          created_by: string | null
+          delivery_status: string
+          direction: string
+          id: string
+          job_id: string
+          provider: string
+          provider_message_id: string | null
+          provider_thread_id: string | null
+          received_at: string | null
+          recipients: Json
+          sender_text: string | null
+          sender_user_id: string | null
+          sent_at: string | null
+          source_event: string | null
+          source_reference: string | null
+          subject: string | null
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          attachment_refs?: Json
+          body?: string
+          channel: string
+          created_at?: string
+          created_by?: string | null
+          delivery_status?: string
+          direction: string
+          id?: string
+          job_id: string
+          provider?: string
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
+          received_at?: string | null
+          recipients?: Json
+          sender_text?: string | null
+          sender_user_id?: string | null
+          sent_at?: string | null
+          source_event?: string | null
+          source_reference?: string | null
+          subject?: string | null
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          attachment_refs?: Json
+          body?: string
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          delivery_status?: string
+          direction?: string
+          id?: string
+          job_id?: string
+          provider?: string
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
+          received_at?: string | null
+          recipients?: Json
+          sender_text?: string | null
+          sender_user_id?: string | null
+          sent_at?: string | null
+          source_event?: string | null
+          source_reference?: string | null
+          subject?: string | null
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_communications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_communications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_communications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           business_unit: string
