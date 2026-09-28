@@ -21,3 +21,4 @@
 - See `docs/PORTAL.md` for workflow and the security test matrix.
 - Write every server function as a literal `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chain; never wrap `createServerFn` in a helper factory. Why: the compiler only turns literal chains into server calls — a factory made handlers run in the browser.
 - Never import `@tanstack/react-start/server` in `*.functions.ts` or modules they import; read request data via a `createMiddleware().server()` (see `request-meta.ts`). Why: that import is denied in the browser bundle and crashes every page.
+- Job source lives in `jobs.channel` (+ originating installer business/user), made permanent by the `guard_job_source` trigger; installer-sourced jobs get one quote from the assigned installer and stay payment-gated via `commercialBlocker` until `commercial_model = hivic_invoices_owner`. Why: attribution is audit evidence; installer invoicing isn't defined yet.
