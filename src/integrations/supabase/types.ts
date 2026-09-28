@@ -2750,6 +2750,7 @@ export type Database = {
           piesa_expired: boolean | null
           property_address: string | null
           property_id: string | null
+          source: string | null
           stage: Database["public"]["Enums"]["job_stage"] | null
           urgency: string | null
         }
