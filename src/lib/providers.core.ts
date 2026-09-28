@@ -57,7 +57,7 @@ export function solarMatches(s: SolarInsights, point: [number, number] | null, t
   return { ok: true, reason: "Building centre and bounding box consistent with address", distance_m: d };
 }
 
-export function roofFormFromSegments(segs: { pitchDegrees?: number; groundAreaM2: number }[], t = PROVIDER_THRESHOLDS): "pitched" | "low_slope_flat" | "mixed" | "unknown" {
+export function roofFormFromSegments(segs: { pitchDegrees?: number | undefined; groundAreaM2: number }[], t = PROVIDER_THRESHOLDS): "pitched" | "low_slope_flat" | "mixed" | "unknown" {
   const valid = segs.filter((s) => typeof s.pitchDegrees === "number" && s.groundAreaM2 > 0);
   const total = valid.reduce((a, s) => a + s.groundAreaM2, 0);
   if (!total) return "unknown";
