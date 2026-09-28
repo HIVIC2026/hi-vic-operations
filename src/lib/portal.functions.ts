@@ -270,6 +270,12 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
       return { ok: true };
     }
     if (!(await authorityValid(q.job_id))) throw new WorkflowError(`${AUTHORITY_BLOCKER} before accepting quotes.`);
+    // All gates are checked BEFORE the quote is marked accepted, so a blocked acceptance leaves nothing half-done.
+    if (q.kind === "installation") {
+      const p = await piesaStatus(q.job_id);
+      const { count: rect } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("status", "required");
+      if (!rect && p?.piesa_expired) throw new WorkflowError("The electrical safety assessment has expired. HI VIC will arrange a reassessment.");
+    }
     await admin.from("quotes").update({ status: "accepted", accepted_at: new Date().toISOString(), accepted_by: context.userId }).eq("id", q.id);
     await admin.from("quotes").update({ status: "superseded" }).eq("job_id", q.job_id).eq("kind", q.kind).eq("status", "issued");
 
@@ -282,9 +288,6 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
       return { ok: true };
     }
 
-    const p = await piesaStatus(q.job_id);
-    const { count: rect } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("status", "required");
-    if (!rect && p?.piesa_expired) throw new WorkflowError("The electrical safety assessment has expired. HI VIC will arrange a reassessment.");
     await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): 50% deposit due now, balance due on installation day.` }, { onConflict: "job_id,kind" });
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", q.job_id).eq("check_key", "owner_consent");
     await logEvent(q.job_id, context.userId, "quote_accepted", `${q.option_label} accepted`, { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst });
