@@ -22,12 +22,12 @@ describe("pre-launch communications lock", () => {
     expect(code).not.toMatch(/resend|sendgrid|twilio|nodemailer|sendEmail|sendSms|send_transactional|\/functions\/v1\/send/i);
   });
   test("autoAdvanceJob graph has no Xero or Mitti external calls", () => {
-    expect(files.some((f) => /xero\.server|mitti\.server|esc\.server/.test(f) && !/intelligence|esc\.server/.test(f))).toBe(false);
+    expect(files.filter((f) => /xero\.server|mitti\.server/.test(f))).toEqual([]);
     expect(code).not.toMatch(/connector-gateway\.lovable\.dev|api\.mitti\.com|createInvoiceForQuote|syncInvoiceFromXero/);
   });
   test("open-job sweep never creates Xero invoices", () => {
     const s = readFileSync("src/lib/autoadvance.server.ts", "utf8");
-    expect(s).not.toMatch(/invoice/i.test("") ? /x/ : /createInvoice|xero/i);
+    expect(s).not.toMatch(/createInvoice|xero/i);
   });
   test("email/SMS messages and authority requests check the lock", () => {
     const pf = readFileSync("src/lib/portal.functions.ts", "utf8");
