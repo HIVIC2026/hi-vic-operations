@@ -70,10 +70,10 @@ export function joinReasons(reasons: readonly string[] | null | undefined): stri
 }
 
 export type Base44Fields = {
-  external_enquiry_id?: string | null; source_reference?: string | null;
-  life_support?: boolean | null; life_support_status?: LifeSupportStatus | null;
-  preliminary_outcome?: PreliminaryEligibility | null; preliminary_reasons?: string[] | null;
-  eligibility_outcome?: PreliminaryEligibility | null; eligibility_reason?: string | null;
+  external_enquiry_id?: string | null | undefined; source_reference?: string | null | undefined;
+  life_support?: boolean | null | undefined; life_support_status?: LifeSupportStatus | null | undefined;
+  preliminary_outcome?: PreliminaryEligibility | null | undefined; preliminary_reasons?: string[] | null | undefined;
+  eligibility_outcome?: PreliminaryEligibility | null | undefined; eligibility_reason?: string | null | undefined;
 };
 
 /** life_support is true ONLY for an explicit "yes"; "unknown" is kept as a status (never a silent confirmed no). */
@@ -97,7 +97,7 @@ export function planBase44Job(input: Base44Fields, existing: { stage: string } |
   const patch: Record<string, unknown> = { life_support: ls.life_support, ...(prelim ? prelimNoStage : {}) };
   const canMove = !existing || (PRELIM_STAGE_ALLOWED_FROM as readonly string[]).includes(existing.stage);
   const moveTo = canMove && (!existing || (prelim && existing.stage !== "eligibility_review")) ? ("eligibility_review" as const) : null;
-  if (!existing && !prelim) patch.next_action = "Review Gate 1 eligibility";
+  if (!existing && !prelim) patch["next_action"] = "Review Gate 1 eligibility";
   const details = {
     external_enquiry_id: input.external_enquiry_id ?? null, source_reference: input.source_reference ?? null,
     preliminary: true, preliminary_outcome: outcome, preliminary_reasons: reason,
