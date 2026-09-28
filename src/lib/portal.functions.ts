@@ -2,6 +2,7 @@
 // delegates to the central workflow/quote modules which write with the service role.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { withRequestMeta } from "./request-meta";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent, nextStepBlockers, piesaStatus, requireAdmin, requireJobRole, transition, getStage } from "./workflow.server";
@@ -10,7 +11,7 @@ import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { STAGE_LABEL, type Stage } from "./workflow";
 import { applyPaidAmount, createInvoiceForQuote, pushInvoiceToXero, syncInvoiceFromXero } from "./xero.server";
 import { AUTHORITY_BLOCKER, depositCleared } from "./workflow.server";
-import { acceptAuthority, authorityValid, requestMeta, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
+import { acceptAuthority, authorityValid, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
 
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
 
@@ -602,7 +603,7 @@ export const acceptOwnerAuthority = auth()
   .handler(async ({ data, context }) => {
     // Only the owner themself may give authority.
     await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["owner"]);
-    const { ip, userAgent } = await requestMeta();
+    const { ip, userAgent } = context;
     await acceptAuthority({ authorityId: data.authorityId, actorId: context.userId, over18: data.over18, authorised: data.authorised, assistance: data.assistance, signatureName: data.signatureName, ip, userAgent });
     return { ok: true };
   });
