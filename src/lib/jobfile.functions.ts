@@ -48,3 +48,18 @@ export const exportJobPackFn = createServerFn({ method: "POST" }).middleware([re
     const { exportJobPack } = await import("./jobfile.server");
     return exportJobPack(data.jobId, context.userId, { includeSuperseded: data.includeSuperseded, includeInternal: data.includeInternal });
   });
+
+/** Short-lived signed link for one indexed file, only if the caller's role may see it. */
+export const openJobDocument = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, docId: z.string().min(3).max(200) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer", "owner"]);
+    const { loadSources } = await import("./jobfile.server");
+    const { buildDocumentIndex, visibleTo } = await import("./jobfile.core");
+    const doc = visibleTo(buildDocumentIndex(await loadSources(data.jobId)), role as never).find((d) => d.id === data.docId);
+    if (!doc?.storagePath) throw new Error("This document has no stored file you can open.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: s, error } = await supabaseAdmin.storage.from("job-files").createSignedUrl(doc.storagePath, 300);
+    if (error || !s) throw new Error("Could not open the file.");
+    return { url: s.signedUrl };
+  });
