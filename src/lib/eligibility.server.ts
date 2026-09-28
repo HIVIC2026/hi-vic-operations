@@ -13,7 +13,7 @@ export async function autoDecideEligibility(jobId: string): Promise<Gate1Decisio
   if (!j || !["new_enquiry", "eligibility_review"].includes(j.stage)) return null;
   if (j.eligibility_decision_source === "admin" || j.eligibility_decision_source === "system") return null; // admin decisions stand; system decides once
   const { facts, d } = await evaluateStored(j, jobId);
-  const audit = { rules_passed: d.passed, rules_failed: d.failed, needs_review: d.review, rules: d.rules, facts, sources: ["properties", "properties.enrichment (incl. base44 declared/research)", "jobs.life_support_status", "workflow_settings"], decided_at: new Date().toISOString() };
+  const audit = { rules_passed: d.passed, rules_failed: d.failed, needs_review: d.review, rules: d.rules, facts, sources: ["properties", "properties.enrichment (incl. base44 declared/research)", "jobs.life_support_status", "workflow_settings", "property_facts (trusted direct high-confidence only)"], decided_at: new Date().toISOString() };
   if (!d.outcome) {
     // Unchanged review list -> no new event (idempotent sweeps).
     const prev = (j.eligibility_decision_rules as { needs_review?: string[] } | null)?.needs_review ?? [];
