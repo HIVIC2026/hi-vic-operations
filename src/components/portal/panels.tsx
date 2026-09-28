@@ -233,7 +233,7 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
               {Number(q.veec_discount_inc_gst) > 0 && <li className="flex justify-between text-success"><span>VEEC discount</span><span>−{aud(q.veec_discount_inc_gst)}</span></li>}
             </ul>
             <div className="mt-2 border-t pt-2 text-lg font-bold">{aud(q.customer_total_inc_gst)} <span className="text-xs font-normal text-muted-foreground">inc GST</span></div>
-            <div className="text-xs text-muted-foreground">50% deposit {aud(Number(q.customer_total_inc_gst) / 2)} due on acceptance</div>
+            <div className="text-xs text-muted-foreground">{q.kind === "rectification" ? "Scope approval – included in your final installation quote (no payment yet)" : `50% deposit ${aud(Number(q.customer_total_inc_gst) / 2)} due on acceptance · balance on installation day`}</div>
             {canRespond && q.status === "issued" && (
               <div className="mt-3 flex gap-2">
                 <Button size="field" className="flex-1" disabled={!consent} onClick={() => respond({ quoteId: q.id, accept: true, consent }, "Accepted – deposit invoice on its way")}>Accept</Button>
@@ -244,7 +244,7 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
         ))}
       </div>
       {canRespond && open && (
-        <label className="mt-3 flex items-start gap-2 text-sm"><Checkbox checked={consent} onCheckedChange={(v) => setConsent(!!v)} className="mt-0.5" /> I consent to the works and to assigning VEECs to HI VIC, and understand a 50% deposit is due on acceptance with the balance due on installation day.</label>
+        <label className="mt-3 flex items-start gap-2 text-sm"><Checkbox checked={consent} onCheckedChange={(v) => setConsent(!!v)} className="mt-0.5" /> I have reviewed these prices (inc GST). For the final installation quote, I understand a Xero invoice is issued with a 50% deposit due immediately and the balance due on installation day, and that no work can be scheduled until the deposit is paid.</label>
       )}
     </Section>
   );
