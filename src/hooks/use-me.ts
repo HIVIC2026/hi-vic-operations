@@ -24,15 +24,16 @@ export function useMe() {
 export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>) {
   const call = useServerFn(fn as never) as unknown as (opts: { data: TIn }) => Promise<TOut>;
   const qc = useQueryClient();
-  return async (data: TIn, success?: string) => {
+  return async (data: TIn, success?: string): Promise<TOut | undefined> => {
     try {
       const out = await call({ data });
       if (success) toast.success(success);
       await qc.invalidateQueries();
       return out;
     } catch (e) {
+      // Blocked/failed actions are expected (workflow gates): show them, never crash the page.
       toast.error(e instanceof Error ? e.message : "Something went wrong");
-      throw e;
+      return undefined;
     }
   };
 }
