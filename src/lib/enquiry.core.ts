@@ -39,7 +39,7 @@ export const PRELIM_NEXT_ACTION: Record<PreliminaryEligibility, string> = {
   does_not_appear_eligible: "Review Gate 1 before closing enquiry",
 };
 
-/** Job fields for a preliminary (website) eligibility result. Lands in eligibility_review for admin confirmation — never auto-passes. */
+/** Job fields for a preliminary (website) eligibility result. Information only — never sets the pipeline stage, never auto-passes. */
 export function preliminaryEligibilityFields(outcome: PreliminaryEligibility | null | undefined, reason: string | null | undefined, now: Date = new Date()) {
   if (!outcome) return null;
   return {
@@ -48,12 +48,12 @@ export function preliminaryEligibilityFields(outcome: PreliminaryEligibility | n
     eligibility_set_at: now.toISOString(),
     eligibility_set_by: null,
     next_action: PRELIM_NEXT_ACTION[outcome],
-    stage: "eligibility_review" as const,
   };
 }
 
-/** Stages from which an idempotent website update may (re)place the job into eligibility_review. Later stages are never moved backwards. */
-export const PRELIM_STAGE_ALLOWED_FROM = ["new_enquiry", "eligibility_review"] as const;
+/** Operational stage + next action for every NEW Base44 job. Admin confirms Gate 1 and moves it forward. */
+export const BASE44_NEW_STAGE = "new_enquiry" as const;
+export const BASE44_NEW_NEXT_ACTION = "Review website screening and Gate 1";
 
 export type LifeSupportStatus = "yes" | "no" | "unknown";
 
@@ -86,18 +86,18 @@ export function resolveLifeSupport(i: Pick<Base44Fields, "life_support" | "life_
 
 /**
  * Pure plan for a Base44 enquiry against the (possibly) existing job for the same external_enquiry_id.
- * existing = null -> create (always lands in eligibility_review); otherwise update the SAME job.
+ * existing = null -> create in new_enquiry; otherwise update the SAME job. Never changes an existing job's stage.
  */
 export function planBase44Job(input: Base44Fields, existing: { stage: string } | null, now: Date = new Date()) {
   const outcome = input.preliminary_outcome ?? input.eligibility_outcome ?? null;
   const reason = joinReasons(input.preliminary_reasons) ?? input.eligibility_reason ?? null;
   const ls = resolveLifeSupport(input);
   const prelim = preliminaryEligibilityFields(outcome, reason, now);
-  const { stage: _s, ...prelimNoStage } = prelim ?? { stage: null };
-  const patch: Record<string, unknown> = { life_support: ls.life_support, ...(prelim ? prelimNoStage : {}) };
-  const canMove = !existing || (PRELIM_STAGE_ALLOWED_FROM as readonly string[]).includes(existing.stage);
-  const moveTo = canMove && (!existing || (prelim && existing.stage !== "eligibility_review")) ? ("eligibility_review" as const) : null;
-  if (!existing && !prelim) patch["next_action"] = "Review Gate 1 eligibility";
+  const patch: Record<string, unknown> = { life_support: ls.life_support, ...(prelim ?? {}) };
+  if (existing) delete patch["next_action"]; // repeat sync: information only, leave workflow untouched
+  else patch["next_action"] = BASE44_NEW_NEXT_ACTION;
+  const moveTo = null;
+  void existing?.stage;
   const details = {
     external_enquiry_id: input.external_enquiry_id ?? null, source_reference: input.source_reference ?? null,
     preliminary: true, preliminary_outcome: outcome, preliminary_reasons: reason,
