@@ -10,7 +10,7 @@ import {
 const BUCKET = "job-files";
 
 /** Insert-once consent record (unique job/source/consent_key). Retries with identical consent are no-ops. */
-export async function recordContactConsent(jobId: string, ownerId: string, input: Base44Snapshots & { source_reference?: string | null; external_enquiry_id?: string | null }) {
+export async function recordContactConsent(jobId: string, ownerId: string, input: Base44Snapshots & { source_reference?: string | null | undefined; external_enquiry_id?: string | null | undefined }) {
   const plan = planContactConsent(input);
   const { data: existing } = await admin.from("owner_contact_consents").select("id").eq("job_id", jobId).eq("source", "base44").eq("consent_key", plan.consent_key).maybeSingle();
   if (existing) return { created: false, status: plan.consent_status };

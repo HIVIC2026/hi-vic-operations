@@ -992,10 +992,10 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       reference: string | null; source: string | null; state: string | null; occupancy: string | null; lifeSupport: string | null; area: number | null;
       consent: { consent_status: string; consent_version: string | null; consented_at: string | null; age_confirmed: boolean | null; assistance: string | null; contact_preference: string | null; created_at: string } | null;
       declared: { property_type: string | null; over_five_years: string | null; previous_upgrade: string | null } | null;
-      screening: { outcome: string | null; reasons: string | null; raw: unknown };
+      screening: { outcome: string | null; reasons: string | null; raw: Json };
       research: { status: string | null; evidence_summary: string | null; first_appearance_year: number | null; premises_classification: string | null } | null;
       media: { id: string; name: string; mime: string | null; size: number | null; url: string | null }[];
-      lastMediaFailure: { created_at: string; summary: string } | null; raw: unknown;
+      lastMediaFailure: { created_at: string; summary: string } | null; raw: Json;
     };
   });
 
