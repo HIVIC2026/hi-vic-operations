@@ -12,7 +12,7 @@ export async function autoDecideEligibility(jobId: string): Promise<Gate1Decisio
     .eq("id", jobId).single();
   if (!j || !["new_enquiry", "eligibility_review"].includes(j.stage)) return null;
   if (j.eligibility_decision_source === "admin" || j.eligibility_decision_source === "system") return null; // admin decisions stand; system decides once
-  const { facts, d } = await evaluateStored(j);
+  const { facts, d } = await evaluateStored(j, jobId);
   const audit = { rules_passed: d.passed, rules_failed: d.failed, needs_review: d.review, rules: d.rules, facts, sources: ["properties", "properties.enrichment (incl. base44 declared/research)", "jobs.life_support_status", "workflow_settings"], decided_at: new Date().toISOString() };
   if (!d.outcome) {
     // Unchanged review list -> no new event (idempotent sweeps).
@@ -57,7 +57,7 @@ export async function previewGate1(jobId: string) {
     .select("stage, eligibility_outcome, eligibility_decision_source, eligibility_decision_rules, eligibility_reason, life_support_status, properties(state, postcode, occupancy, is_residential, year_built, enrichment)")
     .eq("id", jobId).single();
   if (!j) return null;
-  const { d } = await evaluateStored(j);
+  const { d } = await evaluateStored(j, jobId);
   return {
     live: { outcome: d.outcome, rules: d.rules },
     recorded: { outcome: j.eligibility_outcome, source: j.eligibility_decision_source, reason: j.eligibility_reason, rules: (j.eligibility_decision_rules as { rules?: unknown } | null)?.rules ?? null },
