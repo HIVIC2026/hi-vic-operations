@@ -18,11 +18,12 @@ export const Route = createFileRoute("/_authenticated/admin/compliance")({
 });
 
 const KEYS = [
-  ["consumer_rights", "VEU consumer information & consumer rights"],
-  ["consumer_declaration", "Consumer declarations & VEEC assignment"],
-  ["esc_consent", "Owner consent – ESC information sharing (Reg 23A)"],
-  ["installer_declaration", "Installer declaration"],
-  ["ap_declaration", "Accredited Person / assignee declaration (if required)"],
+  ["consumer_rights", "Customer agreement – VEU consumer information & rights (pre-install, at quote acceptance)"],
+  ["customer_agreement", "Customer agreement – HI VIC commercial terms (optional, pre-install)"],
+  ["esc_consent", "ESC Owner Consent – information sharing (after booking, ≥24h before work)"],
+  ["installer_declaration", "Installer PIISA / declaration (post-install)"],
+  ["consumer_declaration", "Final Activity 48 VEEC Assignment – official form (post-install)"],
+  ["ap_declaration", "AP declaration (if required)"],
 ] as const;
 
 function Compliance() {
@@ -41,8 +42,9 @@ function Compliance() {
     <AppShell wide>
       <h1 className="text-2xl font-bold tracking-tight">Compliance Setup (Admin)</h1>
       <p className="mb-1 rounded-lg bg-accent p-3 text-sm font-medium text-accent-foreground">This page stores the official wording and field definitions used by the electronic forms. Customers and trades do not complete anything here.</p>
+      <p className="mb-2 text-sm text-muted-foreground">These are four separate events in order: quote acceptance (commercial only) → ESC owner consent once the installation date is booked → installer declaration after installation → final VEEC assignment signed installer → AP → customer during AP review.</p>
       <p className="mb-4 text-sm text-muted-foreground">Each version has two parts: the <b>official wording</b> (shown to the signer, read-only) and optional <b>form fields</b> the electronic form asks for. Approved versions can't be edited – add a new version instead.</p>
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{cards.map((c) => (
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{cards.map((c) => (
         <div key={c.key} className={`rounded-xl border-2 p-3 ${c.ready ? "border-success" : "border-warning"}`}>
           <div className="flex items-center justify-between"><b>{c.label}</b>{c.ready ? <Pill t="good">Ready</Pill> : <Pill t="warn">Not ready</Pill>}</div>
           <p className="mt-1 text-xs text-muted-foreground">{c.message}</p>
