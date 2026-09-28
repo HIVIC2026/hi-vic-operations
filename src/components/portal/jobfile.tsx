@@ -15,7 +15,8 @@ import { exportJobPackFn, getJobFile, getJobFileHeader, logCommunication, openJo
 import { DOC_CATEGORIES, inCategory, searchItems, type DocCategory, type DocItem, type TimelineFilter } from "@/lib/jobfile.core";
 import { fmtDate } from "@/lib/workflow";
 
-type JobFile = Awaited<ReturnType<typeof getJobFile>>;
+type JobFile = Awaited<ReturnType<typeof import("@/lib/jobfile.server").buildJobFile>>;
+type JobRow = import("@/integrations/supabase/types").Database["public"]["Views"]["job_overview"]["Row"];
 const fmtDT = (s: string | null) => (s ? new Date(s).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", dateStyle: "medium", timeStyle: "short" }) : "—");
 
 export function useJobFile(jobId: string) {
@@ -27,7 +28,7 @@ const STATUS_TONE: Record<string, "good" | "info" | "warn" | "bad" | "neutral" |
   signed: "good", final: "good", verified: "good", current: "info", draft: "warn", outstanding: "warn", rejected: "bad", superseded: "neutral", historical: "neutral",
 };
 
-export function JobFileHeader({ jobId, job }: { jobId: string; job: Record<string, any> }) {
+export function JobFileHeader({ jobId, job }: { jobId: string; job: JobRow }) {
   const fn = useServerFn(getJobFileHeader);
   const { data: h } = useQuery({ queryKey: ["jobfile-header", jobId], queryFn: () => fn({ data: { jobId } }) });
   const warnings: { t: "bad" | "warn" | "info"; text: string }[] = [];
@@ -35,7 +36,7 @@ export function JobFileHeader({ jobId, job }: { jobId: string; job: Record<strin
   else if (job.install_deadline) warnings.push({ t: job.urgency === "urgent" ? "bad" : "info", text: `Install by ${fmtDate(job.install_deadline)} (PIESA +30 days)` });
   if (h?.escDueBy && h.escStatus !== "sent") warnings.push({ t: "warn", text: `ESC notice due by ${fmtDT(h.escDueBy)}` });
   if (job.payment_status && !job.deposit_cleared && ["deposit_due", "invoice_created", "overdue"].includes(job.payment_status)) warnings.push({ t: "bad", text: "50% deposit outstanding" });
-  const showReady = ["installation_scheduling", "installation_booked", "evidence_outstanding"].includes(job.stage);
+  const showReady = ["installation_scheduling", "installation_booked", "evidence_outstanding"].includes(job.stage ?? "");
   return (
     <div className="mb-4 rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
