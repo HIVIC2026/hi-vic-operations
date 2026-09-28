@@ -12,6 +12,7 @@ import { MittiCard, PriceItemForm } from "@/components/portal/mitti";
 import { RequirementCards } from "@/components/portal/requirements";
 import { EscInstallPanel, PropertyIntelligenceCard } from "@/components/portal/intelligence";
 import { Gate1EvidencePanel } from "@/components/portal/gate1";
+import { IntakeSummary } from "@/components/portal/intake";
 import { AllDocuments, Correspondence, ExportJobPack, JobFileHeader, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
 
 const TABS: [string, string][] = [
@@ -72,7 +73,7 @@ function JobDetail() {
           <RetentionCard jobId={jobId} />
           <details className="rounded-xl border p-3 lg:col-span-2"><summary className="cursor-pointer text-sm font-medium">All bookings</summary><div className="mt-3 grid gap-4 lg:grid-cols-3"><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><BookingPanel jobId={jobId} kind="rectification" canBook isAdmin /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /></div></details>
         </TabsContent>
-        <TabsContent value="eligibility" className="space-y-4"><Gate1EvidencePanel jobId={jobId} /><PropertyIntelligenceCard jobId={jobId} /><EligibilityForm jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Property"]} /></TabsContent>
+        <TabsContent value="eligibility" className="space-y-4"><IntakeSummary jobId={jobId} /><Gate1EvidencePanel jobId={jobId} /><PropertyIntelligenceCard jobId={jobId} /><EligibilityForm jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Property"]} /></TabsContent>
         <TabsContent value="authority" className="space-y-4"><AdminAssignmentPanel jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Customer / Consent"]} /><details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Legacy Owner Authority history (no longer a gate)</summary><div className="mt-3"><AdminAuthorityPanel jobId={jobId} /></div></details></TabsContent>
         <TabsContent value="piesa" className="space-y-4">
           <Section title="PIESA 30-day installation window">
