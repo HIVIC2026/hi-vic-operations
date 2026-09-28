@@ -24,7 +24,11 @@ export const realMittiCall: MittiCall = async (method, path, body) => {
   if (!res.ok) {
     const detail = (await res.text().catch(() => "")).replace(/[\w.+-]+@[\w.-]+/g, "[email]").slice(0, 300);
     console.error(`[mitti] ${method} ${path.split("/")[1]} -> ${res.status} ${detail}`); // no token, no PII
-    throw new MittiError(res.status === 401 || res.status === 403 ? "Mitti rejected the API token." : res.status === 404 ? "Mitti record not found." : `Mitti request failed (${res.status}).`);
+    throw new MittiError(
+      res.status === 401 || res.status === 403 ? "Mitti rejected the API token."
+      : res.status === 404 ? "Mitti record not found."
+      : res.status === 400 ? "Mitti rejected the request (400) – check the assigned user's email is a real address registered in your Mitti account."
+      : `Mitti request failed (${res.status}).`);
   }
   const t = await res.text();
   return t ? JSON.parse(t) : {};
