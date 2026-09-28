@@ -2,7 +2,7 @@
 // so tests can mock it and never hit the live Xero API.
 export type XeroCall = (path: string, init?: { method?: string; body?: unknown; headers?: Record<string, string> }) => Promise<any>;
 
-export const TRACKING_CATEGORY = "Projects";
+export const TRACKING_CATEGORY = "Business Unit"; // never fall back to the legacy "Projects" category
 export const TRACKING_OPTION = "Home Insulation Victoria";
 export const LOCK_STALE_MS = 2 * 60 * 1000;
 
@@ -20,7 +20,7 @@ export function assertHivicJob(job: { business_unit?: string | null } | null | u
 export async function assertHivicInvoice(invoiceId: string, loadJobForInvoice: (id: string) => Promise<{ business_unit?: string | null } | null>) {
   assertHivicJob(await loadJobForInvoice(invoiceId));
 }
-/** Second defensive check on every outgoing invoice payload: HI VIC reference + Projects = Home Insulation Victoria on every line. */
+/** Second defensive check on every outgoing invoice payload: HI VIC reference + Business Unit = Home Insulation Victoria on every line. */
 export function assertHivicPayload(payload: { Invoices: { Reference?: string; LineItems: { Tracking?: { Name: string; Option: string }[] }[] }[] }) {
   for (const inv of payload.Invoices) {
     if (!inv.Reference?.startsWith("HI VIC ")) throw new Error("Xero write blocked: invoice reference must start with 'HI VIC '.");
