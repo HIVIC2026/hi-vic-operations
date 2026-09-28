@@ -1,55 +1,85 @@
-# Xero integration audit and hardening plan
+# ReInsulate pilot readiness audit (read-only) and next actions
 
-## Read-only findings (no Xero writes made)
-- Connected organisation: DC Construction Solutions Pty Ltd (the only one).
-- Tracking categories: one category, **"Projects"**, with an active option **"Home Insulation Victoria"** (and "DC Constructions"). Nothing needs creating.
-- Existing Xero invoices with an `HV-` reference: **none**, so no duplicates exist today.
+Nothing was changed. The checks that ran:
+- all 272 automated tests pass, and the code type-check is clean;
+- read-only database queries;
+- the database security linter;
+- a code search for leftover old-flow code.
 
-## What is already in place
-| Requirement | Status |
-|---|---|
-| Accepted quote drives the invoice | Done. Lines come from `quote_items`; one invoice per quote (unique `invoices.quote_id`). |
-| Deposit gate from Xero or audited override | Done. `invoice_deposit_cleared` = `deposit_paid_at` (set only from Xero `AmountPaid`) OR a `payment_overrides` row (reason, actor, before/after). Simulate button refuses when Xero is linked. |
-| Balance due = installation date | Partly. `createBooking` writes `balance_due_date` from the start timestamp's UTC date. |
-| PIESA 30-day and Owner Authority blockers | Done. Checked in `createBooking` and `stageEntryBlockers` before the deposit check. |
-| Customer/trade exposure | Done. Owners read the `invoice_status` view (no Xero IDs or errors). Trades get no invoice rows. Xero IDs and errors show only when `isAdmin`. |
-| Admin sync state and retry | Partly. Status, IDs and error are shown; "Retry Xero push" appears only when there's no Xero invoice ID. |
+A fresh production build was **not** run, because it writes files (the last one succeeded in the previous turn). No browser click-through was done.
 
-## Gaps (smallest fixes)
-1. **Duplicate risk on retry (main gap).** If Xero creates the invoice but the response is lost (timeout or 5xx), the next retry POSTs again. Two clicks at once can also both POST. Contacts have the same risk.
-   - Send Xero's `Idempotency-Key` header, derived from our IDs: `hivic-contact-<owner_id>` and `hivic-invoice-<invoice_id>`.
-   - Before creating an invoice, run a read-only lookup by Reference. If one exists, adopt it instead of creating another.
-   - Before creating a contact, look one up by email (or else by exact name) and reuse it.
-   - Claim a lock with a conditional update (`sync_lock_at` stays null or goes stale after 2 minutes) so only one push runs at a time.
-2. **Contact naming.** The contact name currently includes the job number (`Name (HV-1007)`), which makes a new contact for every job. Change it to the owner's full name, matched by email.
-3. **Reference and description.** Change the Reference to `HI VIC <job_number>` (for example `HI VIC HV-1007`). Prefix line descriptions with `HI VIC <job_number> –`. Tag every line with the tracking category Projects = Home Insulation Victoria, looked up by name at push time. If it's missing, the push fails with a clear message. The legal entity stays the Xero organisation. `option_label` is kept only in the line text.
-4. **Accepted-quote guard.** Push only if the quote's status is `accepted` and the invoice total equals `customer_total_inc_gst`. Otherwise record a sync error, not a Xero call.
-5. **Balance due date.** Convert the booking start to an Australia/Melbourne date (a UTC slice can land a day early). Clear or reset it when the installation booking is cancelled or rebooked. Only the portal record changes; Xero's DueDate is not changed.
-6. **Payment truth.** Ignore `VOIDED` or `DELETED` Xero invoices (keep the gate locked and show an error). Take `deposit_paid_at` from Xero's payment date where available, not the current time.
-7. **Admin retry safety.** One "Sync with Xero" action handles both cases: push if not linked, pull if linked. It's disabled while the lock is held, and shows the last attempt time. The error text stays admin-only.
+## 1. Status
+- Tests: 272 pass, 0 fail across 18 files. Type-check: clean. Build: not re-run this turn.
 
-## Database changes
-- `invoices`: add `sync_lock_at timestamptz` and `xero_tracking_option_id text` (admin-only; not added to the `invoice_status` view).
-- No other schema changes. RLS and views are unchanged.
+## 2. Architecture
+- GOOD:
+  - Workflow, pricing and payment gates are in one place.
+  - Only admins can write directly; every other write goes through server functions.
+  - Audit logs and immutable signed and measurement records.
+  - The Xero business-unit barrier fails closed.
+  - Customer communications are locked (`customer_comms_enabled=false`).
+- PARTIAL: the pure rule modules are well tested, but the database and UI glue has no integration tests and no browser tests.
+- CONCERN: the security linter flags 28 SECURITY DEFINER functions that signed-out and signed-in users can execute, and 2 functions with a mutable search_path. These need review.
 
-## Tests (no live Xero writes)
-- Unit-test `xero.server.ts` with a mocked `fetch`:
-  - A response that times out after creation, then a retry: the Reference lookup finds and adopts the invoice, so there's one POST in total.
-  - Two pushes at once: the lock allows one POST.
-  - An existing contact by email is reused, with no contact POST.
-  - The Idempotency-Key header is present and stable across retries.
-  - The payload has Reference `HI VIC HV-xxxx`, the tracking option on every line, Inclusive GST, and totals matching the accepted quote.
-  - A quote that isn't accepted or has a mismatched total gets no POST and a sync error.
-  - `AmountPaid` below, equal to and above the deposit sets the right `deposit_paid_at`; a VOIDED invoice keeps the gate locked.
-- Workflow tests with the Xero module mocked:
-  - Booking is blocked without a deposit, and allowed with an audited override (row plus before/after).
-  - PIESA-expired and authority-invalid bookings are still blocked even with a deposit paid.
-  - An installation booking at 23:30 UTC sets the next day's Melbourne date as the balance due date.
-- Security checks against the database using role sessions:
-  - An owner reading `invoice_status` gets no Xero ID or error columns.
-  - An installer or electrician gets zero invoice, override or sync-log rows.
-- Live Xero only for read-only GETs (connections, tracking categories, invoice lookup by Reference).
+## 3. ReInsulate pilot readiness (from the live data)
+- Partner businesses: 3 records, all **draft** with **blank legal names**. None are approved.
+- Team members: 0. Credentials and insurance: 0. AP participation agreements: 0.
+- Partner measurement methods: 0. Measurement standard: not approved.
+- Rate cards: 2 cards, 10 lines (not confirmed as ReInsulate's agreed rates).
+- Imports: 0. Offers: 0. Only 1 installer user and 2 electrician users exist, and none is linked to a business.
+- Xero supplier/contact sync: code exists but has never run. Xero install-date updates are off.
+- EasyMate: file, CSV and paste import only. No API; source links are stored as references only.
+- Electrician selection, 24/48h SLA, reassignment, offers, partner dashboard and co-branded quote are all built. Their logic is unit-tested, but none has been exercised end-to-end with real accounts.
+- Verdict: **the software is PARTIAL; the setup is NOT READY.** Deep cannot usefully log in yet.
 
-## Technical notes
-- Files: `src/lib/xero.server.ts` (most changes), `src/lib/portal.functions.ts` (booking date and single sync action), `src/components/portal/panels.tsx` (admin sync button state), one migration.
-- The Xero Idempotency-Key header is supported on POST/PUT in the Accounting API.
+## 4. Core Activity 48 flow
+- Gate 1: ready (all 22 real jobs are in `new_enquiry` awaiting review).
+- Site scope and PIESA 30-day rule: ready.
+- Mitti: token is present, but the measure-up-only template is not set.
+- Quote acceptance and conditional assignment: **BLOCKED**. All 4 compliance templates are unapproved, so signing fails closed.
+- ESC consent and notification: **BLOCKED** (the ESC consent template and ESC notification config are unapproved).
+- Deposit and invoice: code ready. A real Xero invoice has never been written and read back under supervision.
+- Evidence, AP review and VEEC: code ready, not exercised end-to-end.
+
+## 5. UX
+- The admin pipeline and job page show the next action and blockers.
+- The partner, trade and owner screens are built mobile-first, but none has been tested on real accounts. This is unverified, not proven.
+
+## 6. Contradictions and legacy code
+- The signing model conflicts: the implementation and project rules sign a conditional VEEC assignment at quote stage, but the earlier "authoritative" request said final assignment only after installation. **You need to confirm which one wins.**
+- Old Owner Authority code remains in several places (authority, consent, assignment, job file, panels). It is labelled as history but should be isolated.
+- The 5% area and $1 price change thresholds were chosen by the agent and have no admin setting.
+- The "second customer signature" switch has no UI.
+- Measurement acceptance can pass on standard + method approval without an independent onsite check. This is intended for after the pilot, but needs a clear admin warning.
+
+## 7. Blockers before Deep logs in
+1. Create and approve the ReInsulate business (legal name, ABN, insurance, licences, signed AP agreement).
+2. Create Deep's user account and team, and link them to the business.
+3. Load ReInsulate's agreed rate card.
+4. Onboard at least one electrician/REC business and link it as preferred.
+5. Approve official wording for: the customer agreement/consumer rights, the conditional assignment, ESC consent and the installer declaration. Approve the ESC notification config.
+6. Agree the measurement standard with Deep (optional for the pilot; dual verification works without it).
+
+## 8. Security
+- Review and revoke public EXECUTE on the SECURITY DEFINER helpers that don't need it.
+- Set search_path on the 2 flagged functions.
+- Run a security scan and test RLS with a real partner account (partner A must not see partner B's jobs).
+
+## 9. Next 10 actions, in order
+1. Decide the signing model (conditional assignment at quote vs final assignment post-install).
+2. Harden the database functions flagged by the linter.
+3. Fix the draft businesses: complete them or clean them up.
+4. Onboard ReInsulate fully and approve it.
+5. Create Deep's and the electricians' accounts and link them.
+6. Load the rate card and record a signed AP agreement.
+7. Approve the compliance templates and ESC config (your wording only).
+8. Run a supervised dry run on a test job: import → confirm → electrician → assessment → quote → accept.
+9. Do one supervised Xero invoice write and read-back, and check the deposit gate.
+10. Continue the dry run through ESC consent/notice → install evidence → AP → final assignment, then decide on enabling communications.
+
+## 10. Bottom line
+- GOOD: architecture, fail-closed gates, audit trail, provisional measurements, communications lock, tests and type-check.
+- PARTIAL: the partner pilot screens and Mitti/Xero live paths (built but never exercised), plus the leftover old-flow code.
+- NOT READY: no approved partner, users, agreement or credentials; all compliance wording unapproved; the signing model decision is still open; database function permissions need review.
+
+If approved, the next build step would carry out actions 1–3 (decision, database function hardening, clean-up of the draft businesses) before any pilot data entry.
