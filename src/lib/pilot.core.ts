@@ -1,3 +1,4 @@
+import { PROVISIONAL_FLAG_REASON, parseMethod, parsePurpose } from "./measurement.core";
 // Pure rules for the ReInsulate pilot: partner onboarding, job import, electrician choice,
 // appointment SLA, partner offers, relationship owner, partner pricing and co-branded quotes.
 // No I/O here — persistence lives in pilot.server.ts.
@@ -73,7 +74,6 @@ export function splitInvoicingBlocker(route: string | null | undefined): string 
 
 // ---------- Import extraction ----------
 export type FactConfidence = "found" | "uncertain" | "missing";
-import { PROVISIONAL_FLAG_REASON, parseMethod, parsePurpose } from "./measurement.core";
 export type Fact<T = string | number | boolean> = { value: T | null; confidence: FactConfidence; source: string };
 export const IMPORT_FIELDS = [
   "full_name", "email", "phone", "address_line", "suburb", "postcode", "external_reference",
