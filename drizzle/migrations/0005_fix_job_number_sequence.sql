@@ -1,0 +1,1 @@
+SELECT setval('public.job_number_seq', GREATEST((SELECT coalesce(max(nullif(regexp_replace(job_number, '\D', '', 'g'), '')::bigint), 1000) FROM public.jobs), (SELECT last_value FROM public.job_number_seq)));

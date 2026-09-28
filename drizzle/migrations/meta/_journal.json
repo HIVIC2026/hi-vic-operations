@@ -36,6 +36,13 @@
       "when": 1790574791950,
       "tag": "0004_job_acquisition_channel",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790574997331,
+      "tag": "0005_fix_job_number_sequence",
+      "breakpoints": true
     }
   ]
 }
