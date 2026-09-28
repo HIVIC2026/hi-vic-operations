@@ -7,8 +7,7 @@ export const TRACKING_OPTION = "Home Insulation Victoria";
 export const LOCK_STALE_MS = 2 * 60 * 1000;
 
 export const r2 = (n: number) => Math.round(n * 100) / 100;
-export type Part = "deposit" | "balance";
-export const xeroReference = (jobNumber: string, part: Part) => `HI VIC ${jobNumber} ${part.toUpperCase()}`;
+export const xeroReference = (jobNumber: string) => `HI VIC ${jobNumber}`;
 /** Due-date updates to existing Xero invoices are prepared but switched off until explicitly enabled. */
 export const XERO_DUE_DATE_UPDATES_ENABLED = false;
 export const contactIdemKey = (ownerId: string) => `hivic-contact-${ownerId}`;
@@ -54,33 +53,25 @@ export async function findInvoiceByReference(call: XeroCall, reference: string) 
   return (r.Invoices ?? []).find((i: any) => !["VOIDED", "DELETED"].includes(i.Status)) ?? null;
 }
 
-/** Split every quote line (and the VEEC discount) between deposit and balance so the two invoices sum exactly to the accepted total. */
-export function allocateLines(lines: { description: string; amount: number }[], total: number, depositAmount: number) {
-  const c = lines.map((l) => Math.round(l.amount * 100));
-  const T = c.reduce((a, b) => a + b, 0);
-  if (T !== Math.round(total * 100)) throw new Error(`Quote lines (${T / 100}) don't add up to the accepted total (${total}) – invoice not pushed.`);
-  const D = Math.round(depositAmount * 100);
-  const exact = c.map((x) => (T === 0 ? 0 : (x * D) / T));
-  const share = exact.map(Math.floor);
-  let rem = D - share.reduce((a, b) => a + b, 0);
-  const order = exact.map((e, i) => [e - Math.floor(e), i] as const).sort((a, b) => b[0] - a[0]);
-  for (let k = 0; rem > 0 && order.length; k = (k + 1) % order.length, rem--) share[order[k]![1]]! += 1;
-  return lines.map((l, i) => ({ description: l.description, deposit: share[i]! / 100, balance: (c[i]! - share[i]!) / 100 }));
-}
-
+/** ONE full detailed invoice: every accepted customer-facing quote line once, plus the VEEC discount as a negative line.
+ *  Amounts are inc GST (LineAmountTypes Inclusive) so Xero never adds GST again; lines must sum to the accepted total exactly. */
 export function buildInvoicePayload(a: {
-  contactId: string; jobNumber: string; part: Part; dueDate: string; total: number; depositAmount: number;
-  items: { description: string; line_total_inc_gst: number | string }[];
+  contactId: string; jobNumber: string; dueDate: string; total: number;
+  items: { description: string; quantity: number | string; unit_price_inc_gst: number | string; line_total_inc_gst: number | string }[];
   veecDiscount: number | string; tracking: { categoryName: string; optionName: string };
 }) {
-  const ref = xeroReference(a.jobNumber, a.part);
+  const ref = xeroReference(a.jobNumber);
   const Tracking = [{ Name: a.tracking.categoryName, Option: a.tracking.optionName }];
-  const src = a.items.map((i) => ({ description: i.description, amount: Number(i.line_total_inc_gst) }));
-  if (Number(a.veecDiscount) > 0) src.push({ description: "VEEC discount", amount: -Number(a.veecDiscount) });
-  const alloc = allocateLines(src, a.total, a.depositAmount);
-  const label = a.part === "deposit" ? "50% deposit" : "50% balance";
-  const LineItems = alloc.map((l) => ({ Description: `${ref} – ${label}: ${l.description}`, Quantity: 1, UnitAmount: a.part === "deposit" ? l.deposit : l.balance, AccountCode: "200", Tracking }))
-    .filter((l) => l.UnitAmount !== 0);
+  const LineItems = a.items.map((i) => {
+    const q = Number(i.quantity), u = Number(i.unit_price_inc_gst), lt = Number(i.line_total_inc_gst);
+    const exact = Math.round(q * u * 100) === Math.round(lt * 100);
+    return exact
+      ? { Description: `${ref} – ${i.description}`, Quantity: q, UnitAmount: u, AccountCode: "200", Tracking }
+      : { Description: `${ref} – ${i.description} (${q} × ${u})`, Quantity: 1, UnitAmount: lt, AccountCode: "200", Tracking };
+  });
+  if (Number(a.veecDiscount) > 0) LineItems.push({ Description: `${ref} – VEEC discount`, Quantity: 1, UnitAmount: -Number(a.veecDiscount), AccountCode: "200", Tracking });
+  const sum = LineItems.reduce((s, l) => s + Math.round(l.Quantity * l.UnitAmount * 100), 0);
+  if (sum !== Math.round(a.total * 100)) throw new Error(`Quote lines (${sum / 100}) don't add up to the accepted total (${a.total}) – invoice not pushed.`);
   return { Invoices: [{ Type: "ACCREC", Contact: { ContactID: a.contactId }, LineAmountTypes: "Inclusive", Reference: ref, DueDate: a.dueDate, Status: "AUTHORISED", LineItems }] };
 }
 
@@ -90,14 +81,14 @@ export function buildDueDateUpdate(xeroInvoiceId: string, dueDate: string, invoi
 }
 
 /** Translate a Xero invoice into portal payment facts. Voided/deleted never clears the deposit. */
-export function evaluateXeroInvoice(x: { Status?: string; AmountPaid?: number; Payments?: { Date?: string; Amount?: number }[] }, fullAmount: number) {
+export function evaluateXeroInvoice(x: { Status?: string; AmountPaid?: number; Payments?: { Date?: string; Amount?: number }[] }, depositAmount: number) {
   if (x.Status === "VOIDED" || x.Status === "DELETED") return { voided: true as const, paid: 0, depositPaidAt: null as string | null };
   const paid = Number(x.AmountPaid ?? 0);
-  // Earliest date by which cumulative payments reached the deposit.
+  // Earliest date by which cumulative payments on the one invoice reached the 50% deposit.
   let run = 0, depositPaidAt: string | null = null;
   for (const p of [...(x.Payments ?? [])].sort((a, b) => parseXeroDate(a.Date) - parseXeroDate(b.Date))) {
     run += Number(p.Amount ?? 0);
-    if (run >= fullAmount && p.Date) { depositPaidAt = new Date(parseXeroDate(p.Date)).toISOString(); break; }
+    if (run >= depositAmount && p.Date) { depositPaidAt = new Date(parseXeroDate(p.Date)).toISOString(); break; }
   }
   return { voided: false as const, paid, depositPaidAt };
 }
