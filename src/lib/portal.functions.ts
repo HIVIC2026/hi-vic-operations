@@ -676,7 +676,6 @@ export const completeInstallation = createServerFn({ method: "POST" }).middlewar
     await admin.from("jobs").update({ installation_completed_at: new Date().toISOString() }).eq("id", data.jobId);
     await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "installation").eq("status", "confirmed");
     await logEvent(data.jobId, context.userId, ASSIGNMENT_EVENTS.INSTALLATION_COMPLETED, "Eligible installation undertaken");
-    await evaluateAndApply(data.jobId, context.userId);
     await autoAdvanceJob(data.jobId, context.userId, "installation completed");
     return { ok: true };
   });

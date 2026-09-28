@@ -180,7 +180,7 @@ async function computeFinalFacts(jobId: string, fieldValues: Record<string, Fiel
   const blockers = finalAssignmentAvailability({ stage: job?.stage ?? "", installationCompleted: !!job?.installation_completed_at, installerDeclared: !!decl, evidenceMissing, agreementSigned: !!agreement, templates });
   const official = activeTemplate(templates, "consumer_declaration");
   const defs = parseFormFields(official?.form_fields);
-  const { data: inv } = await admin.from("invoices").select("id, xero_invoice_number, reference, total_paid, status").eq("job_id", jobId).eq("kind", "installation").maybeSingle();
+  const { data: inv } = await admin.from("invoices").select("id, xero_invoice_number, xero_reference, amount_paid, status").eq("job_id", jobId).eq("kind", "installation").maybeSingle();
   const o = job?.owners as unknown as { full_name: string; email: string | null; phone: string | null } | null;
   if (blockers.length || !agreement || !decl || !official) return { blockers, facts: null, agreement, decl, official, defs };
   const known: Record<string, FieldValue> = { completed_date: String(job?.installation_completed_at).slice(0, 10), installed_product: decl.installed_product, r_value: decl.installed_r_value, installed_area_m2: Number(decl.installed_area_m2), installer_name: decl.installer_name, installer_abn: decl.installer_abn, final_customer_price_inc_gst: Number(agreement.final_customer_price_inc_gst), veu_benefit_inc_gst: Number(agreement.veu_benefit_inc_gst) };
@@ -193,7 +193,7 @@ async function computeFinalFacts(jobId: string, fieldValues: Record<string, Fiel
     installer: { user_id: decl.installer_user_id, name: decl.installer_name, business: decl.installer_business_name, abn: decl.installer_abn, licence: decl.installer_licence },
     consumer: { name: o?.full_name ?? agreement.signatory_name, email: o?.email ?? null, phone: o?.phone ?? null },
     final_customer_price_inc_gst: Number(agreement.final_customer_price_inc_gst), veu_benefit_inc_gst: Number(agreement.veu_benefit_inc_gst), price_before_benefit_inc_gst: Number(agreement.price_before_benefit_inc_gst),
-    payment: { status: inv?.status ?? null, reference: inv?.xero_invoice_number ?? inv?.reference ?? null, amount_paid: inv?.total_paid != null ? Number(inv.total_paid) : null },
+    payment: { status: inv?.status ?? null, reference: inv?.xero_invoice_number ?? inv?.xero_reference ?? null, amount_paid: inv?.amount_paid != null ? Number(inv.amount_paid) : null },
     template_version: official.version, form_values: pickFieldValues(defs, values),
   });
   return { blockers: [], facts, agreement, decl, official, defs };
