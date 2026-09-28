@@ -118,3 +118,40 @@ export function installationDateBlocker(p: { piesa_expired?: boolean | null; ins
   if (p?.install_deadline && day > p.install_deadline) return `Installation must be before the PIESA deadline (${p.install_deadline}).`;
   return null;
 }
+
+// ---------- Visible pipeline phases (board lanes). Detailed stages stay the source of truth. ----------
+export type Phase = "enquiries" | "site_assessment" | "quote_approval" | "deposit" | "rectification" | "installation" | "evidence_ap_veec" | "complete" | "exceptions";
+export const PIPELINE_PHASES: { key: Phase; label: string; stages: Stage[] }[] = [
+  { key: "enquiries", label: "Enquiries", stages: ["new_enquiry", "eligibility_review"] },
+  { key: "site_assessment", label: "Site assessment", stages: ["awaiting_electrician", "assessment_booking", "assessment_booked"] },
+  { key: "quote_approval", label: "Quote & approval", stages: ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"] },
+  { key: "deposit", label: "Deposit", stages: ["awaiting_deposit_payment"] },
+  { key: "rectification", label: "Rectification", stages: ["rectification_scheduling", "rectification_booked"] },
+  { key: "installation", label: "Installation", stages: ["installation_scheduling", "installation_booked"] },
+  { key: "evidence_ap_veec", label: "Evidence / AP / VEEC", stages: ["evidence_outstanding", "ap_review", "ready_for_veec"] },
+  { key: "complete", label: "Complete", stages: ["complete"] },
+];
+export const EXCEPTION_PHASE = { key: "exceptions" as const, label: "On hold / Cancelled", stages: EXCEPTION_STAGES };
+export function phaseForStage(stage: Stage | null | undefined): Phase {
+  if (!stage) return "enquiries";
+  return PIPELINE_PHASES.find((p) => p.stages.includes(stage))?.key ?? "exceptions";
+}
+
+export type WaitingOn = "HI VIC" | "Owner" | "Electrician" | "Installer" | "Payment / Xero" | "AP" | null;
+const WAITING: Partial<Record<Stage, WaitingOn>> = {
+  new_enquiry: "HI VIC", eligibility_review: "HI VIC", awaiting_electrician: "HI VIC",
+  assessment_booking: "Electrician", assessment_booked: "Electrician", assessment_complete: "HI VIC",
+  rectification_required: "HI VIC", awaiting_owner_rectification_approval: "Owner", ready_for_installer_quotes: "HI VIC",
+  awaiting_quote_acceptance: "Owner", awaiting_deposit_payment: "Payment / Xero", rectification_scheduling: "Electrician",
+  rectification_booked: "Electrician", installation_scheduling: "Installer", installation_booked: "Installer",
+  evidence_outstanding: "Installer", ap_review: "AP", ready_for_veec: "AP", on_hold: "HI VIC",
+};
+/** Who/what the job waits on – derived from stage, refined by next_action text. */
+export function waitingOn(stage: Stage | null | undefined, nextAction?: string | null): WaitingOn {
+  if (!stage || stage === "complete" || stage === "cancelled") return null;
+  const n = (nextAction ?? "").toLowerCase();
+  if (/deposit|xero|payment/.test(n)) return "Payment / Xero";
+  if (/\bowner\b|customer/.test(n) && stage !== "new_enquiry") return "Owner";
+  if (/measure-up/.test(n) && /installer/.test(n)) return "Installer";
+  return WAITING[stage] ?? null;
+}
