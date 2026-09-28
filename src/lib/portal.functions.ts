@@ -8,8 +8,9 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent, nextStepBlockers, stageEntryBlockers, piesaStatus, requireAdmin, requireJobRole, transition, getStage } from "./workflow.server";
 import { adjustQuote as adjustQuoteImpl, deriveRectificationItems, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
-import { STAGE_LABEL, type Stage } from "./workflow";
-import { applyPaidAmount, createInvoiceForQuote, refreshBalanceDueDate, syncInvoiceFromXero } from "./xero.server";
+import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
+import { applyPaidAmount, createInvoiceForQuote, scheduleBalanceInvoice, syncInvoiceFromXero, unscheduleBalanceInvoice } from "./xero.server";
+import { buildDepositOverride } from "./invoice.lifecycle";
 import { AUTHORITY_BLOCKER, commercialBlocker, depositCleared } from "./workflow.server";
 import { acceptAuthority, authorityValid, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
 
@@ -369,12 +370,12 @@ export const overrideDepositGate = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ invoiceId: uuid, reason: z.string().trim().min(5).max(1000) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { data: inv } = await admin.from("invoices").select("job_id, status, deposit_paid_at, total_paid").eq("id", data.invoiceId).single();
+    const { data: inv } = await admin.from("invoices").select("id, job_id, part, status, deposit_paid_at, amount_paid").eq("id", data.invoiceId).single();
     if (!inv) throw new WorkflowError("Invoice not found");
-    const before = { invoice_status: inv.status, deposit_paid_at: inv.deposit_paid_at, total_paid: inv.total_paid, deposit_gate: "locked", stage: await getStage(inv.job_id) };
-    const after = { ...before, deposit_gate: "overridden" };
-    await admin.from("payment_overrides").insert({ invoice_id: data.invoiceId, job_id: inv.job_id, gate: "deposit", reason: data.reason, overridden_by: context.userId, before_state: before, after_state: after });
-    await logEvent(inv.job_id, context.userId, "payment_override", `Deposit gate overridden by admin: ${data.reason}`, { invoice_id: data.invoiceId, before, after });
+    let ov;
+    try { ov = buildDepositOverride(inv as never, data.reason, context.userId, await getStage(inv.job_id)); } catch (e) { throw new WorkflowError((e as Error).message); }
+    await admin.from("payment_overrides").insert(ov as never);
+    await logEvent(inv.job_id, context.userId, "payment_override", `Deposit gate overridden by admin: ${ov.reason}`, { invoice_id: data.invoiceId, before: ov.before_state, after: ov.after_state });
     await advanceAfterDeposit(inv.job_id, context.userId);
     return { ok: true };
   });
@@ -410,10 +411,8 @@ export const createBooking = createServerFn({ method: "POST" }).middleware([requ
     const { data: contractor } = await admin.from("job_assignments").select("user_id").eq("job_id", data.jobId).eq("role", need).eq("active", true).maybeSingle();
     if (!contractor) throw new WorkflowError(`No ${need} assigned yet.`);
     if (data.kind === "installation") {
-      const p = await piesaStatus(data.jobId);
-      if (p?.piesa_expired) throw new WorkflowError(`Blocked: PIESA 30-day window expired on ${p.install_deadline}. Electrician must record a reassessment first.`);
-      if (p?.install_deadline && data.start.slice(0, 10) > p.install_deadline)
-        throw new WorkflowError(`Installation must be before the PIESA deadline (${p.install_deadline}).`);
+      const blocked = installationDateBlocker(await piesaStatus(data.jobId), data.start);
+      if (blocked) throw new WorkflowError(blocked);
     }
     if (!(await authorityValid(data.jobId))) throw new WorkflowError(`Blocked: ${AUTHORITY_BLOCKER}.`);
     if (data.kind !== "assessment") { const cb = await commercialBlocker(data.jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
@@ -421,7 +420,7 @@ export const createBooking = createServerFn({ method: "POST" }).middleware([requ
       throw new WorkflowError("Blocked: the 50% deposit has not been paid.");
     await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", data.jobId).eq("kind", data.kind).in("status", ["proposed", "confirmed"]);
     await admin.from("bookings").insert({ job_id: data.jobId, kind: data.kind, contractor_id: contractor.user_id, scheduled_start: data.start, booked_by: context.userId, notes: data.notes ?? null, status: "confirmed" });
-    if (data.kind === "installation") await refreshBalanceDueDate(data.jobId, context.userId);
+    if (data.kind === "installation") await scheduleBalanceInvoice(data.jobId, data.start, context.userId);
     const when = new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
     if (stage === target) await logEvent(data.jobId, context.userId, "booking_rescheduled", `${data.kind} rescheduled to ${when} by ${role}`);
     else await transition(data.jobId, target, context.userId, `${data.kind.charAt(0).toUpperCase() + data.kind.slice(1)} booked for ${when} by ${role}`);
@@ -436,7 +435,7 @@ export const cancelBooking = createServerFn({ method: "POST" }).middleware([requ
     const { data: rows } = await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", data.jobId).eq("kind", data.kind).in("status", ["proposed", "confirmed"]).select("id");
     if (!rows?.length) throw new WorkflowError(`No active ${data.kind} booking to cancel.`);
     await logEvent(data.jobId, context.userId, "booking_cancelled", `${data.kind} booking cancelled: ${data.reason}`, { booking_ids: rows.map((r) => r.id) });
-    if (data.kind === "installation") await refreshBalanceDueDate(data.jobId, context.userId);
+    if (data.kind === "installation") await unscheduleBalanceInvoice(data.jobId, context.userId);
     return { ok: true };
   });
 
@@ -696,7 +695,7 @@ export const getInvoiceInternals = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { data: inv } = await admin.from("invoices").select("id, xero_contact_id, xero_invoice_id, xero_reference, xero_invoice_status, last_synced_at, last_sync_error, sync_lock_at").eq("job_id", data.jobId);
+    const { data: inv } = await admin.from("invoices").select("id, part, xero_contact_id, xero_invoice_id, xero_reference, xero_invoice_status, last_synced_at, last_sync_error, sync_lock_at, xero_update_pending").eq("job_id", data.jobId);
     const { data: ov } = await admin.from("payment_overrides").select("id, invoice_id, reason, created_at, overridden_by").eq("job_id", data.jobId);
     const ids = [...new Set((ov ?? []).map((o) => o.overridden_by))];
     const { data: profs } = ids.length ? await admin.from("profiles").select("id, full_name").in("id", ids) : { data: [] };
