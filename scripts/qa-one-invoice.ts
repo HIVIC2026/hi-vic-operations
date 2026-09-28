@@ -38,7 +38,7 @@ const J = job!.id; console.log("job", job!.job_number);
 await db.from("job_assignments").insert([{ job_id: J, user_id: INST, role: "installer" }, { job_id: J, user_id: ELEC, role: "electrician" }]);
 const today = new Date(); const d = (n: number) => new Date(today.getTime() + n * 864e5).toISOString().slice(0, 10);
 const { data: auth } = await db.from("owner_authorities").insert({ job_id: J, owner_id: OWNER, property_id: prop!.id, version: 1, status: "accepted", wording_version: "qa", wording_snapshot: "QA", scope_snapshot: "QA", owner_full_name: "Daniel Rossi", property_address: "1 QA Test Street", confirmed_over_18: true, confirmed_owner_or_authorised: true, assistance_requirement: "none", acceptance_method: "qa", signature_name: "Daniel Rossi", accepted_at: today.toISOString(), starts_at: today.toISOString(), expires_at: new Date(today.getTime() + 90 * 864e5).toISOString() }).select("id").single();
-await db.from("piesa_records").insert({ job_id: J, kind: "assessment", outcome: "pass", completed_date: d(0), is_current: true });
+await db.from("piesa_records").insert({ job_id: J, kind: "initial", outcome: "pass", completed_date: d(0), is_current: true });
 const lines = [
   { description: "R4.0 ceiling batts installation", quantity: 107, unit: "m2", unit_price_inc_gst: 27.37, line_total_inc_gst: 2928.59, sort: 1 },
   { description: "Electrical rectification: Install RCD", quantity: 1, unit: "ea", unit_price_inc_gst: 216, line_total_inc_gst: 216, sort: 2 },
