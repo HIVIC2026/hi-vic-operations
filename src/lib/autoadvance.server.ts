@@ -10,7 +10,7 @@ async function count(q: PromiseLike<{ count: number | null }>) { return (await q
 export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
   const head = { count: "exact" as const, head: true };
   const [{ data: job }, st] = await Promise.all([
-    admin.from("jobs").select("eligibility_outcome, eligibility_set_by, installation_completed_at").eq("id", jobId).single(),
+    admin.from("jobs").select("eligibility_outcome, eligibility_set_by, eligibility_decision_source, installation_completed_at").eq("id", jobId).single(),
     assignmentStatus(jobId),
   ]);
   const q = (kind: "installation" | "rectification", status: "issued" | "accepted") => count(admin.from("quotes").select("id", head).eq("job_id", jobId).eq("kind", kind).eq("status", status));
@@ -24,7 +24,7 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
     count(admin.from("veec_lodgements").select("id", head).eq("job_id", jobId).in("status", ["submitted", "approved"])),
   ]);
   return {
-    eligibilityConfirmed: !!job?.eligibility_set_by && !!job.eligibility_outcome && job.eligibility_outcome !== "does_not_appear_eligible",
+    eligibilityConfirmed: (!!job?.eligibility_set_by || job?.eligibility_decision_source === "system" || job?.eligibility_decision_source === "admin") && !!job?.eligibility_outcome && job.eligibility_outcome !== "does_not_appear_eligible",
     electricianAssigned: elec > 0,
     assessmentBookingConfirmed: ab > 0,
     openRectItems: rect,
@@ -44,8 +44,10 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
 }
 
 /** Never throws for workflow reasons: a job that can't advance simply stays where it is with its blockers visible. */
-export async function autoAdvanceJob(jobId: string, actorId: string, _reason: string, opts: { allowApPromotion?: boolean } = {}): Promise<AdvanceResult | null> {
+export async function autoAdvanceJob(jobId: string, actorId: string | null, _reason: string, opts: { allowApPromotion?: boolean } = {}): Promise<AdvanceResult | null> {
   try {
+    const { autoDecideEligibility } = await import("./eligibility.server");
+    await autoDecideEligibility(jobId);
     return await runAutoAdvance({
       getStage: () => getStage(jobId),
       facts: () => loadAdvanceFacts(jobId),
