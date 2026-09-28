@@ -30,12 +30,14 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
             {roles.includes("admin") && (
               <>
                 <Link to="/admin" className={link} activeProps={active} activeOptions={{ exact: true }}>Pipeline</Link>
+                <Link to="/admin/businesses" className={link} activeProps={active}>Partners</Link>
                 <Link to="/admin/partners" className={link} activeProps={active}>Partner Enquiries</Link>
                 <Link to="/admin/compliance" className={link} activeProps={active}>Compliance Setup</Link>
                 <Link to="/admin/users" className={link} activeProps={active}>Users</Link>
               </>
             )}
             {(roles.includes("electrician") || roles.includes("installer")) && <Link to="/field" className={link} activeProps={active}>My jobs</Link>}
+            {(me?.profile?.business_id || roles.includes("installer") || roles.includes("electrician")) && !roles.includes("admin") && <Link to="/partner" className={link} activeProps={active}>Partner</Link>}
             {roles.includes("owner") && <Link to="/owner" className={link} activeProps={active}>My home</Link>}
           </nav>
           <span className="hidden text-sm opacity-70 md:inline">{me?.profile?.full_name}</span>

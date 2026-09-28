@@ -1,3 +1,4 @@
+import { AppointmentPanel, ElectricianChoicePanel, PartnerProposalForm } from "@/components/portal/partner";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -40,7 +41,10 @@ function FieldJob() {
       <div className="mb-4"><BlockersPanel jobId={jobId} /></div>
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
+        {role === "installer" && ["new_enquiry", "eligibility_review", "awaiting_electrician"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
+        {(role === "installer" || role === "electrician") && ["assessment_booking", "assessment_booked"].includes(job.stage!) && <AppointmentPanel jobId={jobId} />}
         {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage!} />}
+        {role === "installer" && ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(job.stage!) && <PartnerProposalForm jobId={jobId} />}
         <MessagesPanel jobId={jobId} isAdmin={false} />
       </div>
     </AppShell>
