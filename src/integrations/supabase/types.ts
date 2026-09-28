@@ -648,6 +648,7 @@ export type Database = {
           last_synced_at: string | null
           quote_id: string
           status: Database["public"]["Enums"]["payment_status"]
+          sync_lock_at: string | null
           total_inc_gst: number
           total_paid: number
           updated_at: string
@@ -657,6 +658,7 @@ export type Database = {
           xero_invoice_status: string | null
           xero_online_url: string | null
           xero_reference: string | null
+          xero_tracking_option_id: string | null
         }
         Insert: {
           balance_amount: number
@@ -675,6 +677,7 @@ export type Database = {
           last_synced_at?: string | null
           quote_id: string
           status?: Database["public"]["Enums"]["payment_status"]
+          sync_lock_at?: string | null
           total_inc_gst: number
           total_paid?: number
           updated_at?: string
@@ -684,6 +687,7 @@ export type Database = {
           xero_invoice_status?: string | null
           xero_online_url?: string | null
           xero_reference?: string | null
+          xero_tracking_option_id?: string | null
         }
         Update: {
           balance_amount?: number
@@ -702,6 +706,7 @@ export type Database = {
           last_synced_at?: string | null
           quote_id?: string
           status?: Database["public"]["Enums"]["payment_status"]
+          sync_lock_at?: string | null
           total_inc_gst?: number
           total_paid?: number
           updated_at?: string
@@ -711,6 +716,7 @@ export type Database = {
           xero_invoice_status?: string | null
           xero_online_url?: string | null
           xero_reference?: string | null
+          xero_tracking_option_id?: string | null
         }
         Relationships: [
           {
