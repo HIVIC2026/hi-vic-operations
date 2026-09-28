@@ -5,14 +5,14 @@ import { Plus, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { JobCard, type JobRow } from "@/components/portal/JobCard";
-import { EXCEPTION_STAGES, STAGE_LABEL, STAGE_ORDER, type Stage } from "@/lib/workflow";
+import { EXCEPTION_PHASE, PIPELINE_PHASES, phaseForStage, type Phase } from "@/lib/workflow";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAction } from "@/hooks/use-me";
-import { createEnquiry, sweepAuthorities } from "@/lib/portal.functions";
+import { autoAdvancePipeline, createEnquiry, sweepAuthorities } from "@/lib/portal.functions";
 import { useServerFn } from "@tanstack/react-start";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
@@ -26,9 +26,12 @@ function Pipeline() {
   const [source, setSource] = useState<"all" | "hivic_sourced" | "installer_sourced">("all");
   const [showTest, setShowTest] = useState(false);
   const sweep = useServerFn(sweepAuthorities);
+  const advance = useServerFn(autoAdvancePipeline);
+  const [showExceptions, setShowExceptions] = useState(false);
+  const [phase, setPhase] = useState<Phase | "all">("all");
   const { data: allJobs = [] } = useQuery({
     queryKey: ["pipeline"],
-    queryFn: async () => (await sweep().catch(() => null), await supabase.from("job_overview").select("*").order("last_activity_at", { ascending: false })).data ?? [],
+    queryFn: async () => (await sweep().catch(() => null), await advance().catch(() => null), await supabase.from("job_overview").select("*").order("last_activity_at", { ascending: false })).data ?? [],
   });
   const jobs = useMemo(() => allJobs.filter((j) => showTest || j.source !== "qa_test"), [allJobs, showTest]);
   const hiddenTest = allJobs.length - jobs.length;
@@ -36,7 +39,8 @@ function Pipeline() {
     const s = q.toLowerCase();
     return jobs.filter((j) => source === "all" || j.channel === source).filter((j) => !s || [j.job_number, j.property_address, j.owner_name, j.electrician_name, j.installer_name].some((v) => v?.toLowerCase().includes(s)));
   }, [jobs, q, source]);
-  const byStage = (st: Stage) => filtered.filter((j) => j.stage === st);
+  const byPhase = (p: Phase) => filtered.filter((j) => phaseForStage(j.stage) === p);
+  const lanes = PIPELINE_PHASES.filter((p) => phase === "all" || p.key === phase);
   const warnings = jobs.filter((j) => j.urgency === "red" || j.urgency === "expired" || j.payment_status === "overdue" || j.payment_status === "xero_sync_error" || (j.authority_status !== "accepted" && !["new_enquiry", "eligibility_review", "complete", "cancelled"].includes(j.stage ?? ""))).length;
   const noAuth = jobs.filter((j) => j.authority_status !== "accepted" && !["new_enquiry", "eligibility_review", "complete", "cancelled"].includes(j.stage ?? "")).length;
 
@@ -52,24 +56,34 @@ function Pipeline() {
           <select aria-label="Job source" className="h-9 rounded-md border bg-background px-2 text-sm" value={source} onChange={(e) => setSource(e.target.value as typeof source)}>
             <option value="all">All sources</option><option value="hivic_sourced">HI VIC-sourced</option><option value="installer_sourced">Installer-sourced</option>
           </select>
+          <select aria-label="Phase" className="h-9 rounded-md border bg-background px-2 text-sm" value={phase} onChange={(e) => setPhase(e.target.value as typeof phase)}>
+            <option value="all">All phases</option>{PIPELINE_PHASES.map((p) => <option key={p.key} value={p.key}>{p.label} ({byPhase(p.key).length})</option>)}
+          </select>
+          <Button variant={showExceptions ? "secondary" : "outline"} onClick={() => setShowExceptions(!showExceptions)}>On hold / Cancelled ({byPhase("exceptions").length})</Button>
           <label className="flex items-center gap-2 text-sm"><Checkbox checked={showTest} onCheckedChange={(v) => setShowTest(!!v)} /> Show test jobs</label>
           <Button variant="outline" onClick={() => setView(view === "board" ? "list" : "board")}>{view === "board" ? "List view" : "Board view"}</Button>
           <NewEnquiry />
         </div>
       </div>
+      {showExceptions && (
+        <section className="mb-4 rounded-xl border bg-muted/40 p-3">
+          <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">{EXCEPTION_PHASE.label}</h2>
+          {byPhase("exceptions").length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{byPhase("exceptions").map((j) => <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" />)}</div> : <p className="text-sm text-muted-foreground">None.</p>}
+        </section>
+      )}
       {view === "board" ? (
         <div className="flex gap-3 overflow-x-auto pb-4">
-          {[...STAGE_ORDER, ...EXCEPTION_STAGES].map((st) => (
-            <div key={st} className="w-72 shrink-0">
+          {lanes.map((p) => (
+            <div key={p.key} className="w-80 shrink-0">
               <div className="mb-2 flex items-center justify-between px-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                <span>{STAGE_LABEL[st]}</span><span className="rounded bg-muted px-1.5">{byStage(st).length}</span>
+                <span>{p.label}</span><span className="rounded bg-muted px-1.5">{byPhase(p.key).length}</span>
               </div>
-              <div className="space-y-2">{byStage(st).map((j) => <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" />)}</div>
+              <div className="space-y-2">{byPhase(p.key).map((j) => <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" />)}</div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.map((j: JobRow) => <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" />)}</div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase).filter((j) => showExceptions || phaseForStage(j.stage) !== "exceptions").map((j: JobRow) => <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" />)}</div>
       )}
     </AppShell>
   );

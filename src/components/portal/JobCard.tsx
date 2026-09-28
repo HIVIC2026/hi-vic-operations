@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, HeartPulse, Lock } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
-import { fmtDateTime } from "@/lib/workflow";
+import { fmtDateTime, waitingOn } from "@/lib/workflow";
 import { AuthorityBadge, PaymentBadge, SourceBadge, StageBadge, UrgencyBadge } from "./badges";
 
 export type JobRow = Database["public"]["Views"]["job_overview"]["Row"];
@@ -40,7 +40,10 @@ export function JobCard({ job, to }: { job: JobRow; to: "/admin/jobs/$jobId" | "
       <div className="mt-3 flex items-start gap-1.5 rounded-md bg-accent px-2 py-1.5 text-xs font-medium text-accent-foreground">
         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {job.next_action ?? "—"}
       </div>
-      <div className="mt-2 text-[11px] text-muted-foreground">Last activity {fmtDateTime(job.last_activity_at)}</div>
+      {waitingOn(job.stage, job.next_action) && (
+        <div className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Waiting on: <span className="text-foreground">{waitingOn(job.stage, job.next_action)}</span></div>
+      )}
+      <div className="mt-1 text-[11px] text-muted-foreground">Last activity {fmtDateTime(job.last_activity_at)}</div>
     </Link>
   );
 }
