@@ -59,6 +59,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
     setF((p) => ({ ...p, [k]: v }));
     if (locked) return;
     const r = await save({ jobId, patch: { [k]: v } as never });
+    if (!r) return;
     setSaved(new Date(r.savedAt).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" }));
   };
   const num = (k: string) => (e: React.FocusEvent<HTMLInputElement>) => put(k, e.target.value === "" ? null : Number(e.target.value));
