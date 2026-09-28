@@ -2,7 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { logEvent } from "./workflow.server";
-import { evaluateGate1, resolveGate1Facts, type Gate1Decision, type StoredProperty } from "./eligibility.core";
+import { evaluateGate1, resolveGate1Facts, type Gate1Decision, type StoredProperty, type IntelFact } from "./eligibility.core";
 
 export const AUTO_FAIL_HOLD_PREFIX = "Gate 1 auto-decision: does not appear eligible";
 
@@ -40,13 +40,14 @@ export async function autoDecideEligibility(jobId: string): Promise<Gate1Decisio
 }
 
 type StoredJob = { eligibility_outcome: string | null; eligibility_decision_source: string | null; life_support_status: string | null; properties: unknown };
-async function evaluateStored(j: StoredJob) {
+async function evaluateStored(j: StoredJob, jobId: string) {
+  const { data: intel } = await admin.from("property_facts").select("fact_key, value, evidence_kind, confidence, source_type, source_name, source_url, is_current, is_stale").eq("job_id", jobId).eq("is_current", true);
   const { data: ws } = await admin.from("workflow_settings").select("min_building_age_years").limit(1).maybeSingle();
   const year = Number(new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", year: "numeric" }).format(new Date()));
   const facts = resolveGate1Facts(j.properties as StoredProperty | null, {
     lifeSupportStatus: j.life_support_status,
     preliminaryOutcome: j.eligibility_decision_source === "preliminary" ? j.eligibility_outcome : null,
-  }, ws?.min_building_age_years ?? 2, year);
+  }, ws?.min_building_age_years ?? 2, year, (intel ?? []) as IntelFact[]);
   return { facts, d: evaluateGate1(facts) };
 }
 
