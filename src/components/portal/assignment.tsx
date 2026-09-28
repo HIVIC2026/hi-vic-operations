@@ -53,6 +53,7 @@ export function AcceptanceFlow({ quoteId, jobId, onClose }: { quoteId: string; j
   const [over18, setOver18] = useState(false);
   const [readInfo, setReadInfo] = useState(false);
   const [agree, setAgree] = useState(false);
+  const [assign, setAssign] = useState(false);
   const [assist, setAssist] = useState<keyof typeof ASSISTANCE_LABEL>("none");
   const [change, setChange] = useState("");
   const [changeOpen, setChangeOpen] = useState(false);
@@ -67,7 +68,7 @@ export function AcceptanceFlow({ quoteId, jobId, onClose }: { quoteId: string; j
   );
   const signatory = authorityType === "owner" ? pkg.consumer.name : repName.trim();
   const steps = ["Review quote", "VEU info & rights", "Confirm & agree", "Sign"];
-  const canContinue = step === 0 || (step === 1 && readInfo) || (step === 2 && over18 && agree && signatory.length >= 2);
+  const canContinue = step === 0 || (step === 1 && readInfo) || (step === 2 && over18 && agree && assign && signatory.length >= 2);
   return (
     <section className="rounded-xl border-2 border-primary bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between"><h2 className="text-lg font-bold">Accept your quote</h2><Button variant="ghost" size="sm" onClick={onClose}>Close</Button></div>
@@ -113,7 +114,9 @@ export function AcceptanceFlow({ quoteId, jobId, onClose }: { quoteId: string; j
           {data.agreementWording && <Official title={`Agreement (${data.agreementWording.version})`} body={data.agreementWording.body} />}
           <Tick v={over18} set={setOver18}>I am 18 years of age or older.</Tick>
           <Tick v={agree} set={setAgree}>I accept this quote and its payment terms with {pkg.ap_legal_entity}.</Tick>
-          <p className="rounded bg-muted p-2 text-xs text-muted-foreground">After your installation date is booked you'll be asked to sign a separate consent for sharing information with the Essential Services Commission. After installation you'll sign the official VEEC assignment form.</p>
+          {data.assignmentForm && <Official title={`VEEC assignment – official form (${data.assignmentForm.version})`} body={data.assignmentForm.body} />}
+          <Tick v={assign} set={setAssign}>I assign all VEEC rights for this upgrade to {pkg.ap_legal_entity}. I understand this takes effect only once the installation is completed and the final details are confirmed.</Tick>
+          <p className="rounded bg-muted p-2 text-xs text-muted-foreground">After your installation date is booked you'll be asked to sign a separate consent for sharing information with the Essential Services Commission.</p>
           <div><div className="mb-1 font-medium">Do you need any assistance?</div><div className="grid gap-2 sm:grid-cols-2">{(Object.keys(ASSISTANCE_LABEL) as (keyof typeof ASSISTANCE_LABEL)[]).map((k) => <Button key={k} size="field" variant={assist === k ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal" onClick={() => setAssist(k)}>{ASSISTANCE_LABEL[k]}</Button>)}</div></div>
         </div>
       )}
@@ -122,7 +125,7 @@ export function AcceptanceFlow({ quoteId, jobId, onClose }: { quoteId: string; j
           <p>Signing as <b>{signatory}</b>. Type your full name as your electronic signature.</p>
           <Input className="h-12" value={sig} placeholder={signatory} onChange={(e) => setSig(e.target.value)} autoComplete="name" />
           <Button size="field" className="w-full" disabled={sig.trim().length < 2}
-            onClick={async () => { await respond({ quoteId, accept: true, consent: true, signing: { signatoryName: signatory, authorityType, over18, readConsumerInfo: readInfo, acceptAgreement: agree, signatureName: sig, assistance: assist } }, "Accepted – your deposit invoice is next"); onClose(); }}>
+            onClick={async () => { await respond({ quoteId, accept: true, consent: true, signing: { signatoryName: signatory, authorityType, over18, readConsumerInfo: readInfo, acceptAgreement: agree, acceptAssignment: assign, signatureName: sig, assistance: assist } }, "Accepted – your deposit invoice is next"); onClose(); }}>
             Accept quote & sign
           </Button>
         </div>
