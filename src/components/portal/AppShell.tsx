@@ -31,7 +31,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
               <>
                 <Link to="/admin" className={link} activeProps={active} activeOptions={{ exact: true }}>Pipeline</Link>
                 <Link to="/admin/partners" className={link} activeProps={active}>Partner Enquiries</Link>
-                <Link to="/admin/compliance" className={link} activeProps={active}>Compliance</Link>
+                <Link to="/admin/compliance" className={link} activeProps={active}>Compliance Setup</Link>
                 <Link to="/admin/users" className={link} activeProps={active}>Users</Link>
               </>
             )}

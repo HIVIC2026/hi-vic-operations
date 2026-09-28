@@ -2,6 +2,7 @@
 // delegates to the central workflow/quote modules which write with the service role.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { Json } from "@/integrations/supabase/types";
 import { withRequestMeta } from "./request-meta";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -13,7 +14,7 @@ import { applyPaidAmount, clearInstallDueDate, createInvoiceForQuote, requireHiv
 import { buildDepositOverride, depositRequestPatch } from "./invoice.lifecycle";
 import { commercialBlocker, depositCleared } from "./workflow.server";
 import { assertConsumerCanSign, assignmentEffective, buildAcceptancePackage, evaluateAndApply, loadTemplates, raiseVariation, reconfirmVariation, signConsumer, signInstaller } from "./assignment.server";
-import { ASSIGNMENT_EVENTS, templateBlockers, type TemplateKey } from "./assignment.core";
+import { ASSIGNMENT_EVENTS, parseFormFields, prefillRows, setupStatus, templateBlockers, type TemplateKey } from "./assignment.core";
 import { autoAdvanceJob, autoAdvanceOpenJobs } from "./autoadvance.server";
 import { acceptAuthority, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
 
@@ -1005,21 +1006,54 @@ export const getAssignment = createServerFn({ method: "POST" }).middleware([requ
     const templates = await loadTemplates();
     const cur = (a ?? []).find((x) => x.status !== "cancelled") ?? null;
     const installerDeclaration = templates.find((t) => t.template_key === "installer_declaration" && t.approved) ?? null;
+    const installerFields = parseFormFields(installerDeclaration?.form_fields);
+    const apTemplate = templates.find((t) => t.template_key === "ap_declaration" && t.approved) ?? null;
+    // Known facts shown read-only on the installer's finalisation screen (never retyped).
+    const { data: ov } = await admin.from("job_overview").select("job_number, property_address, owner_name, piesa_date, install_deadline, installer_id, installer_name").eq("id", data.jobId).maybeSingle();
+    const { data: ip } = ov?.installer_id ? await admin.from("profiles").select("full_name, licence_number, businesses(name, abn)").eq("id", ov.installer_id).maybeSingle() : { data: null };
+    const biz = (ip?.businesses ?? null) as { name: string | null; abn: string | null } | null;
+    const prefill = prefillRows([
+      ["Job", ov?.job_number], ["Property", ov?.property_address], ["Owner", ov?.owner_name],
+      ["Installer", cur?.installer_name ?? ip?.full_name ?? ov?.installer_name], ["Company", cur?.installer_business_name ?? biz?.name], ["ABN", cur?.installer_abn ?? biz?.abn],
+      ["Licence", cur?.installer_licence ?? ip?.licence_number], ["Product quoted", cur?.quoted_product], ["Area quoted (m²)", cur?.quoted_area_m2],
+      ["PIESA completed", ov?.piesa_date], ["Install by (PIESA +30 days)", ov?.install_deadline],
+    ]);
+    const common = { finalBlockers: templateBlockers(templates, "final"), installerDeclaration, installerFields, prefill };
     if (role === "installer") {
       // Trades never see prices or consumer signature evidence.
-      return { role, current: cur ? { id: cur.id, status: cur.status, quoted_product: cur.quoted_product, quoted_area_m2: cur.quoted_area_m2, installer_signed_at: cur.installer_signed_at, installed_product: cur.installed_product, installed_area_m2: cur.installed_area_m2 } : null, history: [], variations: [], finalBlockers: templateBlockers(templates, "final"), installerDeclaration };
+      return { role, current: cur ? { id: cur.id, status: cur.status, quoted_product: cur.quoted_product, quoted_area_m2: cur.quoted_area_m2, installer_signed_at: cur.installer_signed_at, installed_product: cur.installed_product, installed_area_m2: cur.installed_area_m2 } : null, history: [], variations: [], apTemplate: null, ...common };
     }
-    return { role, current: cur, history: a ?? [], variations: v ?? [], finalBlockers: templateBlockers(templates, "final"), installerDeclaration };
+    return { role, current: cur, history: a ?? [], variations: v ?? [], apTemplate, ...common };
   });
 
 export const signInstallerDeclaration = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
-  .inputValidator((d) => z.object({ jobId: uuid, installedProduct: z.string().trim().min(2).max(300), installedArea: z.number().positive().max(100000), signatureName: z.string().trim().min(2).max(200) }).parse(d))
+  .inputValidator((d) => z.object({
+    jobId: uuid, asQuotedProduct: z.boolean(), installedProduct: z.string().trim().max(300).optional().nullable(), installedArea: z.number().positive().max(100000),
+    fieldValues: z.record(z.string().max(60), z.union([z.string().max(1000), z.number(), z.boolean(), z.null()])).default({}), signatureName: z.string().trim().min(2).max(200),
+  }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["installer", "admin"]);
     await signInstaller({ ...data, actorId: context.userId, ip: context.ip, userAgent: context.userAgent });
     await autoAdvanceJob(data.jobId, context.userId, "installer declaration signed");
     return { ok: true };
   });
+
+export const signApDeclarationFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
+  .inputValidator((d) => z.object({ jobId: uuid, signatureName: z.string().trim().min(2).max(200) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { signApDeclaration } = await import("./assignment.server");
+    await signApDeclaration({ ...data, actorId: context.userId, ip: context.ip, userAgent: context.userAgent });
+    await autoAdvanceJob(data.jobId, context.userId, "AP declaration signed");
+    return { ok: true };
+  });
+
+export const getComplianceSetup = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  await requireAdmin(context.supabase);
+  const templates = await loadTemplates();
+  const { count } = await admin.from("esc_notification_config").select("id", { count: "exact", head: true }).eq("approved", true).eq("is_active", true);
+  return setupStatus(templates, (count ?? 0) > 0);
+});
 
 export const raiseAssignmentVariation = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, reason: z.string().trim().min(5).max(1000) }).parse(d))
@@ -1062,10 +1096,11 @@ export const listComplianceTemplates = createServerFn({ method: "POST" }).middle
 });
 
 export const addComplianceTemplate = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ template_key: z.enum(["consumer_declaration", "consumer_rights", "esc_consent", "installer_declaration", "ap_declaration"]), version: z.string().trim().min(1).max(50), body: z.string().trim().min(20).max(50000), source_note: z.string().max(1000).optional(), required: z.boolean().default(true) }).parse(d))
+  .inputValidator((d) => z.object({ template_key: z.enum(["consumer_declaration", "consumer_rights", "esc_consent", "installer_declaration", "ap_declaration"]), version: z.string().trim().min(1).max(50), body: z.string().trim().min(20).max(50000), source_note: z.string().max(1000).optional(), required: z.boolean().default(true), form_fields: z.array(z.unknown()).max(40).default([]) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { error } = await admin.from("compliance_templates").insert({ ...data, source_note: data.source_note ?? null, created_by: context.userId });
+    const form_fields = parseFormFields(data.form_fields) as unknown as Json;
+    const { error } = await admin.from("compliance_templates").insert({ ...data, form_fields, source_note: data.source_note ?? null, created_by: context.userId });
     if (error) throw new WorkflowError(error.message);
     return { ok: true };
   });

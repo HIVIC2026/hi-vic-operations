@@ -2,12 +2,26 @@
 // Official declaration / consumer-rights wording is NEVER defined here: it comes from versioned,
 // admin-approved compliance_templates rows. Missing wording = configuration blocker.
 
+import type { Json } from "@/integrations/supabase/types";
+
 export type AssignmentStatus =
   | "draft" | "consumer_signed_pending_install" | "final_details_pending" | "installer_signed_pending_install"
   | "variation_required" | "effective_complete" | "cancelled";
 
 export type TemplateKey = "consumer_declaration" | "consumer_rights" | "esc_consent" | "installer_declaration" | "ap_declaration";
-export type Template = { template_key: string; version: string; body: string; approved: boolean; is_active: boolean; required: boolean };
+export type Template = { template_key: string; version: string; body: string; approved: boolean; is_active: boolean; required: boolean; form_fields?: Json };
+
+/** Structured field an electronic form renders. Defined per template version by admin; never free-typed wording. */
+export type FormField = { key: string; label: string; type: "text" | "number" | "date" | "select" | "checkbox"; required: boolean; options?: string[]; help?: string };
+
+/** Plain-English "not ready" messages shown to admin (customers and trades never see a broken form). */
+export const NOT_READY: Record<TemplateKey, string> = {
+  consumer_declaration: "Customer signing is not ready: add the current Activity 48 consumer declaration.",
+  consumer_rights: "Customer signing is not ready: add the current VEU consumer information and consumer rights.",
+  esc_consent: "Customer signing is not ready: add the current ESC information sharing consent wording.",
+  installer_declaration: "Installer sign-off is not ready: add the current Activity 48 installer declaration.",
+  ap_declaration: "AP sign-off is not ready: approve the current Accredited Person declaration.",
+};
 
 export const ASSIGNMENT_LABEL: Record<AssignmentStatus, string> = {
   draft: "Draft",
@@ -50,10 +64,10 @@ export function activeTemplate(templates: Template[], key: TemplateKey): Templat
 /** Configuration blockers for a phase. Consumer phase needs consumer wording; final phase needs installer (+ AP if marked required). */
 export function templateBlockers(templates: Template[], phase: "consumer" | "final"): string[] {
   const keys: TemplateKey[] = phase === "consumer" ? ["consumer_declaration", "consumer_rights", "esc_consent"] : ["installer_declaration"];
-  const out = keys.filter((k) => !activeTemplate(templates, k)).map((k) => `Configuration required: approved "${TEMPLATE_LABEL[k]}" text not configured.`);
+  const out = keys.filter((k) => !activeTemplate(templates, k)).map((k) => NOT_READY[k]);
   if (phase === "final") {
     const ap = templates.find((t) => t.template_key === "ap_declaration" && t.is_active);
-    if (ap && ap.required && !ap.approved) out.push(`Configuration required: "${TEMPLATE_LABEL.ap_declaration}" not approved.`);
+    if (ap && ap.required && !ap.approved) out.push(NOT_READY.ap_declaration);
   }
   return out;
 }
@@ -101,7 +115,14 @@ const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 export type FinalState = {
   status: AssignmentStatus; consumerSigned: boolean; installationCompleted: boolean; installerSigned: boolean;
   installedProduct: string | null; installedArea: number | null; openVariation: boolean; templates: Template[];
+  /** HI VIC AP declaration signed (only needed when an approved, required AP template is active). */
+  apSigned?: boolean;
 };
+
+export function apDeclarationRequired(templates: Template[]) {
+  const ap = activeTemplate(templates, "ap_declaration");
+  return !!ap && ap.required;
+}
 
 /** The ONLY rule deciding the staged status. Effective only after eligible install AND installer final details/declaration. */
 export function evaluateAssignment(s: FinalState): { status: AssignmentStatus; missing: string[] } {
@@ -114,6 +135,7 @@ export function evaluateAssignment(s: FinalState): { status: AssignmentStatus; m
   if (!s.installedProduct) missing.push("Final installed product not recorded");
   if (!(Number(s.installedArea) > 0)) missing.push("Actual installed m² not recorded");
   missing.push(...templateBlockers(s.templates, "final"));
+  if (apDeclarationRequired(s.templates) && !s.apSigned) missing.push("HI VIC AP declaration not signed");
   if (!missing.length) return { status: "effective_complete", missing };
   if (s.installationCompleted) return { status: "final_details_pending", missing };
   if (s.installerSigned) return { status: "installer_signed_pending_install", missing };
@@ -137,4 +159,71 @@ export function stableJson(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(stableJson).join(",")}]`;
   if (v && typeof v === "object") return `{${Object.keys(v as object).sort().map((k) => `${JSON.stringify(k)}:${stableJson((v as Record<string, unknown>)[k])}`).join(",")}}`;
   return JSON.stringify(v ?? null);
+}
+
+// ---------- Electronic forms: structured fields + prefill (no duplicate data entry) ----------
+const FIELD_TYPES = new Set(["text", "number", "date", "select", "checkbox"]);
+/** Safe parse of admin-defined form fields; invalid entries are dropped. */
+export function parseFormFields(v: unknown): FormField[] {
+  if (!Array.isArray(v)) return [];
+  const out: FormField[] = [], seen = new Set<string>();
+  for (const f of v) {
+    if (!f || typeof f !== "object") continue;
+    const o = f as Record<string, unknown>;
+    const key = typeof o["key"] === "string" ? o["key"].trim() : "";
+    const label = typeof o["label"] === "string" ? o["label"].trim() : "";
+    const type = String(o["type"] ?? "text");
+    if (!/^[a-z][a-z0-9_]{0,40}$/.test(key) || !label || !FIELD_TYPES.has(type) || seen.has(key)) continue;
+    seen.add(key);
+    const options = Array.isArray(o["options"]) ? (o["options"] as unknown[]).map(String).filter(Boolean).slice(0, 50) : undefined;
+    out.push({ key, label: label.slice(0, 200), type: type as FormField["type"], required: o["required"] !== false, ...(options?.length ? { options } : {}), ...(typeof o["help"] === "string" ? { help: (o["help"] as string).slice(0, 300) } : {}) });
+  }
+  return out;
+}
+
+export type FieldValue = string | number | boolean | null;
+/** Plain-English problems with submitted values for the given field definitions. */
+export function formFieldBlockers(defs: FormField[], values: Record<string, FieldValue>): string[] {
+  const b: string[] = [];
+  for (const f of defs) {
+    const v = values[f.key];
+    const empty = v == null || (typeof v === "string" && !v.trim()) || (f.type === "checkbox" && v !== true);
+    if (f.required && empty) { b.push(`Please complete "${f.label}".`); continue; }
+    if (empty) continue;
+    if (f.type === "number" && !Number.isFinite(Number(v))) b.push(`"${f.label}" must be a number.`);
+    if (f.type === "select" && f.options && !f.options.includes(String(v))) b.push(`Choose a valid option for "${f.label}".`);
+    if (f.type === "date" && Number.isNaN(Date.parse(String(v)))) b.push(`"${f.label}" must be a date.`);
+  }
+  return b;
+}
+/** Keep only values for defined fields (no stray data in the signed record). */
+export function pickFieldValues(defs: FormField[], values: Record<string, FieldValue>): Record<string, FieldValue> {
+  return Object.fromEntries(defs.filter((f) => f.key in values).map((f) => [f.key, values[f.key] ?? null]));
+}
+
+/** Installer: "installed as quoted" reuses the quoted product; only genuinely new facts are entered. */
+export function resolveInstalledDetails(i: { asQuotedProduct: boolean; product?: string | null; area: number }, quoted: { product: string | null }): { product: string; area: number } | { error: string } {
+  const product = i.asQuotedProduct ? quoted.product : i.product?.trim() || null;
+  if (!product || product.length < 2) return { error: i.asQuotedProduct ? "Quoted product is missing – enter the installed product." : "Enter the installed product." };
+  if (!(i.area > 0)) return { error: "Enter the actual installed area (m²)." };
+  return { product, area: i.area };
+}
+
+export type PrefillRow = { label: string; value: string };
+/** Known facts shown read-only; the user confirms them rather than retyping. */
+export function prefillRows(rows: [string, string | number | null | undefined][]): PrefillRow[] {
+  return rows.map(([label, v]) => ({ label, value: v == null || v === "" ? "—" : String(v) }));
+}
+
+export type SetupItem = { key: "consumer" | "installer" | "esc_consent" | "esc_config"; label: string; ready: boolean; message: string };
+/** Readiness cards for the admin Compliance Setup page. */
+export function setupStatus(templates: Template[], escConfigReady: boolean): SetupItem[] {
+  const consumer = (["consumer_declaration", "consumer_rights"] as TemplateKey[]).filter((k) => !activeTemplate(templates, k));
+  const installer = templateBlockers(templates, "final");
+  return [
+    { key: "consumer", label: "Consumer form", ready: !consumer.length, message: consumer.length ? NOT_READY[consumer[0]!] : "Customers can accept and sign electronically." },
+    { key: "installer", label: "Installer form", ready: !installer.length, message: installer[0] ?? "Installers can finalise and sign electronically." },
+    { key: "esc_consent", label: "ESC consent", ready: !!activeTemplate(templates, "esc_consent"), message: activeTemplate(templates, "esc_consent") ? "Consent is a checkbox inside the customer's acceptance." : NOT_READY.esc_consent },
+    { key: "esc_config", label: "ESC notification config", ready: escConfigReady, message: escConfigReady ? "ESC notice fields are approved." : "ESC notices are not ready: approve the current ESC notification field list." },
+  ];
 }

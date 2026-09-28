@@ -608,6 +608,7 @@ export type Database = {
           body: string
           created_at: string
           created_by: string | null
+          form_fields: Json
           id: string
           is_active: boolean
           required: boolean
@@ -622,6 +623,7 @@ export type Database = {
           body: string
           created_at?: string
           created_by?: string | null
+          form_fields?: Json
           id?: string
           is_active?: boolean
           required?: boolean
@@ -636,6 +638,7 @@ export type Database = {
           body?: string
           created_at?: string
           created_by?: string | null
+          form_fields?: Json
           id?: string
           is_active?: boolean
           required?: boolean
@@ -665,6 +668,10 @@ export type Database = {
           ap_declaration_version: string | null
           ap_details: Json
           ap_legal_entity: string
+          ap_signature_name: string | null
+          ap_signed_at: string | null
+          ap_signed_by: string | null
+          ap_snapshot_sha256: string | null
           assistance_requirement:
             | Database["public"]["Enums"]["assistance_requirement"]
             | null
@@ -696,6 +703,7 @@ export type Database = {
           installer_business_id: string | null
           installer_business_name: string | null
           installer_declaration_version: string | null
+          installer_form_values: Json | null
           installer_ip: string | null
           installer_licence: string | null
           installer_name: string | null
@@ -726,6 +734,10 @@ export type Database = {
           ap_declaration_version?: string | null
           ap_details?: Json
           ap_legal_entity: string
+          ap_signature_name?: string | null
+          ap_signed_at?: string | null
+          ap_signed_by?: string | null
+          ap_snapshot_sha256?: string | null
           assistance_requirement?:
             | Database["public"]["Enums"]["assistance_requirement"]
             | null
@@ -757,6 +769,7 @@ export type Database = {
           installer_business_id?: string | null
           installer_business_name?: string | null
           installer_declaration_version?: string | null
+          installer_form_values?: Json | null
           installer_ip?: string | null
           installer_licence?: string | null
           installer_name?: string | null
@@ -787,6 +800,10 @@ export type Database = {
           ap_declaration_version?: string | null
           ap_details?: Json
           ap_legal_entity?: string
+          ap_signature_name?: string | null
+          ap_signed_at?: string | null
+          ap_signed_by?: string | null
+          ap_snapshot_sha256?: string | null
           assistance_requirement?:
             | Database["public"]["Enums"]["assistance_requirement"]
             | null
@@ -818,6 +835,7 @@ export type Database = {
           installer_business_id?: string | null
           installer_business_name?: string | null
           installer_declaration_version?: string | null
+          installer_form_values?: Json | null
           installer_ip?: string | null
           installer_licence?: string | null
           installer_name?: string | null

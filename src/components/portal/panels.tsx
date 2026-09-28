@@ -228,7 +228,7 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
   });
   if (!data?.length) return <Section title="Quotes"><p className="text-sm text-muted-foreground">No quotes yet.</p></Section>;
   const open = data.some((q) => q.status === "issued" && q.kind === "rectification");
-  if (accepting) return <AcceptanceFlow quoteId={accepting} onClose={() => setAccepting(null)} />;
+  if (accepting) return <AcceptanceFlow quoteId={accepting} jobId={jobId} onClose={() => setAccepting(null)} />;
   return (
     <Section title="Quotes (all prices inc GST)">
       <div className="grid gap-3 md:grid-cols-3">
