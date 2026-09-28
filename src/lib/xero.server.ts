@@ -1,12 +1,13 @@
-// Xero integration boundary – two invoices per accepted quote: DEPOSIT (50%, due now) and BALANCE (50%, due on
-// the Melbourne-local installation date). Xero is the system of record; the portal mirrors state and enforces gates.
+// Xero integration boundary – ONE full invoice per accepted quote. The 50% deposit is requested with Xero's native
+// "Request Deposit" (raised manually by an admin, recorded in the portal) and confirmed only by Xero AmountPaid ≥ 50%.
+// Xero is the system of record; the portal mirrors state and enforces gates.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import {
   buildDueDateUpdate, buildInvoicePayload, evaluateXeroInvoice, findInvoiceByReference, findOrCreateContact, findTrackingOption,
   invoiceIdemKey, LOCK_STALE_MS, melbourneDate, quoteGuard, XERO_DUE_DATE_UPDATES_ENABLED, xeroReference, type XeroCall,
 } from "./xero.core";
-import { ensureBalanceInvoice, ensureDepositInvoice, paymentPatch, unscheduleBalance, type InvoicePart, type InvoiceRow, type InvoiceStore } from "./invoice.lifecycle";
+import { clearInstallDueDatePatch, ensureInvoice, installDueDatePatch, paymentPatch, xeroDueDate, type InvoiceRow, type InvoiceStore } from "./invoice.lifecycle";
 
 const GATEWAY = "https://connector-gateway.lovable.dev/xero";
 
@@ -44,8 +45,8 @@ async function tenantCall(): Promise<XeroCall> {
 
 /** Supabase-backed store for the pure invoice lifecycle. */
 export const dbStore: InvoiceStore = {
-  async find(quoteId, part) {
-    const { data } = await admin.from("invoices").select("*").eq("quote_id", quoteId).eq("part", part).maybeSingle();
+  async find(quoteId) {
+    const { data } = await admin.from("invoices").select("*").eq("quote_id", quoteId).maybeSingle();
     return (data as unknown as InvoiceRow) ?? null;
   },
   async insert(row) {
@@ -72,76 +73,75 @@ async function claimLock(invoiceId: string) {
 }
 const releaseLock = (invoiceId: string) => admin.from("invoices").update({ sync_lock_at: null }).eq("id", invoiceId);
 
-const partLabel = (p: InvoicePart) => (p === "deposit" ? "Deposit (50%)" : "Balance (50%)");
+async function jobInvoice(jobId: string) {
+  const { data } = await admin.from("invoices").select("*").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return (data as unknown as InvoiceRow) ?? null;
+}
 
-/** Owner accepted the final installation quote: create the DEPOSIT invoice (idempotent) and push it to Xero. */
+/** Owner accepted the final installation quote: create the ONE full invoice (idempotent) and push it to Xero. */
 export async function createInvoiceForQuote(quoteId: string, actorId: string) {
   const { data: q } = await admin.from("quotes").select("id, job_id, kind, status, option_label, customer_total_inc_gst").eq("id", quoteId).single();
   if (!q) throw new Error("Quote not found");
-  const { row, created } = await ensureDepositInvoice(dbStore, q, melbourneDate(new Date().toISOString()));
-  if (created) await logEvent(q.job_id, actorId, "invoice_created_local", `Deposit invoice raised for ${q.option_label}: ${row.amount_inc_gst} inc GST due now (50%)`, { invoice_id: row.id, part: "deposit", total_inc_gst: row.total_inc_gst });
+  const { row, created } = await ensureInvoice(dbStore, q, melbourneDate(new Date().toISOString()));
+  if (created) await logEvent(q.job_id, actorId, "invoice_created_local", `Invoice raised for ${q.option_label}: ${row.total_inc_gst} inc GST. 50% deposit (${row.deposit_amount}) must be requested in Xero.`, { invoice_id: row.id, total_inc_gst: row.total_inc_gst });
   if (!row.xero_invoice_id) await pushInvoiceToXero(row.id, actorId);
   return row.id;
 }
 
-/** Installation booked/rebooked: create or re-date the BALANCE invoice (one per quote). */
-export async function scheduleBalanceInvoice(jobId: string, startIso: string, actorId: string, callOverride?: XeroCall) {
-  const { data: dep } = await admin.from("invoices").select("*").eq("job_id", jobId).eq("kind", "installation").eq("part", "deposit").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (!dep) return;
+/** Installation booked/rebooked: the same invoice's final due date = Melbourne-local installation date. */
+export async function setInstallDueDate(jobId: string, startIso: string, actorId: string) {
+  const inv = await jobInvoice(jobId);
+  if (!inv) return;
   const due = melbourneDate(startIso);
-  const r = await ensureBalanceInvoice(dbStore, dep as unknown as InvoiceRow, due);
-  if (r.created) {
-    await logEvent(jobId, actorId, "balance_invoice_created", `Balance invoice raised: ${r.row.amount_inc_gst} inc GST due on installation day (${due})`, { invoice_id: r.row.id, part: "balance" });
-    await pushInvoiceToXero(r.row.id, actorId, callOverride);
-  } else if (r.dueChanged) {
-    await logEvent(jobId, actorId, "balance_due_set", `Balance due date moved to installation day (${due})`, { invoice_id: r.row.id, xero_update_pending: r.row.xero_update_pending });
-  } else if (!r.row.xero_invoice_id && r.row.amount_paid < r.row.amount_inc_gst) {
-    await pushInvoiceToXero(r.row.id, actorId, callOverride);
-  }
+  const patch = installDueDatePatch(inv, due);
+  if (!patch) return;
+  await dbStore.update(inv.id, patch);
+  await logEvent(jobId, actorId, "balance_due_set", `Remaining balance due on installation day (${due})${patch.xero_update_pending ? " – Xero due date update pending" : ""}`, { invoice_id: inv.id });
 }
 
-/** Installation cancelled: the unpaid balance record is kept for the next booking; its due date is cleared locally. */
-export async function unscheduleBalanceInvoice(jobId: string, actorId: string) {
-  const { data: dep } = await admin.from("invoices").select("quote_id").eq("job_id", jobId).eq("kind", "installation").eq("part", "deposit").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (!dep) return;
-  const b = await unscheduleBalance(dbStore, dep.quote_id);
-  if (b) await logEvent(jobId, actorId, "balance_due_set", "Installation cancelled – balance invoice kept for rebooking; due date cleared", { invoice_id: b.id });
+/** Installation cancelled: final due date goes back to pending. */
+export async function clearInstallDueDate(jobId: string, actorId: string) {
+  const inv = await jobInvoice(jobId);
+  if (!inv) return;
+  const patch = clearInstallDueDatePatch(inv);
+  if (!patch) return;
+  await dbStore.update(inv.id, patch);
+  await logEvent(jobId, actorId, "balance_due_set", "Installation cancelled – final due date pending until rebooked", { invoice_id: inv.id });
 }
 
 export async function pushInvoiceToXero(invoiceId: string, actorId: string | null, callOverride?: XeroCall) {
-  const { data: inv } = await admin.from("invoices").select("*, quotes(status, option_label, customer_total_inc_gst, veec_discount_inc_gst, quote_items(description, line_total_inc_gst, sort)), jobs(job_number, owners(id, full_name, email, xero_contact_id))").eq("id", invoiceId).single();
+  const { data: inv } = await admin.from("invoices").select("*, quotes(status, customer_total_inc_gst, veec_discount_inc_gst, quote_items(description, quantity, unit_price_inc_gst, line_total_inc_gst, sort)), jobs(job_number, owners(id, full_name, email, xero_contact_id))").eq("id", invoiceId).single();
   if (!inv) throw new Error("Invoice not found");
   if (inv.xero_invoice_id) return; // already linked – never create a second Xero invoice
   if (!(await claimLock(invoiceId))) throw new Error("A Xero sync for this invoice is already running – try again shortly.");
-  const part = inv.part as InvoicePart;
   const job = inv.jobs as unknown as { job_number: string; owners: { id: string; full_name: string; email: string | null; xero_contact_id: string | null } };
-  const quote = inv.quotes as unknown as { status: string; customer_total_inc_gst: number; veec_discount_inc_gst: number; quote_items: { description: string; line_total_inc_gst: number; sort: number }[] };
+  const quote = inv.quotes as unknown as { status: string; customer_total_inc_gst: number; veec_discount_inc_gst: number; quote_items: { description: string; quantity: number; unit_price_inc_gst: number; line_total_inc_gst: number; sort: number }[] };
   try {
     const guard = quoteGuard(quote, inv.total_inc_gst);
     if (guard) throw new Error(guard);
-    const dueDate = part === "deposit" ? (inv.deposit_due_date ?? inv.due_date) : inv.due_date;
-    if (!dueDate) throw new Error("Balance invoice has no installation date yet – book installation first.");
+    const dueDate = xeroDueDate(inv as unknown as InvoiceRow);
+    if (!dueDate) throw new Error("Invoice has no due date.");
     const call = callOverride ?? (await tenantCall());
-    const reference = xeroReference(job.job_number, part);
+    const reference = xeroReference(job.job_number);
     const tracking = await findTrackingOption(call);
     let x = await findInvoiceByReference(call, reference);
     let contactId = x?.Contact?.ContactID ?? job.owners.xero_contact_id;
     if (!x) {
       if (!contactId) contactId = (await findOrCreateContact(call, job.owners)).contactId;
       const items = [...quote.quote_items].sort((a, b) => a.sort - b.sort);
-      const payload = buildInvoicePayload({ contactId: contactId!, jobNumber: job.job_number, part, dueDate, total: Number(inv.total_inc_gst), depositAmount: Number(inv.deposit_amount), items, veecDiscount: quote.veec_discount_inc_gst, tracking });
+      const payload = buildInvoicePayload({ contactId: contactId!, jobNumber: job.job_number, dueDate, total: Number(inv.total_inc_gst), items, veecDiscount: quote.veec_discount_inc_gst, tracking });
       const res = await call("/api.xro/2.0/Invoices", { method: "POST", headers: { "Idempotency-Key": invoiceIdemKey(invoiceId) }, body: payload });
       x = res.Invoices[0];
     }
     if (contactId && contactId !== job.owners.xero_contact_id) await admin.from("owners").update({ xero_contact_id: contactId }).eq("id", job.owners.id);
-    await admin.from("invoices").update({ status: part === "deposit" ? "deposit_due" : "balance_due", xero_contact_id: contactId, xero_invoice_id: x.InvoiceID, xero_invoice_number: x.InvoiceNumber, xero_reference: x.Reference, xero_invoice_status: x.Status ?? null, xero_tracking_option_id: tracking.optionId, last_synced_at: new Date().toISOString(), last_sync_error: null }).eq("id", invoiceId);
-    await syncLog(invoiceId, true, { xero_invoice_id: x.InvoiceID, part });
-    await logEvent(inv.job_id, actorId, "xero_invoice_created", `Xero ${partLabel(part).toLowerCase()} invoice ${x.InvoiceNumber} linked`, { invoice_id: invoiceId, part });
+    await admin.from("invoices").update({ status: "deposit_due", xero_contact_id: contactId, xero_invoice_id: x.InvoiceID, xero_invoice_number: x.InvoiceNumber, xero_reference: x.Reference, xero_invoice_status: x.Status ?? null, xero_tracking_option_id: tracking.optionId, xero_update_pending: false, last_synced_at: new Date().toISOString(), last_sync_error: null }).eq("id", invoiceId);
+    await syncLog(invoiceId, true, { xero_invoice_id: x.InvoiceID });
+    await logEvent(inv.job_id, actorId, "xero_invoice_created", `Xero invoice ${x.InvoiceNumber} linked – raise the 50% deposit request in Xero`, { invoice_id: invoiceId });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await admin.from("invoices").update({ status: "xero_sync_error", last_sync_error: msg, last_synced_at: new Date().toISOString() }).eq("id", invoiceId);
-    await syncLog(invoiceId, false, { part }, msg);
-    await logEvent(inv.job_id, actorId, "xero_sync_failed", `Xero ${part} invoice sync failed: ${msg}`, { invoice_id: invoiceId }, { internal: true });
+    await syncLog(invoiceId, false, null, msg);
+    await logEvent(inv.job_id, actorId, "xero_sync_failed", `Xero invoice sync failed: ${msg}`, { invoice_id: invoiceId }, { internal: true });
   } finally {
     await releaseLock(invoiceId);
   }
@@ -155,17 +155,17 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
   if (!(await claimLock(invoiceId))) throw new Error("A Xero sync for this invoice is already running – try again shortly.");
   try {
     const call = callOverride ?? (await tenantCall());
-    if (inv.xero_update_pending && inv.due_date && XERO_DUE_DATE_UPDATES_ENABLED) {
-      const u = buildDueDateUpdate(inv.xero_invoice_id, inv.due_date, invoiceId);
+    if (inv.xero_update_pending && inv.balance_due_date && XERO_DUE_DATE_UPDATES_ENABLED) {
+      const u = buildDueDateUpdate(inv.xero_invoice_id, inv.balance_due_date, invoiceId);
       await call(u.path, { method: u.method, headers: u.headers, body: u.body });
       await admin.from("invoices").update({ xero_update_pending: false }).eq("id", invoiceId);
-      await logEvent(inv.job_id, actorId, "xero_due_date_updated", `Xero due date updated to ${inv.due_date}`, { invoice_id: invoiceId }, { internal: true });
+      await logEvent(inv.job_id, actorId, "xero_due_date_updated", `Xero due date updated to ${inv.balance_due_date}`, { invoice_id: invoiceId }, { internal: true });
     }
     const r = await call(`/api.xro/2.0/Invoices/${inv.xero_invoice_id}`);
     const x = r.Invoices[0] ?? {};
-    const ev = evaluateXeroInvoice(x, Number(inv.amount_inc_gst));
+    const ev = evaluateXeroInvoice(x, Number(inv.deposit_amount));
     if (ev.voided) {
-      const msg = `Xero ${inv.part} invoice is ${x.Status} – payment not confirmed; admin must re-issue${inv.part === "deposit" ? " or override with reason" : ""}.`;
+      const msg = `Xero invoice is ${x.Status} – payment not confirmed; admin must re-issue or override with reason.`;
       await admin.from("invoices").update({ status: "xero_sync_error", xero_invoice_status: x.Status, last_sync_error: msg, last_synced_at: new Date().toISOString() }).eq("id", invoiceId);
       await syncLog(invoiceId, false, { status: x.Status }, msg, "inbound");
       await logEvent(inv.job_id, actorId, "xero_invoice_voided", msg, { invoice_id: invoiceId }, { internal: true });
@@ -173,7 +173,7 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
     }
     await applyPaidAmount(invoiceId, ev.paid, actorId, ev.depositPaidAt);
     await admin.from("invoices").update({ xero_invoice_status: x.Status ?? null, xero_online_url: x.OnlineInvoiceUrl ?? inv.xero_online_url, last_synced_at: new Date().toISOString(), last_sync_error: null }).eq("id", invoiceId);
-    await syncLog(invoiceId, true, { amount_paid: ev.paid, part: inv.part }, undefined, "inbound");
+    await syncLog(invoiceId, true, { amount_paid: ev.paid }, undefined, "inbound");
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await admin.from("invoices").update({ last_sync_error: msg, last_synced_at: new Date().toISOString() }).eq("id", invoiceId);
@@ -184,14 +184,12 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
   }
 }
 
-/** Single place that turns a Xero paid amount into invoice state + audit events. */
-export async function applyPaidAmount(invoiceId: string, paid: number, actorId: string | null, paidAt?: string | null) {
+/** Single place that turns Xero's cumulative AmountPaid into deposit/balance state + audit events. */
+export async function applyPaidAmount(invoiceId: string, paid: number, actorId: string | null, depositReachedAt?: string | null) {
   const { data: inv } = await admin.from("invoices").select("*").eq("id", invoiceId).single();
   if (!inv) return;
-  const { patch, events } = paymentPatch(inv as unknown as InvoiceRow, paid, paidAt ?? null, new Date().toISOString());
+  const { patch, events } = paymentPatch(inv as unknown as InvoiceRow, paid, depositReachedAt ?? null, new Date().toISOString());
   await admin.from("invoices").update(patch as never).eq("id", invoiceId);
-  for (const e of events) {
-    if (e === "deposit_paid") await logEvent(inv.job_id, actorId, "deposit_paid", `50% deposit paid in full (${inv.amount_inc_gst} inc GST)`, { invoice_id: invoiceId });
-    if (e === "balance_paid") await logEvent(inv.job_id, actorId, "balance_paid", `Balance paid in full (${inv.amount_inc_gst} inc GST) – job fully paid`, { invoice_id: invoiceId });
-  }
+  if (events.includes("deposit_paid")) await logEvent(inv.job_id, actorId, "deposit_paid", `50% deposit confirmed paid in Xero (${inv.deposit_amount} of ${inv.total_inc_gst} inc GST)`, { invoice_id: invoiceId, amount_paid: paid });
+  if (events.includes("balance_paid")) await logEvent(inv.job_id, actorId, "balance_paid", "Invoice fully paid in Xero", { invoice_id: invoiceId });
 }

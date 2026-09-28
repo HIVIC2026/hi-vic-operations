@@ -57,6 +57,13 @@
       "when": 1790577135732,
       "tag": "0007_two_invoice_deposit_balance",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790577500535,
+      "tag": "0008_one_invoice_native_deposit_request",
+      "breakpoints": true
     }
   ]
 }
