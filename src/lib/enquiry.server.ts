@@ -22,9 +22,9 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
   const email = input.email.toLowerCase();
   let { data: owner } = await admin.from("owners").select("id").ilike("email", email).maybeSingle();
   if (owner) {
-    await admin.from("owners").update({ full_name: input.full_name, phone: input.phone ?? undefined }).eq("id", owner.id);
+    await admin.from("owners").update({ full_name: input.full_name, phone: input.phone ?? null }).eq("id", owner.id);
   } else {
-    const { data, error } = await admin.from("owners").insert({ full_name: input.full_name, email, phone: input.phone }).select("id").single();
+    const { data, error } = await admin.from("owners").insert({ full_name: input.full_name, email, phone: input.phone ?? null }).select("id").single();
     if (error) throw new Error(error.message);
     owner = data;
     // link to an existing portal account if one exists
@@ -39,7 +39,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     ? (await admin.from("jobs").select("id, property_id").eq("external_enquiry_id", input.external_enquiry_id).maybeSingle()).data
     : null;
 
-  const propFields = { owner_id: owner!.id, address_line: input.address_line, suburb: input.suburb, postcode: input.postcode, occupancy: input.occupancy ?? null };
+  const propFields = { owner_id: owner!.id, address_line: input.address_line, suburb: input.suburb ?? null, postcode: input.postcode ?? null, occupancy: input.occupancy ?? null };
   const jobFields = {
     estimated_area_m2: input.area_unknown ? null : input.estimated_area_m2 ?? null,
     estimated_area_unknown: input.area_unknown ?? input.estimated_area_m2 == null,

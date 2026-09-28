@@ -630,6 +630,113 @@ export type Database = {
         }
         Relationships: []
       }
+      invoices: {
+        Row: {
+          balance_amount: number
+          balance_due_date: string | null
+          created_at: string
+          deposit_amount: number
+          deposit_due_date: string
+          deposit_paid_amount: number
+          deposit_paid_at: string | null
+          deposit_pct: number
+          id: string
+          job_id: string
+          kind: Database["public"]["Enums"]["quote_kind"]
+          last_sync_error: string | null
+          last_synced_at: string | null
+          quote_id: string
+          status: Database["public"]["Enums"]["payment_status"]
+          total_inc_gst: number
+          total_paid: number
+          updated_at: string
+          xero_contact_id: string | null
+          xero_invoice_id: string | null
+          xero_invoice_number: string | null
+          xero_online_url: string | null
+          xero_reference: string | null
+        }
+        Insert: {
+          balance_amount: number
+          balance_due_date?: string | null
+          created_at?: string
+          deposit_amount: number
+          deposit_due_date?: string
+          deposit_paid_amount?: number
+          deposit_paid_at?: string | null
+          deposit_pct?: number
+          id?: string
+          job_id: string
+          kind: Database["public"]["Enums"]["quote_kind"]
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          quote_id: string
+          status?: Database["public"]["Enums"]["payment_status"]
+          total_inc_gst: number
+          total_paid?: number
+          updated_at?: string
+          xero_contact_id?: string | null
+          xero_invoice_id?: string | null
+          xero_invoice_number?: string | null
+          xero_online_url?: string | null
+          xero_reference?: string | null
+        }
+        Update: {
+          balance_amount?: number
+          balance_due_date?: string | null
+          created_at?: string
+          deposit_amount?: number
+          deposit_due_date?: string
+          deposit_paid_amount?: number
+          deposit_paid_at?: string | null
+          deposit_pct?: number
+          id?: string
+          job_id?: string
+          kind?: Database["public"]["Enums"]["quote_kind"]
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          quote_id?: string
+          status?: Database["public"]["Enums"]["payment_status"]
+          total_inc_gst?: number
+          total_paid?: number
+          updated_at?: string
+          xero_contact_id?: string | null
+          xero_invoice_id?: string | null
+          xero_invoice_number?: string | null
+          xero_online_url?: string | null
+          xero_reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: true
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_assignments: {
         Row: {
           active: boolean
@@ -897,6 +1004,7 @@ export type Database = {
           phone: string | null
           updated_at: string
           user_id: string | null
+          xero_contact_id: string | null
         }
         Insert: {
           created_at?: string
@@ -906,6 +1014,7 @@ export type Database = {
           phone?: string | null
           updated_at?: string
           user_id?: string | null
+          xero_contact_id?: string | null
         }
         Update: {
           created_at?: string
@@ -915,11 +1024,85 @@ export type Database = {
           phone?: string | null
           updated_at?: string
           user_id?: string | null
+          xero_contact_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "owners_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_overrides: {
+        Row: {
+          created_at: string
+          gate: string
+          id: string
+          invoice_id: string
+          job_id: string
+          overridden_by: string
+          reason: string
+        }
+        Insert: {
+          created_at?: string
+          gate: string
+          id?: string
+          invoice_id: string
+          job_id: string
+          overridden_by: string
+          reason: string
+        }
+        Update: {
+          created_at?: string
+          gate?: string
+          id?: string
+          invoice_id?: string
+          job_id?: string
+          overridden_by?: string
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_overrides_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoice_payment_state"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_overrides_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_overrides_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_overrides_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "payment_overrides_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_overrides_overridden_by_fkey"
+            columns: ["overridden_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1819,6 +2002,119 @@ export type Database = {
       }
     }
     Views: {
+      invoice_payment_state: {
+        Row: {
+          balance_amount: number | null
+          balance_due_date: string | null
+          created_at: string | null
+          deposit_amount: number | null
+          deposit_cleared: boolean | null
+          deposit_due_date: string | null
+          deposit_paid_amount: number | null
+          deposit_paid_at: string | null
+          deposit_pct: number | null
+          effective_status: Database["public"]["Enums"]["payment_status"] | null
+          id: string | null
+          job_id: string | null
+          kind: Database["public"]["Enums"]["quote_kind"] | null
+          last_sync_error: string | null
+          last_synced_at: string | null
+          quote_id: string | null
+          status: Database["public"]["Enums"]["payment_status"] | null
+          total_inc_gst: number | null
+          total_paid: number | null
+          updated_at: string | null
+          xero_contact_id: string | null
+          xero_invoice_id: string | null
+          xero_invoice_number: string | null
+          xero_online_url: string | null
+          xero_reference: string | null
+        }
+        Insert: {
+          balance_amount?: number | null
+          balance_due_date?: string | null
+          created_at?: string | null
+          deposit_amount?: number | null
+          deposit_cleared?: never
+          deposit_due_date?: string | null
+          deposit_paid_amount?: number | null
+          deposit_paid_at?: string | null
+          deposit_pct?: number | null
+          effective_status?: never
+          id?: string | null
+          job_id?: string | null
+          kind?: Database["public"]["Enums"]["quote_kind"] | null
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          quote_id?: string | null
+          status?: Database["public"]["Enums"]["payment_status"] | null
+          total_inc_gst?: number | null
+          total_paid?: number | null
+          updated_at?: string | null
+          xero_contact_id?: string | null
+          xero_invoice_id?: string | null
+          xero_invoice_number?: string | null
+          xero_online_url?: string | null
+          xero_reference?: string | null
+        }
+        Update: {
+          balance_amount?: number | null
+          balance_due_date?: string | null
+          created_at?: string | null
+          deposit_amount?: number | null
+          deposit_cleared?: never
+          deposit_due_date?: string | null
+          deposit_paid_amount?: number | null
+          deposit_paid_at?: string | null
+          deposit_pct?: number | null
+          effective_status?: never
+          id?: string | null
+          job_id?: string | null
+          kind?: Database["public"]["Enums"]["quote_kind"] | null
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          quote_id?: string | null
+          status?: Database["public"]["Enums"]["payment_status"] | null
+          total_inc_gst?: number | null
+          total_paid?: number | null
+          updated_at?: string | null
+          xero_contact_id?: string | null
+          xero_invoice_id?: string | null
+          xero_invoice_number?: string | null
+          xero_online_url?: string | null
+          xero_reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: true
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_overview: {
         Row: {
           created_at: string | null
@@ -1841,6 +2137,7 @@ export type Database = {
           owner_id: string | null
           owner_name: string | null
           owner_phone: string | null
+          payment_status: string | null
           piesa_date: string | null
           piesa_expired: boolean | null
           property_address: string | null
@@ -1943,6 +2240,7 @@ export type Database = {
         | "assessment_complete"
         | "rectification_required"
         | "awaiting_owner_rectification_approval"
+        | "awaiting_deposit_payment"
         | "rectification_scheduling"
         | "rectification_booked"
         | "ready_for_installer_quotes"
@@ -1957,6 +2255,15 @@ export type Database = {
         | "on_hold"
       occupancy_type: "owner_occupied" | "rental"
       pass_fail: "pending" | "pass" | "fail"
+      payment_status:
+        | "invoice_not_created"
+        | "invoice_created"
+        | "deposit_due"
+        | "deposit_paid"
+        | "balance_due"
+        | "fully_paid"
+        | "overdue"
+        | "xero_sync_error"
       quote_kind: "installation" | "rectification"
       quote_status: "draft" | "issued" | "accepted" | "declined" | "superseded"
       rate_card_kind: "installer" | "electrical"
@@ -2139,6 +2446,7 @@ export const Constants = {
         "assessment_complete",
         "rectification_required",
         "awaiting_owner_rectification_approval",
+        "awaiting_deposit_payment",
         "rectification_scheduling",
         "rectification_booked",
         "ready_for_installer_quotes",
@@ -2154,6 +2462,16 @@ export const Constants = {
       ],
       occupancy_type: ["owner_occupied", "rental"],
       pass_fail: ["pending", "pass", "fail"],
+      payment_status: [
+        "invoice_not_created",
+        "invoice_created",
+        "deposit_due",
+        "deposit_paid",
+        "balance_due",
+        "fully_paid",
+        "overdue",
+        "xero_sync_error",
+      ],
       quote_kind: ["installation", "rectification"],
       quote_status: ["draft", "issued", "accepted", "declined", "superseded"],
       rate_card_kind: ["installer", "electrical"],

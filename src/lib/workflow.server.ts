@@ -18,11 +18,12 @@ export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
   assessment_booked: ["assessment_complete", "assessment_booking"],
   assessment_complete: ["rectification_required", "ready_for_installer_quotes"],
   rectification_required: ["awaiting_owner_rectification_approval"],
-  awaiting_owner_rectification_approval: ["rectification_scheduling", "rectification_required"],
+  awaiting_owner_rectification_approval: ["awaiting_deposit_payment", "rectification_required"],
+  awaiting_deposit_payment: ["rectification_scheduling", "installation_scheduling"],
   rectification_scheduling: ["rectification_booked"],
   rectification_booked: ["ready_for_installer_quotes", "rectification_scheduling"],
   ready_for_installer_quotes: ["awaiting_quote_acceptance"],
-  awaiting_quote_acceptance: ["installation_scheduling", "ready_for_installer_quotes"],
+  awaiting_quote_acceptance: ["awaiting_deposit_payment", "ready_for_installer_quotes"],
   installation_scheduling: ["installation_booked"],
   installation_booked: ["evidence_outstanding", "installation_scheduling"],
   evidence_outstanding: ["ap_review"],
@@ -86,6 +87,19 @@ export async function piesaStatus(jobId: string) {
   return data;
 }
 
+/** Deposit gate: deposit paid (synced from Xero) OR an audited admin override exists. */
+export async function depositCleared(jobId: string, kind: "rectification" | "installation") {
+  const { data } = await admin
+    .from("invoice_payment_state")
+    .select("deposit_cleared")
+    .eq("job_id", jobId)
+    .eq("kind", kind)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return !!data?.deposit_cleared;
+}
+
 export async function stageEntryBlockers(jobId: string, to: Stage): Promise<string[]> {
   const blockers: string[] = [];
   const piesa = await piesaStatus(jobId);
@@ -123,6 +137,13 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
       .eq("kind", "installation")
       .eq("status", "accepted");
     if (!count) blockers.push("Owner has not accepted an installation quote.");
+  }
+  // LOCKED PAYMENT RULE: no rectification/installation scheduling until the 50% deposit is cleared.
+  if (to === "rectification_scheduling" || to === "rectification_booked") {
+    if (!(await depositCleared(jobId, "rectification"))) blockers.push("50% deposit for the rectification invoice has not been paid.");
+  }
+  if (to === "installation_scheduling" || to === "installation_booked") {
+    if (!(await depositCleared(jobId, "installation"))) blockers.push("50% deposit for the installation invoice has not been paid.");
   }
   if (to === "installation_booked" || to === "evidence_outstanding") {
     const { data: inst } = await admin
@@ -186,10 +207,17 @@ export async function transition(
 /** Blockers for the job's natural next step (for UI display). */
 export async function nextStepBlockers(jobId: string) {
   const stage = await getStage(jobId);
-  const next = TRANSITIONS[stage]?.[0] ?? null;
+  let next = TRANSITIONS[stage]?.[0] ?? null;
+  if (stage === "awaiting_deposit_payment") next = (await pendingDepositKind(jobId)) === "installation" ? "installation_scheduling" : "rectification_scheduling";
   const blockers = next ? await stageEntryBlockers(jobId, next) : [];
   const piesa = await piesaStatus(jobId);
   if (piesa?.piesa_expired && !blockers.some((b) => b.startsWith("PIESA")))
     blockers.unshift(`PIESA 30-day window expired on ${piesa.install_deadline}. Reassessment required.`);
   return { stage, next, blockers };
+}
+
+/** Which accepted quote is awaiting deposit (latest accepted invoice). */
+export async function pendingDepositKind(jobId: string) {
+  const { data } = await admin.from("invoices").select("kind").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return data?.kind ?? null;
 }

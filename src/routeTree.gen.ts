@@ -10,42 +10,167 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
+import { Route as AuthenticatedFieldIndexRouteImport } from './routes/_authenticated/field.index'
+import { Route as AuthenticatedFieldJobIdRouteImport } from './routes/_authenticated/field.$jobId'
+import { Route as AuthenticatedOwnerIndexRouteImport } from './routes/_authenticated/owner.index'
+import { Route as AuthenticatedOwnerJobIdRouteImport } from './routes/_authenticated/owner.$jobId'
 import { Route as ApiPublicEnquiryRouteImport } from './routes/api/public/enquiry'
+import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authenticated/admin.jobs.$jobId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFieldIndexRoute = AuthenticatedFieldIndexRouteImport.update({
+  id: '/field/',
+  path: '/field/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFieldJobIdRoute = AuthenticatedFieldJobIdRouteImport.update({
+  id: '/field/$jobId',
+  path: '/field/$jobId',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedOwnerIndexRoute = AuthenticatedOwnerIndexRouteImport.update({
+  id: '/owner/',
+  path: '/owner/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedOwnerJobIdRoute = AuthenticatedOwnerJobIdRouteImport.update({
+  id: '/owner/$jobId',
+  path: '/owner/$jobId',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const ApiPublicEnquiryRoute = ApiPublicEnquiryRouteImport.update({
   id: '/api/public/enquiry',
   path: '/api/public/enquiry',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminJobsJobIdRoute =
+  AuthenticatedAdminJobsJobIdRouteImport.update({
+    id: '/admin/jobs/$jobId',
+    path: '/admin/jobs/$jobId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/home': typeof AuthenticatedHomeRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
+  '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/field/': typeof AuthenticatedFieldIndexRoute
+  '/owner/': typeof AuthenticatedOwnerIndexRoute
+  '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/home': typeof AuthenticatedHomeRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
+  '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
+  '/field': typeof AuthenticatedFieldIndexRoute
+  '/owner': typeof AuthenticatedOwnerIndexRoute
+  '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/_authenticated/field/$jobId': typeof AuthenticatedFieldJobIdRoute
+  '/_authenticated/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/field/': typeof AuthenticatedFieldIndexRoute
+  '/_authenticated/owner/': typeof AuthenticatedOwnerIndexRoute
+  '/_authenticated/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/public/enquiry'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/home'
+    | '/admin/users'
+    | '/field/$jobId'
+    | '/owner/$jobId'
+    | '/api/public/enquiry'
+    | '/admin/'
+    | '/field/'
+    | '/owner/'
+    | '/admin/jobs/$jobId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/enquiry'
-  id: '__root__' | '/' | '/api/public/enquiry'
+  to:
+    | '/'
+    | '/auth'
+    | '/home'
+    | '/admin/users'
+    | '/field/$jobId'
+    | '/owner/$jobId'
+    | '/api/public/enquiry'
+    | '/admin'
+    | '/field'
+    | '/owner'
+    | '/admin/jobs/$jobId'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/home'
+    | '/_authenticated/admin/users'
+    | '/_authenticated/field/$jobId'
+    | '/_authenticated/owner/$jobId'
+    | '/api/public/enquiry'
+    | '/_authenticated/admin/'
+    | '/_authenticated/field/'
+    | '/_authenticated/owner/'
+    | '/_authenticated/admin/jobs/$jobId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
 }
 
@@ -58,6 +183,69 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/home': {
+      id: '/_authenticated/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof AuthenticatedHomeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/users': {
+      id: '/_authenticated/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/field/': {
+      id: '/_authenticated/field/'
+      path: '/field'
+      fullPath: '/field/'
+      preLoaderRoute: typeof AuthenticatedFieldIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/field/$jobId': {
+      id: '/_authenticated/field/$jobId'
+      path: '/field/$jobId'
+      fullPath: '/field/$jobId'
+      preLoaderRoute: typeof AuthenticatedFieldJobIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/owner/': {
+      id: '/_authenticated/owner/'
+      path: '/owner'
+      fullPath: '/owner/'
+      preLoaderRoute: typeof AuthenticatedOwnerIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/owner/$jobId': {
+      id: '/_authenticated/owner/$jobId'
+      path: '/owner/$jobId'
+      fullPath: '/owner/$jobId'
+      preLoaderRoute: typeof AuthenticatedOwnerJobIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/api/public/enquiry': {
       id: '/api/public/enquiry'
       path: '/api/public/enquiry'
@@ -65,11 +253,45 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicEnquiryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin/jobs/$jobId': {
+      id: '/_authenticated/admin/jobs/$jobId'
+      path: '/admin/jobs/$jobId'
+      fullPath: '/admin/jobs/$jobId'
+      preLoaderRoute: typeof AuthenticatedAdminJobsJobIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
+  AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
+  AuthenticatedFieldJobIdRoute: typeof AuthenticatedFieldJobIdRoute
+  AuthenticatedOwnerJobIdRoute: typeof AuthenticatedOwnerJobIdRoute
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+  AuthenticatedFieldIndexRoute: typeof AuthenticatedFieldIndexRoute
+  AuthenticatedOwnerIndexRoute: typeof AuthenticatedOwnerIndexRoute
+  AuthenticatedAdminJobsJobIdRoute: typeof AuthenticatedAdminJobsJobIdRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedHomeRoute: AuthenticatedHomeRoute,
+  AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
+  AuthenticatedFieldJobIdRoute: AuthenticatedFieldJobIdRoute,
+  AuthenticatedOwnerJobIdRoute: AuthenticatedOwnerJobIdRoute,
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+  AuthenticatedFieldIndexRoute: AuthenticatedFieldIndexRoute,
+  AuthenticatedOwnerIndexRoute: AuthenticatedOwnerIndexRoute,
+  AuthenticatedAdminJobsJobIdRoute: AuthenticatedAdminJobsJobIdRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
 }
 export const routeTree = rootRouteImport

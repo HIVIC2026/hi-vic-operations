@@ -1,0 +1,58 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { AppShell } from "@/components/portal/AppShell";
+import { useAction, type AppRole } from "@/hooks/use-me";
+import { setUserBusiness, setUserRole } from "@/lib/portal.functions";
+import { Checkbox } from "@/components/ui/checkbox";
+
+export const Route = createFileRoute("/_authenticated/admin/users")({
+  head: () => ({ meta: [{ title: "Users – HI VIC Portal" }, { name: "description", content: "Manage portal users and roles." }, { property: "og:title", content: "Users – HI VIC Portal" }, { property: "og:description", content: "Manage portal users and roles." }] }),
+  component: Users,
+});
+
+const ROLES: AppRole[] = ["admin", "electrician", "installer", "owner"];
+
+function Users() {
+  const setRole = useAction(setUserRole);
+  const setBiz = useAction(setUserBusiness);
+  const { data } = useQuery({
+    queryKey: ["users"],
+    queryFn: async () => {
+      const [{ data: p }, { data: r }, { data: b }] = await Promise.all([
+        supabase.from("profiles").select("*").order("created_at"),
+        supabase.from("user_roles").select("*"),
+        supabase.from("businesses").select("id,name,business_type").order("name"),
+      ]);
+      return { profiles: p ?? [], roles: r ?? [], businesses: b ?? [] };
+    },
+  });
+  return (
+    <AppShell wide>
+      <h1 className="mb-1 text-2xl font-bold">Users & roles</h1>
+      <p className="mb-4 text-sm text-muted-foreground">People appear here after they sign up. Owners are linked automatically when their sign-up email matches their enquiry.</p>
+      <div className="overflow-x-auto rounded-xl border bg-card">
+        <table className="w-full text-sm">
+          <thead className="bg-muted text-left"><tr><th className="p-3">Name</th><th className="p-3">Email</th><th className="p-3">Business</th>{ROLES.map((r) => <th key={r} className="p-3 capitalize">{r}</th>)}</tr></thead>
+          <tbody>
+            {data?.profiles.map((p) => (
+              <tr key={p.id} className="border-t">
+                <td className="p-3 font-medium">{p.full_name}</td>
+                <td className="p-3">{p.email}</td>
+                <td className="p-3">
+                  <select className="h-8 rounded border bg-background px-1" value={p.business_id ?? ""} onChange={(e) => setBiz({ userId: p.id, businessId: e.target.value || null }, "Saved")}>
+                    <option value="">—</option>{data.businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </td>
+                {ROLES.map((r) => {
+                  const has = data.roles.some((x) => x.user_id === p.id && x.role === r);
+                  return <td key={r} className="p-3"><Checkbox checked={has} onCheckedChange={(v) => setRole({ userId: p.id, role: r, grant: !!v }, "Role updated")} /></td>;
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </AppShell>
+  );
+}
