@@ -1,3 +1,4 @@
+import { AdminPartnerPanel, AppointmentPanel } from "@/components/portal/partner";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useState } from "react";
@@ -66,6 +67,7 @@ function JobDetail() {
           </Section>
           <JobSource jobId={jobId} channel={job.channel} model={job.commercial_model} business={job.originating_business_name} />
           <Assignments jobId={jobId} />
+          <AdminPartnerPanel jobId={jobId} />
           <HoldControls jobId={jobId} stage={job.stage!} />
           <RetentionCard jobId={jobId} />
           <details className="rounded-xl border p-3 lg:col-span-2"><summary className="cursor-pointer text-sm font-medium">All bookings</summary><div className="mt-3 grid gap-4 lg:grid-cols-3"><BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><BookingPanel jobId={jobId} kind="rectification" canBook isAdmin /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /></div></details>
@@ -80,7 +82,7 @@ function JobDetail() {
           <details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Rectification</summary><div className="mt-3 space-y-4"><AssessmentView jobId={jobId} part="rectification" /><BookingPanel jobId={jobId} kind="rectification" canBook isAdmin /></div></details>
           <SectionDocuments jobId={jobId} categories={["Electrical / PIESA"]} />
         </TabsContent>
-        <TabsContent value="assessment" className="space-y-4"><RequirementCards jobId={jobId} isAdmin job={job} /><BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} /></TabsContent>
+        <TabsContent value="assessment" className="space-y-4"><RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} /></TabsContent>
         <TabsContent value="quotes" className="space-y-4"><AdminQuotes jobId={jobId} /><PaymentsPanel jobId={jobId} isAdmin /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} /></TabsContent>
         <TabsContent value="installation" className="space-y-4"><EscInstallPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /><SectionDocuments jobId={jobId} categories={["Installation"]} /></TabsContent>
         <TabsContent value="evidence" className="space-y-4"><EvidencePanel jobId={jobId} role="admin" /><SectionDocuments jobId={jobId} categories={["Evidence"]} /></TabsContent>

@@ -1,3 +1,4 @@
+import { AppointmentPanel } from "@/components/portal/partner";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
@@ -37,6 +38,7 @@ function OwnerJob() {
         <OwnerAssignmentCard jobId={jobId} />
         <QuotesPanel jobId={jobId} canRespond />
         <PaymentsPanel jobId={jobId} isAdmin={false} />
+        {bookKind === "assessment" && <AppointmentPanel jobId={jobId} />}
         {bookKind && (bookKind === "assessment" || job.deposit_cleared) && <BookingPanel jobId={jobId} kind={bookKind} canBook />}
         {s === "awaiting_deposit_payment" && <p className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">Booking opens as soon as your 50% deposit is received.</p>}
         <ChangeTrade jobId={jobId} />

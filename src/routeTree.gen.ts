@@ -22,6 +22,8 @@ import { Route as AuthenticatedFieldIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedFieldJobIdRouteImport } from './routes/_authenticated/field.$jobId'
 import { Route as AuthenticatedOwnerIndexRouteImport } from './routes/_authenticated/owner.index'
 import { Route as AuthenticatedOwnerJobIdRouteImport } from './routes/_authenticated/owner.$jobId'
+import { Route as AuthenticatedPartnerIndexRouteImport } from './routes/_authenticated/partner.index'
+import { Route as AuthenticatedPartnerImportRouteImport } from './routes/_authenticated/partner.import'
 import { Route as AuthenticatedPartnerProfileRouteImport } from './routes/_authenticated/partner.profile'
 import { Route as ApiPublicEnquiryRouteImport } from './routes/api/public/enquiry'
 import { Route as ApiPublicPartnerEnquiryRouteImport } from './routes/api/public/partner-enquiry'
@@ -94,6 +96,18 @@ const AuthenticatedOwnerJobIdRoute = AuthenticatedOwnerJobIdRouteImport.update({
   path: '/owner/$jobId',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPartnerIndexRoute =
+  AuthenticatedPartnerIndexRouteImport.update({
+    id: '/partner/',
+    path: '/partner/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPartnerImportRoute =
+  AuthenticatedPartnerImportRouteImport.update({
+    id: '/partner/import',
+    path: '/partner/import',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPartnerProfileRoute =
   AuthenticatedPartnerProfileRouteImport.update({
     id: '/partner/profile',
@@ -127,12 +141,14 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
+  '/partner/import': typeof AuthenticatedPartnerImportRoute
   '/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/field/': typeof AuthenticatedFieldIndexRoute
   '/owner/': typeof AuthenticatedOwnerIndexRoute
+  '/partner/': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
 }
 export interface FileRoutesByTo {
@@ -145,12 +161,14 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
+  '/partner/import': typeof AuthenticatedPartnerImportRoute
   '/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/field': typeof AuthenticatedFieldIndexRoute
   '/owner': typeof AuthenticatedOwnerIndexRoute
+  '/partner': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
 }
 export interface FileRoutesById {
@@ -165,12 +183,14 @@ export interface FileRoutesById {
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/_authenticated/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
+  '/_authenticated/partner/import': typeof AuthenticatedPartnerImportRoute
   '/_authenticated/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/field/': typeof AuthenticatedFieldIndexRoute
   '/_authenticated/owner/': typeof AuthenticatedOwnerIndexRoute
+  '/_authenticated/partner/': typeof AuthenticatedPartnerIndexRoute
   '/_authenticated/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
 }
 export interface FileRouteTypes {
@@ -185,12 +205,14 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/field/$jobId'
     | '/owner/$jobId'
+    | '/partner/import'
     | '/partner/profile'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/admin/'
     | '/field/'
     | '/owner/'
+    | '/partner/'
     | '/admin/jobs/$jobId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -203,12 +225,14 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/field/$jobId'
     | '/owner/$jobId'
+    | '/partner/import'
     | '/partner/profile'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/admin'
     | '/field'
     | '/owner'
+    | '/partner'
     | '/admin/jobs/$jobId'
   id:
     | '__root__'
@@ -222,12 +246,14 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/users'
     | '/_authenticated/field/$jobId'
     | '/_authenticated/owner/$jobId'
+    | '/_authenticated/partner/import'
     | '/_authenticated/partner/profile'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/_authenticated/admin/'
     | '/_authenticated/field/'
     | '/_authenticated/owner/'
+    | '/_authenticated/partner/'
     | '/_authenticated/admin/jobs/$jobId'
   fileRoutesById: FileRoutesById
 }
@@ -332,6 +358,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOwnerJobIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/partner/': {
+      id: '/_authenticated/partner/'
+      path: '/partner'
+      fullPath: '/partner/'
+      preLoaderRoute: typeof AuthenticatedPartnerIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/partner/import': {
+      id: '/_authenticated/partner/import'
+      path: '/partner/import'
+      fullPath: '/partner/import'
+      preLoaderRoute: typeof AuthenticatedPartnerImportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/partner/profile': {
       id: '/_authenticated/partner/profile'
       path: '/partner/profile'
@@ -371,10 +411,12 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedFieldJobIdRoute: typeof AuthenticatedFieldJobIdRoute
   AuthenticatedOwnerJobIdRoute: typeof AuthenticatedOwnerJobIdRoute
+  AuthenticatedPartnerImportRoute: typeof AuthenticatedPartnerImportRoute
   AuthenticatedPartnerProfileRoute: typeof AuthenticatedPartnerProfileRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedFieldIndexRoute: typeof AuthenticatedFieldIndexRoute
   AuthenticatedOwnerIndexRoute: typeof AuthenticatedOwnerIndexRoute
+  AuthenticatedPartnerIndexRoute: typeof AuthenticatedPartnerIndexRoute
   AuthenticatedAdminJobsJobIdRoute: typeof AuthenticatedAdminJobsJobIdRoute
 }
 
@@ -386,10 +428,12 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedFieldJobIdRoute: AuthenticatedFieldJobIdRoute,
   AuthenticatedOwnerJobIdRoute: AuthenticatedOwnerJobIdRoute,
+  AuthenticatedPartnerImportRoute: AuthenticatedPartnerImportRoute,
   AuthenticatedPartnerProfileRoute: AuthenticatedPartnerProfileRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedFieldIndexRoute: AuthenticatedFieldIndexRoute,
   AuthenticatedOwnerIndexRoute: AuthenticatedOwnerIndexRoute,
+  AuthenticatedPartnerIndexRoute: AuthenticatedPartnerIndexRoute,
   AuthenticatedAdminJobsJobIdRoute: AuthenticatedAdminJobsJobIdRoute,
 }
 
