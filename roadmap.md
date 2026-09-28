@@ -1,12 +1,15 @@
 # Roadmap
 - [x] Property Intelligence engine + ESC pre-install controls
 - [x] Read-only Mitti configuration/usage check (no writes)
-- [ ] Activity 48 signing sequence correction (agreement / ESC consent / installer decl / final assignment) — in progress
-- [ ] ReInsulate pilot A: partner business + team onboarding, expiry blockers, Xero contact readiness
-- [ ] ReInsulate pilot B: import existing job (files/CSV/paste/source ref) -> draft -> confirm screen
-- [ ] ReInsulate pilot C: electrician selection / preferred relationships / nominated onboarding
-- [ ] ReInsulate pilot D: appointment coordination + 24/48h SLA + reassignment
-- [ ] ReInsulate pilot E: offer HI VIC jobs to partner (opportunities)
-- [ ] ReInsulate pilot F: co-branded quote, supplier cost vs customer price, manual price audit
-- [ ] ReInsulate pilot G: partner dashboard + business profile page
-- [ ] ReInsulate pilot H: tests
+- [x] Activity 48 signing sequence correction (agreement / ESC consent / installer decl / final assignment)
+- [x] ReInsulate pilot A: partner business + team onboarding, expiry blockers, Xero contact readiness
+- [x] ReInsulate pilot B: import existing job (files/CSV/paste/source ref) -> draft -> confirm screen
+- [x] ReInsulate pilot C: electrician selection / preferred relationships / nominated onboarding
+- [x] ReInsulate pilot D: appointment coordination + 24/48h SLA + reassignment
+- [x] ReInsulate pilot E: offer HI VIC jobs to partner (opportunities)
+- [x] ReInsulate pilot F: co-branded quote, supplier cost vs customer price, manual price audit
+- [x] ReInsulate pilot G: partner dashboard + business profile page
+- [x] ReInsulate pilot H: tests
+- [ ] Blocked on user: approve Activity 48 / ESC consent / partner agreement wording in Compliance Setup
+- [ ] Blocked on EasyMate: API/webhook/export access for automatic two-way sync (manual import works now)
+- [ ] Blocked on user: set up ReInsulate business + team accounts, documents and rate card; supervised Xero supplier sync
