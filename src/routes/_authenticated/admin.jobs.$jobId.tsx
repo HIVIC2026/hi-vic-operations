@@ -11,11 +11,11 @@ import { MittiCard, PriceItemForm } from "@/components/portal/mitti";
 import { RequirementCards } from "@/components/portal/requirements";
 import { EscInstallPanel, PropertyIntelligenceCard } from "@/components/portal/intelligence";
 import { Gate1EvidencePanel } from "@/components/portal/gate1";
+import { AllDocuments, Correspondence, ExportJobPack, JobFileHeader, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
 
 const TABS: [string, string][] = [
-  ["overview", "Overview"], ["eligibility", "Eligibility"], ["authority", "Acceptance & Assignment"], ["assessment", "Measure-up & Electrical"],
-  ["piesa", "PIESA"], ["rectification", "Rectification"], ["quotes", "Quotes"], ["payments", "Xero / Payments"], ["scheduling", "Scheduling"],
-  ["installation", "Installation"], ["evidence", "Evidence"], ["compliance", "Compliance / AP Review"], ["veec", "VEEC"], ["messages", "Messages"], ["history", "Audit History"],
+  ["overview", "Overview"], ["eligibility", "Property Intelligence"], ["authority", "Customer & Authorities"], ["piesa", "Electrical / PIESA"], ["assessment", "Measure-up"],
+  ["quotes", "Quotes & Payments"], ["installation", "Installation"], ["evidence", "Evidence"], ["veec", "ESC / VEEC"], ["messages", "Correspondence"], ["history", "Timeline / Audit"], ["documents", "All Documents"],
 ];
 import { useAction } from "@/hooks/use-me";
 import {
@@ -41,18 +41,11 @@ function JobDetail() {
   return (
     <AppShell wide>
       <Link to="/admin" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Pipeline</Link>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="text-sm font-bold text-primary">{job.job_number}</div>
-          <h1 className="text-2xl font-bold tracking-tight">{job.property_address}</h1>
-          <p className="text-sm text-muted-foreground">{job.owner_name} · {job.owner_phone} · {job.owner_email}</p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <StageBadge stage={job.stage} /><PaymentBadge status={job.payment_status} /><UrgencyBadge urgency={job.urgency} days={job.days_remaining} /><SourceBadge channel={job.channel} business={job.originating_business_name} />
-            {job.life_support && <Pill t="bad"><HeartPulse className="mr-1 h-3 w-3" /> Life support</Pill>}
-            {job.eligibility_outcome && <Pill t="info">{ELIGIBILITY_LABEL[job.eligibility_outcome]}</Pill>}
-          </div>
-        </div>
-        <div className="rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground"><div className="text-xs font-semibold uppercase">Next action</div>{job.next_action}</div>
+      <JobFileHeader jobId={jobId} job={job} />
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        <StageBadge stage={job.stage} /><PaymentBadge status={job.payment_status} /><UrgencyBadge urgency={job.urgency} days={job.days_remaining} /><SourceBadge channel={job.channel} business={job.originating_business_name} />
+        {job.life_support && <Pill t="bad"><HeartPulse className="mr-1 h-3 w-3" /> Life support</Pill>}
+        {job.eligibility_outcome && <Pill t="info">{ELIGIBILITY_LABEL[job.eligibility_outcome]}</Pill>}
       </div>
       <div className="mb-4"><BlockersPanel jobId={jobId} /></div>
       <Tabs defaultValue="overview">
@@ -61,8 +54,7 @@ function JobDetail() {
         </TabsList>
         <TabsContent value="overview" className="grid gap-4 lg:grid-cols-2">
           <div className="lg:col-span-2"><RequirementCards jobId={jobId} isAdmin job={job} /></div>
-          <div className="lg:col-span-2"><PropertyIntelligenceCard jobId={jobId} /></div>
-          <Section title="Status summary">
+                    <Section title="Status summary">
             <dl className="grid grid-cols-2 gap-1 text-sm">
               <dt className="text-muted-foreground">Acceptance / VEEC assignment</dt><dd><AssignmentStatusInline jobId={jobId} /></dd>
               <dt className="text-muted-foreground">Payment</dt><dd><PaymentBadge status={job.payment_status} /> {job.deposit_cleared ? <span className="text-xs text-success">deposit cleared</span> : <span className="text-xs text-danger">deposit not cleared</span>}</dd>
@@ -75,28 +67,27 @@ function JobDetail() {
           <JobSource jobId={jobId} channel={job.channel} model={job.commercial_model} business={job.originating_business_name} />
           <Assignments jobId={jobId} />
           <HoldControls jobId={jobId} stage={job.stage!} />
+          <RetentionCard jobId={jobId} />
+          <details className="rounded-xl border p-3 lg:col-span-2"><summary className="cursor-pointer text-sm font-medium">All bookings</summary><div className="mt-3 grid gap-4 lg:grid-cols-3"><BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><BookingPanel jobId={jobId} kind="rectification" canBook isAdmin /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /></div></details>
         </TabsContent>
-        <TabsContent value="eligibility" className="space-y-4"><Gate1EvidencePanel jobId={jobId} /><PropertyIntelligenceCard jobId={jobId} /><EligibilityForm jobId={jobId} /></TabsContent>
-        <TabsContent value="authority" className="space-y-4"><AdminAssignmentPanel jobId={jobId} /><details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Legacy Owner Authority history (no longer a gate)</summary><div className="mt-3"><AdminAuthorityPanel jobId={jobId} /></div></details></TabsContent>
-        <TabsContent value="assessment" className="space-y-4"><RequirementCards jobId={jobId} isAdmin job={job} /><BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /></TabsContent>
+        <TabsContent value="eligibility" className="space-y-4"><Gate1EvidencePanel jobId={jobId} /><PropertyIntelligenceCard jobId={jobId} /><EligibilityForm jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Property"]} /></TabsContent>
+        <TabsContent value="authority" className="space-y-4"><AdminAssignmentPanel jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Customer / Consent"]} /><details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Legacy Owner Authority history (no longer a gate)</summary><div className="mt-3"><AdminAuthorityPanel jobId={jobId} /></div></details></TabsContent>
         <TabsContent value="piesa" className="space-y-4">
           <Section title="PIESA 30-day installation window">
             {job.piesa_date ? <p className="text-sm">Current PIESA {fmtDate(job.piesa_date)} → install by <strong>{fmtDate(job.install_deadline)}</strong> ({job.days_remaining} days) <UrgencyBadge urgency={job.urgency} days={job.days_remaining} /></p> : <p className="text-sm text-muted-foreground">No PIESA recorded yet.</p>}
           </Section>
           <AssessmentView jobId={jobId} part="piesa" />
+          <details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Rectification</summary><div className="mt-3 space-y-4"><AssessmentView jobId={jobId} part="rectification" /><BookingPanel jobId={jobId} kind="rectification" canBook isAdmin /></div></details>
+          <SectionDocuments jobId={jobId} categories={["Electrical / PIESA"]} />
         </TabsContent>
-        <TabsContent value="rectification" className="space-y-4"><AssessmentView jobId={jobId} part="rectification" /><BookingPanel jobId={jobId} kind="rectification" canBook isAdmin /></TabsContent>
-        <TabsContent value="quotes" className="space-y-4"><AdminQuotes jobId={jobId} /></TabsContent>
-        <TabsContent value="payments"><PaymentsPanel jobId={jobId} isAdmin /></TabsContent>
-        <TabsContent value="scheduling" className="grid gap-4 lg:grid-cols-3">
-          <BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><BookingPanel jobId={jobId} kind="rectification" canBook isAdmin /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin />
-        </TabsContent>
-        <TabsContent value="installation" className="space-y-4"><EscInstallPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /></TabsContent>
-        <TabsContent value="evidence"><EvidencePanel jobId={jobId} role="admin" /></TabsContent>
-        <TabsContent value="compliance"><Compliance jobId={jobId} /></TabsContent>
-        <TabsContent value="veec"><Veec jobId={jobId} /></TabsContent>
-        <TabsContent value="messages"><MessagesPanel jobId={jobId} isAdmin /></TabsContent>
-        <TabsContent value="history"><TimelinePanel jobId={jobId} /></TabsContent>
+        <TabsContent value="assessment" className="space-y-4"><RequirementCards jobId={jobId} isAdmin job={job} /><BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} /></TabsContent>
+        <TabsContent value="quotes" className="space-y-4"><AdminQuotes jobId={jobId} /><PaymentsPanel jobId={jobId} isAdmin /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} /></TabsContent>
+        <TabsContent value="installation" className="space-y-4"><EscInstallPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /><SectionDocuments jobId={jobId} categories={["Installation"]} /></TabsContent>
+        <TabsContent value="evidence" className="space-y-4"><EvidencePanel jobId={jobId} role="admin" /><SectionDocuments jobId={jobId} categories={["Evidence"]} /></TabsContent>
+        <TabsContent value="veec" className="space-y-4"><Compliance jobId={jobId} /><Veec jobId={jobId} /><SectionDocuments jobId={jobId} categories={["ESC / VEEC"]} /></TabsContent>
+        <TabsContent value="messages" className="space-y-4"><MessagesPanel jobId={jobId} isAdmin /><Correspondence jobId={jobId} /></TabsContent>
+        <TabsContent value="history" className="space-y-4"><JobTimeline jobId={jobId} /><details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Raw workflow history</summary><div className="mt-3"><TimelinePanel jobId={jobId} /></div></details></TabsContent>
+        <TabsContent value="documents" className="space-y-4"><AllDocuments jobId={jobId} /><ExportJobPack jobId={jobId} /></TabsContent>
       </Tabs>
     </AppShell>
   );

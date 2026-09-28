@@ -122,7 +122,57 @@ const RESEARCH_DONE = new Set(["complete", "completed", "verified", "success", "
 
 export type StoredProperty = { state: string | null; postcode: string | null; occupancy: string | null; is_residential: boolean | null; year_built: number | null; enrichment: Record<string, unknown> | null };
 
-export function resolveGate1Facts(p: StoredProperty | null, job: { lifeSupportStatus: string | null; preliminaryOutcome: string | null }, minAge: number, currentYear: number): Gate1Facts {
+/** Current Property Intelligence fact as stored in property_facts. */
+export type IntelFact = { fact_key: string; value: unknown; evidence_kind: string | null; confidence: string | null; source_type: string | null; source_name: string | null; source_url?: string | null; is_current: boolean; is_stale: boolean };
+/** Only direct, high-confidence, current, externally sourced facts may SET a Gate 1 fact. Zoning/inferred facts never do. */
+export function trustedIntel(f: IntelFact | undefined): f is IntelFact {
+  return !!f && f.is_current && !f.is_stale && f.evidence_kind === "direct" && (f.confidence === "high" || f.confidence === "very_high")
+    && ["public_gis", "partner", "provider"].includes(f.source_type ?? "");
+}
+const intelSrc = (f: IntelFact) => `property intelligence: ${f.source_name ?? f.source_type}${f.source_url ? ` (${f.source_url})` : ""}`;
+
+export function resolveGate1Facts(p: StoredProperty | null, job: { lifeSupportStatus: string | null; preliminaryOutcome: string | null }, minAge: number, currentYear: number, intel: IntelFact[] = []): Gate1Facts {
+  const base = resolveBaseFacts(p, job, minAge, currentYear);
+  return applyIntelligence(base, intel, currentYear);
+}
+
+/** Property Intelligence feeds Gate 1 only where the portal/Base44 left a fact unknown AND the evidence is trusted. */
+export function applyIntelligence(f: Gate1Facts, intel: IntelFact[], currentYear: number): Gate1Facts {
+  const cur = intel.filter((i) => i.is_current && !i.is_stale);
+  const get = (k: string) => cur.find((i) => i.fact_key === k);
+  const out: Gate1Facts = { ...f, evidence: { ...(f.evidence ?? {}) } };
+  const ev = out.evidence!;
+  const inVic = get("in_victoria"), addr = get("address_verified");
+  if (!out.state && trustedIntel(inVic) && trustedIntel(addr) && addr.value === true && typeof inVic.value === "boolean") {
+    out.state = inVic.value ? "VIC" : "OUTSIDE VIC";
+    ev.location = { fact: inVic.value ? "Victoria (verified address)" : "outside Victoria (verified address)", source: intelSrc(inVic), basis: "verified" };
+  }
+  const ncc = get("ncc_class_evidence");
+  if (out.isResidential == null && !out.residentialNote && trustedIntel(ncc)) {
+    if (ncc.value === "class1" || ncc.value === "class2_sou") { out.isResidential = true; ev.residential = { fact: `NCC ${ncc.value}`, source: intelSrc(ncc), basis: "verified" }; }
+    else if (ncc.value === "not_eligible") { out.isResidential = false; ev.residential = { fact: "not Class 1 / Class 2 SOU", source: intelSrc(ncc), basis: "verified" }; }
+  }
+  const age = get("age_evidence");
+  if (out.yearBuilt == null && out.verifiedMinAgeYears == null && trustedIntel(age)) {
+    const v = age.value as { date?: string | null; kind?: string } | null;
+    const yr = v?.date ? new Date(v.date).getFullYear() : null;
+    if (yr && (v?.kind === "historical_imagery_same_footprint" || v?.kind === "direct_record")) {
+      if (v.kind === "direct_record") { out.yearBuilt = yr; out.yearBuiltVerified = true; }
+      else out.verifiedMinAgeYears = currentYear - yr;
+      ev.building_age = { fact: `${v.kind === "direct_record" ? "built" : "first appears"} ${yr}`, source: intelSrc(age), basis: "verified" };
+    }
+  }
+  // Review-only flags may come from any current fact (raising review is always safe).
+  const roof = get("roof_form"), storey = get("another_storey_above_relevant_ceiling");
+  const roofFlag = roof?.value === "low_slope_flat" || roof?.value === "mixed", storeyFlag = storey?.value === "yes";
+  if (!out.flatRoofOrAccessConcern && (roofFlag || storeyFlag)) {
+    out.flatRoofOrAccessConcern = true;
+    ev.roof_access = { fact: roofFlag ? `roof form ${roof!.value}` : "storey above relevant ceiling", source: intelSrc((roofFlag ? roof : storey)!), basis: trustedIntel(roofFlag ? roof : storey) ? "verified" : "recorded" };
+  }
+  return out;
+}
+
+function resolveBaseFacts(p: StoredProperty | null, job: { lifeSupportStatus: string | null; preliminaryOutcome: string | null }, minAge: number, currentYear: number): Gate1Facts {
   const e = (p?.enrichment ?? {}) as Record<string, unknown>;
   const b = (e["base44"] ?? {}) as { declared?: Record<string, unknown>; research?: Record<string, unknown> };
   const d = b.declared ?? {}, r = b.research ?? {};

@@ -2,7 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { logEvent } from "./workflow.server";
-import { evaluateGate1, resolveGate1Facts, type Gate1Decision, type StoredProperty } from "./eligibility.core";
+import { evaluateGate1, resolveGate1Facts, type Gate1Decision, type StoredProperty, type IntelFact } from "./eligibility.core";
 
 export const AUTO_FAIL_HOLD_PREFIX = "Gate 1 auto-decision: does not appear eligible";
 
@@ -12,8 +12,8 @@ export async function autoDecideEligibility(jobId: string): Promise<Gate1Decisio
     .eq("id", jobId).single();
   if (!j || !["new_enquiry", "eligibility_review"].includes(j.stage)) return null;
   if (j.eligibility_decision_source === "admin" || j.eligibility_decision_source === "system") return null; // admin decisions stand; system decides once
-  const { facts, d } = await evaluateStored(j);
-  const audit = { rules_passed: d.passed, rules_failed: d.failed, needs_review: d.review, rules: d.rules, facts, sources: ["properties", "properties.enrichment (incl. base44 declared/research)", "jobs.life_support_status", "workflow_settings"], decided_at: new Date().toISOString() };
+  const { facts, d } = await evaluateStored(j, jobId);
+  const audit = { rules_passed: d.passed, rules_failed: d.failed, needs_review: d.review, rules: d.rules, facts, sources: ["properties", "properties.enrichment (incl. base44 declared/research)", "jobs.life_support_status", "workflow_settings", "property_facts (trusted direct high-confidence only)"], decided_at: new Date().toISOString() };
   if (!d.outcome) {
     // Unchanged review list -> no new event (idempotent sweeps).
     const prev = (j.eligibility_decision_rules as { needs_review?: string[] } | null)?.needs_review ?? [];
@@ -40,13 +40,14 @@ export async function autoDecideEligibility(jobId: string): Promise<Gate1Decisio
 }
 
 type StoredJob = { eligibility_outcome: string | null; eligibility_decision_source: string | null; life_support_status: string | null; properties: unknown };
-async function evaluateStored(j: StoredJob) {
+async function evaluateStored(j: StoredJob, jobId: string) {
+  const { data: intel } = await admin.from("property_facts").select("fact_key, value, evidence_kind, confidence, source_type, source_name, source_url, is_current, is_stale").eq("job_id", jobId).eq("is_current", true);
   const { data: ws } = await admin.from("workflow_settings").select("min_building_age_years").limit(1).maybeSingle();
   const year = Number(new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", year: "numeric" }).format(new Date()));
   const facts = resolveGate1Facts(j.properties as StoredProperty | null, {
     lifeSupportStatus: j.life_support_status,
     preliminaryOutcome: j.eligibility_decision_source === "preliminary" ? j.eligibility_outcome : null,
-  }, ws?.min_building_age_years ?? 2, year);
+  }, ws?.min_building_age_years ?? 2, year, (intel ?? []) as IntelFact[]);
   return { facts, d: evaluateGate1(facts) };
 }
 
@@ -56,7 +57,7 @@ export async function previewGate1(jobId: string) {
     .select("stage, eligibility_outcome, eligibility_decision_source, eligibility_decision_rules, eligibility_reason, life_support_status, properties(state, postcode, occupancy, is_residential, year_built, enrichment)")
     .eq("id", jobId).single();
   if (!j) return null;
-  const { d } = await evaluateStored(j);
+  const { d } = await evaluateStored(j, jobId);
   return {
     live: { outcome: d.outcome, rules: d.rules },
     recorded: { outcome: j.eligibility_outcome, source: j.eligibility_decision_source, reason: j.eligibility_reason, rules: (j.eligibility_decision_rules as { rules?: unknown } | null)?.rules ?? null },

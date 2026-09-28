@@ -63,6 +63,8 @@ export async function runPropertyIntelligence(jobId: string, actorId: string | n
     const status = failedSources.length ? "partial" : "complete";
     await admin.from("property_intelligence_runs").update({ status, result: rec.outcome, result_reason: rec.reasons.join(" • "), next_action: rec.nextAction, completeness_pct: completeness(facts), completed_at: new Date().toISOString(), error_summary: failedSources.map((c) => `${c.source_key}: ${c.error}`).join("; ") || null }).eq("id", run.id);
     await logEvent(jobId, actorId, "property_intelligence_run", `Property intelligence (${status}): preliminary ${rec.outcome.replace(/_/g, " ")} – information only, admin confirms Gate 1`, { run_id: run.id, trigger, ruleset: RULESET.version, reference_date: ref.date, reasons: rec.reasons, sources: g.checks }, { internal: true });
+    // Feed the single deterministic Gate 1 decider (it only uses trusted direct evidence; anything else stays review).
+    try { const { autoDecideEligibility } = await import("./eligibility.server"); await autoDecideEligibility(jobId); } catch { /* never fail the run */ }
     return { runId: run.id, status, recommendation: rec };
   } catch (e) {
     await admin.from("property_intelligence_runs").update({ status: "error", error_summary: (e as Error).message.slice(0, 500), completed_at: new Date().toISOString() }).eq("id", run.id);
