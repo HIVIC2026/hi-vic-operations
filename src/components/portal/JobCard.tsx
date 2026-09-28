@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, HeartPulse } from "lucide-react";
+import { AlertTriangle, HeartPulse, Lock } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import { fmtDateTime } from "@/lib/workflow";
-import { PaymentBadge, StageBadge, UrgencyBadge } from "./badges";
+import { AuthorityBadge, PaymentBadge, StageBadge, UrgencyBadge } from "./badges";
 
 export type JobRow = Database["public"]["Views"]["job_overview"]["Row"];
 
@@ -21,7 +21,14 @@ export function JobCard({ job, to }: { job: JobRow; to: "/admin/jobs/$jobId" | "
         <StageBadge stage={job.stage} />
         <PaymentBadge status={job.payment_status} />
         <UrgencyBadge urgency={job.urgency} days={job.days_remaining} />
+        <AuthorityBadge status={job.authority_status} />
       </div>
+      {job.stage === "awaiting_deposit_payment" && !job.deposit_cleared && (
+        <div className="mt-2 flex items-center gap-1.5 rounded-md bg-danger-soft px-2 py-1 text-xs font-semibold text-danger"><Lock className="h-3.5 w-3.5" /> Scheduling locked – 50% deposit unpaid</div>
+      )}
+      {job.authority_status !== "accepted" && !["new_enquiry", "eligibility_review", "complete", "cancelled"].includes(job.stage ?? "") && (
+        <div className="mt-2 flex items-center gap-1.5 rounded-md bg-danger-soft px-2 py-1 text-xs font-semibold text-danger"><Lock className="h-3.5 w-3.5" /> Valid Owner Authority required</div>
+      )}
       <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
         <dt className="text-muted-foreground">Electrician</dt><dd className="truncate">{job.electrician_name ?? "—"}</dd>
         <dt className="text-muted-foreground">Installer</dt><dd className="truncate">{job.installer_name ?? "—"}</dd>

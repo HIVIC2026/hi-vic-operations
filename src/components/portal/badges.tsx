@@ -32,3 +32,10 @@ export function PaymentBadge({ status }: { status: string | null | undefined }) 
   const t = status === "fully_paid" || status === "deposit_paid" ? "good" : status === "overdue" || status === "xero_sync_error" ? "bad" : status === "balance_due" || status === "deposit_due" ? "warn" : "info";
   return <Pill t={t}>{PAYMENT_LABEL[status] ?? status}</Pill>;
 }
+
+export function AuthorityBadge({ status }: { status: string | null | undefined }) {
+  const s = status ?? "not_requested";
+  const t = s === "accepted" ? "good" : s === "sent" || s === "viewed" ? "warn" : "bad";
+  const label: Record<string, string> = { not_requested: "No Owner Authority", sent: "Authority sent", viewed: "Authority viewed", accepted: "Authority valid", declined: "Authority declined", expired: "Authority expired", revoked: "Authority revoked" };
+  return <Pill t={t}>{label[s] ?? s}</Pill>;
+}
