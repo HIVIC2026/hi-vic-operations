@@ -480,6 +480,7 @@ export const runComplianceReview = auth()
     const auto: Record<string, boolean> = {
       eligibility: job?.eligibility_outcome === "likely_eligible" || job?.eligibility_outcome === "needs_onsite_confirmation",
       owner_consent: kinds.has("owner_consent"),
+      owner_authority: await authorityValid(data.jobId),
       electrical_assessment: p?.piesa_outcome === "pass",
       rectification: (openRect ?? 0) === 0,
       installation_evidence: (ev ?? []).every((e) => e.status === "verified"),
