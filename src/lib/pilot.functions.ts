@@ -399,8 +399,8 @@ export const requestAnotherElectrician = createServerFn({ method: "POST" }).midd
     if (role !== "admin" && !sla.canRequestAnother) throw new WorkflowError("You can request another electrician after 48 hours without a confirmed time, or if the electrician says they cannot attend.");
     const now = new Date().toISOString();
     await admin.from("job_assignments").update({ active: false, ended_at: now, end_reason: `replacement requested by ${role}: ${data.reason}` }).eq("id", a.id);
-    await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", data.jobId).eq("status", "proposed");
-    await admin.from("reassignment_requests").insert({ job_id: data.jobId, role: "electrician", requested_by: context.userId, reason: data.reason } as never);
+    await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", data.jobId).in("kind", ["assessment", "rectification"]).eq("status", "proposed");
+    await admin.from("reassignment_requests").update({ status: "actioned", resolved_by: context.userId, resolved_at: now }).eq("job_id", data.jobId).eq("role", "electrician").eq("status", "open");
     await admin.from("jobs").update({ electrician_choice: null, next_action: "Choose another electrician" }).eq("id", data.jobId);
     await logEvent(data.jobId, context.userId, "electrician_replacement_requested", `${role} requested another electrician (${sla.message})`, { reason: data.reason, previous_assignment: a.id });
     return { ok: true };
@@ -448,7 +448,11 @@ export const coordinationState = createServerFn({ method: "POST" }).middleware([
       admin.from("job_assignments").select("id, assigned_at, first_response_at, booking_confirmed_at, cannot_attend_at, profiles!job_assignments_user_id_fkey(full_name)").eq("job_id", data.jobId).eq("role", "electrician").eq("active", true).maybeSingle(),
       admin.from("appointment_proposals").select("id, kind, proposer_role, starts_at, note, status, response_note, created_at").eq("job_id", data.jobId).order("created_at", { ascending: false }).limit(30),
     ]);
-    return { role, electrician: a ? { name: (a.profiles as { full_name: string | null } | null)?.full_name ?? "Electrician", sla: appointmentSla(a) } : null, proposals: props ?? [] };
+    const [{ data: bk }, { data: rr }] = await Promise.all([
+      admin.from("bookings").select("kind, scheduled_start, status").eq("job_id", data.jobId).eq("status", "confirmed"),
+      admin.from("reassignment_requests").select("id, reason, created_at").eq("job_id", data.jobId).eq("role", "electrician").eq("status", "open"),
+    ]);
+    return { role, electrician: a ? { name: (a.profiles as { full_name: string | null } | null)?.full_name ?? "Electrician", sla: appointmentSla(a) } : null, proposals: props ?? [], confirmed: bk ?? [], openRequests: rr ?? [] };
   });
 
 // ---------- Offers of HI VIC jobs to partners ----------
