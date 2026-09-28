@@ -828,6 +828,10 @@ export type Database = {
       jobs: {
         Row: {
           cancelled_reason: string | null
+          channel: Database["public"]["Enums"]["job_channel"]
+          commercial_model: Database["public"]["Enums"]["commercial_model"]
+          commercial_model_set_at: string | null
+          commercial_model_set_by: string | null
           created_at: string
           eligibility_outcome:
             | Database["public"]["Enums"]["eligibility_outcome"]
@@ -845,6 +849,8 @@ export type Database = {
           last_activity_at: string
           life_support: boolean
           next_action: string | null
+          originating_installer_business_id: string | null
+          originating_installer_user_id: string | null
           owner_id: string
           prior_stage: Database["public"]["Enums"]["job_stage"] | null
           property_id: string
@@ -854,6 +860,10 @@ export type Database = {
         }
         Insert: {
           cancelled_reason?: string | null
+          channel?: Database["public"]["Enums"]["job_channel"]
+          commercial_model?: Database["public"]["Enums"]["commercial_model"]
+          commercial_model_set_at?: string | null
+          commercial_model_set_by?: string | null
           created_at?: string
           eligibility_outcome?:
             | Database["public"]["Enums"]["eligibility_outcome"]
@@ -871,6 +881,8 @@ export type Database = {
           last_activity_at?: string
           life_support?: boolean
           next_action?: string | null
+          originating_installer_business_id?: string | null
+          originating_installer_user_id?: string | null
           owner_id: string
           prior_stage?: Database["public"]["Enums"]["job_stage"] | null
           property_id: string
@@ -880,6 +892,10 @@ export type Database = {
         }
         Update: {
           cancelled_reason?: string | null
+          channel?: Database["public"]["Enums"]["job_channel"]
+          commercial_model?: Database["public"]["Enums"]["commercial_model"]
+          commercial_model_set_at?: string | null
+          commercial_model_set_by?: string | null
           created_at?: string
           eligibility_outcome?:
             | Database["public"]["Enums"]["eligibility_outcome"]
@@ -897,6 +913,8 @@ export type Database = {
           last_activity_at?: string
           life_support?: boolean
           next_action?: string | null
+          originating_installer_business_id?: string | null
+          originating_installer_user_id?: string | null
           owner_id?: string
           prior_stage?: Database["public"]["Enums"]["job_stage"] | null
           property_id?: string
@@ -906,8 +924,29 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "jobs_commercial_model_set_by_fkey"
+            columns: ["commercial_model_set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "jobs_eligibility_set_by_fkey"
             columns: ["eligibility_set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_originating_installer_business_id_fkey"
+            columns: ["originating_installer_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_originating_installer_user_id_fkey"
+            columns: ["originating_installer_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2439,6 +2478,10 @@ export type Database = {
         Row: {
           authority_expires_at: string | null
           authority_status: string | null
+          channel: Database["public"]["Enums"]["job_channel"] | null
+          commercial_model:
+            | Database["public"]["Enums"]["commercial_model"]
+            | null
           created_at: string | null
           days_remaining: number | null
           deposit_cleared: boolean | null
@@ -2456,6 +2499,8 @@ export type Database = {
           last_activity_at: string | null
           life_support: boolean | null
           next_action: string | null
+          originating_business_name: string | null
+          originating_installer_user_id: string | null
           owner_email: string | null
           owner_id: string | null
           owner_name: string | null
@@ -2479,6 +2524,13 @@ export type Database = {
           {
             foreignKeyName: "job_assignments_user_id_fkey"
             columns: ["electrician_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_originating_installer_user_id_fkey"
+            columns: ["originating_installer_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2550,6 +2602,10 @@ export type Database = {
         | "eec_installer"
         | "property_manager"
         | "other"
+      commercial_model:
+        | "hivic_invoices_owner"
+        | "installer_invoices_owner"
+        | "not_configured"
       eligibility_outcome:
         | "likely_eligible"
         | "needs_onsite_confirmation"
@@ -2571,6 +2627,7 @@ export type Database = {
         | "verified"
         | "rejected"
         | "not_required"
+      job_channel: "hivic_sourced" | "installer_sourced"
       job_stage:
         | "new_enquiry"
         | "eligibility_review"
@@ -2768,6 +2825,11 @@ export const Constants = {
         "property_manager",
         "other",
       ],
+      commercial_model: [
+        "hivic_invoices_owner",
+        "installer_invoices_owner",
+        "not_configured",
+      ],
       eligibility_outcome: [
         "likely_eligible",
         "needs_onsite_confirmation",
@@ -2792,6 +2854,7 @@ export const Constants = {
         "rejected",
         "not_required",
       ],
+      job_channel: ["hivic_sourced", "installer_sourced"],
       job_stage: [
         "new_enquiry",
         "eligibility_review",

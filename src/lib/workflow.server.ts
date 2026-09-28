@@ -115,8 +115,21 @@ async function openRectCount(jobId: string) {
   return count ?? 0;
 }
 
+export const COMMERCIAL_BLOCKER = "Commercial setup required – invoice route not configured for this installer-sourced job.";
+
+/** Installer-sourced jobs stay payment-gated until an admin configures a supported invoice route. */
+export async function commercialBlocker(jobId: string): Promise<string | null> {
+  const { data } = await admin.from("jobs").select("channel, commercial_model").eq("id", jobId).single();
+  if (data?.channel === "installer_sourced" && data.commercial_model !== "hivic_invoices_owner") return COMMERCIAL_BLOCKER;
+  return null;
+}
+
 export async function stageEntryBlockers(jobId: string, to: Stage): Promise<string[]> {
   const blockers: string[] = [];
+  if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {
+    const cb = await commercialBlocker(jobId);
+    if (cb) blockers.push(cb);
+  }
   const piesa = await piesaStatus(jobId);
 
   if (AUTHORITY_STAGES.includes(to) && !(await authorityValid(jobId))) blockers.push(AUTHORITY_BLOCKER);

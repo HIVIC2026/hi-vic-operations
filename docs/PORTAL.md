@@ -124,3 +124,19 @@ HV-1002 authority missing · HV-1003 authority expired · HV-1004/1005 valid aut
 ## QA pass (28 Sep 2026)
 Test accounts (password held by HI VIC admin): admin@hivic.test, elec1@hivic.test, elec2@hivic.test, inst1@hivic.test, and owner logins for Daniel Rossi, Sarah Nguyen, Priya Patel and Michael Brown.
 All 15 scenarios were exercised against real server actions and the database. Fixes: server actions were running in the browser (factory wrapper); a server-only import crashed every page; quotes could be issued, or half-accepted, while PIESA was expired; the no-rectification path never asked for the PIESA sign-off upload; VEEC could be recorded as lodged before Ready for VEEC; clearer PIESA-expired booking message; electrician's current task is now shown above the locked assessment on mobile.
+
+## Acquisition channels
+- **HI VIC-sourced** (default): normal path, 2–3 installer quote options, HI VIC Xero invoice + 50% deposit.
+- **Installer-sourced**: submitted by an approved EEC installer ("Submit a job to HI VIC" on My jobs). Originating business/user stored permanently (database trigger blocks any change) and the installer is auto-assigned; admin can reassign, which is audited but never changes attribution. One quote from the installer's rate card — no marketplace. All compliance gates still apply.
+- **Invoice route** (`commercial_model`): installer-sourced jobs start as `not_configured`. Until an admin sets `hivic_invoices_owner` (reason required, audited; locked once an invoice exists), quote acceptance, deposit and rectification/installation scheduling are blocked with "Commercial setup required". `installer_invoices_owner` is recordable but stays blocked until that payment model is defined.
+- Pipeline shows a source badge and a source filter; job page Overview has a Job source section.
+
+| # | Test | Expected | Result |
+|---|---|---|---|
+| 29 | Electrician calls submitInstallerJob | Denied | PASS |
+| 30 | Installer submits job | Installer-sourced, attribution stored, installer assigned, not_configured | PASS |
+| 31 | Direct DB update of channel/originating installer | Rejected by trigger | PASS |
+| 32 | Installer sets invoice route | Denied (admin only) | PASS |
+| 33 | Owner accepts quote while route not configured / installer-invoices | Blocked, quote stays issued, no invoice | PASS |
+| 34 | Installer-sourced quote generation | Exactly 1 option | PASS |
+| 35 | Route changed after invoice exists | Blocked | PASS |

@@ -4,7 +4,7 @@ import { Fragment, useState } from "react";
 import { ArrowLeft, HeartPulse } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
-import { AuthorityBadge, PaymentBadge, Pill, StageBadge, UrgencyBadge } from "@/components/portal/badges";
+import { AuthorityBadge, PaymentBadge, Pill, SourceBadge, StageBadge, UrgencyBadge } from "@/components/portal/badges";
 import { AdminAuthorityPanel, BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, PaymentsPanel, QuotesPanel, Section, TimelinePanel, useJob } from "@/components/portal/panels";
 
 const TABS: [string, string][] = [
@@ -15,7 +15,7 @@ const TABS: [string, string][] = [
 import { useAction } from "@/hooks/use-me";
 import {
   adjustQuote, assignContractor, generateInstallerQuotes, markReadyForVeec, regenerateRectificationQuote, runComplianceReview,
-  setComplianceCheck, setEligibility, setHold, updateVeec,
+  setCommercialModel, setComplianceCheck, setEligibility, setHold, updateVeec,
 } from "@/lib/portal.functions";
 import { ELIGIBILITY_LABEL, aud, fmtDate, type EligibilityOutcome } from "@/lib/workflow";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,7 +42,7 @@ function JobDetail() {
           <h1 className="text-2xl font-bold tracking-tight">{job.property_address}</h1>
           <p className="text-sm text-muted-foreground">{job.owner_name} · {job.owner_phone} · {job.owner_email}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            <StageBadge stage={job.stage} /><PaymentBadge status={job.payment_status} /><UrgencyBadge urgency={job.urgency} days={job.days_remaining} /><AuthorityBadge status={job.authority_status} />
+            <StageBadge stage={job.stage} /><PaymentBadge status={job.payment_status} /><UrgencyBadge urgency={job.urgency} days={job.days_remaining} /><AuthorityBadge status={job.authority_status} /><SourceBadge channel={job.channel} business={job.originating_business_name} />
             {job.life_support && <Pill t="bad"><HeartPulse className="mr-1 h-3 w-3" /> Life support</Pill>}
             {job.eligibility_outcome && <Pill t="info">{ELIGIBILITY_LABEL[job.eligibility_outcome]}</Pill>}
           </div>
@@ -65,6 +65,7 @@ function JobDetail() {
               <dt className="text-muted-foreground">Last activity</dt><dd>{fmtDate(job.last_activity_at)}</dd>
             </dl>
           </Section>
+          <JobSource jobId={jobId} channel={job.channel} model={job.commercial_model} business={job.originating_business_name} />
           <Assignments jobId={jobId} />
           <HoldControls jobId={jobId} stage={job.stage!} />
         </TabsContent>
@@ -122,6 +123,37 @@ function EligibilityForm({ jobId }: { jobId: string }) {
         <Input placeholder="NEXT ACTION" value={next} onChange={(e) => setNext(e.target.value)} required />
         <Button type="submit" disabled={!outcome}>Save outcome</Button>
       </form>
+    </Section>
+  );
+}
+
+const MODEL_LABEL: Record<string, string> = {
+  hivic_invoices_owner: "HI VIC invoices the owner (Xero)",
+  installer_invoices_owner: "Installer invoices the owner; HI VIC charges installer an AP fee",
+  not_configured: "Commercial setup required",
+};
+
+function JobSource({ jobId, channel, model, business }: { jobId: string; channel: string | null; model: string | null; business: string | null }) {
+  const set = useAction(setCommercialModel);
+  const [m, setM] = useState(model ?? "not_configured");
+  const [reason, setReason] = useState("");
+  return (
+    <Section title="Job source">
+      <dl className="grid grid-cols-2 gap-1 text-sm">
+        <dt className="text-muted-foreground">Channel</dt><dd><SourceBadge channel={channel} /></dd>
+        {channel === "installer_sourced" && <><dt className="text-muted-foreground">Originating installer</dt><dd>{business ?? "—"} <span className="text-xs text-muted-foreground">(permanent)</span></dd></>}
+        <dt className="text-muted-foreground">Invoice route</dt><dd>{MODEL_LABEL[model ?? ""] ?? "—"}</dd>
+      </dl>
+      {channel === "installer_sourced" && (
+        <form className="mt-3 space-y-2" onSubmit={async (e) => { e.preventDefault(); await set({ jobId, model: m as "not_configured", reason }, "Invoice route updated"); setReason(""); }}>
+          {model !== "hivic_invoices_owner" && <p className="rounded bg-warning-soft p-2 text-xs">Payment, deposit and rectification/installation scheduling stay locked until an invoice route is set. Installer-invoices route is recorded but not yet supported – it stays locked.</p>}
+          <select className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={m} onChange={(e) => setM(e.target.value)}>
+            {Object.entries(MODEL_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (required, audited)" required minLength={5} />
+          <Button type="submit" size="sm" variant="outline">Save invoice route</Button>
+        </form>
+      )}
     </Section>
   );
 }

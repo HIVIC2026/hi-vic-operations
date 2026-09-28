@@ -99,8 +99,11 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   const rectTotal = r2(rectLines.reduce((a, l) => a + l.line_total_inc_gst, 0));
   const gstMul = 1 + Number(settings.gst_rate);
 
+  // Installer-sourced jobs skip the multi-installer option marketplace: one quote from the assigned installer's card.
+  const { data: jobRow } = await admin.from("jobs").select("channel").eq("id", jobId).single();
+  const optionCodes = jobRow?.channel === "installer_sourced" ? settings.installer_option_codes.slice(0, 1) : settings.installer_option_codes;
   const created: string[] = [];
-  for (const code of settings.installer_option_codes) {
+  for (const code of optionCodes) {
     const product = byCode(code);
     if (!product) continue;
     const calc = priceInstallerOption({
