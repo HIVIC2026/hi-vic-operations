@@ -248,3 +248,16 @@ export function mediaStoragePath(jobId: string, sourceId: string, name: string) 
   const sid = String(sourceId).replace(/[^\w\-]+/g, "_").slice(0, 60) || "src";
   return `${jobId}/intake/base44/${sid}-${sanitizeFilename(name)}`;
 }
+
+const EXISTING_INSULATION_KEYS = ["declared_existing_insulation", "existing_insulation", "has_existing_insulation", "current_insulation"];
+const TOP_FLOOR_KEYS = ["declared_top_floor", "top_floor", "is_top_floor", "top_floor_unit", "top_storey"];
+const answerText = (v: unknown): string | null => {
+  if (v === true) return "yes"; if (v === false) return "no";
+  if (typeof v === "string" && v.trim()) return v.trim().slice(0, 120);
+  return null;
+};
+/** Owner-declared existing insulation / top-floor answers from the Base44 answer snapshot (declared, never verified). */
+export function declaredExtras(answers: Record<string, unknown> | null | undefined) {
+  const pick = (keys: string[]) => { for (const k of keys) { const t = answerText(answers?.[k]); if (t) return t; } return null; };
+  return { existing_insulation: pick(EXISTING_INSULATION_KEYS), top_floor: pick(TOP_FLOOR_KEYS) };
+}

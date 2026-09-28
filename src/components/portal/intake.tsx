@@ -24,6 +24,8 @@ export function IntakeSummary({ jobId }: { jobId: string }) {
     ["Estimated area", data.area != null ? `${data.area} m²` : "Unknown"],
     ["State", data.state ?? "—"],
   ];
+  if (data.declaredExtras?.existing_insulation) rows.splice(3, 0, ["Existing insulation", yn(data.declaredExtras.existing_insulation)]);
+  if (data.declaredExtras?.top_floor) rows.splice(4, 0, ["Top floor", yn(data.declaredExtras.top_floor)]);
   return (
     <section className="rounded-xl border bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">

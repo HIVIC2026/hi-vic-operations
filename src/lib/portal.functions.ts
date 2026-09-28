@@ -987,6 +987,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       reference: job?.external_enquiry_id ?? null, source: job?.source ?? null, state: prop?.state ?? null, occupancy: prop?.occupancy ?? null,
       lifeSupport: job?.life_support_status ?? null, area: job?.estimated_area_unknown ? null : job?.estimated_area_m2 ?? null,
       consent: consents?.[0] ?? null, declared: b44?.declared ?? null,
+      declaredExtras: (await import("./enquiry.core")).declaredExtras(b44?.raw?.answers ?? null),
       screening: { outcome: job?.eligibility_outcome ?? null, reasons: job?.eligibility_reason ?? null, raw: b44?.raw?.screening ?? null },
       research: b44?.research ?? null, media: links, lastMediaFailure: fails?.[0] ?? null,
       raw: b44?.raw ?? null,
@@ -994,6 +995,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       reference: string | null; source: string | null; state: string | null; occupancy: string | null; lifeSupport: string | null; area: number | null;
       consent: { consent_status: string; consent_version: string | null; consented_at: string | null; age_confirmed: boolean | null; assistance: string | null; contact_preference: string | null; created_at: string } | null;
       declared: { property_type: string | null; over_five_years: string | null; previous_upgrade: string | null } | null;
+      declaredExtras: { existing_insulation: string | null; top_floor: string | null };
       screening: { outcome: string | null; reasons: string | null; raw: Json };
       research: { status: string | null; evidence_summary: string | null; first_appearance_year: number | null; premises_classification: string | null } | null;
       media: { id: string; name: string; mime: string | null; size: number | null; url: string | null }[];
