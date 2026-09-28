@@ -68,7 +68,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     const { error: ue } = await admin.from("jobs").update(update).eq("id", existingJob.id);
     if (ue) throw new Error(ue.message);
     await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, prelimDetails,
-      moved ? { from: existingJob.stage, to: "eligibility_review" } : undefined);
+      moved ? { from: existingJob.stage, to: "eligibility_review" } : {});
     return { job_id: existingJob.id, job_number: existingJob.job_number, created: false };
   }
   const { data: prop, error: pe } = await admin.from("properties").insert(propFields).select("id").single();

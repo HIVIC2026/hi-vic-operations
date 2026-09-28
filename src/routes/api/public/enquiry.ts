@@ -1,20 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createHmac, timingSafeEqual } from "crypto";
+import { BASE44_KEY_ID, verifyEd25519 } from "@/lib/enquiry.core";
 
-// Base44 website -> HI VIC portal. Signed with HMAC-SHA256 of the raw body using BASE44_WEBHOOK_SECRET,
-// sent in header `x-hivic-signature` (hex).
+// Base44 website -> HI VIC portal. Header `x-hivic-signature` = base64 Ed25519 signature of the exact raw
+// UTF-8 body, verified against the trusted Base44 public key (no shared secret). Optional `x-hivic-key-id: base44-v1`.
+// Only POST is handled; every other method gets the framework's 405/404.
 export const Route = createFileRoute("/api/public/enquiry")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const secret = process.env["BASE44_WEBHOOK_SECRET"];
-        if (!secret) return Response.json({ error: "Webhook not configured" }, { status: 503 });
+        const keyId = request.headers.get("x-hivic-key-id");
+        if (keyId && keyId !== BASE44_KEY_ID) return Response.json({ error: "Unknown key id" }, { status: 401 });
         const body = await request.text();
-        const sig = request.headers.get("x-hivic-signature") ?? "";
-        const expected = createHmac("sha256", secret).update(body).digest("hex");
-        const a = Buffer.from(sig);
-        const b = Buffer.from(expected);
-        if (a.length !== b.length || !timingSafeEqual(a, b)) return Response.json({ error: "Invalid signature" }, { status: 401 });
+        if (body.length > 100_000) return Response.json({ error: "Payload too large" }, { status: 413 });
+        // Verify BEFORE parsing anything.
+        if (!(await verifyEd25519(body, request.headers.get("x-hivic-signature")))) {
+          return Response.json({ error: "Invalid signature" }, { status: 401 });
+        }
 
         const { enquirySchema, upsertEnquiry } = await import("@/lib/enquiry.server");
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -29,13 +30,14 @@ export const Route = createFileRoute("/api/public/enquiry")({
           await supabaseAdmin.from("external_sync_logs").insert({ system: "base44", direction: "inbound", entity_type: "enquiry", status: "error", error: parsed.error.message });
           return Response.json({ error: "Validation failed", issues: parsed.error.flatten() }, { status: 400 });
         }
+        const ref = { external_enquiry_id: parsed.data.external_enquiry_id ?? null, source_reference: parsed.data.source_reference ?? null, key_id: keyId ?? null };
         try {
           const result = await upsertEnquiry(parsed.data, "base44", null);
-          await supabaseAdmin.from("external_sync_logs").insert({ system: "base44", direction: "inbound", entity_type: "job", entity_id: result.job_id, status: "synced", payload: { external_enquiry_id: parsed.data.external_enquiry_id ?? null } });
+          await supabaseAdmin.from("external_sync_logs").insert({ system: "base44", direction: "inbound", entity_type: "job", entity_id: result.job_id, status: "synced", payload: { ...ref, created: result.created, eligibility_outcome: parsed.data.eligibility_outcome ?? null } });
           return Response.json({ ok: true, ...result });
         } catch (e) {
           console.error("enquiry webhook failed", e);
-          await supabaseAdmin.from("external_sync_logs").insert({ system: "base44", direction: "inbound", entity_type: "enquiry", status: "error", error: String(e) });
+          await supabaseAdmin.from("external_sync_logs").insert({ system: "base44", direction: "inbound", entity_type: "enquiry", status: "error", payload: ref, error: String(e) });
           return Response.json({ error: "Failed to process enquiry" }, { status: 500 });
         }
       },
