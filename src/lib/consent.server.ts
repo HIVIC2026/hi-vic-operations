@@ -83,12 +83,13 @@ export async function confirmApConsent(p: { jobId: string; actorId: string; apRe
   const now = new Date().toISOString();
   const signed = { facts: c.snapshot, template: { version: c.template_version, body: tpl?.body ?? null }, owner: { name: c.owner_signatory_name, authority: c.owner_authority_type, typed: c.owner_signature_name, at: c.owner_signed_at, ip: c.owner_ip }, ap: { name: p.apRepName, purpose_explained: true, at: now, ip: p.ip, user_id: p.actorId } };
   const json = stableJson(signed); const sha = await sha256Hex(json);
-  const { customerCommsEnabled } = await import("./comms.server");
+  const { customerDeliveryState } = await import("./comms.server");
+  const delivery = await customerDeliveryState(p.jobId);
   const text = [`OWNER CONSENT – ESC INFORMATION SHARING (${c.template_version})`, `AP: ${c.ap_legal_entity}`, `Premises: ${c.premises_address}`, `Installation day(s): ${(c.installation_days as string[]).join(", ")}`, "", tpl?.body ?? "", "",
     `Owner/authorised representative: ${c.owner_signatory_name} (${c.owner_authority_type}) · typed signature "${c.owner_signature_name}" · ${c.owner_signed_at}`, `AP representative: ${p.apRepName} · purpose explained · ${now}`, `SHA-256: ${sha}`, "", json].join("\n");
   const path = await storeCopy(p.jobId, `${p.jobId}/consent/esc-consent-v${c.version}-${sha.slice(0, 12)}.txt`, text, `Owner ESC consent v${c.version} (signed)`, p.actorId);
-  await admin.from("owner_esc_consents").update({ status: "valid", ap_rep_name: p.apRepName, ap_purpose_explained: true, ap_signed_at: now, ap_signed_by: p.actorId, ap_ip: p.ip, ap_user_agent: p.userAgent, signed_sha256: sha, copy_path: path, delivery_status: (await customerCommsEnabled()) ? "ready_to_send" : "pending_comms_lock" }).eq("id", c.id);
-  await logEvent(p.jobId, p.actorId, "esc_consent_valid", `Owner ESC consent complete – AP representative ${p.apRepName} confirmed purpose explained (copy stored; delivery ${(await customerCommsEnabled()) ? "ready" : "pending – communications locked"})`, { consent_id: c.id, sha256: sha });
+  await admin.from("owner_esc_consents").update({ status: "valid", ap_rep_name: p.apRepName, ap_purpose_explained: true, ap_signed_at: now, ap_signed_by: p.actorId, ap_ip: p.ip, ap_user_agent: p.userAgent, signed_sha256: sha, copy_path: path, delivery_status: delivery }).eq("id", c.id);
+  await logEvent(p.jobId, p.actorId, "esc_consent_valid", `Owner ESC consent complete – AP representative ${p.apRepName} confirmed purpose explained (copy stored; delivery ${delivery === "ready_to_send" ? "ready" : delivery === "not_ready" ? "blocked – no owner contact consent" : "pending – communications locked"})`, { consent_id: c.id, sha256: sha });
   const { regenerateEscNotification } = await import("./esc.server");
   await regenerateEscNotification(p.jobId, p.actorId);
 }

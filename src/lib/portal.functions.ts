@@ -837,12 +837,14 @@ export const updateVeec = createServerFn({ method: "POST" }).middleware([require
 
 // ---------- Comms / exceptions ----------
 export const sendMessage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, body: z.string().trim().min(1).max(4000), internal: z.boolean().optional(), channel: z.enum(["portal", "phone", "sms", "email"]).optional() }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, body: z.string().trim().min(1).max(4000), internal: z.boolean().optional(), channel: z.enum(["portal", "phone", "sms", "email"]).optional(), audience: z.enum(["customer", "trade"]).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer", "owner"]);
     if (data.channel === "email" || data.channel === "sms") {
-      const { assertCustomerCommsEnabled } = await import("./comms.server");
-      await assertCustomerCommsEnabled(`${data.channel} message`);
+      const { assertCustomerCommsEnabled, assertCustomerDeliveryAllowed } = await import("./comms.server");
+      // Owners can receive this unless explicitly trade-only: then the owner's contact consent is also required.
+      if ((data.audience ?? "customer") === "customer") await assertCustomerDeliveryAllowed(data.jobId, `${data.channel} message`);
+      else await assertCustomerCommsEnabled(`${data.channel} message`);
     }
     await admin.from("messages").insert({ job_id: data.jobId, sender_id: context.userId, body: data.body, internal: role === "admin" ? !!data.internal : false, channel: data.channel ?? "portal" });
     await admin.from("jobs").update({ last_activity_at: new Date().toISOString() }).eq("id", data.jobId);
@@ -899,8 +901,8 @@ export const requestOwnerAuthority = createServerFn({ method: "POST" }).middlewa
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     // Legacy authority requests mark a customer-facing request as "sent" – blocked entirely while locked.
-    const { assertCustomerCommsEnabled } = await import("./comms.server");
-    await assertCustomerCommsEnabled("owner authority request");
+    const { assertCustomerDeliveryAllowed } = await import("./comms.server");
+    await assertCustomerDeliveryAllowed(data.jobId, "owner authority request");
     await requestAuthority(data.jobId, context.userId, data.reason);
     return { ok: true };
   });

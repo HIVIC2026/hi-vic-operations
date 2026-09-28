@@ -206,10 +206,12 @@ export async function sha256Hex(text: string): Promise<string> {
 }
 
 export const MEDIA_ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime", "video/webm"] as const;
+// Matches the live Base44 homeowner limits: <=6 persisted files (schema tolerates 10), 25 MB each, 40 MB total.
 export const MEDIA_MAX_FILES = 10;
-export const MEDIA_MAX_IMAGE_BYTES = 20 * 1024 * 1024;
-export const MEDIA_MAX_VIDEO_BYTES = 50 * 1024 * 1024;
-export const MEDIA_MAX_TOTAL_BYTES = 150 * 1024 * 1024;
+export const MEDIA_MAX_FILE_BYTES = 25 * 1024 * 1024;
+export const MEDIA_MAX_IMAGE_BYTES = MEDIA_MAX_FILE_BYTES;
+export const MEDIA_MAX_VIDEO_BYTES = MEDIA_MAX_FILE_BYTES;
+export const MEDIA_MAX_TOTAL_BYTES = 40 * 1024 * 1024;
 export const MEDIA_FETCH_TIMEOUT_MS = 20_000;
 
 export type Base44Media = { source_id: string; name: string; mime_type: string; signed_url: string };

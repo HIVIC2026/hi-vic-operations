@@ -390,10 +390,10 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
     `Facts sha256 ${a.final_facts_sha256}`, "", "Machine-readable facts:", stableJson(f)].join("\n");
   const hash = await sha256Hex(finalText);
   const path = await storeCopy(jobId, `${jobId}/assignment/final-${hash.slice(0, 12)}.txt`, finalText, "Final Activity 48 VEEC Assignment (signed copy)", "veec_assignment_final", actorId ?? a.consumer_signed_by ?? null);
-  const { customerCommsEnabled } = await import("./comms.server");
-  const delivery = (await customerCommsEnabled()) ? "ready_to_send" : "pending_comms_lock";
+  const { customerDeliveryState } = await import("./comms.server");
+  const delivery = await customerDeliveryState(jobId); // global lock first, then owner contact consent
   await admin.from("customer_assignments").update({ status: "effective_complete", effective_at: now.toISOString(), completed_at: now.toISOString(), final_copy_path: path, final_copy_at: path ? now.toISOString() : null, delivery_status: delivery }).eq("id", a.id);
   await admin.from("compliance_checks").update({ status: "pass", checked_at: now.toISOString(), notes: "Final VEEC assignment effective" }).eq("job_id", jobId).eq("check_key", "owner_authority");
-  await logEvent(jobId, actorId, EV.VEEC_ASSIGNMENT_EFFECTIVE, `Final VEEC assignment effective – signed copy stored (customer delivery ${delivery === "pending_comms_lock" ? "pending: communications locked" : "ready"})`, { assignment_id: a.id, sha256: hash });
+  await logEvent(jobId, actorId, EV.VEEC_ASSIGNMENT_EFFECTIVE, `Final VEEC assignment effective – signed copy stored (customer delivery ${delivery === "pending_comms_lock" ? "pending: communications locked" : delivery === "not_ready" ? "blocked: no owner contact consent" : "ready"})`, { assignment_id: a.id, sha256: hash });
   return r;
 }

@@ -16,6 +16,32 @@ export async function assertCustomerCommsEnabled(what: string) {
   if (!(await customerCommsEnabled())) throw new WorkflowError(`${COMMS_LOCKED_MESSAGE} (${what})`);
 }
 
+// ---------- Owner contact consent (second lock, after the global lock) ----------
+export const OWNER_CONSENT_MISSING_MESSAGE = "No contact consent from the owner on record – nothing was sent to the customer.";
+
+/** Latest owner contact consent for the job. Missing/not_granted/unknown = no external customer contact. Never invented for legacy jobs. */
+export async function hasCurrentOwnerContactConsent(jobId: string): Promise<boolean> {
+  const { data, error } = await admin.from("owner_contact_consents").select("consent_status").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error || !data) return false;
+  return data.consent_status === "granted";
+}
+
+export async function assertOwnerContactConsent(jobId: string, what: string) {
+  if (!(await hasCurrentOwnerContactConsent(jobId))) throw new WorkflowError(`${OWNER_CONSENT_MISSING_MESSAGE} (${what})`);
+}
+
+/** External delivery to the OWNER needs BOTH the global comms switch AND granted contact consent. Trade-only/internal messages never call this. */
+export async function assertCustomerDeliveryAllowed(jobId: string, what: string) {
+  await assertCustomerCommsEnabled(what);
+  await assertOwnerContactConsent(jobId, what);
+}
+
+/** Delivery state for a stored customer copy: locked globally -> pending_comms_lock; no consent -> not_ready; else ready_to_send. */
+export async function customerDeliveryState(jobId: string): Promise<"pending_comms_lock" | "not_ready" | "ready_to_send"> {
+  if (!(await customerCommsEnabled())) return "pending_comms_lock";
+  return (await hasCurrentOwnerContactConsent(jobId)) ? "ready_to_send" : "not_ready";
+}
+
 // ---------- Job communications (single table for every channel) ----------
 /** Future email/SMS/WhatsApp connectors implement this and write their results via recordCommunication. None are connected today. */
 export interface CommsAdapter { provider: string; send(msg: { to: string[]; subject?: string; body: string }): Promise<{ providerMessageId: string; threadId?: string }>; }
