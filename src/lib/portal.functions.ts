@@ -16,7 +16,6 @@ import { acceptAuthority, authorityValid, declineAuthority, markViewed, requestA
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
 
 const uuid = z.string().uuid();
-const auth = () => createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]);
 
 // ---------- Gate 1 ----------
 export const createEnquiry = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
