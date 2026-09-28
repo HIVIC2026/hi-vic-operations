@@ -964,6 +964,41 @@ export const getGate1Evidence = createServerFn({ method: "POST" }).middleware([r
     return previewGate1(data.jobId);
   });
 
+/** Admin-only compact Base44 intake summary (raw snapshots available on request, never dumped by default). */
+export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const [{ data: job }, { data: consents }, { data: media }, { data: fails }] = await Promise.all([
+      admin.from("jobs").select("external_enquiry_id, source, life_support_status, estimated_area_m2, estimated_area_unknown, eligibility_outcome, eligibility_reason, properties(state, occupancy, enrichment)").eq("id", data.jobId).single(),
+      admin.from("owner_contact_consents").select("consent_status, consent_version, consented_at, age_confirmed, assistance, contact_preference, created_at, sha256").eq("job_id", data.jobId).order("created_at", { ascending: false }).limit(1),
+      admin.from("documents").select("id, title, mime_type, storage_path, original_name, size_bytes").eq("job_id", data.jobId).eq("source_system", "base44").order("created_at"),
+      admin.from("workflow_events").select("created_at, summary").eq("job_id", data.jobId).eq("event_type", "base44_media_copy_failed").order("created_at", { ascending: false }).limit(1),
+    ]);
+    const prop = (job?.properties ?? null) as { state: string; occupancy: string | null; enrichment: Record<string, any> } | null;
+    const b44 = prop?.enrichment?.["base44"] ?? null;
+    const links = await Promise.all((media ?? []).map(async (m) => {
+      const { data: s } = await admin.storage.from("job-files").createSignedUrl(m.storage_path, 3600);
+      return { id: m.id, name: m.original_name ?? m.title, mime: m.mime_type, size: m.size_bytes, url: s?.signedUrl ?? null };
+    }));
+    return JSON.parse(JSON.stringify({
+      reference: job?.external_enquiry_id ?? null, source: job?.source ?? null, state: prop?.state ?? null, occupancy: prop?.occupancy ?? null,
+      lifeSupport: job?.life_support_status ?? null, area: job?.estimated_area_unknown ? null : job?.estimated_area_m2 ?? null,
+      consent: consents?.[0] ?? null, declared: b44?.declared ?? null,
+      screening: { outcome: job?.eligibility_outcome ?? null, reasons: job?.eligibility_reason ?? null, raw: b44?.raw?.screening ?? null },
+      research: b44?.research ?? null, media: links, lastMediaFailure: fails?.[0] ?? null,
+      raw: b44?.raw ?? null,
+    })) as {
+      reference: string | null; source: string | null; state: string | null; occupancy: string | null; lifeSupport: string | null; area: number | null;
+      consent: { consent_status: string; consent_version: string | null; consented_at: string | null; age_confirmed: boolean | null; assistance: string | null; contact_preference: string | null; created_at: string } | null;
+      declared: { property_type: string | null; over_five_years: string | null; previous_upgrade: string | null } | null;
+      screening: { outcome: string | null; reasons: string | null; raw: Json };
+      research: { status: string | null; evidence_summary: string | null; first_appearance_year: number | null; premises_classification: string | null } | null;
+      media: { id: string; name: string; mime: string | null; size: number | null; url: string | null }[];
+      lastMediaFailure: { created_at: string; summary: string } | null; raw: Json;
+    };
+  });
+
 export const getCommsStatus = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
   const { customerCommsEnabled } = await import("./comms.server");

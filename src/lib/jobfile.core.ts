@@ -45,6 +45,7 @@ const EVIDENCE_CATEGORY: Record<string, [DocCategory, Audience[]]> = {
 export function categoriseDocument(kind: string, title: string): { category: DocCategory; alsoIn: DocCategory[]; sub: string | null; audience: Audience[]; status: DocStatus; immutable: boolean; deprecated?: boolean } {
   const k = kind.toLowerCase(), t = title.toLowerCase();
   if (k === "owner_authority") return { category: "Customer / Consent", alsoIn: [], sub: "Legacy Owner Authority (historical – no longer a gate)", audience: ["owner"], status: "historical", immutable: true, deprecated: true };
+  if (k === "intake_media") return { category: "Property", alsoIn: [], sub: "Homeowner photos/videos (website)", audience: [], status: "current", immutable: true };
   if (k === "veec_assignment") {
     const final = t.includes("final") || t.includes("completed");
     return { category: "ESC / VEEC", alsoIn: ["Customer / Consent", "Quotes"], sub: final ? "Completed VEEC assignment" : "Signed customer acceptance", audience: ["owner"], status: final ? "final" : "signed", immutable: true };

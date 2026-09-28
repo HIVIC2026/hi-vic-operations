@@ -145,3 +145,104 @@ export function buildBase44Evidence(i: Base44EvidenceInput, now: Date = new Date
     } : null,
   };
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Full Base44 intake (0028): raw snapshots, contact consent, media copy planning. Pure; tested in tests/intake.test.ts.
+
+export type Base44Snapshots = {
+  state?: string | null | undefined;
+  base44_answers?: Record<string, unknown> | null | undefined;
+  base44_screening?: Record<string, unknown> | null | undefined;
+  base44_ai_observations?: Record<string, unknown> | null | undefined;
+  property_research_raw?: Record<string, unknown> | null | undefined;
+  contact_consent?: boolean | null | undefined; contact_consent_version?: string | null | undefined; contact_consented_at?: string | null | undefined;
+  age_confirmed?: boolean | null | undefined; assistance?: string | null | undefined; contact_preference?: string | null | undefined;
+};
+
+/** Raw Base44 snapshots kept for audit. Everything here is Base44-provided; nothing is promoted to verified. */
+export function buildBase44Raw(i: Base44Snapshots) {
+  return {
+    basis: "base44_snapshot",
+    answers: i.base44_answers ?? null,
+    screening: i.base44_screening ?? null,
+    ai_observations: i.base44_ai_observations ?? null,
+    research_raw: i.property_research_raw ?? null,
+    contact: {
+      consent: i.contact_consent ?? null, version: i.contact_consent_version ?? null, consented_at: i.contact_consented_at ?? null,
+      age_confirmed: i.age_confirmed ?? null, assistance: i.assistance ?? null, preference: i.contact_preference ?? null,
+    },
+  };
+}
+
+/** Normalise a state code (VIC etc). Null when absent/blank. */
+export function normaliseState(s: string | null | undefined): string | null {
+  const t = (s ?? "").trim().toUpperCase();
+  return t ? t.slice(0, 10) : null;
+}
+
+export type ConsentStatus = "granted" | "not_granted" | "unknown";
+
+/** Pure consent plan. Missing consent never drops the enquiry: it records unknown/not_granted. */
+export function planContactConsent(i: Base44Snapshots & { source_reference?: string | null | undefined; external_enquiry_id?: string | null | undefined }) {
+  const status: ConsentStatus = i.contact_consent === true ? "granted" : i.contact_consent === false ? "not_granted" : "unknown";
+  const snapshot = {
+    contact_consent: i.contact_consent ?? null, contact_consent_version: i.contact_consent_version ?? null, contact_consented_at: i.contact_consented_at ?? null,
+    age_confirmed: i.age_confirmed ?? null, assistance: i.assistance ?? null, contact_preference: i.contact_preference ?? null,
+    external_enquiry_id: i.external_enquiry_id ?? null, source_reference: i.source_reference ?? null,
+  };
+  // Stable identity: same status/version/timestamp/assistance/preference => same row (retries never duplicate).
+  const consent_key = [status, i.contact_consent_version ?? "-", i.contact_consented_at ?? "-", i.age_confirmed ?? "-", i.assistance ?? "-", i.contact_preference ?? "-"].join("|");
+  return {
+    consent_status: status, contact_consent: i.contact_consent ?? null, consent_version: i.contact_consent_version ?? null,
+    consented_at: i.contact_consented_at ?? null, age_confirmed: i.age_confirmed ?? null, assistance: i.assistance ?? null,
+    contact_preference: i.contact_preference ?? null, source_reference: i.source_reference ?? i.external_enquiry_id ?? null,
+    consent_key, snapshot, externalContactPermitted: status === "granted",
+  };
+}
+
+export async function sha256Hex(text: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export const MEDIA_ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/quicktime", "video/webm"] as const;
+export const MEDIA_MAX_FILES = 10;
+export const MEDIA_MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+export const MEDIA_MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+export const MEDIA_MAX_TOTAL_BYTES = 150 * 1024 * 1024;
+export const MEDIA_FETCH_TIMEOUT_MS = 20_000;
+
+export type Base44Media = { source_id: string; name: string; mime_type: string; signed_url: string };
+
+export const maxBytesFor = (mime: string) => (mime.startsWith("video/") ? MEDIA_MAX_VIDEO_BYTES : MEDIA_MAX_IMAGE_BYTES);
+
+/** Filenames: strip paths/control chars, keep [A-Za-z0-9._-], cap 120 chars, never empty. */
+export function sanitizeFilename(name: string): string {
+  const base = String(name).split(/[\\/]/).pop() ?? "";
+  const clean = base.normalize("NFKD").replace(/[^\w.\-]+/g, "_").replace(/_+/g, "_").replace(/^[._]+/, "").slice(-120);
+  return clean || "file";
+}
+
+/** Only direct HTTPS URLs (no credentials) are fetched. Private storage URIs (gs://, s3:// ...) are rejected. */
+export function isFetchableMediaUrl(u: string): boolean {
+  try { const x = new URL(u); return x.protocol === "https:" && !x.username && !x.password; } catch { return false; }
+}
+
+/** Pure plan: which media to copy, which to skip (already imported) and which to reject (with reason). */
+export function planMediaImport(media: readonly Base44Media[] | null | undefined, alreadyImported: ReadonlySet<string>) {
+  const toCopy: Base44Media[] = []; const skipped: string[] = []; const rejected: { source_id: string; reason: string }[] = [];
+  const seen = new Set<string>();
+  for (const m of (media ?? []).slice(0, MEDIA_MAX_FILES)) {
+    if (seen.has(m.source_id)) continue; seen.add(m.source_id);
+    if (alreadyImported.has(m.source_id)) { skipped.push(m.source_id); continue; }
+    if (!(MEDIA_ALLOWED_MIME as readonly string[]).includes(m.mime_type)) { rejected.push({ source_id: m.source_id, reason: `type ${m.mime_type} not allowed` }); continue; }
+    if (!isFetchableMediaUrl(m.signed_url)) { rejected.push({ source_id: m.source_id, reason: "not an HTTPS link" }); continue; }
+    toCopy.push(m);
+  }
+  return { toCopy, skipped, rejected };
+}
+
+export function mediaStoragePath(jobId: string, sourceId: string, name: string) {
+  const sid = String(sourceId).replace(/[^\w\-]+/g, "_").slice(0, 60) || "src";
+  return `${jobId}/intake/base44/${sid}-${sanitizeFilename(name)}`;
+}

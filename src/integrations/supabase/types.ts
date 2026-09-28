@@ -1672,30 +1672,42 @@ export type Database = {
       documents: {
         Row: {
           created_at: string
+          external_id: string | null
           id: string
           job_id: string | null
           kind: string
           mime_type: string | null
+          original_name: string | null
+          size_bytes: number | null
+          source_system: string | null
           storage_path: string
           title: string
           uploaded_by: string | null
         }
         Insert: {
           created_at?: string
+          external_id?: string | null
           id?: string
           job_id?: string | null
           kind: string
           mime_type?: string | null
+          original_name?: string | null
+          size_bytes?: number | null
+          source_system?: string | null
           storage_path: string
           title: string
           uploaded_by?: string | null
         }
         Update: {
           created_at?: string
+          external_id?: string | null
           id?: string
           job_id?: string | null
           kind?: string
           mime_type?: string | null
+          original_name?: string | null
+          size_bytes?: number | null
+          source_system?: string | null
           storage_path?: string
           title?: string
           uploaded_by?: string | null
@@ -3225,6 +3237,99 @@ export type Database = {
             columns: ["revoked_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owner_contact_consents: {
+        Row: {
+          age_confirmed: boolean | null
+          assistance: string | null
+          consent_key: string
+          consent_status: string
+          consent_version: string | null
+          consented_at: string | null
+          contact_consent: boolean | null
+          contact_preference: string | null
+          created_at: string
+          id: string
+          job_id: string
+          owner_id: string
+          sha256: string
+          snapshot: Json
+          source: string
+          source_reference: string | null
+        }
+        Insert: {
+          age_confirmed?: boolean | null
+          assistance?: string | null
+          consent_key: string
+          consent_status: string
+          consent_version?: string | null
+          consented_at?: string | null
+          contact_consent?: boolean | null
+          contact_preference?: string | null
+          created_at?: string
+          id?: string
+          job_id: string
+          owner_id: string
+          sha256: string
+          snapshot?: Json
+          source?: string
+          source_reference?: string | null
+        }
+        Update: {
+          age_confirmed?: boolean | null
+          assistance?: string | null
+          consent_key?: string
+          consent_status?: string
+          consent_version?: string | null
+          consented_at?: string | null
+          contact_consent?: boolean | null
+          contact_preference?: string | null
+          created_at?: string
+          id?: string
+          job_id?: string
+          owner_id?: string
+          sha256?: string
+          snapshot?: Json
+          source?: string
+          source_reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_contact_consents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_contact_consents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "owner_contact_consents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_contact_consents_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["owner_id"]
+          },
+          {
+            foreignKeyName: "owner_contact_consents_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "owners"
             referencedColumns: ["id"]
           },
         ]
