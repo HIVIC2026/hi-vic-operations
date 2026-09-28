@@ -418,15 +418,9 @@ export const createBooking = createServerFn({ method: "POST" }).middleware([requ
     if (data.kind !== "assessment") { const cb = await commercialBlocker(data.jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
     if (data.kind !== "assessment" && !(await depositCleared(data.jobId)))
       throw new WorkflowError("Blocked: the 50% deposit has not been paid.");
-    if (data.kind === "installation") {
-      const { data: inv } = await admin.from("invoices").select("id").eq("job_id", data.jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
-      if (inv) {
-        await admin.from("invoices").update({ balance_due_date: data.start.slice(0, 10) }).eq("id", inv.id);
-        await logEvent(data.jobId, context.userId, "balance_due_set", `Remaining 50% balance due on installation day (${data.start.slice(0, 10)})`, { invoice_id: inv.id });
-      }
-    }
     await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", data.jobId).eq("kind", data.kind).in("status", ["proposed", "confirmed"]);
     await admin.from("bookings").insert({ job_id: data.jobId, kind: data.kind, contractor_id: contractor.user_id, scheduled_start: data.start, booked_by: context.userId, notes: data.notes ?? null, status: "confirmed" });
+    if (data.kind === "installation") await refreshBalanceDueDate(data.jobId, context.userId);
     const when = new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
     if (stage === target) await logEvent(data.jobId, context.userId, "booking_rescheduled", `${data.kind} rescheduled to ${when} by ${role}`);
     else await transition(data.jobId, target, context.userId, `${data.kind.charAt(0).toUpperCase() + data.kind.slice(1)} booked for ${when} by ${role}`);
