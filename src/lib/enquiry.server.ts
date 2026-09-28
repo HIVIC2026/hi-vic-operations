@@ -61,11 +61,10 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
 
   if (existingJob) {
     await admin.from("properties").update(propFields).eq("id", existingJob.property_id);
-    const update = { ...jobFields, ...(plan?.patch ?? {}), ...(plan?.moveTo ? { stage: plan.moveTo } : {}) } as TablesUpdate<"jobs">;
+    const update = { ...jobFields, ...(plan?.patch ?? {}) } as TablesUpdate<"jobs">; // never changes stage
     const { error: ue } = await admin.from("jobs").update(update).eq("id", existingJob.id);
     if (ue) throw new Error(ue.message);
-    await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, plan?.details ?? {},
-      plan?.moveTo ? { from: existingJob.stage as never, to: plan.moveTo } : {});
+    await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, plan?.details ?? {});
     return { job_id: existingJob.id, job_number: existingJob.job_number, created: false };
   }
   const { data: prop, error: pe } = await admin.from("properties").insert(propFields).select("id").single();
@@ -74,7 +73,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     .from("jobs")
     .insert({
       ...jobFields, property_id: prop.id, owner_id: owner!.id, source, external_enquiry_id: input.external_enquiry_id ?? null, next_action: "Review eligibility",
-      ...((plan ? { ...plan.patch, stage: "eligibility_review" } : {}) as TablesUpdate<"jobs">),
+      ...((plan ? { ...plan.patch, stage: "new_enquiry" } : {}) as TablesUpdate<"jobs">),
       business_unit: "hivic", // explicit: this portal only creates Home Insulation Victoria jobs
       channel: origin.channel,
       ...(origin.channel === "installer_sourced"
@@ -90,7 +89,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
       plan.outcome
         ? `Website preliminary result: ${plan.outcome.replace(/_/g, " ")} (Gate 1 admin review required)`
         : "Website enquiry received without a preliminary result (Gate 1 admin review required)",
-      plan.details, { from: "new_enquiry", to: "eligibility_review" });
+      plan.details); // informational only — no stage transition
   }
   await logEvent(job.id, actorId, "job_source_recorded",
     origin.channel === "installer_sourced" ? "Job source: Installer-sourced (attribution locked)" : "Job source: HI VIC-sourced",

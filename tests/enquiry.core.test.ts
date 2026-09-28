@@ -1,6 +1,6 @@
 // Base44 enquiry handoff: Ed25519 verification + preliminary eligibility mapping + idempotency (in-memory). Run: bun test ./tests/
 import { describe, expect, test } from "bun:test";
-import { planBase44Job, joinReasons, resolveLifeSupport, BASE44_PUBLIC_KEY_SPKI_B64, PRELIM_STAGE_ALLOWED_FROM, preliminaryEligibilityFields, verifyEd25519 } from "../src/lib/enquiry.core";
+import { planBase44Job, joinReasons, resolveLifeSupport, BASE44_PUBLIC_KEY_SPKI_B64, preliminaryEligibilityFields, verifyEd25519 } from "../src/lib/enquiry.core";
 import { enquirySchema } from "../src/lib/enquiry.server";
 
 const b64 = (b: ArrayBuffer) => Buffer.from(b).toString("base64");
@@ -49,15 +49,12 @@ describe("preliminary eligibility mapping", () => {
   ] as const;
   for (const [o, na] of cases) test(o, () => {
     const f = preliminaryEligibilityFields(o, "r", new Date("2026-09-28T00:00:00Z"))!;
-    expect(f.stage).toBe("eligibility_review");
+    expect(f).not.toHaveProperty("stage");
     expect(f.next_action).toBe(na);
     expect(f.eligibility_set_by).toBeNull();
     expect(f.eligibility_set_at).toBe("2026-09-28T00:00:00.000Z");
   });
   test("no outcome -> no change", () => expect(preliminaryEligibilityFields(undefined, "x")).toBeNull());
-  test("never moves later stages backwards", () => {
-    expect(PRELIM_STAGE_ALLOWED_FROM).toEqual(["new_enquiry", "eligibility_review"]);
-  });
   test("schema: accepts new fields, rejects bad outcome / long reason", () => {
     expect(enquirySchema.safeParse(payload).success).toBe(true);
     expect(enquirySchema.safeParse({ ...payload, eligibility_outcome: "eligible" }).success).toBe(false);
@@ -76,17 +73,19 @@ describe("Base44 Gate 1 handoff plan", () => {
   for (const [o, na] of outcomes) test(`new job: ${o}`, () => {
     const p = planBase44Job({ ...base, preliminary_outcome: o, preliminary_reasons: ["Built before 2000", "  No insulation \n "] }, null);
     expect(p.kind).toBe("create");
-    expect(p.moveTo).toBe("eligibility_review");
+    expect(p.moveTo).toBeNull(); // stage stays new_enquiry (admin reviews Gate 1)
+    expect(p.patch).not.toHaveProperty("stage");
     expect(p.patch.eligibility_outcome).toBe(o);
     expect(p.patch.eligibility_reason).toBe("Built before 2000; No insulation");
-    expect(p.patch.next_action).toBe(na);
+    expect(p.patch.next_action).toBe("Review website screening and Gate 1");
+    void na;
     expect(p.patch.eligibility_set_by).toBeNull();
     expect(p.details.preliminary_outcome).toBe(o);
     expect(p.patch).not.toHaveProperty("business_unit"); // set explicitly as 'hivic' by upsert, immutable in DB
   });
-  test("new job without outcome still lands in eligibility_review", () => {
+  test("new job without outcome stays in new_enquiry", () => {
     const p = planBase44Job(base, null);
-    expect(p.moveTo).toBe("eligibility_review");
+    expect(p.moveTo).toBeNull();
     expect(p.patch).not.toHaveProperty("eligibility_outcome");
   });
   test("duplicate retry: same external_enquiry_id -> one job, updated", () => {
@@ -94,11 +93,20 @@ describe("Base44 Gate 1 handoff plan", () => {
     for (let i = 0; i < 3; i++) {
       const existing = jobs.get(base.external_enquiry_id) ?? null;
       const p = planBase44Job({ ...base, preliminary_outcome: "likely_eligible" }, existing);
-      if (p.kind === "create") jobs.set(base.external_enquiry_id, { stage: p.moveTo!, n: 1 });
+      if (p.kind === "create") jobs.set(base.external_enquiry_id, { stage: "new_enquiry", n: 1 });
       else { expect(existing).not.toBeNull(); existing!.n++; if (p.moveTo) existing!.stage = p.moveTo; }
     }
     expect(jobs.size).toBe(1);
-    expect(jobs.get(base.external_enquiry_id)).toEqual({ stage: "eligibility_review", n: 3 });
+    expect(jobs.get(base.external_enquiry_id)).toEqual({ stage: "new_enquiry", n: 3 });
+  });
+  for (const st of ["new_enquiry", "eligibility_review", "assessment_booked", "complete", "cancelled"]) test(`repeat sync from ${st} never moves stage, still stores preliminary`, () => {
+    const p = planBase44Job({ ...base, preliminary_outcome: "needs_onsite_confirmation", preliminary_reasons: ["r1"] }, { stage: st });
+    expect(p.kind).toBe("update");
+    expect(p.moveTo).toBeNull();
+    expect(p.patch).not.toHaveProperty("stage");
+    expect(p.patch).not.toHaveProperty("next_action");
+    expect(p.patch.eligibility_outcome).toBe("needs_onsite_confirmation");
+    expect(p.patch.eligibility_reason).toBe("r1");
   });
   test("retry never moves a later-stage job backwards", () => {
     const p = planBase44Job({ ...base, preliminary_outcome: "likely_eligible" }, { stage: "assessment_booked" });

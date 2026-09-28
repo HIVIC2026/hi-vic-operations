@@ -24,11 +24,14 @@ function Pipeline() {
   const [q, setQ] = useState("");
   const [view, setView] = useState<"board" | "list">("board");
   const [source, setSource] = useState<"all" | "hivic_sourced" | "installer_sourced">("all");
+  const [showTest, setShowTest] = useState(false);
   const sweep = useServerFn(sweepAuthorities);
-  const { data: jobs = [] } = useQuery({
+  const { data: allJobs = [] } = useQuery({
     queryKey: ["pipeline"],
     queryFn: async () => (await sweep().catch(() => null), await supabase.from("job_overview").select("*").order("last_activity_at", { ascending: false })).data ?? [],
   });
+  const jobs = useMemo(() => allJobs.filter((j) => showTest || j.source !== "qa_test"), [allJobs, showTest]);
+  const hiddenTest = allJobs.length - jobs.length;
   const filtered = useMemo(() => {
     const s = q.toLowerCase();
     return jobs.filter((j) => source === "all" || j.channel === source).filter((j) => !s || [j.job_number, j.property_address, j.owner_name, j.electrician_name, j.installer_name].some((v) => v?.toLowerCase().includes(s)));
@@ -42,13 +45,14 @@ function Pipeline() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Pipeline</h1>
-          <p className="text-sm text-muted-foreground">{jobs.length} jobs · {warnings} need attention · <span className="font-semibold text-danger">{noAuth} missing valid Owner Authority</span></p>
+          <p className="text-sm text-muted-foreground">{jobs.length} jobs · {warnings} need attention · <span className="font-semibold text-danger">{noAuth} missing valid Owner Authority</span>{hiddenTest > 0 && <> · {hiddenTest} test jobs hidden</>}</p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search job, address, person" className="w-64 pl-8" /></div>
           <select aria-label="Job source" className="h-9 rounded-md border bg-background px-2 text-sm" value={source} onChange={(e) => setSource(e.target.value as typeof source)}>
             <option value="all">All sources</option><option value="hivic_sourced">HI VIC-sourced</option><option value="installer_sourced">Installer-sourced</option>
           </select>
+          <label className="flex items-center gap-2 text-sm"><Checkbox checked={showTest} onCheckedChange={(v) => setShowTest(!!v)} /> Show test jobs</label>
           <Button variant="outline" onClick={() => setView(view === "board" ? "list" : "board")}>{view === "board" ? "List view" : "Board view"}</Button>
           <NewEnquiry />
         </div>
