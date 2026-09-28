@@ -643,6 +643,10 @@ export type Database = {
           deposit_paid_amount: number
           deposit_paid_at: string | null
           deposit_pct: number
+          deposit_request_amount: number | null
+          deposit_request_pct: number | null
+          deposit_request_raised_at: string | null
+          deposit_request_raised_by: string | null
           due_date: string | null
           id: string
           job_id: string
@@ -678,6 +682,10 @@ export type Database = {
           deposit_paid_amount?: number
           deposit_paid_at?: string | null
           deposit_pct?: number
+          deposit_request_amount?: number | null
+          deposit_request_pct?: number | null
+          deposit_request_raised_at?: string | null
+          deposit_request_raised_by?: string | null
           due_date?: string | null
           id?: string
           job_id: string
@@ -713,6 +721,10 @@ export type Database = {
           deposit_paid_amount?: number
           deposit_paid_at?: string | null
           deposit_pct?: number
+          deposit_request_amount?: number | null
+          deposit_request_pct?: number | null
+          deposit_request_raised_at?: string | null
+          deposit_request_raised_by?: string | null
           due_date?: string | null
           id?: string
           job_id?: string
@@ -738,6 +750,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "invoices_deposit_request_raised_by_fkey"
+            columns: ["deposit_request_raised_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "invoices_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
@@ -761,7 +780,7 @@ export type Database = {
           {
             foreignKeyName: "invoices_quote_id_fkey"
             columns: ["quote_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "quotes"
             referencedColumns: ["id"]
           },
@@ -2292,8 +2311,6 @@ export type Database = {
     Views: {
       invoice_payment_state: {
         Row: {
-          amount_inc_gst: number | null
-          amount_paid: number | null
           balance_amount: number | null
           balance_due_date: string | null
           created_at: string | null
@@ -2303,15 +2320,12 @@ export type Database = {
           deposit_paid_amount: number | null
           deposit_paid_at: string | null
           deposit_pct: number | null
-          due_date: string | null
           effective_status: Database["public"]["Enums"]["payment_status"] | null
           id: string | null
           job_id: string | null
           kind: Database["public"]["Enums"]["quote_kind"] | null
           last_sync_error: string | null
           last_synced_at: string | null
-          paid_at: string | null
-          part: string | null
           quote_id: string | null
           status: Database["public"]["Enums"]["payment_status"] | null
           total_inc_gst: number | null
@@ -2322,11 +2336,8 @@ export type Database = {
           xero_invoice_number: string | null
           xero_online_url: string | null
           xero_reference: string | null
-          xero_update_pending: boolean | null
         }
         Insert: {
-          amount_inc_gst?: number | null
-          amount_paid?: number | null
           balance_amount?: number | null
           balance_due_date?: string | null
           created_at?: string | null
@@ -2336,15 +2347,12 @@ export type Database = {
           deposit_paid_amount?: number | null
           deposit_paid_at?: string | null
           deposit_pct?: number | null
-          due_date?: string | null
           effective_status?: never
           id?: string | null
           job_id?: string | null
           kind?: Database["public"]["Enums"]["quote_kind"] | null
           last_sync_error?: string | null
           last_synced_at?: string | null
-          paid_at?: string | null
-          part?: string | null
           quote_id?: string | null
           status?: Database["public"]["Enums"]["payment_status"] | null
           total_inc_gst?: number | null
@@ -2355,11 +2363,8 @@ export type Database = {
           xero_invoice_number?: string | null
           xero_online_url?: string | null
           xero_reference?: string | null
-          xero_update_pending?: boolean | null
         }
         Update: {
-          amount_inc_gst?: number | null
-          amount_paid?: number | null
           balance_amount?: number | null
           balance_due_date?: string | null
           created_at?: string | null
@@ -2369,15 +2374,12 @@ export type Database = {
           deposit_paid_amount?: number | null
           deposit_paid_at?: string | null
           deposit_pct?: number | null
-          due_date?: string | null
           effective_status?: never
           id?: string | null
           job_id?: string | null
           kind?: Database["public"]["Enums"]["quote_kind"] | null
           last_sync_error?: string | null
           last_synced_at?: string | null
-          paid_at?: string | null
-          part?: string | null
           quote_id?: string | null
           status?: Database["public"]["Enums"]["payment_status"] | null
           total_inc_gst?: number | null
@@ -2388,7 +2390,6 @@ export type Database = {
           xero_invoice_number?: string | null
           xero_online_url?: string | null
           xero_reference?: string | null
-          xero_update_pending?: boolean | null
         }
         Relationships: [
           {
@@ -2415,7 +2416,7 @@ export type Database = {
           {
             foreignKeyName: "invoices_quote_id_fkey"
             columns: ["quote_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "quotes"
             referencedColumns: ["id"]
           },
@@ -2423,8 +2424,6 @@ export type Database = {
       }
       invoice_status: {
         Row: {
-          amount_inc_gst: number | null
-          amount_paid: number | null
           balance_amount: number | null
           balance_due_date: string | null
           balance_paid_at: string | null
@@ -2435,13 +2434,10 @@ export type Database = {
           deposit_paid_amount: number | null
           deposit_paid_at: string | null
           deposit_pct: number | null
-          due_date: string | null
           effective_status: Database["public"]["Enums"]["payment_status"] | null
           id: string | null
           job_id: string | null
           kind: Database["public"]["Enums"]["quote_kind"] | null
-          paid_at: string | null
-          part: string | null
           quote_id: string | null
           total_inc_gst: number | null
           total_paid: number | null
@@ -2449,8 +2445,6 @@ export type Database = {
           xero_online_url: string | null
         }
         Insert: {
-          amount_inc_gst?: number | null
-          amount_paid?: number | null
           balance_amount?: number | null
           balance_due_date?: string | null
           balance_paid_at?: string | null
@@ -2461,13 +2455,10 @@ export type Database = {
           deposit_paid_amount?: number | null
           deposit_paid_at?: string | null
           deposit_pct?: number | null
-          due_date?: string | null
           effective_status?: never
           id?: string | null
           job_id?: string | null
           kind?: Database["public"]["Enums"]["quote_kind"] | null
-          paid_at?: string | null
-          part?: string | null
           quote_id?: string | null
           total_inc_gst?: number | null
           total_paid?: number | null
@@ -2475,8 +2466,6 @@ export type Database = {
           xero_online_url?: string | null
         }
         Update: {
-          amount_inc_gst?: number | null
-          amount_paid?: number | null
           balance_amount?: number | null
           balance_due_date?: string | null
           balance_paid_at?: string | null
@@ -2487,13 +2476,10 @@ export type Database = {
           deposit_paid_amount?: number | null
           deposit_paid_at?: string | null
           deposit_pct?: number | null
-          due_date?: string | null
           effective_status?: never
           id?: string | null
           job_id?: string | null
           kind?: Database["public"]["Enums"]["quote_kind"] | null
-          paid_at?: string | null
-          part?: string | null
           quote_id?: string | null
           total_inc_gst?: number | null
           total_paid?: number | null
@@ -2525,7 +2511,7 @@ export type Database = {
           {
             foreignKeyName: "invoices_quote_id_fkey"
             columns: ["quote_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "quotes"
             referencedColumns: ["id"]
           },
@@ -2573,14 +2559,14 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "job_assignments_user_id_fkey"
-            columns: ["installer_id"]
+            columns: ["electrician_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "job_assignments_user_id_fkey"
-            columns: ["electrician_id"]
+            columns: ["installer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
