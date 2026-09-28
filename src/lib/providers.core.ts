@@ -107,7 +107,7 @@ export type PfImage = { id?: string | number; url?: string; date?: string; floor
 export function resolvePricefinder(s: PfSuggest, prefix: string, postcode: string | null): { id: string | null; reason: string } {
   const norm = (x: string) => x.toUpperCase().replace(/\bRD\b/g, "ROAD").replace(/\bST\b/g, "STREET").replace(/\bAVE?\b/g, "AVENUE").replace(/[^A-Z0-9 ]/g, "").replace(/\s+/g, " ").trim();
   const hits = (s.matches ?? []).filter((m) => m.property?.id != null && norm(m.address?.streetAddress ?? m.display ?? "").startsWith(norm(prefix)) && (!postcode || m.address?.postcode === postcode || (m.display ?? "").includes(postcode)));
-  if (hits.length === 1) return { id: String(hits[0].property!.id), reason: "Exact single address match" };
+  if (hits.length === 1 && hits[0]) return { id: String(hits[0].property!.id), reason: "Exact single address match" };
   return { id: null, reason: hits.length ? `${hits.length} ambiguous matches – not selected` : "No exact address match" };
 }
 
@@ -138,7 +138,7 @@ export function planFloorplans(imgs: PfImage[], propertyId: string, t = PROVIDER
   const best = conflict ? null : sorted[0];
   const rows = valid.map((i) => ({
     provider: "pricefinder", provider_property_id: propertyId, provider_image_id: String(i.id), provider_url: i.url ?? null, captured_date: i.date?.slice(0, 10) ?? null,
-    is_candidate: best === i, // candidate only when unambiguous needs_review: true,
+    is_candidate: best === i, needs_review: true,
     review_reason: conflict ? "Multiple floor plans with materially different configurations – admin must choose" : "Sourced floor plan – dimensions not extracted; admin review required",
     metadata: { declared_floor_area_m2: i.floorArea ?? null },
   }));
