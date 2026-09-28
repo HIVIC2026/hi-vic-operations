@@ -140,3 +140,26 @@ All 15 scenarios were exercised against real server actions and the database. Fi
 | 33 | Owner accepts quote while route not configured / installer-invoices | Blocked, quote stays issued, no invoice | PASS |
 | 34 | Installer-sourced quote generation | Exactly 1 option | PASS |
 | 35 | Route changed after invoice exists | Blocked | PASS |
+
+## Two-requirement site model (measure-up + electrical/PIESA)
+The pre-quote site stage is two independent requirements, not one combined form:
+- **A · Ceiling / insulation measure-up** — `ceiling_measurements` (status draft / needs_review / complete / rejected; `source_role` electrician / installer / admin_import; completed_by, completed_at, reviewed_by/at, review_flags, supplemented_by/fields, external_source/external_id, raw_snapshot). One `is_current` row per job drives quoting; older/rejected rows are kept as history.
+- **B · Electrical assessment / PIESA** — `assessments` (electrical fields, PIESA outcome, date) + `piesa_records`; 30-day window unchanged.
+
+**Visit scope** is derived only by `deriveScope` (`src/lib/scope.core.ts`), loaded server-side by `jobScope` (`requirements.server.ts`) and exposed to the UI via `getJobScope`:
+| Scope | When | Who |
+|---|---|---|
+| Combined assessment | no measure-up, no current PIESA | electrician does both |
+| Electrical only | accepted measure-up exists | electrician – measure-up read-only, can flag "needs review" |
+| Measure-up only | current PIESA, no accepted measure-up | installer / authorised field user |
+| Electrical + complete missing measure-up | partial or needs-review measure-up, no PIESA | electrician; only missing/flagged fields editable, original provenance kept |
+| Split | nothing done, admin set "measure-up by installer" | electrician electrical, installer measure-up |
+| Requirements complete | both done | – |
+
+Rules: `completeAssessment` completes the electrical requirement (and the measure-up only when it is in the electrician's scope); `completeMeasurement` completes the measure-up; `reviewMeasurement` (admin) accepts / needs review / rejects; `flagMeasurement` marks an accepted one for review. Either completion calls `advanceSiteRequirements`, which moves Assessment Booked → Assessment Complete only when BOTH are satisfied (also enforced in `stageEntryBlockers`), otherwise sets next_action to exactly what is missing. Quote generation reads only the accepted current measurement (`quoteInputsFromMeasurement`) and is blocked with a clear message otherwise. Measure-up evidence (measurement, R-value photos) can be uploaded by whichever trade owns the measure-up.
+
+Mitti: combined template unchanged; audits record `mitti_scope`. Sync splits the parsed audit — electrical fields → `assessments`, measure-up fields → `planMeasurementUpdate` (never overwrites an accepted measurement; electrical-only ignores measure-up values; completion scope fills only missing/flagged fields; same audit updates the same row). Measure-up-only Mitti needs `workflow_settings.mitti_measureup_template_id`; if empty the admin sees a configuration blocker and no ID is invented. Sync never completes a requirement, approves compliance or issues quotes.
+
+Backfill (migration 0011): every existing assessment with a measured area produced one current measurement (source electrician, Mitti ref kept, complete if the assessment was complete). `assessments.measured_area_m2` is deprecated for quoting.
+
+Tests: `tests/scope.core.test.ts` (scopes, planning, quote inputs, business-unit, trade view) and `tests/guards.test.ts` (central stage guards on a fake database: measurement gate, PIESA expiry, commercial gate, Owner Authority, deposit).
