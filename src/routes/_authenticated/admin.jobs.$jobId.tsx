@@ -4,8 +4,14 @@ import { useState } from "react";
 import { ArrowLeft, HeartPulse } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
-import { PaymentBadge, Pill, StageBadge, UrgencyBadge } from "@/components/portal/badges";
-import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, PaymentsPanel, QuotesPanel, Section, TimelinePanel, useJob } from "@/components/portal/panels";
+import { AuthorityBadge, PaymentBadge, Pill, StageBadge, UrgencyBadge } from "@/components/portal/badges";
+import { AdminAuthorityPanel, BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, PaymentsPanel, QuotesPanel, Section, TimelinePanel, useJob } from "@/components/portal/panels";
+
+const TABS: [string, string][] = [
+  ["overview", "Overview"], ["eligibility", "Eligibility"], ["authority", "Owner Authority"], ["assessment", "Electrician / Assessment"],
+  ["piesa", "PIESA"], ["rectification", "Rectification"], ["quotes", "Quotes"], ["payments", "Xero / Payments"], ["scheduling", "Scheduling"],
+  ["installation", "Installation"], ["evidence", "Evidence"], ["compliance", "Compliance / AP Review"], ["veec", "VEEC"], ["messages", "Messages"], ["history", "Audit History"],
+];
 import { useAction } from "@/hooks/use-me";
 import {
   adjustQuote, assignContractor, generateInstallerQuotes, markReadyForVeec, regenerateRectificationQuote, runComplianceReview,
@@ -36,7 +42,7 @@ function JobDetail() {
           <h1 className="text-2xl font-bold tracking-tight">{job.property_address}</h1>
           <p className="text-sm text-muted-foreground">{job.owner_name} · {job.owner_phone} · {job.owner_email}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            <StageBadge stage={job.stage} /><PaymentBadge status={job.payment_status} /><UrgencyBadge urgency={job.urgency} days={job.days_remaining} />
+            <StageBadge stage={job.stage} /><PaymentBadge status={job.payment_status} /><UrgencyBadge urgency={job.urgency} days={job.days_remaining} /><AuthorityBadge status={job.authority_status} />
             {job.life_support && <Pill t="bad"><HeartPulse className="mr-1 h-3 w-3" /> Life support</Pill>}
             {job.eligibility_outcome && <Pill t="info">{ELIGIBILITY_LABEL[job.eligibility_outcome]}</Pill>}
           </div>
@@ -46,24 +52,41 @@ function JobDetail() {
       <div className="mb-4"><BlockersPanel jobId={jobId} /></div>
       <Tabs defaultValue="overview">
         <TabsList className="mb-3 flex h-auto flex-wrap justify-start">
-          {["overview", "assessment", "quotes", "payments", "bookings", "evidence", "compliance", "messages", "history"].map((t) => <TabsTrigger key={t} value={t} className="capitalize">{t}</TabsTrigger>)}
+          {TABS.map(([v, l]) => <TabsTrigger key={v} value={v}>{l}</TabsTrigger>)}
         </TabsList>
         <TabsContent value="overview" className="grid gap-4 lg:grid-cols-2">
-          <EligibilityForm jobId={jobId} />
+          <Section title="Status summary">
+            <dl className="grid grid-cols-2 gap-1 text-sm">
+              <dt className="text-muted-foreground">Owner Authority</dt><dd><AuthorityBadge status={job.authority_status} /> {job.authority_expires_at && <span className="text-xs">until {fmtDate(job.authority_expires_at)}</span>}</dd>
+              <dt className="text-muted-foreground">Payment</dt><dd><PaymentBadge status={job.payment_status} /> {job.deposit_cleared ? <span className="text-xs text-success">deposit cleared</span> : <span className="text-xs text-danger">deposit not cleared</span>}</dd>
+              <dt className="text-muted-foreground">PIESA</dt><dd>{job.piesa_date ? `${fmtDate(job.piesa_date)} → install by ${fmtDate(job.install_deadline)}` : "Not recorded"}</dd>
+              <dt className="text-muted-foreground">Electrician</dt><dd>{job.electrician_name ?? "Unassigned"}</dd>
+              <dt className="text-muted-foreground">Installer</dt><dd>{job.installer_name ?? "Unassigned"}</dd>
+              <dt className="text-muted-foreground">Last activity</dt><dd>{fmtDate(job.last_activity_at)}</dd>
+            </dl>
+          </Section>
           <Assignments jobId={jobId} />
           <HoldControls jobId={jobId} stage={job.stage!} />
-          <Section title="PIESA deadline">
-            {job.piesa_date ? <p className="text-sm">PIESA {fmtDate(job.piesa_date)} → install by <strong>{fmtDate(job.install_deadline)}</strong> ({job.days_remaining} days)</p> : <p className="text-sm text-muted-foreground">No PIESA recorded yet.</p>}
-          </Section>
         </TabsContent>
-        <TabsContent value="assessment"><AssessmentView jobId={jobId} /></TabsContent>
+        <TabsContent value="eligibility"><EligibilityForm jobId={jobId} /></TabsContent>
+        <TabsContent value="authority"><AdminAuthorityPanel jobId={jobId} /></TabsContent>
+        <TabsContent value="assessment" className="space-y-4"><BookingPanel jobId={jobId} kind="assessment" canBook /><AssessmentView jobId={jobId} part="assessment" /></TabsContent>
+        <TabsContent value="piesa" className="space-y-4">
+          <Section title="PIESA 30-day installation window">
+            {job.piesa_date ? <p className="text-sm">Current PIESA {fmtDate(job.piesa_date)} → install by <strong>{fmtDate(job.install_deadline)}</strong> ({job.days_remaining} days) <UrgencyBadge urgency={job.urgency} days={job.days_remaining} /></p> : <p className="text-sm text-muted-foreground">No PIESA recorded yet.</p>}
+          </Section>
+          <AssessmentView jobId={jobId} part="piesa" />
+        </TabsContent>
+        <TabsContent value="rectification" className="space-y-4"><AssessmentView jobId={jobId} part="rectification" /><BookingPanel jobId={jobId} kind="rectification" canBook /></TabsContent>
         <TabsContent value="quotes" className="space-y-4"><AdminQuotes jobId={jobId} /></TabsContent>
         <TabsContent value="payments"><PaymentsPanel jobId={jobId} isAdmin /></TabsContent>
-        <TabsContent value="bookings" className="grid gap-4 lg:grid-cols-3">
+        <TabsContent value="scheduling" className="grid gap-4 lg:grid-cols-3">
           <BookingPanel jobId={jobId} kind="assessment" canBook /><BookingPanel jobId={jobId} kind="rectification" canBook /><BookingPanel jobId={jobId} kind="installation" canBook />
         </TabsContent>
+        <TabsContent value="installation" className="space-y-4"><BookingPanel jobId={jobId} kind="installation" canBook /><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /></TabsContent>
         <TabsContent value="evidence"><EvidencePanel jobId={jobId} role="admin" /></TabsContent>
-        <TabsContent value="compliance" className="grid gap-4 lg:grid-cols-2"><Compliance jobId={jobId} /><Veec jobId={jobId} /></TabsContent>
+        <TabsContent value="compliance"><Compliance jobId={jobId} /></TabsContent>
+        <TabsContent value="veec"><Veec jobId={jobId} /></TabsContent>
         <TabsContent value="messages"><MessagesPanel jobId={jobId} isAdmin /></TabsContent>
         <TabsContent value="history"><TimelinePanel jobId={jobId} /></TabsContent>
       </Tabs>
