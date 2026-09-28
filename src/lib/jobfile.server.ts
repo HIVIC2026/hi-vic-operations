@@ -56,7 +56,7 @@ export async function buildJobFile(jobId: string, role: Role) {
     role,
     documents: visibleTo(docs, role).map((d) => ({ ...d, actor: label(d.actor), verifiedBy: d.verifiedBy ? label(d.verifiedBy) : null, ...(role === "admin" ? {} : { storagePath: d.storagePath ? "private" : null }) })),
     correspondence: visibleTo(correspondence, role).map((c) => ({ ...c, from: c.source === "portal_message" ? label(c.from) : c.from })),
-    timeline: visibleTo(timeline, role).map((t) => ({ ...t, actor: label(t.actor), detail: role === "admin" ? t.detail : null })),
+    timeline: visibleTo(timeline, role).map((t) => ({ ...t, actor: label(t.actor), detail: role === "admin" ? (JSON.parse(JSON.stringify(t.detail ?? null)) as Record<string, string | number | boolean | null> | null) : null })),
     retention: role === "admin" ? retention : null,
   };
 }
