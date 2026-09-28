@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { fmtDateTime } from "@/lib/workflow";
 import { TIER_LABEL, type AreaTier } from "@/lib/intelligence.core";
+import { floorplanLink, getProviderHealth } from "@/lib/portal.functions";
 import { addEscConfig, approveEscConfig, getInstallReadiness, markIntelligenceReviewed, recordEscSubmissionFn, recordPiesaDelivery, regenerateEscNotificationFn, runPropertyIntelligenceFn, submitEscNotification } from "@/lib/portal.functions";
 
 const OUTCOME: Record<string, [string, "good" | "warn" | "bad"]> = {
@@ -47,10 +48,22 @@ export function PropertyIntelligenceCard({ jobId }: { jobId: string }) {
       return { run: run.data, facts: (facts.data ?? []) as FactRow[], areas: areas.data ?? [], checks: checks.data ?? [] };
     },
   });
+  const health = useServerFn(getProviderHealth);
+  const openFp = useServerFn(floorplanLink);
+  const { data: providers } = useQuery({ queryKey: ["intel-providers", jobId], queryFn: () => health({ data: { jobId } }) });
+  const { data: plans } = useQuery({ queryKey: ["intel-floorplans", jobId], queryFn: async () => (await supabase.from("property_floorplans").select("*").eq("job_id", jobId).order("captured_date", { ascending: false })).data ?? [] });
   const run = data?.run;
   const o = run?.result ? OUTCOME[run.result] : null;
   return (
     <Section title="Property Intelligence (preliminary – information only)" action={<Button size="sm" variant="outline" onClick={() => rerun({ jobId }, "Property intelligence re-run")}>Re-run property intelligence</Button>}>
+      <div className="mb-3 flex flex-wrap gap-1.5 text-xs">{(providers ?? []).map((p) => <span key={p.key} title={p.detail}><Pill t={p.state === "ready" || p.state === "configured" ? "good" : p.state === "not_configured" ? "neutral" : "warn"}>{p.label}: {p.state.replace(/_/g, " ")}</Pill></span>)}</div>
+      {!!plans?.length && (
+        <div className="mb-3 space-y-1 text-xs">
+          <h3 className="font-bold uppercase tracking-wide text-muted-foreground">Sourced floor plan – Pricefinder ({plans.length})</h3>
+          {plans.map((f) => <div key={f.id} className="flex flex-wrap items-center gap-2">{f.is_candidate && <Pill t="good">Best candidate</Pill>}{f.needs_review && <Pill t="warn">Review</Pill>}<span>{f.captured_date ?? "undated"} · ref {f.provider_image_id}</span><span className="text-muted-foreground">{f.review_reason}</span>
+            {f.storage_path ? <Button size="sm" variant="outline" onClick={async () => { const r = await openFp({ data: { id: f.id } }); if (r.url) window.open(r.url, "_blank"); }}>Open</Button> : <span className="text-muted-foreground">{f.storage_policy === "unknown" ? "Not stored – licence setting not confirmed" : "Provider reference only"}</span>}</div>)}
+        </div>
+      )}
       {!run ? <p className="text-sm text-muted-foreground">Not run yet.</p> : (
         <div className="space-y-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
@@ -89,8 +102,8 @@ export function PropertyIntelligenceCard({ jobId }: { jobId: string }) {
           </div>
           <details>
             <summary className="cursor-pointer text-xs font-bold uppercase tracking-wide text-muted-foreground">Area source hierarchy ({data!.areas.length})</summary>
-            <p className="mt-1 text-xs text-muted-foreground">A partner measured → B floor plan → C verified footprint → D listing → E aerial → F owner estimate. Parcel area is never used. Stronger evidence is never replaced by weaker.</p>
-            <ul className="mt-1 space-y-1 text-xs">{data!.areas.map((a) => <li key={a.id} className="flex gap-2">{a.is_current && <Pill t="good">Current</Pill>}<b>{a.tier}</b> {TIER_LABEL[a.tier as AreaTier]} · {Number(a.net_m2)} m² · {a.confidence} · {a.source_name}</li>)}</ul>
+            <p className="mt-1 text-xs text-muted-foreground">A partner measured → B floor plan → C licensed footprint → D listing → E building footprint estimate (Solar/aerial, not ceiling area) → F owner estimate. Parcel area is never used. Stronger evidence is never replaced by weaker.</p>
+            <ul className="mt-1 space-y-1 text-xs">{data!.areas.map((a) => <li key={a.id} className="flex gap-2">{a.is_current && <Pill t="good">Current</Pill>}<b>{a.tier}</b> {TIER_LABEL[a.tier as AreaTier]} · {Number(a.net_m2)} m² · {a.confidence} · {a.source_name}{a.notes ? ` · ${a.notes}` : ""}</li>)}</ul>
           </details>
           <details>
             <summary className="cursor-pointer text-xs font-bold uppercase tracking-wide text-muted-foreground">Source checks</summary>
