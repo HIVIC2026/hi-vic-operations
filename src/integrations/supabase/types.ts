@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_config_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          details: Json
+          event_type: string
+          id: string
+          summary: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type: string
+          id?: string
+          summary: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type?: string
+          id?: string
+          summary?: string
+        }
+        Relationships: []
+      }
       appointment_proposals: {
         Row: {
           assignment_id: string | null
