@@ -9,8 +9,8 @@ import { WorkflowError, logEvent, nextStepBlockers, stageEntryBlockers, piesaSta
 import { adjustQuote as adjustQuoteImpl, deriveRectificationItems, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
-import { applyPaidAmount, createInvoiceForQuote, scheduleBalanceInvoice, syncInvoiceFromXero, unscheduleBalanceInvoice } from "./xero.server";
-import { buildDepositOverride } from "./invoice.lifecycle";
+import { applyPaidAmount, clearInstallDueDate, createInvoiceForQuote, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
+import { buildDepositOverride, depositRequestPatch } from "./invoice.lifecycle";
 import { AUTHORITY_BLOCKER, commercialBlocker, depositCleared } from "./workflow.server";
 import { acceptAuthority, authorityValid, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
 
@@ -370,13 +370,27 @@ export const overrideDepositGate = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ invoiceId: uuid, reason: z.string().trim().min(5).max(1000) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { data: inv } = await admin.from("invoices").select("id, job_id, part, status, deposit_paid_at, amount_paid").eq("id", data.invoiceId).single();
+    const { data: inv } = await admin.from("invoices").select("id, job_id, status, deposit_paid_at, total_paid").eq("id", data.invoiceId).single();
     if (!inv) throw new WorkflowError("Invoice not found");
     let ov;
     try { ov = buildDepositOverride(inv as never, data.reason, context.userId, await getStage(inv.job_id)); } catch (e) { throw new WorkflowError((e as Error).message); }
     await admin.from("payment_overrides").insert(ov as never);
     await logEvent(inv.job_id, context.userId, "payment_override", `Deposit gate overridden by admin: ${ov.reason}`, { invoice_id: data.invoiceId, before: ov.before_state, after: ov.after_state });
     await advanceAfterDeposit(inv.job_id, context.userId);
+    return { ok: true };
+  });
+
+/** Admin records that the native Xero 50% deposit request was raised in Xero. Audited; never unlocks scheduling. */
+export const markDepositRequestRaised = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ invoiceId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: inv } = await admin.from("invoices").select("id, job_id, deposit_amount, deposit_pct, deposit_request_raised_at").eq("id", data.invoiceId).single();
+    if (!inv) throw new WorkflowError("Invoice not found");
+    let patch;
+    try { patch = depositRequestPatch(inv as never, context.userId, new Date().toISOString()); } catch (e) { throw new WorkflowError((e as Error).message); }
+    await admin.from("invoices").update(patch).eq("id", inv.id);
+    await logEvent(inv.job_id, context.userId, "xero_deposit_request_raised", `Native Xero ${patch.deposit_request_pct}% deposit request (${patch.deposit_request_amount} inc GST) recorded as raised in Xero – scheduling still waits for Xero payment`, { invoice_id: inv.id, ...patch }, { internal: true });
     return { ok: true };
   });
 
@@ -420,7 +434,7 @@ export const createBooking = createServerFn({ method: "POST" }).middleware([requ
       throw new WorkflowError("Blocked: the 50% deposit has not been paid.");
     await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", data.jobId).eq("kind", data.kind).in("status", ["proposed", "confirmed"]);
     await admin.from("bookings").insert({ job_id: data.jobId, kind: data.kind, contractor_id: contractor.user_id, scheduled_start: data.start, booked_by: context.userId, notes: data.notes ?? null, status: "confirmed" });
-    if (data.kind === "installation") await scheduleBalanceInvoice(data.jobId, data.start, context.userId);
+    if (data.kind === "installation") await setInstallDueDate(data.jobId, data.start, context.userId);
     const when = new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
     if (stage === target) await logEvent(data.jobId, context.userId, "booking_rescheduled", `${data.kind} rescheduled to ${when} by ${role}`);
     else await transition(data.jobId, target, context.userId, `${data.kind.charAt(0).toUpperCase() + data.kind.slice(1)} booked for ${when} by ${role}`);
@@ -435,7 +449,7 @@ export const cancelBooking = createServerFn({ method: "POST" }).middleware([requ
     const { data: rows } = await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", data.jobId).eq("kind", data.kind).in("status", ["proposed", "confirmed"]).select("id");
     if (!rows?.length) throw new WorkflowError(`No active ${data.kind} booking to cancel.`);
     await logEvent(data.jobId, context.userId, "booking_cancelled", `${data.kind} booking cancelled: ${data.reason}`, { booking_ids: rows.map((r) => r.id) });
-    if (data.kind === "installation") await unscheduleBalanceInvoice(data.jobId, context.userId);
+    if (data.kind === "installation") await clearInstallDueDate(data.jobId, context.userId);
     return { ok: true };
   });
 
@@ -695,9 +709,9 @@ export const getInvoiceInternals = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { data: inv } = await admin.from("invoices").select("id, part, xero_contact_id, xero_invoice_id, xero_reference, xero_invoice_status, last_synced_at, last_sync_error, sync_lock_at, xero_update_pending").eq("job_id", data.jobId);
+    const { data: inv } = await admin.from("invoices").select("id, xero_contact_id, xero_invoice_id, xero_reference, xero_invoice_status, last_synced_at, last_sync_error, sync_lock_at, xero_update_pending, deposit_request_raised_at, deposit_request_raised_by, deposit_request_amount, deposit_request_pct").eq("job_id", data.jobId);
     const { data: ov } = await admin.from("payment_overrides").select("id, invoice_id, reason, created_at, overridden_by").eq("job_id", data.jobId);
-    const ids = [...new Set((ov ?? []).map((o) => o.overridden_by))];
+    const ids = [...new Set([...(ov ?? []).map((o) => o.overridden_by), ...(inv ?? []).map((i) => i.deposit_request_raised_by).filter((x): x is string => !!x)])];
     const { data: profs } = ids.length ? await admin.from("profiles").select("id, full_name").in("id", ids) : { data: [] };
-    return { invoices: inv ?? [], overrides: (ov ?? []).map((o) => ({ ...o, by: profs?.find((p) => p.id === o.overridden_by)?.full_name ?? null })) };
+    return { invoices: (inv ?? []).map((i) => ({ ...i, deposit_request_raised_by_name: profs?.find((p) => p.id === i.deposit_request_raised_by)?.full_name ?? null })), overrides: (ov ?? []).map((o) => ({ ...o, by: profs?.find((p) => p.id === o.overridden_by)?.full_name ?? null })) };
   });
