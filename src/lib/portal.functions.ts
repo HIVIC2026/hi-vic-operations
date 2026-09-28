@@ -6,7 +6,7 @@ import { withRequestMeta } from "./request-meta";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent, nextStepBlockers, stageEntryBlockers, piesaStatus, requireAdmin, requireJobRole, transition, getStage } from "./workflow.server";
-import { adjustQuote as adjustQuoteImpl, deriveRectificationItems, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
+import { adjustQuote as adjustQuoteImpl, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
 import { applyPaidAmount, clearInstallDueDate, createInvoiceForQuote, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
@@ -113,14 +113,9 @@ export const setUserBusiness = createServerFn({ method: "POST" }).middleware([re
     return { ok: true };
   });
 
-// ---------- Gate 2: assessment ----------
+// ---------- Gate 2: two independent requirements ----------
+// (B) Electrical assessment / PIESA lives in `assessments`; (A) ceiling measure-up lives in `ceiling_measurements`.
 const assessmentPatch = z.object({
-  measured_area_m2: z.number().min(0).max(5000).nullable(),
-  insulation_present: z.boolean().nullable(),
-  existing_r_value: z.number().min(0).max(10).nullable(),
-  removal_required: z.boolean().nullable(),
-  removal_m2: z.number().min(0).max(5000).nullable(),
-  access_difficulty: z.enum(["easy", "moderate", "difficult"]).nullable(),
   downlights_qty: z.number().int().min(0).max(500).nullable(),
   downlights_type: z.string().max(200).nullable(),
   downlights_upgrade_qty: z.number().int().min(0).max(500).nullable(),
@@ -137,6 +132,19 @@ const assessmentPatch = z.object({
   external_mitti_id: z.string().max(100).nullable(),
 }).partial();
 
+const measurementPatch = z.object({
+  measured_area_m2: z.number().min(0).max(5000).nullable(),
+  insulation_present: z.boolean().nullable(),
+  existing_r_value: z.number().min(0).max(10).nullable(),
+  removal_required: z.boolean().nullable(),
+  removal_m2: z.number().min(0).max(5000).nullable(),
+  access_difficulty: z.enum(["easy", "moderate", "difficult"]).nullable(),
+  evidence_notes: z.string().max(2000).nullable(),
+}).partial();
+
+const SITE_STAGES = ["assessment_booking", "assessment_booked"];
+const MEASURE_EVIDENCE = ["measurement", "existing_insulation_r_value"];
+
 export const saveAssessment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, patch: assessmentPatch }).parse(d))
   .handler(async ({ data, context }) => {
@@ -146,6 +154,126 @@ export const saveAssessment = createServerFn({ method: "POST" }).middleware([req
     if (existing) await admin.from("assessments").update(clean(data.patch)).eq("id", existing.id);
     else await admin.from("assessments").insert(clean({ ...data.patch, job_id: data.jobId, assessor_id: context.userId }));
     return { ok: true, savedAt: new Date().toISOString() };
+  });
+
+/** Current derived visit scope (the ONE derivation, server-side). */
+export const getJobScope = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer", "owner"]);
+    const { jobScope } = await import("./requirements.server");
+    const { measurementRow: _m, ...s } = await jobScope(data.jobId);
+    return s;
+  });
+
+export const saveMeasurement = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, patch: measurementPatch }).parse(d))
+  .handler(async ({ data, context }) => {
+    const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer"]);
+    if (!SITE_STAGES.includes(await getStage(data.jobId))) throw new WorkflowError("Measure-up can only be recorded during assessment booking.");
+    const { jobScope } = await import("./requirements.server");
+    const { planMeasurementUpdate } = await import("./scope.core");
+    const s = await jobScope(data.jobId);
+    if (role === "installer" && !s.installerTasks.includes("measure_up")) throw new WorkflowError("Measure-up is not assigned to the installer on this job.");
+    if (role === "electrician" && !s.electricianTasks.some((t) => t !== "electrical")) throw new WorkflowError("The accepted measure-up is read-only. Use \"Measurement needs review\" if it looks wrong.");
+    const source = role === "admin" ? "admin_import" : role === "installer" ? "installer" : "electrician";
+    const { evidence_notes, ...vals } = data.patch;
+    const plan = planMeasurementUpdate({ scope: s.scope, current: s.measurementRow as never, incoming: vals, source });
+    const cur = s.measurementRow;
+    if (plan.action === "skip") {
+      if (evidence_notes !== undefined && cur && cur.status !== "complete") await admin.from("ceiling_measurements").update({ evidence_notes }).eq("id", cur.id);
+      else if (evidence_notes === undefined) throw new WorkflowError(plan.reason);
+    } else if (plan.action === "create") {
+      await admin.from("ceiling_measurements").insert({ ...plan.values, evidence_notes: evidence_notes ?? null, job_id: data.jobId, status: "draft", is_current: true, source_role: plan.source, created_by: context.userId });
+    } else {
+      await admin.from("ceiling_measurements").update({
+        ...plan.values, ...(evidence_notes !== undefined ? { evidence_notes } : {}),
+        ...(plan.supplemented.length ? { supplemented_by: context.userId, supplemented_at: new Date().toISOString(), supplemented_fields: [...new Set([...((cur?.supplemented_fields as string[]) ?? []), ...plan.supplemented])] } : {}),
+      }).eq("id", plan.id).neq("status", "complete");
+    }
+    return { ok: true, savedAt: new Date().toISOString() };
+  });
+
+async function requireMeasureEvidence(jobId: string) {
+  const { data: ev } = await admin.from("evidence_requirements").select("label,status,category").eq("job_id", jobId).eq("required", true).in("category", MEASURE_EVIDENCE as never);
+  const miss = (ev ?? []).filter((e) => !["uploaded", "verified"].includes(e.status)).map((e) => e.label);
+  if (miss.length) throw new WorkflowError(`Upload measure-up evidence first: ${miss.join(", ")}`);
+}
+
+/** Complete the ceiling measure-up requirement (installer / electrician in scope, or admin). */
+export const completeMeasurement = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer"]);
+    if (!SITE_STAGES.includes(await getStage(data.jobId))) throw new WorkflowError("Measure-up can only be completed during assessment booking.");
+    const { jobScope, advanceSiteRequirements } = await import("./requirements.server");
+    const { missingMeasureFields, MEASURE_FIELD_LABEL } = await import("./scope.core");
+    const s = await jobScope(data.jobId);
+    if (role === "installer" && !s.installerTasks.includes("measure_up")) throw new WorkflowError("Measure-up is not assigned to the installer on this job.");
+    if (role === "electrician" && !s.electricianTasks.some((t) => t !== "electrical")) throw new WorkflowError("Measure-up is not part of your scope on this job.");
+    const m = s.measurementRow;
+    if (!m) throw new WorkflowError("Enter the measure-up first.");
+    if (m.status === "complete") throw new WorkflowError("Measure-up is already accepted.");
+    const miss = missingMeasureFields(m as never);
+    if (miss.length) throw new WorkflowError(`Still needed: ${miss.map((f) => MEASURE_FIELD_LABEL[f]).join(", ")}`);
+    await requireMeasureEvidence(data.jobId);
+    const own = m.source_role === (role === "admin" ? "admin_import" : role);
+    await admin.from("ceiling_measurements").update({
+      status: "complete", review_flags: [], completed_at: new Date().toISOString(),
+      ...(own || !m.completed_by ? { completed_by: m.completed_by ?? context.userId } : {}),
+      ...(role === "admin" ? { reviewed_by: context.userId, reviewed_at: new Date().toISOString() } : {}),
+    }).eq("id", m.id);
+    await logEvent(data.jobId, context.userId, "measurement_completed", `Ceiling measure-up completed (${m.source_role}${own ? "" : `, completed by ${role}`}) – ${Number(m.measured_area_m2)} m²`, { measurement_id: m.id, source_role: m.source_role, supplemented_fields: m.supplemented_fields });
+    return advanceSiteRequirements(data.jobId, context.userId);
+  });
+
+export const flagMeasurement = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, reason: z.string().trim().min(5).max(1000), fields: z.array(z.enum(["measured_area_m2", "insulation_present", "existing_r_value", "removal_required", "removal_m2", "access_difficulty"])).max(6) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const stage = await getStage(data.jobId);
+    if (![...SITE_STAGES, "assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes"].includes(stage))
+      throw new WorkflowError("Measurement can only be flagged before the owner accepts a quote.");
+    const { currentMeasurement } = await import("./requirements.server");
+    const m = await currentMeasurement(data.jobId);
+    if (!m) throw new WorkflowError("No measure-up to flag.");
+    const at = new Date().toISOString();
+    const flags = [...((m.review_flags as unknown[]) ?? []), ...(data.fields.length ? data.fields : ["measured_area_m2"]).map((field) => ({ field, reason: data.reason, by: context.userId, at }))];
+    await admin.from("ceiling_measurements").update({ status: "needs_review", review_flags: flags as never, review_reason: data.reason }).eq("id", m.id);
+    await logEvent(data.jobId, context.userId, "measurement_flagged", `Measure-up flagged for review: ${data.reason}`, { measurement_id: m.id, fields: data.fields, previous_status: m.status });
+    return { ok: true };
+  });
+
+export const reviewMeasurement = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, action: z.enum(["accept", "needs_review", "reject"]), reason: z.string().trim().min(3).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { currentMeasurement, advanceSiteRequirements } = await import("./requirements.server");
+    const { missingMeasureFields, MEASURE_FIELD_LABEL } = await import("./scope.core");
+    const m = await currentMeasurement(data.jobId);
+    if (!m) throw new WorkflowError("No measure-up to review.");
+    const at = new Date().toISOString();
+    if (data.action === "accept") {
+      const miss = missingMeasureFields(m as never);
+      if (miss.length) throw new WorkflowError(`Cannot accept – missing: ${miss.map((f) => MEASURE_FIELD_LABEL[f]).join(", ")}`);
+      await admin.from("ceiling_measurements").update({ status: "complete", review_flags: [], review_reason: data.reason, reviewed_by: context.userId, reviewed_at: at, completed_at: m.completed_at ?? at }).eq("id", m.id);
+    } else if (data.action === "needs_review") {
+      await admin.from("ceiling_measurements").update({ status: "needs_review", review_reason: data.reason, reviewed_by: context.userId, reviewed_at: at }).eq("id", m.id);
+    } else {
+      await admin.from("ceiling_measurements").update({ status: "rejected", is_current: false, review_reason: data.reason, reviewed_by: context.userId, reviewed_at: at }).eq("id", m.id);
+    }
+    await logEvent(data.jobId, context.userId, "measurement_reviewed", `Measure-up ${data.action.replace("_", " ")}: ${data.reason}`, { measurement_id: m.id, previous_status: m.status });
+    if (data.action === "accept" && SITE_STAGES.includes(await getStage(data.jobId))) await advanceSiteRequirements(data.jobId, context.userId);
+    return { ok: true };
+  });
+
+export const setMeasureUpResponsibility = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, by: z.enum(["electrician", "installer"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    await admin.from("jobs").update({ measure_up_responsibility: data.by }).eq("id", data.jobId);
+    await logEvent(data.jobId, context.userId, "measure_up_responsibility_set", `Measure-up assigned to ${data.by}`);
+    return { ok: true };
   });
 
 export const addOtherRectItem = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -209,19 +337,20 @@ export const priceRectItem = createServerFn({ method: "POST" }).middleware([requ
     return { ok: true };
   });
 
+/** Complete the ELECTRICAL / PIESA requirement. In combined / completion scopes the electrician's measure-up is completed too. */
 export const completeAssessment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
     const { data: a } = await admin.from("assessments").select("*").eq("job_id", data.jobId).maybeSingle();
     if (!a) throw new WorkflowError("Start the assessment first.");
+    if (a.status === "complete") throw new WorkflowError("Electrical assessment is already complete.");
+    const { jobScope, advanceSiteRequirements } = await import("./requirements.server");
+    const { missingMeasureFields, MEASURE_FIELD_LABEL } = await import("./scope.core");
+    const s = await jobScope(data.jobId);
+    const doMeasure = s.electricianTasks.some((t) => t !== "electrical");
     const missing: string[] = [];
-    if (a.measured_area_m2 == null) missing.push("measured ceiling area");
-    if (a.insulation_present == null) missing.push("existing insulation present/absent");
-    if (a.insulation_present && a.existing_r_value == null) missing.push("existing R-value");
-    if (a.removal_required == null) missing.push("removal required");
-    if (a.removal_required && !a.removal_m2) missing.push("removal m²");
-    if (!a.access_difficulty) missing.push("access difficulty");
+    if (doMeasure) missing.push(...missingMeasureFields(s.measurementRow as never).map((f) => MEASURE_FIELD_LABEL[f]));
     if (!a.switchboard_condition) missing.push("switchboard condition");
     if (a.rcds_present == null) missing.push("RCDs present");
     if (a.life_support_confirmed == null) missing.push("life support confirmation");
@@ -229,9 +358,9 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     if (!a.assessed_on) missing.push("assessment date");
     if (missing.length) throw new WorkflowError(`Still needed: ${missing.join(", ")}`);
     const { data: ev } = await admin.from("evidence_requirements").select("label,status,gate,category").eq("job_id", data.jobId).eq("required", true);
-    // Assessment evidence always; the PIESA sign-off too when PIESA passed on this visit (no second electrician trip).
+    // Measure-up evidence only when this visit completes the measure-up; PIESA sign-off when PIESA passed on this visit.
     const evMissing = (ev ?? [])
-      .filter((e) => e.gate === "assessment" || (a.piesa_outcome === "pass" && e.category === "piesa_signoff"))
+      .filter((e) => (doMeasure && MEASURE_EVIDENCE.includes(e.category)) || (a.piesa_outcome === "pass" && e.category === "piesa_signoff"))
       .filter((e) => !["uploaded", "verified"].includes(e.status)).map((e) => e.label);
     if (evMissing.length) throw new WorkflowError(`Upload evidence first: ${evMissing.join(", ")}`);
     const { data: unpriced } = await admin.from("rectification_items").select("description").eq("job_id", data.jobId).eq("status", "required").eq("needs_office_pricing", true);
@@ -239,25 +368,17 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
 
     const stage = await getStage(data.jobId);
     if (stage !== "assessment_booked") throw new WorkflowError(`Assessment can be completed from "Assessment Booked" (current: ${STAGE_LABEL[stage]}).`);
-    await admin.from("assessments").update({ status: "complete", completed_at: new Date().toISOString(), assessor_id: a.assessor_id ?? context.userId, mitti_sync_status: a.external_mitti_id ? "synced" : "not_synced" }).eq("id", a.id);
+    const now = new Date().toISOString();
+    await admin.from("assessments").update({ status: "complete", completed_at: now, assessor_id: a.assessor_id ?? context.userId, mitti_sync_status: a.external_mitti_id ? "synced" : "not_synced" }).eq("id", a.id);
     await admin.from("piesa_records").update({ is_current: false }).eq("job_id", data.jobId).eq("is_current", true);
     await admin.from("piesa_records").insert({ job_id: data.jobId, assessment_id: a.id, kind: "initial", outcome: a.piesa_outcome, completed_date: a.assessed_on!, signed_off_by: context.userId, external_mitti_id: a.external_mitti_id });
-    await transition(data.jobId, "assessment_complete", context.userId, `Assessment complete – PIESA ${a.piesa_outcome}`, { measured_area_m2: a.measured_area_m2 });
-
-    const rectCount = await deriveRectificationItems(data.jobId, context.userId);
-    await admin.from("compliance_checks").update({ status: a.piesa_outcome === "pass" && rectCount === 0 ? "pass" : "pending" }).eq("job_id", data.jobId).eq("check_key", "electrical_assessment");
-    if (rectCount > 0 || a.piesa_outcome === "fail") {
-      await admin.from("evidence_requirements").update({ required: true, status: "outstanding" }).eq("job_id", data.jobId).eq("category", "rectification_completion");
-      await transition(data.jobId, "rectification_required", context.userId, `${rectCount} rectification item(s) required`);
-      if (rectCount > 0) {
-        await generateRectificationQuote(data.jobId, context.userId);
-        await transition(data.jobId, "awaiting_owner_rectification_approval", context.userId, "Rectification quote issued to owner");
-      }
-    } else {
-      await admin.from("compliance_checks").update({ status: "pass" }).eq("job_id", data.jobId).eq("check_key", "rectification");
-      await transition(data.jobId, "ready_for_installer_quotes", context.userId, "No rectification required – ready for installer quotes");
+    await logEvent(data.jobId, context.userId, "electrical_assessment_complete", `Electrical assessment complete – PIESA ${a.piesa_outcome} (${s.label})`, { scope: s.scope });
+    const m = s.measurementRow;
+    if (doMeasure && m && m.status !== "complete") {
+      await admin.from("ceiling_measurements").update({ status: "complete", review_flags: [], completed_at: now, completed_by: m.completed_by ?? (m.source_role === "electrician" ? context.userId : null) }).eq("id", m.id);
+      await logEvent(data.jobId, context.userId, "measurement_completed", `Ceiling measure-up completed onsite by electrician (${m.source_role} record) – ${Number(m.measured_area_m2)} m²`, { measurement_id: m.id, source_role: m.source_role, supplemented_fields: m.supplemented_fields });
     }
-    return { ok: true };
+    return advanceSiteRequirements(data.jobId, context.userId);
   });
 
 /** Rectification complete + new PIESA; also the reassessment path when the 30-day window expired. */
@@ -526,7 +647,9 @@ async function requirementWithAccess(sb: Parameters<typeof requireJobRole>[0], r
   const { data: req } = await admin.from("evidence_requirements").select("*").eq("id", requirementId).single();
   if (!req) throw new WorkflowError("Requirement not found");
   const role = await requireJobRole(sb, req.job_id, ["admin", "electrician", "installer"]);
-  if (role !== "admin" && req.responsible_role !== role) throw new WorkflowError("This evidence is uploaded by another party.");
+  // Measure-up evidence belongs to whoever owns the measure-up requirement (electrician or installer).
+  const measureUp = ["measurement", "existing_insulation_r_value"].includes(req.category) && (role === "electrician" || role === "installer");
+  if (role !== "admin" && !measureUp && req.responsible_role !== role) throw new WorkflowError("This evidence is uploaded by another party.");
   return req;
 }
 

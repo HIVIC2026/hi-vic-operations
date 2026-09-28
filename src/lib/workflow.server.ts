@@ -124,6 +124,16 @@ export async function commercialBlocker(jobId: string): Promise<string | null> {
   return null;
 }
 
+/** Quoting needs an ACCEPTED current ceiling measurement with area > 0 (not "assessment complete"). */
+export async function measurementBlocker(jobId: string): Promise<string | null> {
+  const { data: m } = await admin.from("ceiling_measurements").select("status, measured_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  if (!m) return "Ceiling measure-up missing.";
+  if (m.status === "needs_review") return "Ceiling measure-up needs review / missing evidence.";
+  if (m.status !== "complete") return "Ceiling measure-up not yet completed.";
+  if (!(Number(m.measured_area_m2) > 0)) return "Accepted ceiling measure-up has no measured area.";
+  return null;
+}
+
 export async function stageEntryBlockers(jobId: string, to: Stage): Promise<string[]> {
   const blockers: string[] = [];
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {
@@ -140,6 +150,15 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
     );
   }
   const rect = await openRectCount(jobId);
+  // Two-requirement model: pre-quote site information = accepted ceiling measure-up + recorded electrical/PIESA.
+  if (["assessment_complete", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(to)) {
+    const mb = await measurementBlocker(jobId);
+    if (mb) blockers.push(mb);
+  }
+  if (to === "assessment_complete") {
+    const { data: a } = await admin.from("assessments").select("status").eq("job_id", jobId).maybeSingle();
+    if (a?.status !== "complete" || !piesa?.piesa_date) blockers.push("Electrical assessment / PIESA not yet recorded.");
+  }
   if (to === "ready_for_installer_quotes" || to === "awaiting_quote_acceptance") {
     if (!piesa?.piesa_date) blockers.push("No current PIESA record.");
     else if (rect === 0 && piesa.piesa_outcome !== "pass") blockers.push("Current PIESA has not passed and no rectification scope exists.");

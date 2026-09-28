@@ -1,6 +1,7 @@
 // CENTRAL QUOTE CALCULATIONS. All customer-facing prices are stored inc GST.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
+import { quoteInputsFromMeasurement, type MeasurementLike } from "./scope.core";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -81,8 +82,10 @@ export function priceInstallerOption(input: {
 }
 
 export async function generateInstallerQuotes(jobId: string, actorId: string) {
-  const { data: a } = await admin.from("assessments").select("*").eq("job_id", jobId).maybeSingle();
-  if (!a || a.status !== "complete" || !a.measured_area_m2) throw new WorkflowError("Quotes require a completed site assessment with measured area.");
+  // Two-requirement model: quote inputs come ONLY from the accepted/current ceiling measurement.
+  const { data: m } = await admin.from("ceiling_measurements").select("*").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  let qi: ReturnType<typeof quoteInputsFromMeasurement>;
+  try { qi = quoteInputsFromMeasurement(m as MeasurementLike | null); } catch (e) { throw new WorkflowError(e instanceof Error ? e.message : "Ceiling measure-up missing."); }
   const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   const settings = await activePricing();
   const card = await activeRateCard("installer", inst?.business_id);
@@ -107,9 +110,9 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
     const product = byCode(code);
     if (!product) continue;
     const calc = priceInstallerOption({
-      areaM2: Number(a.measured_area_m2),
-      removalM2: a.removal_required ? Number(a.removal_m2 ?? 0) : 0,
-      access: a.access_difficulty ?? "easy",
+      areaM2: qi.areaM2,
+      removalM2: qi.removalM2,
+      access: qi.access,
       product,
       removal: byCode("REMOVAL") ?? null,
       travel: byCode("TRAVEL") ?? null,
@@ -132,7 +135,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
       ...rectLines.map((l, i) => ({ ...l, quote_id: q.id, sort: 100 + i })),
     ]);
     const { loading, ...internals } = calc.internals;
-    await admin.from("quote_internals").insert({ quote_id: q.id, ...internals, calc_snapshot: { loading, assessment_id: a.id, rate_card_version: card.version, pricing_version: settings.version, access: a.access_difficulty } });
+    await admin.from("quote_internals").insert({ quote_id: q.id, ...internals, calc_snapshot: { loading, measurement_id: qi.measurementId, area_m2: qi.areaM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access } });
     created.push(q.id);
   }
   if (!created.length) throw new WorkflowError("Rate card has none of the configured quote option products.");

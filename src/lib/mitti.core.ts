@@ -131,6 +131,8 @@ export function buildPrefill(template: Any, ctx: PrefillCtx) {
 export type CreateCtx = {
   businessUnit: string; stage: string; jobNumber: string; existingAuditId: string | null;
   electricianEmail: string | null; prefill: PrefillCtx;
+  /** Defaults to the combined electrician template. Measure-up-only passes the CONFIGURED template (never invented). */
+  templateId?: string; assigneeRole?: "electrician" | "installer";
 };
 export type CreateResult = { auditId: string; reused: boolean; mittiUserId: string; assigneeEmail: string; prefillCount: number | null; createdAt: string | null };
 
@@ -142,22 +144,25 @@ function pickUser(res: Any, email: string): Any | null {
 export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise<CreateResult> {
   if (ctx.businessUnit !== "hivic") throw new MittiError("Mitti automation is only available for HI VIC jobs.");
   if (!(MITTI_ASSIGN_STAGES as readonly string[]).includes(ctx.stage)) throw new MittiError("Mitti assessments can only be created while the job is in Assessment Booking or Assessment Booked.");
+  const who = ctx.assigneeRole ?? "electrician";
+  const templateId = ctx.templateId ?? MITTI_TEMPLATE_ID;
+  if (!templateId.trim()) throw new MittiError("The Mitti template for this scope is not configured.");
   const email = ctx.electricianEmail?.trim();
-  if (!email) throw new MittiError("Assign an electrician with an email address before creating the Mitti assessment.");
+  if (!email) throw new MittiError(`Assign an ${who} with an email address before creating the Mitti assessment.`);
   const user = pickUser(await api.searchUsers(email), email);
   const userId = user?.id ?? user?.user_id;
-  if (!userId) throw new MittiError(`The assigned electrician (${email}) was not found in Mitti. Invite them to Mitti with that exact email, then retry.`);
+  if (!userId) throw new MittiError(`The assigned ${who} (${email}) was not found in Mitti. Invite them to Mitti with that exact email, then retry.`);
 
   if (ctx.existingAuditId) {
     await api.shareAudit(ctx.existingAuditId, String(userId));
     return { auditId: ctx.existingAuditId, reused: true, mittiUserId: String(userId), assigneeEmail: email, prefillCount: null, createdAt: null };
   }
-  const template = await api.getTemplate(MITTI_TEMPLATE_ID);
+  const template = await api.getTemplate(templateId);
   const tid = template?.template_id ?? template?.id;
-  if (tid && tid !== MITTI_TEMPLATE_ID) throw new MittiError("Mitti returned an unexpected template.");
+  if (tid && tid !== templateId) throw new MittiError("Mitti returned an unexpected template.");
   const p = buildPrefill(template, ctx.prefill);
   if (p.missing.length) throw new MittiError(`The Mitti template is missing required office fields: ${p.missing.join(", ")}.`);
-  const audit = await api.createAudit({ template_id: MITTI_TEMPLATE_ID, header_items: p.header_items, items: p.items });
+  const audit = await api.createAudit({ template_id: templateId, header_items: p.header_items, items: p.items });
   const auditId = audit?.audit_id ?? audit?.id;
   if (!auditId) throw new MittiError("Mitti did not return an audit ID.");
   await api.shareAudit(String(auditId), String(userId));
@@ -265,15 +270,26 @@ export function parseAudit(audit: Any) {
 }
 
 /** Validate a fetched audit belongs to this job, then plan a safe (non-completing) sync. */
-export function planSync(audit: Any, ctx: { storedAuditId: string; jobNumber: string; assessmentStatus: string | null }) {
+export function planSync(audit: Any, ctx: { storedAuditId: string; jobNumber: string; assessmentStatus: string | null; templateId?: string }) {
   if (ctx.assessmentStatus === "complete") return { locked: true as const };
   const p = parseAudit(audit);
   if (p.auditId && p.auditId !== ctx.storedAuditId) throw new MittiError("Mitti returned a different audit than the one stored for this job.");
-  if (p.templateId !== MITTI_TEMPLATE_ID) throw new MittiError("This Mitti audit does not use the HI VIC combined assessment template.");
+  if (p.templateId !== (ctx.templateId ?? MITTI_TEMPLATE_ID)) throw new MittiError("This Mitti audit does not use the expected HI VIC assessment template.");
   if (!p.jobNumber || p.jobNumber.trim().toUpperCase() !== ctx.jobNumber.trim().toUpperCase())
     throw new MittiError(`Mitti Portal Job Number (${p.jobNumber ?? "missing"}) does not match ${ctx.jobNumber}.`);
   return {
     locked: false as const, ...p,
     syncStatus: (p.completed ? "synced" : "pending") as "synced" | "pending",
   };
+}
+
+const MEASURE_KEYS = ["measured_area_m2", "insulation_present", "existing_r_value", "removal_required", "removal_m2", "access_difficulty"] as const;
+/** Split a parsed Mitti patch into ceiling measure-up values and electrical/PIESA values. */
+export function splitPatch(patch: AssessmentPatch) {
+  const measure: Partial<Pick<AssessmentPatch, (typeof MEASURE_KEYS)[number]>> = {};
+  const electrical: AssessmentPatch = {};
+  for (const [k, v] of Object.entries(patch)) {
+    if ((MEASURE_KEYS as readonly string[]).includes(k)) (measure as Any)[k] = v; else (electrical as Any)[k] = v;
+  }
+  return { measure, electrical };
 }

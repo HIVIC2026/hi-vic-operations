@@ -41,11 +41,11 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
   const [label, tone] = status(a as never);
   const issues = (a?.mitti_validation_issues as string[] | null) ?? [];
   const locked = a?.status === "complete";
-  const evMissing = data.ev.filter((e) => (e.gate === "assessment" || (a?.piesa_outcome === "pass" && e.category === "piesa_signoff")) && !["uploaded", "verified"].includes(e.status));
+  const evMissing = data.ev.filter((e) => ((e.gate === "assessment" && a?.mitti_scope !== "ELECTRICAL_ONLY") || (a?.piesa_outcome === "pass" && e.category === "piesa_signoff")) && !["uploaded", "verified"].includes(e.status));
   const piesaMissing = evMissing.find((e) => e.category === "piesa_signoff");
   const run = async (f: () => Promise<unknown>) => { setBusy(true); try { await f(); } finally { setBusy(false); } };
   return (
-    <Section title="Mitti combined assessment" action={<Pill t={tone as never}>{label}</Pill>}>
+    <Section title={a?.mitti_scope && a.mitti_scope !== "COMBINED" ? `Mitti assessment · ${String(a.mitti_scope).replaceAll("_", " ").toLowerCase()}` : "Mitti combined assessment"} action={<Pill t={tone as never}>{label}</Pill>}>
       <dl className="grid grid-cols-2 gap-1 text-sm">
         <dt className="text-muted-foreground">Audit ID</dt><dd className="break-all">{a?.external_mitti_id ?? "—"}</dd>
         <dt className="text-muted-foreground">Assignee</dt><dd className="break-all">{a?.mitti_assignee_email ?? "—"}</dd>
@@ -74,14 +74,12 @@ export function MittiSyncedFields({ a: raw }: { a: Record<string, unknown> }) {
   const a = raw as { [k in "measured_area_m2"|"insulation_present"|"existing_r_value"|"removal_required"|"removal_m2"|"access_difficulty"|"downlights_qty"|"downlights_upgrade_qty"|"exhaust_fans_qty"|"exhaust_fans_clearance_qty"|"switchboard_condition"|"rcds_present"|"rcds_required_qty"|"life_support_confirmed"|"piesa_outcome"|"assessed_on"|"hazards"|"notes"]: unknown };
   const f = (v: unknown) => (v === true ? "Yes" : v === false ? "No" : v == null || v === "" ? "—" : String(v));
   const rows: [string, unknown][] = [
-    ["Measured area (m²)", a.measured_area_m2], ["Insulation present", a.insulation_present], ["Existing R-value", a.existing_r_value],
-    ["Removal", a.removal_required ? `${a.removal_m2 ?? "?"} m²` : a.removal_required], ["Access", a.access_difficulty],
     ["Downlights", a.downlights_qty], ["Downlights to upgrade", a.downlights_upgrade_qty], ["Exhaust fans", a.exhaust_fans_qty], ["Need clearance", a.exhaust_fans_clearance_qty],
     ["Switchboard", a.switchboard_condition], ["RCDs present", a.rcds_present], ["RCDs to install", a.rcds_required_qty], ["Life support onsite", a.life_support_confirmed],
     ["PIESA outcome", a.piesa_outcome], ["Assessment date", a.assessed_on], ["Hazards", a.hazards], ["Notes", a.notes],
   ];
   return (
-    <Section title="Assessment (from Mitti – read only)">
+    <Section title="Electrical assessment (from Mitti – read only)">
       <dl className="grid grid-cols-2 gap-1 text-sm">{rows.map(([k, v]) => <Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd>{f(v)}</dd></Fragment>)}</dl>
     </Section>
   );

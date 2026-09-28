@@ -78,7 +78,7 @@ export function EvidencePanel({ jobId, role, gates }: { jobId: string; role: str
   return (
     <Section title="Evidence" action={<span className="text-sm text-muted-foreground">{done}/{total} required</span>}>
       <div className="space-y-2">
-        {reqs.map((r) => <EvidenceRow key={r.id} req={r} canUpload={role === "admin" || r.responsible_role === role} isAdmin={role === "admin"} />)}
+        {reqs.map((r) => <EvidenceRow key={r.id} req={r} canUpload={role === "admin" || r.responsible_role === role || (role === "measure" && ["measurement", "existing_insulation_r_value"].includes((r as { category?: string }).category ?? ""))} isAdmin={role === "admin"} />)}
       </div>
     </Section>
   );

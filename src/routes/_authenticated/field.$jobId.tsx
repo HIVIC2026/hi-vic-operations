@@ -7,6 +7,7 @@ import { AppShell } from "@/components/portal/AppShell";
 import { AuthorityBadge, Pill, StageBadge, UrgencyBadge } from "@/components/portal/badges";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, Section, useJob } from "@/components/portal/panels";
 import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
+import { MeasurementDetails, MeasurementForm, MeasurementReadOnly, useJobScope, useMeasurements } from "@/components/portal/requirements";
 import { useAction } from "@/hooks/use-me";
 import { addOtherRectItem, completeAssessment, completeInstallation, recordPiesa, removeRectItem, saveAssessment, submitDeclaration, submitForApReview } from "@/lib/portal.functions";
 import { aud } from "@/lib/workflow";
@@ -74,6 +75,11 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
     <div><Label>{label}</Label><div className={`mt-1 grid gap-2`} style={{ gridTemplateColumns: `repeat(${opts.length}, minmax(0,1fr))` }}>{opts.map(([v, l]) => <Button key={v} type="button" size="field" variant={f[k] === v ? "default" : "outline"} disabled={locked} onClick={() => put(k, v)}>{l}</Button>)}</div></div>
   );
   const assessing = ["assessment_booking", "assessment_booked"].includes(stage) && !locked;
+  const { data: scope } = useJobScope(jobId);
+  const measureTask = scope?.electricianTasks.some((t) => t !== "electrical");
+  const measureBlock = !scope || !assessing ? null : scope.measurement.state === "accepted" ? <MeasurementReadOnly jobId={jobId} canFlag /> : measureTask ? (
+    <MeasurementForm jobId={jobId} editable={scope.editableMeasureFields} showComplete={false} title={scope.scope === "COMBINED" ? "1 · Ceiling measure-up" : "1 · Complete missing measure-up"} />
+  ) : <Section title="Ceiling measure-up"><p className="text-sm text-muted-foreground">Not part of your visit – the installer is doing the measure-up.</p></Section>;
 
   return (
     <>
@@ -83,13 +89,15 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
       )}
       {stage === "rectification_booked" && <PiesaForm jobId={jobId} kind="post_rectification" title="Rectification complete – record PIESA sign-off" />}
       {expired && <PiesaForm jobId={jobId} kind="reassessment" title="PIESA window expired – record reassessment" />}
+      {scope && assessing && <div className="rounded-lg border border-primary/30 bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground">Your visit: {scope.label}</div>}
       {a?.external_mitti_id && (assessing || locked) && (
         <>
+          {measureBlock}
           <MittiCard jobId={jobId} isAdmin={false} />
           {<MittiSyncedFields a={a as unknown as Record<string, unknown>} />}
-          {!locked && <EvidencePanel jobId={jobId} role="electrician" gates={["assessment", "electrical"]} />}
+          {!locked && <EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} />}
           {!locked && <OtherItems jobId={jobId} editable />}
-          {!locked && <Button size="field" className="w-full" onClick={() => complete({ jobId }, "Assessment complete")}><Check /> Complete assessment</Button>}
+          {!locked && <Button size="field" className="w-full" onClick={() => complete({ jobId }, "Assessment complete")}><Check /> {measureTask ? "Complete assessment (electrical + measure-up)" : "Complete electrical assessment"}</Button>}
         </>
       )}
       {!a?.external_mitti_id && (assessing || locked) && (
@@ -97,17 +105,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
           <summary className={locked ? "mb-2 cursor-pointer list-none rounded-md border bg-card px-4 py-3 text-sm font-medium" : "hidden"}>Assessment (complete – locked) · tap to view</summary>
           <div className="space-y-4">
           <div className="text-right text-xs text-muted-foreground">{locked ? "Assessment complete – locked" : saved ? `Autosaved ${saved}` : "Changes save automatically"}</div>
-          <Section title="1 · Ceiling measure-up">
-            <div className="grid gap-3">
-              <Num k="measured_area_m2" label="Measured ceiling area (m²)" step="0.1" />
-              <Yn k="insulation_present" label="Existing insulation present?" />
-              {f["insulation_present"] === true && <Num k="existing_r_value" label="Measured / confirmed R-value" step="0.1" />}
-              <Yn k="removal_required" label="Removal required?" />
-              {f["removal_required"] === true && <Num k="removal_m2" label="Removal area (m²)" step="0.1" />}
-              <Choice k="access_difficulty" label="Ceiling access" opts={[["easy", "Easy"], ["moderate", "Moderate"], ["difficult", "Difficult"]]} />
-            </div>
-          </Section>
-          <EvidencePanel jobId={jobId} role="electrician" gates={["assessment"]} />
+          {measureBlock}
           <Section title="2 · Electrical safety">
             <div className="grid gap-3">
               <div className="grid grid-cols-2 gap-3"><Num k="downlights_qty" label="Downlights (qty)" /><Num k="downlights_upgrade_qty" label="Need upgrade" /></div>
@@ -131,7 +129,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
           </Section>
           <EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} />
           <OtherItems jobId={jobId} editable={!locked || stage === "awaiting_owner_rectification_approval"} />
-          {!locked && <Button size="field" className="w-full" onClick={() => complete({ jobId }, "Assessment complete")}><Check /> Complete assessment</Button>}
+          {!locked && <Button size="field" className="w-full" onClick={() => complete({ jobId }, "Assessment complete")}><Check /> {measureTask ? "Complete assessment (electrical + measure-up)" : "Complete electrical assessment"}</Button>}
           </div>
         </details>
       )}
@@ -184,15 +182,22 @@ function InstallerFlow({ jobId, stage }: { jobId: string; stage: string }) {
   const done = useAction(completeInstallation);
   const declare = useAction(submitDeclaration);
   const submit = useAction(submitForApReview);
-  const { data: a } = useQuery({ queryKey: ["assessment", jobId], queryFn: async () => (await supabase.from("assessments").select("measured_area_m2, removal_required, removal_m2, access_difficulty, hazards, downlights_qty").eq("job_id", jobId).maybeSingle()).data });
+  const { data: ms } = useMeasurements(jobId);
+  const { data: scope } = useJobScope(jobId);
+  const { data: el } = useQuery({ queryKey: ["assessment-trade", jobId], queryFn: async () => (await supabase.from("assessments").select("hazards, downlights_qty").eq("job_id", jobId).maybeSingle()).data });
+  const m = ms?.current;
+  const a = m?.status === "complete" ? { ...m, hazards: el?.hazards ?? null, downlights_qty: el?.downlights_qty ?? null } : null;
+  const measuring = ["assessment_booking", "assessment_booked"].includes(stage) && !!scope?.installerTasks.includes("measure_up");
   const { data: decl } = useQuery({ queryKey: ["decl", jobId], queryFn: async () => (await supabase.from("declarations").select("kind").eq("job_id", jobId)).data ?? [] });
   const signed = decl?.some((d) => d.kind === "installer_declaration");
   return (
     <>
+      {measuring && <MeasurementForm jobId={jobId} editable={["measured_area_m2", "insulation_present", "existing_r_value", "removal_required", "removal_m2", "access_difficulty"]} showComplete title="Your task: ceiling measure-up" />}
+      {!measuring && m && m.status !== "complete" && ["assessment_booking", "assessment_booked"].includes(stage) && <Section title="Your measure-up"><MeasurementDetails m={m} /><p className="mt-2 text-sm text-muted-foreground">Status: {m.status.replace("_", " ")} – HI VIC will follow up.</p></Section>}
       {a && (
-        <Section title="Site summary (from electrician)">
+        <Section title="Site summary">
           <dl className="grid grid-cols-2 gap-1 text-sm">
-            <dt className="text-muted-foreground">Area</dt><dd>{a.measured_area_m2} m²</dd>
+            <dt className="text-muted-foreground">Area</dt><dd>{Number(a.measured_area_m2)} m²</dd>
             <dt className="text-muted-foreground">Removal</dt><dd>{a.removal_required ? `${a.removal_m2} m²` : "No"}</dd>
             <dt className="text-muted-foreground">Access</dt><dd className="capitalize">{a.access_difficulty}</dd>
             <dt className="text-muted-foreground">Downlights</dt><dd>{a.downlights_qty ?? "—"}</dd>
@@ -203,7 +208,7 @@ function InstallerFlow({ jobId, stage }: { jobId: string; stage: string }) {
       {stage === "awaiting_deposit_payment" && <Section title="Installation booking"><p className="text-sm font-medium text-danger">Locked – awaiting owner's 50% deposit.</p></Section>}
       {["installation_scheduling", "installation_booked"].includes(stage) && <BookingPanel jobId={jobId} kind="installation" canBook />}
       {a && ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling"].includes(stage) && <Section title="Scope">
-        <p className="text-sm">Install ceiling insulation to {a.measured_area_m2} m²{a.removal_required ? `, remove ${a.removal_m2} m² existing` : ""}. Access: {a.access_difficulty}.</p></Section>}
+        <p className="text-sm">Install ceiling insulation to {Number(a.measured_area_m2)} m²{a.removal_required ? `, remove ${a.removal_m2} m² existing` : ""}. Access: {a.access_difficulty}.</p></Section>}
       {["installation_booked", "evidence_outstanding", "ap_review"].includes(stage) && <EvidencePanel jobId={jobId} role="installer" gates={["installation"]} />}
       {stage === "installation_booked" && <Button size="field" className="w-full" onClick={() => done({ jobId }, "Installation complete")}><Check /> Installation complete</Button>}
       {stage === "evidence_outstanding" && (

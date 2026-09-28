@@ -44,6 +44,7 @@ export type Database = {
           mitti_modified_at: string | null
           mitti_prefill_count: number | null
           mitti_raw_snapshot: Json | null
+          mitti_scope: string | null
           mitti_sync_status: Database["public"]["Enums"]["sync_status"]
           mitti_synced_at: string | null
           mitti_template_id: string | null
@@ -87,6 +88,7 @@ export type Database = {
           mitti_modified_at?: string | null
           mitti_prefill_count?: number | null
           mitti_raw_snapshot?: Json | null
+          mitti_scope?: string | null
           mitti_sync_status?: Database["public"]["Enums"]["sync_status"]
           mitti_synced_at?: string | null
           mitti_template_id?: string | null
@@ -130,6 +132,7 @@ export type Database = {
           mitti_modified_at?: string | null
           mitti_prefill_count?: number | null
           mitti_raw_snapshot?: Json | null
+          mitti_scope?: string | null
           mitti_sync_status?: Database["public"]["Enums"]["sync_status"]
           mitti_synced_at?: string | null
           mitti_template_id?: string | null
@@ -285,6 +288,152 @@ export type Database = {
           phone?: string | null
         }
         Relationships: []
+      }
+      ceiling_measurements: {
+        Row: {
+          access_difficulty:
+            | Database["public"]["Enums"]["access_difficulty"]
+            | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          evidence_notes: string | null
+          existing_r_value: number | null
+          external_id: string | null
+          external_source: string | null
+          id: string
+          insulation_present: boolean | null
+          is_current: boolean
+          job_id: string
+          measured_area_m2: number | null
+          raw_snapshot: Json | null
+          removal_m2: number | null
+          removal_required: boolean | null
+          review_flags: Json
+          review_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_role: Database["public"]["Enums"]["measurement_source"]
+          status: Database["public"]["Enums"]["measurement_status"]
+          supplemented_at: string | null
+          supplemented_by: string | null
+          supplemented_fields: Json
+          updated_at: string
+        }
+        Insert: {
+          access_difficulty?:
+            | Database["public"]["Enums"]["access_difficulty"]
+            | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          evidence_notes?: string | null
+          existing_r_value?: number | null
+          external_id?: string | null
+          external_source?: string | null
+          id?: string
+          insulation_present?: boolean | null
+          is_current?: boolean
+          job_id: string
+          measured_area_m2?: number | null
+          raw_snapshot?: Json | null
+          removal_m2?: number | null
+          removal_required?: boolean | null
+          review_flags?: Json
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_role: Database["public"]["Enums"]["measurement_source"]
+          status?: Database["public"]["Enums"]["measurement_status"]
+          supplemented_at?: string | null
+          supplemented_by?: string | null
+          supplemented_fields?: Json
+          updated_at?: string
+        }
+        Update: {
+          access_difficulty?:
+            | Database["public"]["Enums"]["access_difficulty"]
+            | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          evidence_notes?: string | null
+          existing_r_value?: number | null
+          external_id?: string | null
+          external_source?: string | null
+          id?: string
+          insulation_present?: boolean | null
+          is_current?: boolean
+          job_id?: string
+          measured_area_m2?: number | null
+          raw_snapshot?: Json | null
+          removal_m2?: number | null
+          removal_required?: boolean | null
+          review_flags?: Json
+          review_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_role?: Database["public"]["Enums"]["measurement_source"]
+          status?: Database["public"]["Enums"]["measurement_status"]
+          supplemented_at?: string | null
+          supplemented_by?: string | null
+          supplemented_fields?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ceiling_measurements_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ceiling_measurements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ceiling_measurements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ceiling_measurements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "ceiling_measurements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ceiling_measurements_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ceiling_measurements_supplemented_by_fkey"
+            columns: ["supplemented_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       compliance_checks: {
         Row: {
@@ -922,6 +1071,7 @@ export type Database = {
           job_number: string
           last_activity_at: string
           life_support: boolean
+          measure_up_responsibility: string
           next_action: string | null
           originating_installer_business_id: string | null
           originating_installer_user_id: string | null
@@ -955,6 +1105,7 @@ export type Database = {
           job_number?: string
           last_activity_at?: string
           life_support?: boolean
+          measure_up_responsibility?: string
           next_action?: string | null
           originating_installer_business_id?: string | null
           originating_installer_user_id?: string | null
@@ -988,6 +1139,7 @@ export type Database = {
           job_number?: string
           last_activity_at?: string
           life_support?: boolean
+          measure_up_responsibility?: string
           next_action?: string | null
           originating_installer_business_id?: string | null
           originating_installer_user_id?: string | null
@@ -2324,6 +2476,7 @@ export type Database = {
           authority_validity_months: number
           id: number
           min_building_age_years: number
+          mitti_measureup_template_id: string | null
           piesa_install_window_days: number
           updated_at: string
           urgency_amber_days: number
@@ -2333,6 +2486,7 @@ export type Database = {
           authority_validity_months?: number
           id?: number
           min_building_age_years?: number
+          mitti_measureup_template_id?: string | null
           piesa_install_window_days?: number
           updated_at?: string
           urgency_amber_days?: number
@@ -2342,6 +2496,7 @@ export type Database = {
           authority_validity_months?: number
           id?: number
           min_building_age_years?: number
+          mitti_measureup_template_id?: string | null
           piesa_install_window_days?: number
           updated_at?: string
           urgency_amber_days?: number
@@ -2735,6 +2890,8 @@ export type Database = {
         | "complete"
         | "cancelled"
         | "on_hold"
+      measurement_source: "electrician" | "installer" | "admin_import"
+      measurement_status: "draft" | "needs_review" | "complete" | "rejected"
       occupancy_type: "owner_occupied" | "rental"
       pass_fail: "pending" | "pass" | "fail"
       payment_status:
@@ -2963,6 +3120,8 @@ export const Constants = {
         "cancelled",
         "on_hold",
       ],
+      measurement_source: ["electrician", "installer", "admin_import"],
+      measurement_status: ["draft", "needs_review", "complete", "rejected"],
       occupancy_type: ["owner_occupied", "rental"],
       pass_fail: ["pending", "pass", "fail"],
       payment_status: [
