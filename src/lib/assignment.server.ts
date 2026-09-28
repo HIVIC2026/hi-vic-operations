@@ -156,7 +156,7 @@ export async function reconfirmVariation(p: { variationId: string; actorId: stri
 }
 
 /** Installer signs final declaration with installed product + actual m². Material differences raise a variation. */
-export async function signInstaller(p: { jobId: string; actorId: string; asQuotedProduct: boolean; installedProduct?: string | null; installedArea: number; fieldValues: Record<string, FieldValue>; signatureName: string; ip: string | null; userAgent: string | null }) {
+export async function signInstaller(p: { jobId: string; actorId: string; asQuotedProduct: boolean; installedProduct?: string | null | undefined; installedArea: number; fieldValues: Record<string, FieldValue>; signatureName: string; ip: string | null; userAgent: string | null }) {
   const a = await currentAssignment(p.jobId);
   if (!a) throw new WorkflowError("Customer acceptance has not been signed yet.");
   if (a.installer_signed_at) throw new WorkflowError("Installer declaration already signed.");
