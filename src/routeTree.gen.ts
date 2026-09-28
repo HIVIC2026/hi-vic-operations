@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as AuthenticatedAdminComplianceRouteImport } from './routes/_authenticated/admin.compliance'
 import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authenticated/admin.partners'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedFieldIndexRouteImport } from './routes/_authenticated/field.index'
@@ -48,6 +49,12 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminComplianceRoute =
+  AuthenticatedAdminComplianceRouteImport.update({
+    id: '/admin/compliance',
+    path: '/admin/compliance',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminPartnersRoute =
   AuthenticatedAdminPartnersRouteImport.update({
     id: '/admin/partners',
@@ -100,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
@@ -115,6 +123,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
@@ -132,6 +141,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/_authenticated/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/field/$jobId': typeof AuthenticatedFieldJobIdRoute
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/home'
+    | '/admin/compliance'
     | '/admin/partners'
     | '/admin/users'
     | '/field/$jobId'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/home'
+    | '/admin/compliance'
     | '/admin/partners'
     | '/admin/users'
     | '/field/$jobId'
@@ -180,6 +192,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/home'
+    | '/_authenticated/admin/compliance'
     | '/_authenticated/admin/partners'
     | '/_authenticated/admin/users'
     | '/_authenticated/field/$jobId'
@@ -235,6 +248,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/compliance': {
+      id: '/_authenticated/admin/compliance'
+      path: '/admin/compliance'
+      fullPath: '/admin/compliance'
+      preLoaderRoute: typeof AuthenticatedAdminComplianceRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/partners': {
@@ -305,6 +325,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
+  AuthenticatedAdminComplianceRoute: typeof AuthenticatedAdminComplianceRoute
   AuthenticatedAdminPartnersRoute: typeof AuthenticatedAdminPartnersRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedFieldJobIdRoute: typeof AuthenticatedFieldJobIdRoute
@@ -317,6 +338,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
+  AuthenticatedAdminComplianceRoute: AuthenticatedAdminComplianceRoute,
   AuthenticatedAdminPartnersRoute: AuthenticatedAdminPartnersRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedFieldJobIdRoute: AuthenticatedFieldJobIdRoute,

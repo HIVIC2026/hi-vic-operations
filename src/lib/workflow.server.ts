@@ -4,7 +4,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { DEFAULT_NEXT_ACTION, STAGE_LABEL, type JobRole, type Stage } from "./workflow";
-import { authorityValid } from "./authority.server";
 
 export class WorkflowError extends Error {}
 
@@ -39,12 +38,17 @@ export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
 /** Stages that may only be entered while the PIESA 30-day window is valid. */
 const PIESA_WINDOW_STAGES: Stage[] = ["installation_scheduling", "installation_booked", "evidence_outstanding"];
 
-/** Stages that require a valid (accepted, unexpired, unrevoked) Owner Authority. */
-export const AUTHORITY_STAGES: Stage[] = [
-  "assessment_booked", "rectification_scheduling", "rectification_booked",
-  "installation_scheduling", "installation_booked", "ready_for_veec",
-];
-export const AUTHORITY_BLOCKER = "Valid Owner Authority required";
+/**
+ * Owner Authority is NO LONGER a pre-assessment gate (records kept as history). The customer signs one
+ * Customer Acceptance & VEEC Assignment at quote acceptance; it only becomes effective after installation.
+ */
+export const CONSUMER_SIGN_BLOCKER = "Customer Acceptance & VEEC Assignment not signed by the customer.";
+export const ASSIGNMENT_VEEC_BLOCKER = "Customer Acceptance & VEEC Assignment not yet effective.";
+
+export async function assignmentStatus(jobId: string): Promise<string | null> {
+  const { data } = await admin.from("customer_assignments").select("status").eq("job_id", jobId).neq("status", "cancelled").maybeSingle();
+  return (data?.status as string | undefined) ?? null;
+}
 
 export async function requireJobRole(sb: Sb, jobId: string, allowed: JobRole[]): Promise<JobRole> {
   const { data, error } = await sb.rpc("my_job_role", { _job: jobId });
@@ -142,7 +146,15 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
   }
   const piesa = await piesaStatus(jobId);
 
-  if (AUTHORITY_STAGES.includes(to) && !(await authorityValid(jobId))) blockers.push(AUTHORITY_BLOCKER);
+  if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {
+    const st = await assignmentStatus(jobId);
+    if (!st || st === "draft") blockers.push(CONSUMER_SIGN_BLOCKER);
+  }
+  if (to === "ready_for_veec") {
+    const st = await assignmentStatus(jobId);
+    if (st === "variation_required") blockers.push("Assignment variation must be reconfirmed by the customer.");
+    if (st !== "effective_complete") blockers.push(ASSIGNMENT_VEEC_BLOCKER);
+  }
 
   if (PIESA_WINDOW_STAGES.includes(to) && piesa?.piesa_expired) {
     blockers.push(
@@ -249,7 +261,7 @@ export async function nextStepBlockers(jobId: string) {
   const piesa = await piesaStatus(jobId);
   if (piesa?.piesa_expired && !blockers.some((b) => b.startsWith("PIESA")))
     blockers.unshift(`PIESA 30-day window expired on ${piesa.install_deadline}. Reassessment required.`);
-  const pre: Stage[] = ["new_enquiry", "eligibility_review", "complete", "cancelled"];
-  if (!pre.includes(stage) && !blockers.includes(AUTHORITY_BLOCKER) && !(await authorityValid(jobId))) blockers.unshift(AUTHORITY_BLOCKER);
+  if ((await assignmentStatus(jobId)) === "variation_required" && !blockers.some((b) => b.startsWith("Assignment variation")))
+    blockers.unshift("Assignment variation must be reconfirmed by the customer.");
   return { stage, next, blockers };
 }
