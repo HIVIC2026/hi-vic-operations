@@ -183,6 +183,13 @@
       "when": 1790636344862,
       "tag": "0025_conditional_quote_stage_veec_assignment",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790636698740,
+      "tag": "0026_provisional_installer_measurements",
+      "breakpoints": true
     }
   ]
 }
