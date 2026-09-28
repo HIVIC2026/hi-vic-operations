@@ -51,7 +51,7 @@ Exceptions: On Hold (resume to prior stage), Cancelled
 To go live, connect the Xero connector. It provides `XERO_API_KEY`, and the gateway uses `LOVABLE_API_KEY`. A Xero payment webhook can later call `syncInvoiceFromXero`.
 
 ## Base44 webhook
-`POST /api/public/enquiry`, with header `x-hivic-signature` = hex HMAC-SHA256 of the raw body using the `BASE44_WEBHOOK_SECRET` secret. The body follows `enquirySchema` and is idempotent on `external_enquiry_id`.
+`POST /api/public/enquiry`, with header `x-hivic-signature` = base64 Ed25519 signature of the exact raw UTF-8 body (trusted Base44 public key embedded in `src/lib/enquiry.core.ts`; optional `x-hivic-key-id: base44-v1`). No shared secret. The body follows `enquirySchema` and is idempotent on `external_enquiry_id`; optional `eligibility_outcome`/`eligibility_reason` are preliminary and put the job in Eligibility Review for admin confirmation.
 
 ## Roles & bootstrap
 - The first person to sign up becomes **admin**.
