@@ -14,6 +14,7 @@ export const STAGE_ORDER: Stage[] = [
   "assessment_complete",
   "rectification_required",
   "awaiting_owner_rectification_approval",
+  "awaiting_deposit_payment",
   "rectification_scheduling",
   "rectification_booked",
   "ready_for_installer_quotes",
@@ -36,6 +37,7 @@ export const STAGE_LABEL: Record<Stage, string> = {
   assessment_complete: "Assessment Complete",
   rectification_required: "Rectification Required",
   awaiting_owner_rectification_approval: "Awaiting Owner Rectification Approval",
+  awaiting_deposit_payment: "Awaiting Deposit Payment",
   rectification_scheduling: "Rectification Scheduling",
   rectification_booked: "Rectification Booked",
   ready_for_installer_quotes: "Ready for Installer Quotes",
@@ -59,6 +61,7 @@ export const DEFAULT_NEXT_ACTION: Record<Stage, string> = {
   assessment_complete: "Review assessment outcome",
   rectification_required: "Issue rectification quote",
   awaiting_owner_rectification_approval: "Owner to approve rectification quote",
+  awaiting_deposit_payment: "Owner to pay 50% deposit (Xero invoice)",
   rectification_scheduling: "Owner & electrician to book rectification",
   rectification_booked: "Electrician to complete rectification & PIESA",
   ready_for_installer_quotes: "Generate installer quotes",
@@ -96,3 +99,14 @@ export const fmtDateTime = (d: string | null | undefined) =>
   d
     ? new Date(d).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })
     : "—";
+
+export const PAYMENT_LABEL: Record<string, string> = {
+  invoice_not_created: "Invoice not created",
+  invoice_created: "Invoice created",
+  deposit_due: "Deposit due",
+  deposit_paid: "Deposit paid",
+  balance_due: "Balance due",
+  fully_paid: "Fully paid",
+  overdue: "Payment overdue",
+  xero_sync_error: "Xero sync error",
+};
