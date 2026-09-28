@@ -86,3 +86,37 @@ To go live, connect the Xero connector. It provides `XERO_API_KEY`, and the gate
 - 3 businesses, versioned installer and electrical rate cards, and pricing settings v1.
 - HV-1005 has an accepted quote with the deposit paid. Its PIESA is 26 days old (amber/red countdown).
 - Sign-in accounts can't be seeded. Sign up, then grant roles on the Users page. To test owner access, sign up with `sarah.nguyen@example.com` (or another seeded owner email).
+
+## Owner Authority (hard compliance gate)
+
+- Table `owner_authorities`: one row per version, linked to job/owner/property. Snapshot fields (wording, scope, AP entity, owner details, address) are immutable (trigger); acceptance evidence (18+, authorised, assistance, typed signature, IP, user agent, timestamps, SHA-256) is immutable once accepted. Rows can't be deleted. Renewals create a new version.
+- Statuses: not_requested / sent / viewed / accepted / declined / expired / revoked. Expiry defaults to 3 months (`workflow_settings.authority_validity_months`). Expiry is computed live and marked `expired` with an audit event (on job view / pipeline load).
+- Requested automatically when eligibility is set to proceed. The owner accepts in the portal in one step. A locked text record + SHA-256 hash is stored in private storage and listed under Documents.
+- Blocks entry to: Assessment Booked, Rectification Scheduling/Booked, Installation Scheduling/Booked, Ready for VEEC. Also blocks every booking and quote acceptance. Blocker text: "Valid Owner Authority required".
+- AP compliance check `owner_authority` ("Valid Owner Authority") is blocking.
+- Workflow events: authority_requested, authority_resent, authority_renewal_requested, authority_viewed, authority_accepted, authority_declined, authority_expired, authority_revoked. IDs are appended to `owner_authorities.event_ids`.
+
+## Payment order (combined total)
+
+Rectification path: assessment complete → rectification scope approved by owner (no invoice) → final installation quotes are generated with the rectification lines itemised inside → owner accepts one final quote → Xero invoice → 50% deposit PAID → rectification scheduling unlocks → rectification + PIESA pass → installation scheduling → balance due on install day.
+No-rectification path: installation quote accepted → Xero invoice → 50% deposit PAID → installation scheduling.
+Trades see only a "deposit cleared" yes/no; booking forms stay locked until then. Xero is never faked: without the connection, invoices show "Xero sync error" and gates stay locked (admin override needs a reason and records before/after state).
+
+## Security test matrix – additions
+
+| # | Actor | Action | Expected |
+|---|-------|--------|----------|
+| 19 | Owner | Read own `owner_authorities` | Allowed |
+| 20 | Owner | Read another job's authority | 0 rows |
+| 21 | Electrician/installer | Read `owner_authorities` | 0 rows (sees status only via job_overview) |
+| 22 | Any | Update wording/accepted evidence, or delete an authority | Rejected by trigger |
+| 23 | Admin/electrician | Accept authority on owner's behalf | Rejected (owner only) |
+| 24 | Owner | Select `invoices.xero_invoice_id` / `last_sync_error` | Permission denied (column grants) |
+| 25 | Trade | Select any invoice row | 0 rows (trade policy removed) |
+| 26 | Any non-admin | Read `payment_overrides`, `external_sync_logs` | 0 rows |
+| 27 | Any | Book assessment/rectification/installation without valid authority | Server rejects |
+| 28 | Any | Book rectification/installation before deposit cleared | Server rejects |
+
+## Test jobs
+
+HV-1002 authority missing · HV-1003 authority expired · HV-1004/1005 valid authority (1005 deposit paid) · HV-1006 authority sent · HV-1007 rectification + deposit unpaid (Xero sync error) · HV-1008 rectification + deposit paid · HV-1009 PIESA expired · HV-1010 evidence missing/unverified.
