@@ -47,9 +47,9 @@ function Pipeline() {
   const lanes = PIPELINE_PHASES.filter((p) => phase === "all" || p.key === phase);
   const { data: signedJobs } = useQuery({
     queryKey: ["pipeline_assignments"],
-    queryFn: async () => new Set(((await supabase.from("customer_assignments").select("job_id, status")).data ?? []).filter((a) => a.status !== "draft" && a.status !== "cancelled").map((a) => a.job_id)),
+    queryFn: async () => new Set(((await supabase.from("customer_agreements").select("job_id, status")).data ?? []).filter((a) => a.status === "signed").map((a) => a.job_id)),
   });
-  // Customer Acceptance & VEEC Assignment is only required once an installation quote has been accepted.
+  // Customer Agreement / Quote Acceptance is only required once an installation quote has been accepted.
   const needsAcceptance = (j: JobRow) => ACCEPTANCE_STAGES.includes(j.stage ?? "") && !!signedJobs && !signedJobs.has(j.id!);
   const piesaIssue = (j: JobRow) => j.urgency === "red" || j.urgency === "expired";
   const paymentIssue = (j: JobRow) => j.payment_status === "overdue" || j.payment_status === "xero_sync_error";
@@ -67,7 +67,7 @@ function Pipeline() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Pipeline</h1>
-          <p className="text-sm text-muted-foreground">{jobs.length} jobs · {warnings} need attention{warnings > 0 && <span className="font-semibold text-danger"> ({[piesaCount && `${piesaCount} PIESA deadline`, paymentCount && `${paymentCount} payment/Xero sync`, acceptanceCount && `${acceptanceCount} unsigned Customer Acceptance`].filter(Boolean).join(" · ")})</span>}{hiddenTest > 0 && <> · {hiddenTest} test jobs hidden</>}</p>
+          <p className="text-sm text-muted-foreground">{jobs.length} jobs · {warnings} need attention{warnings > 0 && <span className="font-semibold text-danger"> ({[piesaCount && `${piesaCount} PIESA deadline`, paymentCount && `${paymentCount} payment/Xero sync`, acceptanceCount && `${acceptanceCount} unsigned Customer Agreement`].filter(Boolean).join(" · ")})</span>}{hiddenTest > 0 && <> · {hiddenTest} test jobs hidden</>}</p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search job, address, person" className="w-64 pl-8" /></div>

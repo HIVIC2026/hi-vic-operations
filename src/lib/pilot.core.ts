@@ -1,0 +1,359 @@
+// Pure rules for the ReInsulate pilot: partner onboarding, job import, electrician choice,
+// appointment SLA, partner offers, relationship owner, partner pricing and co-branded quotes.
+// No I/O here — persistence lives in pilot.server.ts.
+
+export const ONBOARDING_STATUSES = ["draft", "submitted", "needs_info", "approved", "suspended", "expired"] as const;
+export type OnboardingStatus = (typeof ONBOARDING_STATUSES)[number];
+export const AP_ENTITY = "DC Construction Solutions Pty Ltd t/a Home Insulation Victoria";
+
+// ---------- Onboarding / credentials ----------
+export type Credential = { kind: string; label: string; expires_at: string | null; critical: boolean; verification: string; profile_id?: string | null };
+export type BusinessLike = {
+  onboarding_status: string; is_active: boolean; business_type: string; capabilities?: string[] | null;
+  legal_name?: string | null; abn?: string | null; email?: string | null; phone?: string | null;
+  service_postcodes?: string[] | null; service_regions?: string[] | null; rec_number?: string | null;
+  commercial_route?: string | null;
+};
+
+const day = 86_400_000;
+export function credentialState(c: Pick<Credential, "expires_at">, now = new Date()): "valid" | "expiring" | "expired" | "no_expiry" {
+  if (!c.expires_at) return "no_expiry";
+  const t = Date.parse(c.expires_at + (c.expires_at.length === 10 ? "T23:59:59+10:00" : ""));
+  if (t < now.getTime()) return "expired";
+  return t - now.getTime() < 30 * day ? "expiring" : "valid";
+}
+
+export const isInstallerBiz = (b: Pick<BusinessLike, "business_type" | "capabilities">) => b.business_type === "eec_installer" || !!b.capabilities?.includes("installer");
+export const isElectricianBiz = (b: Pick<BusinessLike, "business_type" | "capabilities">) => b.business_type === "rec" || !!b.capabilities?.includes("electrician");
+
+/** Credentials a business must hold (verified, unexpired) before it may do compliance-critical work. */
+export function requiredCredentialKinds(b: Pick<BusinessLike, "business_type" | "capabilities">): string[] {
+  const k = ["public_liability_insurance"];
+  if (isInstallerBiz(b)) k.push("installer_certification");
+  if (isElectricianBiz(b)) k.push("electrical_licence", "rec_registration");
+  return k;
+}
+
+/** Everything still stopping approval (checklist). Empty => may be approved. */
+export function onboardingChecklist(b: BusinessLike, creds: Credential[], hasAgreement: boolean, now = new Date()) {
+  const items: { key: string; label: string; done: boolean }[] = [
+    { key: "legal", label: "Legal name and ABN", done: !!b.legal_name && !!b.abn },
+    { key: "contact", label: "Business email and phone", done: !!b.email && !!b.phone },
+    { key: "areas", label: "Service areas", done: !!(b.service_postcodes?.length || b.service_regions?.length) },
+    ...requiredCredentialKinds(b).map((kind) => {
+      const ok = creds.some((c) => c.kind === kind && c.verification === "verified" && credentialState(c, now) !== "expired");
+      return { key: `cred:${kind}`, label: `${kind.replace(/_/g, " ")} (verified, current)`, done: ok };
+    }),
+    ...(isElectricianBiz(b) ? [{ key: "rec", label: "REC number", done: !!b.rec_number }] : []),
+    { key: "agreement", label: "Signed HI VIC participation agreement", done: hasAgreement },
+  ];
+  return items;
+}
+
+/** Blocks compliance-critical work: not approved, suspended, or any critical credential expired. */
+export function partnerWorkBlocker(b: BusinessLike | null, creds: Credential[], now = new Date()): string | null {
+  if (!b) return "No partner business linked.";
+  if (!b.is_active) return "Partner business is inactive.";
+  if (b.onboarding_status !== "approved") return `Partner onboarding is ${b.onboarding_status.replace(/_/g, " ")} – HI VIC approval required.`;
+  const expired = creds.filter((c) => c.critical && credentialState(c, now) === "expired");
+  if (expired.length) return `Expired: ${expired.map((c) => c.label).join(", ")}. Upload a current document.`;
+  return null;
+}
+
+/** Automatic expiry: an approved business with an expired critical credential becomes 'expired'. */
+export function derivedOnboardingStatus(b: BusinessLike, creds: Credential[], now = new Date()): OnboardingStatus {
+  const s = b.onboarding_status as OnboardingStatus;
+  if (s === "approved" && creds.some((c) => c.critical && credentialState(c, now) === "expired")) return "expired";
+  return s;
+}
+
+export function splitInvoicingBlocker(route: string | null | undefined): string | null {
+  return route === "split_invoicing" ? "Split invoicing is not enabled – configuration required pending regulatory/commercial verification." : null;
+}
+
+// ---------- Import extraction ----------
+export type FactConfidence = "found" | "uncertain" | "missing";
+export type Fact<T = string | number | boolean> = { value: T | null; confidence: FactConfidence; source: string };
+export const IMPORT_FIELDS = [
+  "full_name", "email", "phone", "address_line", "suburb", "postcode", "external_reference",
+  "measured_area_m2", "removal_required", "removal_m2", "existing_r_value", "product", "r_value",
+  "access_notes", "inspection_status", "electrical_status", "swms_status", "electrician_name", "notes",
+] as const;
+export type ImportField = (typeof IMPORT_FIELDS)[number];
+export type Extracted = Partial<Record<ImportField, Fact>> & { quote_lines?: { description: string; amount: number | null }[] };
+
+/** Required to create a job; everything else is optional context. */
+export const REQUIRED_IMPORT_FIELDS: ImportField[] = ["full_name", "email", "address_line"];
+export const FIELD_LABEL: Record<ImportField, string> = {
+  full_name: "Owner name", email: "Owner email", phone: "Owner phone", address_line: "Street address", suburb: "Suburb", postcode: "Postcode",
+  external_reference: "Your job / lead reference", measured_area_m2: "Measured ceiling area (m²)", removal_required: "Removal required",
+  removal_m2: "Removal area (m²)", existing_r_value: "Existing insulation R-value", product: "Proposed product", r_value: "Proposed R-value",
+  access_notes: "Roof access / special access", inspection_status: "Inspection / measure-up status", electrical_status: "Electrical safety status",
+  swms_status: "SWMS / evidence status", electrician_name: "Named electrician", notes: "Notes",
+};
+
+const num = (s: string | undefined) => { if (!s) return null; const n = Number(s.replace(/,/g, "")); return Number.isFinite(n) ? n : null; };
+const f = <T,>(value: T | null, source: string, confidence: FactConfidence = value == null ? "missing" : "found"): Fact<T> => ({ value, confidence, source });
+
+/** Deterministic label-based extraction from pasted text / forwarded email. Never guesses: unmatched = missing. */
+export function extractFromText(text: string): Extracted {
+  const t = text.replace(/\r/g, "");
+  const label = (re: RegExp) => { const m = t.match(re); return m?.[1]?.trim() || null; };
+  const out: Extracted = {};
+  const email = t.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] ?? null;
+  const phone = t.match(/(?:\+?61\s?|0)[2-478](?:[ -]?\d){8}/)?.[0]?.replace(/\s+/g, " ") ?? null;
+  const name = label(/^(?:customer|client|owner|name|customer name)\s*[:\-]\s*(.+)$/im);
+  const addr = label(/^(?:address|property|site address|property address)\s*[:\-]\s*(.+)$/im);
+  out.full_name = f(name, "label"); out.email = f(email, "pattern"); out.phone = f(phone, "pattern");
+  if (addr) {
+    const m = addr.match(/^(.*?),?\s+([A-Za-z][A-Za-z \-']+?)\s+(?:VIC|Vic|Victoria)?\s*(3\d{3})$/);
+    if (m) { out.address_line = f(m[1].replace(/,$/, ""), "label"); out.suburb = f(m[2].trim(), "label"); out.postcode = f(m[3], "label"); }
+    else { out.address_line = f(addr, "label", "uncertain"); out.postcode = f(addr.match(/\b3\d{3}\b/)?.[0] ?? null, "pattern", "uncertain"); }
+  }
+  out.external_reference = f(label(/^(?:job|lead|ref|reference|job no\.?|job number|quote no\.?)\s*[:#\-]\s*([A-Z0-9\-_/]+)/im), "label");
+  const area = label(/(?:ceiling area|measured area|area|total m2|total m²|m2|m²)\s*[:\-]?\s*([\d.,]+)\s*(?:m2|m²|sqm)?/i);
+  out.measured_area_m2 = f(num(area ?? undefined), "label", area ? "uncertain" : "missing"); // needs confirmation: which area?
+  const removal = label(/(?:removal|remove existing)\s*[:\-]\s*(yes|no|y|n|true|false)/i);
+  out.removal_required = f(removal == null ? null : /^(y|yes|true)$/i.test(removal), "label");
+  const rm = label(/removal (?:area|m2|m²)\s*[:\-]\s*([\d.,]+)/i);
+  out.removal_m2 = f(num(rm ?? undefined), "label");
+  const ex = label(/existing (?:insulation )?(?:r[- ]?value)?\s*[:\-]\s*R?\s*([\d.]+)/i);
+  out.existing_r_value = f(num(ex ?? undefined), "label");
+  out.product = f(label(/^(?:product|insulation|proposed product)\s*[:\-]\s*(.+)$/im), "label");
+  const rv = label(/(?:proposed |new )?r[- ]?value\s*[:\-]\s*R?\s*([\d.]+)/i);
+  out.r_value = f(num(rv ?? undefined), "label", rv && !/proposed|new/i.test(t) ? "uncertain" : rv ? "found" : "missing");
+  out.access_notes = f(label(/^(?:access|roof access|roof)\s*[:\-]\s*(.+)$/im), "label");
+  out.inspection_status = f(label(/^(?:inspection|measure[- ]?up)(?: status)?\s*[:\-]\s*(.+)$/im), "label");
+  out.electrical_status = f(label(/^(?:electrical|electrical safety|piesa)(?: status)?\s*[:\-]\s*(.+)$/im), "label");
+  out.swms_status = f(label(/^(?:swms)(?: status)?\s*[:\-]\s*(.+)$/im), "label");
+  out.electrician_name = f(label(/^(?:electrician|sparky)\s*[:\-]\s*(.+)$/im), "label");
+  out.notes = f(label(/^(?:notes?|comments?)\s*[:\-]\s*([\s\S]+?)(?:\n\s*\n|$)/im), "label");
+  const lines = [...t.matchAll(/^\s*[-*•]?\s*([A-Za-z][^\n$]{2,80}?)\s*[:\-]?\s*\$\s*([\d,]+(?:\.\d{1,2})?)\s*$/gm)].map((m) => ({ description: m[1].trim(), amount: num(m[2]) }));
+  if (lines.length) out.quote_lines = lines.slice(0, 40);
+  return out;
+}
+
+/** Minimal CSV parser (quoted fields supported). */
+export function parseCsv(text: string): Record<string, string>[] {
+  const rows: string[][] = []; let row: string[] = []; let cell = ""; let q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (c === '"') q = false; else cell += c; }
+    else if (c === '"') q = true; else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  const [head, ...body] = rows.filter((r) => r.some((c) => c.trim()));
+  if (!head) return [];
+  const keys = head.map((h) => h.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, ""));
+  return body.map((r) => Object.fromEntries(keys.map((k, i) => [k, (r[i] ?? "").trim()])));
+}
+
+const CSV_ALIASES: Record<ImportField, string[]> = {
+  full_name: ["customer_name", "name", "client", "owner", "customer", "contact_name"], email: ["email", "customer_email", "email_address"],
+  phone: ["phone", "mobile", "customer_phone", "phone_number"], address_line: ["address", "street", "address_line", "site_address", "property_address"],
+  suburb: ["suburb", "city"], postcode: ["postcode", "post_code", "zip"], external_reference: ["job_id", "lead_id", "reference", "job_number", "ref", "id"],
+  measured_area_m2: ["ceiling_area", "measured_area", "area_m2", "m2", "sqm", "area"], removal_required: ["removal", "removal_required"],
+  removal_m2: ["removal_m2", "removal_area"], existing_r_value: ["existing_r_value", "existing_r"], product: ["product", "insulation_product"],
+  r_value: ["r_value", "proposed_r_value"], access_notes: ["access", "roof_access", "access_notes"], inspection_status: ["inspection_status", "measure_up_status", "status"],
+  electrical_status: ["electrical_status", "piesa_status"], swms_status: ["swms", "swms_status"], electrician_name: ["electrician"], notes: ["notes", "comments"],
+};
+
+/** Map one CSV row to facts. Column-mapped values are 'found'; nothing is inferred. */
+export function extractFromCsvRow(r: Record<string, string>): Extracted {
+  const out: Extracted = {};
+  for (const k of IMPORT_FIELDS) {
+    const col = CSV_ALIASES[k].find((a) => r[a] != null && r[a] !== "");
+    const raw = col ? r[col] : null;
+    let v: string | number | boolean | null = raw;
+    if (raw != null && ["measured_area_m2", "removal_m2", "existing_r_value", "r_value"].includes(k)) v = num(raw.replace(/[^\d.,]/g, ""));
+    if (raw != null && k === "removal_required") v = /^(y|yes|true|1)$/i.test(raw);
+    out[k] = f(v, col ? `csv:${col}` : "csv", v == null ? "missing" : "found");
+  }
+  return out;
+}
+
+/** Merge facts: later sources only fill gaps, never overwrite a found value; conflicts become uncertain. */
+export function mergeExtracted(...parts: Extracted[]): Extracted {
+  const out: Extracted = {};
+  for (const p of parts) for (const k of IMPORT_FIELDS) {
+    const n = p[k]; if (!n || n.value == null) { out[k] ??= n ?? f(null, "none"); continue; }
+    const cur = out[k];
+    if (!cur || cur.value == null) out[k] = n;
+    else if (String(cur.value).toLowerCase() !== String(n.value).toLowerCase()) out[k] = { ...cur, confidence: "uncertain", source: `${cur.source} vs ${n.source}` };
+  }
+  const lines = parts.flatMap((p) => p.quote_lines ?? []);
+  if (lines.length) out.quote_lines = lines;
+  return out;
+}
+
+/** Review screen: what the user must still look at. Uncertain and missing-required fields are flagged; nothing is committed. */
+export function reviewItems(x: Extracted) {
+  return IMPORT_FIELDS.map((k) => {
+    const fact = x[k] ?? { value: null, confidence: "missing" as const, source: "none" };
+    const required = REQUIRED_IMPORT_FIELDS.includes(k);
+    return { key: k, label: FIELD_LABEL[k], value: fact.value, confidence: fact.confidence, source: fact.source, required, flagged: fact.confidence === "uncertain" || (required && fact.value == null) };
+  });
+}
+
+export type ConfirmedFacts = Partial<Record<ImportField, string | number | boolean | null>>;
+/** The explicit confirmation step: the user's confirmed values are the ONLY values committed. */
+export function confirmBlockers(c: ConfirmedFacts): string[] {
+  const b: string[] = [];
+  for (const k of REQUIRED_IMPORT_FIELDS) if (c[k] == null || c[k] === "") b.push(`${FIELD_LABEL[k]} is required`);
+  if (c.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(c.email))) b.push("Owner email looks invalid");
+  const a = c.measured_area_m2; if (a != null && a !== "" && !(Number(a) > 0 && Number(a) < 5000)) b.push("Measured area must be between 0 and 5000 m²");
+  return b;
+}
+
+/** Imported measure-up → installer-supplied ceiling_measurement. Complete facts → needs_review (existing acceptance logic decides). */
+export function planImportedMeasurement(c: ConfirmedFacts, importId: string) {
+  const area = c.measured_area_m2 == null || c.measured_area_m2 === "" ? null : Number(c.measured_area_m2);
+  const removal = c.removal_required == null ? null : !!c.removal_required;
+  const existingR = c.existing_r_value == null || c.existing_r_value === "" ? null : Number(c.existing_r_value);
+  if (area == null && removal == null && existingR == null) return null;
+  return {
+    source_role: "installer" as const, external_source: "installer_import", external_id: importId,
+    measured_area_m2: area, removal_required: removal,
+    removal_m2: c.removal_m2 == null || c.removal_m2 === "" ? (removal === false ? 0 : null) : Number(c.removal_m2),
+    existing_r_value: existingR, insulation_present: existingR == null ? null : existingR > 0,
+    evidence_notes: [c.inspection_status && `Imported status: ${c.inspection_status}`, c.access_notes && `Access: ${c.access_notes}`].filter(Boolean).join(" · ") || null,
+    status: "needs_review" as const,
+  };
+}
+
+// ---------- Relationship owner / attribution ----------
+export function relationshipOwnerFor(channel: "hivic_sourced" | "installer_sourced", partnerDefault?: string | null): "hivic" | "installer" {
+  if (channel === "hivic_sourced") return "hivic"; // offers never change this by default
+  return partnerDefault === "hivic" ? "hivic" : "installer";
+}
+
+// ---------- Electrician matching ----------
+export type ElecCandidate = BusinessLike & {
+  id: string; name: string; weekly_capacity?: number | null; lead_time_days?: number | null;
+  credentials: Credential[]; preferred?: boolean; hasRates?: boolean; activeJobs?: number;
+};
+export type ElectricianChoice = "preferred" | "approved_other" | "nominated" | "hivic_organise";
+
+export function serviceAreaMatch(b: Pick<BusinessLike, "service_postcodes" | "service_regions">, postcode: string | null, suburb?: string | null): boolean {
+  if (!postcode && !suburb) return false;
+  if (postcode && b.service_postcodes?.some((p) => p === postcode || (p.endsWith("*") && postcode.startsWith(p.slice(0, -1))))) return true;
+  return !!suburb && !!b.service_regions?.some((r) => r.toLowerCase() === suburb.toLowerCase());
+}
+
+/** Ranked suggestions — never auto-selects. Ineligible candidates are returned with the reason. */
+export function rankElectricians(cands: ElecCandidate[], site: { postcode: string | null; suburb?: string | null }, now = new Date()) {
+  return cands.filter(isElectricianBiz).map((c) => {
+    const blocker = partnerWorkBlocker(c, c.credentials, now);
+    const inArea = serviceAreaMatch(c, site.postcode, site.suburb);
+    const expiring = c.credentials.some((x) => x.critical && credentialState(x, now) === "expiring");
+    const load = c.weekly_capacity ? (c.activeJobs ?? 0) / c.weekly_capacity : 0.5;
+    const score = (blocker ? -1000 : 0) + (c.preferred ? 40 : 0) + (inArea ? 30 : 0) + (c.hasRates ? 10 : 0) - (expiring ? 5 : 0) - Math.round(load * 20) - Math.min(c.lead_time_days ?? 7, 21);
+    const reasons = [c.preferred && "Preferred by installer", inArea ? "Services this area" : "Outside listed service area", c.hasRates ? "Agreed rates on file" : "No agreed rates", expiring && "Credential expiring within 30 days", c.lead_time_days != null && `Lead time ${c.lead_time_days} days`].filter(Boolean) as string[];
+    return { id: c.id, name: c.name, eligible: !blocker, blocker, inArea, score, reasons };
+  }).sort((a, b) => b.score - a.score);
+}
+
+/** Validate an electrician selection. Unapproved/nominated electricians may never do compliance-critical work. */
+export function electricianSelectionBlocker(choice: ElectricianChoice, cand: ElecCandidate | null, now = new Date()): string | null {
+  if (choice === "hivic_organise" || choice === "nominated") return null; // no assignment made yet
+  if (!cand) return "Choose an electrician.";
+  if (!isElectricianBiz(cand)) return `${cand.name} is not an electrician/REC business.`;
+  if (choice === "preferred" && !cand.preferred) return `${cand.name} is not a preferred electrician for this installer.`;
+  return partnerWorkBlocker(cand, cand.credentials, now);
+}
+
+// ---------- Appointment SLA ----------
+export const SLA_WARN_H = 24, SLA_BREACH_H = 48;
+export type SlaInput = { assigned_at: string; first_response_at?: string | null; booking_confirmed_at?: string | null; cannot_attend_at?: string | null };
+export function appointmentSla(a: SlaInput, now = new Date()) {
+  if (a.booking_confirmed_at) return { state: "booked" as const, hours: 0, canRequestAnother: false, message: "Booking confirmed" };
+  const since = (now.getTime() - Date.parse(a.assigned_at)) / 3_600_000;
+  const responded = !!a.first_response_at;
+  if (a.cannot_attend_at) return { state: "exception" as const, hours: since, canRequestAnother: true, message: "Electrician cannot attend in time – request another electrician" };
+  if (since >= SLA_BREACH_H) return { state: "exception" as const, hours: since, canRequestAnother: true, message: responded ? "No confirmed booking after 48h – SLA exception" : "No response after 48h – SLA exception" };
+  if (since >= SLA_WARN_H && !responded) return { state: "attention" as const, hours: since, canRequestAnother: false, message: "No response after 24h – needs attention" };
+  return { state: "ok" as const, hours: since, canRequestAnother: false, message: responded ? "Coordinating a time" : "Awaiting electrician response" };
+}
+
+export type Proposal = { id: string; status: string; proposer_role: string; starts_at: string };
+/** Responding to a proposal: accepting confirms the booking; any new proposal supersedes open ones. */
+export function proposalResponse(p: Proposal, responderRole: string, action: "accept" | "decline", now = new Date()): string | null {
+  if (p.status !== "proposed") return "This time is no longer open.";
+  if (p.proposer_role === responderRole) return "The other party must respond to your proposed time.";
+  if (action === "accept" && Date.parse(p.starts_at) <= now.getTime()) return "That time has already passed – propose a new one.";
+  return null;
+}
+
+// ---------- Partner offers ----------
+export type OfferStatus = "pending" | "accepted" | "declined" | "expired" | "withdrawn";
+export function offerBlocker(job: { channel: string; stage: string; hasActiveInstaller: boolean; hasPendingOffer: boolean }): string | null {
+  if (job.channel !== "hivic_sourced") return "Only HI VIC-sourced jobs can be offered to a partner.";
+  if (["complete", "cancelled", "ready_for_veec", "ap_review", "evidence_outstanding", "installation_booked"].includes(job.stage)) return "Job is too far through the workflow to offer.";
+  if (job.hasActiveInstaller) return "Job already has an installer.";
+  if (job.hasPendingOffer) return "Job already has a pending offer.";
+  return null;
+}
+/** Only summary facts are shown before acceptance (no owner name/contact/street number). */
+export function offerSummary(j: { job_number: string; stage: string; suburb: string | null; postcode: string | null; estimated_area_m2: number | null; measured_area_m2?: number | null; eligibility_outcome: string | null }) {
+  return { job_number: j.job_number, stage: j.stage, suburb: j.suburb, postcode: j.postcode, area_m2: j.measured_area_m2 ?? j.estimated_area_m2, area_basis: j.measured_area_m2 ? "measured" : j.estimated_area_m2 ? "owner estimate" : "unknown", eligibility: j.eligibility_outcome };
+}
+export function offerRespondBlocker(o: { status: string; expires_at: string | null }, now = new Date()): string | null {
+  if (o.status !== "pending") return `Offer is already ${o.status}.`;
+  if (o.expires_at && Date.parse(o.expires_at) < now.getTime()) return "Offer has expired.";
+  return null;
+}
+
+// ---------- Partner pricing ----------
+export type PartnerLine = { code?: string | null; description: string; category: string; unit: string; quantity: number; supplier_unit_ex_gst: number; justification?: string | null };
+export const EXTRA_CATEGORIES = ["tile_lift", "metal_sheet_access", "removal", "difficult_access", "other"] as const;
+export function partnerLineBlockers(lines: PartnerLine[]): string[] {
+  const b: string[] = [];
+  lines.forEach((l, i) => {
+    if (!(l.quantity > 0)) b.push(`Line ${i + 1}: quantity must be above 0`);
+    if (!(l.supplier_unit_ex_gst >= 0)) b.push(`Line ${i + 1}: price must be 0 or more`);
+    if ((l.category === "other" || l.category === "difficult_access") && !l.justification?.trim()) b.push(`Line ${i + 1}: explain why this extra is needed`);
+  });
+  if (!lines.length) b.push("Add at least one line");
+  return b;
+}
+export const supplierTotal = (lines: PartnerLine[]) => Math.round(lines.reduce((s, l) => s + l.quantity * l.supplier_unit_ex_gst, 0) * 100) / 100;
+/** Every revision after the first needs a reason (actor/time come from the server). */
+export function revisionBlocker(version: number, reason: string | null | undefined) {
+  return version > 1 && !(reason && reason.trim().length >= 5) ? "Give a reason for changing the proposed price (min 5 characters)." : null;
+}
+
+/** Customer-facing co-branded snapshot. Never includes supplier cost or margin. */
+export function cobrandSnapshot(p: { partnerName: string; partnerLogoUrl?: string | null; partnerAbn?: string | null; relationshipOwner: "hivic" | "installer" }) {
+  return {
+    installation_partner: { name: p.partnerName, logo_url: p.partnerLogoUrl ?? null, abn: p.partnerAbn ?? null },
+    accredited_provider: { name: AP_ENTITY, role: "Accredited Provider (VEU Activity 48)" },
+    customer_contact: p.relationshipOwner === "installer" ? p.partnerName : "Home Insulation Victoria",
+  };
+}
+/** Guard: the customer-facing quote payload must never carry cost/margin keys. */
+export function customerSafe<T extends Record<string, unknown>>(o: T): T {
+  const bad = /cost|margin|supplier|ap_fee|internal/i;
+  const walk = (v: unknown): unknown => Array.isArray(v) ? v.map(walk) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).filter(([k]) => !bad.test(k)).map(([k, x]) => [k, walk(x)])) : v;
+  return walk(o) as T;
+}
+
+// ---------- Dashboard buckets ----------
+export const PARTNER_BUCKETS = ["waiting_electrician", "assessment_to_book", "quote_action", "deposit", "installation_to_book", "evidence", "ap_veec", "complete", "other"] as const;
+export type PartnerBucket = (typeof PARTNER_BUCKETS)[number];
+export const BUCKET_LABEL: Record<PartnerBucket, string> = {
+  waiting_electrician: "Waiting for electrician", assessment_to_book: "Assessment to book", quote_action: "Quote / action required", deposit: "Deposit",
+  installation_to_book: "Installation to book", evidence: "Evidence / action required", ap_veec: "AP / VEEC status", complete: "Complete", other: "Other",
+};
+export function bucketFor(stage: string): PartnerBucket {
+  if (["new_enquiry", "eligibility_review", "awaiting_electrician"].includes(stage)) return "waiting_electrician";
+  if (["assessment_booking", "assessment_booked"].includes(stage)) return "assessment_to_book";
+  if (["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(stage)) return "quote_action";
+  if (stage === "awaiting_deposit_payment") return "deposit";
+  if (["rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(stage)) return "installation_to_book";
+  if (stage === "evidence_outstanding") return "evidence";
+  if (["ap_review", "ready_for_veec"].includes(stage)) return "ap_veec";
+  if (stage === "complete") return "complete";
+  return "other";
+}

@@ -213,3 +213,21 @@ export async function applyPaidAmount(invoiceId: string, paid: number, actorId: 
   if (events.includes("deposit_paid")) await logEvent(inv.job_id, actorId, "deposit_paid", `50% deposit confirmed paid in Xero (${inv.deposit_amount} of ${inv.total_inc_gst} inc GST)`, { invoice_id: invoiceId, amount_paid: paid });
   if (events.includes("balance_paid")) await logEvent(inv.job_id, actorId, "balance_paid", "Invoice fully paid in Xero", { invoice_id: invoiceId });
 }
+
+/** Admin-controlled, idempotent supplier contact setup for an approved partner business. */
+export async function syncSupplierContact(businessId: string, callOverride?: XeroCall) {
+  const { data: b } = await admin.from("businesses").select("id, name, legal_name, email, onboarding_status, xero_contact_id").eq("id", businessId).single();
+  if (!b) throw new Error("Business not found");
+  if (b.onboarding_status !== "approved") throw new Error("Only approved partner businesses can be set up as Xero suppliers.");
+  if (b.xero_contact_id) return { contactId: b.xero_contact_id, created: false };
+  try {
+    const call = callOverride ?? (await tenantCall());
+    const r = await findOrCreateContact(call, { id: `supplier-${b.id}`, full_name: b.legal_name || b.name, email: b.email });
+    await admin.from("businesses").update({ xero_contact_id: r.contactId, xero_contact_status: "synced", xero_contact_error: null, xero_contact_synced_at: new Date().toISOString() }).eq("id", b.id);
+    return r;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await admin.from("businesses").update({ xero_contact_status: "error", xero_contact_error: msg.slice(0, 500) }).eq("id", b.id);
+    throw e;
+  }
+}

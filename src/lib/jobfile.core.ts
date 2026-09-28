@@ -106,7 +106,7 @@ export function buildDocumentIndex(src: JobSources): DocItem[] {
   for (const a of src.assignments) {
     const signed = !!a["consumer_signed_at"];
     if (signed && !(a["consumer_copy_path"] && seenPaths.has(String(a["consumer_copy_path"]))))
-      addFile(base({ id: `customer_assignments:${a["id"]}:consumer`, title: "Customer Acceptance & VEEC Assignment (signed)", category: "ESC / VEEC", alsoIn: ["Customer / Consent", "Quotes"], docType: "veec_assignment",
+      addFile(base({ id: `customer_assignments:${a["id"]}:consumer`, title: "Final Activity 48 VEEC Assignment (signed)", category: "ESC / VEEC", alsoIn: ["Customer / Consent", "Quotes"], docType: "veec_assignment",
         sourceSystem: "portal e-sign", at: s(a["consumer_signed_at"]), actor: s(a["consumer_signed_by"]), version: s(a["consumer_declaration_version"]), status: "signed", immutable: true,
         storagePath: s(a["consumer_copy_path"]), fileName: s(a["consumer_copy_path"])?.split("/").pop() ?? null, sha256: s(a["consumer_snapshot_sha256"]), relatedEntity: "customer_assignments", relatedId: String(a["id"]), audience: ["owner"] }));
     if (a["installer_signed_at"]) out.push(base({ id: `customer_assignments:${a["id"]}:installer`, title: `Installer declaration ${a["installer_declaration_version"] ?? ""}`.trim(), category: "Installation", alsoIn: ["ESC / VEEC"],

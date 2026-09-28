@@ -36,7 +36,8 @@ function seed(over: Partial<Record<string, Row[]>> = {}) {
     ceiling_measurements: [{ job_id: J, is_current: true, status: "complete", measured_area_m2: 120 }],
     quotes: [{ job_id: J, kind: "installation", status: "accepted" }],
     invoices: [{ id: "inv", job_id: J, kind: "installation", deposit_paid_at: "2026-09-21" }],
-    customer_assignments: [{ id: "ca", job_id: J, status: "consumer_signed_pending_install" }],
+    customer_agreements: [{ id: "ag", job_id: J, status: "signed" }],
+    customer_assignments: [],
     payment_overrides: [], rectification_items: [], job_assignments: [], evidence_requirements: [], compliance_checks: [], veec_lodgements: [], workflow_events: [],
     ...over,
   };
@@ -75,7 +76,7 @@ describe("existing guards unchanged", () => {
   test("13 assessment no longer needs Owner Authority; signing + deposit gates hold", async () => {
     seed({ owner_authorities: [] });
     expect(await stageEntryBlockers(J, "assessment_booked")).toEqual([]);
-    seed({ customer_assignments: [] });
+    seed({ customer_agreements: [] });
     expect(await stageEntryBlockers(J, "installation_scheduling")).toContain(CONSUMER_SIGN_BLOCKER);
     seed();
     expect(await stageEntryBlockers(J, "ready_for_veec")).toContain(ASSIGNMENT_VEEC_BLOCKER);
@@ -83,5 +84,20 @@ describe("existing guards unchanged", () => {
     expect((await stageEntryBlockers(J, "rectification_scheduling")).some((b) => b.startsWith("50% deposit not paid"))).toBe(true);
     seed();
     expect(await stageEntryBlockers(J, "installation_scheduling")).toEqual([]);
+  });
+});
+
+describe("Activity 48 sequence gates", () => {
+  test("signed agreement alone never satisfies ready_for_veec; legacy quote-time record never counts", async () => {
+    seed();
+    expect(await stageEntryBlockers(J, "ready_for_veec")).toContain(ASSIGNMENT_VEEC_BLOCKER);
+    seed({ customer_assignments: [{ id: "x", job_id: J, status: "effective_complete", record_kind: "legacy_quote_time" }] });
+    expect(await stageEntryBlockers(J, "ready_for_veec")).toContain(ASSIGNMENT_VEEC_BLOCKER);
+    seed({ customer_assignments: [{ id: "y", job_id: J, status: "effective_complete", record_kind: "final_veec_assignment" }] });
+    expect(await stageEntryBlockers(J, "ready_for_veec")).not.toContain(ASSIGNMENT_VEEC_BLOCKER);
+  });
+  test("agreement unlocks deposit stage (invoice path) without any VEEC assignment", async () => {
+    seed();
+    expect(await stageEntryBlockers(J, "awaiting_deposit_payment")).toEqual([]);
   });
 });

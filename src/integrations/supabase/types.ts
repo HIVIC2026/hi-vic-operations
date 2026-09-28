@@ -14,6 +14,100 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointment_proposals: {
+        Row: {
+          assignment_id: string | null
+          created_at: string
+          ends_at: string | null
+          id: string
+          job_id: string
+          kind: Database["public"]["Enums"]["booking_kind"]
+          note: string | null
+          proposed_by: string
+          proposer_role: string
+          responded_at: string | null
+          responded_by: string | null
+          response_note: string | null
+          starts_at: string
+          status: string
+        }
+        Insert: {
+          assignment_id?: string | null
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          job_id: string
+          kind?: Database["public"]["Enums"]["booking_kind"]
+          note?: string | null
+          proposed_by: string
+          proposer_role: string
+          responded_at?: string | null
+          responded_by?: string | null
+          response_note?: string | null
+          starts_at: string
+          status?: string
+        }
+        Update: {
+          assignment_id?: string | null
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          job_id?: string
+          kind?: Database["public"]["Enums"]["booking_kind"]
+          note?: string | null
+          proposed_by?: string
+          proposer_role?: string
+          responded_at?: string | null
+          responded_by?: string | null
+          response_note?: string | null
+          starts_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_proposals_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "job_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_proposals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_proposals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "appointment_proposals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_proposals_proposed_by_fkey"
+            columns: ["proposed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_proposals_responded_by_fkey"
+            columns: ["responded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assessments: {
         Row: {
           access_difficulty:
@@ -350,41 +444,304 @@ export type Database = {
           },
         ]
       }
+      business_bank_details: {
+        Row: {
+          account_name: string
+          account_number: string
+          bsb: string
+          business_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          account_name: string
+          account_number: string
+          bsb: string
+          business_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          bsb?: string
+          business_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_bank_details_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_bank_details_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_credentials: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          critical: boolean
+          document_path: string | null
+          expires_at: string | null
+          id: string
+          issuer: string | null
+          kind: string
+          label: string
+          number: string | null
+          profile_id: string | null
+          verification: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          critical?: boolean
+          document_path?: string | null
+          expires_at?: string | null
+          id?: string
+          issuer?: string | null
+          kind: string
+          label: string
+          number?: string | null
+          profile_id?: string | null
+          verification?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          critical?: boolean
+          document_path?: string | null
+          expires_at?: string | null
+          id?: string
+          issuer?: string | null
+          kind?: string
+          label?: string
+          number?: string | null
+          profile_id?: string | null
+          verification?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_credentials_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_credentials_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_credentials_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_credentials_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_members: {
+        Row: {
+          active: boolean
+          added_by: string | null
+          business_id: string
+          created_at: string
+          id: string
+          member_role: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          added_by?: string | null
+          business_id: string
+          created_at?: string
+          id?: string
+          member_role?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          added_by?: string | null
+          business_id?: string
+          created_at?: string
+          id?: string
+          member_role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_members_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_members_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       businesses: {
         Row: {
           abn: string | null
+          acn: string | null
+          address: string | null
+          approved_at: string | null
+          approved_by: string | null
+          availability_notes: string | null
+          branding: Json
           business_type: Database["public"]["Enums"]["business_type"]
+          capabilities: string[]
+          commercial_route: string
+          contact_people: Json
           created_at: string
+          default_comms_owner: string
           email: string | null
+          gst_registered: boolean | null
           id: string
+          installer_certification: Json
           is_active: boolean
+          lead_time_days: number | null
+          legal_name: string | null
           licence_number: string | null
           name: string
+          onboarding_notes: string | null
+          onboarding_status: string
           phone: string | null
+          rec_number: string | null
+          service_postcodes: string[]
+          service_regions: string[]
+          trading_name: string | null
+          updated_at: string
+          weekly_capacity: number | null
+          xero_contact_error: string | null
+          xero_contact_id: string | null
+          xero_contact_status: string
+          xero_contact_synced_at: string | null
         }
         Insert: {
           abn?: string | null
+          acn?: string | null
+          address?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          availability_notes?: string | null
+          branding?: Json
           business_type: Database["public"]["Enums"]["business_type"]
+          capabilities?: string[]
+          commercial_route?: string
+          contact_people?: Json
           created_at?: string
+          default_comms_owner?: string
           email?: string | null
+          gst_registered?: boolean | null
           id?: string
+          installer_certification?: Json
           is_active?: boolean
+          lead_time_days?: number | null
+          legal_name?: string | null
           licence_number?: string | null
           name: string
+          onboarding_notes?: string | null
+          onboarding_status?: string
           phone?: string | null
+          rec_number?: string | null
+          service_postcodes?: string[]
+          service_regions?: string[]
+          trading_name?: string | null
+          updated_at?: string
+          weekly_capacity?: number | null
+          xero_contact_error?: string | null
+          xero_contact_id?: string | null
+          xero_contact_status?: string
+          xero_contact_synced_at?: string | null
         }
         Update: {
           abn?: string | null
+          acn?: string | null
+          address?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          availability_notes?: string | null
+          branding?: Json
           business_type?: Database["public"]["Enums"]["business_type"]
+          capabilities?: string[]
+          commercial_route?: string
+          contact_people?: Json
           created_at?: string
+          default_comms_owner?: string
           email?: string | null
+          gst_registered?: boolean | null
           id?: string
+          installer_certification?: Json
           is_active?: boolean
+          lead_time_days?: number | null
+          legal_name?: string | null
           licence_number?: string | null
           name?: string
+          onboarding_notes?: string | null
+          onboarding_status?: string
           phone?: string | null
+          rec_number?: string | null
+          service_postcodes?: string[]
+          service_regions?: string[]
+          trading_name?: string | null
+          updated_at?: string
+          weekly_capacity?: number | null
+          xero_contact_error?: string | null
+          xero_contact_id?: string | null
+          xero_contact_status?: string
+          xero_contact_synced_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "businesses_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ceiling_measurements: {
         Row: {
@@ -1232,6 +1589,103 @@ export type Database = {
           },
         ]
       }
+      electrician_nominations: {
+        Row: {
+          business_id: string | null
+          business_name: string | null
+          contact_name: string
+          created_at: string
+          email: string | null
+          id: string
+          job_id: string | null
+          licence_number: string | null
+          nominated_by: string | null
+          nominated_for: string
+          nominating_business_id: string | null
+          phone: string | null
+          rec_number: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          business_id?: string | null
+          business_name?: string | null
+          contact_name: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          job_id?: string | null
+          licence_number?: string | null
+          nominated_by?: string | null
+          nominated_for?: string
+          nominating_business_id?: string | null
+          phone?: string | null
+          rec_number?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string | null
+          business_name?: string | null
+          contact_name?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          job_id?: string | null
+          licence_number?: string | null
+          nominated_by?: string | null
+          nominated_for?: string
+          nominating_business_id?: string | null
+          phone?: string | null
+          rec_number?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "electrician_nominations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrician_nominations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrician_nominations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "electrician_nominations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrician_nominations_nominated_by_fkey"
+            columns: ["nominated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrician_nominations_nominating_business_id_fkey"
+            columns: ["nominating_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       esc_notification_config: {
         Row: {
           approved: boolean
@@ -1899,9 +2353,12 @@ export type Database = {
           active: boolean
           assigned_at: string
           assigned_by: string | null
+          booking_confirmed_at: string | null
           business_id: string | null
+          cannot_attend_at: string | null
           end_reason: string | null
           ended_at: string | null
+          first_response_at: string | null
           id: string
           job_id: string
           role: Database["public"]["Enums"]["assignment_role"]
@@ -1911,9 +2368,12 @@ export type Database = {
           active?: boolean
           assigned_at?: string
           assigned_by?: string | null
+          booking_confirmed_at?: string | null
           business_id?: string | null
+          cannot_attend_at?: string | null
           end_reason?: string | null
           ended_at?: string | null
+          first_response_at?: string | null
           id?: string
           job_id: string
           role: Database["public"]["Enums"]["assignment_role"]
@@ -1923,9 +2383,12 @@ export type Database = {
           active?: boolean
           assigned_at?: string
           assigned_by?: string | null
+          booking_confirmed_at?: string | null
           business_id?: string | null
+          cannot_attend_at?: string | null
           end_reason?: string | null
           ended_at?: string | null
+          first_response_at?: string | null
           id?: string
           job_id?: string
           role?: Database["public"]["Enums"]["assignment_role"]
@@ -2073,6 +2536,112 @@ export type Database = {
           },
         ]
       }
+      job_imports: {
+        Row: {
+          business_id: string
+          confirmed_at: string | null
+          confirmed_by: string | null
+          confirmed_facts: Json | null
+          created_at: string
+          created_by: string
+          external_refs: Json
+          extracted: Json
+          extractor_version: string
+          files: Json
+          id: string
+          job_id: string | null
+          method: string
+          raw_text: string | null
+          source_system: string
+          source_url: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          confirmed_facts?: Json | null
+          created_at?: string
+          created_by: string
+          external_refs?: Json
+          extracted?: Json
+          extractor_version?: string
+          files?: Json
+          id?: string
+          job_id?: string | null
+          method: string
+          raw_text?: string | null
+          source_system?: string
+          source_url?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          confirmed_facts?: Json | null
+          created_at?: string
+          created_by?: string
+          external_refs?: Json
+          extracted?: Json
+          extractor_version?: string
+          files?: Json
+          id?: string
+          job_id?: string | null
+          method?: string
+          raw_text?: string | null
+          source_system?: string
+          source_url?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_imports_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_imports_confirmed_by_fkey"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_imports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_imports_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_imports_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_imports_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           business_unit: string
@@ -2082,6 +2651,8 @@ export type Database = {
           commercial_model_set_at: string | null
           commercial_model_set_by: string | null
           created_at: string
+          customer_relationship_owner: string
+          electrician_choice: string | null
           eligibility_decision_rules: Json
           eligibility_decision_source: string | null
           eligibility_outcome:
@@ -2093,6 +2664,7 @@ export type Database = {
           estimated_area_m2: number | null
           estimated_area_unknown: boolean
           external_enquiry_id: string | null
+          external_refs: Json
           hold_reason: string | null
           id: string
           installation_completed_at: string | null
@@ -2108,6 +2680,7 @@ export type Database = {
           prior_stage: Database["public"]["Enums"]["job_stage"] | null
           property_id: string
           source: string
+          source_system: string | null
           stage: Database["public"]["Enums"]["job_stage"]
           updated_at: string
         }
@@ -2119,6 +2692,8 @@ export type Database = {
           commercial_model_set_at?: string | null
           commercial_model_set_by?: string | null
           created_at?: string
+          customer_relationship_owner?: string
+          electrician_choice?: string | null
           eligibility_decision_rules?: Json
           eligibility_decision_source?: string | null
           eligibility_outcome?:
@@ -2130,6 +2705,7 @@ export type Database = {
           estimated_area_m2?: number | null
           estimated_area_unknown?: boolean
           external_enquiry_id?: string | null
+          external_refs?: Json
           hold_reason?: string | null
           id?: string
           installation_completed_at?: string | null
@@ -2145,6 +2721,7 @@ export type Database = {
           prior_stage?: Database["public"]["Enums"]["job_stage"] | null
           property_id: string
           source?: string
+          source_system?: string | null
           stage?: Database["public"]["Enums"]["job_stage"]
           updated_at?: string
         }
@@ -2156,6 +2733,8 @@ export type Database = {
           commercial_model_set_at?: string | null
           commercial_model_set_by?: string | null
           created_at?: string
+          customer_relationship_owner?: string
+          electrician_choice?: string | null
           eligibility_decision_rules?: Json
           eligibility_decision_source?: string | null
           eligibility_outcome?:
@@ -2167,6 +2746,7 @@ export type Database = {
           estimated_area_m2?: number | null
           estimated_area_unknown?: boolean
           external_enquiry_id?: string | null
+          external_refs?: Json
           hold_reason?: string | null
           id?: string
           installation_completed_at?: string | null
@@ -2182,6 +2762,7 @@ export type Database = {
           prior_stage?: Database["public"]["Enums"]["job_stage"] | null
           property_id?: string
           source?: string
+          source_system?: string | null
           stage?: Database["public"]["Enums"]["job_stage"]
           updated_at?: string
         }
@@ -2698,6 +3279,66 @@ export type Database = {
           },
         ]
       }
+      partner_agreements: {
+        Row: {
+          body: string
+          business_id: string
+          created_at: string
+          id: string
+          ip: string | null
+          signed_at: string
+          signer_id: string | null
+          signer_name: string
+          snapshot: Json
+          snapshot_sha256: string
+          user_agent: string | null
+          version: string
+        }
+        Insert: {
+          body: string
+          business_id: string
+          created_at?: string
+          id?: string
+          ip?: string | null
+          signed_at?: string
+          signer_id?: string | null
+          signer_name: string
+          snapshot: Json
+          snapshot_sha256: string
+          user_agent?: string | null
+          version: string
+        }
+        Update: {
+          body?: string
+          business_id?: string
+          created_at?: string
+          id?: string
+          ip?: string | null
+          signed_at?: string
+          signer_id?: string | null
+          signer_name?: string
+          snapshot?: Json
+          snapshot_sha256?: string
+          user_agent?: string | null
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_agreements_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_agreements_signer_id_fkey"
+            columns: ["signer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       partner_enquiries: {
         Row: {
           approved_at: string | null
@@ -2816,6 +3457,237 @@ export type Database = {
             columns: ["status_changed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_offers: {
+        Row: {
+          business_id: string
+          decline_reason: string | null
+          expires_at: string | null
+          id: string
+          job_id: string
+          offered_at: string
+          offered_by: string | null
+          responded_at: string | null
+          responded_by: string | null
+          status: string
+          summary: Json
+        }
+        Insert: {
+          business_id: string
+          decline_reason?: string | null
+          expires_at?: string | null
+          id?: string
+          job_id: string
+          offered_at?: string
+          offered_by?: string | null
+          responded_at?: string | null
+          responded_by?: string | null
+          status?: string
+          summary?: Json
+        }
+        Update: {
+          business_id?: string
+          decline_reason?: string | null
+          expires_at?: string | null
+          id?: string
+          job_id?: string
+          offered_at?: string
+          offered_by?: string | null
+          responded_at?: string | null
+          responded_by?: string | null
+          status?: string
+          summary?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_offers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_offers_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_offers_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "partner_offers_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_offers_offered_by_fkey"
+            columns: ["offered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_offers_responded_by_fkey"
+            columns: ["responded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_quote_proposals: {
+        Row: {
+          business_id: string
+          change_reason: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          job_id: string
+          lines: Json
+          notes: string | null
+          rate_card_id: string | null
+          snapshot_sha256: string
+          status: string
+          supplier_total_ex_gst: number
+          version: number
+        }
+        Insert: {
+          business_id: string
+          change_reason?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          job_id: string
+          lines?: Json
+          notes?: string | null
+          rate_card_id?: string | null
+          snapshot_sha256: string
+          status?: string
+          supplier_total_ex_gst?: number
+          version?: number
+        }
+        Update: {
+          business_id?: string
+          change_reason?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          job_id?: string
+          lines?: Json
+          notes?: string | null
+          rate_card_id?: string | null
+          snapshot_sha256?: string
+          status?: string
+          supplier_total_ex_gst?: number
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_quote_proposals_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_quote_proposals_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_quote_proposals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_quote_proposals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "partner_quote_proposals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_quote_proposals_rate_card_id_fkey"
+            columns: ["rate_card_id"]
+            isOneToOne: false
+            referencedRelation: "rate_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_relationships: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          electrician_business_id: string
+          id: string
+          installer_business_id: string
+          notes: string | null
+          preferred: boolean
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          electrician_business_id: string
+          id?: string
+          installer_business_id: string
+          notes?: string | null
+          preferred?: boolean
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          electrician_business_id?: string
+          id?: string
+          installer_business_id?: string
+          notes?: string | null
+          preferred?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_relationships_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_relationships_electrician_business_id_fkey"
+            columns: ["electrician_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_relationships_installer_business_id_fkey"
+            columns: ["installer_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -3878,6 +4750,7 @@ export type Database = {
         Row: {
           accepted_at: string | null
           accepted_by: string | null
+          cobrand: Json | null
           created_at: string
           created_by: string | null
           customer_total_inc_gst: number
@@ -3888,6 +4761,7 @@ export type Database = {
           manually_adjusted: boolean
           option_code: string | null
           option_label: string
+          partner_business_id: string | null
           prices_include_gst: boolean
           pricing_settings_id: string | null
           rate_card_id: string | null
@@ -3899,6 +4773,7 @@ export type Database = {
         Insert: {
           accepted_at?: string | null
           accepted_by?: string | null
+          cobrand?: Json | null
           created_at?: string
           created_by?: string | null
           customer_total_inc_gst: number
@@ -3909,6 +4784,7 @@ export type Database = {
           manually_adjusted?: boolean
           option_code?: string | null
           option_label: string
+          partner_business_id?: string | null
           prices_include_gst?: boolean
           pricing_settings_id?: string | null
           rate_card_id?: string | null
@@ -3920,6 +4796,7 @@ export type Database = {
         Update: {
           accepted_at?: string | null
           accepted_by?: string | null
+          cobrand?: Json | null
           created_at?: string
           created_by?: string | null
           customer_total_inc_gst?: number
@@ -3930,6 +4807,7 @@ export type Database = {
           manually_adjusted?: boolean
           option_code?: string | null
           option_label?: string
+          partner_business_id?: string | null
           prices_include_gst?: boolean
           pricing_settings_id?: string | null
           rate_card_id?: string | null
@@ -3972,6 +4850,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_partner_business_id_fkey"
+            columns: ["partner_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
           {
@@ -4723,6 +5608,10 @@ export type Database = {
       }
       invoice_deposit_cleared: { Args: { _inv: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
+      is_business_member: {
+        Args: { _admin_only?: boolean; _biz: string }
+        Returns: boolean
+      }
       is_job_owner: { Args: { _job: string; _user: string }; Returns: boolean }
       job_assignment_role: {
         Args: { _job: string; _user: string }
