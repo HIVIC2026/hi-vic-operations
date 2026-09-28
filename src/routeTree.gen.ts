@@ -14,12 +14,14 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authenticated/admin.partners'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedFieldIndexRouteImport } from './routes/_authenticated/field.index'
 import { Route as AuthenticatedFieldJobIdRouteImport } from './routes/_authenticated/field.$jobId'
 import { Route as AuthenticatedOwnerIndexRouteImport } from './routes/_authenticated/owner.index'
 import { Route as AuthenticatedOwnerJobIdRouteImport } from './routes/_authenticated/owner.$jobId'
 import { Route as ApiPublicEnquiryRouteImport } from './routes/api/public/enquiry'
+import { Route as ApiPublicPartnerEnquiryRouteImport } from './routes/api/public/partner-enquiry'
 import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authenticated/admin.jobs.$jobId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -46,6 +48,12 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminPartnersRoute =
+  AuthenticatedAdminPartnersRouteImport.update({
+    id: '/admin/partners',
+    path: '/admin/partners',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
@@ -76,6 +84,11 @@ const ApiPublicEnquiryRoute = ApiPublicEnquiryRouteImport.update({
   path: '/api/public/enquiry',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicPartnerEnquiryRoute = ApiPublicPartnerEnquiryRouteImport.update({
+  id: '/api/public/partner-enquiry',
+  path: '/api/public/partner-enquiry',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminJobsJobIdRoute =
   AuthenticatedAdminJobsJobIdRouteImport.update({
     id: '/admin/jobs/$jobId',
@@ -87,10 +100,12 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
+  '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/field/': typeof AuthenticatedFieldIndexRoute
   '/owner/': typeof AuthenticatedOwnerIndexRoute
@@ -100,10 +115,12 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
+  '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/field': typeof AuthenticatedFieldIndexRoute
   '/owner': typeof AuthenticatedOwnerIndexRoute
@@ -115,10 +132,12 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/_authenticated/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
+  '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/field/': typeof AuthenticatedFieldIndexRoute
   '/_authenticated/owner/': typeof AuthenticatedOwnerIndexRoute
@@ -130,10 +149,12 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/home'
+    | '/admin/partners'
     | '/admin/users'
     | '/field/$jobId'
     | '/owner/$jobId'
     | '/api/public/enquiry'
+    | '/api/public/partner-enquiry'
     | '/admin/'
     | '/field/'
     | '/owner/'
@@ -143,10 +164,12 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/home'
+    | '/admin/partners'
     | '/admin/users'
     | '/field/$jobId'
     | '/owner/$jobId'
     | '/api/public/enquiry'
+    | '/api/public/partner-enquiry'
     | '/admin'
     | '/field'
     | '/owner'
@@ -157,10 +180,12 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/home'
+    | '/_authenticated/admin/partners'
     | '/_authenticated/admin/users'
     | '/_authenticated/field/$jobId'
     | '/_authenticated/owner/$jobId'
     | '/api/public/enquiry'
+    | '/api/public/partner-enquiry'
     | '/_authenticated/admin/'
     | '/_authenticated/field/'
     | '/_authenticated/owner/'
@@ -172,6 +197,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
+  ApiPublicPartnerEnquiryRoute: typeof ApiPublicPartnerEnquiryRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -209,6 +235,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/partners': {
+      id: '/_authenticated/admin/partners'
+      path: '/admin/partners'
+      fullPath: '/admin/partners'
+      preLoaderRoute: typeof AuthenticatedAdminPartnersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/users': {
@@ -253,6 +286,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicEnquiryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/partner-enquiry': {
+      id: '/api/public/partner-enquiry'
+      path: '/api/public/partner-enquiry'
+      fullPath: '/api/public/partner-enquiry'
+      preLoaderRoute: typeof ApiPublicPartnerEnquiryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/jobs/$jobId': {
       id: '/_authenticated/admin/jobs/$jobId'
       path: '/admin/jobs/$jobId'
@@ -265,6 +305,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
+  AuthenticatedAdminPartnersRoute: typeof AuthenticatedAdminPartnersRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedFieldJobIdRoute: typeof AuthenticatedFieldJobIdRoute
   AuthenticatedOwnerJobIdRoute: typeof AuthenticatedOwnerJobIdRoute
@@ -276,6 +317,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
+  AuthenticatedAdminPartnersRoute: AuthenticatedAdminPartnersRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedFieldJobIdRoute: AuthenticatedFieldJobIdRoute,
   AuthenticatedOwnerJobIdRoute: AuthenticatedOwnerJobIdRoute,
@@ -293,6 +335,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
+  ApiPublicPartnerEnquiryRoute: ApiPublicPartnerEnquiryRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

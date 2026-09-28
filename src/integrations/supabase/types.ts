@@ -1512,6 +1512,128 @@ export type Database = {
           },
         ]
       }
+      partner_enquiries: {
+        Row: {
+          approved_at: string | null
+          booking_lead_time: string | null
+          cii_certification_details: string | null
+          cii_certification_status: string | null
+          company: string | null
+          contacted_at: string | null
+          created_at: string
+          declined_at: string | null
+          email: string | null
+          enquiry_type: string
+          estimated_piesa_fee_inc_gst: number | null
+          estimated_r5_install_rate_per_sqm_inc_gst: number | null
+          estimated_return_visit_fee_inc_gst: number | null
+          esv_licensed_electricians_confirmed: boolean | null
+          external_id: string | null
+          id: string
+          internal_notes: string | null
+          name: string | null
+          notes: string | null
+          phone: string | null
+          property_count: number | null
+          raw_payload: Json | null
+          rec_registration_number: string | null
+          service_areas: string[] | null
+          services: string[] | null
+          source: string | null
+          source_created_at: string | null
+          source_status: string | null
+          source_system: string
+          source_updated_at: string | null
+          status: string
+          status_changed_by: string | null
+          submission_id: string
+          updated_at: string
+          weekly_capacity: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          booking_lead_time?: string | null
+          cii_certification_details?: string | null
+          cii_certification_status?: string | null
+          company?: string | null
+          contacted_at?: string | null
+          created_at?: string
+          declined_at?: string | null
+          email?: string | null
+          enquiry_type: string
+          estimated_piesa_fee_inc_gst?: number | null
+          estimated_r5_install_rate_per_sqm_inc_gst?: number | null
+          estimated_return_visit_fee_inc_gst?: number | null
+          esv_licensed_electricians_confirmed?: boolean | null
+          external_id?: string | null
+          id?: string
+          internal_notes?: string | null
+          name?: string | null
+          notes?: string | null
+          phone?: string | null
+          property_count?: number | null
+          raw_payload?: Json | null
+          rec_registration_number?: string | null
+          service_areas?: string[] | null
+          services?: string[] | null
+          source?: string | null
+          source_created_at?: string | null
+          source_status?: string | null
+          source_system?: string
+          source_updated_at?: string | null
+          status?: string
+          status_changed_by?: string | null
+          submission_id: string
+          updated_at?: string
+          weekly_capacity?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          booking_lead_time?: string | null
+          cii_certification_details?: string | null
+          cii_certification_status?: string | null
+          company?: string | null
+          contacted_at?: string | null
+          created_at?: string
+          declined_at?: string | null
+          email?: string | null
+          enquiry_type?: string
+          estimated_piesa_fee_inc_gst?: number | null
+          estimated_r5_install_rate_per_sqm_inc_gst?: number | null
+          estimated_return_visit_fee_inc_gst?: number | null
+          esv_licensed_electricians_confirmed?: boolean | null
+          external_id?: string | null
+          id?: string
+          internal_notes?: string | null
+          name?: string | null
+          notes?: string | null
+          phone?: string | null
+          property_count?: number | null
+          raw_payload?: Json | null
+          rec_registration_number?: string | null
+          service_areas?: string[] | null
+          services?: string[] | null
+          source?: string | null
+          source_created_at?: string | null
+          source_status?: string | null
+          source_system?: string
+          source_updated_at?: string | null
+          status?: string
+          status_changed_by?: string | null
+          submission_id?: string
+          updated_at?: string
+          weekly_capacity?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_enquiries_status_changed_by_fkey"
+            columns: ["status_changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_overrides: {
         Row: {
           after_state: Json | null
