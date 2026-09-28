@@ -133,7 +133,7 @@ export async function runProviders(cfg: ProviderConfig, ctx: ProviderContext, ht
 export const defaultProviderHttp: ProviderHttp = async (url, { method = "GET", headers, body, timeoutMs }) => {
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), timeoutMs);
   try {
-    const r = await fetch(url, { method, headers, body, signal: ctl.signal });
+    const r = await fetch(url, { method, headers, body: body ?? null, signal: ctl.signal });
     const text = await r.text(); let json: unknown = null; try { json = JSON.parse(text); } catch { json = null; }
     return { status: r.status, json };
   } finally { clearTimeout(t); }

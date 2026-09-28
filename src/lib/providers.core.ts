@@ -74,7 +74,7 @@ export const SOLAR_URL = "https://solar.googleapis.com/v1/buildingInsights:findC
 /** Solar: groundAreaMeters2 = building footprint (tier E), never roof areaMeters2. Imagery date is supporting age only. */
 export function parseSolar(s: SolarInsights, point: [number, number] | null, singleStoreyEvidence: boolean): { facts: Fact[]; area: ProviderArea | null; match: ReturnType<typeof solarMatches> } {
   const match = solarMatches(s, point);
-  const src = { sourceType: "provider" as const, sourceName: "Google Solar buildingInsights", sourceUrl: SOLAR_URL, sourceRecordId: s.name ?? null, sourceDate: isoDate(s.imageryDate) ?? undefined };
+  const src = { sourceType: "provider" as const, sourceName: "Google Solar buildingInsights", sourceUrl: SOLAR_URL, sourceRecordId: s.name ?? null, sourceDate: isoDate(s.imageryDate) };
   if (!match.ok) return { facts: [{ key: "solar_building_match", value: false, status: "review", ...src, confidence: "unknown", evidence: "none", note: `Solar result rejected: ${match.reason}` }], area: null, match };
   const conf = qualityConf(s.imageryQuality);
   const sp = s.solarPotential ?? {};
@@ -112,7 +112,7 @@ export function resolvePricefinder(s: PfSuggest, prefix: string, postcode: strin
 }
 
 export function parsePricefinderExtended(e: PfExtended, id: string): { facts: Fact[]; area: ProviderArea | null; singleStorey: boolean } {
-  const src = { sourceType: "provider" as const, sourceName: "Pricefinder extended property", sourceUrl: `${PRICEFINDER_BASE}/properties/${id}/extended`, sourceRecordId: id, sourceDate: e.lastUpdated };
+  const src = { sourceType: "provider" as const, sourceName: "Pricefinder extended property", sourceUrl: `${PRICEFINDER_BASE}/properties/${id}/extended`, sourceRecordId: id, sourceDate: e.lastUpdated ?? null };
   const f = e.features ?? {};
   const facts: Fact[] = [];
   if (f.yearBuilt) facts.push({ key: "age_supporting_pricefinder", value: { date: `${f.yearBuilt}-12-31`, kind: "listing_year_built" }, status: "info", ...src, confidence: "low", evidence: "inferred", note: "Pricefinder year built is supporting only – cannot pass age by itself" });
@@ -138,7 +138,7 @@ export function planFloorplans(imgs: PfImage[], propertyId: string, t = PROVIDER
   const best = conflict ? null : sorted[0];
   const rows = valid.map((i) => ({
     provider: "pricefinder", provider_property_id: propertyId, provider_image_id: String(i.id), provider_url: i.url ?? null, captured_date: i.date?.slice(0, 10) ?? null,
-    is_candidate: best === i, needs_review: true,
+    is_candidate: best === i, // candidate only when unambiguous needs_review: true,
     review_reason: conflict ? "Multiple floor plans with materially different configurations – admin must choose" : "Sourced floor plan – dimensions not extracted; admin review required",
     metadata: { declared_floor_area_m2: i.floorArea ?? null },
   }));
