@@ -106,6 +106,13 @@
       "when": 1790597208900,
       "tag": "0014_customer_acceptance_veec_assignment",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790599156210,
+      "tag": "0015_gate1_auto_decision",
+      "breakpoints": true
     }
   ]
 }
