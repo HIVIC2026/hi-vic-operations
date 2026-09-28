@@ -71,6 +71,13 @@
       "when": 1790578524348,
       "tag": "0009_job_business_unit_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790587197092,
+      "tag": "0010_mitti_assessment_bridge",
+      "breakpoints": true
     }
   ]
 }

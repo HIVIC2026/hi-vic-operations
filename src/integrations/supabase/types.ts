@@ -36,8 +36,18 @@ export type Database = {
           job_id: string
           life_support_confirmed: boolean | null
           measured_area_m2: number | null
+          mitti_assignee_email: string | null
+          mitti_assignee_user_id: string | null
+          mitti_completed: boolean
+          mitti_created_at: string | null
+          mitti_last_error: string | null
+          mitti_modified_at: string | null
+          mitti_prefill_count: number | null
+          mitti_raw_snapshot: Json | null
           mitti_sync_status: Database["public"]["Enums"]["sync_status"]
           mitti_synced_at: string | null
+          mitti_template_id: string | null
+          mitti_validation_issues: Json
           notes: string | null
           piesa_outcome: Database["public"]["Enums"]["pass_fail"]
           rcds_present: boolean | null
@@ -69,8 +79,18 @@ export type Database = {
           job_id: string
           life_support_confirmed?: boolean | null
           measured_area_m2?: number | null
+          mitti_assignee_email?: string | null
+          mitti_assignee_user_id?: string | null
+          mitti_completed?: boolean
+          mitti_created_at?: string | null
+          mitti_last_error?: string | null
+          mitti_modified_at?: string | null
+          mitti_prefill_count?: number | null
+          mitti_raw_snapshot?: Json | null
           mitti_sync_status?: Database["public"]["Enums"]["sync_status"]
           mitti_synced_at?: string | null
+          mitti_template_id?: string | null
+          mitti_validation_issues?: Json
           notes?: string | null
           piesa_outcome?: Database["public"]["Enums"]["pass_fail"]
           rcds_present?: boolean | null
@@ -102,8 +122,18 @@ export type Database = {
           job_id?: string
           life_support_confirmed?: boolean | null
           measured_area_m2?: number | null
+          mitti_assignee_email?: string | null
+          mitti_assignee_user_id?: string | null
+          mitti_completed?: boolean
+          mitti_created_at?: string | null
+          mitti_last_error?: string | null
+          mitti_modified_at?: string | null
+          mitti_prefill_count?: number | null
+          mitti_raw_snapshot?: Json | null
           mitti_sync_status?: Database["public"]["Enums"]["sync_status"]
           mitti_synced_at?: string | null
+          mitti_template_id?: string | null
+          mitti_validation_issues?: Json
           notes?: string | null
           piesa_outcome?: Database["public"]["Enums"]["pass_fail"]
           rcds_present?: boolean | null
@@ -2054,12 +2084,15 @@ export type Database = {
           created_at: string
           description: string
           explanation: string | null
+          external_key: string | null
           id: string
           is_other: boolean
           job_id: string
+          needs_office_pricing: boolean
           other_unit_price_inc_gst: number | null
           quantity: number
           rate_code: string | null
+          source: string
           status: string
         }
         Insert: {
@@ -2068,12 +2101,15 @@ export type Database = {
           created_at?: string
           description: string
           explanation?: string | null
+          external_key?: string | null
           id?: string
           is_other?: boolean
           job_id: string
+          needs_office_pricing?: boolean
           other_unit_price_inc_gst?: number | null
           quantity?: number
           rate_code?: string | null
+          source?: string
           status?: string
         }
         Update: {
@@ -2082,12 +2118,15 @@ export type Database = {
           created_at?: string
           description?: string
           explanation?: string | null
+          external_key?: string | null
           id?: string
           is_other?: boolean
           job_id?: string
+          needs_office_pricing?: boolean
           other_unit_price_inc_gst?: number | null
           quantity?: number
           rate_code?: string | null
+          source?: string
           status?: string
         }
         Relationships: [

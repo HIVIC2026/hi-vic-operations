@@ -173,6 +173,42 @@ export const removeRectItem = createServerFn({ method: "POST" }).middleware([req
     return { ok: true };
   });
 
+// ---------- Mitti bridge (populates assessment data only; completeAssessment stays authoritative) ----------
+export const createMittiAssessment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { createAssignMittiAudit } = await import("./mitti.server");
+    return createAssignMittiAudit(data.jobId, context.userId);
+  });
+
+export const syncFromMitti = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const { syncMittiAssessment } = await import("./mitti.server");
+    return syncMittiAssessment(data.jobId, context.userId);
+  });
+
+export const syncPendingMittiAssessments = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({}).parse(d ?? {}))
+  .handler(async ({ context }) => {
+    await requireAdmin(context.supabase);
+    const { syncPendingMitti } = await import("./mitti.server");
+    return syncPendingMitti(context.userId);
+  });
+
+export const priceRectItem = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ itemId: uuid, unitPriceIncGst: z.number().min(0).max(100000), reason: z.string().trim().min(5).max(2000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: it } = await admin.from("rectification_items").select("job_id,is_other,description").eq("id", data.itemId).single();
+    if (!it?.is_other) throw new WorkflowError("Only manual items can be priced here.");
+    await admin.from("rectification_items").update({ other_unit_price_inc_gst: data.unitPriceIncGst, needs_office_pricing: false }).eq("id", data.itemId);
+    await logEvent(it.job_id, context.userId, "rectification_item_priced", `Office priced: ${it.description}`, { unit_price_inc_gst: data.unitPriceIncGst, reason: data.reason });
+    return { ok: true };
+  });
+
 export const completeAssessment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
@@ -198,6 +234,8 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
       .filter((e) => e.gate === "assessment" || (a.piesa_outcome === "pass" && e.category === "piesa_signoff"))
       .filter((e) => !["uploaded", "verified"].includes(e.status)).map((e) => e.label);
     if (evMissing.length) throw new WorkflowError(`Upload evidence first: ${evMissing.join(", ")}`);
+    const { data: unpriced } = await admin.from("rectification_items").select("description").eq("job_id", data.jobId).eq("status", "required").eq("needs_office_pricing", true);
+    if (unpriced?.length) throw new WorkflowError(`HI VIC must price these items first: ${unpriced.map((u) => u.description).join(", ")}`);
 
     const stage = await getStage(data.jobId);
     if (stage !== "assessment_booked") throw new WorkflowError(`Assessment can be completed from "Assessment Booked" (current: ${STAGE_LABEL[stage]}).`);

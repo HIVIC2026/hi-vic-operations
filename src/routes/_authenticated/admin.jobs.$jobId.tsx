@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { AuthorityBadge, PaymentBadge, Pill, SourceBadge, StageBadge, UrgencyBadge } from "@/components/portal/badges";
 import { AdminAuthorityPanel, BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, PaymentsPanel, QuotesPanel, Section, TimelinePanel, useJob } from "@/components/portal/panels";
+import { MittiCard, PriceItemForm } from "@/components/portal/mitti";
 
 const TABS: [string, string][] = [
   ["overview", "Overview"], ["eligibility", "Eligibility"], ["authority", "Owner Authority"], ["assessment", "Electrician / Assessment"],
@@ -71,7 +72,7 @@ function JobDetail() {
         </TabsContent>
         <TabsContent value="eligibility"><EligibilityForm jobId={jobId} /></TabsContent>
         <TabsContent value="authority"><AdminAuthorityPanel jobId={jobId} /></TabsContent>
-        <TabsContent value="assessment" className="space-y-4"><BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><AssessmentView jobId={jobId} part="assessment" /></TabsContent>
+        <TabsContent value="assessment" className="space-y-4"><BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /></TabsContent>
         <TabsContent value="piesa" className="space-y-4">
           <Section title="PIESA 30-day installation window">
             {job.piesa_date ? <p className="text-sm">Current PIESA {fmtDate(job.piesa_date)} → install by <strong>{fmtDate(job.install_deadline)}</strong> ({job.days_remaining} days) <UrgencyBadge urgency={job.urgency} days={job.days_remaining} /></p> : <p className="text-sm text-muted-foreground">No PIESA recorded yet.</p>}
@@ -238,7 +239,7 @@ function AssessmentView({ jobId, part }: { jobId: string; part: "assessment" | "
   if (part === "rectification")
     return (
       <Section title="Rectification items">
-        {data.items.length ? <ul className="space-y-1 text-sm">{data.items.map((i) => <li key={i.id} className="flex justify-between gap-2"><span>{i.description} × {Number(i.quantity)}{i.is_other && <span className="text-xs text-muted-foreground"> — {i.explanation}</span>}</span><Pill t={i.status === "completed" ? "good" : "warn"}>{i.status}</Pill></li>)}</ul> : <p className="text-sm text-muted-foreground">No rectification required.</p>}
+        {data.items.length ? <ul className="space-y-1 text-sm">{data.items.map((i) => <li key={i.id}><div className="flex justify-between gap-2"><span>{i.description} × {Number(i.quantity)}{i.is_other && <span className="text-xs text-muted-foreground"> — {i.other_unit_price_inc_gst != null ? `${aud(i.other_unit_price_inc_gst)} ea · ` : ""}{i.explanation}</span>}{i.source === "mitti" && <span className="text-xs text-muted-foreground"> · from Mitti</span>}</span><span className="flex gap-1">{i.needs_office_pricing && <Pill t="bad">needs office pricing</Pill>}<Pill t={i.status === "completed" ? "good" : "warn"}>{i.status}</Pill></span></div>{i.needs_office_pricing && i.status === "required" && <PriceItemForm itemId={i.id} />}</li>)}</ul> : <p className="text-sm text-muted-foreground">No rectification required.</p>}
       </Section>
     );
   return (

@@ -1,0 +1,279 @@
+// PURE Mitti logic: label-based template prefill, audit parsing, create/reuse orchestration.
+// No network, no database. The only network boundary is mitti.server.ts (injected here as MittiCall).
+// Mitti sync NEVER completes an assessment, writes PIESA records, moves stages or issues quotes —
+// completeAssessment remains the authoritative gate.
+
+export const MITTI_BASE_URL = "https://api.mitti.com";
+export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
+/** Electrical rate codes Lovable can price. Everything else from Mitti is manual office review. */
+export const STANDARD_RATE_CODES = ["CALLOUT", "DOWNLIGHT_UPGRADE", "EXHAUST_CLEARANCE", "RCD_INSTALL", "SWITCHBOARD_UPGRADE"] as const;
+export const MITTI_ASSIGN_STAGES = ["assessment_booking", "assessment_booked"] as const;
+
+export class MittiError extends Error {}
+
+export type MittiCall = (method: "GET" | "POST", path: string, body?: unknown) => Promise<unknown>;
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type Any = any;
+
+export function mittiApi(call: MittiCall) {
+  return {
+    getTemplate: (id: string) => call("GET", `/templates/${encodeURIComponent(id)}`) as Promise<Any>,
+    searchUsers: (email: string) => call("POST", "/users/search", { email: [email] }) as Promise<Any>,
+    createAudit: (body: { template_id: string; header_items?: unknown[]; items?: unknown[] }) => call("POST", "/audits", body) as Promise<Any>,
+    shareAudit: (auditId: string, userId: string) =>
+      call("POST", `/audits/${encodeURIComponent(auditId)}/share`, { shares: [{ id: userId, permission: "edit" }] }),
+    getAudit: (auditId: string) => call("GET", `/audits/${encodeURIComponent(auditId)}`) as Promise<Any>,
+  };
+}
+export type MittiApi = ReturnType<typeof mittiApi>;
+
+// ---------- label helpers ----------
+export const norm = (s: unknown) =>
+  String(s ?? "").toLowerCase().replace(/²/g, "2").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
+
+export type Entry = { id: string; label: string; norm: string; type: string; value: string | null; parent: string | null; section: string; header: boolean };
+
+function responseValue(it: Any): string | null {
+  const r = it?.responses ?? {};
+  if (Array.isArray(r.selected) && r.selected.length) return r.selected.map((s: Any) => s?.label ?? s).join(", ");
+  for (const k of ["text", "value", "datetime", "date", "number"]) if (r[k] != null && String(r[k]).trim() !== "") return String(r[k]).trim();
+  if (typeof it?.value === "string" || typeof it?.value === "number") return String(it.value);
+  return null;
+}
+
+/** Flatten header_items + nested items; section = normalized labels of all ancestors. */
+export function flatten(doc: Any): Entry[] {
+  const raw: { it: Any; header: boolean }[] = [
+    ...((doc?.header_items ?? []) as Any[]).map((it) => ({ it, header: true })),
+    ...((doc?.items ?? []) as Any[]).map((it) => ({ it, header: false })),
+  ];
+  // Support nested children arrays as well as flat parent_id lists.
+  const all: { it: Any; header: boolean; parent: string | null }[] = [];
+  const walk = (it: Any, header: boolean, parent: string | null) => {
+    all.push({ it, header, parent: it.parent_id ?? parent });
+    for (const c of (it.children ?? it.items ?? []) as Any[]) walk(c, header, it.item_id ?? it.id ?? null);
+  };
+  raw.forEach(({ it, header }) => walk(it, header, null));
+  const byId = new Map(all.map((a) => [String(a.it.item_id ?? a.it.id ?? ""), a]));
+  return all.map(({ it, header, parent }) => {
+    const chain: string[] = [];
+    let p = parent, guard = 0;
+    while (p && guard++ < 20) { const x = byId.get(String(p)); if (!x) break; chain.unshift(norm(x.it.label)); p = x.parent; }
+    return { id: String(it.item_id ?? it.id ?? ""), label: String(it.label ?? ""), norm: norm(it.label), type: String(it.type ?? ""), value: responseValue(it), parent: parent ? String(parent) : null, section: chain.join(" / "), header };
+  });
+}
+
+function find(entries: Entry[], aliases: string[], opts: { section?: string | undefined; withValue?: boolean } = {}): Entry | undefined {
+  const pool = entries.filter((e) => (!opts.section || e.section.includes(opts.section) || e.norm.includes(opts.section)) && (!opts.withValue || e.value != null));
+  for (const a of aliases.map(norm)) { const x = pool.find((e) => e.norm === a); if (x) return x; }
+  for (const a of aliases.map(norm)) { const x = pool.find((e) => e.norm.startsWith(a)); if (x) return x; }
+  return undefined;
+}
+const val = (entries: Entry[], aliases: string[], section?: string) => find(entries, aliases, { section, withValue: true })?.value ?? null;
+
+export function yesNo(v: string | null): boolean | null {
+  if (v == null) return null;
+  const n = norm(v);
+  if (/^(yes|y|true|present|confirmed)\b/.test(n)) return true;
+  if (/^(no|n|false|none|not present|absent|nil)\b/.test(n)) return false;
+  return null;
+}
+export function num(v: string | null): number | null {
+  if (v == null) return null;
+  const m = String(v).replace(/,/g, "").match(/-?\d+(\.\d+)?/);
+  return m ? Number(m[0]) : null;
+}
+const int = (v: string | null) => { const n = num(v); return n == null || n < 0 ? null : Math.round(n); };
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+export function melbourneDay(v: string | null): string | null {
+  if (!v) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+
+// ---------- prefill ----------
+export type PrefillCtx = {
+  jobNumber: string; address: string; ownerName: string; ownerEmail?: string | null; ownerPhone?: string | null;
+  assessorName: string; assessmentAt?: string | null; estimatedAreaM2?: number | null; occupancy?: string | null; lifeSupport?: string | null;
+};
+const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
+  { key: "jobNumber", aliases: ["Portal Job Number"], mandatory: true },
+  { key: "address", aliases: ["Property Address", "Site address", "Site Address"], mandatory: true },
+  { key: "ownerName", aliases: ["Owner name", "Owner full name", "Client name"], mandatory: true },
+  { key: "ownerEmail", aliases: ["Owner email"] },
+  { key: "ownerPhone", aliases: ["Owner phone", "Owner mobile"] },
+  { key: "assessorName", aliases: ["Assigned Electrician", "Assessor", "Assigned Electrician / Assessor"], mandatory: true },
+  { key: "assessmentAt", aliases: ["Assessment date/time", "Assessment date time", "Booked assessment date"], datetime: true },
+  { key: "estimatedAreaM2", aliases: ["Office estimated ceiling area", "Estimated ceiling area"] },
+  { key: "occupancy", aliases: ["Occupancy"] },
+  { key: "lifeSupport", aliases: ["Life support status", "Office life support status"] },
+];
+
+export function buildPrefill(template: Any, ctx: PrefillCtx) {
+  const entries = flatten(template);
+  const header_items: Any[] = [], items: Any[] = [], missing: string[] = [];
+  for (const f of PREFILL) {
+    const e = find(entries, f.aliases);
+    if (!e) { if (f.mandatory) missing.push(f.aliases[0]!); continue; }
+    const v = ctx[f.key];
+    if (v == null || v === "") continue;
+    const row = { item_id: e.id, label: e.label, type: e.type, responses: f.datetime ? { datetime: String(v) } : { text: String(v) } };
+    (e.header ? header_items : items).push(row);
+  }
+  return { header_items, items, count: header_items.length + items.length, missing };
+}
+
+// ---------- create / reuse ----------
+export type CreateCtx = {
+  businessUnit: string; stage: string; jobNumber: string; existingAuditId: string | null;
+  electricianEmail: string | null; prefill: PrefillCtx;
+};
+export type CreateResult = { auditId: string; reused: boolean; mittiUserId: string; assigneeEmail: string; prefillCount: number | null; createdAt: string | null };
+
+function pickUser(res: Any, email: string): Any | null {
+  const list: Any[] = Array.isArray(res) ? res : res?.users ?? res?.data ?? [];
+  return list.find((u) => String(u?.email ?? "").toLowerCase() === email.toLowerCase()) ?? null;
+}
+
+export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise<CreateResult> {
+  if (ctx.businessUnit !== "hivic") throw new MittiError("Mitti automation is only available for HI VIC jobs.");
+  if (!(MITTI_ASSIGN_STAGES as readonly string[]).includes(ctx.stage)) throw new MittiError("Mitti assessments can only be created while the job is in Assessment Booking or Assessment Booked.");
+  const email = ctx.electricianEmail?.trim();
+  if (!email) throw new MittiError("Assign an electrician with an email address before creating the Mitti assessment.");
+  const user = pickUser(await api.searchUsers(email), email);
+  const userId = user?.id ?? user?.user_id;
+  if (!userId) throw new MittiError(`The assigned electrician (${email}) was not found in Mitti. Invite them to Mitti with that exact email, then retry.`);
+
+  if (ctx.existingAuditId) {
+    await api.shareAudit(ctx.existingAuditId, String(userId));
+    return { auditId: ctx.existingAuditId, reused: true, mittiUserId: String(userId), assigneeEmail: email, prefillCount: null, createdAt: null };
+  }
+  const template = await api.getTemplate(MITTI_TEMPLATE_ID);
+  const tid = template?.template_id ?? template?.id;
+  if (tid && tid !== MITTI_TEMPLATE_ID) throw new MittiError("Mitti returned an unexpected template.");
+  const p = buildPrefill(template, ctx.prefill);
+  if (p.missing.length) throw new MittiError(`The Mitti template is missing required office fields: ${p.missing.join(", ")}.`);
+  const audit = await api.createAudit({ template_id: MITTI_TEMPLATE_ID, header_items: p.header_items, items: p.items });
+  const auditId = audit?.audit_id ?? audit?.id;
+  if (!auditId) throw new MittiError("Mitti did not return an audit ID.");
+  await api.shareAudit(String(auditId), String(userId));
+  return { auditId: String(auditId), reused: false, mittiUserId: String(userId), assigneeEmail: email, prefillCount: p.count, createdAt: audit?.created_at ?? audit?.audit_data?.date_started ?? null };
+}
+
+// ---------- parse ----------
+export type AssessmentPatch = Partial<{
+  measured_area_m2: number; insulation_present: boolean; existing_r_value: number; removal_required: boolean; removal_m2: number;
+  access_difficulty: "easy" | "moderate" | "difficult"; downlights_qty: number; downlights_type: string; downlights_upgrade_qty: number;
+  exhaust_fans_qty: number; exhaust_fans_clearance_qty: number; hazards: string; switchboard_condition: "ok" | "upgrade_required";
+  rcds_present: boolean; rcds_required_qty: number; life_support_confirmed: boolean; piesa_outcome: "pass" | "fail"; assessed_on: string; notes: string;
+}>;
+export type OtherItem = { external_key: string; description: string; quantity: number; unit_price_inc_gst: number | null; explanation: string; needs_office_pricing: boolean; unsupported: boolean };
+
+const UNSUPPORTED_WORK: [string, string][] = [
+  ["circuit protection", "Circuit protection work"], ["cable replacement", "Cable replacement"], ["basic protection", "Basic protection work"],
+];
+
+export function parseAudit(audit: Any) {
+  const entries = flatten(audit?.audit_data ? { header_items: audit.header_items, items: audit.items } : audit);
+  const auditId = String(audit?.audit_id ?? audit?.id ?? "");
+  const patch: AssessmentPatch = {};
+  const issues: string[] = [];
+
+  // Area: net → total to insulate → gross − excluded.
+  const net = num(val(entries, ["Net insulation area (m²) = Gross minus Excluded", "Net insulation area"]));
+  const total = num(val(entries, ["Total area to insulate", "Area to insulate", "Total insulation area"]));
+  const gross = num(val(entries, ["Gross ceiling area", "Gross area"])), excl = num(val(entries, ["Excluded area", "Excluded ceiling area"]));
+  const area = net ?? total ?? (gross != null ? r2(gross - (excl ?? 0)) : null);
+  if (area != null && area > 0) patch.measured_area_m2 = r2(area); else issues.push("Measured ceiling area not found in Mitti.");
+
+  const ins = yesNo(val(entries, ["Existing insulation present", "Insulation present"]));
+  if (ins != null) patch.insulation_present = ins;
+  const rv = num(val(entries, ["Existing R-value", "Measured R-value", "Confirmed R-value", "Existing insulation R-value"]));
+  if (rv != null && ins !== false) patch.existing_r_value = rv;
+  const rem = yesNo(val(entries, ["Removal required", "Existing insulation removal required"]));
+  if (rem != null) patch.removal_required = rem;
+  const remM2 = num(val(entries, ["Removal area", "Removal m2", "Area to remove"]));
+  if (rem && remM2 != null) patch.removal_m2 = remM2;
+
+  const acc = norm(val(entries, ["Ceiling access", "Access difficulty", "Roof space access"]));
+  if (acc) { const a = /difficult|hard|restricted/.test(acc) ? "difficult" : /moderate|medium/.test(acc) ? "moderate" : /easy|good/.test(acc) ? "easy" : null; if (a) patch.access_difficulty = a; else issues.push("Ceiling access answer not recognised."); }
+
+  const setInt = (k: keyof AssessmentPatch, aliases: string[]) => { const n = int(val(entries, aliases)); if (n != null) (patch as Any)[k] = n; };
+  setInt("downlights_upgrade_qty", ["Downlights requiring upgrade", "Downlights to upgrade", "Downlight upgrade qty"]);
+  setInt("downlights_qty", ["Number of downlights", "Downlights qty", "Downlight count", "Downlights"]);
+  setInt("exhaust_fans_clearance_qty", ["Exhaust fans requiring clearance", "Exhaust fan clearance", "Exhaust fans needing clearance"]);
+  setInt("exhaust_fans_qty", ["Number of exhaust fans", "Exhaust fans qty", "Exhaust fans"]);
+  const dt = val(entries, ["Downlight type"]); if (dt) patch.downlights_type = dt.slice(0, 200);
+  const hz = val(entries, ["Hazards identified", "Hazards"]); if (hz) patch.hazards = hz.slice(0, 4000);
+
+  const sbUp = val(entries, ["Switchboard upgrade required"]);
+  const sbCond = norm(val(entries, ["Switchboard condition", "Switchboard"]));
+  if (yesNo(sbUp) === true || /upgrade required/.test(sbCond)) patch.switchboard_condition = "upgrade_required";
+  else if (yesNo(sbUp) === false || /^(ok|satisfactory|compliant|good|no upgrade)/.test(sbCond)) patch.switchboard_condition = "ok";
+  else if (sbUp || sbCond) issues.push("Switchboard condition is not explicit – confirm in office.");
+
+  const rcd = yesNo(val(entries, ["RCDs present", "RCD present", "RCD protection present"])); if (rcd != null) patch.rcds_present = rcd;
+  setInt("rcds_required_qty", ["RCDs required", "RCDs to install", "Number of RCDs required"]);
+
+  const ls = yesNo(val(entries, ["Life support equipment onsite", "Life support equipment present", "Life support confirmed", "Is life support equipment"], "piesa"))
+    ?? yesNo(val(entries, ["Life support equipment onsite", "Life support equipment present", "Life support confirmed"]));
+  if (ls != null) patch.life_support_confirmed = ls;
+
+  const po = norm(val(entries, ["PIESA outcome", "PIESA result", "Rectification outcome", "Rectification required"]));
+  if (/no rectification required/.test(po)) patch.piesa_outcome = "pass";
+  else if (/rectification required/.test(po)) patch.piesa_outcome = "fail";
+  else issues.push("PIESA outcome not recorded or ambiguous – stays pending.");
+
+  const ad = melbourneDay(val(entries, ["PIESA assessment date", "Assessment date/time", "Assessment date", "Assessment datetime", "Conducted on"]));
+  if (ad) patch.assessed_on = ad;
+  const nt = val(entries, ["Assessor notes", "Final notes", "Notes"]); if (nt) patch.notes = nt.slice(0, 4000);
+
+  // Non-standard work items: grouped by parent; never invent a price.
+  const others: OtherItem[] = [];
+  const descs = entries.filter((e) => e.value && /^(work item description|other work description|non standard (work|item) description|additional work description)/.test(e.norm));
+  for (const d of descs) {
+    const sib = entries.filter((e) => e.parent === d.parent);
+    const qty = num(val(sib, ["Quantity", "Qty"])) ?? 1;
+    const totalInc = num(val(sib, ["Proposed total price inc GST", "Proposed total price", "Total price inc GST", "Price inc GST"]));
+    const expl = val(sib, ["Explanation", "Reason", "Why is this needed"]) ?? "From Mitti assessment";
+    const priced = totalInc != null && totalInc > 0 && qty > 0;
+    if (!priced) issues.push(`"${d.value}" needs office pricing.`);
+    others.push({ external_key: `mitti:${auditId}:${d.id}`, description: d.value!.slice(0, 300), quantity: qty > 0 ? qty : 1, unit_price_inc_gst: priced ? r2(totalInc! / qty) : null, explanation: expl.slice(0, 2000), needs_office_pricing: !priced, unsupported: false });
+  }
+  for (const [key, label] of UNSUPPORTED_WORK) {
+    for (const e of entries.filter((x) => x.norm.includes(key) && x.value)) {
+      const yn = yesNo(e.value), n = num(e.value);
+      if (yn === false || n === 0 || /^(n a|na|none)$/.test(norm(e.value))) continue;
+      others.push({ external_key: `mitti:${auditId}:${e.id}`, description: `${label} (manual review – no approved rate)`, quantity: n && n > 0 ? n : 1, unit_price_inc_gst: null, explanation: `Mitti: ${e.label}: ${e.value}`.slice(0, 2000), needs_office_pricing: true, unsupported: true });
+      issues.push(`${label} has no approved Lovable rate – office review required.`);
+    }
+  }
+
+  const readyFlag = yesNo(val(entries, ["Ready for office review"]));
+  const completed = !!(audit?.completed || audit?.audit_data?.date_completed || audit?.completed_at || readyFlag);
+  return {
+    auditId, patch, issues, others, completed,
+    templateId: String(audit?.template_id ?? audit?.audit_data?.template_id ?? ""),
+    jobNumber: val(entries, ["Portal Job Number"]),
+    modifiedAt: audit?.modified_at ?? audit?.audit_data?.date_modified ?? null,
+    snapshot: entries.filter((e) => e.label).map((e) => ({ id: e.id, label: e.label, section: e.section, value: e.value })),
+  };
+}
+
+/** Validate a fetched audit belongs to this job, then plan a safe (non-completing) sync. */
+export function planSync(audit: Any, ctx: { storedAuditId: string; jobNumber: string; assessmentStatus: string | null }) {
+  if (ctx.assessmentStatus === "complete") return { locked: true as const };
+  const p = parseAudit(audit);
+  if (p.auditId && p.auditId !== ctx.storedAuditId) throw new MittiError("Mitti returned a different audit than the one stored for this job.");
+  if (p.templateId !== MITTI_TEMPLATE_ID) throw new MittiError("This Mitti audit does not use the HI VIC combined assessment template.");
+  if (!p.jobNumber || p.jobNumber.trim().toUpperCase() !== ctx.jobNumber.trim().toUpperCase())
+    throw new MittiError(`Mitti Portal Job Number (${p.jobNumber ?? "missing"}) does not match ${ctx.jobNumber}.`);
+  return {
+    locked: false as const, ...p,
+    syncStatus: (p.completed ? "synced" : "pending") as "synced" | "pending",
+  };
+}

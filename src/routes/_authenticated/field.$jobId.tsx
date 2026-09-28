@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { AuthorityBadge, Pill, StageBadge, UrgencyBadge } from "@/components/portal/badges";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, Section, useJob } from "@/components/portal/panels";
+import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { useAction } from "@/hooks/use-me";
 import { addOtherRectItem, completeAssessment, completeInstallation, recordPiesa, removeRectItem, saveAssessment, submitDeclaration, submitForApReview } from "@/lib/portal.functions";
 import { aud } from "@/lib/workflow";
@@ -82,7 +83,16 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
       )}
       {stage === "rectification_booked" && <PiesaForm jobId={jobId} kind="post_rectification" title="Rectification complete – record PIESA sign-off" />}
       {expired && <PiesaForm jobId={jobId} kind="reassessment" title="PIESA window expired – record reassessment" />}
-      {(assessing || locked) && (
+      {a?.external_mitti_id && (assessing || locked) && (
+        <>
+          <MittiCard jobId={jobId} isAdmin={false} />
+          {<MittiSyncedFields a={a as unknown as Record<string, unknown>} />}
+          {!locked && <EvidencePanel jobId={jobId} role="electrician" gates={["assessment", "electrical"]} />}
+          {!locked && <OtherItems jobId={jobId} editable />}
+          {!locked && <Button size="field" className="w-full" onClick={() => complete({ jobId }, "Assessment complete")}><Check /> Complete assessment</Button>}
+        </>
+      )}
+      {!a?.external_mitti_id && (assessing || locked) && (
         <details open={!locked} className="group">
           <summary className={locked ? "mb-2 cursor-pointer list-none rounded-md border bg-card px-4 py-3 text-sm font-medium" : "hidden"}>Assessment (complete – locked) · tap to view</summary>
           <div className="space-y-4">
