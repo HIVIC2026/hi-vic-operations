@@ -69,7 +69,7 @@
   --color-info-soft: var(--info-soft);
   --color-brand-dark: var(--brand-dark);
   --color-brand-dark-foreground: var(--brand-dark-foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--app-font);
 }
 
 :root {
@@ -117,7 +117,7 @@
   --sidebar-accent-foreground: oklch(0.98 0.01 180);
   --sidebar-border: oklch(0.36 0.04 200);
   --sidebar-ring: oklch(0.7 0.1 190);
-  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --app-font: "Figtree", ui-sans-serif, system-ui, sans-serif;
 }
 
 .dark {
