@@ -82,19 +82,62 @@ export function parseSolar(s: SolarInsights, point: [number, number] | null, sin
   const segs = (sp.roofSegmentStats ?? []).map((g) => ({ pitchDegrees: g.pitchDegrees, groundAreaM2: Number(g.stats?.groundAreaMeters2) || 0 }));
   const form = roofFormFromSegments(segs);
   const date = isoDate(s.imageryDate);
+  const summary = solarSummary(s);
+  const risk = solarRoofRisk(summary);
   const facts: Fact[] = [
     { key: "solar_building_match", value: true, status: "info", ...src, confidence: conf, evidence: "direct", note: match.reason, raw: { imageryDate: s.imageryDate, imageryQuality: s.imageryQuality, distance_m: match.distance_m } },
+    { key: "solar_summary", value: { ...summary, source: "google_solar", basis: "mapped_remote_estimate", checked_at: new Date().toISOString() }, status: "info", ...src, confidence: conf, evidence: "inferred", note: "Mapped remote estimate – never the final measured ceiling area" },
     { key: "roof_form", value: form, status: form === "pitched" ? "pass" : form === "unknown" ? "unknown" : "review", ...src, confidence: form === "unknown" ? "unknown" : conf, evidence: form === "unknown" ? "none" : "inferred", note: `Classified from ${segs.length} roof segment pitches (${s.imageryQuality ?? "unknown"} quality)${form === "low_slope_flat" || form === "mixed" ? " – flat/low-slope is review only, never a fail" : ""}`, raw: { segments: segs } },
+    { key: "site_roof_risk", value: risk, status: risk.flags.length ? "review" : "info", ...src, confidence: conf, evidence: "inferred", note: risk.flags.length ? `Site-assessment risk: ${risk.flags.join(", ")} – operational flag only, not an eligibility fail` : "No roof risk flags from Solar" },
     { key: "age_supporting_solar", value: { date, kind: "imagery_building_detected" }, status: "info", ...src, confidence: "low", evidence: "inferred", note: "Solar imagery date is supporting age evidence only – never a pass by itself" },
     { key: "building_ground_footprint", value: ground ? { m2: ground, roof_surface_m2_not_used: sp.buildingStats?.areaMeters2 ?? null } : null, status: "info", ...src, confidence: ground ? conf : "unknown", evidence: ground ? "inferred" : "none", note: "Building ground footprint estimate – not ceiling area" },
   ];
-  const area: ProviderArea | null = ground && conf !== "low" ? {
+  const area: ProviderArea | null = ground ? {
     tier: "E", method: "Google Solar building ground footprint estimate", source_name: "Google Solar buildingInsights", source_url: SOLAR_URL,
-    gross_m2: ground, excluded_m2: null, net_m2: Math.round(ground * 10) / 10, confidence: singleStoreyEvidence ? "medium" : "low",
+    gross_m2: ground, excluded_m2: null, net_m2: Math.round(ground * 10) / 10, confidence: conf === "low" ? "low" : singleStoreyEvidence ? "medium" : "low",
     notes: singleStoreyEvidence ? "Preliminary building footprint – single-storey evidence present" : "Building ground footprint estimate, NOT ceiling area – storeys/garage unknown, review",
-    calculation: { source: "google_solar.buildingStats.groundAreaMeters2", raw_m2: ground, roof_surface_area_ignored_m2: sp.buildingStats?.areaMeters2 ?? null, exclusions: [], preliminary_net_m2: ground, imagery_date: date, imagery_quality: s.imageryQuality, reason: "Horizontal footprint only; roof surface area never used as ceiling area" },
+    calculation: { source: "google_solar.buildingStats.groundAreaMeters2", basis: "mapped_remote_estimate", raw_m2: ground, roof_surface_area_ignored_m2: sp.buildingStats?.areaMeters2 ?? null, exclusions: [], preliminary_net_m2: ground, imagery_date: date, imagery_quality: s.imageryQuality, reason: "Horizontal footprint only; roof surface area never used as ceiling area" },
   } : null;
   return { facts, area, match };
+}
+
+export type SolarSummary = {
+  building_ground_area_m2: number | null; roof_ground_area_m2: number | null; roof_surface_area_m2: number | null;
+  segment_count: number; weighted_pitch_deg: number | null; pitch_min_deg: number | null; pitch_max_deg: number | null;
+  low_slope_share: number | null; roof_form: ReturnType<typeof roofFormFromSegments>; imagery_quality: string | null; imagery_date: string | null;
+  center: { lat: number; lng: number } | null; bounds: { sw: [number, number]; ne: [number, number] } | null;
+};
+export function solarSummary(s: SolarInsights, t = PROVIDER_THRESHOLDS): SolarSummary {
+  const sp = s.solarPotential ?? {};
+  const segs = (sp.roofSegmentStats ?? []).map((g) => ({ p: g.pitchDegrees, a: Number(g.stats?.groundAreaMeters2) || 0 })).filter((g) => typeof g.p === "number");
+  const tot = segs.reduce((x, g) => x + g.a, 0);
+  const r1 = (n: number | null | undefined) => n == null || !Number.isFinite(n) ? null : Math.round(n * 10) / 10;
+  return {
+    building_ground_area_m2: r1(sp.buildingStats?.groundAreaMeters2), roof_ground_area_m2: r1(sp.wholeRoofStats?.groundAreaMeters2), roof_surface_area_m2: r1(sp.wholeRoofStats?.areaMeters2),
+    segment_count: (sp.roofSegmentStats ?? []).length,
+    weighted_pitch_deg: tot ? r1(segs.reduce((x, g) => x + g.p! * g.a, 0) / tot) : null,
+    pitch_min_deg: segs.length ? r1(Math.min(...segs.map((g) => g.p!))) : null, pitch_max_deg: segs.length ? r1(Math.max(...segs.map((g) => g.p!))) : null,
+    low_slope_share: tot ? Math.round((segs.filter((g) => g.p! < t.lowSlopeDeg).reduce((x, g) => x + g.a, 0) / tot) * 100) / 100 : null,
+    roof_form: roofFormFromSegments(segs.map((g) => ({ pitchDegrees: g.p, groundAreaM2: g.a }))),
+    imagery_quality: s.imageryQuality ?? null, imagery_date: isoDate(s.imageryDate),
+    center: s.center ? { lat: s.center.latitude, lng: s.center.longitude } : null,
+    bounds: s.boundingBox ? { sw: [s.boundingBox.sw.longitude, s.boundingBox.sw.latitude], ne: [s.boundingBox.ne.longitude, s.boundingBox.ne.latitude] } : null,
+  };
+}
+/** Operational/site-assessment risk only – never an eligibility fail. */
+export function solarRoofRisk(x: SolarSummary): { flags: string[] } {
+  const flags: string[] = [];
+  if (x.roof_form === "low_slope_flat") flags.push("likely flat/low-slope roof");
+  if (x.roof_form === "mixed") flags.push("mixed pitched + flat/low-slope roof");
+  if (x.segment_count >= 8) flags.push(`complex roof (${x.segment_count} segments)`);
+  return { flags };
+}
+/** Solar vs exact floor-plan / internal area: material disagreement => review, never silently pick one. */
+export function solarAreaConflict(solarM2: number, others: { tier: string; net_m2: number; source_name: string }[], ratio = 0.25): Fact | null {
+  const strong = others.filter((o) => ["A", "B", "C", "D"].includes(o.tier) && o.net_m2 > 0);
+  const bad = strong.filter((o) => Math.abs(solarM2 - o.net_m2) / o.net_m2 > ratio);
+  if (!bad.length) return null;
+  return { key: "solar_area_conflict", value: { solar_m2: solarM2, conflicts: bad.map((b) => ({ tier: b.tier, m2: b.net_m2, source: b.source_name })) }, status: "review", sourceType: "derived", sourceName: "Solar vs sourced area check", confidence: "medium", evidence: "inferred", note: `Solar footprint ${solarM2} m² differs >${ratio * 100}% from ${bad.map((b) => `${b.source_name} ${b.net_m2} m²`).join(", ")} – review; stronger source still ranks higher` };
 }
 
 // ---------- Pricefinder ----------
