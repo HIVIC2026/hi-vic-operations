@@ -1,0 +1,38 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+
+export type AppRole = "admin" | "electrician" | "installer" | "owner" | "property_manager";
+
+export function useMe() {
+  return useQuery({
+    queryKey: ["me"],
+    queryFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return null;
+      const [{ data: profile }, { data: roles }] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
+        supabase.from("user_roles").select("role").eq("user_id", u.user.id),
+      ]);
+      return { user: u.user, profile, roles: (roles ?? []).map((r) => r.role as AppRole) };
+    },
+  });
+}
+
+/** Run a server action with toast feedback and refresh all data. */
+export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>) {
+  const call = useServerFn(fn as never) as unknown as (opts: { data: TIn }) => Promise<TOut>;
+  const qc = useQueryClient();
+  return async (data: TIn, success?: string) => {
+    try {
+      const out = await call({ data });
+      if (success) toast.success(success);
+      await qc.invalidateQueries();
+      return out;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
+      throw e;
+    }
+  };
+}
