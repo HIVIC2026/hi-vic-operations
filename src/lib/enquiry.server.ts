@@ -60,6 +60,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     .from("jobs")
     .insert({
       ...jobFields, property_id: prop.id, owner_id: owner!.id, source, external_enquiry_id: input.external_enquiry_id ?? null, next_action: "Review eligibility",
+      business_unit: "hivic", // explicit: this portal only creates Home Insulation Victoria jobs
       channel: origin.channel,
       ...(origin.channel === "installer_sourced"
         ? { originating_installer_business_id: origin.businessId, originating_installer_user_id: origin.userId, commercial_model: "not_configured" as const }

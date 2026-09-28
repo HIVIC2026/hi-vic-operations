@@ -870,6 +870,7 @@ export type Database = {
       }
       jobs: {
         Row: {
+          business_unit: string
           cancelled_reason: string | null
           channel: Database["public"]["Enums"]["job_channel"]
           commercial_model: Database["public"]["Enums"]["commercial_model"]
@@ -902,6 +903,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          business_unit: string
           cancelled_reason?: string | null
           channel?: Database["public"]["Enums"]["job_channel"]
           commercial_model?: Database["public"]["Enums"]["commercial_model"]
@@ -934,6 +936,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          business_unit?: string
           cancelled_reason?: string | null
           channel?: Database["public"]["Enums"]["job_channel"]
           commercial_model?: Database["public"]["Enums"]["commercial_model"]
