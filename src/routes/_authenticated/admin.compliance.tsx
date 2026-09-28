@@ -24,6 +24,7 @@ const KEYS = [
   ["installer_declaration", "Installer PIISA / declaration (post-install)"],
   ["consumer_declaration", "Final Activity 48 VEEC Assignment – official form (post-install)"],
   ["ap_declaration", "AP declaration (if required)"],
+  ["partner_agreement", "HI VIC partner participation agreement (partner onboarding)"],
 ] as const;
 
 function Compliance() {

@@ -447,6 +447,7 @@ export const generateInstallerQuotes = createServerFn({ method: "POST" }).middle
     const pre = (await stageEntryBlockers(data.jobId, "awaiting_quote_acceptance")).filter((b) => b !== "No installation quotes issued.");
     if (pre.length) throw new WorkflowError(`Blocked: ${pre.join(" • ")}`);
     await genInstaller(data.jobId, context.userId);
+    { const { applyCobrand } = await import("./pilot.server"); await applyCobrand(data.jobId); }
     if (stage === "ready_for_installer_quotes") await transition(data.jobId, "awaiting_quote_acceptance", context.userId, "Installation quotes issued to owner");
     await autoAdvanceJob(data.jobId, context.userId, "quotes generated");
     return { ok: true };
@@ -1105,7 +1106,7 @@ export const listComplianceTemplates = createServerFn({ method: "POST" }).middle
 });
 
 export const addComplianceTemplate = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ template_key: z.enum(["consumer_declaration", "consumer_rights", "esc_consent", "installer_declaration", "ap_declaration"]), version: z.string().trim().min(1).max(50), body: z.string().trim().min(20).max(50000), source_note: z.string().max(1000).optional(), required: z.boolean().default(true), form_fields: z.array(z.unknown()).max(40).default([]) }).parse(d))
+  .inputValidator((d) => z.object({ template_key: z.enum(["customer_agreement", "consumer_declaration", "consumer_rights", "esc_consent", "installer_declaration", "ap_declaration", "partner_agreement"]), version: z.string().trim().min(1).max(50), body: z.string().trim().min(20).max(50000), source_note: z.string().max(1000).optional(), required: z.boolean().default(true), form_fields: z.array(z.unknown()).max(40).default([]) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const form_fields = parseFormFields(data.form_fields) as unknown as Json;

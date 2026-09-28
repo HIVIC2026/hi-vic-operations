@@ -12,7 +12,7 @@ export type AssignmentStatus =
   | "awaiting_installer_signature" | "awaiting_ap_signature" | "awaiting_consumer_signature"
   | "variation_required" | "effective_complete" | "cancelled";
 
-export type TemplateKey = "customer_agreement" | "consumer_rights" | "esc_consent" | "installer_declaration" | "consumer_declaration" | "ap_declaration";
+export type TemplateKey = "customer_agreement" | "consumer_rights" | "esc_consent" | "installer_declaration" | "consumer_declaration" | "ap_declaration" | "partner_agreement";
 export type Template = { template_key: string; version: string; body: string; approved: boolean; is_active: boolean; required: boolean; form_fields?: Json };
 
 /** Structured field an electronic form renders. Defined per template version by admin; never free-typed wording. */
@@ -26,6 +26,7 @@ export const NOT_READY: Record<TemplateKey, string> = {
   installer_declaration: "Installer declaration is not ready: add the current Activity 48 installer declaration.",
   consumer_declaration: "Final VEEC assignment is not ready: add the current official Activity 48 VEEC assignment form.",
   ap_declaration: "AP sign-off is not ready: approve the current Accredited Person declaration.",
+  partner_agreement: "Partner onboarding is not ready: approve the current HI VIC partner participation agreement.",
 };
 
 export const ASSIGNMENT_LABEL: Record<AssignmentStatus, string> = {
@@ -48,6 +49,7 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   installer_declaration: "Installer declaration (post-install)",
   consumer_declaration: "Final Activity 48 VEEC assignment – official form (post-install)",
   ap_declaration: "Accredited Person declaration (if required)",
+  partner_agreement: "HI VIC partner participation agreement (installer / electrician onboarding)",
 };
 
 export const ASSIGNMENT_EVENTS = {
