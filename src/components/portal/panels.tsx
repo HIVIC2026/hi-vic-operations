@@ -335,6 +335,7 @@ export function AdminAuthorityPanel({ jobId }: { jobId: string }) {
             <dt className="text-muted-foreground">Requested</dt><dd>{fmtDateTime(cur.requested_at)}</dd>
             <dt className="text-muted-foreground">Viewed</dt><dd>{fmtDateTime(cur.viewed_at)}</dd>
             <dt className="text-muted-foreground">Accepted</dt><dd>{fmtDateTime(cur.accepted_at)}</dd>
+            <dt className="text-muted-foreground">Starts</dt><dd>{fmtDateTime(cur.starts_at)}</dd>
             <dt className="text-muted-foreground">Expires</dt><dd>{fmtDate(cur.expires_at)}</dd>
             <dt className="text-muted-foreground">Signed as</dt><dd>{cur.signature_name ?? "—"}</dd>
             <dt className="text-muted-foreground">18+ / authorised</dt><dd>{cur.confirmed_over_18 ? "Yes" : "—"} / {cur.confirmed_owner_or_authorised ? "Yes" : "—"}</dd>
