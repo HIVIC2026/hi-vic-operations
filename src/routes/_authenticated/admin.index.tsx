@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAction } from "@/hooks/use-me";
-import { autoAdvancePipeline, createEnquiry, sweepAuthorities } from "@/lib/portal.functions";
+import { autoAdvancePipeline, createEnquiry, getCommsStatus, sweepAuthorities } from "@/lib/portal.functions";
 import { useServerFn } from "@tanstack/react-start";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
@@ -28,6 +28,8 @@ function Pipeline() {
   const sweep = useServerFn(sweepAuthorities);
   const advance = useServerFn(autoAdvancePipeline);
   const [showExceptions, setShowExceptions] = useState(false);
+  const commsStatus = useServerFn(getCommsStatus);
+  const { data: comms } = useQuery({ queryKey: ["comms_status"], queryFn: () => commsStatus() });
   const [phase, setPhase] = useState<Phase | "all">("all");
   const { data: allJobs = [] } = useQuery({
     queryKey: ["pipeline"],
@@ -46,6 +48,12 @@ function Pipeline() {
 
   return (
     <AppShell wide>
+      {comms?.enabled !== true && (
+        <div role="alert" className="mb-4 rounded-lg border-2 border-warning bg-warning-soft px-4 py-3 text-sm font-bold uppercase tracking-wide text-accent-foreground">
+          PRE-LAUNCH — customer communications disabled
+          <span className="ml-2 font-normal normal-case tracking-normal">No email, SMS or notification is sent to customers or trades. Internal workflow changes still apply.</span>
+        </div>
+      )}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Pipeline</h1>

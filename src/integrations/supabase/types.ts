@@ -3689,6 +3689,7 @@ export type Database = {
       workflow_settings: {
         Row: {
           authority_validity_months: number
+          customer_comms_enabled: boolean
           id: number
           min_building_age_years: number
           mitti_measureup_template_id: string | null
@@ -3699,6 +3700,7 @@ export type Database = {
         }
         Insert: {
           authority_validity_months?: number
+          customer_comms_enabled?: boolean
           id?: number
           min_building_age_years?: number
           mitti_measureup_template_id?: string | null
@@ -3709,6 +3711,7 @@ export type Database = {
         }
         Update: {
           authority_validity_months?: number
+          customer_comms_enabled?: boolean
           id?: number
           min_building_age_years?: number
           mitti_measureup_template_id?: string | null

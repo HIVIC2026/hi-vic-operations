@@ -818,6 +818,10 @@ export const sendMessage = createServerFn({ method: "POST" }).middleware([requir
   .inputValidator((d) => z.object({ jobId: uuid, body: z.string().trim().min(1).max(4000), internal: z.boolean().optional(), channel: z.enum(["portal", "phone", "sms", "email"]).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer", "owner"]);
+    if (data.channel === "email" || data.channel === "sms") {
+      const { assertCustomerCommsEnabled } = await import("./comms.server");
+      await assertCustomerCommsEnabled(`${data.channel} message`);
+    }
     await admin.from("messages").insert({ job_id: data.jobId, sender_id: context.userId, body: data.body, internal: role === "admin" ? !!data.internal : false, channel: data.channel ?? "portal" });
     await admin.from("jobs").update({ last_activity_at: new Date().toISOString() }).eq("id", data.jobId);
     return { ok: true };
@@ -870,6 +874,9 @@ export const requestOwnerAuthority = createServerFn({ method: "POST" }).middlewa
   .inputValidator((d) => z.object({ jobId: uuid, reason: z.enum(["initial", "renewal", "resend"]) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
+    // Legacy authority requests mark a customer-facing request as "sent" – blocked entirely while locked.
+    const { assertCustomerCommsEnabled } = await import("./comms.server");
+    await assertCustomerCommsEnabled("owner authority request");
     await requestAuthority(data.jobId, context.userId, data.reason);
     return { ok: true };
   });
@@ -923,6 +930,12 @@ export const getAuthorityDocUrl = createServerFn({ method: "POST" }).middleware(
 export const autoAdvancePipeline = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
   return autoAdvanceOpenJobs(context.userId);
+});
+
+export const getCommsStatus = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  await requireAdmin(context.supabase);
+  const { customerCommsEnabled } = await import("./comms.server");
+  return { enabled: await customerCommsEnabled() };
 });
 
 export const sweepAuthorities = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
