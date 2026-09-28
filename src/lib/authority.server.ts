@@ -103,7 +103,7 @@ export async function acceptAuthority(input: {
   const path = `${a.job_id}/authority/v${a.version}-${hash.slice(0, 12)}.txt`;
   const up = await admin.storage.from("job-files").upload(path, new Blob([record], { type: "text/plain" }), { contentType: "text/plain", upsert: false });
   await admin.from("owner_authorities").update({
-    status: "accepted", accepted_at: now.toISOString(), accepted_by: input.actorId, expires_at: expires.toISOString(),
+    status: "accepted", accepted_at: now.toISOString(), starts_at: now.toISOString(), accepted_by: input.actorId, expires_at: expires.toISOString(),
     confirmed_over_18: true, confirmed_owner_or_authorised: true, assistance_requirement: input.assistance,
     acceptance_method: "portal_explicit_acceptance_typed_signature", signature_name: input.signatureName,
     ip_address: input.ip, user_agent: input.userAgent, document_path: up.error ? null : path, document_sha256: hash,
