@@ -131,10 +131,12 @@ export function resolveGate1Facts(p: StoredProperty | null, job: { lifeSupportSt
 
   // Location: portal columns first, then Base44 mapped address (geocoded, treated as verified).
   let state = p?.state ?? null, postcode = p?.postcode ?? null;
-  if (state || postcode) evidence.location = { fact: [state, postcode].filter(Boolean).join(" "), source: "properties (intake address)", basis: "recorded" };
-  if (!state && typeof r["state"] === "string") state = r["state"] as string;
-  if (!postcode && typeof r["postcode"] === "string") postcode = r["postcode"] as string;
-  if (!evidence.location && (state || postcode)) evidence.location = { fact: `${[state, postcode].filter(Boolean).join(" ")}${r["formatted_address"] ? ` (${r["formatted_address"]})` : ""}`, source: "base44.property_research mapped address", basis: "verified" };
+  let mapped = false;
+  if (!state && typeof r["state"] === "string") { state = r["state"] as string; mapped = true; }
+  if (!postcode && typeof r["postcode"] === "string") { postcode = r["postcode"] as string; mapped = true; }
+  if (state || postcode) evidence.location = mapped
+    ? { fact: `${[state, postcode].filter(Boolean).join(" ")}${r["formatted_address"] ? ` (${r["formatted_address"]})` : ""}`, source: "base44.property_research mapped address", basis: "verified" }
+    : { fact: [state, postcode].filter(Boolean).join(" "), source: "properties (intake address)", basis: "recorded" };
 
   // Residential
   let isResidential = p?.is_residential ?? null, residentialNote: string | null = null;
@@ -156,7 +158,7 @@ export function resolveGate1Facts(p: StoredProperty | null, job: { lifeSupportSt
   const yearBuiltVerified = e["year_built_verified"] === true;
   const fa = typeof r["first_appearance_year"] === "number" ? (r["first_appearance_year"] as number) : null;
   const verifiedMinAgeYears = researchDone && r["age_verified"] === true && fa ? currentYear - fa : null;
-  const declaredOverMinAge = (["yes", "no", "unknown"].includes(d["over_five_years"] as string) ? d["over_five_years"] : null) as Gate1Facts["declaredOverMinAge"];
+  const declaredOverMinAge = (["yes", "no", "unknown"].includes(d["over_five_years"] as string) ? d["over_five_years"] : null) as "yes" | "no" | "unknown" | null;
   if (p?.year_built) evidence.building_age = { fact: `built ${p.year_built}`, source: "properties.year_built", basis: yearBuiltVerified ? "verified" : "recorded" };
   else if (verifiedMinAgeYears != null) evidence.building_age = { fact: `first appears ${fa}${r["age_evidence_source"] ? ` (${r["age_evidence_source"]})` : ""}`, source: "base44.property_research", basis: "verified" };
   else if (declaredOverMinAge) evidence.building_age = { fact: `owner: over 5 years = ${declaredOverMinAge}`, source: "base44 owner declaration", basis: "declared" };

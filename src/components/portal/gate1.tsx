@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getGate1Evidence } from "@/lib/portal.functions";
 import { Pill } from "./badges";
 
-const RESULT: Record<string, { t: "ok" | "bad" | "warn"; l: string }> = { pass: { t: "ok", l: "Pass" }, fail: { t: "bad", l: "Fail" }, review: { t: "warn", l: "Review" } };
+const RESULT: Record<string, { t: "good" | "bad" | "warn"; l: string }> = { pass: { t: "good", l: "Pass" }, fail: { t: "bad", l: "Fail" }, review: { t: "warn", l: "Review" } };
 const OUTCOME: Record<string, string> = { likely_eligible: "Auto-pass", does_not_appear_eligible: "Auto-fail (held)" };
 
 /** Per-rule Gate 1 evidence: fact, source, declared/verified basis and result. Read-only. */
@@ -17,7 +17,7 @@ export function Gate1EvidencePanel({ jobId }: { jobId: string }) {
     <section className="rounded-xl border bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h3 className="font-semibold">Gate 1 evidence</h3>
-        <Pill t={live.outcome === "likely_eligible" ? "ok" : live.outcome ? "bad" : "warn"}>Rules now: {live.outcome ? OUTCOME[live.outcome] : "Human review"}</Pill>
+        <Pill t={live.outcome === "likely_eligible" ? "good" : live.outcome ? "bad" : "warn"}>Rules now: {live.outcome ? OUTCOME[live.outcome] : "Human review"}</Pill>
         {recorded.source && <span className="text-xs text-muted-foreground">Recorded decision: {recorded.outcome?.replace(/_/g, " ") ?? "—"} ({recorded.source})</span>}
       </div>
       <div className="overflow-x-auto">
@@ -31,7 +31,7 @@ export function Gate1EvidencePanel({ jobId }: { jobId: string }) {
                 <td className="py-1.5 pr-3 font-medium">{r.label}</td>
                 <td className="pr-3">{r.fact}</td>
                 <td className="pr-3 text-muted-foreground">{r.source}</td>
-                <td className="pr-3"><Pill t={r.basis === "verified" ? "ok" : r.basis === "unknown" ? "warn" : "info"}>{r.basis}</Pill></td>
+                <td className="pr-3"><Pill t={r.basis === "verified" ? "good" : r.basis === "unknown" ? "warn" : "info"}>{r.basis}</Pill></td>
                 <td className="pr-3"><Pill t={RESULT[r.result]!.t}>{RESULT[r.result]!.l}</Pill></td>
                 <td>{r.reason}</td>
               </tr>
