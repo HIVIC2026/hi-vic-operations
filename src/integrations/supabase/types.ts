@@ -1,0 +1,2163 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
+  public: {
+    Tables: {
+      assessments: {
+        Row: {
+          access_difficulty:
+            | Database["public"]["Enums"]["access_difficulty"]
+            | null
+          assessed_on: string | null
+          assessor_id: string | null
+          completed_at: string | null
+          created_at: string
+          downlights_qty: number | null
+          downlights_type: string | null
+          downlights_upgrade_qty: number | null
+          exhaust_fans_clearance_qty: number | null
+          exhaust_fans_qty: number | null
+          existing_r_value: number | null
+          external_mitti_id: string | null
+          hazards: string | null
+          id: string
+          insulation_present: boolean | null
+          job_id: string
+          life_support_confirmed: boolean | null
+          measured_area_m2: number | null
+          mitti_sync_status: Database["public"]["Enums"]["sync_status"]
+          mitti_synced_at: string | null
+          notes: string | null
+          piesa_outcome: Database["public"]["Enums"]["pass_fail"]
+          rcds_present: boolean | null
+          rcds_required_qty: number | null
+          removal_m2: number | null
+          removal_required: boolean | null
+          status: string
+          switchboard_condition: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_difficulty?:
+            | Database["public"]["Enums"]["access_difficulty"]
+            | null
+          assessed_on?: string | null
+          assessor_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          downlights_qty?: number | null
+          downlights_type?: string | null
+          downlights_upgrade_qty?: number | null
+          exhaust_fans_clearance_qty?: number | null
+          exhaust_fans_qty?: number | null
+          existing_r_value?: number | null
+          external_mitti_id?: string | null
+          hazards?: string | null
+          id?: string
+          insulation_present?: boolean | null
+          job_id: string
+          life_support_confirmed?: boolean | null
+          measured_area_m2?: number | null
+          mitti_sync_status?: Database["public"]["Enums"]["sync_status"]
+          mitti_synced_at?: string | null
+          notes?: string | null
+          piesa_outcome?: Database["public"]["Enums"]["pass_fail"]
+          rcds_present?: boolean | null
+          rcds_required_qty?: number | null
+          removal_m2?: number | null
+          removal_required?: boolean | null
+          status?: string
+          switchboard_condition?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_difficulty?:
+            | Database["public"]["Enums"]["access_difficulty"]
+            | null
+          assessed_on?: string | null
+          assessor_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          downlights_qty?: number | null
+          downlights_type?: string | null
+          downlights_upgrade_qty?: number | null
+          exhaust_fans_clearance_qty?: number | null
+          exhaust_fans_qty?: number | null
+          existing_r_value?: number | null
+          external_mitti_id?: string | null
+          hazards?: string | null
+          id?: string
+          insulation_present?: boolean | null
+          job_id?: string
+          life_support_confirmed?: boolean | null
+          measured_area_m2?: number | null
+          mitti_sync_status?: Database["public"]["Enums"]["sync_status"]
+          mitti_synced_at?: string | null
+          notes?: string | null
+          piesa_outcome?: Database["public"]["Enums"]["pass_fail"]
+          rcds_present?: boolean | null
+          rcds_required_qty?: number | null
+          removal_m2?: number | null
+          removal_required?: boolean | null
+          status?: string
+          switchboard_condition?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessments_assessor_id_fkey"
+            columns: ["assessor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "assessments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookings: {
+        Row: {
+          booked_by: string | null
+          contractor_id: string | null
+          created_at: string
+          id: string
+          job_id: string
+          kind: Database["public"]["Enums"]["booking_kind"]
+          notes: string | null
+          scheduled_end: string | null
+          scheduled_start: string
+          status: Database["public"]["Enums"]["booking_status"]
+        }
+        Insert: {
+          booked_by?: string | null
+          contractor_id?: string | null
+          created_at?: string
+          id?: string
+          job_id: string
+          kind: Database["public"]["Enums"]["booking_kind"]
+          notes?: string | null
+          scheduled_end?: string | null
+          scheduled_start: string
+          status?: Database["public"]["Enums"]["booking_status"]
+        }
+        Update: {
+          booked_by?: string | null
+          contractor_id?: string | null
+          created_at?: string
+          id?: string
+          job_id?: string
+          kind?: Database["public"]["Enums"]["booking_kind"]
+          notes?: string | null
+          scheduled_end?: string | null
+          scheduled_start?: string
+          status?: Database["public"]["Enums"]["booking_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_booked_by_fkey"
+            columns: ["booked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "bookings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      businesses: {
+        Row: {
+          abn: string | null
+          business_type: Database["public"]["Enums"]["business_type"]
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          licence_number: string | null
+          name: string
+          phone: string | null
+        }
+        Insert: {
+          abn?: string | null
+          business_type: Database["public"]["Enums"]["business_type"]
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          licence_number?: string | null
+          name: string
+          phone?: string | null
+        }
+        Update: {
+          abn?: string | null
+          business_type?: Database["public"]["Enums"]["business_type"]
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          licence_number?: string | null
+          name?: string
+          phone?: string | null
+        }
+        Relationships: []
+      }
+      compliance_checks: {
+        Row: {
+          blocking: boolean
+          check_key: string
+          checked_at: string | null
+          checked_by: string | null
+          id: string
+          job_id: string
+          label: string
+          notes: string | null
+          sort: number
+          status: Database["public"]["Enums"]["pass_fail"]
+        }
+        Insert: {
+          blocking?: boolean
+          check_key: string
+          checked_at?: string | null
+          checked_by?: string | null
+          id?: string
+          job_id: string
+          label: string
+          notes?: string | null
+          sort?: number
+          status?: Database["public"]["Enums"]["pass_fail"]
+        }
+        Update: {
+          blocking?: boolean
+          check_key?: string
+          checked_at?: string | null
+          checked_by?: string | null
+          id?: string
+          job_id?: string
+          label?: string
+          notes?: string | null
+          sort?: number
+          status?: Database["public"]["Enums"]["pass_fail"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_checks_checked_by_fkey"
+            columns: ["checked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "compliance_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      declarations: {
+        Row: {
+          declared_at: string
+          declared_by: string | null
+          id: string
+          job_id: string
+          kind: string
+          statement: string
+        }
+        Insert: {
+          declared_at?: string
+          declared_by?: string | null
+          id?: string
+          job_id: string
+          kind: string
+          statement: string
+        }
+        Update: {
+          declared_at?: string
+          declared_by?: string | null
+          id?: string
+          job_id?: string
+          kind?: string
+          statement?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "declarations_declared_by_fkey"
+            columns: ["declared_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "declarations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "declarations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "declarations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents: {
+        Row: {
+          created_at: string
+          id: string
+          job_id: string | null
+          kind: string
+          mime_type: string | null
+          storage_path: string
+          title: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          job_id?: string | null
+          kind: string
+          mime_type?: string | null
+          storage_path: string
+          title: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          job_id?: string | null
+          kind?: string
+          mime_type?: string | null
+          storage_path?: string
+          title?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "documents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      evidence_files: {
+        Row: {
+          file_name: string
+          id: string
+          job_id: string
+          mime_type: string | null
+          requirement_id: string
+          size_bytes: number | null
+          storage_path: string
+          uploaded_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          file_name: string
+          id?: string
+          job_id: string
+          mime_type?: string | null
+          requirement_id: string
+          size_bytes?: number | null
+          storage_path: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          file_name?: string
+          id?: string
+          job_id?: string
+          mime_type?: string | null
+          requirement_id?: string
+          size_bytes?: number | null
+          storage_path?: string
+          uploaded_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evidence_files_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_files_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "evidence_files_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_files_requirement_id_fkey"
+            columns: ["requirement_id"]
+            isOneToOne: false
+            referencedRelation: "evidence_requirements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_files_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      evidence_requirements: {
+        Row: {
+          category: Database["public"]["Enums"]["evidence_category"]
+          gate: string
+          id: string
+          job_id: string
+          label: string
+          notes: string | null
+          required: boolean
+          responsible_role:
+            | Database["public"]["Enums"]["assignment_role"]
+            | null
+          sort: number
+          status: Database["public"]["Enums"]["evidence_status"]
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["evidence_category"]
+          gate: string
+          id?: string
+          job_id: string
+          label: string
+          notes?: string | null
+          required?: boolean
+          responsible_role?:
+            | Database["public"]["Enums"]["assignment_role"]
+            | null
+          sort?: number
+          status?: Database["public"]["Enums"]["evidence_status"]
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["evidence_category"]
+          gate?: string
+          id?: string
+          job_id?: string
+          label?: string
+          notes?: string | null
+          required?: boolean
+          responsible_role?:
+            | Database["public"]["Enums"]["assignment_role"]
+            | null
+          sort?: number
+          status?: Database["public"]["Enums"]["evidence_status"]
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evidence_requirements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_requirements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "evidence_requirements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_requirements_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_sync_logs: {
+        Row: {
+          created_at: string
+          direction: string
+          entity_id: string | null
+          entity_type: string
+          error: string | null
+          id: string
+          payload: Json | null
+          status: Database["public"]["Enums"]["sync_status"]
+          system: string
+        }
+        Insert: {
+          created_at?: string
+          direction: string
+          entity_id?: string | null
+          entity_type: string
+          error?: string | null
+          id?: string
+          payload?: Json | null
+          status: Database["public"]["Enums"]["sync_status"]
+          system: string
+        }
+        Update: {
+          created_at?: string
+          direction?: string
+          entity_id?: string | null
+          entity_type?: string
+          error?: string | null
+          id?: string
+          payload?: Json | null
+          status?: Database["public"]["Enums"]["sync_status"]
+          system?: string
+        }
+        Relationships: []
+      }
+      job_assignments: {
+        Row: {
+          active: boolean
+          assigned_at: string
+          assigned_by: string | null
+          business_id: string | null
+          end_reason: string | null
+          ended_at: string | null
+          id: string
+          job_id: string
+          role: Database["public"]["Enums"]["assignment_role"]
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          assigned_at?: string
+          assigned_by?: string | null
+          business_id?: string | null
+          end_reason?: string | null
+          ended_at?: string | null
+          id?: string
+          job_id: string
+          role: Database["public"]["Enums"]["assignment_role"]
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          assigned_at?: string
+          assigned_by?: string | null
+          business_id?: string | null
+          end_reason?: string | null
+          ended_at?: string | null
+          id?: string
+          job_id?: string
+          role?: Database["public"]["Enums"]["assignment_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_assignments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_assignments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_assignments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_assignments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_assignments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobs: {
+        Row: {
+          cancelled_reason: string | null
+          created_at: string
+          eligibility_outcome:
+            | Database["public"]["Enums"]["eligibility_outcome"]
+            | null
+          eligibility_reason: string | null
+          eligibility_set_at: string | null
+          eligibility_set_by: string | null
+          estimated_area_m2: number | null
+          estimated_area_unknown: boolean
+          external_enquiry_id: string | null
+          hold_reason: string | null
+          id: string
+          installation_completed_at: string | null
+          job_number: string
+          last_activity_at: string
+          life_support: boolean
+          next_action: string | null
+          owner_id: string
+          prior_stage: Database["public"]["Enums"]["job_stage"] | null
+          property_id: string
+          source: string
+          stage: Database["public"]["Enums"]["job_stage"]
+          updated_at: string
+        }
+        Insert: {
+          cancelled_reason?: string | null
+          created_at?: string
+          eligibility_outcome?:
+            | Database["public"]["Enums"]["eligibility_outcome"]
+            | null
+          eligibility_reason?: string | null
+          eligibility_set_at?: string | null
+          eligibility_set_by?: string | null
+          estimated_area_m2?: number | null
+          estimated_area_unknown?: boolean
+          external_enquiry_id?: string | null
+          hold_reason?: string | null
+          id?: string
+          installation_completed_at?: string | null
+          job_number?: string
+          last_activity_at?: string
+          life_support?: boolean
+          next_action?: string | null
+          owner_id: string
+          prior_stage?: Database["public"]["Enums"]["job_stage"] | null
+          property_id: string
+          source?: string
+          stage?: Database["public"]["Enums"]["job_stage"]
+          updated_at?: string
+        }
+        Update: {
+          cancelled_reason?: string | null
+          created_at?: string
+          eligibility_outcome?:
+            | Database["public"]["Enums"]["eligibility_outcome"]
+            | null
+          eligibility_reason?: string | null
+          eligibility_set_at?: string | null
+          eligibility_set_by?: string | null
+          estimated_area_m2?: number | null
+          estimated_area_unknown?: boolean
+          external_enquiry_id?: string | null
+          hold_reason?: string | null
+          id?: string
+          installation_completed_at?: string | null
+          job_number?: string
+          last_activity_at?: string
+          life_support?: boolean
+          next_action?: string | null
+          owner_id?: string
+          prior_stage?: Database["public"]["Enums"]["job_stage"] | null
+          property_id?: string
+          source?: string
+          stage?: Database["public"]["Enums"]["job_stage"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_eligibility_set_by_fkey"
+            columns: ["eligibility_set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["owner_id"]
+          },
+          {
+            foreignKeyName: "jobs_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "owners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "jobs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          body: string
+          channel: string
+          created_at: string
+          id: string
+          internal: boolean
+          job_id: string
+          sender_id: string | null
+        }
+        Insert: {
+          body: string
+          channel?: string
+          created_at?: string
+          id?: string
+          internal?: boolean
+          job_id: string
+          sender_id?: string | null
+        }
+        Update: {
+          body?: string
+          channel?: string
+          created_at?: string
+          id?: string
+          internal?: boolean
+          job_id?: string
+          sender_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "messages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owners: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          phone: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owners_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      piesa_records: {
+        Row: {
+          assessment_id: string | null
+          completed_date: string
+          created_at: string
+          external_mitti_id: string | null
+          id: string
+          is_current: boolean
+          job_id: string
+          kind: string
+          notes: string | null
+          outcome: Database["public"]["Enums"]["pass_fail"]
+          signed_off_by: string | null
+        }
+        Insert: {
+          assessment_id?: string | null
+          completed_date: string
+          created_at?: string
+          external_mitti_id?: string | null
+          id?: string
+          is_current?: boolean
+          job_id: string
+          kind?: string
+          notes?: string | null
+          outcome: Database["public"]["Enums"]["pass_fail"]
+          signed_off_by?: string | null
+        }
+        Update: {
+          assessment_id?: string | null
+          completed_date?: string
+          created_at?: string
+          external_mitti_id?: string | null
+          id?: string
+          is_current?: boolean
+          job_id?: string
+          kind?: string
+          notes?: string | null
+          outcome?: Database["public"]["Enums"]["pass_fail"]
+          signed_off_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "piesa_records_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piesa_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piesa_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "piesa_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piesa_records_signed_off_by_fkey"
+            columns: ["signed_off_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pricing_settings: {
+        Row: {
+          access_loadings: Json
+          ap_fee_ex_gst: number
+          ap_margin_pct: number
+          created_at: string
+          effective_from: string
+          gst_rate: number
+          id: string
+          installer_option_codes: string[]
+          is_active: boolean
+          veec_credit_per_m2_inc_gst: number
+          version: number
+        }
+        Insert: {
+          access_loadings?: Json
+          ap_fee_ex_gst?: number
+          ap_margin_pct?: number
+          created_at?: string
+          effective_from?: string
+          gst_rate?: number
+          id?: string
+          installer_option_codes?: string[]
+          is_active?: boolean
+          veec_credit_per_m2_inc_gst?: number
+          version: number
+        }
+        Update: {
+          access_loadings?: Json
+          ap_fee_ex_gst?: number
+          ap_margin_pct?: number
+          created_at?: string
+          effective_from?: string
+          gst_rate?: number
+          id?: string
+          installer_option_codes?: string[]
+          is_active?: boolean
+          veec_credit_per_m2_inc_gst?: number
+          version?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          business_id: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          licence_number: string | null
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          licence_number?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          licence_number?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      properties: {
+        Row: {
+          address_line: string
+          created_at: string
+          enrichment: Json
+          id: string
+          is_residential: boolean | null
+          managed_by_business_id: string | null
+          occupancy: Database["public"]["Enums"]["occupancy_type"] | null
+          owner_id: string
+          postcode: string | null
+          state: string
+          suburb: string | null
+          updated_at: string
+          year_built: number | null
+        }
+        Insert: {
+          address_line: string
+          created_at?: string
+          enrichment?: Json
+          id?: string
+          is_residential?: boolean | null
+          managed_by_business_id?: string | null
+          occupancy?: Database["public"]["Enums"]["occupancy_type"] | null
+          owner_id: string
+          postcode?: string | null
+          state?: string
+          suburb?: string | null
+          updated_at?: string
+          year_built?: number | null
+        }
+        Update: {
+          address_line?: string
+          created_at?: string
+          enrichment?: Json
+          id?: string
+          is_residential?: boolean | null
+          managed_by_business_id?: string | null
+          occupancy?: Database["public"]["Enums"]["occupancy_type"] | null
+          owner_id?: string
+          postcode?: string | null
+          state?: string
+          suburb?: string | null
+          updated_at?: string
+          year_built?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "properties_managed_by_business_id_fkey"
+            columns: ["managed_by_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "properties_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["owner_id"]
+          },
+          {
+            foreignKeyName: "properties_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quote_adjustments: {
+        Row: {
+          adjusted_by: string
+          after_snapshot: Json
+          before_snapshot: Json
+          created_at: string
+          id: string
+          quote_id: string
+          reason: string
+        }
+        Insert: {
+          adjusted_by: string
+          after_snapshot: Json
+          before_snapshot: Json
+          created_at?: string
+          id?: string
+          quote_id: string
+          reason: string
+        }
+        Update: {
+          adjusted_by?: string
+          after_snapshot?: Json
+          before_snapshot?: Json
+          created_at?: string
+          id?: string
+          quote_id?: string
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_adjustments_adjusted_by_fkey"
+            columns: ["adjusted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_adjustments_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quote_internals: {
+        Row: {
+          ap_fee_ex_gst: number
+          ap_margin_ex_gst: number
+          calc_snapshot: Json
+          cost_ex_gst: number
+          quote_id: string
+        }
+        Insert: {
+          ap_fee_ex_gst?: number
+          ap_margin_ex_gst?: number
+          calc_snapshot?: Json
+          cost_ex_gst: number
+          quote_id: string
+        }
+        Update: {
+          ap_fee_ex_gst?: number
+          ap_margin_ex_gst?: number
+          calc_snapshot?: Json
+          cost_ex_gst?: number
+          quote_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_internals_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: true
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quote_items: {
+        Row: {
+          code: string | null
+          description: string
+          explanation: string | null
+          id: string
+          is_other: boolean
+          line_total_inc_gst: number
+          quantity: number
+          quote_id: string
+          sort: number
+          unit: string
+          unit_price_inc_gst: number
+        }
+        Insert: {
+          code?: string | null
+          description: string
+          explanation?: string | null
+          id?: string
+          is_other?: boolean
+          line_total_inc_gst: number
+          quantity: number
+          quote_id: string
+          sort?: number
+          unit: string
+          unit_price_inc_gst: number
+        }
+        Update: {
+          code?: string | null
+          description?: string
+          explanation?: string | null
+          id?: string
+          is_other?: boolean
+          line_total_inc_gst?: number
+          quantity?: number
+          quote_id?: string
+          sort?: number
+          unit?: string
+          unit_price_inc_gst?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_items_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotes: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          created_at: string
+          created_by: string | null
+          customer_total_inc_gst: number
+          gst_amount: number
+          id: string
+          job_id: string
+          kind: Database["public"]["Enums"]["quote_kind"]
+          manually_adjusted: boolean
+          option_code: string | null
+          option_label: string
+          prices_include_gst: boolean
+          pricing_settings_id: string | null
+          rate_card_id: string | null
+          status: Database["public"]["Enums"]["quote_status"]
+          subtotal_inc_gst: number
+          veec_discount_inc_gst: number
+          version: number
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_total_inc_gst: number
+          gst_amount: number
+          id?: string
+          job_id: string
+          kind: Database["public"]["Enums"]["quote_kind"]
+          manually_adjusted?: boolean
+          option_code?: string | null
+          option_label: string
+          prices_include_gst?: boolean
+          pricing_settings_id?: string | null
+          rate_card_id?: string | null
+          status?: Database["public"]["Enums"]["quote_status"]
+          subtotal_inc_gst: number
+          veec_discount_inc_gst?: number
+          version?: number
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_total_inc_gst?: number
+          gst_amount?: number
+          id?: string
+          job_id?: string
+          kind?: Database["public"]["Enums"]["quote_kind"]
+          manually_adjusted?: boolean
+          option_code?: string | null
+          option_label?: string
+          prices_include_gst?: boolean
+          pricing_settings_id?: string | null
+          rate_card_id?: string | null
+          status?: Database["public"]["Enums"]["quote_status"]
+          subtotal_inc_gst?: number
+          veec_discount_inc_gst?: number
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_accepted_by_fkey"
+            columns: ["accepted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "quotes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_pricing_settings_id_fkey"
+            columns: ["pricing_settings_id"]
+            isOneToOne: false
+            referencedRelation: "pricing_settings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_rate_card_id_fkey"
+            columns: ["rate_card_id"]
+            isOneToOne: false
+            referencedRelation: "rate_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rate_card_items: {
+        Row: {
+          category: string
+          code: string
+          description: string
+          id: string
+          r_value: number | null
+          rate_card_id: string
+          sort: number
+          unit: string
+          unit_price_ex_gst: number
+        }
+        Insert: {
+          category: string
+          code: string
+          description: string
+          id?: string
+          r_value?: number | null
+          rate_card_id: string
+          sort?: number
+          unit: string
+          unit_price_ex_gst: number
+        }
+        Update: {
+          category?: string
+          code?: string
+          description?: string
+          id?: string
+          r_value?: number | null
+          rate_card_id?: string
+          sort?: number
+          unit?: string
+          unit_price_ex_gst?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rate_card_items_rate_card_id_fkey"
+            columns: ["rate_card_id"]
+            isOneToOne: false
+            referencedRelation: "rate_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rate_cards: {
+        Row: {
+          business_id: string | null
+          created_at: string
+          effective_from: string
+          id: string
+          is_active: boolean
+          kind: Database["public"]["Enums"]["rate_card_kind"]
+          name: string
+          version: number
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string
+          effective_from?: string
+          id?: string
+          is_active?: boolean
+          kind: Database["public"]["Enums"]["rate_card_kind"]
+          name: string
+          version: number
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string
+          effective_from?: string
+          id?: string
+          is_active?: boolean
+          kind?: Database["public"]["Enums"]["rate_card_kind"]
+          name?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rate_cards_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reassignment_requests: {
+        Row: {
+          created_at: string
+          id: string
+          job_id: string
+          reason: string
+          requested_by: string
+          resolved_at: string | null
+          resolved_by: string | null
+          role: Database["public"]["Enums"]["assignment_role"]
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          job_id: string
+          reason: string
+          requested_by: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          role: Database["public"]["Enums"]["assignment_role"]
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          job_id?: string
+          reason?: string
+          requested_by?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          role?: Database["public"]["Enums"]["assignment_role"]
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reassignment_requests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reassignment_requests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "reassignment_requests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reassignment_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reassignment_requests_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rectification_items: {
+        Row: {
+          added_by: string | null
+          assessment_id: string | null
+          created_at: string
+          description: string
+          explanation: string | null
+          id: string
+          is_other: boolean
+          job_id: string
+          other_unit_price_inc_gst: number | null
+          quantity: number
+          rate_code: string | null
+          status: string
+        }
+        Insert: {
+          added_by?: string | null
+          assessment_id?: string | null
+          created_at?: string
+          description: string
+          explanation?: string | null
+          id?: string
+          is_other?: boolean
+          job_id: string
+          other_unit_price_inc_gst?: number | null
+          quantity?: number
+          rate_code?: string | null
+          status?: string
+        }
+        Update: {
+          added_by?: string | null
+          assessment_id?: string | null
+          created_at?: string
+          description?: string
+          explanation?: string | null
+          id?: string
+          is_other?: boolean
+          job_id?: string
+          other_unit_price_inc_gst?: number | null
+          quantity?: number
+          rate_code?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rectification_items_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rectification_items_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rectification_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rectification_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "rectification_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      veec_lodgements: {
+        Row: {
+          id: string
+          job_id: string
+          notes: string | null
+          quantity: number | null
+          status: string
+          submission_reference: string | null
+          submitted_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          job_id: string
+          notes?: string | null
+          quantity?: number | null
+          status?: string
+          submission_reference?: string | null
+          submitted_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          job_id?: string
+          notes?: string | null
+          quantity?: number | null
+          status?: string
+          submission_reference?: string | null
+          submitted_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "veec_lodgements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "veec_lodgements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "veec_lodgements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          details: Json
+          event_type: string
+          from_stage: Database["public"]["Enums"]["job_stage"] | null
+          id: string
+          internal: boolean
+          job_id: string
+          summary: string
+          to_stage: Database["public"]["Enums"]["job_stage"] | null
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type: string
+          from_stage?: Database["public"]["Enums"]["job_stage"] | null
+          id?: string
+          internal?: boolean
+          job_id: string
+          summary: string
+          to_stage?: Database["public"]["Enums"]["job_stage"] | null
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type?: string
+          from_stage?: Database["public"]["Enums"]["job_stage"] | null
+          id?: string
+          internal?: boolean
+          job_id?: string
+          summary?: string
+          to_stage?: Database["public"]["Enums"]["job_stage"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "workflow_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_settings: {
+        Row: {
+          id: number
+          min_building_age_years: number
+          piesa_install_window_days: number
+          updated_at: string
+          urgency_amber_days: number
+          urgency_red_days: number
+        }
+        Insert: {
+          id?: number
+          min_building_age_years?: number
+          piesa_install_window_days?: number
+          updated_at?: string
+          urgency_amber_days?: number
+          urgency_red_days?: number
+        }
+        Update: {
+          id?: number
+          min_building_age_years?: number
+          piesa_install_window_days?: number
+          updated_at?: string
+          urgency_amber_days?: number
+          urgency_red_days?: number
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      job_overview: {
+        Row: {
+          created_at: string | null
+          days_remaining: number | null
+          electrician_id: string | null
+          electrician_name: string | null
+          eligibility_outcome:
+            | Database["public"]["Enums"]["eligibility_outcome"]
+            | null
+          hold_reason: string | null
+          id: string | null
+          install_deadline: string | null
+          installer_id: string | null
+          installer_name: string | null
+          job_number: string | null
+          last_activity_at: string | null
+          life_support: boolean | null
+          next_action: string | null
+          owner_email: string | null
+          owner_id: string | null
+          owner_name: string | null
+          owner_phone: string | null
+          piesa_date: string | null
+          piesa_expired: boolean | null
+          property_address: string | null
+          property_id: string | null
+          stage: Database["public"]["Enums"]["job_stage"] | null
+          urgency: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_assignments_user_id_fkey"
+            columns: ["electrician_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_assignments_user_id_fkey"
+            columns: ["installer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_piesa_deadlines: {
+        Row: {
+          days_remaining: number | null
+          install_deadline: string | null
+          job_id: string | null
+          piesa_date: string | null
+          piesa_expired: boolean | null
+          piesa_outcome: Database["public"]["Enums"]["pass_fail"] | null
+          urgency: string | null
+        }
+        Relationships: []
+      }
+    }
+    Functions: {
+      can_access_job: { Args: { _job: string }; Returns: boolean }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin: { Args: never; Returns: boolean }
+      is_job_owner: { Args: { _job: string; _user: string }; Returns: boolean }
+      job_assignment_role: {
+        Args: { _job: string; _user: string }
+        Returns: Database["public"]["Enums"]["assignment_role"]
+      }
+      my_job_role: { Args: { _job: string }; Returns: string }
+      shares_job_with: { Args: { _profile: string }; Returns: boolean }
+    }
+    Enums: {
+      access_difficulty: "easy" | "moderate" | "difficult"
+      app_role:
+        | "admin"
+        | "electrician"
+        | "installer"
+        | "owner"
+        | "property_manager"
+      assignment_role: "electrician" | "installer" | "property_manager"
+      booking_kind: "assessment" | "rectification" | "installation"
+      booking_status: "proposed" | "confirmed" | "completed" | "cancelled"
+      business_type:
+        | "accredited_provider"
+        | "rec"
+        | "eec_installer"
+        | "property_manager"
+        | "other"
+      eligibility_outcome:
+        | "likely_eligible"
+        | "needs_onsite_confirmation"
+        | "does_not_appear_eligible"
+      evidence_category:
+        | "measurement"
+        | "existing_insulation_r_value"
+        | "before_ceiling_space"
+        | "access_manhole"
+        | "product_evidence"
+        | "installation_progress"
+        | "completed_installation"
+        | "piesa_signoff"
+        | "rectification_completion"
+        | "installer_declaration"
+      evidence_status:
+        | "outstanding"
+        | "uploaded"
+        | "verified"
+        | "rejected"
+        | "not_required"
+      job_stage:
+        | "new_enquiry"
+        | "eligibility_review"
+        | "awaiting_electrician"
+        | "assessment_booking"
+        | "assessment_booked"
+        | "assessment_complete"
+        | "rectification_required"
+        | "awaiting_owner_rectification_approval"
+        | "rectification_scheduling"
+        | "rectification_booked"
+        | "ready_for_installer_quotes"
+        | "awaiting_quote_acceptance"
+        | "installation_scheduling"
+        | "installation_booked"
+        | "evidence_outstanding"
+        | "ap_review"
+        | "ready_for_veec"
+        | "complete"
+        | "cancelled"
+        | "on_hold"
+      occupancy_type: "owner_occupied" | "rental"
+      pass_fail: "pending" | "pass" | "fail"
+      quote_kind: "installation" | "rectification"
+      quote_status: "draft" | "issued" | "accepted" | "declined" | "superseded"
+      rate_card_kind: "installer" | "electrical"
+      sync_status: "not_synced" | "pending" | "synced" | "error"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never) = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never) = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      access_difficulty: ["easy", "moderate", "difficult"],
+      app_role: [
+        "admin",
+        "electrician",
+        "installer",
+        "owner",
+        "property_manager",
+      ],
+      assignment_role: ["electrician", "installer", "property_manager"],
+      booking_kind: ["assessment", "rectification", "installation"],
+      booking_status: ["proposed", "confirmed", "completed", "cancelled"],
+      business_type: [
+        "accredited_provider",
+        "rec",
+        "eec_installer",
+        "property_manager",
+        "other",
+      ],
+      eligibility_outcome: [
+        "likely_eligible",
+        "needs_onsite_confirmation",
+        "does_not_appear_eligible",
+      ],
+      evidence_category: [
+        "measurement",
+        "existing_insulation_r_value",
+        "before_ceiling_space",
+        "access_manhole",
+        "product_evidence",
+        "installation_progress",
+        "completed_installation",
+        "piesa_signoff",
+        "rectification_completion",
+        "installer_declaration",
+      ],
+      evidence_status: [
+        "outstanding",
+        "uploaded",
+        "verified",
+        "rejected",
+        "not_required",
+      ],
+      job_stage: [
+        "new_enquiry",
+        "eligibility_review",
+        "awaiting_electrician",
+        "assessment_booking",
+        "assessment_booked",
+        "assessment_complete",
+        "rectification_required",
+        "awaiting_owner_rectification_approval",
+        "rectification_scheduling",
+        "rectification_booked",
+        "ready_for_installer_quotes",
+        "awaiting_quote_acceptance",
+        "installation_scheduling",
+        "installation_booked",
+        "evidence_outstanding",
+        "ap_review",
+        "ready_for_veec",
+        "complete",
+        "cancelled",
+        "on_hold",
+      ],
+      occupancy_type: ["owner_occupied", "rental"],
+      pass_fail: ["pending", "pass", "fail"],
+      quote_kind: ["installation", "rectification"],
+      quote_status: ["draft", "issued", "accepted", "declined", "superseded"],
+      rate_card_kind: ["installer", "electrical"],
+      sync_status: ["not_synced", "pending", "synced", "error"],
+    },
+  },
+} as const
