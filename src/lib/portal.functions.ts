@@ -8,6 +8,10 @@ import { WorkflowError, logEvent, nextStepBlockers, piesaStatus, requireAdmin, r
 import { adjustQuote as adjustQuoteImpl, deriveRectificationItems, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { STAGE_LABEL, type Stage } from "./workflow";
+import { applyPaidAmount, createInvoiceForQuote, pushInvoiceToXero, syncInvoiceFromXero } from "./xero.server";
+import { depositCleared, pendingDepositKind } from "./workflow.server";
+
+const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
 
 const uuid = z.string().uuid();
 const auth = () => createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]);
@@ -47,7 +51,7 @@ export const assignContractor = auth()
     if (!hasRole) throw new WorkflowError(`User does not hold the ${data.role} role.`);
     const { data: prof } = await admin.from("profiles").select("full_name, business_id").eq("id", data.userId).single();
     await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: "reassigned" }).eq("job_id", data.jobId).eq("role", data.role).eq("active", true);
-    await admin.from("job_assignments").insert({ job_id: data.jobId, user_id: data.userId, role: data.role, business_id: prof?.business_id, assigned_by: context.userId });
+    await admin.from("job_assignments").insert({ job_id: data.jobId, user_id: data.userId, role: data.role, business_id: prof?.business_id ?? null, assigned_by: context.userId });
     await admin.from("reassignment_requests").update({ status: "actioned", resolved_by: context.userId, resolved_at: new Date().toISOString() }).eq("job_id", data.jobId).eq("role", data.role).eq("status", "open");
     await logEvent(data.jobId, context.userId, "contractor_assigned", `${data.role === "electrician" ? "Electrician" : "Installer"} assigned: ${prof?.full_name ?? "user"}`);
     if (data.role === "electrician" && (await getStage(data.jobId)) === "awaiting_electrician")
@@ -103,8 +107,8 @@ export const saveAssessment = auth()
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
     const { data: existing } = await admin.from("assessments").select("id,status").eq("job_id", data.jobId).maybeSingle();
     if (existing?.status === "complete") throw new WorkflowError("Assessment is complete and locked. Ask HI VIC to reopen.");
-    if (existing) await admin.from("assessments").update(data.patch).eq("id", existing.id);
-    else await admin.from("assessments").insert({ ...data.patch, job_id: data.jobId, assessor_id: context.userId });
+    if (existing) await admin.from("assessments").update(clean(data.patch)).eq("id", existing.id);
+    else await admin.from("assessments").insert(clean({ ...data.patch, job_id: data.jobId, assessor_id: context.userId }));
     return { ok: true, savedAt: new Date().toISOString() };
   });
 
@@ -260,7 +264,62 @@ export const respondToQuote = auth()
     await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST) and consents to works and VEEC assignment.` }, { onConflict: "job_id,kind" });
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", q.job_id).eq("check_key", "owner_consent");
     await logEvent(q.job_id, context.userId, "quote_accepted", `${q.option_label} accepted`, { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst });
-    await transition(q.job_id, q.kind === "rectification" ? "rectification_scheduling" : "installation_scheduling", context.userId, q.kind === "rectification" ? "Owner approved rectification" : "Owner accepted installation quote");
+    await transition(q.job_id, "awaiting_deposit_payment", context.userId, q.kind === "rectification" ? "Owner approved rectification – 50% deposit due" : "Owner accepted installation quote – 50% deposit due");
+    await createInvoiceForQuote(q.id, context.userId);
+    await advanceAfterDeposit(q.job_id, context.userId);
+    return { ok: true };
+  });
+
+// ---------- Payments (Xero mirror + gates) ----------
+async function advanceAfterDeposit(jobId: string, actorId: string) {
+  if ((await getStage(jobId)) !== "awaiting_deposit_payment") return;
+  const kind = await pendingDepositKind(jobId);
+  if (!kind || !(await depositCleared(jobId, kind))) return;
+  await transition(jobId, kind === "rectification" ? "rectification_scheduling" : "installation_scheduling", actorId, "Deposit cleared – scheduling unlocked");
+}
+
+export const syncInvoice = auth()
+  .inputValidator((d) => z.object({ invoiceId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    await syncInvoiceFromXero(data.invoiceId, context.userId);
+    const { data: inv } = await admin.from("invoices").select("job_id").eq("id", data.invoiceId).single();
+    if (inv) await advanceAfterDeposit(inv.job_id, context.userId);
+    return { ok: true };
+  });
+
+export const retryXeroPush = auth()
+  .inputValidator((d) => z.object({ invoiceId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    await pushInvoiceToXero(data.invoiceId, context.userId);
+    return { ok: true };
+  });
+
+/** Admin override of the deposit gate – reason required, permanently audited. */
+export const overrideDepositGate = auth()
+  .inputValidator((d) => z.object({ invoiceId: uuid, reason: z.string().trim().min(5).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: inv } = await admin.from("invoices").select("job_id").eq("id", data.invoiceId).single();
+    if (!inv) throw new WorkflowError("Invoice not found");
+    await admin.from("payment_overrides").insert({ invoice_id: data.invoiceId, job_id: inv.job_id, gate: "deposit", reason: data.reason, overridden_by: context.userId });
+    await logEvent(inv.job_id, context.userId, "payment_override", `Deposit gate overridden by admin: ${data.reason}`, { invoice_id: data.invoiceId });
+    await advanceAfterDeposit(inv.job_id, context.userId);
+    return { ok: true };
+  });
+
+/** Dev/testing only until Xero is connected: simulate a payment arriving from Xero. */
+export const simulateXeroPayment = auth()
+  .inputValidator((d) => z.object({ invoiceId: uuid, amountPaid: z.number().min(0) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    if (process.env["XERO_API_KEY"]) throw new WorkflowError("Xero is connected – use Sync from Xero.");
+    const { data: inv } = await admin.from("invoices").select("job_id").eq("id", data.invoiceId).single();
+    if (!inv) throw new WorkflowError("Invoice not found");
+    await logEvent(inv.job_id, context.userId, "payment_simulated", `Simulated Xero payment total ${data.amountPaid} (testing)`, {}, { internal: true });
+    await applyPaidAmount(data.invoiceId, data.amountPaid, context.userId);
+    await advanceAfterDeposit(inv.job_id, context.userId);
     return { ok: true };
   });
 
@@ -284,6 +343,15 @@ export const createBooking = auth()
       const p = await piesaStatus(data.jobId);
       if (p?.install_deadline && data.start.slice(0, 10) > p.install_deadline)
         throw new WorkflowError(`Installation must be before the PIESA deadline (${p.install_deadline}).`);
+    }
+    if (data.kind !== "assessment" && !(await depositCleared(data.jobId, data.kind)))
+      throw new WorkflowError("Blocked: the 50% deposit has not been paid.");
+    if (data.kind === "installation") {
+      const { data: inv } = await admin.from("invoices").select("id").eq("job_id", data.jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (inv) {
+        await admin.from("invoices").update({ balance_due_date: data.start.slice(0, 10) }).eq("id", inv.id);
+        await logEvent(data.jobId, context.userId, "balance_due_set", `Remaining 50% balance due on installation day (${data.start.slice(0, 10)})`, { invoice_id: inv.id });
+      }
     }
     await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", data.jobId).eq("kind", data.kind).in("status", ["proposed", "confirmed"]);
     await admin.from("bookings").insert({ job_id: data.jobId, kind: data.kind, contractor_id: contractor.user_id, scheduled_start: data.start, booked_by: context.userId, notes: data.notes, status: "confirmed" });
