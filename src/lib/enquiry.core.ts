@@ -34,9 +34,9 @@ export async function verifyEd25519(rawBody: string, signatureB64: string | null
 export type PreliminaryEligibility = "likely_eligible" | "needs_onsite_confirmation" | "does_not_appear_eligible";
 
 export const PRELIM_NEXT_ACTION: Record<PreliminaryEligibility, string> = {
-  likely_eligible: "Confirm eligibility and arrange electrician assessment",
-  needs_onsite_confirmation: "Review onsite confirmation requirements",
-  does_not_appear_eligible: "Review eligibility outcome before closing",
+  likely_eligible: "Review Gate 1 and arrange electrician assessment",
+  needs_onsite_confirmation: "Review Gate 1 and confirm onsite checks",
+  does_not_appear_eligible: "Review Gate 1 before closing enquiry",
 };
 
 /** Job fields for a preliminary (website) eligibility result. Lands in eligibility_review for admin confirmation — never auto-passes. */
@@ -54,3 +54,54 @@ export function preliminaryEligibilityFields(outcome: PreliminaryEligibility | n
 
 /** Stages from which an idempotent website update may (re)place the job into eligibility_review. Later stages are never moved backwards. */
 export const PRELIM_STAGE_ALLOWED_FROM = ["new_enquiry", "eligibility_review"] as const;
+
+export type LifeSupportStatus = "yes" | "no" | "unknown";
+
+/** Sanitize reasons: strip control chars, collapse whitespace, drop empties/dupes, cap 20 x 300 chars, joined ≤2000. */
+export function joinReasons(reasons: readonly string[] | null | undefined): string | null {
+  if (!reasons?.length) return null;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const r of reasons.slice(0, 20)) {
+    const c = String(r).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+    if (c && !seen.has(c.toLowerCase())) { seen.add(c.toLowerCase()); out.push(c); }
+  }
+  return out.length ? out.join("; ").slice(0, 2000) : null;
+}
+
+export type Base44Fields = {
+  external_enquiry_id?: string | null; source_reference?: string | null;
+  life_support?: boolean | null; life_support_status?: LifeSupportStatus | null;
+  preliminary_outcome?: PreliminaryEligibility | null; preliminary_reasons?: string[] | null;
+  eligibility_outcome?: PreliminaryEligibility | null; eligibility_reason?: string | null;
+};
+
+/** life_support is true ONLY for an explicit "yes"; "unknown" is kept as a status (never a silent confirmed no). */
+export function resolveLifeSupport(i: Pick<Base44Fields, "life_support" | "life_support_status">): { life_support: boolean; status: LifeSupportStatus } {
+  if (i.life_support_status) return { life_support: i.life_support_status === "yes", status: i.life_support_status };
+  if (i.life_support === true) return { life_support: true, status: "yes" };
+  if (i.life_support === false) return { life_support: false, status: "no" };
+  return { life_support: false, status: "unknown" };
+}
+
+/**
+ * Pure plan for a Base44 enquiry against the (possibly) existing job for the same external_enquiry_id.
+ * existing = null -> create (always lands in eligibility_review); otherwise update the SAME job.
+ */
+export function planBase44Job(input: Base44Fields, existing: { stage: string } | null, now: Date = new Date()) {
+  const outcome = input.preliminary_outcome ?? input.eligibility_outcome ?? null;
+  const reason = joinReasons(input.preliminary_reasons) ?? input.eligibility_reason ?? null;
+  const ls = resolveLifeSupport(input);
+  const prelim = preliminaryEligibilityFields(outcome, reason, now);
+  const { stage: _s, ...prelimNoStage } = prelim ?? { stage: null };
+  const patch: Record<string, unknown> = { life_support: ls.life_support, ...(prelim ? prelimNoStage : {}) };
+  const canMove = !existing || (PRELIM_STAGE_ALLOWED_FROM as readonly string[]).includes(existing.stage);
+  const moveTo = canMove && (!existing || (prelim && existing.stage !== "eligibility_review")) ? ("eligibility_review" as const) : null;
+  if (!existing && !prelim) patch.next_action = "Review Gate 1 eligibility";
+  const details = {
+    external_enquiry_id: input.external_enquiry_id ?? null, source_reference: input.source_reference ?? null,
+    preliminary: true, preliminary_outcome: outcome, preliminary_reasons: reason,
+    life_support_status: ls.status, life_support_unconfirmed: ls.status === "unknown",
+  };
+  return { kind: existing ? ("update" as const) : ("create" as const), patch, moveTo, details, outcome };
+}
