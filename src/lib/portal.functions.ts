@@ -997,57 +997,95 @@ export const getAcceptancePackage = createServerFn({ method: "POST" }).middlewar
     await requireJobRole(context.supabase, q.job_id, ["owner", "admin"]);
     const templates = await loadTemplates();
     const pick = (k: TemplateKey) => templates.find((t) => t.template_key === k && t.approved) ?? null;
-    return { pkg: await buildAcceptancePackage(data.quoteId), consumerDeclaration: pick("consumer_declaration"), consumerRights: pick("consumer_rights"), escConsent: pick("esc_consent"), blockers: templateBlockers(templates, "consumer") };
+    return { pkg: await buildAcceptancePackage(data.quoteId), consumerRights: pick("consumer_rights"), agreementWording: pick("customer_agreement"), blockers: templateBlockers(templates, "agreement") };
   });
 
+/** All four separate signing records for a job, filtered by role. */
 export const getAssignment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "owner", "installer"]);
-    const { data: a } = await admin.from("customer_assignments").select("*").eq("job_id", data.jobId).order("created_at", { ascending: false });
+    const { currentConsent } = await import("./consent.server");
+    const { data: history } = await admin.from("customer_assignments").select("*").eq("job_id", data.jobId).order("created_at", { ascending: false });
     const { data: v } = await admin.from("assignment_variations").select("id, assignment_id, reasons, status, raised_at, reconfirmed_at, signature_name").eq("job_id", data.jobId).order("raised_at", { ascending: false });
     const templates = await loadTemplates();
-    const cur = (a ?? []).find((x) => x.status !== "cancelled") ?? null;
+    const cur = await currentAssignment(data.jobId);
+    const agreement = await currentAgreement(data.jobId);
+    const decl = await currentInstallerDeclaration(data.jobId);
+    const consent = await currentConsent(data.jobId);
+    const { data: job } = await admin.from("jobs").select("stage, installation_completed_at").eq("id", data.jobId).single();
     const installerDeclaration = templates.find((t) => t.template_key === "installer_declaration" && t.approved) ?? null;
-    const installerFields = parseFormFields(installerDeclaration?.form_fields);
-    const apTemplate = templates.find((t) => t.template_key === "ap_declaration" && t.approved) ?? null;
-    // Known facts shown read-only on the installer's finalisation screen (never retyped).
+    const officialForm = templates.find((t) => t.template_key === "consumer_declaration" && t.approved) ?? null;
+    const escConsentTemplate = templates.find((t) => t.template_key === "esc_consent" && t.approved) ?? null;
     const { data: ov } = await admin.from("job_overview").select("job_number, property_address, owner_name, piesa_date, install_deadline, installer_id, installer_name").eq("id", data.jobId).maybeSingle();
     const { data: ip } = ov?.installer_id ? await admin.from("profiles").select("full_name, licence_number, businesses(name, abn)").eq("id", ov.installer_id).maybeSingle() : { data: null };
     const biz = (ip?.businesses ?? null) as { name: string | null; abn: string | null } | null;
     const prefill = prefillRows([
       ["Job", ov?.job_number], ["Property", ov?.property_address], ["Owner", ov?.owner_name],
-      ["Installer", cur?.installer_name ?? ip?.full_name ?? ov?.installer_name], ["Company", cur?.installer_business_name ?? biz?.name], ["ABN", cur?.installer_abn ?? biz?.abn],
-      ["Licence", cur?.installer_licence ?? ip?.licence_number], ["Product quoted", cur?.quoted_product], ["Area quoted (m²)", cur?.quoted_area_m2],
+      ["Installer", ip?.full_name ?? ov?.installer_name], ["Company", biz?.name], ["ABN", biz?.abn], ["Licence", ip?.licence_number],
+      ["Product quoted", agreement?.quoted_product], ["Area quoted (m²)", agreement?.quoted_area_m2],
       ["PIESA completed", ov?.piesa_date], ["Install by (PIESA +30 days)", ov?.install_deadline],
     ]);
-    const common = { finalBlockers: templateBlockers(templates, "final"), installerDeclaration, installerFields, prefill };
+    const consentView = consent ? { id: consent.id, status: consent.status, version: consent.version, scheduled_start: consent.scheduled_start, installation_days: consent.installation_days, premises_address: consent.premises_address, ap_legal_entity: consent.ap_legal_entity, owner_contact: consent.owner_contact, owner_signed_at: consent.owner_signed_at, ap_signed_at: consent.ap_signed_at, ap_rep_name: consent.ap_rep_name, delivery_status: consent.delivery_status, copy_path: consent.copy_path, blockers: consentValidityBlockers(consent, consent.scheduled_start) } : null;
+    const common = {
+      stage: job?.stage ?? null, installationCompleted: !!job?.installation_completed_at,
+      installerBlockers: templateBlockers(templates, "installer"), finalBlockers: templateBlockers(templates, "final"),
+      installerDeclaration, installerFields: parseFormFields(installerDeclaration?.form_fields), officialForm, escConsentTemplate, prefill,
+      declaration: decl ? { id: decl.id, installed_product: decl.installed_product, installed_r_value: decl.installed_r_value, installed_area_m2: decl.installed_area_m2, signed_at: decl.signed_at } : null,
+    };
     if (role === "installer") {
-      // Trades never see prices or consumer signature evidence.
-      return { role, current: cur ? { id: cur.id, status: cur.status, quoted_product: cur.quoted_product, quoted_area_m2: cur.quoted_area_m2, installer_signed_at: cur.installer_signed_at, installed_product: cur.installed_product, installed_area_m2: cur.installed_area_m2 } : null, history: [], variations: [], apTemplate: null, ...common };
+      // Trades never see prices, consent contact details or consumer signature evidence.
+      return { role, agreement: null, consent: null, current: cur ? { id: cur.id, status: cur.status, installer_signed_at: cur.installer_signed_at, installed_product: cur.installed_product, installed_area_m2: cur.installed_area_m2, final_facts: null } : null, history: [], variations: [], ...common };
     }
-    return { role, current: cur, history: a ?? [], variations: v ?? [], apTemplate, ...common };
+    return { role, agreement, consent: consentView, current: cur, history: history ?? [], variations: v ?? [], ...common };
   });
 
 export const signInstallerDeclaration = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
   .inputValidator((d) => z.object({
-    jobId: uuid, asQuotedProduct: z.boolean(), installedProduct: z.string().trim().max(300).optional().nullable(), installedArea: z.number().positive().max(100000),
+    jobId: uuid, asQuotedProduct: z.boolean(), installedProduct: z.string().trim().max(300).optional().nullable(), installedRValue: z.string().trim().max(20).optional().nullable(), installedArea: z.number().positive().max(100000),
     fieldValues: z.record(z.string().max(60), z.union([z.string().max(1000), z.number(), z.boolean(), z.null()])).default({}), signatureName: z.string().trim().min(2).max(200),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["installer", "admin"]);
-    await signInstaller({ ...data, actorId: context.userId, ip: context.ip, userAgent: context.userAgent });
+    await requireJobRole(context.supabase, data.jobId, ["installer"]);
+    await signInstallerDecl({ ...data, actorId: context.userId, ip: context.ip, userAgent: context.userAgent });
     await autoAdvanceJob(data.jobId, context.userId, "installer declaration signed");
     return { ok: true };
   });
 
-export const signApDeclarationFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
-  .inputValidator((d) => z.object({ jobId: uuid, signatureName: z.string().trim().min(2).max(200) }).parse(d))
+export const prepareFinalAssignmentFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, fieldValues: z.record(z.string().max(60), z.union([z.string().max(1000), z.number(), z.boolean(), z.null()])).default({}) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { signApDeclaration } = await import("./assignment.server");
-    await signApDeclaration({ ...data, actorId: context.userId, ip: context.ip, userAgent: context.userAgent });
-    await autoAdvanceJob(data.jobId, context.userId, "AP declaration signed");
+    return { id: await prepareFinalAssignment(data.jobId, context.userId, data.fieldValues) };
+  });
+
+export const signFinalAssignmentFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
+  .inputValidator((d) => z.object({ jobId: uuid, party: z.enum(["installer", "ap", "consumer"]), signatureName: z.string().trim().min(2).max(200), signatoryName: z.string().trim().max(200).optional(), authorityType: z.enum(["owner", "authorised_representative"]).optional(), over18: z.boolean().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    if (data.party === "ap") await requireAdmin(context.supabase);
+    else await requireJobRole(context.supabase, data.jobId, [data.party === "installer" ? "installer" : "owner"]);
+    await signFinalAssignment({ ...data, actorId: context.userId, ip: context.ip, userAgent: context.userAgent });
+    await autoAdvanceJob(data.jobId, context.userId, "final assignment signed");
+    return { ok: true };
+  });
+
+export const signOwnerConsentFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
+  .inputValidator((d) => z.object({ jobId: uuid, signatoryName: z.string().trim().min(2).max(200), authorityType: z.enum(["owner", "authorised_representative"]), accept: z.boolean(), signatureName: z.string().trim().min(2).max(200) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: isOwner } = await context.supabase.rpc("is_job_owner", { _job: data.jobId, _user: context.userId });
+    if (!isOwner) throw new WorkflowError("Only the owner or their authorised representative can sign this consent.");
+    const { signOwnerConsent } = await import("./consent.server");
+    const { jobId, ...input } = data;
+    await signOwnerConsent({ jobId, actorId: context.userId, input, ip: context.ip, userAgent: context.userAgent });
+    return { ok: true };
+  });
+
+export const confirmApConsentFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
+  .inputValidator((d) => z.object({ jobId: uuid, apRepName: z.string().trim().min(2).max(200), purposeExplained: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { confirmApConsent } = await import("./consent.server");
+    await confirmApConsent({ ...data, actorId: context.userId, ip: context.ip, userAgent: context.userAgent });
     return { ok: true };
   });
 
@@ -1062,10 +1100,7 @@ export const raiseAssignmentVariation = createServerFn({ method: "POST" }).middl
   .inputValidator((d) => z.object({ jobId: uuid, reason: z.string().trim().min(5).max(1000) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { data: a } = await admin.from("customer_assignments").select("consumer_snapshot").eq("job_id", data.jobId).neq("status", "cancelled").maybeSingle();
-    if (!a) throw new WorkflowError("No customer acceptance on this job.");
-    const base = (a.consumer_snapshot as unknown as { snapshot: import("./assignment.core").Snapshot }).snapshot;
-    await raiseVariation(data.jobId, context.userId, [`Other material change: ${data.reason}`], base);
+    await raiseVariation(data.jobId, context.userId, [`Other material change: ${data.reason}`]);
     return { ok: true };
   });
 
@@ -1080,11 +1115,14 @@ export const reconfirmAssignmentVariation = createServerFn({ method: "POST" }).m
     return { ok: true };
   });
 
+/** Signed copies: RLS-scoped read of the path (owner/admin), then a short-lived signed link. */
 export const getAssignmentDocUrl = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ assignmentId: uuid, which: z.enum(["consumer", "final"]) }).parse(d))
+  .inputValidator((d) => z.object({ id: uuid, which: z.enum(["agreement", "consent", "final"]) }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: a } = await context.supabase.from("customer_assignments").select("consumer_copy_path, final_copy_path").eq("id", data.assignmentId).maybeSingle();
-    const path = data.which === "consumer" ? a?.consumer_copy_path : a?.final_copy_path;
+    let path: string | null | undefined;
+    if (data.which === "agreement") path = (await context.supabase.from("customer_agreements").select("copy_path").eq("id", data.id).maybeSingle()).data?.copy_path;
+    else if (data.which === "consent") path = (await context.supabase.from("owner_esc_consents").select("copy_path").eq("id", data.id).maybeSingle()).data?.copy_path;
+    else path = (await context.supabase.from("customer_assignments").select("final_copy_path").eq("id", data.id).maybeSingle()).data?.final_copy_path;
     if (!path) throw new WorkflowError("No copy available");
     const { data: s, error } = await admin.storage.from("job-files").createSignedUrl(path, 300);
     if (error || !s) throw new Error(error?.message);
