@@ -1036,6 +1036,7 @@ export type Database = {
           revoked_by: string | null
           scope_snapshot: string
           signature_name: string | null
+          starts_at: string | null
           status: Database["public"]["Enums"]["authority_status"]
           updated_at: string
           user_agent: string | null
@@ -1078,6 +1079,7 @@ export type Database = {
           revoked_by?: string | null
           scope_snapshot: string
           signature_name?: string | null
+          starts_at?: string | null
           status?: Database["public"]["Enums"]["authority_status"]
           updated_at?: string
           user_agent?: string | null
@@ -1120,6 +1122,7 @@ export type Database = {
           revoked_by?: string | null
           scope_snapshot?: string
           signature_name?: string | null
+          starts_at?: string | null
           status?: Database["public"]["Enums"]["authority_status"]
           updated_at?: string
           user_agent?: string | null
