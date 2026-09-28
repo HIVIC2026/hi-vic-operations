@@ -64,7 +64,7 @@ export function flatten(doc: Any): Entry[] {
   });
 }
 
-function find(entries: Entry[], aliases: string[], opts: { section?: string; withValue?: boolean } = {}): Entry | undefined {
+function find(entries: Entry[], aliases: string[], opts: { section?: string | undefined; withValue?: boolean } = {}): Entry | undefined {
   const pool = entries.filter((e) => (!opts.section || e.section.includes(opts.section) || e.norm.includes(opts.section)) && (!opts.withValue || e.value != null));
   for (const a of aliases.map(norm)) { const x = pool.find((e) => e.norm === a); if (x) return x; }
   for (const a of aliases.map(norm)) { const x = pool.find((e) => e.norm.startsWith(a)); if (x) return x; }
@@ -118,7 +118,7 @@ export function buildPrefill(template: Any, ctx: PrefillCtx) {
   const header_items: Any[] = [], items: Any[] = [], missing: string[] = [];
   for (const f of PREFILL) {
     const e = find(entries, f.aliases);
-    if (!e) { if (f.mandatory) missing.push(f.aliases[0]); continue; }
+    if (!e) { if (f.mandatory) missing.push(f.aliases[0]!); continue; }
     const v = ctx[f.key];
     if (v == null || v === "") continue;
     const row = { item_id: e.id, label: e.label, type: e.type, responses: f.datetime ? { datetime: String(v) } : { text: String(v) } };

@@ -22,7 +22,7 @@ export function useMittiState(jobId: string) {
   });
 }
 
-function status(a: { external_mitti_id: string | null; mitti_sync_status: string; mitti_completed: boolean; mitti_last_error: string | null; mitti_synced_at: string | null } | null) {
+function status(a: { external_mitti_id: string | null; mitti_sync_status: string; mitti_completed: boolean; mitti_last_error: string | null; mitti_synced_at: string | null; mitti_modified_at: string | null } | null) {
   if (!a?.external_mitti_id) return ["Not created", "neutral"] as const;
   if (a.mitti_sync_status === "error" || a.mitti_last_error) return ["Error", "bad"] as const;
   if (a.mitti_sync_status === "synced") return ["Synced", "good"] as const;
@@ -70,7 +70,8 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
 }
 
 /** Read-only view of Mitti-synced assessment fields (electrician doesn't enter them twice). */
-export function MittiSyncedFields({ a }: { a: Record<string, unknown> }) {
+export function MittiSyncedFields({ a: raw }: { a: Record<string, unknown> }) {
+  const a = raw as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   const f = (v: unknown) => (v === true ? "Yes" : v === false ? "No" : v == null || v === "" ? "—" : String(v));
   const rows: [string, unknown][] = [
     ["Measured area (m²)", a.measured_area_m2], ["Insulation present", a.insulation_present], ["Existing R-value", a.existing_r_value],

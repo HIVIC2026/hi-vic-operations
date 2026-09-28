@@ -13,7 +13,7 @@ export const realMittiCall: MittiCall = async (method, path, body) => {
     res = await fetch(`${MITTI_BASE_URL}${path}`, {
       method,
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json", ...(body ? { "Content-Type": "application/json" } : {}) },
-      body: body ? JSON.stringify(body) : undefined,
+      ...(body ? { body: JSON.stringify(body) } : {}),
     });
   } catch {
     throw new MittiError("Mitti could not be reached. Try again shortly.");
