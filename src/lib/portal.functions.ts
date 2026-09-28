@@ -1241,11 +1241,14 @@ export const recordPiesaDelivery = createServerFn({ method: "POST" }).middleware
   });
 
 export const regenerateEscNotificationFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, coesNumber: z.string().trim().max(60).optional(), recNumber: z.string().trim().max(60).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { regenerateEscNotification } = await import("./esc.server");
-    return { id: await regenerateEscNotification(data.jobId, context.userId) };
+    const extra: Record<string, string> = {};
+    if (data.coesNumber) extra["coes_number"] = data.coesNumber;
+    if (data.recNumber) extra["rec_number"] = data.recNumber;
+    return { id: await regenerateEscNotification(data.jobId, context.userId, extra) };
   });
 
 export const submitEscNotification = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
