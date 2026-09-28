@@ -127,6 +127,13 @@
       "when": 1790599802781,
       "tag": "0017_esc_consent_template_key",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790600236055,
+      "tag": "0018_customer_comms_lock",
+      "breakpoints": true
     }
   ]
 }

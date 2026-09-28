@@ -1,0 +1,2 @@
+ALTER TABLE public.workflow_settings ADD COLUMN IF NOT EXISTS customer_comms_enabled boolean NOT NULL DEFAULT false;
+COMMENT ON COLUMN public.workflow_settings.customer_comms_enabled IS 'PRE-LAUNCH LOCK: false blocks all outbound email/SMS/notifications to customers and trades.';
