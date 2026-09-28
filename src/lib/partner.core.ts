@@ -45,7 +45,7 @@ export function partnerRow(d: PartnerInput, raw: unknown) {
     rec_registration_number: d.rec_registration_number, esv_licensed_electricians_confirmed: d.esv_licensed_electricians_confirmed, services: d.services,
     estimated_piesa_fee_inc_gst: d.estimated_piesa_fee_inc_gst ?? null, estimated_return_visit_fee_inc_gst: d.estimated_return_visit_fee_inc_gst ?? null,
     booking_lead_time: d.booking_lead_time, weekly_capacity: d.weekly_capacity, notes: d.notes,
-    source_created_at: d.source_created_at, source_updated_at: d.source_updated_at, raw_payload: raw as Record<string, unknown>,
+    source_created_at: d.source_created_at, source_updated_at: d.source_updated_at, raw_payload: raw as import("@/integrations/supabase/types").Json,
   };
 }
 export type PartnerRow = ReturnType<typeof partnerRow>;
