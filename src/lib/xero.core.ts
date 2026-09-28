@@ -73,6 +73,7 @@ export async function findOrCreateContact(call: XeroCall, owner: { id: string; f
 
 /** Find an existing live invoice for this job reference (adopt after a lost response). */
 export async function findInvoiceByReference(call: XeroCall, reference: string) {
+  assertHivicReference(reference); // exact HI VIC reference only – never a broad DC invoice search
   const r = await call(`/api.xro/2.0/Invoices?where=${encodeURIComponent(`Type=="ACCREC"&&Reference=="${q(reference)}"`)}`);
   return (r.Invoices ?? []).find((i: any) => !["VOIDED", "DELETED"].includes(i.Status)) ?? null;
 }

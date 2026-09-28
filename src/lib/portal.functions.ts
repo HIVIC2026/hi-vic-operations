@@ -9,7 +9,7 @@ import { WorkflowError, logEvent, nextStepBlockers, stageEntryBlockers, piesaSta
 import { adjustQuote as adjustQuoteImpl, deriveRectificationItems, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
-import { applyPaidAmount, clearInstallDueDate, createInvoiceForQuote, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
+import { applyPaidAmount, clearInstallDueDate, createInvoiceForQuote, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
 import { buildDepositOverride, depositRequestPatch } from "./invoice.lifecycle";
 import { AUTHORITY_BLOCKER, commercialBlocker, depositCleared } from "./workflow.server";
 import { acceptAuthority, authorityValid, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
@@ -350,6 +350,7 @@ export const syncInvoice = createServerFn({ method: "POST" }).middleware([requir
   .inputValidator((d) => z.object({ invoiceId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
+    try { await requireHivicInvoice(data.invoiceId); } catch (e) { throw new WorkflowError((e as Error).message); }
     await syncInvoiceFromXero(data.invoiceId, context.userId);
     const { data: inv } = await admin.from("invoices").select("job_id").eq("id", data.invoiceId).single();
     if (inv) await advanceAfterDeposit(inv.job_id, context.userId);
@@ -360,6 +361,7 @@ export const retryXeroPush = createServerFn({ method: "POST" }).middleware([requ
   .inputValidator((d) => z.object({ invoiceId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
+    try { await requireHivicInvoice(data.invoiceId); } catch (e) { throw new WorkflowError((e as Error).message); }
     // Same safe path as Sync: pushes only if not linked, adopts an existing Xero invoice, lock-protected.
     await syncInvoiceFromXero(data.invoiceId, context.userId);
     return { ok: true };
@@ -385,6 +387,7 @@ export const markDepositRequestRaised = createServerFn({ method: "POST" }).middl
   .inputValidator((d) => z.object({ invoiceId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
+    try { await requireHivicInvoice(data.invoiceId); } catch (e) { throw new WorkflowError((e as Error).message); }
     const { data: inv } = await admin.from("invoices").select("id, job_id, deposit_amount, deposit_pct, deposit_request_raised_at").eq("id", data.invoiceId).single();
     if (!inv) throw new WorkflowError("Invoice not found");
     let patch;
