@@ -1,10 +1,12 @@
 // Evidence gathering orchestration. No database; the network call is injected (tests use fixtures).
 // Each source is isolated: a failure yields a source-check error and "unknown" facts, never a thrown run.
+import { runProviders, type ProviderConfig, type ProviderHttp } from "./providers.gather";
+import type { FloorplanRow, StoragePolicy } from "./providers.core";
 import { cqlString, normaliseAddress, parseAddress, parseProperty, parseZone, TIER_CONFIDENCE, VICMAP_WFS, type AreaTier, type Fact } from "./intelligence.core";
 
 export type FetchJson = (url: string, opts: { timeoutMs: number }) => Promise<{ status: number; json: unknown }>;
-export type SourceCheck = { source_key: string; status: "ok" | "no_match" | "error" | "timeout" | "not_configured" | "skipped"; latency_ms: number | null; http_status: number | null; error: string | null; retry_count: number };
-export type AreaCandidate = { tier: AreaTier; method: string; source_name: string; source_url: string | null; gross_m2: number | null; excluded_m2: number | null; net_m2: number; confidence: string; notes: string | null };
+export type SourceCheck = { source_key: string; status: "ok" | "no_match" | "error" | "timeout" | "not_configured" | "skipped" | "no_coverage" | "no_entitlement" | "rejected"; latency_ms: number | null; http_status: number | null; error: string | null; retry_count: number };
+export type AreaCandidate = { tier: AreaTier; method: string; source_name: string; source_url: string | null; gross_m2: number | null; excluded_m2: number | null; net_m2: number; confidence: string; notes: string | null; calculation?: Record<string, unknown> };
 
 /** Optional provider slot for floor plans / listings / historical imagery. Not configured by default. */
 export interface EvidenceProvider {
@@ -17,6 +19,8 @@ export type GatherInput = {
   ownerEstimateM2: number | null;
   partnerMeasurement: { net_m2: number; source: string; external_id: string | null } | null;
   provider: EvidenceProvider | null;
+  /** Optional licensed providers (Pricefinder / Google Solar / Nearmap). Absent = Vicmap only. */
+  providers?: { cfg: ProviderConfig; http: ProviderHttp; referenceDate: string } | null;
 };
 
 const wfs = (typeName: string, cql: string, props: string, count = 5) =>
@@ -47,7 +51,7 @@ async function call(key: string, url: string, fetchJson: FetchJson, checks: Sour
 
 const nc = (key: string, note: string): Fact => ({ key, value: key === "floorplan_status" ? "provider_not_configured" : "unknown", status: "unknown", sourceType: "not_configured", sourceName: "No provider configured", confidence: "unknown", evidence: "none", note });
 
-export async function gatherEvidence(i: GatherInput, fetchJson: FetchJson): Promise<{ facts: Fact[]; checks: SourceCheck[]; areas: AreaCandidate[] }> {
+export async function gatherEvidence(i: GatherInput, fetchJson: FetchJson): Promise<{ facts: Fact[]; checks: SourceCheck[]; areas: AreaCandidate[]; floorplans: FloorplanRow[]; storagePolicy: StoragePolicy }> {
   const facts: Fact[] = []; const checks: SourceCheck[] = []; const areas: AreaCandidate[] = [];
   const q = normaliseAddress(i.addressLine, i.suburb, i.postcode);
 
@@ -114,8 +118,31 @@ export async function gatherEvidence(i: GatherInput, fetchJson: FetchJson): Prom
     if (prov?.listing?.floor_area_m2 && (prov.listing.storeys ?? 0) === 1) areas.push({ tier: "D", method: "Sourced listing floor area (single storey)", source_name: i.provider!.key, source_url: prov.listing.url, gross_m2: prov.listing.floor_area_m2, excluded_m2: null, net_m2: prov.listing.floor_area_m2, confidence: TIER_CONFIDENCE.D, notes: "Listing floor area – may include garage/alfresco" });
     if (i.ownerEstimateM2 && i.ownerEstimateM2 > 0) areas.push({ tier: "F", method: "Owner estimate (enquiry)", source_name: "Homeowner enquiry", source_url: null, gross_m2: i.ownerEstimateM2, excluded_m2: null, net_m2: i.ownerEstimateM2, confidence: TIER_CONFIDENCE.F, notes: null });
   }
-  return { facts, checks, areas };
+  // 6. Licensed providers (isolated; each may fail alone). Merge by purpose priority; never overwrite partner evidence.
+  let floorplans: FloorplanRow[] = []; let storagePolicy: StoragePolicy = "unknown";
+  if (i.providers) {
+    const r = await runProviders(i.providers.cfg, { prefix: q?.prefix ?? null, postcode: q?.postcode ?? i.postcode, point, referenceDate: i.providers.referenceDate }, i.providers.http);
+    checks.push(...r.checks); floorplans = r.floorplans; storagePolicy = r.storagePolicy;
+    const put = (f: Fact) => { const k = facts.findIndex((x) => x.key === f.key); if (k >= 0) facts[k] = f; else facts.push(f); };
+    const cur = (k: string) => facts.find((x) => x.key === k);
+    for (const f of r.facts) {
+      if (f.key === "floorplan_status") { if (cur(k0(f))?.value !== "partner_supplied") put(f); continue; }
+      if (f.key === "age_evidence") { if (f.evidence === "direct" || cur("age_evidence")?.evidence === "none") put(f); continue; }
+      if (f.key === "roof_form") { const c = cur("roof_form"); if (c?.sourceName === "Nearmap roof geometry") continue; put(f); continue; }
+      if (f.key === "recent_extension_or_added_storey_risk") { put(f); continue; }
+      put(f);
+    }
+    // Supporting-only age evidence fills an otherwise empty age slot, never upgrades it.
+    const age = cur("age_evidence");
+    if (age && (age.value as { kind?: string } | null)?.kind === "none") {
+      const sup = cur("age_supporting_pricefinder") ?? cur("age_supporting_solar");
+      if (sup && (sup.value as { date?: string | null }).date) put({ ...sup, key: "age_evidence", status: "review" });
+    }
+    if (!i.partnerMeasurement) areas.push(...r.areas.map((a) => ({ ...a })));
+  }
+  return { facts, checks, areas, floorplans, storagePolicy };
 }
+const k0 = (f: Fact) => f.key;
 
 /** Default network fetcher with timeout (server only). */
 export const defaultFetchJson: FetchJson = async (url, { timeoutMs }) => {
