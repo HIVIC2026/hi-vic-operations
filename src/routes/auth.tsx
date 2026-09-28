@@ -29,11 +29,11 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => data.session && navigate({ to: "/home" }));
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => s && navigate({ to: "/home" }));
+    const { data } = supabase.auth.onAuthStateChange((_e, s) => { if (s) navigate({ to: "/home" }); });
     return () => data.subscription.unsubscribe();
   }, [navigate]);
 
-  const submit = async (e: React.FormEvent) => {
+    supabase.auth.getSession().then(({ data }) => { if (data.session) navigate({ to: "/home" }); });
     e.preventDefault();
     setBusy(true);
     const res =
