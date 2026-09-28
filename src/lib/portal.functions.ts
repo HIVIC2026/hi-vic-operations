@@ -159,8 +159,11 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     if (a.piesa_outcome === "pending") missing.push("PIESA outcome");
     if (!a.assessed_on) missing.push("assessment date");
     if (missing.length) throw new WorkflowError(`Still needed: ${missing.join(", ")}`);
-    const { data: ev } = await admin.from("evidence_requirements").select("label,status").eq("job_id", data.jobId).eq("gate", "assessment").eq("required", true);
-    const evMissing = (ev ?? []).filter((e) => !["uploaded", "verified"].includes(e.status)).map((e) => e.label);
+    const { data: ev } = await admin.from("evidence_requirements").select("label,status,gate,category").eq("job_id", data.jobId).eq("required", true);
+    // Assessment evidence always; the PIESA sign-off too when PIESA passed on this visit (no second electrician trip).
+    const evMissing = (ev ?? [])
+      .filter((e) => e.gate === "assessment" || (a.piesa_outcome === "pass" && e.category === "piesa_signoff"))
+      .filter((e) => !["uploaded", "verified"].includes(e.status)).map((e) => e.label);
     if (evMissing.length) throw new WorkflowError(`Upload evidence first: ${evMissing.join(", ")}`);
 
     const stage = await getStage(data.jobId);
@@ -197,6 +200,10 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
       if (stage !== "rectification_booked") throw new WorkflowError("Rectification must be booked first.");
       const { data: ev } = await admin.from("evidence_requirements").select("status").eq("job_id", data.jobId).eq("category", "rectification_completion").single();
       if (ev && !["uploaded", "verified"].includes(ev.status)) throw new WorkflowError("Upload rectification completion evidence first.");
+      if (data.outcome === "pass") {
+        const { data: ps } = await admin.from("evidence_requirements").select("status").eq("job_id", data.jobId).eq("category", "piesa_signoff").single();
+        if (ps && !["uploaded", "verified"].includes(ps.status)) throw new WorkflowError("Upload the PIESA / electrical safety sign-off first.");
+      }
       await admin.from("rectification_items").update({ status: "completed" }).eq("job_id", data.jobId).eq("status", "required");
     } else {
       const p = await piesaStatus(data.jobId);
@@ -513,6 +520,8 @@ export const updateVeec = createServerFn({ method: "POST" }).middleware([require
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { jobId, ...rest } = data;
+    if (["submitted", "approved"].includes(data.status) && !["ready_for_veec", "complete"].includes(await getStage(jobId)))
+      throw new WorkflowError("VEEC can only be lodged once the job is Ready for VEEC.");
     await admin.from("veec_lodgements").update({ ...rest, updated_at: new Date().toISOString() }).eq("job_id", jobId);
     await logEvent(jobId, context.userId, "veec_updated", `VEEC lodgement ${data.status.replace("_", " ")}`, rest, { internal: true });
     if (["submitted", "approved"].includes(data.status) && (await getStage(jobId)) === "ready_for_veec")
