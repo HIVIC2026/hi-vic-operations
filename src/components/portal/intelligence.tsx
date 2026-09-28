@@ -36,7 +36,7 @@ function SolarCard({ jobId, facts, check }: { jobId: string; facts: FactRow[]; c
   const smoke = useServerFn(solarSmokeTest);
   const [diag, setDiag] = useState<string | null>(null);
   const f = (k: string) => facts.find((x) => x.fact_key === k);
-  const s = f("solar_summary"); const v = (s?.value ?? null) as Record<string, unknown> | null;
+  const s = f("solar_summary"); const v = (s?.value ?? null) as import("@/lib/providers.core").SolarSummary | null;
   const risk = (f("site_roof_risk")?.value as { flags?: string[] } | null)?.flags ?? [];
   const conflict = f("solar_area_conflict");
   const row = (l: string, x: unknown, u = "") => <div className="flex justify-between gap-2"><span className="text-muted-foreground">{l}</span><span>{x == null ? "—" : `${String(x)}${u}`}</span></div>;
@@ -56,8 +56,8 @@ function SolarCard({ jobId, facts, check }: { jobId: string; facts: FactRow[]; c
           {row("Building ground area", v.building_ground_area_m2, " m²")}{row("Roof ground area", v.roof_ground_area_m2, " m²")}
           {row("Roof surface area", v.roof_surface_area_m2, " m²")}{row("Roof segments", v.segment_count)}
           {row("Weighted pitch", v.weighted_pitch_deg, "°")}{row("Pitch range", v.pitch_min_deg != null ? `${v.pitch_min_deg}–${v.pitch_max_deg}` : null, "°")}
-          {row("Low-slope share", v.low_slope_share != null ? Math.round(Number(v.low_slope_share) * 100) : null, "%")}{row("Roof form", String(v["roof_form"]).replace(/_/g, " "))}
-          {row("Imagery quality", v["imagery_quality"])}{row("Imagery date", v["imagery_date"])}
+          {row("Low-slope share", v.low_slope_share != null ? Math.round(Number(v.low_slope_share) * 100) : null, "%")}{row("Roof form", String(v.roof_form).replace(/_/g, " "))}
+          {row("Imagery quality", v.imagery_quality)}{row("Imagery date", v.imagery_date)}
           {row("Checked", s ? fmtDateTime(s.retrieved_at) : null)}{row("Basis", "mapped remote estimate – not measured ceiling area")}
         </div>
       ) : <p className="text-muted-foreground">No Solar data on the current run.</p>}
