@@ -67,6 +67,7 @@ export function varianceWithinTolerance(pct: number | null, tolerancePct: number
 /** Independent verification must come from a different party than the one who supplied the figure. */
 export function verifierBlocker(i: { verifierRole: string; verifierBusinessId: string | null; suppliedBusinessId: string | null; standardApproved: boolean }): string | null {
   if (i.standardApproved) return null;
+  if (i.verifierRole === "admin") return "The ceiling area must be measured by an onsite trade, not entered by the office.";
   if (i.verifierRole === "installer" && (!i.suppliedBusinessId || i.verifierBusinessId === i.suppliedBusinessId))
     return "During the pilot the ceiling area must be verified by an independent onsite trade, not the business that supplied the figure.";
   return null;
