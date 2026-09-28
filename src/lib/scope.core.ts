@@ -61,6 +61,14 @@ export function flaggedFields(m: MeasurementLike | null | undefined): MeasureFie
   return f.map((x) => (typeof x === "string" ? x : (x as { field?: string })?.field)).filter((x): x is MeasureField => (MEASURE_FIELDS as readonly string[]).includes(String(x)));
 }
 
+/** Missing + flagged fields, plus the conditional dependants of flagged yes/no answers. */
+function completionFields(missing: MeasureField[], flagged: MeasureField[]): MeasureField[] {
+  const set = new Set<MeasureField>([...missing, ...flagged]);
+  if (set.has("insulation_present")) set.add("existing_r_value");
+  if (set.has("removal_required")) set.add("removal_m2");
+  return MEASURE_FIELDS.filter((f) => set.has(f));
+}
+
 export const measurementAccepted = (m: MeasurementLike | null | undefined) =>
   !!m && m.status === "complete" && Number(m.measured_area_m2) > 0;
 
@@ -97,7 +105,7 @@ export function deriveScope(input: { measurement: MeasurementLike | null; electr
     scope === "COMBINED" ? ["electrical", "measure_up"] : scope === "ELECTRICAL_PLUS_MEASUREUP_COMPLETION" ? ["electrical", "measure_up_completion"] : scope === "ELECTRICAL_ONLY" || scope === "SPLIT" ? ["electrical"] : [];
   const installerTasks: ScopeResult["installerTasks"] = scope === "MEASURE_UP_ONLY" || scope === "SPLIT" ? ["measure_up"] : [];
   const editableMeasureFields: MeasureField[] =
-    scope === "COMBINED" ? [...MEASURE_FIELDS] : scope === "ELECTRICAL_PLUS_MEASUREUP_COMPLETION" ? MEASURE_FIELDS.filter((f) => m?.[f] == null || flagged.includes(f) || missing.includes(f)) : [];
+    scope === "COMBINED" ? [...MEASURE_FIELDS] : scope === "ELECTRICAL_PLUS_MEASUREUP_COMPLETION" ? completionFields(missing, flagged) : [];
 
   const need: string[] = [];
   if (!elecDone) need.push(electrical.state === "expired" ? "PIESA reassessment" : "electrical assessment / PIESA");
@@ -130,7 +138,7 @@ export function planMeasurementUpdate(p: {
   if (p.scope === "SPLIT" && p.source === "electrician") return { action: "skip", reason: "Measure-up is assigned to the installer on this job." };
   if (!cur) return { action: "create", values: vals, source: p.source };
   if (p.scope === "ELECTRICAL_PLUS_MEASUREUP_COMPLETION" && cur.source_role !== p.source) {
-    const allowed = new Set<MeasureField>([...missingMeasureFields(cur), ...flaggedFields(cur), ...MEASURE_FIELDS.filter((f) => cur[f] == null)]);
+    const allowed = new Set<MeasureField>(completionFields(missingMeasureFields(cur), flaggedFields(cur)));
     const filtered = Object.fromEntries(Object.entries(vals).filter(([k]) => allowed.has(k as MeasureField))) as CleanMeasurementValues;
     if (!Object.keys(filtered).length) return { action: "skip", reason: "No missing or flagged measure-up fields to complete." };
     return { action: "update", id: cur.id!, values: filtered, supplemented: Object.keys(filtered) as MeasureField[] };
