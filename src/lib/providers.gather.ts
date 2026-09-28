@@ -81,17 +81,25 @@ async function runPricefinder(cfg: NonNullable<ProviderConfig["pricefinder"]>, c
   out.checks.push(check("pricefinder", "ok", t0, 200, ext.status !== 200 ? `extended HTTP ${ext.status}` : fp.status !== 200 ? `floorplans HTTP ${fp.status}` : null));
 }
 
-async function runSolar(key: string, ctx: ProviderContext, http: ProviderHttp, out: ProviderResult) {
+/** Solar: requiredQuality is a floor, so BASE returns the best imagery available. One controlled retry
+ *  (MEDIUM) only on a transient 429/5xx; never on 403/404. No other retries. */
+export async function runSolar(key: string, ctx: ProviderContext, http: ProviderHttp, out: ProviderResult) {
   const t0 = Date.now();
   if (!ctx.point) { out.checks.push(check("google_solar", "skipped", null, null, "no verified address point")); return; }
-  const url = `${SOLAR_URL}?${new URLSearchParams({ "location.latitude": String(ctx.point[1]), "location.longitude": String(ctx.point[0]), requiredQuality: "MEDIUM", key })}`;
-  const r = await get(http, url);
-  if (r.status === 404) { out.checks.push(check("google_solar", "no_coverage", t0, 404, "No Solar building data for this location")); return; }
-  if (r.status !== 200 || !r.json) { out.checks.push(check("google_solar", entitlement(r.status) ? "no_entitlement" : "error", t0, r.status, `HTTP ${r.status}`)); return; }
+  const url = (q: string) => `${SOLAR_URL}?${new URLSearchParams({ "location.latitude": String(ctx.point![1]), "location.longitude": String(ctx.point![0]), requiredQuality: q, key })}`;
+  let r = await get(http, url("BASE")); let retries = 0;
+  if (r.status === 429 || r.status >= 500) { retries = 1; r = await get(http, url("MEDIUM")); }
+  const done = (c: SourceCheck) => out.checks.push({ ...c, retry_count: retries });
+  if (r.status === 404) { done(check("google_solar", "no_coverage", t0, 404, "No Solar building data for this location")); return; }
+  if (r.status !== 200 || !r.json) {
+    const msg = (r.json as { error?: { status?: string; message?: string } } | null)?.error;
+    const hint = r.status === 403 ? "API key rejected or restricted (check Solar API is enabled and key restrictions allow server calls)" : `HTTP ${r.status}`;
+    done(check("google_solar", entitlement(r.status) ? "no_entitlement" : "error", t0, r.status, `${hint}${msg?.status ? ` · ${msg.status}` : ""}`)); return;
+  }
   const single = out.facts.some((f) => f.key === "pricefinder_single_storey" && f.value === true);
   const p = parseSolar(r.json as SolarInsights, ctx.point, single);
   out.facts.push(...p.facts); if (p.area) out.areas.push(p.area);
-  out.checks.push(check("google_solar", p.match.ok ? "ok" : "rejected", t0, 200, p.match.ok ? null : p.match.reason));
+  done(check("google_solar", p.match.ok ? "ok" : "rejected", t0, 200, p.match.ok ? null : p.match.reason));
 }
 
 /** Nearmap adapter: coverage (survey dates) then AI features per survey; normalised to NearmapSurvey for pure analysis. */

@@ -1139,6 +1139,26 @@ export const getProviderHealth = createServerFn({ method: "POST" }).middleware([
     return providerStatuses(providerConfigFromEnv(process.env as Record<string, string | undefined>), checks ?? []);
   });
 
+/** Admin-only read-only Google Solar smoke test for a supplied job. Stores nothing; returns non-secret diagnostics only. */
+export const solarSmokeTest = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const key = process.env["GOOGLE_SOLAR_API_KEY"];
+    if (!key) return { configured: false, status: "not_configured", detail: "GOOGLE_SOLAR_API_KEY is not set", http_status: null as number | null, latency_ms: null as number | null, summary: null as string | null };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: job } = await supabaseAdmin.from("jobs").select("properties(address_line, suburb, postcode, state)").eq("id", data.jobId).single();
+    const p = job?.properties as { address_line: string; suburb: string | null; postcode: string | null; state: string } | null;
+    if (!p) return { configured: true, status: "error", detail: "Job has no property", http_status: null, latency_ms: null, summary: null };
+    const { gatherEvidence, defaultFetchJson } = await import("./intelligence.gather");
+    const { defaultProviderHttp } = await import("./providers.gather");
+    const g = await gatherEvidence({ addressLine: p.address_line, suburb: p.suburb, postcode: p.postcode, state: p.state, ownerEstimateM2: null, partnerMeasurement: null, provider: null,
+      providers: { cfg: { pricefinder: null, solarKey: key, nearmapKey: null, vicmapBuildings: null }, http: defaultProviderHttp, referenceDate: new Date().toISOString().slice(0, 10) } }, defaultFetchJson);
+    const c = g.checks.find((x) => x.source_key === "google_solar");
+    return { configured: true, status: c?.status ?? "unknown", detail: c?.error ?? null, http_status: c?.http_status ?? null, latency_ms: c?.latency_ms ?? null,
+      summary: (() => { const v = g.facts.find((f) => f.key === "solar_summary")?.value; return v ? JSON.stringify(v) : null; })() };
+  });
+
 export const floorplanLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: uuid }).parse(d))
   .handler(async ({ data, context }) => {
