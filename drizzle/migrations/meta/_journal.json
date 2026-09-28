@@ -176,6 +176,13 @@
       "when": 1790634596318,
       "tag": "0024_partner_agreement_template_key",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790636344862,
+      "tag": "0025_conditional_quote_stage_veec_assignment",
+      "breakpoints": true
     }
   ]
 }

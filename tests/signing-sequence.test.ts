@@ -12,18 +12,27 @@ const facts = buildConsentFacts({ scheduledStart: start, scheduledEnd: null, pre
 const valid = { status: "valid", scheduled_start: start, owner_signed_at: "2026-10-02T00:00:00.000Z", ap_signed_at: "2026-10-02T01:00:00.000Z" };
 const input = { signatoryName: "Jo", authorityType: "owner" as const, accept: true, signatureName: "Jo Citizen" };
 
-describe("quote acceptance is commercial only", () => {
+describe("quote acceptance = commercial agreement + separate conditional VEEC assignment", () => {
   const src = readFileSync("src/lib/assignment.server.ts", "utf8");
-  const fn = src.slice(src.indexOf("export async function signCustomerAgreement"), src.indexOf("// ---------- Installer declaration"));
+  const fn = src.slice(src.indexOf("export async function signCustomerAgreement"), src.indexOf("export const CONDITIONAL_NOTE"));
+  const cond = src.slice(src.indexOf("async function signConditionalAssignment"), src.indexOf("// ---------- Installer declaration"));
   const pf = readFileSync("src/lib/portal.functions.ts", "utf8");
   const respond = pf.slice(pf.indexOf("export const respondToQuote"), pf.indexOf("// ---------- Payments"));
-  test("does not create a VEEC assignment or ESC consent", () => {
+  test("records the commercial agreement and a distinct conditional assignment, never ESC consent", () => {
     expect(fn).toContain('from("customer_agreements")');
-    expect(fn).not.toMatch(/customer_assignments|owner_esc_consents|esc_consent/);
-    expect(respond).not.toMatch(/customer_assignments|owner_esc_consents|signFinalAssignment|signOwnerConsent/);
+    expect(fn).toContain("signConditionalAssignment");
+    expect(cond).toContain('signed_stage: "quote_stage_conditional"');
+    expect(cond).toContain('status: "consumer_signed_pending_install"');
+    expect(cond).not.toMatch(/effective_complete|effective_at/);
+    expect(fn + cond).not.toMatch(/owner_esc_consents|esc_consent/);
+    expect(respond).not.toMatch(/owner_esc_consents|signFinalAssignment|signOwnerConsent/);
   });
-  test("still creates the Xero invoice (existing flow) after the agreement", () => {
+  test("still creates the Xero invoice (existing flow) after signing", () => {
     expect(respond.indexOf("signCustomerAgreement")).toBeLessThan(respond.indexOf("createInvoiceForQuote"));
+  });
+  test("non-payment never deletes or reverts the conditional assignment", () => {
+    const x = readFileSync("src/lib/xero.server.ts", "utf8") + readFileSync("src/lib/invoice.lifecycle.ts", "utf8");
+    expect(x).not.toMatch(/customer_assignments/);
   });
 });
 

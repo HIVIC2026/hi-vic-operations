@@ -24,7 +24,7 @@ describe("electronic forms – prefill, no duplicate entry", () => {
     expect(pickFieldValues(defs, { batch_no: "B1", stray: "x" })).toEqual({ batch_no: "B1" });
   });
   test("plain-English not-ready messages", () => {
-    expect(templateBlockers([], "agreement")).toEqual([NOT_READY.consumer_rights]);
+    expect(templateBlockers([], "agreement")).toEqual([NOT_READY.consumer_rights, NOT_READY.consumer_declaration]);
     expect(templateBlockers([], "installer")).toEqual([NOT_READY.installer_declaration]);
     expect(templateBlockers([], "final")).toEqual([NOT_READY.consumer_declaration]);
   });

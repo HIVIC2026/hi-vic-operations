@@ -1,20 +1,22 @@
 // CENTRAL signing records (server-only, service role, after caller checks):
 //   customer_agreements  – Customer Agreement / Quote Acceptance (commercial; unlocks invoice/deposit only)
 //   installer_declarations – post-install installer declaration with installed product / R-value / area
-//   customer_assignments (record_kind final_veec_assignment) – FINAL Activity 48 VEEC assignment, post-install,
-//     signed lead installer -> AP representative -> consumer. ESC consent lives in consent.server.ts.
+//   customer_assignments (record_kind final_veec_assignment) – Activity 48 VEEC assignment. Consumer signs a binding
+//     CONDITIONAL assignment at quote acceptance (signed_stage quote_stage_conditional, status consumer_signed_pending_install);
+//     after installation + AP QA the final facts are populated on the same record, lead installer -> AP sign, and the
+//     consumer re-signs only if the official form requires it or facts changed materially. ESC consent: consent.server.ts.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { AP_LEGAL_ENTITY } from "./authority";
 import {
-  ASSIGNMENT_EVENTS as EV, activeTemplate, agreementSignBlockers, buildFinalFacts, evaluateAssignment, finalAssignmentAvailability, formFieldBlockers, materialChanges,
+  ASSIGNMENT_EVENTS as EV, activeTemplate, agreementSignBlockers, buildFinalFacts, evaluateAssignment, finalAssignmentAvailability, finalConsumerSignatureRequired, formFieldBlockers, materialChanges,
   parseFormFields, pickFieldValues, resolveInstalledDetails, retainUntil, sha256Hex, signingOrderBlocker, stableJson, templateBlockers,
   type AgreementSignInput, type FieldValue, type FinalFacts, type Party, type Snapshot, type Template,
 } from "./assignment.core";
 import { WorkflowError, logEvent } from "./workflow.server";
 
 export async function loadTemplates(): Promise<Template[]> {
-  const { data } = await admin.from("compliance_templates").select("template_key, version, body, approved, is_active, required, form_fields").eq("is_active", true);
+  const { data } = await admin.from("compliance_templates").select("template_key, version, body, approved, is_active, required, form_fields, requires_final_consumer_signature").eq("is_active", true);
   return (data ?? []) as Template[];
 }
 
@@ -94,7 +96,8 @@ export async function assertAgreementCanSign(input: AgreementSignInput) {
   if (b.length) throw new WorkflowError(b.join(" "));
 }
 
-/** Customer Agreement / Quote Acceptance. Commercial only: NOT a VEEC assignment, NOT ESC consent. */
+/** Quote-stage signing: Customer Agreement / Quote Acceptance (commercial) PLUS a separate binding conditional
+ *  VEEC assignment record. Neither is ESC consent. The assignment is NOT effective until the activity is undertaken. */
 export async function signCustomerAgreement(p: { quoteId: string; actorId: string; input: AgreementSignInput; assistance: "none" | "interpreter" | "support_understanding" | "both"; ip: string | null; userAgent: string | null }) {
   const templates = await loadTemplates();
   const b = agreementSignBlockers(p.input, templates);
@@ -103,13 +106,14 @@ export async function signCustomerAgreement(p: { quoteId: string; actorId: strin
   if (await currentAgreement(pkg.job_id)) throw new WorkflowError("A signed customer agreement already exists for this job – use a variation.");
   const rights = activeTemplate(templates, "consumer_rights")!;
   const agreement = activeTemplate(templates, "customer_agreement");
+  const official = activeTemplate(templates, "consumer_declaration")!;
   const now = new Date();
   const snapshot = {
     kind: "customer_agreement_quote_acceptance", package: pkg, snapshot: snapOf(pkg),
     consumer_rights: { version: rights.version, body: rights.body }, agreement_wording: agreement ? { version: agreement.version, body: agreement.body } : null,
     signatory: { name: p.input.signatoryName, authority_type: p.input.authorityType, over_18: p.input.over18, assistance: p.assistance },
     signature: { typed_name: p.input.signatureName, at: now.toISOString(), ip: p.ip, user_agent: p.userAgent, user_id: p.actorId },
-    scope_note: "Commercial agreement only. This is not the Activity 48 VEEC assignment and not the ESC information-sharing consent – both are separate later forms.",
+    scope_note: "Commercial agreement. The conditional VEEC assignment signed at the same time is a separate record. ESC information-sharing consent is a separate later form.",
   };
   const json = stableJson(snapshot);
   const hash = await sha256Hex(json);
@@ -132,7 +136,38 @@ export async function signCustomerAgreement(p: { quoteId: string; actorId: strin
     signature_name: p.input.signatureName, signed_at: now.toISOString(), signed_by: p.actorId, ip: p.ip, user_agent: p.userAgent, copy_path: path, retain_until: retainUntil(now),
   }).select("id").single();
   if (error || !row) throw new Error(error?.message ?? "Could not record agreement");
-  await logEvent(pkg.job_id, p.actorId, EV.CUSTOMER_AGREEMENT_SIGNED, "Customer signed Customer Agreement / Quote Acceptance (commercial only – VEEC assignment and ESC consent are separate later steps)", { agreement_id: row.id, sha256: hash, rights_version: rights.version });
+  await logEvent(pkg.job_id, p.actorId, EV.CUSTOMER_AGREEMENT_SIGNED, "Customer signed Customer Agreement / Quote Acceptance (commercial)", { agreement_id: row.id, sha256: hash, rights_version: rights.version });
+  await signConditionalAssignment({ pkg, agreementId: row.id, official, actorId: p.actorId, input: p.input, ip: p.ip, userAgent: p.userAgent, at: now });
+  return row.id;
+}
+
+export const CONDITIONAL_NOTE = "Binding conditional assignment: the customer agrees to assign all VEEC rights attributable to the quoted Activity 48 upgrade to the Accredited Provider. It is NOT effective until the prescribed activity has been undertaken and all final mandatory Activity 48 details and signatures are complete. Non-payment of the balance does not revoke this record.";
+
+/** Conditional VEEC assignment signed at quote stage (separate record from the commercial agreement). */
+async function signConditionalAssignment(c: { pkg: AcceptancePackage; agreementId: string; official: Template; actorId: string; input: AgreementSignInput; ip: string | null; userAgent: string | null; at: Date }) {
+  const { pkg } = c;
+  if (await currentAssignment(pkg.job_id)) throw new WorkflowError("A VEEC assignment already exists for this job – use a variation.");
+  const at = c.at.toISOString();
+  const conditional = { kind: "conditional_veec_assignment_quote_stage", note: CONDITIONAL_NOTE, quoted: snapOf(pkg), installer: pkg.installer, property_address: pkg.property_address, quote: { id: pkg.quote.id, version: pkg.quote.version } };
+  const sig = { typed_name: c.input.signatureName, at, ip: c.ip, user_agent: c.userAgent, user_id: c.actorId, form_version: c.official.version };
+  const hash = await sha256Hex(stableJson({ party: "consumer", stage: "quote_stage_conditional", sig, conditional }));
+  const copyText = [`ACTIVITY 48 VEEC ASSIGNMENT – SIGNED CONDITIONALLY AT QUOTE (official form ${c.official.version}) – ${pkg.ap_legal_entity}`, `Job ${pkg.job_number}`, CONDITIONAL_NOTE, "", c.official.body, "",
+    "QUOTED FACTS (final facts are completed after installation)", `Property: ${pkg.property_address}`, `Product: ${pkg.quoted_product} · Quoted area: ${pkg.quoted_area_m2 ?? "TBC"} m²`,
+    `Installer: ${pkg.installer.name ?? "To be confirmed"} ${pkg.installer.business ? `(${pkg.installer.business})` : ""}`, `VEU benefit (estimate): ${pkg.veu_benefit_inc_gst.toFixed(2)} · Final price: ${pkg.final_customer_price_inc_gst.toFixed(2)} inc GST`, "",
+    `Signatory: ${c.input.signatoryName} (${c.input.authorityType}) · typed signature "${c.input.signatureName}" · ${at} · IP ${c.ip ?? "unknown"}`, `SHA-256: ${hash}`].join("\n");
+  const path = await storeCopy(pkg.job_id, `${pkg.job_id}/assignment/conditional-${hash.slice(0, 12)}.txt`, copyText, "VEEC Assignment – signed conditionally at quote (not yet effective)", "veec_assignment_conditional", c.actorId);
+  const { data: row, error } = await admin.from("customer_assignments").insert({
+    job_id: pkg.job_id, quote_id: pkg.quote.id, quote_version: pkg.quote.version, record_kind: "final_veec_assignment", signed_stage: "quote_stage_conditional", status: "consumer_signed_pending_install",
+    customer_agreement_id: c.agreementId, ap_legal_entity: pkg.ap_legal_entity, consumer_declaration_version: c.official.version, conditional_snapshot: conditional as unknown as Json,
+    quoted_product: pkg.quoted_product, quoted_area_m2: pkg.quoted_area_m2, price_before_benefit_inc_gst: pkg.price_before_benefit_inc_gst, veu_benefit_inc_gst: pkg.veu_benefit_inc_gst, final_customer_price_inc_gst: pkg.final_customer_price_inc_gst,
+    installer_user_id: pkg.installer.user_id, installer_business_id: pkg.installer.business_id, installer_name: pkg.installer.name, installer_business_name: pkg.installer.business,
+    signatory_name: c.input.signatoryName, signatory_authority_type: c.input.authorityType, signatory_over_18: c.input.over18, signatory_email: pkg.consumer.email, signatory_phone: pkg.consumer.phone,
+    consumer_signature_name: c.input.signatureName, consumer_signed_at: at, consumer_signed_by: c.actorId, consumer_ip: c.ip, consumer_user_agent: c.userAgent,
+    consumer_snapshot: { ...sig, conditional, form: { version: c.official.version, body: c.official.body } } as unknown as Json, consumer_snapshot_sha256: hash, consumer_copy_path: path,
+    delivery_status: "not_ready", retain_until: retainUntil(c.at),
+  }).select("id").single();
+  if (error || !row) throw new Error(error?.message ?? "Could not record conditional assignment");
+  await logEvent(pkg.job_id, c.actorId, EV.CONDITIONAL_ASSIGNMENT_SIGNED, `Customer signed the conditional VEEC assignment (${c.official.version}) – not effective until installation and final details are complete`, { assignment_id: row.id, agreement_id: c.agreementId, sha256: hash });
   return row.id;
 }
 
@@ -178,6 +213,7 @@ async function computeFinalFacts(jobId: string, fieldValues: Record<string, Fiel
   const { data: reqs } = await admin.from("evidence_requirements").select("label, status").eq("job_id", jobId).eq("required", true);
   const evidenceMissing = (reqs ?? []).filter((r) => !["uploaded", "verified"].includes(r.status)).map((r) => r.label);
   const blockers = finalAssignmentAvailability({ stage: job?.stage ?? "", installationCompleted: !!job?.installation_completed_at, installerDeclared: !!decl, evidenceMissing, agreementSigned: !!agreement, templates });
+  // Pre-correction jobs have no quote-stage conditional assignment; they still sign fully post-install.
   const official = activeTemplate(templates, "consumer_declaration");
   const defs = parseFormFields(official?.form_fields);
   const { data: inv } = await admin.from("invoices").select("id, xero_invoice_number, xero_reference, amount_paid, status").eq("job_id", jobId).eq("kind", "installation").maybeSingle();
@@ -205,15 +241,33 @@ export async function prepareFinalAssignment(jobId: string, actorId: string, fie
   const r = await computeFinalFacts(jobId, fieldValues, templates);
   if (!r.facts || !r.agreement || !r.decl || !r.official) throw new WorkflowError(`Final VEEC assignment not available: ${r.blockers.join(" • ")}`);
   const sha = await sha256Hex(stableJson(r.facts));
-  const prev = await currentAssignment(jobId);
+  let prev = await currentAssignment(jobId);
+  const base = r.agreement.snapshot as unknown as { snapshot: Snapshot };
+  const current = { installer_user_id: r.decl.installer_user_id, installer_business_id: r.decl.installer_business_id, product: r.decl.installed_product, area_m2: Number(r.decl.installed_area_m2) };
+  const changes = materialChanges(base.snapshot, current);
   if (prev) {
     if (prev.status === "effective_complete") throw new WorkflowError("The final VEEC assignment is already effective – record a variation instead.");
     if (prev.final_facts_sha256 === sha) return prev.id;
+    if (prev.signed_stage === "quote_stage_conditional") {
+      // Complete the SAME conditional record; the quote-stage consumer signature is preserved.
+      if (prev.installer_signed_at || prev.ap_signed_at) throw new WorkflowError("Final facts are already signed by the installer/AP – raise a variation instead.");
+      const formChanged = prev.consumer_declaration_version !== r.official.version;
+      const { error } = await admin.from("customer_assignments").update({
+        installer_declaration_id: r.decl.id, final_facts: r.facts as unknown as Json, final_facts_sha256: sha, prepared_at: new Date().toISOString(),
+        consumer_final_required: finalConsumerSignatureRequired(templates) || formChanged,
+        installer_abn: r.decl.installer_abn, installer_licence: r.decl.installer_licence, installer_declaration_version: r.decl.template_version,
+        installed_product: r.decl.installed_product, installed_r_value: r.decl.installed_r_value, installed_area_m2: r.decl.installed_area_m2,
+      }).eq("id", prev.id);
+      if (error) throw new Error(error.message);
+      await logEvent(jobId, actorId, EV.FINAL_ASSIGNMENT_PREPARED, `Final Activity 48 details added to the conditional VEEC assignment (${r.official.version}) – next: lead installer → AP representative${finalConsumerSignatureRequired(templates) || formChanged ? " → customer final confirmation" : " (customer's quote-stage signature preserved)"}`, { assignment_id: prev.id, sha256: sha, form_changed: formChanged });
+      if (changes.length) await raiseVariation(jobId, actorId, changes, { ...base.snapshot, ...current });
+      await evaluateAndApply(jobId, actorId);
+      return prev.id;
+    }
     await admin.from("customer_assignments").update({ status: "cancelled" }).eq("id", prev.id);
     await logEvent(jobId, actorId, "FINAL_ASSIGNMENT_SUPERSEDED", "Final VEEC assignment facts changed – previous version superseded; all parties must sign again", { assignment_id: prev.id }, { internal: true });
+    prev = null;
   }
-  const base = r.agreement.snapshot as unknown as { snapshot: Snapshot };
-  const changes = materialChanges(base.snapshot, { installer_user_id: r.decl.installer_user_id, installer_business_id: r.decl.installer_business_id, product: r.decl.installed_product, area_m2: Number(r.decl.installed_area_m2) });
   const { data: row, error } = await admin.from("customer_assignments").insert({
     job_id: jobId, quote_id: r.agreement.quote_id, quote_version: r.agreement.quote_version, record_kind: "final_veec_assignment", status: "awaiting_installer_signature",
     customer_agreement_id: r.agreement.id, installer_declaration_id: r.decl.id, ap_legal_entity: r.agreement.ap_legal_entity, final_facts: r.facts as unknown as Json, final_facts_sha256: sha, prepared_at: new Date().toISOString(),
@@ -225,7 +279,7 @@ export async function prepareFinalAssignment(jobId: string, actorId: string, fie
   }).select("id").single();
   if (error || !row) throw new Error(error?.message);
   await logEvent(jobId, actorId, EV.FINAL_ASSIGNMENT_PREPARED, `Final Activity 48 VEEC assignment prepared (${r.official.version}) – signing order: lead installer → AP representative → customer`, { assignment_id: row.id, sha256: sha });
-  if (changes.length) await raiseVariation(jobId, actorId, changes, { ...base.snapshot, installer_user_id: r.decl.installer_user_id, installer_business_id: r.decl.installer_business_id, product: r.decl.installed_product, area_m2: Number(r.decl.installed_area_m2) });
+  if (changes.length) await raiseVariation(jobId, actorId, changes, { ...base.snapshot, ...current });
   await evaluateAndApply(jobId, actorId);
   return row.id;
 }
@@ -235,12 +289,13 @@ export async function signFinalAssignment(p: { jobId: string; actorId: string; p
   const a = await currentAssignment(p.jobId);
   if (!a) throw new WorkflowError("The final VEEC assignment has not been prepared yet (it is prepared after installation and AP review).");
   const { count: openVar } = await admin.from("assignment_variations").select("id", { count: "exact", head: true }).eq("assignment_id", a.id).eq("status", "pending");
-  const ob = signingOrderBlocker({ status: a.status, installerSigned: !!a.installer_signed_at, apSigned: !!a.ap_signed_at, consumerSigned: !!a.consumer_signed_at, openVariation: (openVar ?? 0) > 0 }, p.party);
+  const ob = signingOrderBlocker({ status: a.status, installerSigned: !!a.installer_signed_at, apSigned: !!a.ap_signed_at, consumerSigned: !!a.consumer_signed_at, openVariation: (openVar ?? 0) > 0, consumerFinalRequired: a.consumer_final_required, consumerFinalSigned: !!a.consumer_final_signed_at }, p.party);
   if (ob) throw new WorkflowError(ob);
   if (p.signatureName.trim().length < 2) throw new WorkflowError("Type your full name to sign.");
   const templates = await loadTemplates();
   const official = activeTemplate(templates, "consumer_declaration");
-  if (!official || official.version !== a.consumer_declaration_version) throw new WorkflowError("The official assignment form version changed – HI VIC must prepare the assignment again.");
+  const preparedVersion = (a.final_facts as unknown as FinalFacts | null)?.template_version ?? a.consumer_declaration_version;
+  if (!official || official.version !== preparedVersion) throw new WorkflowError("The official assignment form version changed – HI VIC must prepare the assignment again.");
   const now = new Date().toISOString();
   const sig = { typed_name: p.signatureName, at: now, ip: p.ip, user_agent: p.userAgent, user_id: p.actorId, facts_sha256: a.final_facts_sha256, form_version: official.version };
   const hash = await sha256Hex(stableJson({ party: p.party, sig, facts: a.final_facts }));
@@ -250,6 +305,11 @@ export async function signFinalAssignment(p: { jobId: string; actorId: string; p
   } else if (p.party === "ap") {
     const ap = activeTemplate(templates, "ap_declaration");
     await admin.from("customer_assignments").update({ ap_declaration_version: ap?.version ?? null, ap_details: { ...sig, ap_declaration: ap ? { version: ap.version, body: ap.body } : null } as unknown as Json, ap_signed_at: now, ap_signed_by: p.actorId, ap_signature_name: p.signatureName, ap_snapshot_sha256: hash }).eq("id", a.id);
+  } else if (a.consumer_signed_at) {
+    // Quote-stage conditional signature exists: this is the final confirmation required by the official form.
+    const { data: isOwner } = await admin.rpc("is_job_owner", { _job: p.jobId, _user: p.actorId });
+    if (!isOwner) throw new WorkflowError("Only the customer can sign.");
+    await admin.from("customer_assignments").update({ consumer_final_signature_name: p.signatureName, consumer_final_signed_at: now, consumer_final_signed_by: p.actorId, consumer_final_ip: p.ip, consumer_final_snapshot_sha256: hash }).eq("id", a.id);
   } else {
     const { data: isOwner } = await admin.rpc("is_job_owner", { _job: p.jobId, _user: p.actorId });
     if (!isOwner) throw new WorkflowError("Only the customer can sign.");
@@ -313,6 +373,7 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
   const r = evaluateAssignment({
     status: a.status, prepared: !!a.prepared_at && !!a.final_facts, installerSigned: !!a.installer_signed_at, apSigned: !!a.ap_signed_at, consumerSigned: !!a.consumer_signed_at,
     installedProduct: a.installed_product, installedArea: a.installed_area_m2 != null ? Number(a.installed_area_m2) : null, openVariation: (openVar ?? 0) > 0, templates,
+    consumerFinalRequired: a.consumer_final_required, consumerFinalSigned: !!a.consumer_final_signed_at,
   });
   if (r.status === a.status) return r;
   if (r.status !== "effective_complete") { await admin.from("customer_assignments").update({ status: r.status }).eq("id", a.id); return r; }
@@ -324,7 +385,8 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
     `Installer: ${f.installer.name ?? ""} ${f.installer.business ? `(${f.installer.business})` : ""} · ABN ${f.installer.abn ?? "-"}`,
     `Final customer price ${f.final_customer_price_inc_gst.toFixed(2)} inc GST · VEU benefit ${f.veu_benefit_inc_gst.toFixed(2)} · Payment ${f.payment.status ?? "-"} ref ${f.payment.reference ?? "-"}`,
     ...Object.entries(f.form_values).map(([k, v]) => `${k}: ${String(v ?? "—")}`), "",
-    "SIGNATURES", `Lead installer: "${a.installer_signature_name}" · ${a.installer_signed_at}`, `AP representative: "${a.ap_signature_name}" · ${a.ap_signed_at}`, `Consumer: ${a.signatory_name} (${a.signatory_authority_type}) "${a.consumer_signature_name}" · ${a.consumer_signed_at} · IP ${a.consumer_ip ?? "unknown"}`, "",
+    "SIGNATURES", `Lead installer: "${a.installer_signature_name}" · ${a.installer_signed_at}`, `AP representative: "${a.ap_signature_name}" · ${a.ap_signed_at}`, `Consumer: ${a.signatory_name} (${a.signatory_authority_type}) "${a.consumer_signature_name}" · ${a.consumer_signed_at} · IP ${a.consumer_ip ?? "unknown"}${a.signed_stage === "quote_stage_conditional" ? " (signed conditionally at quote acceptance)" : ""}`,
+    ...(a.consumer_final_signed_at ? [`Consumer final confirmation: "${a.consumer_final_signature_name}" · ${a.consumer_final_signed_at}`] : []), "",
     `Facts sha256 ${a.final_facts_sha256}`, "", "Machine-readable facts:", stableJson(f)].join("\n");
   const hash = await sha256Hex(finalText);
   const path = await storeCopy(jobId, `${jobId}/assignment/final-${hash.slice(0, 12)}.txt`, finalText, "Final Activity 48 VEEC Assignment (signed copy)", "veec_assignment_final", actorId ?? a.consumer_signed_by ?? null);
