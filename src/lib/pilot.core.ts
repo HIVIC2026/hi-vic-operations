@@ -1,3 +1,4 @@
+import { PROVISIONAL_FLAG_REASON, parseMethod, parsePurpose } from "./measurement.core";
 // Pure rules for the ReInsulate pilot: partner onboarding, job import, electrician choice,
 // appointment SLA, partner offers, relationship owner, partner pricing and co-branded quotes.
 // No I/O here — persistence lives in pilot.server.ts.
@@ -78,6 +79,7 @@ export const IMPORT_FIELDS = [
   "full_name", "email", "phone", "address_line", "suburb", "postcode", "external_reference",
   "measured_area_m2", "removal_required", "removal_m2", "existing_r_value", "product", "r_value",
   "access_notes", "inspection_status", "electrical_status", "swms_status", "electrician_name", "notes",
+  "measurement_purpose", "measurement_method", "measured_by", "measured_on", "gross_area_m2", "excluded_area_m2",
 ] as const;
 export type ImportField = (typeof IMPORT_FIELDS)[number];
 export type Extracted = Partial<Record<ImportField, Fact>> & { quote_lines?: { description: string; amount: number | null }[] };
@@ -90,6 +92,8 @@ export const FIELD_LABEL: Record<ImportField, string> = {
   removal_m2: "Removal area (m²)", existing_r_value: "Existing insulation R-value", product: "Proposed product", r_value: "Proposed R-value",
   access_notes: "Roof access / special access", inspection_status: "Inspection / measure-up status", electrical_status: "Electrical safety status",
   swms_status: "SWMS / evidence status", electrician_name: "Named electrician", notes: "Notes",
+  measurement_purpose: "Measurement purpose (sales estimate / onsite / final)", measurement_method: "Measurement method (laser, tape, floor plan, aerial…)",
+  measured_by: "Measured by", measured_on: "Measured date", gross_area_m2: "Gross area (m²)", excluded_area_m2: "Excluded / non-ceiling area (m²)",
 };
 
 const num = (s: string | undefined) => { if (!s) return null; const n = Number(s.replace(/,/g, "")); return Number.isFinite(n) ? n : null; };
@@ -158,6 +162,8 @@ const CSV_ALIASES: Record<ImportField, string[]> = {
   removal_m2: ["removal_m2", "removal_area"], existing_r_value: ["existing_r_value", "existing_r"], product: ["product", "insulation_product"],
   r_value: ["r_value", "proposed_r_value"], access_notes: ["access", "roof_access", "access_notes"], inspection_status: ["inspection_status", "measure_up_status", "status"],
   electrical_status: ["electrical_status", "piesa_status"], swms_status: ["swms", "swms_status"], electrician_name: ["electrician"], notes: ["notes", "comments"],
+  measurement_purpose: ["measurement_purpose", "measure_type"], measurement_method: ["measurement_method", "method", "measure_method"],
+  measured_by: ["measured_by", "measurer"], measured_on: ["measured_on", "measure_date", "measured_date"], gross_area_m2: ["gross_area", "gross_area_m2"], excluded_area_m2: ["excluded_area", "excluded_area_m2"],
 };
 
 /** Map one CSV row to facts. Column-mapped values are 'found'; nothing is inferred. */
@@ -167,7 +173,7 @@ export function extractFromCsvRow(r: Record<string, string>): Extracted {
     const col = CSV_ALIASES[k].find((a) => r[a] != null && r[a] !== "");
     const raw = col ? r[col] : null;
     let v: string | number | boolean | null = raw ?? null;
-    if (raw != null && ["measured_area_m2", "removal_m2", "existing_r_value", "r_value"].includes(k)) v = num(raw.replace(/[^\d.,]/g, ""));
+    if (raw != null && ["measured_area_m2", "removal_m2", "existing_r_value", "r_value", "gross_area_m2", "excluded_area_m2"].includes(k)) v = num(raw.replace(/[^\d.,]/g, ""));
     if (raw != null && k === "removal_required") v = /^(y|yes|true|1)$/i.test(raw);
     out[k] = f(v, col ? `csv:${col}` : "csv", v == null ? "missing" : "found");
   }
@@ -207,18 +213,34 @@ export function confirmBlockers(c: ConfirmedFacts): string[] {
   return b;
 }
 
-/** Imported measure-up → installer-supplied ceiling_measurement. Complete facts → needs_review (existing acceptance logic decides). */
-export function planImportedMeasurement(c: ConfirmedFacts, importId: string) {
-  const area = c.measured_area_m2 == null || c.measured_area_m2 === "" ? null : Number(c.measured_area_m2);
+/** Imported measure-up → PROVISIONAL installer-supplied ceiling_measurement. The supplied figures are preserved
+ *  permanently (supplied_*), but the relevant ceiling area is left for an independent onsite measurement: it is
+ *  never accepted automatically and never makes the visit electrical-only on its own. */
+export function planImportedMeasurement(c: ConfirmedFacts, importId: string, meta: { businessId?: string | null; standardApproved?: boolean } = {}) {
+  const n = (v: unknown) => (v == null || v === "" ? null : Number(v));
+  const area = n(c.measured_area_m2);
   const removal = c.removal_required == null ? null : !!c.removal_required;
-  const existingR = c.existing_r_value == null || c.existing_r_value === "" ? null : Number(c.existing_r_value);
+  const existingR = n(c.existing_r_value);
   if (area == null && removal == null && existingR == null) return null;
+  const removalM2 = c.removal_m2 == null || c.removal_m2 === "" ? (removal === false ? 0 : null) : Number(c.removal_m2);
+  const method = parseMethod(c.measurement_method);
+  const purpose = parsePurpose(c.measurement_purpose) ?? (method === "aerial_remote" ? "sales_estimate" : null);
+  const supplied = { measured_area_m2: area, removal_required: removal, removal_m2: removalM2, existing_r_value: existingR, method, purpose,
+    measured_by: c.measured_by ?? null, measured_on: c.measured_on ?? null, gross_area_m2: n(c.gross_area_m2), excluded_area_m2: n(c.excluded_area_m2), import_id: importId };
+  const at = new Date().toISOString();
+  const flags = ["measured_area_m2", ...(removal ? ["removal_m2"] : [])].map((field) => ({ field, reason: PROVISIONAL_FLAG_REASON, by: "system", at }));
+  const onDate = c.measured_on && /^\d{4}-\d{2}-\d{2}$/.test(String(c.measured_on)) ? String(c.measured_on) : null;
   return {
     source_role: "installer" as const, external_source: "installer_import", external_id: importId,
-    measured_area_m2: area, removal_required: removal,
-    removal_m2: c.removal_m2 == null || c.removal_m2 === "" ? (removal === false ? 0 : null) : Number(c.removal_m2),
+    provenance: "installer_supplied_provisional" as const,
+    // Relevant ceiling area stays empty until measured onsite (pilot dual verification); other facts prefill.
+    measured_area_m2: meta.standardApproved ? area : null, removal_required: removal, removal_m2: removalM2,
     existing_r_value: existingR, insulation_present: existingR == null ? null : existingR > 0,
-    evidence_notes: [c.inspection_status && `Imported status: ${c.inspection_status}`, c.access_notes && `Access: ${c.access_notes}`].filter(Boolean).join(" · ") || null,
+    supplied_area_m2: area, supplied_removal_m2: removalM2, supplied_snapshot: supplied,
+    measurement_method: method, measurement_purpose: purpose, measured_by_name: c.measured_by == null ? null : String(c.measured_by), measured_by_role: "installer",
+    measured_by_business_id: meta.businessId ?? null, measured_on: onDate, gross_area_m2: n(c.gross_area_m2), excluded_area_m2: n(c.excluded_area_m2),
+    confidence: "low" as const, review_flags: flags,
+    evidence_notes: [c.inspection_status && `Imported status: ${c.inspection_status}`, c.access_notes && `Access: ${c.access_notes}`, area != null && `Installer-supplied area ${area} m² (provisional)`].filter(Boolean).join(" · ") || null,
     status: "needs_review" as const,
   };
 }

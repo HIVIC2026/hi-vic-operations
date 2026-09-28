@@ -218,9 +218,10 @@ export const getPartnerProfile = createServerFn({ method: "POST" }).middleware([
       admin.from("rate_cards").select("id, kind, name, version, effective_from, is_active").eq("business_id", id).order("version", { ascending: false }),
       admin.from("businesses").select("id, name, onboarding_status, business_type, capabilities").or("business_type.eq.rec,capabilities.cs.{electrician}"),
     ]);
+    const { data: methods } = await admin.from("partner_measurement_methods").select("*").eq("business_id", id).order("created_at", { ascending: false });
     const checklist = onboardingChecklist(business as BusinessLike, credentials, !!agreements?.length);
     const { xero_contact_id: _x, xero_contact_error: _e, ...safe } = business;
-    return { business: adminUser ? business : safe, credentials: creds ?? [], members: members ?? [], relationships: rels ?? [], agreements: agreements ?? [], rateCards: cards ?? [], electricianBusinesses: electricians ?? [], checklist, myRole: adminUser ? "hivic_admin" : mine.get(id) };
+    return { business: adminUser ? business : safe, credentials: creds ?? [], members: members ?? [], relationships: rels ?? [], agreements: agreements ?? [], rateCards: cards ?? [], electricianBusinesses: electricians ?? [], measurementMethods: methods ?? [], checklist, myRole: adminUser ? "hivic_admin" : mine.get(id) };
   });
 
 // ---------- Import ----------
@@ -286,10 +287,12 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
     await admin.from("jobs").update({ customer_relationship_owner: rel, source_system: imp.source_system, external_refs: refs as Json,
       ...(pilotInvoice ? { commercial_model: "hivic_invoices_owner" as const, commercial_model_set_by: context.userId, commercial_model_set_at: new Date().toISOString() } : {}) }).eq("id", res.job_id);
     await admin.from("job_assignments").insert({ job_id: res.job_id, user_id: context.userId, role: "installer", business_id: imp.business_id, assigned_by: context.userId, first_response_at: new Date().toISOString() });
-    const m = planImportedMeasurement(c, imp.id);
+    const { data: ws } = await admin.from("workflow_settings").select("measurement_standard_approved").limit(1).maybeSingle();
+    const { data: pm } = await admin.from("partner_measurement_methods").select("id").eq("business_id", imp.business_id).eq("status", "approved").order("approved_at", { ascending: false }).limit(1).maybeSingle();
+    const m = planImportedMeasurement(c, imp.id, { businessId: imp.business_id, standardApproved: !!ws?.measurement_standard_approved && !!pm });
     if (m) {
       await admin.from("ceiling_measurements").update({ is_current: false }).eq("job_id", res.job_id).eq("is_current", true);
-      await admin.from("ceiling_measurements").insert({ ...m, job_id: res.job_id, is_current: true, created_by: context.userId, completed_by: context.userId, raw_snapshot: { import_id: imp.id, confirmed: c, extracted: imp.extracted } as unknown as Json });
+      await admin.from("ceiling_measurements").insert({ ...m, supplied_snapshot: m.supplied_snapshot as unknown as Json, partner_method_id: pm?.id ?? null, review_flags: m.review_flags as unknown as Json, job_id: res.job_id, is_current: true, created_by: context.userId, raw_snapshot: { import_id: imp.id, confirmed: c, extracted: imp.extracted } as unknown as Json });
       await admin.from("jobs").update({ measure_up_responsibility: "installer" }).eq("id", res.job_id);
     }
     await admin.from("job_imports").update({ status: "confirmed", confirmed_facts: c as Json, confirmed_by: context.userId, confirmed_at: new Date().toISOString(), job_id: res.job_id, updated_at: new Date().toISOString() }).eq("id", imp.id);
@@ -583,4 +586,53 @@ export const listDraftImports = createServerFn({ method: "GET" }).middleware([re
     if (!ids.length) return [];
     const { data } = await admin.from("job_imports").select("id, source_system, method, extracted, files, source_url, external_refs, created_at, status, job_id").in("business_id", ids).order("created_at", { ascending: false }).limit(50);
     return data ?? [];
+  });
+
+// ---------- Measurement standard + partner measurement methods ----------
+/** Partner documents its measurement process (draft). Only HI VIC admin can approve it. */
+export const savePartnerMethod = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    businessId: uuid, version: z.string().trim().min(1).max(40), method: z.enum(["laser", "tape", "floorplan", "other"]),
+    description: z.string().trim().min(10).max(4000), tools: txt(500), zone_breakdown: z.boolean(), evidence_expected: txt(2000), exclusions_rule: txt(2000),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.businessId, true);
+    const { businessId, ...rest } = data;
+    const { error } = await admin.from("partner_measurement_methods").insert({ ...rest, tools: rest.tools ?? null, evidence_expected: rest.evidence_expected ?? null, exclusions_rule: rest.exclusions_rule ?? null, business_id: businessId, status: "draft", created_by: context.userId });
+    if (error) throw new WorkflowError(error.code === "23505" ? "That version already exists – use a new version number." : error.message);
+    return { ok: true };
+  });
+
+export const reviewPartnerMethod = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: uuid, action: z.enum(["approve", "retire"]), reason: z.string().trim().min(5).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const at = new Date().toISOString();
+    const patch = data.action === "approve" ? { status: "approved", approved_by: context.userId, approved_at: at, approval_reason: data.reason } : { status: "retired", approval_reason: data.reason };
+    const { data: row } = await admin.from("partner_measurement_methods").update(patch).eq("id", data.id).select("business_id, version").single();
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "partner_measurement_method_" + data.action, summary: `Partner measurement method ${row?.version} ${data.action}d: ${data.reason}`, details: { method_id: data.id, business_id: row?.business_id } as Json });
+    return { ok: true };
+  });
+
+export const getMeasurementStandard = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.supabase);
+    const { data } = await admin.from("workflow_settings").select("measurement_standard_version, measurement_standard_approved, measurement_standard_approved_at, measurement_variance_tolerance_pct").limit(1).single();
+    return data;
+  });
+
+/** Admin-only: AP measurement standard approval and the (optional) pilot variance tolerance. */
+export const setMeasurementStandard = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ version: txt(60), approved: z.boolean(), tolerancePct: z.number().min(0).max(50).nullable(), reason: z.string().trim().min(5).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    if (data.approved && !data.version) throw new WorkflowError("Give the approved measurement standard a version.");
+    const { data: ws } = await admin.from("workflow_settings").select("id").limit(1).single();
+    if (!ws) throw new WorkflowError("Workflow settings missing.");
+    await admin.from("workflow_settings").update({
+      measurement_standard_version: data.version ?? null, measurement_standard_approved: data.approved, measurement_variance_tolerance_pct: data.tolerancePct,
+      measurement_standard_approved_by: data.approved ? context.userId : null, measurement_standard_approved_at: data.approved ? new Date().toISOString() : null,
+    }).eq("id", ws.id);
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "measurement_standard_updated", summary: `Measurement standard ${data.version ?? "(none)"} ${data.approved ? "approved" : "not approved"}; tolerance ${data.tolerancePct ?? "not set"}: ${data.reason}`, details: data as unknown as Json });
+    return { ok: true };
   });

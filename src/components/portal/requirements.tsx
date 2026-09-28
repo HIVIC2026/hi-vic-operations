@@ -4,9 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, Check, Ruler, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAction } from "@/hooks/use-me";
-import { completeMeasurement, flagMeasurement, getJobScope, reviewMeasurement, saveMeasurement, setMeasureUpResponsibility } from "@/lib/portal.functions";
+import { completeMeasurement, flagMeasurement, getJobScope, getMeasurementReview, reviewMeasurement, saveMeasurement, setMeasureUpResponsibility } from "@/lib/portal.functions";
 import { MEASURE_FIELD_LABEL, type MeasureField } from "@/lib/scope.core";
 import { fmtDate } from "@/lib/workflow";
+import { METHOD_LABEL, PURPOSE_LABEL, type MeasureMethod, type MeasurePurpose } from "@/lib/measurement.core";
 import { Pill } from "./badges";
 import { EvidencePanel, Section } from "./panels";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,7 @@ const E_LABEL: Record<string, string> = { current: "Current", expired: "Expired 
 
 type M = NonNullable<ReturnType<typeof useMeasurements>["data"]>["current"];
 
-export function MeasurementDetails({ m }: { m: M }) {
+export function MeasurementDetails({ m, admin = false }: { m: M; admin?: boolean }) {
   if (!m) return <p className="text-sm text-muted-foreground">No measure-up recorded yet.</p>;
   const who = (m.completer as { full_name: string | null } | null)?.full_name;
   const sup = (m.supplementer as { full_name: string | null } | null)?.full_name;
@@ -53,6 +54,21 @@ export function MeasurementDetails({ m }: { m: M }) {
     ["Access", m.access_difficulty],
     ["Reference", m.external_id ? `${m.external_source ?? "external"} ${m.external_id}` : null],
   ];
+  const provisional = m.provenance === "installer_supplied_provisional";
+  if (provisional) rows.unshift(["Status", m.verified_at ? "Installer-supplied – verified onsite" : "Installer-supplied – provisional (onsite measurement required)"]);
+  if (m.measurement_purpose) rows.push(["Purpose", PURPOSE_LABEL[m.measurement_purpose as MeasurePurpose] ?? m.measurement_purpose]);
+  if (m.measurement_method) rows.push(["Supplied method", METHOD_LABEL[m.measurement_method as MeasureMethod] ?? m.measurement_method]);
+  if (m.measured_by_name || m.measured_on) rows.push(["Measured by", [m.measured_by_name, m.measured_by_role, m.measured_on && fmtDate(m.measured_on)].filter(Boolean).join(" · ")]);
+  if (m.gross_area_m2 != null || m.excluded_area_m2 != null) rows.push(["Gross / excluded", `${m.gross_area_m2 ?? "—"} m² / ${m.excluded_area_m2 ?? "—"} m²`]);
+  if (admin && provisional) {
+    rows.push(["Installer-supplied area", m.supplied_area_m2 != null ? `${Number(m.supplied_area_m2)} m²` : null]);
+    if (m.supplied_removal_m2 != null) rows.push(["Installer-supplied removal", `${Number(m.supplied_removal_m2)} m²`]);
+    if (m.verified_at) {
+      rows.push(["Onsite verified area", `${Number(m.verified_area_m2)} m² (${METHOD_LABEL[m.verified_method as MeasureMethod] ?? m.verified_method}, ${m.verified_role})`]);
+      rows.push(["Variance (supplied − onsite)", m.variance_m2 != null ? `${Number(m.variance_m2)} m² (${Number(m.variance_pct)}%)` : null]);
+    }
+  }
+  if (m.accepted_at) rows.push(["Accepted by HI VIC", `${fmtDate(m.accepted_at)}${m.accepted_standard_version ? ` · standard ${m.accepted_standard_version}` : ""}${m.accepted_reason ? ` · ${m.accepted_reason}` : ""}`]);
   if (sup) rows.push(["Completed onsite by", `${sup} (${((m.supplemented_fields as string[]) ?? []).map((f) => MEASURE_FIELD_LABEL[f as MeasureField] ?? f).join(", ")})`]);
   if (m.review_reason) rows.push(["Review note", m.review_reason]);
   return <dl className="grid grid-cols-2 gap-1 text-sm">{rows.map(([k, v]) => <Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd>{yn(v)}</dd></Fragment>)}</dl>;
@@ -74,6 +90,8 @@ export function RequirementCards({ jobId, isAdmin, job }: { jobId: string; isAdm
     },
   });
   const review = useAction(reviewMeasurement);
+  const loadReview = useServerFn(getMeasurementReview);
+  const { data: rv } = useQuery({ queryKey: ["measurement-review", jobId, ms?.current?.id, ms?.current?.status], queryFn: () => loadReview({ data: { jobId } }), enabled: isAdmin && !!ms?.current });
   const setBy = useAction(setMeasureUpResponsibility);
   const [reason, setReason] = useState("");
   if (!s) return null;
@@ -86,7 +104,8 @@ export function RequirementCards({ jobId, isAdmin, job }: { jobId: string; isAdm
       <div className="grid gap-4 lg:grid-cols-2">
         <Section title="Ceiling / insulation measure-up" action={<Pill t={M_TONE[s.measurement.state] ?? "neutral"}>{M_LABEL[s.measurement.state]}</Pill>}>
           <Ruler className="mb-2 h-4 w-4 text-muted-foreground" />
-          <MeasurementDetails m={m} />
+          <MeasurementDetails m={m} admin={isAdmin} />
+          {isAdmin && rv?.withinTolerance != null && <p className={`mt-1 text-xs ${rv.withinTolerance ? "text-success" : "text-danger"}`}>Variance {rv.withinTolerance ? "within" : "outside"} the {rv.tolerancePct}% pilot tolerance</p>}
           {s.measurement.state !== "accepted" && s.measurement.missing.length > 0 && <p className="mt-2 text-xs text-danger">Missing: {s.measurement.missing.map((f) => MEASURE_FIELD_LABEL[f]).join(", ")}</p>}
           {isAdmin && (
             <div className="mt-3 space-y-2 border-t pt-3">
@@ -97,9 +116,10 @@ export function RequirementCards({ jobId, isAdmin, job }: { jobId: string; isAdm
               </div>
               {m && (
                 <>
+                  {m.status !== "complete" && !!rv?.blockers.length && <ul className="rounded bg-warning-soft p-2 text-xs text-warning">{rv.blockers.map((b) => <li key={b}>{b}</li>)}</ul>}
                   <Input placeholder="Review reason (audited)" value={reason} onChange={(e) => setReason(e.target.value)} />
                   <div className="flex flex-wrap gap-2">
-                    {m.status !== "complete" && <Button size="sm" disabled={reason.trim().length < 3} onClick={async () => { await review({ jobId, action: "accept", reason }, "Measure-up accepted"); setReason(""); }}>Accept measure-up</Button>}
+                    {m.status !== "complete" && <Button size="sm" disabled={reason.trim().length < 3 || !!rv?.blockers.length} onClick={async () => { await review({ jobId, action: "accept", reason }, "Measure-up accepted"); setReason(""); }}>Accept measure-up</Button>}
                     <Button size="sm" variant="outline" disabled={reason.trim().length < 3} onClick={async () => { await review({ jobId, action: "needs_review", reason }, "Marked needs review"); setReason(""); }}>Needs review</Button>
                     <Button size="sm" variant="destructive" disabled={reason.trim().length < 3} onClick={async () => { await review({ jobId, action: "reject", reason }, "Measure-up rejected"); setReason(""); }}>Reject</Button>
                   </div>
@@ -155,6 +175,8 @@ export function MeasurementForm({ jobId, editable, title, showComplete }: { jobI
   const save = useAction(saveMeasurement);
   const done = useAction(completeMeasurement);
   const m = ms?.current;
+  const provisional = m?.provenance === "installer_supplied_provisional" && !m?.verified_at;
+  const [method, setMethod] = useState<"laser" | "tape" | "floorplan" | "other" | null>(null);
   const [local, setLocal] = useState<Record<string, unknown>>({});
   const v = (k: MeasureField) => (k in local ? local[k] : m?.[k]);
   const put = async (k: MeasureField, val: unknown) => { setLocal((p) => ({ ...p, [k]: val })); await save({ jobId, patch: { [k]: val } as never }); };
@@ -168,6 +190,7 @@ export function MeasurementForm({ jobId, editable, title, showComplete }: { jobI
   return (
     <Section title={title}>
       {m?.source_role && m.source_role !== "electrician" && <p className="mb-2 text-xs text-muted-foreground">Original measure-up by {SOURCE[m.source_role]} – only missing or flagged fields can be completed here.</p>}
+      {provisional && <p className="mb-2 rounded bg-warning-soft p-2 text-sm text-warning">Measure the ceiling area yourself onsite – the installer's figure is kept separately for comparison.</p>}
       <div className="grid gap-3">
         <Num k="measured_area_m2" label="Measured ceiling area (m²)" />
         <Yn k="insulation_present" label="Existing insulation present?" />
@@ -177,7 +200,8 @@ export function MeasurementForm({ jobId, editable, title, showComplete }: { jobI
         <div><Label>Ceiling access</Label><div className="mt-1 grid grid-cols-3 gap-2">{(["easy", "moderate", "difficult"] as const).map((o) => <Button key={o} type="button" size="field" variant={v("access_difficulty") === o ? "default" : "outline"} disabled={!can("access_difficulty")} onClick={() => put("access_difficulty", o)} className="capitalize">{o}</Button>)}</div></div>
       </div>
       <div className="mt-3"><EvidencePanel jobId={jobId} role="measure" gates={["assessment"]} /></div>
-      {showComplete && <Button size="field" className="mt-3 w-full" onClick={() => done({ jobId }, "Measure-up complete")}><Check /> Complete measure-up</Button>}
+      {showComplete && provisional && <div className="mt-3"><Label>How did you measure the ceiling area?</Label><div className="mt-1 grid grid-cols-4 gap-2">{(["laser", "tape", "floorplan", "other"] as const).map((k) => <Button key={k} type="button" size="field" variant={method === k ? "default" : "outline"} onClick={() => setMethod(k)}>{METHOD_LABEL[k]}</Button>)}</div></div>}
+      {showComplete && <Button size="field" className="mt-3 w-full" disabled={provisional && !method} onClick={() => done({ jobId, ...(method ? { method } : {}) }, "Measure-up complete")}><Check /> Complete measure-up</Button>}
     </Section>
   );
 }

@@ -78,7 +78,7 @@ describe("imported measure-up drives visit scope", () => {
   const noPiesa = { hasCurrentPiesa: false, piesaExpired: false };
   test("imported measurement becomes installer-supplied needs_review (existing acceptance logic decides)", () => {
     const m = planImportedMeasurement({ measured_area_m2: 120, removal_required: false, existing_r_value: 1.5 }, "imp-1");
-    expect(m).toMatchObject({ source_role: "installer", external_source: "installer_import", status: "needs_review", measured_area_m2: 120, removal_m2: 0 });
+    expect(m).toMatchObject({ source_role: "installer", external_source: "installer_import", status: "needs_review", provenance: "installer_supplied_provisional", measured_area_m2: null, supplied_area_m2: 120, removal_m2: 0 });
     expect(planImportedMeasurement({}, "imp-1")).toBeNull();
   });
   test("accepted sufficient measure-up => ELECTRICAL_ONLY; partial => completion only; none => combined", () => {

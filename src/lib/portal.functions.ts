@@ -221,7 +221,7 @@ async function requireMeasureEvidence(jobId: string) {
 
 /** Complete the ceiling measure-up requirement (installer / electrician in scope, or admin). */
 export const completeMeasurement = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, method: z.enum(["laser", "tape", "floorplan", "other"]).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer"]);
     if (!SITE_STAGES.includes(await getStage(data.jobId))) throw new WorkflowError("Measure-up can only be completed during assessment booking.");
@@ -236,13 +236,25 @@ export const completeMeasurement = createServerFn({ method: "POST" }).middleware
     const miss = missingMeasureFields(m as never);
     if (miss.length) throw new WorkflowError(`Still needed: ${miss.map((f) => MEASURE_FIELD_LABEL[f]).join(", ")}`);
     await requireMeasureEvidence(data.jobId);
+    // Pilot dual verification: a provisional installer-supplied figure is kept; the onsite figure is recorded separately.
+    let verification: Record<string, unknown> = {};
+    if (m.provenance === "installer_supplied_provisional" && !m.verified_at) {
+      const { measurementVariance, verifierBlocker } = await import("./measurement.core");
+      const { data: ws } = await admin.from("workflow_settings").select("measurement_standard_approved").limit(1).maybeSingle();
+      const { data: prof } = await admin.from("profiles").select("business_id").eq("id", context.userId).maybeSingle();
+      const vb = verifierBlocker({ verifierRole: role, verifierBusinessId: prof?.business_id ?? null, suppliedBusinessId: m.measured_by_business_id, standardApproved: !!ws?.measurement_standard_approved });
+      if (vb) throw new WorkflowError(vb);
+      if (role !== "admin" && !data.method) throw new WorkflowError("Choose how you measured the ceiling area onsite (laser, tape, floor plan or other).");
+      const v = measurementVariance(m.supplied_area_m2 == null ? null : Number(m.supplied_area_m2), Number(m.measured_area_m2));
+      verification = { verified_area_m2: m.measured_area_m2, verified_method: data.method ?? "other", verified_by: context.userId, verified_role: role, verified_at: new Date().toISOString(), variance_m2: v?.m2 ?? null, variance_pct: v?.pct ?? null };
+    }
     const own = m.source_role === (role === "admin" ? "admin_import" : role);
     await admin.from("ceiling_measurements").update({
-      status: "complete", review_flags: [], completed_at: new Date().toISOString(),
+      status: "complete", review_flags: [], completed_at: new Date().toISOString(), ...verification,
       ...(own || !m.completed_by ? { completed_by: m.completed_by ?? context.userId } : {}),
       ...(role === "admin" ? { reviewed_by: context.userId, reviewed_at: new Date().toISOString() } : {}),
     }).eq("id", m.id);
-    await logEvent(data.jobId, context.userId, "measurement_completed", `Ceiling measure-up completed (${m.source_role}${own ? "" : `, completed by ${role}`}) – ${Number(m.measured_area_m2)} m²`, { measurement_id: m.id, source_role: m.source_role, supplemented_fields: m.supplemented_fields });
+    await logEvent(data.jobId, context.userId, "measurement_completed", `Ceiling measure-up completed (${m.source_role}${own ? "" : `, completed by ${role}`}) – ${Number(m.measured_area_m2)} m²${verification["verified_at"] ? ` · installer-supplied ${m.supplied_area_m2 ?? "—"} m², variance ${verification["variance_m2"] ?? "—"} m² (${verification["variance_pct"] ?? "—"}%)` : ""}`, { measurement_id: m.id, source_role: m.source_role, supplemented_fields: m.supplemented_fields, ...verification });
     const res = await advanceSiteRequirements(data.jobId, context.userId);
     await autoAdvanceJob(data.jobId, context.userId, "measure-up completed");
     return res;
@@ -275,9 +287,12 @@ export const reviewMeasurement = createServerFn({ method: "POST" }).middleware([
     if (!m) throw new WorkflowError("No measure-up to review.");
     const at = new Date().toISOString();
     if (data.action === "accept") {
+      const blockers = await measurementAcceptanceBlockers(m);
+      if (blockers.length) throw new WorkflowError(`Cannot accept – ${blockers.join(" ")}`);
       const miss = missingMeasureFields(m as never);
       if (miss.length) throw new WorkflowError(`Cannot accept – missing: ${miss.map((f) => MEASURE_FIELD_LABEL[f]).join(", ")}`);
-      await admin.from("ceiling_measurements").update({ status: "complete", review_flags: [], review_reason: data.reason, reviewed_by: context.userId, reviewed_at: at, completed_at: m.completed_at ?? at }).eq("id", m.id);
+      const { data: ws } = await admin.from("workflow_settings").select("measurement_standard_version").limit(1).maybeSingle();
+      await admin.from("ceiling_measurements").update({ status: "complete", review_flags: [], review_reason: data.reason, reviewed_by: context.userId, reviewed_at: at, completed_at: m.completed_at ?? at, accepted_by: context.userId, accepted_at: at, accepted_reason: data.reason, accepted_standard_version: ws?.measurement_standard_version ?? null }).eq("id", m.id);
     } else if (data.action === "needs_review") {
       await admin.from("ceiling_measurements").update({ status: "needs_review", review_reason: data.reason, reviewed_by: context.userId, reviewed_at: at }).eq("id", m.id);
     } else {
@@ -286,6 +301,31 @@ export const reviewMeasurement = createServerFn({ method: "POST" }).middleware([
     await logEvent(data.jobId, context.userId, "measurement_reviewed", `Measure-up ${data.action.replace("_", " ")}: ${data.reason}`, { measurement_id: m.id, previous_status: m.status });
     if (data.action === "accept" && SITE_STAGES.includes(await getStage(data.jobId))) await advanceSiteRequirements(data.jobId, context.userId);
     return { ok: true };
+  });
+
+async function measurementAcceptanceBlockers(m: { provenance: string; measurement_method: string | null; measurement_purpose: string | null; supplied_area_m2: unknown; verified_area_m2: unknown; verified_at: string | null; partner_method_id: string | null }) {
+  const { acceptanceBlockers } = await import("./measurement.core");
+  const { data: ws } = await admin.from("workflow_settings").select("measurement_standard_approved").limit(1).maybeSingle();
+  const { data: pm } = m.partner_method_id ? await admin.from("partner_measurement_methods").select("status").eq("id", m.partner_method_id).maybeSingle() : { data: null };
+  return acceptanceBlockers({ ...m, supplied_area_m2: m.supplied_area_m2 == null ? null : Number(m.supplied_area_m2), verified_area_m2: m.verified_area_m2 == null ? null : Number(m.verified_area_m2) },
+    { standardApproved: !!ws?.measurement_standard_approved, partnerMethodApproved: pm?.status === "approved" });
+}
+
+/** Admin: acceptance blockers + pilot variance for the current measurement. */
+export const getMeasurementReview = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { currentMeasurement } = await import("./requirements.server");
+    const { varianceWithinTolerance } = await import("./measurement.core");
+    const m = await currentMeasurement(data.jobId);
+    if (!m) return null;
+    const { data: ws } = await admin.from("workflow_settings").select("measurement_standard_version, measurement_standard_approved, measurement_variance_tolerance_pct").limit(1).maybeSingle();
+    const tol = ws?.measurement_variance_tolerance_pct == null ? null : Number(ws.measurement_variance_tolerance_pct);
+    return {
+      blockers: await measurementAcceptanceBlockers(m), standardApproved: !!ws?.measurement_standard_approved, standardVersion: ws?.measurement_standard_version ?? null, tolerancePct: tol,
+      withinTolerance: varianceWithinTolerance(m.variance_pct == null ? null : Number(m.variance_pct), tol),
+    };
   });
 
 export const setMeasureUpResponsibility = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

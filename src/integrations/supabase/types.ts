@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_config_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          details: Json
+          event_type: string
+          id: string
+          summary: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type: string
+          id?: string
+          summary: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type?: string
+          id?: string
+          summary?: string
+        }
+        Relationships: []
+      }
       appointment_proposals: {
         Row: {
           assignment_id: string | null
@@ -745,22 +772,38 @@ export type Database = {
       }
       ceiling_measurements: {
         Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          accepted_reason: string | null
+          accepted_standard_version: string | null
           access_difficulty:
             | Database["public"]["Enums"]["access_difficulty"]
             | null
+          assumptions: string | null
           completed_at: string | null
           completed_by: string | null
+          confidence: string | null
           created_at: string
           created_by: string | null
           evidence_notes: string | null
+          excluded_area_m2: number | null
           existing_r_value: number | null
           external_id: string | null
           external_source: string | null
+          gross_area_m2: number | null
           id: string
           insulation_present: boolean | null
           is_current: boolean
           job_id: string
           measured_area_m2: number | null
+          measured_by_business_id: string | null
+          measured_by_name: string | null
+          measured_by_role: string | null
+          measured_on: string | null
+          measurement_method: string | null
+          measurement_purpose: string | null
+          partner_method_id: string | null
+          provenance: string
           raw_snapshot: Json | null
           removal_m2: number | null
           removal_required: boolean | null
@@ -773,25 +816,52 @@ export type Database = {
           supplemented_at: string | null
           supplemented_by: string | null
           supplemented_fields: Json
+          supplied_area_m2: number | null
+          supplied_removal_m2: number | null
+          supplied_snapshot: Json | null
           updated_at: string
+          variance_m2: number | null
+          variance_pct: number | null
+          verified_area_m2: number | null
+          verified_at: string | null
+          verified_by: string | null
+          verified_method: string | null
+          verified_role: string | null
+          zones: Json
         }
         Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          accepted_reason?: string | null
+          accepted_standard_version?: string | null
           access_difficulty?:
             | Database["public"]["Enums"]["access_difficulty"]
             | null
+          assumptions?: string | null
           completed_at?: string | null
           completed_by?: string | null
+          confidence?: string | null
           created_at?: string
           created_by?: string | null
           evidence_notes?: string | null
+          excluded_area_m2?: number | null
           existing_r_value?: number | null
           external_id?: string | null
           external_source?: string | null
+          gross_area_m2?: number | null
           id?: string
           insulation_present?: boolean | null
           is_current?: boolean
           job_id: string
           measured_area_m2?: number | null
+          measured_by_business_id?: string | null
+          measured_by_name?: string | null
+          measured_by_role?: string | null
+          measured_on?: string | null
+          measurement_method?: string | null
+          measurement_purpose?: string | null
+          partner_method_id?: string | null
+          provenance?: string
           raw_snapshot?: Json | null
           removal_m2?: number | null
           removal_required?: boolean | null
@@ -804,25 +874,52 @@ export type Database = {
           supplemented_at?: string | null
           supplemented_by?: string | null
           supplemented_fields?: Json
+          supplied_area_m2?: number | null
+          supplied_removal_m2?: number | null
+          supplied_snapshot?: Json | null
           updated_at?: string
+          variance_m2?: number | null
+          variance_pct?: number | null
+          verified_area_m2?: number | null
+          verified_at?: string | null
+          verified_by?: string | null
+          verified_method?: string | null
+          verified_role?: string | null
+          zones?: Json
         }
         Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          accepted_reason?: string | null
+          accepted_standard_version?: string | null
           access_difficulty?:
             | Database["public"]["Enums"]["access_difficulty"]
             | null
+          assumptions?: string | null
           completed_at?: string | null
           completed_by?: string | null
+          confidence?: string | null
           created_at?: string
           created_by?: string | null
           evidence_notes?: string | null
+          excluded_area_m2?: number | null
           existing_r_value?: number | null
           external_id?: string | null
           external_source?: string | null
+          gross_area_m2?: number | null
           id?: string
           insulation_present?: boolean | null
           is_current?: boolean
           job_id?: string
           measured_area_m2?: number | null
+          measured_by_business_id?: string | null
+          measured_by_name?: string | null
+          measured_by_role?: string | null
+          measured_on?: string | null
+          measurement_method?: string | null
+          measurement_purpose?: string | null
+          partner_method_id?: string | null
+          provenance?: string
           raw_snapshot?: Json | null
           removal_m2?: number | null
           removal_required?: boolean | null
@@ -835,7 +932,18 @@ export type Database = {
           supplemented_at?: string | null
           supplemented_by?: string | null
           supplemented_fields?: Json
+          supplied_area_m2?: number | null
+          supplied_removal_m2?: number | null
+          supplied_snapshot?: Json | null
           updated_at?: string
+          variance_m2?: number | null
+          variance_pct?: number | null
+          verified_area_m2?: number | null
+          verified_at?: string | null
+          verified_by?: string | null
+          verified_method?: string | null
+          verified_role?: string | null
+          zones?: Json
         }
         Relationships: [
           {
@@ -871,6 +979,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ceiling_measurements_measured_by_business_id_fkey"
+            columns: ["measured_by_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
           {
@@ -3488,6 +3603,68 @@ export type Database = {
           },
         ]
       }
+      partner_measurement_methods: {
+        Row: {
+          approval_reason: string | null
+          approved_at: string | null
+          approved_by: string | null
+          business_id: string
+          created_at: string
+          created_by: string | null
+          description: string
+          evidence_expected: string | null
+          exclusions_rule: string | null
+          id: string
+          method: string
+          status: string
+          tools: string | null
+          version: string
+          zone_breakdown: boolean
+        }
+        Insert: {
+          approval_reason?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          description: string
+          evidence_expected?: string | null
+          exclusions_rule?: string | null
+          id?: string
+          method: string
+          status?: string
+          tools?: string | null
+          version: string
+          zone_breakdown?: boolean
+        }
+        Update: {
+          approval_reason?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          evidence_expected?: string | null
+          exclusions_rule?: string | null
+          id?: string
+          method?: string
+          status?: string
+          tools?: string | null
+          version?: string
+          zone_breakdown?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_measurement_methods_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       partner_offers: {
         Row: {
           business_id: string
@@ -5306,6 +5483,11 @@ export type Database = {
           authority_validity_months: number
           customer_comms_enabled: boolean
           id: number
+          measurement_standard_approved: boolean
+          measurement_standard_approved_at: string | null
+          measurement_standard_approved_by: string | null
+          measurement_standard_version: string | null
+          measurement_variance_tolerance_pct: number | null
           min_building_age_years: number
           mitti_measureup_template_id: string | null
           piesa_install_window_days: number
@@ -5317,6 +5499,11 @@ export type Database = {
           authority_validity_months?: number
           customer_comms_enabled?: boolean
           id?: number
+          measurement_standard_approved?: boolean
+          measurement_standard_approved_at?: string | null
+          measurement_standard_approved_by?: string | null
+          measurement_standard_version?: string | null
+          measurement_variance_tolerance_pct?: number | null
           min_building_age_years?: number
           mitti_measureup_template_id?: string | null
           piesa_install_window_days?: number
@@ -5328,6 +5515,11 @@ export type Database = {
           authority_validity_months?: number
           customer_comms_enabled?: boolean
           id?: number
+          measurement_standard_approved?: boolean
+          measurement_standard_approved_at?: string | null
+          measurement_standard_approved_by?: string | null
+          measurement_standard_version?: string | null
+          measurement_variance_tolerance_pct?: number | null
           min_building_age_years?: number
           mitti_measureup_template_id?: string | null
           piesa_install_window_days?: number

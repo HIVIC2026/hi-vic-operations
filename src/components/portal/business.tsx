@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   addCredential, addTeamMember, getBankDetails, getPartnerAgreementTemplate, getPartnerProfile, partnerFileUrl, partnerUploadUrl, removeTeamMember,
-  saveBusiness, setBankDetails, setOnboardingStatus, setPartnerRelationship, signPartnerAgreement, syncXeroSupplier, verifyCredential,
+  saveBusiness, savePartnerMethod, reviewPartnerMethod, getMeasurementStandard, setMeasurementStandard, setBankDetails, setOnboardingStatus, setPartnerRelationship, signPartnerAgreement, syncXeroSupplier, verifyCredential,
 } from "@/lib/pilot.functions";
 import { credentialState, ONBOARDING_STATUSES } from "@/lib/pilot.core";
 
@@ -37,6 +37,7 @@ export function BusinessProfile({ businessId, isHivicAdmin }: { businessId?: str
       <Credentials businessId={b.id} creds={data.credentials} isHivicAdmin={isHivicAdmin} canAdd={canEdit || data.myRole === "member"} onDone={refetch} />
       <Team businessId={b.id} members={data.members} canEdit={canEdit} onDone={refetch} />
       <Electricians businessId={b.id} rels={data.relationships} options={data.electricianBusinesses.filter((e) => e.id !== b.id)} canEdit={canEdit} onDone={refetch} />
+      <MeasurementMethods businessId={b.id} methods={data.measurementMethods as MethodRow[]} canEdit={canEdit} isHivicAdmin={isHivicAdmin} onDone={refetch} />
       <Section title="Rate cards">{data.rateCards.length === 0 ? <p className="text-sm text-muted-foreground">No agreed rate card on file yet – HI VIC sets these up.</p> : data.rateCards.map((r) => <div key={r.id} className="text-sm">{r.name} · {r.kind} · v{r.version} · from {r.effective_from} {r.is_active && <Badge variant="outline">Active</Badge>}</div>)}</Section>
       <Bank businessId={b.id} canEdit={canEdit} />
       <Agreement businessId={b.id} agreements={data.agreements} canSign={data.myRole === "business_admin"} onDone={refetch} />
@@ -233,6 +234,82 @@ function Agreement({ businessId, agreements, canSign, onDone }: { businessId: st
           <Button className="mt-2 w-full" size="field" disabled={!agree || name.trim().length < 2} onClick={async () => { await sign({ businessId, signerName: name, agree: true }, "Agreement signed"); onDone(); }}>Sign agreement (v{t.version})</Button>
         </div>
       ) : null}
+    </Section>
+  );
+}
+
+type MethodRow = { id: string; version: string; method: string; description: string; tools: string | null; zone_breakdown: boolean; evidence_expected: string | null; exclusions_rule: string | null; status: string; approved_at: string | null; approval_reason: string | null };
+const METHOD_OPTS = [["laser", "Laser"], ["tape", "Tape"], ["floorplan", "Floor plan"], ["other", "Other"]] as const;
+
+/** Partner's documented measurement process. Once HI VIC approves it, measurements using it can be reviewed faster. */
+function MeasurementMethods({ businessId, methods, canEdit, isHivicAdmin, onDone }: { businessId: string; methods: MethodRow[]; canEdit: boolean; isHivicAdmin: boolean; onDone: () => void }) {
+  const save = useAction(savePartnerMethod);
+  const review = useAction(reviewPartnerMethod);
+  const [f, setF] = useState({ version: "", method: "laser" as (typeof METHOD_OPTS)[number][0], description: "", tools: "", zone_breakdown: true, evidence_expected: "", exclusions_rule: "" });
+  const [reason, setReason] = useState("");
+  return (
+    <Section title="Measurement method">
+      <p className="mb-2 text-sm text-muted-foreground">How this business measures ceiling area. Until HI VIC approves a method, supplied measurements are provisional and the ceiling area is measured again onsite. Aerial / map estimates are never accepted as an onsite measurement.</p>
+      {methods.length === 0 && <p className="text-sm">No method recorded yet.</p>}
+      {methods.map((m) => (
+        <div key={m.id} className="mb-2 rounded-lg border p-2 text-sm">
+          <div className="flex flex-wrap items-center gap-2"><b>v{m.version}</b><span className="capitalize">{m.method}</span><Badge variant={m.status === "approved" ? "default" : "outline"} className="capitalize">{m.status}</Badge></div>
+          <p className="whitespace-pre-wrap">{m.description}</p>
+          {m.tools && <p className="text-xs text-muted-foreground">Tools: {m.tools}</p>}
+          <p className="text-xs text-muted-foreground">Room/zone breakdown: {m.zone_breakdown ? "yes" : "no"}{m.evidence_expected ? ` · Evidence: ${m.evidence_expected}` : ""}{m.exclusions_rule ? ` · Exclusions: ${m.exclusions_rule}` : ""}</p>
+          {m.approval_reason && <p className="text-xs">HI VIC note: {m.approval_reason}</p>}
+          {isHivicAdmin && m.status !== "retired" && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Input className="h-9 max-w-xs" placeholder="Reason (audited)" value={reason} onChange={(e) => setReason(e.target.value)} />
+              {m.status === "draft" && <Button size="sm" disabled={reason.trim().length < 5} onClick={async () => { await review({ id: m.id, action: "approve", reason }, "Method approved"); setReason(""); onDone(); }}>Approve method</Button>}
+              <Button size="sm" variant="outline" disabled={reason.trim().length < 5} onClick={async () => { await review({ id: m.id, action: "retire", reason }, "Method retired"); setReason(""); onDone(); }}>Retire</Button>
+            </div>
+          )}
+        </div>
+      ))}
+      {canEdit && (
+        <details className="mt-2"><summary className="cursor-pointer text-sm font-medium">Describe a measurement method</summary>
+          <div className="mt-2 grid gap-2">
+            <Input placeholder="Version (e.g. 1.0)" value={f.version} onChange={(e) => setF({ ...f, version: e.target.value })} />
+            <div className="grid grid-cols-4 gap-2">{METHOD_OPTS.map(([k, l]) => <Button key={k} type="button" size="sm" variant={f.method === k ? "default" : "outline"} onClick={() => setF({ ...f, method: k })}>{l}</Button>)}</div>
+            <Textarea placeholder="How you measure: where you measure from, how rooms/zones are broken down, what you exclude" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
+            <Input placeholder="Tools (e.g. Leica laser)" value={f.tools} onChange={(e) => setF({ ...f, tools: e.target.value })} />
+            <Input placeholder="Evidence you keep (sketch, photos, app export)" value={f.evidence_expected} onChange={(e) => setF({ ...f, evidence_expected: e.target.value })} />
+            <Input placeholder="Excluded / non-ceiling areas rule" value={f.exclusions_rule} onChange={(e) => setF({ ...f, exclusions_rule: e.target.value })} />
+            <label className="flex items-center gap-2 text-sm"><Checkbox checked={f.zone_breakdown} onCheckedChange={(v) => setF({ ...f, zone_breakdown: !!v })} /> Room / zone breakdown recorded</label>
+            <Button disabled={!f.version.trim() || f.description.trim().length < 10} onClick={async () => { await save({ businessId, ...f }, "Method saved for HI VIC review"); onDone(); }}>Save for HI VIC review</Button>
+          </div>
+        </details>
+      )}
+    </Section>
+  );
+}
+
+/** Admin-only: HI VIC AP measurement standard + optional pilot variance tolerance. */
+export function MeasurementStandardCard() {
+  const load = useServerFn(getMeasurementStandard);
+  const { data, refetch } = useQuery({ queryKey: ["measurement-standard"], queryFn: () => load() });
+  const set = useAction(setMeasurementStandard);
+  const [version, setVersion] = useState("");
+  const [tol, setTol] = useState("");
+  const [reason, setReason] = useState("");
+  useEffect(() => { if (data) { setVersion(data.measurement_standard_version ?? ""); setTol(data.measurement_variance_tolerance_pct == null ? "" : String(data.measurement_variance_tolerance_pct)); } }, [data]);
+  if (!data) return null;
+  const submit = async (approved: boolean) => { await set({ version: version.trim() || null, approved, tolerancePct: tol === "" ? null : Number(tol), reason }, "Saved"); setReason(""); refetch(); };
+  return (
+    <Section title="AP measurement standard">
+      <p className="mb-2 text-sm">{data.measurement_standard_approved ? <>Approved standard <b>{data.measurement_standard_version}</b>. Measurements from partners with an approved method can be accepted after HI VIC review.</> : <>Not approved. Installer-supplied measurements stay provisional and an independent onsite trade measures the ceiling area on every job.</>}</p>
+      <p className="mb-2 text-xs text-muted-foreground">Variance tolerance is for pilot calibration only. Leave it empty until you've reviewed the pilot jobs – every variance is then shown without a pass/fail.</p>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <Input placeholder="Standard version" value={version} onChange={(e) => setVersion(e.target.value)} />
+        <Input type="number" inputMode="decimal" placeholder="Tolerance % (optional)" value={tol} onChange={(e) => setTol(e.target.value)} />
+        <Input placeholder="Reason (audited)" value={reason} onChange={(e) => setReason(e.target.value)} />
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button size="sm" variant="outline" disabled={reason.trim().length < 5} onClick={() => submit(!!data.measurement_standard_approved)}>Save</Button>
+        {!data.measurement_standard_approved ? <Button size="sm" disabled={reason.trim().length < 5 || !version.trim()} onClick={() => submit(true)}>Approve standard</Button>
+          : <Button size="sm" variant="destructive" disabled={reason.trim().length < 5} onClick={() => submit(false)}>Withdraw approval</Button>}
+      </div>
     </Section>
   );
 }

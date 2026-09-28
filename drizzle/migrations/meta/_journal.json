@@ -183,6 +183,20 @@
       "when": 1790636344862,
       "tag": "0025_conditional_quote_stage_veec_assignment",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790636698740,
+      "tag": "0026_provisional_installer_measurements",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1790636834290,
+      "tag": "0027_admin_config_events",
+      "breakpoints": true
     }
   ]
 }
