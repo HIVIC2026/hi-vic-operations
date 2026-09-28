@@ -71,20 +71,20 @@ function JobDetail() {
         </TabsContent>
         <TabsContent value="eligibility"><EligibilityForm jobId={jobId} /></TabsContent>
         <TabsContent value="authority"><AdminAuthorityPanel jobId={jobId} /></TabsContent>
-        <TabsContent value="assessment" className="space-y-4"><BookingPanel jobId={jobId} kind="assessment" canBook /><AssessmentView jobId={jobId} part="assessment" /></TabsContent>
+        <TabsContent value="assessment" className="space-y-4"><BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><AssessmentView jobId={jobId} part="assessment" /></TabsContent>
         <TabsContent value="piesa" className="space-y-4">
           <Section title="PIESA 30-day installation window">
             {job.piesa_date ? <p className="text-sm">Current PIESA {fmtDate(job.piesa_date)} → install by <strong>{fmtDate(job.install_deadline)}</strong> ({job.days_remaining} days) <UrgencyBadge urgency={job.urgency} days={job.days_remaining} /></p> : <p className="text-sm text-muted-foreground">No PIESA recorded yet.</p>}
           </Section>
           <AssessmentView jobId={jobId} part="piesa" />
         </TabsContent>
-        <TabsContent value="rectification" className="space-y-4"><AssessmentView jobId={jobId} part="rectification" /><BookingPanel jobId={jobId} kind="rectification" canBook /></TabsContent>
+        <TabsContent value="rectification" className="space-y-4"><AssessmentView jobId={jobId} part="rectification" /><BookingPanel jobId={jobId} kind="rectification" canBook isAdmin /></TabsContent>
         <TabsContent value="quotes" className="space-y-4"><AdminQuotes jobId={jobId} /></TabsContent>
         <TabsContent value="payments"><PaymentsPanel jobId={jobId} isAdmin /></TabsContent>
         <TabsContent value="scheduling" className="grid gap-4 lg:grid-cols-3">
-          <BookingPanel jobId={jobId} kind="assessment" canBook /><BookingPanel jobId={jobId} kind="rectification" canBook /><BookingPanel jobId={jobId} kind="installation" canBook />
+          <BookingPanel jobId={jobId} kind="assessment" canBook isAdmin /><BookingPanel jobId={jobId} kind="rectification" canBook isAdmin /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin />
         </TabsContent>
-        <TabsContent value="installation" className="space-y-4"><BookingPanel jobId={jobId} kind="installation" canBook /><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /></TabsContent>
+        <TabsContent value="installation" className="space-y-4"><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /></TabsContent>
         <TabsContent value="evidence"><EvidencePanel jobId={jobId} role="admin" /></TabsContent>
         <TabsContent value="compliance"><Compliance jobId={jobId} /></TabsContent>
         <TabsContent value="veec"><Veec jobId={jobId} /></TabsContent>

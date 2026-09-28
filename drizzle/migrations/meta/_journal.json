@@ -43,6 +43,13 @@
       "when": 1790574997331,
       "tag": "0005_fix_job_number_sequence",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790576659981,
+      "tag": "0006_xero_sync_lock_tracking",
+      "breakpoints": true
     }
   ]
 }

@@ -6,8 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAction } from "@/hooks/use-me";
 import {
   acceptOwnerAuthority, confirmEvidenceUpload, createBooking, declineOwnerAuthority, getAuthorityDocUrl, getEvidenceUrl, getInvoiceInternals,
-  getJobBlockers, overrideDepositGate, requestEvidenceUpload, requestOwnerAuthority, respondToQuote, retryXeroPush, revokeOwnerAuthority,
-  sendMessage, simulateXeroPayment, syncInvoice, verifyEvidence, viewOwnerAuthority,
+  getJobBlockers, overrideDepositGate, requestEvidenceUpload, requestOwnerAuthority, respondToQuote, revokeOwnerAuthority,
+  sendMessage, cancelBooking, syncInvoice, verifyEvidence, viewOwnerAuthority,
 } from "@/lib/portal.functions";
 import { EVIDENCE_STATUS_LABEL, STAGE_LABEL, aud, fmtDate, fmtDateTime } from "@/lib/workflow";
 import { ASSISTANCE_LABEL } from "@/lib/authority";
@@ -191,9 +191,10 @@ export function TimelinePanel({ jobId }: { jobId: string }) {
 }
 
 // ---------------- Bookings ----------------
-export function BookingPanel({ jobId, kind, canBook }: { jobId: string; kind: "assessment" | "rectification" | "installation"; canBook: boolean }) {
+export function BookingPanel({ jobId, kind, canBook, isAdmin = false }: { jobId: string; kind: "assessment" | "rectification" | "installation"; canBook: boolean; isAdmin?: boolean }) {
   const [when, setWhen] = useState("");
   const book = useAction(createBooking);
+  const cancel = useAction(cancelBooking);
   const { data } = useQuery({
     queryKey: ["bookings", jobId],
     queryFn: async () => (await supabase.from("bookings").select("*").eq("job_id", jobId).order("scheduled_start", { ascending: false })).data ?? [],
@@ -201,7 +202,7 @@ export function BookingPanel({ jobId, kind, canBook }: { jobId: string; kind: "a
   const current = (data ?? []).find((b) => b.kind === kind && b.status !== "cancelled");
   return (
     <Section title={`${kind[0]!.toUpperCase()}${kind.slice(1)} booking`}>
-      {current ? <p className="text-sm">Booked: <strong>{fmtDateTime(current.scheduled_start)}</strong> <Pill t="good">{current.status}</Pill></p> : <p className="text-sm text-muted-foreground">Not booked yet.</p>}
+      {current ? <p className="text-sm">Booked: <strong>{fmtDateTime(current.scheduled_start)}</strong> <Pill t="good">{current.status}</Pill>{isAdmin && <Button size="sm" variant="ghost" className="ml-2" onClick={() => { const r = prompt("Reason for cancelling this booking (required, audited)"); if (r) cancel({ jobId, kind, reason: r }, "Booking cancelled"); }}>Cancel booking</Button>}</p> : <p className="text-sm text-muted-foreground">Not booked yet.</p>}
       {canBook && (
         <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={(e) => { e.preventDefault(); if (when) book({ jobId, kind, start: new Date(when).toISOString() }, "Booking saved"); }}>
           <Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="h-12" required />
@@ -255,9 +256,7 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
 // ---------------- Payments ----------------
 export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: boolean }) {
   const sync = useAction(syncInvoice);
-  const retry = useAction(retryXeroPush);
   const override = useAction(overrideDepositGate);
-  const simulate = useAction(simulateXeroPayment);
   const internalsFn = useServerFn(getInvoiceInternals);
   const { data } = useQuery({
     queryKey: ["invoices", jobId],
@@ -298,10 +297,8 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
               {ov.map((o) => <p key={o.id} className="mt-2 rounded bg-warning-soft px-2 py-1 text-xs">Override by {o.by ?? "admin"} on {fmtDateTime(o.created_at)}: {o.reason}</p>)}
               {isAdmin && (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => sync({ invoiceId: i.id! }, "Synced")}>Sync from Xero</Button>
-                  {!x?.xero_invoice_id && <Button size="sm" variant="outline" onClick={() => retry({ invoiceId: i.id! }, "Retried")}>Retry Xero push</Button>}
+                  <Button size="sm" variant="outline" disabled={!!x?.sync_lock_at && Date.now() - Date.parse(x.sync_lock_at) < 120000} onClick={() => sync({ invoiceId: i.id! }, "Xero sync finished")}>{x?.xero_invoice_id ? "Sync with Xero" : "Send to Xero (safe retry)"}</Button>
                   {!i.deposit_cleared && <Button size="sm" variant="outline" onClick={() => { const r = prompt("Reason for overriding the deposit gate (required, permanently audited)"); if (r) override({ invoiceId: i.id!, reason: r }, "Override recorded"); }}>Override deposit gate</Button>}
-                  <Button size="sm" variant="ghost" onClick={() => { const a = prompt("TESTING ONLY (Xero not connected): total amount paid", String(i.deposit_amount)); if (a) simulate({ invoiceId: i.id!, amountPaid: Number(a) }, "Payment applied"); }}>Simulate payment (test)</Button>
                 </div>
               )}
             </div>
