@@ -322,10 +322,12 @@ export const overrideDepositGate = auth()
   .inputValidator((d) => z.object({ invoiceId: uuid, reason: z.string().trim().min(5).max(1000) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { data: inv } = await admin.from("invoices").select("job_id").eq("id", data.invoiceId).single();
+    const { data: inv } = await admin.from("invoices").select("job_id, status, deposit_paid_at, total_paid").eq("id", data.invoiceId).single();
     if (!inv) throw new WorkflowError("Invoice not found");
-    await admin.from("payment_overrides").insert({ invoice_id: data.invoiceId, job_id: inv.job_id, gate: "deposit", reason: data.reason, overridden_by: context.userId });
-    await logEvent(inv.job_id, context.userId, "payment_override", `Deposit gate overridden by admin: ${data.reason}`, { invoice_id: data.invoiceId });
+    const before = { invoice_status: inv.status, deposit_paid_at: inv.deposit_paid_at, total_paid: inv.total_paid, deposit_gate: "locked", stage: await getStage(inv.job_id) };
+    const after = { ...before, deposit_gate: "overridden" };
+    await admin.from("payment_overrides").insert({ invoice_id: data.invoiceId, job_id: inv.job_id, gate: "deposit", reason: data.reason, overridden_by: context.userId, before_state: before, after_state: after });
+    await logEvent(inv.job_id, context.userId, "payment_override", `Deposit gate overridden by admin: ${data.reason}`, { invoice_id: data.invoiceId, before, after });
     await advanceAfterDeposit(inv.job_id, context.userId);
     return { ok: true };
   });
@@ -365,7 +367,8 @@ export const createBooking = auth()
       if (p?.install_deadline && data.start.slice(0, 10) > p.install_deadline)
         throw new WorkflowError(`Installation must be before the PIESA deadline (${p.install_deadline}).`);
     }
-    if (data.kind !== "assessment" && !(await depositCleared(data.jobId, data.kind)))
+    if (!(await authorityValid(data.jobId))) throw new WorkflowError(`Blocked: ${AUTHORITY_BLOCKER}.`);
+    if (data.kind !== "assessment" && !(await depositCleared(data.jobId)))
       throw new WorkflowError("Blocked: the 50% deposit has not been paid.");
     if (data.kind === "installation") {
       const { data: inv } = await admin.from("invoices").select("id").eq("job_id", data.jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
