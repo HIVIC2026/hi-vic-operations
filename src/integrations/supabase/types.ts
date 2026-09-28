@@ -969,6 +969,7 @@ export type Database = {
           id: string
           is_active: boolean
           required: boolean
+          requires_final_consumer_signature: boolean
           source_note: string | null
           template_key: string
           version: string
@@ -984,6 +985,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           required?: boolean
+          requires_final_consumer_signature?: boolean
           source_note?: string | null
           template_key: string
           version: string
@@ -999,6 +1001,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           required?: boolean
+          requires_final_consumer_signature?: boolean
           source_note?: string | null
           template_key?: string
           version?: string
@@ -1197,8 +1200,15 @@ export type Database = {
           cancel_reason: string | null
           cancelled_at: string | null
           completed_at: string | null
+          conditional_snapshot: Json | null
           consumer_copy_path: string | null
           consumer_declaration_version: string | null
+          consumer_final_ip: string | null
+          consumer_final_required: boolean
+          consumer_final_signature_name: string | null
+          consumer_final_signed_at: string | null
+          consumer_final_signed_by: string | null
+          consumer_final_snapshot_sha256: string | null
           consumer_ip: string | null
           consumer_rights_version: string | null
           consumer_signature_name: string | null
@@ -1252,6 +1262,7 @@ export type Database = {
           signatory_name: string | null
           signatory_over_18: boolean | null
           signatory_phone: string | null
+          signed_stage: string
           status: Database["public"]["Enums"]["assignment_status"]
           updated_at: string
           variation_reasons: Json
@@ -1271,8 +1282,15 @@ export type Database = {
           cancel_reason?: string | null
           cancelled_at?: string | null
           completed_at?: string | null
+          conditional_snapshot?: Json | null
           consumer_copy_path?: string | null
           consumer_declaration_version?: string | null
+          consumer_final_ip?: string | null
+          consumer_final_required?: boolean
+          consumer_final_signature_name?: string | null
+          consumer_final_signed_at?: string | null
+          consumer_final_signed_by?: string | null
+          consumer_final_snapshot_sha256?: string | null
           consumer_ip?: string | null
           consumer_rights_version?: string | null
           consumer_signature_name?: string | null
@@ -1326,6 +1344,7 @@ export type Database = {
           signatory_name?: string | null
           signatory_over_18?: boolean | null
           signatory_phone?: string | null
+          signed_stage?: string
           status?: Database["public"]["Enums"]["assignment_status"]
           updated_at?: string
           variation_reasons?: Json
@@ -1345,8 +1364,15 @@ export type Database = {
           cancel_reason?: string | null
           cancelled_at?: string | null
           completed_at?: string | null
+          conditional_snapshot?: Json | null
           consumer_copy_path?: string | null
           consumer_declaration_version?: string | null
+          consumer_final_ip?: string | null
+          consumer_final_required?: boolean
+          consumer_final_signature_name?: string | null
+          consumer_final_signed_at?: string | null
+          consumer_final_signed_by?: string | null
+          consumer_final_snapshot_sha256?: string | null
           consumer_ip?: string | null
           consumer_rights_version?: string | null
           consumer_signature_name?: string | null
@@ -1400,6 +1426,7 @@ export type Database = {
           signatory_name?: string | null
           signatory_over_18?: boolean | null
           signatory_phone?: string | null
+          signed_stage?: string
           status?: Database["public"]["Enums"]["assignment_status"]
           updated_at?: string
           variation_reasons?: Json
