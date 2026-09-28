@@ -2,6 +2,7 @@
 // delegates to the central workflow/quote modules which write with the service role.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import type { Json } from "@/integrations/supabase/types";
 import { withRequestMeta } from "./request-meta";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
