@@ -177,6 +177,8 @@ export function OwnerAssignmentCard({ jobId }: { jobId: string }) {
         {a && (
           <div className="space-y-2 rounded-lg border p-3">
             <div className="flex flex-wrap items-center gap-2"><b>Activity 48 VEEC assignment</b><StatusPill s={a.status} />{a.final_copy_path && a.delivery_status !== "pending_comms_lock" && <CopyLink id={a.id} which="final" label="Final copy" />}</div>
+            {a.status === "consumer_signed_pending_install" && <p className="text-muted-foreground">You signed this with your quote. It takes effect once your installation is completed and the final details are confirmed.</p>}
+            {a.status === "awaiting_consumer_signature" && a.consumer_signed_at && <p>Please confirm the final installation details below.</p>}
             {a.status === "awaiting_consumer_signature" && data.officialForm && <>
               <Official title={`Official form (${data.officialForm.version})`} body={data.officialForm.body} />
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded bg-muted p-2">{(a.final_facts?.installed ?? []).map((x: Any, i: number) => <Fragment key={i}><dt className="text-muted-foreground">Installed</dt><dd>{x.product}{x.r_value ? ` (${x.r_value})` : ""} · {x.area_m2} m²</dd></Fragment>)}<dt className="text-muted-foreground">Completed</dt><dd>{a.final_facts?.completed_date}</dd></dl>
