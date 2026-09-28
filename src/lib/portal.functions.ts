@@ -598,7 +598,7 @@ export const viewOwnerAuthority = auth()
     return { ok: true };
   });
 
-export const acceptOwnerAuthority = auth()
+export const acceptOwnerAuthority = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
   .inputValidator((d) => z.object({ authorityId: uuid, over18: z.literal(true), authorised: z.literal(true), assistance: z.enum(["none", "interpreter", "support_understanding", "both"]), signatureName: z.string().trim().min(2).max(200) }).parse(d))
   .handler(async ({ data, context }) => {
     // Only the owner themself may give authority.
