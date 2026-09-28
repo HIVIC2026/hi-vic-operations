@@ -5,15 +5,17 @@ import { CheckCircle2, FileUp, Lock, Paperclip, ShieldAlert } from "lucide-react
 import { supabase } from "@/integrations/supabase/client";
 import { useAction } from "@/hooks/use-me";
 import {
-  confirmEvidenceUpload, createBooking, getEvidenceUrl, getJobBlockers, overrideDepositGate, requestEvidenceUpload,
-  respondToQuote, retryXeroPush, sendMessage, simulateXeroPayment, syncInvoice, verifyEvidence,
+  acceptOwnerAuthority, confirmEvidenceUpload, createBooking, declineOwnerAuthority, getAuthorityDocUrl, getEvidenceUrl, getInvoiceInternals,
+  getJobBlockers, overrideDepositGate, requestEvidenceUpload, requestOwnerAuthority, respondToQuote, retryXeroPush, revokeOwnerAuthority,
+  sendMessage, simulateXeroPayment, syncInvoice, verifyEvidence, viewOwnerAuthority,
 } from "@/lib/portal.functions";
 import { EVIDENCE_STATUS_LABEL, STAGE_LABEL, aud, fmtDate, fmtDateTime } from "@/lib/workflow";
+import { ASSISTANCE_LABEL } from "@/lib/authority";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { PaymentBadge, Pill } from "./badges";
+import { AuthorityBadge, PaymentBadge, Pill } from "./badges";
 
 export function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -254,39 +256,181 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
   const retry = useAction(retryXeroPush);
   const override = useAction(overrideDepositGate);
   const simulate = useAction(simulateXeroPayment);
+  const internalsFn = useServerFn(getInvoiceInternals);
   const { data } = useQuery({
     queryKey: ["invoices", jobId],
-    queryFn: async () => (await supabase.from("invoice_payment_state").select("*").eq("job_id", jobId).order("created_at")).data ?? [],
+    queryFn: async () => (await supabase.from("invoice_status").select("*").eq("job_id", jobId).order("created_at")).data ?? [],
   });
+  const { data: internals } = useQuery({ queryKey: ["invoice-internals", jobId], enabled: isAdmin, queryFn: () => internalsFn({ data: { jobId } }) });
   return (
-    <Section title="Payments">
-      {!data?.length && <p className="text-sm text-muted-foreground">No invoice yet – raised automatically in Xero when a quote is accepted.</p>}
+    <Section title="Xero invoice & payments">
+      {!data?.length && <p className="text-sm text-muted-foreground">No invoice yet – raised in Xero when the owner accepts the final installation quote. 50% deposit is due immediately; the balance is due on installation day.</p>}
       <div className="space-y-3">
-        {(data ?? []).map((i) => (
-          <div key={i.id} className="rounded-lg border p-3 text-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="font-semibold capitalize">{i.kind} invoice {i.xero_invoice_number && `· ${i.xero_invoice_number}`}</div>
-              <PaymentBadge status={i.effective_status} />
-            </div>
-            <dl className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-4">
-              <div><dt className="text-xs text-muted-foreground">Total inc GST</dt><dd className="font-medium">{aud(i.total_inc_gst)}</dd></div>
-              <div><dt className="text-xs text-muted-foreground">Deposit (50%)</dt><dd className="font-medium">{aud(i.deposit_amount)} {i.deposit_cleared ? <Lock className="inline h-3 w-3 text-success" /> : null}</dd></div>
-              <div><dt className="text-xs text-muted-foreground">Balance</dt><dd className="font-medium">{aud(i.balance_amount)} {i.balance_due_date && `due ${fmtDate(i.balance_due_date)}`}</dd></div>
-              <div><dt className="text-xs text-muted-foreground">Paid</dt><dd className="font-medium">{aud(i.total_paid)}</dd></div>
-            </dl>
-            {!i.deposit_cleared && <p className="mt-2 rounded bg-warning-soft px-2 py-1 text-xs font-medium text-accent-foreground">Scheduling is locked until the 50% deposit is paid.</p>}
-            {isAdmin && i.last_sync_error && <p className="mt-2 rounded bg-danger-soft px-2 py-1 text-xs text-danger">Xero: {i.last_sync_error}</p>}
-            {isAdmin && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => sync({ invoiceId: i.id! }, "Synced")}>Sync from Xero</Button>
-                {!i.xero_invoice_id && <Button size="sm" variant="outline" onClick={() => retry({ invoiceId: i.id! }, "Retried")}>Retry Xero push</Button>}
-                {!i.deposit_cleared && <Button size="sm" variant="outline" onClick={() => { const r = prompt("Reason for overriding the deposit gate (audited)"); if (r) override({ invoiceId: i.id!, reason: r }, "Override recorded"); }}>Override deposit gate</Button>}
-                <Button size="sm" variant="ghost" onClick={() => { const a = prompt("Testing only: total amount paid in Xero", String(i.deposit_amount)); if (a) simulate({ invoiceId: i.id!, amountPaid: Number(a) }, "Payment applied"); }}>Simulate payment</Button>
+        {(data ?? []).map((i) => {
+          const x = internals?.invoices.find((v) => v.id === i.id);
+          const ov = internals?.overrides.filter((o) => o.invoice_id === i.id) ?? [];
+          return (
+            <div key={i.id} className="rounded-lg border p-3 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="font-semibold capitalize">{i.kind} invoice {i.xero_invoice_number && `· ${i.xero_invoice_number}`}</div>
+                <PaymentBadge status={i.effective_status} />
               </div>
-            )}
-          </div>
-        ))}
+              <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div><dt className="text-xs text-muted-foreground">Total inc GST</dt><dd className="font-medium">{aud(i.total_inc_gst)}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Deposit (50%) · due now</dt><dd className="font-medium">{aud(i.deposit_amount)} {i.deposit_paid_at ? <span className="text-xs text-success">paid {fmtDate(i.deposit_paid_at)}</span> : null}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Balance · installation day</dt><dd className="font-medium">{aud(i.balance_amount)} {i.balance_due_date ? `due ${fmtDate(i.balance_due_date)}` : <span className="text-xs text-muted-foreground">date set when booked</span>}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Paid to date</dt><dd className="font-medium">{aud(i.total_paid)} {i.balance_paid_at && <span className="text-xs text-success">fully paid {fmtDate(i.balance_paid_at)}</span>}</dd></div>
+              </dl>
+              {i.xero_online_url && <a href={i.xero_online_url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-semibold text-primary underline">View / pay invoice</a>}
+              {!i.deposit_cleared && <p className="mt-2 flex items-center gap-1 rounded bg-danger-soft px-2 py-1 text-xs font-semibold text-danger"><Lock className="h-3 w-3" /> Rectification and installation scheduling are locked until the 50% deposit is paid.</p>}
+              {isAdmin && x && (
+                <dl className="mt-3 grid grid-cols-2 gap-1 rounded bg-muted p-2 text-xs sm:grid-cols-3">
+                  <div><dt className="text-muted-foreground">Xero contact</dt><dd className="break-all">{x.xero_contact_id ?? "—"}</dd></div>
+                  <div><dt className="text-muted-foreground">Xero invoice ID</dt><dd className="break-all">{x.xero_invoice_id ?? "—"}</dd></div>
+                  <div><dt className="text-muted-foreground">Xero status</dt><dd>{x.xero_invoice_status ?? "—"}</dd></div>
+                  <div><dt className="text-muted-foreground">Reference</dt><dd>{x.xero_reference ?? "—"}</dd></div>
+                  <div><dt className="text-muted-foreground">Last sync</dt><dd>{fmtDateTime(x.last_synced_at)}</dd></div>
+                </dl>
+              )}
+              {isAdmin && x?.last_sync_error && <p className="mt-2 rounded bg-danger-soft px-2 py-1 text-xs text-danger">Xero sync error: {x.last_sync_error}</p>}
+              {ov.map((o) => <p key={o.id} className="mt-2 rounded bg-warning-soft px-2 py-1 text-xs">Override by {o.by ?? "admin"} on {fmtDateTime(o.created_at)}: {o.reason}</p>)}
+              {isAdmin && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => sync({ invoiceId: i.id! }, "Synced")}>Sync from Xero</Button>
+                  {!x?.xero_invoice_id && <Button size="sm" variant="outline" onClick={() => retry({ invoiceId: i.id! }, "Retried")}>Retry Xero push</Button>}
+                  {!i.deposit_cleared && <Button size="sm" variant="outline" onClick={() => { const r = prompt("Reason for overriding the deposit gate (required, permanently audited)"); if (r) override({ invoiceId: i.id!, reason: r }, "Override recorded"); }}>Override deposit gate</Button>}
+                  <Button size="sm" variant="ghost" onClick={() => { const a = prompt("TESTING ONLY (Xero not connected): total amount paid", String(i.deposit_amount)); if (a) simulate({ invoiceId: i.id!, amountPaid: Number(a) }, "Payment applied"); }}>Simulate payment (test)</Button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
+    </Section>
+  );
+}
+
+// ---------------- Owner Authority ----------------
+export function useAuthorities(jobId: string) {
+  return useQuery({
+    queryKey: ["authority", jobId],
+    queryFn: async () => (await supabase.from("owner_authorities").select("*").eq("job_id", jobId).order("version", { ascending: false })).data ?? [],
+  });
+}
+
+export function AdminAuthorityPanel({ jobId }: { jobId: string }) {
+  const { data = [] } = useAuthorities(jobId);
+  const request = useAction(requestOwnerAuthority);
+  const revoke = useAction(revokeOwnerAuthority);
+  const doc = useServerFn(getAuthorityDocUrl);
+  const cur = data[0];
+  const eff = cur && cur.status === "accepted" && cur.expires_at && new Date(cur.expires_at) < new Date() ? "expired" : cur?.status ?? "not_requested";
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Section title="Owner Authority" action={<AuthorityBadge status={eff} />}>
+        {eff !== "accepted" && <p className="mb-3 flex items-center gap-2 rounded bg-danger-soft p-2 text-sm font-semibold text-danger"><ShieldAlert className="h-4 w-4" /> Valid Owner Authority required before assessment booking, rectification, installation and VEEC.</p>}
+        {cur ? (
+          <dl className="grid grid-cols-2 gap-1 text-sm">
+            <dt className="text-muted-foreground">Version</dt><dd>v{cur.version} · wording {cur.wording_version}</dd>
+            <dt className="text-muted-foreground">Requested</dt><dd>{fmtDateTime(cur.requested_at)}</dd>
+            <dt className="text-muted-foreground">Viewed</dt><dd>{fmtDateTime(cur.viewed_at)}</dd>
+            <dt className="text-muted-foreground">Accepted</dt><dd>{fmtDateTime(cur.accepted_at)}</dd>
+            <dt className="text-muted-foreground">Expires</dt><dd>{fmtDate(cur.expires_at)}</dd>
+            <dt className="text-muted-foreground">Signed as</dt><dd>{cur.signature_name ?? "—"}</dd>
+            <dt className="text-muted-foreground">18+ / authorised</dt><dd>{cur.confirmed_over_18 ? "Yes" : "—"} / {cur.confirmed_owner_or_authorised ? "Yes" : "—"}</dd>
+            <dt className="text-muted-foreground">Assistance</dt><dd>{cur.assistance_requirement ? ASSISTANCE_LABEL[cur.assistance_requirement] : "—"}</dd>
+            <dt className="text-muted-foreground">Method</dt><dd>{cur.acceptance_method?.replaceAll("_", " ") ?? "—"}</dd>
+            <dt className="text-muted-foreground">IP / device</dt><dd className="truncate" title={cur.user_agent ?? ""}>{cur.ip_address ?? "—"}</dd>
+            <dt className="text-muted-foreground">Record hash</dt><dd className="truncate font-mono text-xs">{cur.document_sha256 ?? "—"}</dd>
+            {cur.revocation_reason && <><dt className="text-muted-foreground">Revoked</dt><dd>{fmtDate(cur.revoked_at)}: {cur.revocation_reason}</dd></>}
+            {cur.decline_reason && <><dt className="text-muted-foreground">Declined</dt><dd>{cur.decline_reason}</dd></>}
+          </dl>
+        ) : <p className="text-sm text-muted-foreground">Not requested yet. It's requested automatically when eligibility is set to proceed.</p>}
+        <div className="mt-3 flex flex-wrap gap-2">
+          {!cur && <Button onClick={() => request({ jobId, reason: "initial" }, "Authority requested")}>Request authority</Button>}
+          {cur && ["sent", "viewed"].includes(cur.status) && <Button variant="outline" onClick={() => request({ jobId, reason: "resend" }, "Authority re-sent")}>Resend</Button>}
+          {cur && ["accepted", "expired", "revoked", "declined"].includes(eff) && <Button variant="outline" onClick={() => request({ jobId, reason: "renewal" }, "Renewal requested")}>Renew (new version)</Button>}
+          {cur && ["sent", "viewed", "accepted"].includes(eff) && <Button variant="destructive" onClick={() => { const r = prompt("Reason for revoking (audited)"); if (r) revoke({ authorityId: cur.id, reason: r }, "Authority revoked"); }}>Revoke</Button>}
+          {cur?.document_path && <Button variant="ghost" onClick={async () => window.open((await doc({ data: { authorityId: cur.id } })).url, "_blank")}><Paperclip /> Locked record</Button>}
+        </div>
+      </Section>
+      <Section title="Authority wording snapshot">
+        {cur ? <pre className="max-h-96 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed">{cur.wording_snapshot}</pre> : <p className="text-sm text-muted-foreground">—</p>}
+        {data.length > 1 && (
+          <div className="mt-3 border-t pt-2 text-xs text-muted-foreground">
+            <div className="mb-1 font-semibold">Previous versions</div>
+            {data.slice(1).map((a) => <div key={a.id}>v{a.version} · {a.status} · requested {fmtDate(a.requested_at)}{a.accepted_at && ` · accepted ${fmtDate(a.accepted_at)}`}</div>)}
+          </div>
+        )}
+      </Section>
+    </div>
+  );
+}
+
+export function OwnerAuthorityAction({ jobId }: { jobId: string }) {
+  const { data = [] } = useAuthorities(jobId);
+  const view = useAction(viewOwnerAuthority);
+  const accept = useAction(acceptOwnerAuthority);
+  const decline = useAction(declineOwnerAuthority);
+  const [open, setOpen] = useState(false);
+  const [c18, setC18] = useState(false);
+  const [cAuth, setCAuth] = useState(false);
+  const [assist, setAssist] = useState<keyof typeof ASSISTANCE_LABEL>("none");
+  const [sig, setSig] = useState("");
+  const cur = data[0];
+  if (!cur) return null;
+  const expired = cur.status === "accepted" && cur.expires_at && new Date(cur.expires_at) < new Date();
+  if (cur.status === "accepted" && !expired)
+    return <div className="flex items-center gap-2 rounded-xl border border-success/30 bg-success-soft p-3 text-sm font-medium text-success"><CheckCircle2 className="h-4 w-4" /> Owner Authority given {fmtDate(cur.accepted_at)} · valid until {fmtDate(cur.expires_at)}</div>;
+  if (!["sent", "viewed"].includes(cur.status))
+    return <div className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">Your authority is {expired ? "expired" : cur.status}. HI VIC will send you a new one to continue.</div>;
+  return (
+    <section className="rounded-xl border-2 border-primary bg-card p-4 shadow-sm">
+      <h2 className="text-lg font-bold">Action needed: give Owner Authority</h2>
+      <p className="mt-1 text-sm text-muted-foreground">We need your authority before an electrician can book your site visit. It takes about a minute — your details are already filled in.</p>
+      {!open ? (
+        <Button size="field" className="mt-3 w-full" onClick={async () => { setOpen(true); setSig(cur.owner_full_name); await view({ authorityId: cur.id }); }}>Read and accept authority</Button>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded bg-muted p-3 text-sm">
+            <dt className="text-muted-foreground">Name</dt><dd>{cur.owner_full_name}</dd>
+            <dt className="text-muted-foreground">Contact</dt><dd>{[cur.owner_email, cur.owner_phone].filter(Boolean).join(" · ")}</dd>
+            <dt className="text-muted-foreground">Property</dt><dd>{cur.property_address}</dd>
+            <dt className="text-muted-foreground">Given to</dt><dd>{cur.ap_legal_entity}</dd>
+          </dl>
+          <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded border p-3 text-sm leading-relaxed">{cur.wording_snapshot}</pre>
+          <label className="flex items-start gap-3 text-sm"><Checkbox className="mt-0.5 h-5 w-5" checked={c18} onCheckedChange={(v) => setC18(!!v)} /> I am 18 years of age or older.</label>
+          <label className="flex items-start gap-3 text-sm"><Checkbox className="mt-0.5 h-5 w-5" checked={cAuth} onCheckedChange={(v) => setCAuth(!!v)} /> I am the owner of this property, or I am otherwise legally authorised to give this authority.</label>
+          <div>
+            <div className="mb-1 text-sm font-medium">Do you need any assistance?</div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(Object.keys(ASSISTANCE_LABEL) as (keyof typeof ASSISTANCE_LABEL)[]).map((k) => (
+                <Button key={k} type="button" size="field" variant={assist === k ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal" onClick={() => setAssist(k)}>{ASSISTANCE_LABEL[k]}</Button>
+              ))}
+            </div>
+          </div>
+          <div><div className="mb-1 text-sm font-medium">Type your full name to sign</div><Input className="h-12" value={sig} onChange={(e) => setSig(e.target.value)} /></div>
+          <Button size="field" className="w-full" disabled={!c18 || !cAuth || sig.trim().length < 2} onClick={() => accept({ authorityId: cur.id, over18: true, authorised: true, assistance: assist, signatureName: sig }, "Thank you – authority recorded")}>I accept and give authority</Button>
+          <Button size="field" variant="ghost" className="w-full" onClick={() => { const r = prompt("Tell us why you don't want to proceed"); if (r) decline({ authorityId: cur.id, reason: r }, "Declined"); }}>I don't want to give authority</Button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ---------------- Documents ----------------
+export function DocumentsPanel({ jobId }: { jobId: string }) {
+  const { data = [] } = useAuthorities(jobId);
+  const doc = useServerFn(getAuthorityDocUrl);
+  const accepted = data.filter((a) => a.document_path);
+  return (
+    <Section title="Documents">
+      {!accepted.length && <p className="text-sm text-muted-foreground">No documents yet.</p>}
+      {accepted.map((a) => (
+        <button key={a.id} className="flex w-full items-center gap-2 rounded border p-3 text-left text-sm hover:bg-muted" onClick={async () => window.open((await doc({ data: { authorityId: a.id } })).url, "_blank")}>
+          <Paperclip className="h-4 w-4" /> Owner Authority v{a.version} · accepted {fmtDate(a.accepted_at)}
+        </button>
+      ))}
     </Section>
   );
 }
