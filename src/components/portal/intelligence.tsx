@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { fmtDateTime } from "@/lib/workflow";
 import { TIER_LABEL, type AreaTier } from "@/lib/intelligence.core";
-import { floorplanLink, getProviderHealth } from "@/lib/portal.functions";
+import { floorplanLink, getProviderHealth, solarSmokeTest } from "@/lib/portal.functions";
 import { addEscConfig, approveEscConfig, getInstallReadiness, markIntelligenceReviewed, recordEscSubmissionFn, recordPiesaDelivery, regenerateEscNotificationFn, runPropertyIntelligenceFn, submitEscNotification } from "@/lib/portal.functions";
 
 const OUTCOME: Record<string, [string, "good" | "warn" | "bad"]> = {
@@ -31,6 +31,41 @@ const ROWS: { label: string; keys: string[] }[] = [
 ];
 const show = (v: unknown) => v == null ? "Unknown" : typeof v === "object" ? Object.entries(v as Record<string, unknown>).filter(([, x]) => x != null).map(([k, x]) => `${k.replace(/_/g, " ")}: ${String(x)}`).join(" · ") : String(v).replace(/_/g, " ");
 const worst = (fs: FactRow[]) => fs.some((f) => f.check_status === "fail") ? "fail" : fs.some((f) => f.check_status === "review") ? "review" : fs.some((f) => f.check_status === "pass") ? "pass" : "unknown";
+
+function SolarCard({ jobId, facts, check }: { jobId: string; facts: FactRow[]; check: { status: string; error: string | null; checked_at?: string } | null }) {
+  const smoke = useServerFn(solarSmokeTest);
+  const [diag, setDiag] = useState<string | null>(null);
+  const f = (k: string) => facts.find((x) => x.fact_key === k);
+  const s = f("solar_summary"); const v = (s?.value ?? null) as Record<string, unknown> | null;
+  const risk = (f("site_roof_risk")?.value as { flags?: string[] } | null)?.flags ?? [];
+  const conflict = f("solar_area_conflict");
+  const row = (l: string, x: unknown, u = "") => <div className="flex justify-between gap-2"><span className="text-muted-foreground">{l}</span><span>{x == null ? "—" : `${String(x)}${u}`}</span></div>;
+  return (
+    <div className="mb-3 rounded-md border p-3 text-xs">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <h3 className="font-bold uppercase tracking-wide text-muted-foreground">Google Solar (mapped remote estimate)</h3>
+        {check && <Pill t={check.status === "ok" ? "good" : check.status === "not_configured" ? "neutral" : "warn"}>{check.status.replace(/_/g, " ")}</Pill>}
+        {s && <Pill>{s.confidence} confidence</Pill>}
+        {risk.map((r) => <Pill key={r} t="warn">Site risk: {r}</Pill>)}
+        {conflict && <Pill t="warn">Area conflict – review</Pill>}
+        <Button size="sm" variant="outline" className="ml-auto" onClick={async () => { setDiag("Running…"); try { const r = await smoke({ data: { jobId } }); setDiag(JSON.stringify(r)); } catch (e) { setDiag((e as Error).message); } }}>Solar smoke test (read-only)</Button>
+      </div>
+      {check?.error && <p className="mb-2 text-muted-foreground">{check.error}</p>}
+      {v ? (
+        <div className="grid gap-x-6 gap-y-0.5 sm:grid-cols-2">
+          {row("Building ground area", v.building_ground_area_m2, " m²")}{row("Roof ground area", v.roof_ground_area_m2, " m²")}
+          {row("Roof surface area", v.roof_surface_area_m2, " m²")}{row("Roof segments", v.segment_count)}
+          {row("Weighted pitch", v.weighted_pitch_deg, "°")}{row("Pitch range", v.pitch_min_deg != null ? `${v.pitch_min_deg}–${v.pitch_max_deg}` : null, "°")}
+          {row("Low-slope share", v.low_slope_share != null ? Math.round(Number(v.low_slope_share) * 100) : null, "%")}{row("Roof form", String(v.roof_form).replace(/_/g, " "))}
+          {row("Imagery quality", v.imagery_quality)}{row("Imagery date", v.imagery_date)}
+          {row("Checked", s ? fmtDateTime(s.retrieved_at) : null)}{row("Basis", "mapped remote estimate – not measured ceiling area")}
+        </div>
+      ) : <p className="text-muted-foreground">No Solar data on the current run.</p>}
+      {conflict?.note && <p className="mt-2 text-warning-foreground">{conflict.note}</p>}
+      {diag && <pre className="mt-2 whitespace-pre-wrap break-all rounded bg-muted p-2">{diag}</pre>}
+    </div>
+  );
+}
 
 export function PropertyIntelligenceCard({ jobId }: { jobId: string }) {
   const rerun = useAction(runPropertyIntelligenceFn);
@@ -57,6 +92,7 @@ export function PropertyIntelligenceCard({ jobId }: { jobId: string }) {
   return (
     <Section title="Property Intelligence (preliminary – information only)" action={<Button size="sm" variant="outline" onClick={() => rerun({ jobId }, "Property intelligence re-run")}>Re-run property intelligence</Button>}>
       <div className="mb-3 flex flex-wrap gap-1.5 text-xs">{(providers ?? []).map((p) => <span key={p.key} title={p.detail}><Pill t={p.state === "ready" || p.state === "configured" ? "good" : p.state === "not_configured" ? "neutral" : "warn"}>{p.label}: {p.state.replace(/_/g, " ")}</Pill></span>)}</div>
+      <SolarCard jobId={jobId} facts={data?.facts ?? []} check={(data?.checks ?? []).find((c) => c.source_key === "google_solar") ?? null} />
       {!!plans?.length && (
         <div className="mb-3 space-y-1 text-xs">
           <h3 className="font-bold uppercase tracking-wide text-muted-foreground">Sourced floor plan – Pricefinder ({plans.length})</h3>
