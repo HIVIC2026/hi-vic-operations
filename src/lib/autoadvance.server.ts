@@ -3,6 +3,8 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { agreementSigned, getStage, stageEntryBlockers, transition, depositCleared, WorkflowError } from "./workflow.server";
 import { generateInstallerQuotes } from "./quotes.server";
+import { eligibilityConfirmedFor } from "./eligibility.core";
+import { todayMelbourne } from "./eligibility.server";
 import { runAutoAdvance, type AdvanceFacts, type AdvanceResult } from "./autoadvance.core";
 
 async function count(q: PromiseLike<{ count: number | null }>) { return (await q).count ?? 0; }
@@ -10,7 +12,7 @@ async function count(q: PromiseLike<{ count: number | null }>) { return (await q
 export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
   const head = { count: "exact" as const, head: true };
   const [{ data: job }, st] = await Promise.all([
-    admin.from("jobs").select("eligibility_outcome, eligibility_set_by, eligibility_decision_source, installation_completed_at").eq("id", jobId).single(),
+    admin.from("jobs").select("eligibility_outcome, eligibility_set_by, eligibility_decision_source, eligibility_review_required, eligibility_flags, installation_completed_at").eq("id", jobId).single(),
     agreementSigned(jobId),
   ]);
   const declared = (await count(admin.from("installer_declarations").select("id", head).eq("job_id", jobId).eq("status", "signed"))) > 0;
@@ -25,7 +27,7 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
     count(admin.from("veec_lodgements").select("id", head).eq("job_id", jobId).in("status", ["submitted", "approved"])),
   ]);
   return {
-    eligibilityConfirmed: (!!job?.eligibility_set_by || job?.eligibility_decision_source === "system" || job?.eligibility_decision_source === "admin") && !!job?.eligibility_outcome && job.eligibility_outcome !== "does_not_appear_eligible",
+    eligibilityConfirmed: !!job && eligibilityConfirmedFor(job, todayMelbourne()),
     electricianAssigned: elec > 0,
     assessmentBookingConfirmed: ab > 0,
     openRectItems: rect,
