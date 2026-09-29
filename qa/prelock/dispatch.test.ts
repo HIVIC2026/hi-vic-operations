@@ -41,13 +41,13 @@ const estimateFor = (m2: number, ins: "none" | "present" = "none") => ({ id: `es
 let tables: Tables;
 function job(opts: { email?: string; linkExpires?: number; linkStatus?: string; linkCreated?: string } = {}) {
   const jobId = id();
-  tables.jobs!.push({ id: jobId, owners: { email: opts.email ?? "fixture-owner@example.invalid" } });
+  tables.jobs!.push({ id: jobId, owner_id: "o-" + jobId, stage: "new_enquiry", source: "base44", created_at: new Date().toISOString(), owners: { email: opts.email ?? "fixture.owner@homeowner-fixture.com.au" } });
   const linkId = id();
   tables.customer_estimate_links!.push({ id: linkId, job_id: jobId, token: "T".repeat(43), purpose: "step3_estimate", status: opts.linkStatus ?? "active", expires_at: new Date(Date.now() + (opts.linkExpires ?? 30 * 86_400_000)).toISOString(), created_at: opts.linkCreated ?? new Date().toISOString() });
   return { jobId, linkId };
 }
 beforeEach(() => {
-  tables = { jobs: [], customer_estimate_links: [], customer_email_sends: [], customer_followups: [], engagement_tracking_tokens: [], customer_engagement_events: [], customer_referral_tokens: [], customer_referral_events: [], workflow_events: [] };
+  tables = { jobs: [], customer_estimate_links: [], customer_email_sends: [], customer_followups: [], engagement_tracking_tokens: [], customer_engagement_events: [], customer_referral_tokens: [], customer_referral_events: [], workflow_events: [], customer_email_optouts: [], owner_contact_consents: [], customer_delivery_settings: [{ id: 1, jobs_created_after: "2026-01-01T00:00:00Z" }] };
   db = fakeDb(tables, {
     claim_customer_followups: ({ _limit }: any) => { const due = tables.customer_followups!.filter((f) => Date.parse(f.due_at) <= Date.now() && f.status === "pending").slice(0, _limit); for (const f of due) { f.status = "queued"; f.attempts++; } return due.map((f) => ({ ...f })); },
   });
