@@ -30,3 +30,5 @@
 - [x] Fix email sample arithmetic (two $349 fees), shorten quote-email flow, single PAY CTA, brand preview wrapper
 - [x] Mitti bridge integrity fix
 - [x] Simplify likely/onsite email conversion flow and add secure estimate confirm state
+- [ ] Fix Step 3 outcome-email routing to use only official recorded eligibility, including safe retries
+- [ ] Correct the estimate email so only the assessment fee is fixed at $349 and AP management remains dynamic
