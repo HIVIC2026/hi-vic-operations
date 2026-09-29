@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "fs";
 import { A48_SPEC, V25_LOCATIONS, ghgEquivalentReduction, lookupLocation } from "../src/lib/activity48.core";
-import { FEE_LABEL, benchmarkNote, needsRemovalScenario, parseAssumption, whatIfEstimate, computeEstimate, customerCanSee, displayModeFor, estimateSignature, pickArea, type RetailSettings } from "../src/lib/estimate.core";
+import { CALC_QUICK, FEE_LABEL, benchmarkNote, needsRemovalScenario, parseAssumption, whatIfEstimate, computeEstimate, customerCanSee, displayModeFor, estimateSignature, pickArea, type RetailSettings } from "../src/lib/estimate.core";
 
 const S: RetailSettings = {
   id: "s1", version: 1, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 15, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349,
@@ -109,7 +109,7 @@ describe("static separation / UI", () => {
     expect(ui).not.toMatch(/Pay now|[Pp]ay\(|createBooking|useServerFn\(create/);
     expect(ui).toContain("Online booking &amp; payment — coming in the next step");
     expect(ui).toContain("If full removal is required");
-    expect(ui).toContain("HI VIC eligibility, Accredited Person compliance, job administration, evidence review & VEEC processing");
+     expect(ui).toContain("Home Insulation Victoria — AP & Compliance Management");
     expect(ui).not.toContain("AP management &amp; compliance");
     expect(ui).toContain("Step 3 · Indicative estimate");
     expect(ui.indexOf("<NextStep fee")).toBeLessThan(ui.indexOf("<HouseholdBenefits />"));
@@ -147,7 +147,8 @@ describe("Step 3 v2 refinement", () => {
   test("wording: benchmark not market price; fee not government-mandated", () => {
     const n = benchmarkNote(70);
     expect(n).toContain("$70 per VEEC-equivalent benchmark"); expect(n).toContain("not the live VEEC market price"); expect(n).not.toMatch(/official (fixed )?VEEC price|guarantee/i);
-    expect(FEE_LABEL).toBe("HI VIC compliance & administration");
+    expect(FEE_LABEL).toBe("Home Insulation Victoria — AP & Compliance Management");
+    expect(CALC_QUICK).toEqual([100, 125, 150, 200]);
     const core = readFileSync("src/lib/estimate.core.ts", "utf8"); expect(core).not.toMatch(/government[- ]mandated/i);
   });
   test("assumption validation", () => {
@@ -170,7 +171,8 @@ describe("Step 3 v2 refinement", () => {
     const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
     const calc = ui.slice(ui.indexOf("function AreaCalculator"), ui.indexOf("export function OwnerEstimateCard"));
     expect(calc).not.toMatch(/useServerFn|supabase|fetch\(|useMutation|useAction/);
-    expect(calc).toContain('useState(secondary ? "" : initial == null ? "" : String(initial))'); // no silent default, and known-area what-if starts blank
+    expect(calc).toContain('useState(initial == null ? "" : String(initial))');
+    expect(calc).toContain("Other / custom");
     expect(calc).toContain("Nothing you enter here is saved.");
     const srv = readFileSync("src/lib/estimate.server.ts", "utf8");
     expect(srv).not.toMatch(/from\("(jobs|ceiling_measurements|property_area_estimates)"\)\.(update|insert|upsert)/);

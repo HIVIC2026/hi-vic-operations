@@ -40,12 +40,14 @@ function PriceResult({ est, area, fees, assumption = false }: { est: Est; area: 
     <div className="mt-3 flex flex-wrap items-end gap-x-3 gap-y-1"><strong className="text-5xl font-bold leading-none text-estimate-navy sm:text-6xl" data-testid={assumption ? "calculator-total-can_remain" : "total-can_remain"}>{dollars(standard.estimated_customer_total)}</strong><span className="pb-1 text-sm font-medium text-estimate-navy/70">inc GST</span></div>
     <p className="mt-3 text-sm leading-relaxed text-estimate-navy/80">{assumption ? `${CALC_ASSUMPTION_LABEL}: ${area} m². Final area measured onsite.` : `Based on an estimated ${area} m² ceiling area${est.scenarios.some((s) => s.key === "full_removal") ? ", assuming your existing insulation can remain" : ""}.`}</p>
     <div className="mt-7 border-t border-estimate-blue-soft pt-6">
-      <h3 className="text-base font-semibold text-estimate-navy">What is included</h3>
+      <h3 className="text-base font-semibold text-estimate-navy">Your itemised estimate</h3>
       <dl className="mt-4 space-y-4 text-sm">
-        {[["R5.0 ceiling insulation — supply & installation", dollars(standard.installation)], ["Onsite Measure + PIESA electrical safety assessment", dollars(fees.piesa)], ["HI VIC eligibility, Accredited Person compliance, job administration, evidence review & VEEC processing", dollars(fees.ap)]].map(([label, amount]) => <div key={label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4"><dt className="min-w-0 leading-relaxed">{label}</dt><dd className="font-bold">{amount}</dd></div>)}
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-y border-estimate-green-light py-3 font-semibold text-estimate-navy"><dt className="min-w-0">Estimated VEU discount</dt><dd className="text-estimate-green">−{dollars(standard.applied_discount)}</dd></div>
+        {[["R5.0 ceiling insulation — supply & installation", dollars(standard.installation)], ["Onsite Measure + PIESA", `${dollars(fees.piesa)} incl GST`], ["Home Insulation Victoria — AP & Compliance Management", `${dollars(fees.ap)} incl GST`]].map(([label, amount]) => <div key={label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4"><dt className="min-w-0 leading-relaxed">{label}</dt><dd className="font-bold">{amount}</dd></div>)}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-t border-estimate-blue-soft pt-4 font-semibold text-estimate-navy"><dt className="min-w-0">Estimated project total</dt><dd>{dollars(standard.pre_discount_total)}</dd></div>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-estimate-green-light pb-4 font-semibold text-estimate-navy"><dt className="min-w-0">Estimated VEU discount</dt><dd className="text-estimate-green">−{dollars(standard.applied_discount)}</dd></div>
       </dl>
       <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 font-bold text-estimate-navy"><span className="text-sm">Your estimated total</span><span className="text-xl">{dollars(standard.estimated_customer_total)}</span></div>
+      <div className="mt-5 bg-estimate-green-soft px-4 py-4 text-sm leading-relaxed text-estimate-navy"><p><strong>{dollars(fees.piesa)} payable now</strong> for Onsite Measure + PIESA.</p><p className="mt-1">Included in the estimated project total — not an extra charge and not paid again.</p><p className="mt-2">Estimated remaining balance: <strong>{dollars(Math.max(0, standard.estimated_customer_total - fees.piesa))}</strong></p></div>
     </div>
     {standard.copayment_capped && <p className="mt-3 text-sm">The discount is limited so your contribution meets the program minimum.</p>}
   </section>;
@@ -75,7 +77,7 @@ function PriceProtection({ settings, fees }: { settings: RetailSettings | undefi
   const rows = [
     ...(settings ? [`R5.0 insulation: ${dollars(settings.r5_install_inc_gst_per_m2)}/m² inc GST`, `Removal, if required: ${dollars(settings.removal_inc_gst_per_m2)}/m² inc GST`] : []),
     `Onsite Measure + PIESA: ${dollars(fees.piesa)} inc GST`,
-    `HI VIC compliance & administration: ${dollars(fees.ap)} inc GST`,
+    `Home Insulation Victoria — AP & Compliance Management: ${dollars(fees.ap)} inc GST`,
     ...(settings ? [`Access adjustments: fixed +${pct(settings.access_moderate_multiplier)} moderate / +${pct(settings.access_difficult_multiplier)} difficult on the installation component`] : []),
     "Electrical rectification: separately itemised and approved before work",
   ];
@@ -165,7 +167,7 @@ export function CustomerEstimate({ data, publicPage = false, onCalculatorUse }: 
 function AreaCalculator({ calc, initial, fees, secondary = false, onUse }: { calc: NonNullable<CustomerData["calc"]>; initial: number | null; fees: NonNullable<CustomerData["fees"]>; secondary?: boolean; onUse?: (m2: number) => void }) {
   const id = useId();
   const [open, setOpen] = useState(!secondary);
-  const [raw, setRawState] = useState(secondary ? "" : initial == null ? "" : String(initial));
+  const [raw, setRawState] = useState(initial == null ? "" : String(initial));
   const [touched, setTouched] = useState(false);
   const setRaw = (v: string) => { setTouched(true); setRawState(v); };
   const m2 = parseAssumption(raw);
@@ -177,8 +179,11 @@ function AreaCalculator({ calc, initial, fees, secondary = false, onUse }: { cal
     return () => clearTimeout(t);
   }, [m2, touched, onUse]);
   const est = whatIfEstimate(m2, calc.location, calc.insulation as InsulationDeclared, calc.settings);
+  useEffect(() => {
+    if (secondary && window.location.hash === "#calculator") setOpen(true);
+  }, [secondary]);
   return (
-    <section className="" data-testid="area-calculator" aria-label="Ceiling area calculator">
+    <section id={secondary ? "calculator" : undefined} className="scroll-mt-6" data-testid="area-calculator" aria-label="Ceiling area calculator">
       {secondary && !open ? <Button variant="ghost" size="field" className="h-auto min-h-12 max-w-full justify-start whitespace-normal px-0 text-left font-bold text-estimate-blue underline underline-offset-4 hover:bg-transparent hover:text-estimate-blue" onClick={() => setOpen(true)}>Want to test a different ceiling area? <ChevronDown aria-hidden="true" /></Button> : <>
         <div className="rounded-xl bg-estimate-blue-pale px-5 py-6 sm:px-7">
         <h3 className="text-xl font-bold text-estimate-navy">{secondary ? "Test a different ceiling area" : "See what your upgrade could cost"}</h3>
@@ -188,6 +193,7 @@ function AreaCalculator({ calc, initial, fees, secondary = false, onUse }: { cal
           <input id={id} aria-label="Approximate ceiling area (m²)" inputMode="decimal" type="number" min={CALC_MIN_M2} max={CALC_MAX_M2} className="h-14 w-28 rounded-xl border border-estimate-blue bg-estimate-white px-3 text-lg text-estimate-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="Area" />
           <span className="mr-2 text-sm text-estimate-navy">m²</span>
           {CALC_QUICK.map((q) => <Button key={q} type="button" size="field" variant="outline" className={`rounded-lg border border-estimate-blue-soft px-3 font-semibold text-estimate-navy hover:bg-estimate-green-soft hover:text-estimate-navy ${m2 === q ? "bg-estimate-green-soft" : "bg-estimate-white"}`} aria-pressed={m2 === q} onClick={() => setRaw(String(q))}>{q} m²</Button>)}
+          <Button type="button" size="field" variant="outline" className={`rounded-lg border border-estimate-blue-soft px-3 font-semibold text-estimate-navy hover:bg-estimate-green-soft hover:text-estimate-navy ${m2 != null && !CALC_QUICK.includes(m2 as never) ? "bg-estimate-green-soft" : "bg-estimate-white"}`} aria-pressed={m2 != null && !CALC_QUICK.includes(m2 as never)} onClick={() => setRaw("")}>Other / custom</Button>
         </div>
         {raw.trim() !== "" && m2 == null && <p role="alert" className="mt-2 text-sm text-danger">Enter an area between {CALC_MIN_M2} and {CALC_MAX_M2} m².</p>}
         </div>

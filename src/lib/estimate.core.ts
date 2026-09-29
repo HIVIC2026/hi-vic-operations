@@ -94,7 +94,7 @@ export const DISCLAIMER = "Indicative estimate only. Your final price depends on
 export const MEASURE_REQUIRED = "We need a ceiling-area estimate before we can calculate indicative savings";
 
 // ---- Step 3 refinement: public wording + customer what-if calculator (pure; never persisted) ----
-export const FEE_LABEL = "HI VIC compliance & administration";
+export const FEE_LABEL = "Home Insulation Victoria — AP & Compliance Management";
 export const FEE_DESCRIPTION = "Covers eligibility management, Accredited Person compliance, job administration, evidence review and VEEC processing.";
 export const BENCHMARK_LABEL = "Consumer estimate benchmark";
 export const benchmarkNote = (v: number) => `Your estimated VEU discount uses a ${dollars(v)} per VEEC-equivalent benchmark calibrated to the Victorian Government's published 150 m² Metropolitan/Mild example (about $1,482). It is not the live VEEC market price. Certificate values fluctuate, so your final discount may change.`;
@@ -102,7 +102,7 @@ export const CALC_ASSUMPTION_LABEL = "Calculator assumption — not a measured a
 export const CALC_NOTE = "This calculator is for exploring possible costs only. Changing the m² here does not change your recorded property details. Your onsite measure confirms the actual eligible ceiling area.";
 export const CALC_EMPTY_TITLE = "Not sure of your ceiling area? Try an estimate.";
 export const CALC_EMPTY_BODY = "Enter an approximate ceiling or upper-floor area to see what your project could cost.";
-export const CALC_QUICK = [100, 150, 200] as const;
+export const CALC_QUICK = [100, 125, 150, 200] as const;
 export const CALC_MIN_M2 = 20, CALC_MAX_M2 = 1000;
 /** Valid customer assumption in m², or null. Blocks NaN, zero, negative and out-of-range values. */
 export function parseAssumption(raw: string | number | null | undefined): number | null {
