@@ -28,4 +28,5 @@
 
 - [x] Correct both $349 fees, all three outcome emails, and the secure area calculator without enabling delivery
 - [x] Fix email sample arithmetic (two $349 fees), shorten quote-email flow, single PAY CTA, brand preview wrapper
-- [ ] Mitti bridge integrity fix (awaiting plan approval)
+- [x] Mitti bridge integrity fix
+- [ ] Simplify likely/onsite email conversion flow and add secure estimate confirm state
