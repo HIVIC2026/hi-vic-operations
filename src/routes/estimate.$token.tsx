@@ -39,12 +39,12 @@ function PublicEstimatePage() {
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas">
        <EstimateHeader />
-       <main className="mx-auto max-w-[720px] px-5 py-7 sm:px-8 sm:py-10">
+       <main className="mx-auto max-w-[760px] px-4 pb-14 sm:px-8">
         {isLoading ? <p className="text-sm text-muted-foreground">Loading your estimate…</p>
-          : isError || !data || !data.estimate?.visible ? <div className="rounded-[1.3rem] border-2 border-estimate-blue bg-estimate-white p-6 text-center estimate-offset"><h1 className="text-xl font-bold">Estimate unavailable</h1><p className="mt-2 text-sm text-estimate-navy">{LINK_UNAVAILABLE}</p></div>
+          : isError || !data || !data.estimate?.visible ? <div className="estimate-offset rounded-2xl border border-estimate-blue-soft bg-estimate-white p-8 text-center"><h1 className="text-xl font-bold">Estimate unavailable</h1><p className="mt-2 text-sm text-estimate-navy">{LINK_UNAVAILABLE}</p></div>
           : <>
-             {(data.job.address || data.job.job_number) && <p className="mb-6 text-xs text-estimate-navy/70">{data.job.address}{data.job.address && data.job.job_number ? " · " : ""}{data.job.job_number}</p>}
-            <CustomerEstimate data={data.estimate} publicPage onCalculatorUse={onCalculatorUse} />
+             {(data.job.address || data.job.job_number) && <p className="mb-4 px-1 text-xs font-medium text-estimate-navy/70">{data.job.address}{data.job.address && data.job.job_number ? " · " : ""}{data.job.job_number}</p>}
+            <div className="estimate-offset overflow-hidden rounded-2xl border border-estimate-blue-soft bg-estimate-white px-5 py-7 sm:px-10 sm:py-11"><CustomerEstimate data={data.estimate} publicPage onCalculatorUse={onCalculatorUse} /></div>
             {data.referralShareUrl && <ReferralShare url={data.referralShareUrl} />}
           </>}
       </main>

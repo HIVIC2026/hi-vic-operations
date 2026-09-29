@@ -78,20 +78,24 @@
   --color-estimate-green-light: var(--estimate-green-light);
   --color-estimate-canvas: var(--estimate-canvas);
   --color-estimate-white: var(--estimate-white);
+  --color-estimate-accent: var(--estimate-accent);
+  --color-estimate-accent-soft: var(--estimate-accent-soft);
   --font-sans: var(--app-font);
 }
 
-/* Base44 HI VIC customer-estimate identity, scoped so the operating portal is unchanged. */
+/* HI VIC customer-estimate identity, scoped so the operating portal is unchanged. */
 .estimate-brand {
-  --estimate-blue: oklch(0.488450 0.180215 270.395);
-  --estimate-green: oklch(0.704943 0.185648 151.660);
-  --estimate-navy: oklch(0.349359 0.094332 265.301);
-  --estimate-canvas: oklch(0.989756 0.002828 128.492);
-  --estimate-blue-soft: oklch(0.957100 0.016200 278.507);
-  --estimate-blue-pale: oklch(0.976157 0.011132 269.551);
-  --estimate-green-soft: oklch(0.970235 0.017277 159.124);
-  --estimate-shadow-green: oklch(0.745241 0.159624 150.435);
-  --estimate-green-light: oklch(0.888571 0.125101 155.049);
+  --estimate-blue: oklch(0.365 0.055 190);
+  --estimate-green: oklch(0.525 0.072 174);
+  --estimate-navy: oklch(0.245 0.03 195);
+  --estimate-canvas: oklch(0.975 0.006 175);
+  --estimate-blue-soft: oklch(0.925 0.018 183);
+  --estimate-blue-pale: oklch(0.958 0.012 178);
+  --estimate-green-soft: oklch(0.948 0.025 168);
+  --estimate-shadow-green: oklch(0.31 0.04 190 / 12%);
+  --estimate-green-light: oklch(0.83 0.075 167);
+  --estimate-accent: oklch(0.7 0.12 76);
+  --estimate-accent-soft: oklch(0.955 0.045 82);
   --estimate-white: oklch(1 0 0);
   --background: var(--estimate-canvas);
   --foreground: var(--estimate-navy);
@@ -101,17 +105,13 @@
   --border: var(--estimate-blue-soft);
   --input: var(--estimate-blue);
   --ring: var(--estimate-blue);
-  font-family: "Open Sans", Arial, Helvetica, sans-serif;
+  font-family: "Figtree", ui-sans-serif, system-ui, sans-serif;
   color: var(--estimate-navy);
   background: var(--estimate-canvas);
 }
 
 .estimate-offset {
-  box-shadow: 3px 4px 0 var(--estimate-shadow-green);
-}
-
-@media (min-width: 640px) {
-  .estimate-offset { box-shadow: 4px 5px 0 var(--estimate-shadow-green); }
+  box-shadow: 0 20px 55px -28px var(--estimate-shadow-green);
 }
 
 :root {
