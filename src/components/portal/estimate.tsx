@@ -58,12 +58,32 @@ function HouseholdBenefits() {
     <h3 id={id} className="text-xl font-extrabold text-estimate-blue sm:text-2xl">What this upgrade could mean for your home</h3>
     <div className="mt-5 grid gap-3 sm:grid-cols-3">
       {[
-        { icon: Leaf, value: "$400+ per year*", label: "Average potential energy-bill savings" },
-        { icon: Flame, value: "Up to 20%*", label: "Potential savings on heating & cooling costs" },
-        { icon: Sun, value: "Warmer in winter. Cooler in summer.", label: "A more comfortable, energy-efficient home year-round." },
+        { icon: Leaf, value: "$400+ / year*", label: "average potential energy-bill savings from upgrading ceiling insulation" },
+        { icon: Flame, value: "Up to 20%*", label: "potential savings on heating and cooling costs" },
+        { icon: Sun, value: "Warmer in winter. Cooler in summer.", label: "Better year-round comfort with less energy wasted through the ceiling." },
       ].map(({ icon: Icon, value, label }) => <div key={value} className="rounded-xl bg-estimate-green-soft px-4 py-5"><Icon aria-hidden="true" className="mb-4 size-7 text-estimate-blue" /><p className="text-lg font-extrabold leading-snug text-estimate-blue">{value}</p><p className="mt-2 text-sm leading-relaxed">{label}</p></div>)}
     </div>
-    <p className="mt-4 text-xs leading-relaxed">*Victorian Government estimates/averages. Actual savings vary depending on your home, climate, energy use and heating/cooling habits. <a href={insulationSource} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">Insulation discounts</a> · <a href={energyTipsSource} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">Energy-saving tips</a></p>
+    <p className="mt-4 text-sm leading-relaxed">That means insulation isn&apos;t just an upfront upgrade — it can keep reducing energy use and household running costs year after year.</p>
+    <p className="mt-3 text-xs leading-relaxed">*Victorian Government estimates/averages. Actual savings vary with your home, climate, energy use, energy prices and heating/cooling habits. <a href={insulationSource} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">Insulation discounts</a> · <a href={energyTipsSource} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">Energy-saving tips</a></p>
+  </section>;
+}
+
+function PriceProtection({ settings, fees }: { settings: RetailSettings | undefined; fees: NonNullable<CustomerData["fees"]> }) {
+  const id = useId();
+  const pct = (m: number) => `${Math.round((m - 1) * 100)}%`;
+  const rows = [
+    ...(settings ? [`R5.0 insulation: ${dollars(settings.r5_install_inc_gst_per_m2)}/m² inc GST`, `Removal, if required: ${dollars(settings.removal_inc_gst_per_m2)}/m² inc GST`] : []),
+    `Onsite Measure + PIESA: ${dollars(fees.piesa)} inc GST`,
+    `HI VIC compliance & administration: ${dollars(fees.ap)} inc GST`,
+    ...(settings ? [`Access adjustments: fixed +${pct(settings.access_moderate_multiplier)} moderate / +${pct(settings.access_difficult_multiplier)} difficult on the installation component`] : []),
+    "Electrical rectification: separately itemised and approved before work",
+  ];
+  return <section aria-labelledby={id} className="rounded-[1.35rem] border-2 border-estimate-green bg-estimate-green-soft px-5 py-6 sm:px-8">
+    <p className="text-xs font-extrabold uppercase tracking-widest text-estimate-green">Price protection</p>
+    <h3 id={id} className="mt-2 text-xl font-extrabold leading-snug text-estimate-blue sm:text-2xl">Transparent HI VIC pricing — no installer mark-up surprises.</h3>
+    <p className="mt-3 text-sm leading-relaxed">HI VIC sets the customer pricing. Once the onsite facts are confirmed, your final quote is calculated from our set customer rate card. Our partner electricians and insulation installers do not decide what you pay.</p>
+    <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">{rows.map((r) => <li key={r} className="flex items-start gap-2 rounded-lg bg-estimate-white px-3 py-2.5 leading-snug"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" />{r}</li>)}</ul>
+    <p className="mt-4 text-xs leading-relaxed">Your final total still depends on the measured area, whether removal is needed, access and any electrical rectification.</p>
   </section>;
 }
 
@@ -71,13 +91,13 @@ function NextStep({ fee, hasPrice }: { fee: number; hasPrice: boolean }) {
   const id = useId();
   return <section className="estimate-offset rounded-[1.35rem] bg-estimate-blue px-5 py-7 text-estimate-white sm:px-8 sm:py-8" aria-labelledby={`${id}-next-step`}>
     <p className="text-xs font-extrabold uppercase tracking-widest text-estimate-green-light">Your next step</p>
-    <h3 id={`${id}-next-step`} className="mt-2 text-2xl font-extrabold leading-tight">Book your onsite Measure + PIESA</h3>
+    <h3 id={`${id}-next-step`} className="mt-2 text-2xl font-extrabold leading-tight">Your next step: book your onsite Measure + PIESA</h3>
     <p className="mt-3 text-4xl font-extrabold">{dollars(fee)} <span className="text-base font-semibold">inc GST</span></p>
-    <p className="mt-4 rounded-lg bg-estimate-white/10 px-4 py-3 text-sm font-bold leading-relaxed">{hasPrice ? `This ${dollars(fee)} is already included in your estimated project total above — it is not an extra charge.` : `This ${dollars(fee)} is included in the estimated project total when you enter an area — it is not an extra charge.`}</p>
-    <p className="mt-5 text-sm leading-relaxed">One onsite visit confirms the information we need to turn your estimate into a final quote. Your assessment is completed by a licensed electrician employed by a Registered Electrical Contractor (REC).</p>
-    <p className="mt-6 font-bold">What your visit covers</p>
-    <ul className="mt-3 grid gap-x-5 gap-y-3 text-sm sm:grid-cols-2">{["Exact ceiling-area measurement", "Existing insulation check and whether removal is needed", "Roof/ceiling access assessment", "Electrical safety assessment (PIESA)", "Downlights, exhaust fans and electrical-clearance checks", "Any required electrical rectification identified before installation", "Information needed to prepare your final insulation quote"].map((item) => <li key={item} className="flex items-start gap-2 leading-relaxed"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green-light" />{item}</li>)}</ul>
-    <div className="mt-7 border-t border-estimate-white/30 pt-5"><p className="font-bold">What happens after that?</p><ol className="mt-4 grid gap-4 text-sm sm:grid-cols-3">{["Onsite assessment completed", "You receive your final quote", "Once approved, we coordinate installation and manage the VEU compliance/evidence process"].map((item, index) => <li key={item} className="flex items-start gap-2 leading-relaxed"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-estimate-green-soft font-bold text-estimate-blue">{index + 1}</span>{item}</li>)}</ol></div>
+    <p className="mt-4 rounded-lg bg-estimate-green px-4 py-3 text-sm font-extrabold leading-relaxed text-estimate-white">{hasPrice ? "Already included in your estimated project total — not an extra charge if you proceed." : "Included in the estimated project total — not an extra charge if you proceed."}</p>
+    <p className="mt-5 text-sm leading-relaxed">One visit gives us the verified information needed to finalise your job.</p>
+    <p className="mt-6 font-bold">What it covers</p>
+    <ul className="mt-3 grid gap-x-5 gap-y-3 text-sm sm:grid-cols-2">{["Exact ceiling-area measurement", "Existing insulation/R-value check", "Whether removal is required", "Roof/ceiling access assessment", "PIESA by a licensed electrician employed by a REC", "Wiring, downlights, exhaust fans and electrical-clearance checks", "Identification of any rectification required before install", "Information required to prepare the final insulation quote"].map((item) => <li key={item} className="flex items-start gap-2 leading-relaxed"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green-light" />{item}</li>)}</ul>
+    <div className="mt-7 border-t border-estimate-white/30 pt-5"><p className="font-bold">What happens next?</p><ol className="mt-4 grid gap-4 text-sm sm:grid-cols-3">{["We complete the onsite Measure + PIESA", "You receive your final HI VIC-priced quote", "Once you approve it, we coordinate the qualified installer and manage the job through installation, evidence and VEEC processing"].map((item, index) => <li key={item} className="flex items-start gap-2 leading-relaxed"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-estimate-green-soft font-bold text-estimate-blue">{index + 1}</span>{item}</li>)}</ol></div>
     <div className="mt-7 rounded-lg border border-estimate-green-light/70 bg-estimate-white/10 px-4 py-4 text-center text-sm font-bold">Online booking &amp; payment — coming in the next step</div>
   </section>;
 }
@@ -85,19 +105,21 @@ function NextStep({ fee, hasPrice }: { fee: number; hasPrice: boolean }) {
 function ManagedProcess() {
   const id = useId();
   const cards = [
-    { icon: ShieldCheck, title: "Licensed electrical safety assessment", copy: "Your PIESA is completed by a licensed electrician employed by a Registered Electrical Contractor (REC), checking the ceiling space for electrical hazards before insulation work proceeds." },
-    { icon: BadgeCheck, title: "Certified insulation installation", copy: "Your insulation upgrade is carried out by an EEC Certified Insulation Installer (CII) — the certification required for installers working under the VEU ceiling-insulation activity." },
-    { icon: ClipboardCheck, title: "HI VIC manages it end-to-end", copy: "We coordinate eligibility, assessment, vetted trades, quoting, compliance, evidence and VEEC processing through to completion." },
+    { icon: ShieldCheck, title: "Licensed electrical safety assessment", copy: "Your PIESA is completed by a licensed electrician employed by a Registered Electrical Contractor (REC). They check the ceiling space for unsafe wiring, prohibited lighting such as halogen downlights, solar/battery cabling and other electrical hazards before insulation work proceeds.", note: "" },
+    { icon: BadgeCheck, title: "EEC Certified Insulation Installer", copy: "Your insulation upgrade is carried out by an EEC Certified Insulation Installer (CII) — the certification required for installers working under the VEU ceiling-insulation activity.", note: "CII certification covers the competency pathway for safe retrofit insulation work, including WHS, measurements and calculations, working safely at heights and bulk insulation installation." },
+    { icon: ClipboardCheck, title: "We manage it end-to-end", copy: "Eligibility, onsite assessment, vetted trades, quoting, compliance, evidence, installation coordination and VEEC processing — managed through one HI VIC process.", note: "" },
   ];
-  return <section aria-labelledby={id} className="border-t border-estimate-blue/20 pt-6">
-    <h3 id={id} className="text-xl font-extrabold leading-snug text-estimate-blue sm:text-2xl">We give you access to the right qualified people — and manage the whole process.</h3>
+  return <section aria-labelledby={id}>
+    <p className="text-xs font-extrabold uppercase tracking-widest text-estimate-green">Why HI VIC</p>
+    <h3 id={id} className="mt-2 text-xl font-extrabold leading-snug text-estimate-blue sm:text-2xl">One managed pathway. The right qualified people. No chasing trades.</h3>
+    <p className="mt-3 text-sm leading-relaxed sm:text-base">From eligibility through to installation and VEEC processing, HI VIC coordinates the people, paperwork and compliance for you.</p>
     <div className="mt-5 grid gap-3">
-      {cards.map(({ icon: Icon, title, copy }) => <div key={title} className="flex items-start gap-4 rounded-xl bg-estimate-blue-soft px-4 py-5">
+      {cards.map(({ icon: Icon, title, copy, note }) => <div key={title} className="flex items-start gap-4 rounded-xl border-2 border-estimate-blue bg-estimate-white px-4 py-5">
         <span className="grid size-10 shrink-0 place-items-center rounded-full bg-estimate-green-soft"><Icon aria-hidden="true" className="size-5 text-estimate-blue" /></span>
-        <div><p className="font-extrabold leading-snug text-estimate-blue">{title}</p><p className="mt-1.5 text-sm leading-relaxed">{copy}</p></div>
+        <div><p className="font-extrabold leading-snug text-estimate-blue">{title}</p><p className="mt-1.5 text-sm leading-relaxed">{copy}</p>{note && <p className="mt-2 text-xs leading-relaxed">{note}</p>}</div>
       </div>)}
     </div>
-    <p className="mt-4 text-sm leading-relaxed">That means you don't need to work out which trades meet the program requirements — we coordinate appropriately qualified participants for the job.</p>
+    <p className="mt-4 text-sm font-semibold leading-relaxed">You don&apos;t need to work out which trades meet the program requirements — we coordinate appropriately qualified participants for the job.</p>
   </section>;
 }
 
@@ -128,7 +150,7 @@ export function CustomerEstimate({ data, publicPage = false }: { data: CustomerD
       {data.rolloutHold && <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Assessments for private homes open from 1 October 2026. This is a scheduling hold only, not an eligibility result.</p>}
       {!fees ? <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Your estimate is being prepared.</p> : <>
         {data.estimate ? <PriceResult est={data.estimate} area={data.estimate.area.m2} fees={fees} /> : data.calc ? <AreaCalculator calc={data.calc} initial={null} fees={fees} /> : <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">{data.postcodeUnlisted ? "We can't calculate a VEU discount for this postcode yet because it isn't in the official VEU location list. We'll confirm your pricing directly." : "Your estimate is being prepared."}</p>}
-        {data.estimate && <><HouseholdBenefits /><NextStep fee={fees.piesa} hasPrice /><ManagedProcess /><RemovalNote est={data.estimate} /></>}
+        {data.estimate && <><RemovalNote est={data.estimate} /><HouseholdBenefits /><PriceProtection settings={data.calc?.settings} fees={fees} /><NextStep fee={fees.piesa} hasPrice /><ManagedProcess /></>}
         {data.estimate && data.calc && <AreaCalculator calc={data.calc} initial={data.estimate.area.m2} fees={fees} secondary />}
         <EstimateDetails data={data} />
         {data.calc && <details className="group border-b border-estimate-blue/20 pb-5 text-sm"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-bold text-estimate-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">How is the VEU discount estimated? <ChevronDown aria-hidden="true" className="size-5 shrink-0 transition-transform group-open:rotate-180" /></summary><p className="mt-4 leading-relaxed">We use the official Activity 48 postcode/climate calculation and a {dollars(data.calc.settings.indicative_veec_value)} consumer benchmark calibrated to the Victorian Government&apos;s published example. Final certificate values can change. This is not the live VEEC market price.</p>{data.calc.settings.veec_value_source_url?.startsWith("https://") && <a className="mt-2 inline-block font-bold text-estimate-blue underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" href={data.calc.settings.veec_value_source_url} target="_blank" rel="noopener noreferrer">View the published example <span aria-hidden="true">↗</span></a>}</details>}
@@ -159,7 +181,7 @@ function AreaCalculator({ calc, initial, fees, secondary = false }: { calc: NonN
         </div>
         {raw.trim() !== "" && m2 == null && <p role="alert" className="mt-2 text-sm text-danger">Enter an area between {CALC_MIN_M2} and {CALC_MAX_M2} m².</p>}
         </div>
-        {est && <div className="mt-6 space-y-7 sm:space-y-9"><PriceResult est={est} area={m2 ?? 0} fees={fees} assumption />{!secondary && <><HouseholdBenefits /><NextStep fee={fees.piesa} hasPrice /><ManagedProcess /><RemovalNote est={est} assumption /></>}</div>}
+        {est && <div className="mt-6 space-y-7 sm:space-y-9"><PriceResult est={est} area={m2 ?? 0} fees={fees} assumption />{!secondary && <><RemovalNote est={est} assumption /><HouseholdBenefits /><PriceProtection settings={calc.settings} fees={fees} /><NextStep fee={fees.piesa} hasPrice /><ManagedProcess /></>}</div>}
       </>}
     </section>
   );
