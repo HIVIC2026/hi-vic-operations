@@ -139,7 +139,7 @@ export function evaluateGate1(f: Gate1Facts): Gate1Decision {
   // Previous Activity 48
   const PL = "Previous Activity 48";
   const pu = ev("previous_activity", { fact: f.previousCeilingUpgrade == null ? "unknown" : f.previousCeilingUpgrade ? "yes" : "no", source: "properties.enrichment", basis: f.previousCeilingUpgrade == null ? "unknown" : "recorded" });
-  if (f.previousActivity48Confirmed === true) rule("previous_activity", PL, "fail", "Previous Activity 48 at the premises confirmed", { fact: "previous Activity 48 confirmed", source: pu.source, basis: "verified" });
+  if (f.previousActivity48Confirmed === true) rule("previous_activity", PL, "fail", "Previous Activity 48 at the premises confirmed", { fact: "previous Activity 48 confirmed", source: f.evidence?.previous_activity?.basis === "verified" ? pu.source : "properties.enrichment.previous_activity_48_confirmed", basis: "verified" });
   else if (f.previousCeilingUpgrade === false) rule("previous_activity", PL, "pass", pu.basis === "declared" ? "Owner declares no previous ceiling insulation upgrade" : "No previous upgrade recorded", pu);
   else if (f.previousCeilingUpgrade === true) rule("previous_activity", PL, "review", "Previous upgrade reported – previous Activity 48 not confirmed", pu);
   else rule("previous_activity", PL, "review", "Previous upgrade history unknown", pu);
@@ -319,7 +319,7 @@ export function applyIntelligence(f: Gate1Facts, intel: IntelFact[], currentYear
     ev.roof_access = { fact: `roof form ${roof.value}`, source: intelSrc(roof), basis: trustedIntel(roof) ? "verified" : "recorded" };
   }
   const pa = get("previous_activity_48_confirmed");
-  if (trustedIntel(pa) && pa.value === true) out.previousActivity48Confirmed = true;
+  if (trustedIntel(pa) && pa.value === true) { out.previousActivity48Confirmed = true; ev.previous_activity = { fact: "previous Activity 48 confirmed", source: intelSrc(pa), basis: "verified" }; }
   const ph = get("public_community_housing");
   if (trustedIntel(ph) && ph.value === true) out.publicHousingVerified = true;
   return out;
