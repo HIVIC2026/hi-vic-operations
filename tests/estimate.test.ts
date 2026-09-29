@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "fs";
 import { A48_SPEC, V25_LOCATIONS, ghgEquivalentReduction, lookupLocation } from "../src/lib/activity48.core";
-import { CALC_NOTE, FEE_LABEL, benchmarkNote, needsRemovalScenario, parseAssumption, whatIfEstimate, computeEstimate, customerCanSee, displayModeFor, estimateSignature, pickArea, type RetailSettings } from "../src/lib/estimate.core";
+import { FEE_LABEL, benchmarkNote, needsRemovalScenario, parseAssumption, whatIfEstimate, computeEstimate, customerCanSee, displayModeFor, estimateSignature, pickArea, type RetailSettings } from "../src/lib/estimate.core";
 
 const S: RetailSettings = {
   id: "s1", version: 1, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 15, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349,
@@ -104,6 +104,7 @@ describe("static separation / UI", () => {
     for (const t of ["Your home looks suitable to progress", "Your home may be eligible — onsite confirmation needed", "R5.0 insulation supply &amp; installation", "Estimated VEU discount", "Estimated price after VEU discount", "Onsite Measure + PIESA", "already included", "Access is confirmed onsite"]) expect(ui).toContain(t);
     expect(ui).not.toMatch(/Pay now|[Pp]ay\(|createBooking|useServerFn\(create/);
     expect(ui).toContain("Online booking and payment will be available here in the next step.");
+    expect(ui).toContain("If existing insulation can remain");
     expect(ui).toContain("{FEE_LABEL}");
     expect(ui).not.toContain("AP management &amp; compliance");
     expect(ui).toContain("Step 3 · Indicative estimate");

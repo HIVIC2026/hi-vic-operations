@@ -30,6 +30,7 @@ function PriceResult({ est, fees, area, assumption = false }: { est: Est; fees: 
       <div className="overflow-hidden rounded-lg border border-primary/20 bg-card shadow-sm">
         <div className="px-5 pb-6 pt-7 sm:px-8 sm:pb-8 sm:pt-9">
           <p className="text-sm font-medium text-muted-foreground">Estimated price after VEU discount</p>
+          {removal && <p className="mt-1 text-sm font-semibold text-primary">If existing insulation can remain</p>}
           <div className="mt-2 flex items-end gap-3"><span className="text-5xl font-extrabold leading-none text-foreground sm:text-6xl" data-testid={assumption ? "calculator-total-can_remain" : "total-can_remain"}>{dollars(standard.estimated_customer_total)}</span><span className="pb-1 text-sm text-muted-foreground">inc GST</span></div>
           <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-5 text-sm sm:text-base"><span className="inline-flex items-center gap-2 font-semibold text-primary"><Sparkles aria-hidden="true" className="size-4" />Estimated VEU discount</span><strong className="text-lg text-primary">−{dollars(standard.applied_discount)}</strong></div>
         </div>
