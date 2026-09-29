@@ -78,6 +78,9 @@ async function processItem(item: Claimed) {
     // The ONE official initial categorisation, after the intelligence attempt, then safe progression.
     const { autoDecideEligibility } = await import("./eligibility.server");
     await autoDecideEligibility(item.job_id, { initialProcessor: true });
+    // Step 3 preparation after the official Gate 1 decision, BEFORE completing. A failure retries the item; Gate 1 is never rolled back.
+    const { syncStep3 } = await import("./estimatelink.server");
+    await syncStep3(item.job_id, null);
     const { error: ce } = await mine({ status: "complete", completed_at: new Date().toISOString(), locked_at: null, lease_expires_at: null, last_error: null });
     if (ce) throw new Error(ce.message);
     const { autoAdvanceJob } = await import("./autoadvance.server");
