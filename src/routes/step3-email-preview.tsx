@@ -70,23 +70,24 @@ function EmailPreview() {
   const width = view === "desktop" ? 640 : view === "mobile" ? 390 : undefined;
   const brand = { fontFamily: "'Open Sans', Arial, Helvetica, sans-serif", background: "#FBFCFA", color: "#22376B" };
   const pill = (active: boolean) => ({ fontFamily: brand.fontFamily, background: active ? "#3C51C4" : "#FFFFFF", color: active ? "#FFFFFF" : "#3C51C4", border: "2px solid #3C51C4", boxShadow: active ? "3px 3px 0 #07BF61" : "none" });
-  const btn = "min-h-11 px-3 py-2 text-xs font-extrabold uppercase tracking-wider";
+  const btn = "ep-btn min-h-11 px-3 py-2 text-xs font-extrabold uppercase tracking-wider";
   return <main className="min-h-screen px-3 py-6 sm:px-6" style={brand}>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" />
+    <style>{`.ep-btn:focus-visible{outline:3px solid #07BF61;outline-offset:2px}`}</style>
     <div className="mx-auto max-w-[760px]">
        <p className="mb-4 px-4 py-3 text-sm font-bold" style={{ background: "#ECF9F1", borderLeft: "4px solid #07BF61" }}>SAMPLE EMAIL PREVIEW ONLY. Buttons are disabled here; nothing is sent, saved or paid.</p>
        <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-1 pb-4 text-sm font-bold" style={{ borderBottom: "2px solid #3C51C4" }} aria-label="Preview sample values">
         <span>Alex</span><span>150 m²</span><span>Project ${SAMPLE_GROSS.toLocaleString("en-AU")}</span><span style={{ color: "#07BF61" }}>VEU discount −${SAMPLE_DISCOUNT.toLocaleString("en-AU")}</span><span>Estimated price ${SAMPLE_CUSTOMER.toLocaleString("en-AU")}</span><span>$349 now · ${(SAMPLE_CUSTOMER - PIESA_FEE).toLocaleString("en-AU")} remaining</span>
       </div>
        <div className="mb-4 flex flex-wrap gap-2" aria-label="Email outcome">
-         {(["likely", "onsite", "ineligible"] as const).map((item) => <button key={item} type="button" className={btn} style={pill(outcome === item)} onClick={() => setOutcome(item)}>{item === "likely" ? "Likely eligible" : item === "onsite" ? "Needs onsite confirmation" : "Does not appear eligible"}</button>)}
+         {(["likely", "onsite", "ineligible"] as const).map((item) => <button key={item} type="button" aria-pressed={outcome === item} className={btn} style={pill(outcome === item)} onClick={() => setOutcome(item)}>{item === "likely" ? "Likely eligible" : item === "onsite" ? "Needs onsite confirmation" : "Does not appear eligible"}</button>)}
        </div>
       <p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p>
       <p className="mb-6 text-sm"><strong>Preheader:</strong> {sample.previewText}</p>
       <div className="mb-4 flex flex-wrap gap-2" aria-label="Preview width">
-        <button type="button" className={btn} style={pill(view === "fit")} onClick={() => setView("fit")}>Fit</button>
-        <button type="button" className={btn} style={pill(view === "desktop")} onClick={() => setView("desktop")}>640 desktop</button>
-        <button type="button" className={btn} style={pill(view === "mobile")} onClick={() => setView("mobile")}>390 mobile</button>
+        <button type="button" aria-pressed={view === "fit"} className={btn} style={pill(view === "fit")} onClick={() => setView("fit")}>Fit</button>
+        <button type="button" aria-pressed={view === "desktop"} className={btn} style={pill(view === "desktop")} onClick={() => setView("desktop")}>640 desktop</button>
+        <button type="button" aria-pressed={view === "mobile"} className={btn} style={pill(view === "mobile")} onClick={() => setView("mobile")}>390 mobile</button>
       </div>
        <section aria-label={`${outcome} email preview`} className="min-w-0">
         <h2 className="mb-3 text-sm font-extrabold uppercase" style={{ color: "#3C51C4" }}>{view === "fit" ? "Responsive fit" : view === "desktop" ? "Desktop · 640px" : "Mobile · 390px"}</h2>
