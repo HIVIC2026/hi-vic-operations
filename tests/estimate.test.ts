@@ -117,7 +117,7 @@ describe("static separation / UI", () => {
     expect(ui).toContain("See what your upgrade could cost");
     expect(ui).toContain("*Victorian Government estimates/averages. Actual savings vary");
     expect(ui).toContain("Up to 20%*");
-    expect(ui).toContain("$400+ per year*");
+    expect(ui).toContain("$400+ / year*");
     for (const t of ["We give you access to the right qualified people — and manage the whole process.", "Licensed electrical safety assessment", "Certified insulation installation", "HI VIC manages it end-to-end", "an EEC Certified Insulation Installer (CII)", "a licensed electrician employed by a Registered Electrical Contractor (REC)", "That means you don't need to work out which trades meet the program requirements", "Your assessment is completed by a licensed electrician employed by a Registered Electrical Contractor (REC)."]) expect(ui).toContain(t);
     expect(ui).not.toContain("registered with ESV");
   });
