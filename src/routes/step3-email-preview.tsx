@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { renderEstimateEmail } from "@/lib/estimate-email";
+import { Button } from "@/components/ui/button";
 
 const knownSample = renderEstimateEmail({
   estimateUrl: "https://quote.homeinsulationvictoria.com.au/estimate/sample-secure-link",
@@ -31,7 +32,7 @@ function EmailPreview() {
     <div className="mx-auto max-w-[700px]">
       <p className="mb-4 border-l-4 border-primary bg-card px-4 py-3 text-sm font-bold">SAMPLE EMAIL PREVIEW ONLY — nothing is sent or saved.</p>
       <div role="tablist" aria-label="Sample email state" className="mb-5 flex gap-2">
-        {([ ["known", "Known area"], ["no-area", "No area yet"] ] as const).map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={variant === value} onClick={() => setVariant(value)} className={`rounded-lg border px-4 py-2 text-sm font-bold ${variant === value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground"}`}>{label}</button>)}
+        {([ ["known", "Known area"], ["no-area", "No area yet"] ] as const).map(([value, label]) => <Button key={value} type="button" role="tab" aria-selected={variant === value} variant={variant === value ? "default" : "outline"} onClick={() => setVariant(value)}>{label}</Button>)}
       </div>
       <p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p>
       <p className="mb-5 text-sm"><strong>Preheader:</strong> {sample.previewText}</p>
