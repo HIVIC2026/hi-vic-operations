@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAction } from "@/hooks/use-me";
-import { autoAdvancePipeline, createEnquiry, getCommsStatus, getPostIntakeHealth, sweepAuthorities } from "@/lib/portal.functions";
+import { autoAdvancePipeline, createEnquiry, getAdminPipeline, getCommsStatus, getPostIntakeHealth, sweepAuthorities } from "@/lib/portal.functions";
 import { useServerFn } from "@tanstack/react-start";
 
 const ACCEPTANCE_STAGES = ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"];
@@ -29,15 +29,20 @@ function Pipeline() {
   const [showTest, setShowTest] = useState(false);
   const sweep = useServerFn(sweepAuthorities);
   const advance = useServerFn(autoAdvancePipeline);
+  const loadPipeline = useServerFn(getAdminPipeline);
   const [showExceptions, setShowExceptions] = useState(false);
   const commsStatus = useServerFn(getCommsStatus);
   const { data: comms } = useQuery({ queryKey: ["comms_status"], queryFn: () => commsStatus() });
   const postIntakeHealth = useServerFn(getPostIntakeHealth);
   const { data: intakeHealth } = useQuery({ queryKey: ["post_intake_health"], queryFn: () => postIntakeHealth(), refetchInterval: 60_000 });
   const [phase, setPhase] = useState<Phase | "all">("all");
-  const { data: allJobs = [] } = useQuery({
+  const { data: allJobs = [], error: pipelineError } = useQuery({
     queryKey: ["pipeline"],
-    queryFn: async () => (await sweep().catch(() => null), await advance().catch(() => null), await supabase.from("job_overview").select("*").order("last_activity_at", { ascending: false })).data ?? [],
+    queryFn: async () => {
+      await sweep().catch(() => null);
+      await advance().catch(() => null);
+      return loadPipeline();
+    },
   });
   const jobs = useMemo(() => allJobs.filter((j) => showTest || j.source !== "qa_test"), [allJobs, showTest]);
   const hiddenTest = allJobs.length - jobs.length;
@@ -60,6 +65,11 @@ function Pipeline() {
 
   return (
     <AppShell wide>
+      {pipelineError && (
+        <div role="alert" className="mb-4 rounded-lg border-2 border-danger bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
+          The Pipeline could not be loaded. Refresh the page or sign in again.
+        </div>
+      )}
       {comms?.enabled !== true && (
         <div role="alert" className="mb-4 rounded-lg border-2 border-warning bg-warning-soft px-4 py-3 text-sm font-bold uppercase tracking-wide text-accent-foreground">
           PRE-LAUNCH — customer communications disabled
