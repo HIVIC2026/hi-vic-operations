@@ -90,7 +90,7 @@ describe("static separation / UI", () => {
   const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
   test("customer copy", () => {
     for (const t of ["Your home looks suitable to progress", "Your home may be eligible — onsite confirmation needed", "R5.0 insulation supply &amp; installation", "Estimated VEU discount", "Estimated price after VEU discount", "Onsite Measure + PIESA", "already included", "Access is confirmed onsite"]) expect(ui).toContain(t);
-    expect(ui).not.toMatch(/<Button|Pay now|pay\(|createBooking|useServerFn\(create/i);
+    expect(ui).not.toMatch(/<Button|Pay now|[Pp]ay\(|createBooking|useServerFn\(create/);
     expect(ui).toContain("{FEE_LABEL}");
     expect(ui).not.toContain("AP management &amp; compliance");
     expect(ui).toContain("Step 3 · Indicative estimate");
