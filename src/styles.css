@@ -85,17 +85,17 @@
 
 /* HI VIC customer-estimate identity, scoped so the operating portal is unchanged. */
 .estimate-brand {
-  --estimate-blue: oklch(0.365 0.055 190);
-  --estimate-green: oklch(0.525 0.072 174);
-  --estimate-navy: oklch(0.245 0.03 195);
-  --estimate-canvas: oklch(0.975 0.006 175);
-  --estimate-blue-soft: oklch(0.925 0.018 183);
-  --estimate-blue-pale: oklch(0.958 0.012 178);
-  --estimate-green-soft: oklch(0.948 0.025 168);
-  --estimate-shadow-green: oklch(0.31 0.04 190 / 12%);
-  --estimate-green-light: oklch(0.83 0.075 167);
-  --estimate-accent: oklch(0.7 0.12 76);
-  --estimate-accent-soft: oklch(0.955 0.045 82);
+  --estimate-blue: oklch(0.48845 0.18021 270.395);
+  --estimate-green: oklch(0.70494 0.18565 151.66);
+  --estimate-navy: oklch(0.34936 0.09433 265.301);
+  --estimate-canvas: oklch(0.98976 0.00283 128.492);
+  --estimate-blue-soft: oklch(0.9571 0.0162 278.507);
+  --estimate-blue-pale: oklch(0.9571 0.0162 278.507);
+  --estimate-green-soft: oklch(0.97024 0.01728 159.124);
+  --estimate-shadow-green: oklch(0.34936 0.09433 265.301 / 12%);
+  --estimate-green-light: oklch(0.97024 0.01728 159.124);
+  --estimate-accent: oklch(0.70494 0.18565 151.66);
+  --estimate-accent-soft: oklch(0.97024 0.01728 159.124);
   --estimate-white: oklch(1 0 0);
   --background: var(--estimate-canvas);
   --foreground: var(--estimate-navy);
@@ -105,7 +105,7 @@
   --border: var(--estimate-blue-soft);
   --input: var(--estimate-blue);
   --ring: var(--estimate-blue);
-  font-family: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Open Sans", Arial, Helvetica, sans-serif;
   color: var(--estimate-navy);
   background: var(--estimate-canvas);
 }

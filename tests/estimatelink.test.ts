@@ -9,6 +9,7 @@ const server = readFileSync("src/lib/estimatelink.server.ts", "utf8");
 const fns = readFileSync("src/lib/estimate.functions.ts", "utf8");
 const route = readFileSync("src/routes/estimate.$token.tsx", "utf8");
 const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
+const engagementServer = readFileSync("src/lib/engagement.server.ts", "utf8");
 const mig = readFileSync("drizzle/migrations/0035_customer_estimate_links.sql", "utf8");
 const NOW = Date.parse("2026-09-29T00:00:00Z");
 
@@ -91,6 +92,12 @@ describe("wiring", () => {
   it("route: no-store, no-referrer, noindex, no pay/book button", () => {
     for (const s of ["no-store", "no-referrer", "noindex, nofollow", "ssr: false"]) expect(route).toContain(s);
     expect(/pay now|book now|<button/i.test(route)).toBe(false);
+  });
+  it("secure estimate supports the confirm state without inventing a payment action", () => {
+    expect(route).toContain('window.location.hash === "#confirm"');
+    for (const copy of ["LET’S CONFIRM YOUR QUOTE", "PAY TODAY", "ESTIMATED REMAINING BALANCE", "NO SURPRISE ADD-ONS.", "PAYMENT CURRENTLY UNAVAILABLE", "BACK TO MY ESTIMATE"]) expect(ui).toContain(copy);
+    expect(ui).not.toMatch(/stripe|checkout|paymentIntent/i);
+    expect(engagementServer).toContain('t.purpose === "step3_estimate" ? "#confirm" : ""');
   });
   it("calculator stays client-only (no server call on input)", () => {
     const calc = ui.slice(ui.indexOf("function AreaCalculator"), ui.indexOf("export function OwnerEstimateCard"));

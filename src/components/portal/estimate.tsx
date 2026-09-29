@@ -31,6 +31,39 @@ export type CustomerData = {
 
 type Est = { scenarios: Scenario[]; access_adjustment: { moderate: number; difficult: number } };
 
+export function ConfirmQuote({ estimatedPrice, assessmentFee, onBack, preview = false }: { estimatedPrice: number; assessmentFee: number; onBack: () => void; preview?: boolean }) {
+  const remaining = Math.max(0, estimatedPrice - assessmentFee);
+  return <section className="estimate-brand overflow-hidden border-2 border-estimate-blue bg-estimate-white text-estimate-navy shadow-[6px_6px_0_var(--estimate-green)]" aria-labelledby="confirm-quote-title">
+    <div className="bg-estimate-blue px-5 py-7 text-estimate-white sm:px-9 sm:py-9">
+      <p className="text-xs font-extrabold uppercase tracking-wider text-estimate-green-light">Your next step</p>
+      <h1 id="confirm-quote-title" className="mt-2 text-3xl font-extrabold leading-tight sm:text-4xl">LET’S CONFIRM YOUR QUOTE</h1>
+      <p className="mt-3 max-w-xl text-sm font-semibold leading-relaxed">The next step is your Mandatory Pre-Installation Electrical Safety Assessment (PIESA) + onsite ceiling measure-up.</p>
+    </div>
+    <div className="px-5 py-7 sm:px-9 sm:py-9">
+      <dl className="space-y-3 border-b border-estimate-blue-soft pb-6 text-sm">
+        <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">ESTIMATED PRICE</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(estimatedPrice)}</dd></div>
+        <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">PAY TODAY</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(assessmentFee)}</dd></div>
+        <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">ESTIMATED REMAINING BALANCE</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(remaining)}</dd></div>
+      </dl>
+      <p className="mt-6 border-l-4 border-estimate-green bg-estimate-green-soft px-4 py-4 text-sm font-extrabold leading-relaxed">THE {dollars(assessmentFee)} YOU PAY TODAY IS ALREADY INCLUDED IN YOUR ESTIMATED PRICE — IT IS NOT {dollars(assessmentFee)} ON TOP.</p>
+      <div className="mt-7">
+        <h2 className="text-lg font-extrabold text-estimate-blue">What this visit confirms</h2>
+        <ul className="mt-4 space-y-3 text-sm font-semibold">
+          {["Actual eligible ceiling area", "Existing insulation and whether removal is required", "Electrical safety", "The information needed to confirm your final quote"].map((item) => <li key={item} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-estimate-green" /><span>{item}</span></li>)}
+        </ul>
+      </div>
+      <div className="mt-7 border-t border-estimate-blue-soft pt-6">
+        <h2 className="text-lg font-extrabold text-estimate-blue">NO SURPRISE ADD-ONS.</h2>
+        <p className="mt-2 text-sm leading-relaxed">If the onsite assessment identifies insulation removal or electrical rectification that isn’t included in your estimate, we’ll show you exactly what’s required and what it costs before you decide whether to proceed.</p>
+      </div>
+      <div className="mt-7 space-y-3">
+        <Button type="button" size="field" className="h-auto min-h-14 w-full rounded-none bg-estimate-blue px-5 py-4 font-extrabold text-estimate-white shadow-[4px_4px_0_var(--estimate-green)] disabled:opacity-100" disabled>{preview ? "PAYMENT SETUP IN PROGRESS" : "PAYMENT CURRENTLY UNAVAILABLE"}</Button>
+        <Button type="button" variant="ghost" size="field" className="w-full font-bold text-estimate-blue hover:bg-estimate-green-soft hover:text-estimate-blue" onClick={onBack}>← BACK TO MY ESTIMATE</Button>
+      </div>
+    </div>
+  </section>;
+}
+
 function PriceResult({ est, area, fees, assumption = false }: { est: Est; area: number; fees: NonNullable<CustomerData["fees"]>; assumption?: boolean }) {
   const primary = est.scenarios.find((s) => s.key === "can_remain") ?? est.scenarios[0];
   if (!primary) return null;
