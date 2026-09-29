@@ -23,6 +23,13 @@ export function JobCard({ job, to }: { job: JobRow; to: "/admin/jobs/$jobId" | "
         <UrgencyBadge urgency={job.urgency} days={job.days_remaining} />
         <SourceBadge channel={job.channel} business={job.originating_business_name} />
       </div>
+      {["new_enquiry", "eligibility_review"].includes(job.stage ?? "") && (job.eligibility_review_required
+        ? <div className="mt-2 rounded-md bg-warning-soft px-2 py-1 text-xs font-semibold text-accent-foreground">Gate 1: REVIEW REQUIRED</div>
+        : job.eligibility_outcome === "needs_onsite_confirmation" ? <div className="mt-2 rounded-md bg-accent px-2 py-1 text-xs font-semibold text-accent-foreground">Gate 1: Needs onsite confirmation</div>
+        : null)}
+      {Array.isArray(job.eligibility_flags) && (job.eligibility_flags as { key?: string }[]).some((f) => f?.key === "rollout_hold") && ["new_enquiry", "eligibility_review"].includes(job.stage ?? "") && (
+        <div className="mt-2 flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs font-semibold"><Lock className="h-3.5 w-3.5" /> Held until general rollout 1 Oct 2026</div>
+      )}
       {job.channel === "installer_sourced" && job.commercial_model !== "hivic_invoices_owner" && !["complete", "cancelled"].includes(job.stage ?? "") && (
         <div className="mt-2 flex items-center gap-1.5 rounded-md bg-warning-soft px-2 py-1 text-xs font-semibold text-accent-foreground"><Lock className="h-3.5 w-3.5" /> Commercial setup required</div>
       )}

@@ -144,7 +144,7 @@ describe("Job pack", () => {
 });
 
 describe("14. Gate 1 uses Property Intelligence only when trusted", () => {
-  const prop = { state: null, postcode: "3000", occupancy: "owner_occupied", is_residential: null, year_built: null, enrichment: { previous_ceiling_insulation_upgrade: false } };
+  const prop = { state: null, postcode: "3000", occupancy: "owner_occupied", is_residential: null, year_built: null, enrichment: { previous_ceiling_insulation_upgrade: false, base44: { raw: { answers: { insulation: "none" } } } } };
   const f = (k: string, v: unknown, o: Partial<IntelFact> = {}): IntelFact => ({ fact_key: k, value: v, evidence_kind: "direct", confidence: "high", source_type: "public_gis", source_name: "Vicmap", is_current: true, is_stale: false, ...o });
   const job = { lifeSupportStatus: "no", preliminaryOutcome: "likely_eligible" };
   test("trusted direct facts can pass", () => {
@@ -160,7 +160,7 @@ describe("14. Gate 1 uses Property Intelligence only when trusted", () => {
   test("direct hard evidence auto-fails; flat roof forces review", () => {
     expect(evaluateGate1(resolveGate1Facts(prop, job, 5, 2026, [f("address_verified", true), f("in_victoria", false)])).outcome).toBe("does_not_appear_eligible");
     const flat = resolveGate1Facts(prop, job, 5, 2026, [f("address_verified", true), f("in_victoria", true), f("ncc_class_evidence", "class1"), f("age_evidence", { date: "2010-01-01", kind: "historical_imagery_same_footprint" }), f("roof_form", "low_slope_flat", { evidence_kind: "inferred", confidence: "low" })]);
-    expect(evaluateGate1(flat).outcome).toBeNull();
+    expect(evaluateGate1(flat).outcome).toBe("needs_onsite_confirmation");
   });
   test("preliminary Base44 result alone never passes", () => {
     expect(evaluateGate1(resolveGate1Facts(prop, job, 5, 2026, [])).outcome).toBeNull();

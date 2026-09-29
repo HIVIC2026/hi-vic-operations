@@ -12,7 +12,7 @@ import { fmtDateTime } from "@/lib/workflow";
 import { addEscConfig, approveEscConfig, getInstallReadiness, markIntelligenceReviewed, recordEscSubmissionFn, recordPiesaDelivery, regenerateEscNotificationFn, runPropertyIntelligenceFn, submitEscNotification } from "@/lib/portal.functions";
 
 const OUTCOME: Record<string, [string, "good" | "warn" | "bad"]> = {
-  likely_eligible: ["Likely eligible", "good"], needs_onsite_confirmation: ["Needs onsite confirmation", "warn"], does_not_appear_eligible: ["Does not appear eligible", "bad"],
+  likely_eligible: ["Likely eligible", "good"], needs_onsite_confirmation: ["Needs onsite confirmation", "warn"], does_not_appear_eligible: ["Does not appear eligible", "bad"], review_required: ["Review required", "warn"],
 };
 const STATUS_TONE = { pass: "good", review: "warn", fail: "bad", unknown: "neutral", info: "neutral" } as const;
 type FactRow = { id: string; fact_key: string; value: unknown; check_status: string; source_name: string; source_url: string | null; source_record_id: string | null; source_date: string | null; retrieved_at: string; confidence: string; evidence_kind: string; note: string | null; is_stale: boolean };
@@ -42,7 +42,7 @@ export function PropertyIntelligenceCard({ jobId }: { jobId: string }) {
   const run = data?.run;
   const o = run?.result ? OUTCOME[run.result] : null;
   return (
-    <Section title="Property Intelligence (preliminary – information only)" action={<Button size="sm" variant="outline" onClick={() => rerun({ jobId }, "Property intelligence re-run")}>Re-run property intelligence</Button>}>
+    <Section title="Property Intelligence (evidence – Gate 1 decided by the single rules engine)" action={<Button size="sm" variant="outline" onClick={() => rerun({ jobId }, "Property intelligence re-run")}>Re-run property intelligence</Button>}>
       {!run ? <p className="text-sm text-muted-foreground">Not run yet.</p> : (
         <div className="space-y-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">

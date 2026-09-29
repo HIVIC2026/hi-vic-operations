@@ -1,14 +1,33 @@
-// Pure, deterministic Gate 1 auto-decision. Risk-based: auto PASS only when every required fact is clearly
-// satisfied from recorded data; auto FAIL only on an objective hard rule; everything else -> human review.
-// Base44 preliminary screening is never sufficient on its own. Owner declarations are never "verified".
+// THE single, pure, deterministic Gate 1 categoriser (Activity 48 – VEET Amendment (Ceiling Insulation) Regulations 2026,
+// reg 10(9)-(10) / Part 48). Property Intelligence and Base44 only supply FACTS; this file alone decides.
+// Hierarchy (locked): A hard failure -> does_not_appear_eligible; B contradiction/insufficient remote evidence -> internal
+// REVIEW REQUIRED (no customer outcome); C remote rules satisfied but technical onsite fact open -> needs_onsite_confirmation;
+// D all remote rules satisfied -> likely_eligible (still subject to onsite insulation, lighting and electrical checks).
+// Owner declarations are never "verified" and never hard-fail on their own. Base44 preliminary screening is information only.
+
+export const GATE1_RULESET_VERSION = "gate1-a48-2026.2";
+/** General rollout of Activity 48 starts on this date (14 Apr–30 Sep 2026 limited to public/community housing). */
+export const GENERAL_ROLLOUT_START = "2026-10-01";
 
 export type FactBasis = "verified" | "recorded" | "declared" | "unknown";
 export type FactEvidence = { fact: string; source: string; basis: FactBasis };
-export type RuleKey = "location" | "residential" | "building_age" | "occupancy" | "life_support" | "previous_upgrade" | "roof_access" | "preliminary";
-export type RuleEvidence = FactEvidence & { key: RuleKey; label: string; result: "pass" | "fail" | "review"; reason: string };
+export type RuleKey = "location" | "address" | "residential" | "relevant_ceiling" | "ceiling_age" | "previous_activity" | "existing_insulation"
+  | "roof_access" | "life_support" | "occupancy" | "area" | "rollout" | "preliminary";
+export type RuleResult = "pass" | "fail" | "review" | "onsite" | "info";
+export type RuleEvidence = FactEvidence & { key: RuleKey; label: string; result: RuleResult; reason: string };
+export type Gate1Flag = { key: string; type: "safety" | "operational" | "data"; severity: "high" | "medium" | "low"; reason: string };
+export type CustomerOutcome = "likely_eligible" | "needs_onsite_confirmation" | "does_not_appear_eligible";
 
-/** Rules where an explicit owner declaration is accepted on its own for auto-pass. Everything else needs verified evidence. */
-export const DECLARATION_ALLOWED: Partial<Record<RuleKey, boolean>> = { previous_upgrade: true, occupancy: true, life_support: true };
+/** Rules where an explicit owner declaration is accepted on its own for a pass. */
+export const DECLARATION_ALLOWED: Partial<Record<RuleKey, boolean>> = { previous_activity: true, existing_insulation: true };
+
+/** Technical facts that are ALWAYS confirmed onsite (never make a job "needs onsite" on their own). */
+export const ONSITE_ALWAYS = [
+  "Existing insulation type / R-value (none, or foil / uncompressed averaging < R2.0)",
+  "All relevant-ceiling luminaires IC / IC-4",
+  "Electrical safety / PIESA",
+  "Measured relevant ceiling area",
+];
 
 export type Gate1Facts = {
   state: string | null;
@@ -16,97 +35,187 @@ export type Gate1Facts = {
   occupancy: string | null;
   isResidential: boolean | null;
   yearBuilt: number | null;
-  yearBuiltVerified: boolean; // verified construction year (hard-fail capable)
+  yearBuiltVerified: boolean; // verified construction year of the relevant structure (hard-fail capable)
   minBuildingAgeYears: number;
-  lifeSupportStatus: string | null; // yes | no | unknown | null
-  previousCeilingUpgrade: boolean | null;
-  flatRoofOrAccessConcern: boolean; // only when explicitly detected/declared
-  preliminaryOutcome: string | null; // Base44 info only
+  lifeSupportStatus: string | null; // yes | no | unknown | null -> safety flag only
+  previousCeilingUpgrade: boolean | null; // generic "previous upgrade" – never proves a previous Activity 48
+  flatRoofOrAccessConcern: boolean; // operational flag only
+  preliminaryOutcome: string | null; // Base44 info only – never decides
   currentYear: number;
-  /** Verified minimum age from first-appearance evidence (can pass, never fails). */
   verifiedMinAgeYears?: number | null;
-  /** Owner says building is older than the minimum – useful, never verified. */
   declaredOverMinAge?: "yes" | "no" | "unknown" | null;
-  /** Residential support that is declaration-only or conflicting -> review message. */
-  residentialNote?: string | null;
+  residentialNote?: string | null; // declaration-only / conflicting residential evidence -> review
+  addressAmbiguous?: boolean;
+  declaredPropertyType?: string | null;
+  declaredTopFloor?: "yes" | "no" | "unknown" | null;
+  noRelevantCeilingDirect?: boolean; // direct evidence: no ceiling with roof cavity/exposed roof and no storey above
+  storeyAboveIndicated?: boolean; // evidence of another storey above part of the ceiling (scope uncertain -> review)
+  recentExtensionRisk?: "yes" | "no" | "unknown" | null;
+  previousActivity48Confirmed?: boolean | null; // only trusted/direct portal or registry fact
+  declaredInsulation?: "none" | "present" | "unknown" | null; // Base44 answers.insulation
+  verifiedInsulation?: "qualifying" | "disqualifying" | null; // verified onsite finding
+  areaKnown?: boolean | null;
+  publicHousingVerified?: boolean;
+  referenceDate?: string | null; // YYYY-MM-DD (Melbourne); drives the 2026 rollout hold
   evidence?: Partial<Record<RuleKey, FactEvidence>>;
 };
 
 export type Gate1Decision = {
-  outcome: "likely_eligible" | "does_not_appear_eligible" | null; // null = human review
+  ruleset_version: string;
+  /** Customer-facing category; null while REVIEW REQUIRED. */
+  outcome: CustomerOutcome | null;
+  internalStatus: "auto_decided" | "review_required";
+  reviewRequired: boolean;
   passed: string[];
   failed: string[];
   review: string[];
+  onsite: string[]; // technical onsite facts that drive needs_onsite_confirmation
+  onsiteRequirements: string[]; // everything to confirm onsite
+  flags: Gate1Flag[];
+  rolloutHold: boolean;
   rules: RuleEvidence[];
+  nextAction: string;
+  referenceDate: string | null;
 };
 
 const VIC_POSTCODE = /^(3\d{3}|8\d{3})$/;
+const APARTMENT = /\b(apartment|unit|flat)\b/i;
+
+export function rolloutHoldActive(referenceDate: string | null | undefined, publicHousingVerified = false): boolean {
+  return !!referenceDate && referenceDate < GENERAL_ROLLOUT_START && !publicHousingVerified;
+}
 
 export function evaluateGate1(f: Gate1Facts): Gate1Decision {
-  const passed: string[] = [], failed: string[] = [], review: string[] = [], rules: RuleEvidence[] = [];
+  const passed: string[] = [], failed: string[] = [], review: string[] = [], onsite: string[] = [], rules: RuleEvidence[] = [], flags: Gate1Flag[] = [];
   const ev = (k: RuleKey, fallback: FactEvidence): FactEvidence => f.evidence?.[k] ?? fallback;
-  const rule = (key: RuleKey, label: string, result: RuleEvidence["result"], reason: string, e: FactEvidence) => {
+  const rule = (key: RuleKey, label: string, result: RuleResult, reason: string, e: FactEvidence) => {
     rules.push({ key, label, result, reason, ...e });
-    (result === "pass" ? passed : result === "fail" ? failed : review).push(reason);
+    ({ pass: passed, fail: failed, review, onsite, info: null as string[] | null })[result]?.push(reason);
   };
   const st = f.state?.trim().toUpperCase() ?? null;
   const pc = f.postcode?.trim() ?? null;
 
-  // Hard, objective rules
+  // Location (Victoria)
   const loc = ev("location", { fact: [st, pc].filter(Boolean).join(" ") || "—", source: "properties", basis: st || pc ? "recorded" : "unknown" });
   if (st && st !== "VIC") rule("location", "Victorian property", "fail", `Property state is ${st} (Victoria only)`, loc);
   else if (pc && !VIC_POSTCODE.test(pc)) rule("location", "Victorian property", "fail", `Postcode ${pc} is not a Victorian postcode`, loc);
   else if (st === "VIC" && pc && VIC_POSTCODE.test(pc)) rule("location", "Victorian property", "pass", "Victorian property (state + postcode)", loc);
   else rule("location", "Victorian property", "review", "Victorian location not confirmed", loc);
+  if (f.addressAmbiguous) rule("address", "Address match", "review", "Address match is ambiguous – confirm the correct premises", ev("address", { fact: "no unique address match", source: "property intelligence", basis: "recorded" }));
 
+  // Premises class (Class 1 / Class 2 sole-occupancy unit)
   const res = ev("residential", { fact: f.isResidential == null ? "unknown" : String(f.isResidential), source: "properties.is_residential", basis: f.isResidential == null ? "unknown" : "recorded" });
-  if (f.isResidential === false) rule("residential", "Residential premises", "fail", "Property recorded as non-residential", res);
-  else if (f.isResidential === true) rule("residential", "Residential premises", "pass", "Residential property", res);
-  else rule("residential", "Residential premises", "review", f.residentialNote ?? "Residential status unknown", res);
+  if (f.isResidential === false) rule("residential", "Class 1 / Class 2 SOU residential", "fail", "Premises recorded/verified as not Class 1 / Class 2 sole-occupancy residential", res);
+  else if (f.isResidential === true) rule("residential", "Class 1 / Class 2 SOU residential", "pass", "Residential premises supported", res);
+  else rule("residential", "Class 1 / Class 2 SOU residential", "review", f.residentialNote ?? "Premises class not evidenced", res);
 
+  // Relevant ceiling (roof cavity / exposed roof, no storey above)
+  const isApartment = !!f.declaredPropertyType && APARTMENT.test(f.declaredPropertyType);
+  const rc = ev("relevant_ceiling", { fact: isApartment ? `${f.declaredPropertyType}; top floor: ${f.declaredTopFloor ?? "unknown"}` : "no contrary evidence", source: isApartment ? "base44 owner declaration" : "—", basis: isApartment ? "declared" : "unknown" });
+  if (f.noRelevantCeilingDirect) rule("relevant_ceiling", "Relevant ceiling", "fail", "Direct evidence: no ceiling with a roof cavity / exposed roof above (another storey above)", rc);
+  else if (f.storeyAboveIndicated) rule("relevant_ceiling", "Relevant ceiling", "review", "Evidence of another storey above part of the ceiling – confirm the relevant ceiling scope", rc);
+  else if (isApartment && f.declaredTopFloor !== "yes") rule("relevant_ceiling", "Relevant ceiling", "review", f.declaredTopFloor === "no" ? "Owner says the unit is not top floor – confirm a qualifying relevant ceiling exists" : "Apartment/unit – top-floor status unclear", rc);
+  else rule("relevant_ceiling", "Relevant ceiling", "info", "No evidence against a qualifying relevant ceiling (roof cavity confirmed onsite)", rc);
+
+  // Relevant ceiling / structure age (not whole-building age)
   const min = f.minBuildingAgeYears;
-  const age = ev("building_age", { fact: f.yearBuilt ? `built ${f.yearBuilt}` : "unknown", source: "properties.year_built", basis: f.yearBuiltVerified ? "verified" : f.yearBuilt ? "recorded" : "unknown" });
-  if (f.yearBuilt != null && f.yearBuiltVerified) {
-    const a = f.currentYear - f.yearBuilt;
-    if (a < min) rule("building_age", "Building age", "fail", `Building age ${a} years is under the ${min}-year minimum`, age);
-    else rule("building_age", "Building age", "pass", `Building age ${a} years (≥ ${min}), verified`, age);
-  } else if (f.verifiedMinAgeYears != null && f.verifiedMinAgeYears >= min) {
-    rule("building_age", "Building age", "pass", `Building at least ${f.verifiedMinAgeYears} years old (≥ ${min}), verified first-appearance evidence`, age);
-  } else if (f.verifiedMinAgeYears != null) {
-    rule("building_age", "Building age", "review", `First-appearance evidence only shows ${f.verifiedMinAgeYears} years – confirm age`, age);
-  } else if (f.declaredOverMinAge === "yes") {
-    rule("building_age", "Building age", "review", "Owner declares building is old enough – not verified", age);
-  } else if (f.declaredOverMinAge === "no") {
-    rule("building_age", "Building age", "review", "Owner declares building may be too new – verify before deciding", age);
-  } else rule("building_age", "Building age", "review", "Building age not verified", age);
+  const L = "Relevant ceiling / structure age";
+  const age = ev("ceiling_age", { fact: f.yearBuilt ? `built ${f.yearBuilt}` : "unknown", source: "properties.year_built", basis: f.yearBuiltVerified ? "verified" : f.yearBuilt ? "recorded" : "unknown" });
+  const verifiedAge = f.yearBuilt != null && f.yearBuiltVerified ? f.currentYear - f.yearBuilt : null;
+  if (verifiedAge != null && verifiedAge < min) rule("ceiling_age", L, "fail", `Direct evidence: relevant structure constructed ${verifiedAge} years ago (within ${min} years)`, age);
+  else if (f.recentExtensionRisk === "yes") rule("ceiling_age", L, "review", "Recent extension / added storey risk – confirm the proposed ceiling is not within the 5-year window", age);
+  else if (verifiedAge != null) rule("ceiling_age", L, "pass", `Relevant structure ${verifiedAge} years old (≥ ${min}), verified`, age);
+  else if (f.verifiedMinAgeYears != null && f.verifiedMinAgeYears >= min) rule("ceiling_age", L, "pass", `At least ${f.verifiedMinAgeYears} years old (≥ ${min}), verified first-appearance evidence`, age);
+  else if (f.verifiedMinAgeYears != null) rule("ceiling_age", L, "review", `First-appearance evidence only shows ${f.verifiedMinAgeYears} years – confirm relevant ceiling age`, age);
+  else if (f.declaredOverMinAge === "yes") rule("ceiling_age", L, "review", "Owner declares over 5 years – cannot be remotely supported sufficiently", age);
+  else if (f.declaredOverMinAge === "no") rule("ceiling_age", L, "review", "Owner declares the ceiling may be under 5 years – verify before deciding (not an auto-fail)", age);
+  else rule("ceiling_age", L, "review", "Relevant ceiling age not evidenced", age);
 
-  // Review-only conditions (never auto-fail)
-  const occ = ev("occupancy", { fact: f.occupancy ?? "unknown", source: "properties.occupancy", basis: f.occupancy ? "declared" : "unknown" });
-  if (f.occupancy === "owner_occupied" || f.occupancy === "rental") rule("occupancy", "Occupancy", "pass", `Occupancy recorded (${f.occupancy.replace("_", " ")})`, occ);
-  else rule("occupancy", "Occupancy", "review", "Occupancy unknown", occ);
+  // Previous Activity 48
+  const PL = "Previous Activity 48";
+  const pu = ev("previous_activity", { fact: f.previousCeilingUpgrade == null ? "unknown" : f.previousCeilingUpgrade ? "yes" : "no", source: "properties.enrichment", basis: f.previousCeilingUpgrade == null ? "unknown" : "recorded" });
+  if (f.previousActivity48Confirmed === true) rule("previous_activity", PL, "fail", "Previous Activity 48 at the premises confirmed", { fact: "previous Activity 48 confirmed", source: pu.source, basis: "verified" });
+  else if (f.previousCeilingUpgrade === false) rule("previous_activity", PL, "pass", pu.basis === "declared" ? "Owner declares no previous ceiling insulation upgrade" : "No previous upgrade recorded", pu);
+  else if (f.previousCeilingUpgrade === true) rule("previous_activity", PL, "review", "Previous upgrade reported – previous Activity 48 not confirmed", pu);
+  else rule("previous_activity", PL, "review", "Previous upgrade history unknown", pu);
 
-  const ls = ev("life_support", { fact: f.lifeSupportStatus ?? "unknown", source: "jobs.life_support_status", basis: f.lifeSupportStatus && f.lifeSupportStatus !== "unknown" ? "declared" : "unknown" });
-  if (f.lifeSupportStatus === "no") rule("life_support", "Life support", "pass", "No life support at property", ls);
-  else if (f.lifeSupportStatus === "yes") rule("life_support", "Life support", "review", "Life support at property – process exception", ls);
-  else rule("life_support", "Life support", "review", "Life-support status unconfirmed", ls);
+  // Existing insulation above the relevant ceiling
+  const IL = "Existing insulation";
+  if (f.verifiedInsulation === "disqualifying") rule("existing_insulation", IL, "fail", "Verified onsite: existing insulation fails the criterion (average R ≥ 2.0 or not foil/uncompressed)", { fact: "disqualifying", source: "verified onsite finding", basis: "verified" });
+  else if (f.verifiedInsulation === "qualifying") rule("existing_insulation", IL, "pass", "Verified onsite: none, or foil/uncompressed averaging < R2.0", { fact: "qualifying", source: "verified onsite finding", basis: "verified" });
+  else {
+    const di = f.declaredInsulation ?? null;
+    const ie = ev("existing_insulation", { fact: di ? `owner: ${di}` : "unknown", source: di ? "base44 answers.insulation" : "—", basis: di ? "declared" : "unknown" });
+    if (di === "none") rule("existing_insulation", IL, "pass", "Owner declares no existing insulation (confirmed onsite)", ie);
+    else if (di === "present") rule("existing_insulation", IL, "onsite", "Owner says insulation is present – type and R-value must be confirmed onsite", ie);
+    else rule("existing_insulation", IL, "onsite", "Existing insulation unknown – confirm onsite", ie);
+  }
 
-  const pu = ev("previous_upgrade", { fact: f.previousCeilingUpgrade == null ? "unknown" : f.previousCeilingUpgrade ? "yes" : "no", source: "properties.enrichment", basis: f.previousCeilingUpgrade == null ? "unknown" : "recorded" });
-  if (f.previousCeilingUpgrade === false && (pu.basis !== "declared" || DECLARATION_ALLOWED.previous_upgrade)) rule("previous_upgrade", "Previous ceiling upgrade", "pass", pu.basis === "declared" ? "Owner declares no previous ceiling insulation upgrade" : "No previous ceiling insulation upgrade recorded", pu);
-  else if (f.previousCeilingUpgrade === false) rule("previous_upgrade", "Previous ceiling upgrade", "review", "Owner declares no previous upgrade – stronger proof required", pu);
-  else if (f.previousCeilingUpgrade === true) rule("previous_upgrade", "Previous ceiling upgrade", "review", "Previous ceiling insulation upgrade recorded – needs review", pu);
-  else rule("previous_upgrade", "Previous ceiling upgrade", "review", "Previous upgrade history unclear", pu);
-
+  // Roof / access – operational unless it proves a hard failure (handled under relevant ceiling)
   const ra = ev("roof_access", { fact: f.flatRoofOrAccessConcern ? "concern flagged" : "none detected", source: "properties.enrichment", basis: f.flatRoofOrAccessConcern ? "recorded" : "unknown" });
-  if (f.flatRoofOrAccessConcern) rule("roof_access", "Roof / access", "review", "Flat roof / access concern flagged", ra);
-  else rules.push({ key: "roof_access", label: "Roof / access", result: "pass", reason: "No flat-roof or access concern explicitly detected (confirmed onsite)", ...ra });
+  if (f.flatRoofOrAccessConcern) {
+    rule("roof_access", "Roof / access", "onsite", "Flat / low-slope roof or access concern – confirm roof cavity / exposed roof and access onsite (not a disqualifier)", ra);
+    flags.push({ key: "roof_access_review", type: "operational", severity: "medium", reason: "Flat / low-slope roof or access concern – plan access and confirm cavity onsite" });
+  } else rule("roof_access", "Roof / access", "info", "No flat-roof or access concern detected", ra);
 
-  const out = (o: Gate1Decision["outcome"]) => ({ outcome: o, passed, failed, review, rules });
-  if (failed.length) return out("does_not_appear_eligible");
-  // Contradiction with the website's preliminary result -> human review.
-  if (f.preliminaryOutcome && f.preliminaryOutcome !== "likely_eligible")
-    rule("preliminary", "Website preliminary result", "review", `Website preliminary result was ${f.preliminaryOutcome.replace(/_/g, " ")} – conflicts with auto-pass`, { fact: f.preliminaryOutcome, source: "base44", basis: "declared" });
-  if (review.length) return out(null);
-  return out("likely_eligible");
+  // Life support – safety flag only, never an eligibility result
+  const ls = ev("life_support", { fact: f.lifeSupportStatus ?? "unknown", source: "jobs.life_support_status", basis: f.lifeSupportStatus && f.lifeSupportStatus !== "unknown" ? "declared" : "unknown" });
+  rule("life_support", "Life support (safety)", "info", f.lifeSupportStatus === "yes" ? "Life support at property – safety flag" : f.lifeSupportStatus === "no" ? "No life support declared" : "Life-support status unknown – safety flag", ls);
+  if (f.lifeSupportStatus === "yes") flags.push({ key: "life_support", type: "safety", severity: "high", reason: "Life-support arrangements must be managed before electrical work/power interruption" });
+  else if (f.lifeSupportStatus !== "no") flags.push({ key: "life_support_unknown", type: "safety", severity: "medium", reason: "Life-support status unknown – confirm before electrical work/power interruption" });
+
+  rule("occupancy", "Occupancy", "info", f.occupancy ? `Occupancy: ${f.occupancy.replace("_", " ")}` : "Occupancy not recorded", ev("occupancy", { fact: f.occupancy ?? "unknown", source: "properties.occupancy", basis: f.occupancy ? "declared" : "unknown" }));
+
+  // Area – never an eligibility failure
+  rule("area", "Ceiling area", "info", "Final relevant ceiling area measured onsite", { fact: f.areaKnown ? "owner estimate" : "unknown", source: "jobs.estimated_area_m2", basis: f.areaKnown ? "declared" : "unknown" });
+  if (f.areaKnown === false) flags.push({ key: "measure_required", type: "operational", severity: "low", reason: "Ceiling area unknown – measure onsite" });
+
+  if (f.preliminaryOutcome) rule("preliminary", "Website preliminary result", "info", `Website screening said ${f.preliminaryOutcome.replace(/_/g, " ")} – information only`, { fact: f.preliminaryOutcome, source: "base44", basis: "declared" });
+
+  // 2026 rollout restriction (not an eligibility result)
+  const hold = rolloutHoldActive(f.referenceDate, !!f.publicHousingVerified);
+  if (f.referenceDate && f.referenceDate < GENERAL_ROLLOUT_START)
+    rule("rollout", "2026 rollout", "info", hold ? "Before 1 Oct 2026 only public/community housing – hold before assessment dispatch" : "Verified public/community housing – early rollout applies", { fact: f.publicHousingVerified ? "public/community housing (verified)" : "private/general", source: "rollout calendar", basis: f.publicHousingVerified ? "verified" : "unknown" });
+  if (hold) flags.push({ key: "rollout_hold", type: "operational", severity: "high", reason: "General rollout starts 1 Oct 2026 – do not dispatch assessment before then" });
+
+  const onsiteRequirements = [...new Set([...onsite, ...ONSITE_ALWAYS])];
+  let outcome: CustomerOutcome | null, nextAction: string;
+  const dispatch = hold ? "Hold until general rollout starts 1 Oct 2026, then assign electrician" : "Assign electrician";
+  if (failed.length) { outcome = "does_not_appear_eligible"; nextAction = "Review automatic ineligibility evidence before closing / override with reason"; }
+  else if (review.length) { outcome = null; nextAction = `Review required: ${review[0]}`; }
+  else if (onsite.length) { outcome = "needs_onsite_confirmation"; nextAction = `${dispatch} – confirm onsite: ${onsite.join("; ")}`; }
+  else { outcome = "likely_eligible"; nextAction = `${dispatch} – subject to onsite insulation, lighting and electrical confirmation`; }
+  const reviewRequired = !failed.length && review.length > 0;
+  return {
+    ruleset_version: GATE1_RULESET_VERSION, outcome, internalStatus: reviewRequired ? "review_required" : "auto_decided", reviewRequired,
+    passed, failed, review, onsite, onsiteRequirements, flags, rolloutHold: hold, rules, nextAction: nextAction.slice(0, 300), referenceDate: f.referenceDate ?? null,
+  };
+}
+
+/** Audit JSON stored in jobs.eligibility_decision_rules. */
+export function gate1Audit(d: Gate1Decision, facts: unknown, evaluatedAt: string) {
+  return {
+    ruleset_version: d.ruleset_version, customer_outcome: d.outcome, internal_status: d.internalStatus,
+    hard_failures: d.failed, review_reasons: d.review, onsite_requirements: d.onsiteRequirements, onsite_drivers: d.onsite,
+    flags: d.flags, rollout_hold: d.rolloutHold, rules: d.rules, next_action: d.nextAction,
+    evaluated_at: evaluatedAt, reference_date: d.referenceDate, facts,
+    // legacy keys kept for older readers
+    rules_passed: d.passed, rules_failed: d.failed, needs_review: d.review, decided_at: evaluatedAt,
+  };
+}
+/** Stable signature – re-evaluation writes only when this changes (idempotent sweeps). */
+export function gate1Signature(d: Pick<Gate1Decision, "outcome" | "internalStatus" | "failed" | "review" | "onsite" | "flags" | "rolloutHold">) {
+  return JSON.stringify([d.outcome, d.internalStatus, d.failed, d.review, d.onsite, d.flags.map((x) => x.key), d.rolloutHold]);
+}
+
+/** May the job progress past Gate 1? likely/onsite (system or admin) yes; review/fail/rollout-hold no. */
+export function eligibilityConfirmedFor(j: { eligibility_outcome: string | null; eligibility_decision_source: string | null; eligibility_set_by?: string | null; eligibility_review_required?: boolean | null; eligibility_flags?: unknown }, today: string): boolean {
+  const decided = !!j.eligibility_set_by || j.eligibility_decision_source === "system" || j.eligibility_decision_source === "admin";
+  if (!decided || j.eligibility_review_required) return false;
+  if (j.eligibility_outcome !== "likely_eligible" && j.eligibility_outcome !== "needs_onsite_confirmation") return false;
+  const flags = Array.isArray(j.eligibility_flags) ? (j.eligibility_flags as Gate1Flag[]) : [];
+  if (flags.some((x) => x?.key === "rollout_hold") && today < GENERAL_ROLLOUT_START) return false;
+  return true;
 }
 
 // ---------- Fact resolution from stored property/intake data (pure) ----------
@@ -120,6 +229,22 @@ export function classifyPremises(v: unknown): "residential" | "non_residential" 
 }
 const RESEARCH_DONE = new Set(["complete", "completed", "verified", "success", "done"]);
 
+/** Base44 answers.insulation -> none / present / unknown. */
+export function normaliseInsulation(v: unknown): "none" | "present" | "unknown" | null {
+  if (v === false) return "none"; if (v === true) return "present";
+  if (typeof v !== "string" || !v.trim()) return null;
+  const s = v.trim().toLowerCase();
+  if (/^(none|no|no insulation|nothing|not present)$/.test(s)) return "none";
+  if (/(unknown|unsure|not sure|don'?t know|dont know|maybe|n\/a)/.test(s)) return "unknown";
+  return "present";
+}
+const yesNo = (v: unknown): "yes" | "no" | "unknown" | null => {
+  if (v === true) return "yes"; if (v === false) return "no";
+  if (typeof v !== "string") return null;
+  const s = v.trim().toLowerCase();
+  return s === "yes" || s === "y" || s === "true" ? "yes" : s === "no" || s === "n" || s === "false" ? "no" : s ? "unknown" : null;
+};
+
 export type StoredProperty = { state: string | null; postcode: string | null; occupancy: string | null; is_residential: boolean | null; year_built: number | null; enrichment: Record<string, unknown> | null };
 
 /** Current Property Intelligence fact as stored in property_facts. */
@@ -131,12 +256,14 @@ export function trustedIntel(f: IntelFact | undefined): f is IntelFact {
 }
 const intelSrc = (f: IntelFact) => `property intelligence: ${f.source_name ?? f.source_type}${f.source_url ? ` (${f.source_url})` : ""}`;
 
-export function resolveGate1Facts(p: StoredProperty | null, job: { lifeSupportStatus: string | null; preliminaryOutcome: string | null }, minAge: number, currentYear: number, intel: IntelFact[] = []): Gate1Facts {
+export type Gate1JobInput = { lifeSupportStatus: string | null; preliminaryOutcome: string | null; referenceDate?: string | null; areaUnknown?: boolean | null };
+
+export function resolveGate1Facts(p: StoredProperty | null, job: Gate1JobInput, minAge: number, currentYear: number, intel: IntelFact[] = []): Gate1Facts {
   const base = resolveBaseFacts(p, job, minAge, currentYear);
   return applyIntelligence(base, intel, currentYear);
 }
 
-/** Property Intelligence feeds Gate 1 only where the portal/Base44 left a fact unknown AND the evidence is trusted. */
+/** Property Intelligence feeds Gate 1 only where the portal/Base44 left a fact unknown AND the evidence is trusted. Raising review is always allowed. */
 export function applyIntelligence(f: Gate1Facts, intel: IntelFact[], currentYear: number): Gate1Facts {
   const cur = intel.filter((i) => i.is_current && !i.is_stale);
   const get = (k: string) => cur.find((i) => i.fact_key === k);
@@ -147,10 +274,16 @@ export function applyIntelligence(f: Gate1Facts, intel: IntelFact[], currentYear
     out.state = inVic.value ? "VIC" : "OUTSIDE VIC";
     ev.location = { fact: inVic.value ? "Victoria (verified address)" : "outside Victoria (verified address)", source: intelSrc(inVic), basis: "verified" };
   }
+  if (addr && addr.value === false && !ev.location?.basis.startsWith("verified")) {
+    out.addressAmbiguous = true;
+    ev.address = { fact: "address not uniquely matched", source: intelSrc(addr), basis: "recorded" };
+  }
   const ncc = get("ncc_class_evidence");
   if (out.isResidential == null && !out.residentialNote && trustedIntel(ncc)) {
     if (ncc.value === "class1" || ncc.value === "class2_sou") { out.isResidential = true; ev.residential = { fact: `NCC ${ncc.value}`, source: intelSrc(ncc), basis: "verified" }; }
     else if (ncc.value === "not_eligible") { out.isResidential = false; ev.residential = { fact: "not Class 1 / Class 2 SOU", source: intelSrc(ncc), basis: "verified" }; }
+  } else if (out.isResidential === true && trustedIntel(ncc) && ncc.value === "not_eligible" && ev.residential?.basis === "declared") {
+    out.isResidential = null; out.residentialNote = "Owner type conflicts with trusted NCC class evidence – review";
   }
   const age = get("age_evidence");
   if (out.yearBuilt == null && out.verifiedMinAgeYears == null && trustedIntel(age)) {
@@ -159,23 +292,34 @@ export function applyIntelligence(f: Gate1Facts, intel: IntelFact[], currentYear
     if (yr && (v?.kind === "historical_imagery_same_footprint" || v?.kind === "direct_record")) {
       if (v.kind === "direct_record") { out.yearBuilt = yr; out.yearBuiltVerified = true; }
       else out.verifiedMinAgeYears = currentYear - yr;
-      ev.building_age = { fact: `${v.kind === "direct_record" ? "built" : "first appears"} ${yr}`, source: intelSrc(age), basis: "verified" };
+      ev.ceiling_age = { fact: `${v.kind === "direct_record" ? "built" : "first appears"} ${yr}`, source: intelSrc(age), basis: "verified" };
     }
   }
-  // Review-only flags may come from any current fact (raising review is always safe).
-  const roof = get("roof_form"), storey = get("another_storey_above_relevant_ceiling");
-  const roofFlag = roof?.value === "low_slope_flat" || roof?.value === "mixed", storeyFlag = storey?.value === "yes";
-  if (!out.flatRoofOrAccessConcern && (roofFlag || storeyFlag)) {
-    out.flatRoofOrAccessConcern = true;
-    ev.roof_access = { fact: roofFlag ? `roof form ${roof!.value}` : "storey above relevant ceiling", source: intelSrc((roofFlag ? roof : storey)!), basis: trustedIntel(roofFlag ? roof : storey) ? "verified" : "recorded" };
+  const ext = get("recent_extension_or_added_storey_risk");
+  if (ext?.value === "yes" && out.recentExtensionRisk !== "yes") {
+    out.recentExtensionRisk = "yes";
+    ev.ceiling_age = { fact: `${ev.ceiling_age?.fact ?? "age"}; recent extension risk`, source: intelSrc(ext), basis: trustedIntel(ext) ? "verified" : "recorded" };
   }
+  const nrc = get("no_relevant_ceiling");
+  if (trustedIntel(nrc) && nrc.value === true) { out.noRelevantCeilingDirect = true; ev.relevant_ceiling = { fact: "no relevant ceiling", source: intelSrc(nrc), basis: "verified" }; }
+  const storey = get("another_storey_above_relevant_ceiling");
+  if (storey?.value === "yes" && !out.noRelevantCeilingDirect) { out.storeyAboveIndicated = true; ev.relevant_ceiling = { fact: "storey above part of ceiling", source: intelSrc(storey), basis: trustedIntel(storey) ? "verified" : "recorded" }; }
+  const roof = get("roof_form");
+  if (!out.flatRoofOrAccessConcern && (roof?.value === "low_slope_flat" || roof?.value === "mixed")) {
+    out.flatRoofOrAccessConcern = true;
+    ev.roof_access = { fact: `roof form ${roof.value}`, source: intelSrc(roof), basis: trustedIntel(roof) ? "verified" : "recorded" };
+  }
+  const pa = get("previous_activity_48_confirmed");
+  if (trustedIntel(pa) && pa.value === true) out.previousActivity48Confirmed = true;
+  const ph = get("public_community_housing");
+  if (trustedIntel(ph) && ph.value === true) out.publicHousingVerified = true;
   return out;
 }
 
-function resolveBaseFacts(p: StoredProperty | null, job: { lifeSupportStatus: string | null; preliminaryOutcome: string | null }, minAge: number, currentYear: number): Gate1Facts {
+function resolveBaseFacts(p: StoredProperty | null, job: Gate1JobInput, minAge: number, currentYear: number): Gate1Facts {
   const e = (p?.enrichment ?? {}) as Record<string, unknown>;
-  const b = (e["base44"] ?? {}) as { declared?: Record<string, unknown>; research?: Record<string, unknown> };
-  const d = b.declared ?? {}, r = b.research ?? {};
+  const b = (e["base44"] ?? {}) as { declared?: Record<string, unknown>; research?: Record<string, unknown>; raw?: { answers?: Record<string, unknown> } };
+  const d = b.declared ?? {}, r = b.research ?? {}, answers = b.raw?.answers ?? {};
   const researchDone = typeof r["status"] === "string" && RESEARCH_DONE.has((r["status"] as string).toLowerCase());
   const evidence: Partial<Record<RuleKey, FactEvidence>> = {};
 
@@ -187,6 +331,8 @@ function resolveBaseFacts(p: StoredProperty | null, job: { lifeSupportStatus: st
   if (state || postcode) evidence.location = mapped
     ? { fact: `${[state, postcode].filter(Boolean).join(" ")}${r["formatted_address"] ? ` (${r["formatted_address"]})` : ""}`, source: "base44.property_research mapped address", basis: "verified" }
     : { fact: [state, postcode].filter(Boolean).join(" "), source: "properties (intake address)", basis: "recorded" };
+  const addressAmbiguous = r["address_ambiguous"] === true || r["address_match"] === "ambiguous";
+  if (addressAmbiguous) evidence.address = { fact: "ambiguous address match", source: "base44.property_research", basis: "recorded" };
 
   // Residential
   let isResidential = p?.is_residential ?? null, residentialNote: string | null = null;
@@ -204,22 +350,34 @@ function resolveBaseFacts(p: StoredProperty | null, job: { lifeSupportStatus: st
     evidence.residential = { fact: [researchClass && `research: ${r["premises_classification"]}`, declaredType && `owner: ${declaredType}`].filter(Boolean).join("; "), source: researchClass ? "base44.property_research" : "base44 owner declaration", basis: researchClass ? "verified" : "declared" };
   }
 
-  // Building age
+  // Relevant ceiling / structure age
   const yearBuiltVerified = e["year_built_verified"] === true;
   const fa = typeof r["first_appearance_year"] === "number" ? (r["first_appearance_year"] as number) : null;
   const verifiedMinAgeYears = researchDone && r["age_verified"] === true && fa ? currentYear - fa : null;
   const declaredOverMinAge = (["yes", "no", "unknown"].includes(d["over_five_years"] as string) ? d["over_five_years"] : null) as "yes" | "no" | "unknown" | null;
-  if (p?.year_built) evidence.building_age = { fact: `built ${p.year_built}`, source: "properties.year_built", basis: yearBuiltVerified ? "verified" : "recorded" };
-  else if (verifiedMinAgeYears != null) evidence.building_age = { fact: `first appears ${fa}${r["age_evidence_source"] ? ` (${r["age_evidence_source"]})` : ""}`, source: "base44.property_research", basis: "verified" };
-  else if (declaredOverMinAge) evidence.building_age = { fact: `owner: over 5 years = ${declaredOverMinAge}`, source: "base44 owner declaration", basis: "declared" };
+  if (p?.year_built) evidence.ceiling_age = { fact: `built ${p.year_built}`, source: "properties.year_built", basis: yearBuiltVerified ? "verified" : "recorded" };
+  else if (verifiedMinAgeYears != null) evidence.ceiling_age = { fact: `first appears ${fa}${r["age_evidence_source"] ? ` (${r["age_evidence_source"]})` : ""}`, source: "base44.property_research", basis: "verified" };
+  else if (declaredOverMinAge) evidence.ceiling_age = { fact: `owner: over 5 years = ${declaredOverMinAge}`, source: "base44 owner declaration", basis: "declared" };
+  const recentExtensionRisk = r["recent_extension_detected"] === true || e["recent_extension_risk"] === true ? "yes" : null;
 
-  // Previous upgrade: recorded enrichment value, else owner declaration.
+  // Previous upgrade / Activity 48
   let previousCeilingUpgrade: boolean | null = typeof e["previous_ceiling_insulation_upgrade"] === "boolean" ? (e["previous_ceiling_insulation_upgrade"] as boolean) : null;
-  if (previousCeilingUpgrade != null) evidence.previous_upgrade = { fact: previousCeilingUpgrade ? "yes" : "no", source: "properties.enrichment", basis: "recorded" };
+  if (previousCeilingUpgrade != null) evidence.previous_activity = { fact: previousCeilingUpgrade ? "yes" : "no", source: "properties.enrichment", basis: "recorded" };
   else if (d["previous_upgrade"] === "yes" || d["previous_upgrade"] === "no") {
     previousCeilingUpgrade = d["previous_upgrade"] === "yes";
-    evidence.previous_upgrade = { fact: `owner: ${d["previous_upgrade"]}`, source: "base44 owner declaration", basis: "declared" };
+    evidence.previous_activity = { fact: `owner: ${d["previous_upgrade"]}`, source: "base44 owner declaration", basis: "declared" };
   }
+  const previousActivity48Confirmed = e["previous_activity_48_confirmed"] === true;
+
+  // Relevant ceiling
+  const declaredTopFloor = yesNo(answers["top_floor"] ?? answers["is_top_floor"]);
+  const noRelevantCeilingDirect = e["no_relevant_ceiling"] === true;
+  if (noRelevantCeilingDirect) evidence.relevant_ceiling = { fact: "no relevant ceiling", source: "properties.enrichment", basis: "recorded" };
+
+  // Insulation
+  const declaredInsulation = normaliseInsulation(answers["insulation"] ?? answers["existing_insulation"]);
+  const vi = e["insulation_verified"];
+  const verifiedInsulation = vi === "qualifying" || vi === "disqualifying" ? vi : null;
 
   const detectedFlat = r["flat_roof_detected"] === true || r["access_concern_detected"] === true;
   const flat = e["flat_roof"] === true || e["access_concern"] === true || detectedFlat;
@@ -229,5 +387,8 @@ function resolveBaseFacts(p: StoredProperty | null, job: { lifeSupportStatus: st
     state, postcode, occupancy: p?.occupancy ?? null, isResidential, yearBuilt: p?.year_built ?? null, yearBuiltVerified,
     minBuildingAgeYears: minAge, lifeSupportStatus: job.lifeSupportStatus, previousCeilingUpgrade, flatRoofOrAccessConcern: flat,
     preliminaryOutcome: job.preliminaryOutcome, currentYear, verifiedMinAgeYears, declaredOverMinAge, residentialNote, evidence,
+    addressAmbiguous, declaredPropertyType: declaredType, declaredTopFloor, noRelevantCeilingDirect, recentExtensionRisk,
+    previousActivity48Confirmed, declaredInsulation, verifiedInsulation, areaKnown: job.areaUnknown == null ? null : !job.areaUnknown,
+    publicHousingVerified: e["public_community_housing_verified"] === true, referenceDate: job.referenceDate ?? null,
   };
 }

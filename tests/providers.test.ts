@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { ageStatusFor, canReplace, gate1InputFromFacts, recommendGate1, selectCurrentEstimate } from "../src/lib/intelligence.core";
+import { evaluateGate1 } from "../src/lib/eligibility.core";
 import { gatherEvidence, type FetchJson } from "../src/lib/intelligence.gather";
 import { analyseNearmap, mayCopyFile, parsePricefinderExtended, parseSolar, parseStoragePolicy, planFloorplans, resolvePricefinder, type SolarInsights } from "../src/lib/providers.core";
 import { providerConfigFromEnv, providerStatuses, runProviders, type ProviderHttp } from "../src/lib/providers.gather";
@@ -60,7 +61,9 @@ describe("licensed providers", () => {
     const flat = { ...SOLAR, solarPotential: { ...SOLAR.solarPotential, roofSegmentStats: [{ pitchDegrees: 3, stats: { groundAreaMeters2: 180 } }] } };
     const f = parseSolar(flat, POINT, false).facts;
     expect(f.find((x) => x.key === "roof_form")?.value).toBe("low_slope_flat");
-    expect(recommendGate1(gate1InputFromFacts(f, "2026-09-28")).outcome).toBe("needs_onsite_confirmation");
+    const r = recommendGate1(gate1InputFromFacts(f, "2026-09-28"));
+    expect(r.outcome).not.toBe("does_not_appear_eligible");
+    expect(evaluateGate1(gate1InputFromFacts(f, "2026-09-28")).flags.map((x) => x.key)).toContain("roof_access_review");
   });
   test("centre/parcel mismatch rejects Solar", () => {
     const far = { ...SOLAR, center: { latitude: -37.8990, longitude: 145.2650 } };
@@ -81,7 +84,8 @@ describe("licensed providers", () => {
   test("Pricefinder yearBuilt cannot hard-pass age", () => {
     const f = parsePricefinderExtended({ features: { yearBuilt: 1970 } }, "1").facts[0];
     expect(ageStatusFor(f.value as never, "2026-09-28")).toBe("supporting_over_5y");
-    expect(recommendGate1({ addressVerified: true, inVictoria: true, residentialLikelihood: "high", nccClass: { value: "class1", direct: true }, ageStatus: "supporting_over_5y", recentExtensionRisk: "no", roofForm: "pitched", roofCavityOrExposed: "likely", storeyAbove: "no", noRelevantCeilingDirect: false }).outcome).toBe("needs_onsite_confirmation");
+    const d = evaluateGate1(gate1InputFromFacts([{ key: "age_evidence", value: f.value, status: "ok", sourceType: "provider", sourceName: "Pricefinder", confidence: "high", evidence: f.evidence }] as never, "2026-09-28"));
+    expect(d.rules.find((r) => r.key === "ceiling_age")?.result).toBe("review");
   });
   test("Nearmap historical same footprint => strong >5y direct evidence", () => {
     const f = analyseNearmap([{ id: "s1", captureDate: "2019-02-01", buildingFootprintM2: 180 }, { id: "s2", captureDate: "2026-06-01", buildingFootprintM2: 183 }], "2026-09-28");
@@ -92,7 +96,8 @@ describe("licensed providers", () => {
   test("Nearmap recent change flags extension risk and prevents auto-pass", () => {
     const f = analyseNearmap([{ id: "s1", captureDate: "2019-02-01", buildingFootprintM2: 150 }, { id: "s2", captureDate: "2024-06-01", buildingFootprintM2: 210 }], "2026-09-28");
     expect(f.find((x) => x.key === "recent_extension_or_added_storey_risk")?.value).toBe("yes");
-    expect(recommendGate1(gate1InputFromFacts(f, "2026-09-28")).outcome).toBe("needs_onsite_confirmation");
+    const d = evaluateGate1(gate1InputFromFacts(f, "2026-09-28"));
+    expect(d.reviewRequired).toBe(true); expect(d.rules.find((r) => r.key === "ceiling_age")?.result).toBe("review");
   });
   test("no credentials => provider_not_configured, not errors", async () => {
     const cfg = providerConfigFromEnv({});

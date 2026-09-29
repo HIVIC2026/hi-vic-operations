@@ -47,7 +47,7 @@ function JobDetail() {
       <div className="mb-3 flex flex-wrap gap-1.5">
         <StageBadge stage={job.stage} /><PaymentBadge status={job.payment_status} /><UrgencyBadge urgency={job.urgency} days={job.days_remaining} /><SourceBadge channel={job.channel} business={job.originating_business_name} />
         {job.life_support && <Pill t="bad"><HeartPulse className="mr-1 h-3 w-3" /> Life support</Pill>}
-        {job.eligibility_outcome && <Pill t="info">{ELIGIBILITY_LABEL[job.eligibility_outcome]}</Pill>}
+        {job.eligibility_review_required ? <Pill t="warn">Gate 1 REVIEW REQUIRED</Pill> : job.eligibility_outcome && <Pill t="info">{ELIGIBILITY_LABEL[job.eligibility_outcome]}</Pill>}
       </div>
       <div className="mb-4"><BlockersPanel jobId={jobId} /></div>
       <Tabs defaultValue="overview">
@@ -109,9 +109,9 @@ function EligibilityForm({ jobId }: { jobId: string }) {
       <dl className="mb-3 grid grid-cols-2 gap-1 text-sm">
         <dt className="text-muted-foreground">Occupancy</dt><dd>{p?.occupancy?.replace("_", "-") ?? "—"}</dd>
         <dt className="text-muted-foreground">Residential</dt><dd>{p?.is_residential == null ? "To verify" : p.is_residential ? "Yes" : "No (commercial)"}</dd>
-        <dt className="text-muted-foreground">Year built</dt><dd>{p?.year_built ?? "To verify"}{p?.year_built && new Date().getFullYear() - p.year_built < 5 && <Pill t="bad" className="ml-1">&lt; 5 yrs</Pill>}</dd>
+        <dt className="text-muted-foreground">Year built (relevant ceiling may differ)</dt><dd>{p?.year_built ?? "To verify"}{p?.year_built && new Date().getFullYear() - p.year_built < 5 && <Pill t="bad" className="ml-1">&lt; 5 yrs</Pill>}</dd>
         <dt className="text-muted-foreground">Est. area</dt><dd>{data.estimated_area_unknown ? "Unknown" : `${data.estimated_area_m2} m²`}</dd>
-        <dt className="text-muted-foreground">Current</dt><dd>{data.eligibility_outcome ? ELIGIBILITY_LABEL[data.eligibility_outcome] : "Not set"}</dd>
+        <dt className="text-muted-foreground">Current</dt><dd>{data.eligibility_review_required ? "Review required (no customer category yet)" : data.eligibility_outcome ? ELIGIBILITY_LABEL[data.eligibility_outcome] : "Not set"}</dd>
       </dl>
       {data.eligibility_reason && <p className="mb-3 rounded bg-muted p-2 text-sm">{data.eligibility_reason}</p>}
       <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); if (outcome) save({ jobId, outcome, reason, nextAction: next }, "Eligibility saved"); }}>

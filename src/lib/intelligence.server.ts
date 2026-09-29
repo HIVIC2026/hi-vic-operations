@@ -2,21 +2,18 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { logEvent } from "./workflow.server";
-import { RULESET, STALE_AFTER_DAYS, addressHash, canReplace, completeness, gate1InputFromFacts, recommendGate1, selectCurrentEstimate, type AreaTier, type Fact } from "./intelligence.core";
+import { RULESET, STALE_AFTER_DAYS, addressHash, canReplace, completeness, selectCurrentEstimate, type AreaTier, type Fact } from "./intelligence.core";
+import { autoDecideEligibility, evaluateJobGate1, referenceDate } from "./eligibility.server";
+import type { Gate1Decision } from "./eligibility.core";
+
+/** Store the AUTHORITATIVE categorisation as the run's diagnostic summary (never an independent decision). */
+const runSummary = (d: Gate1Decision | null) => d ? { result: d.outcome ?? "review_required", result_reason: (d.failed.length ? d.failed : d.review.length ? d.review : d.onsite).join(" • ") || null, next_action: d.nextAction } : { result: null, result_reason: null, next_action: null };
 import { defaultProviderHttp, providerConfigFromEnv, type ProviderHttp } from "./providers.gather";
 import { mayCopyFile } from "./providers.core";
 import { defaultFetchJson, gatherEvidence, type EvidenceProvider, type FetchJson } from "./intelligence.gather";
 
 /** No floor-plan / listing / imagery provider is configured yet (never scrape unknown portals). */
 export function configuredProvider(): EvidenceProvider | null { return null; }
-
-const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date());
-
-async function referenceDate(jobId: string): Promise<{ date: string; basis: string }> {
-  const { data } = await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle();
-  if (data?.scheduled_start) return { date: new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date(data.scheduled_start)), basis: "installation_booking" };
-  return { date: today(), basis: "today" };
-}
 
 const hash = async (v: unknown) => { const b = new TextEncoder().encode(JSON.stringify(v ?? null)); const d = await crypto.subtle.digest("SHA-256", b); return [...new Uint8Array(d)].map((x) => x.toString(16).padStart(2, "0")).join(""); };
 
@@ -75,13 +72,14 @@ export async function runPropertyIntelligence(jobId: string, actorId: string | n
       await admin.from("property_floorplans").upsert({ ...fp, metadata: fp.metadata as Json, job_id: jobId, property_id: job.property_id, run_id: run.id, storage_policy: g.storagePolicy, storage_path, retrieved_at: new Date().toISOString() }, { onConflict: "job_id,provider,provider_image_id" });
     }
 
-    const rec = recommendGate1(gate1InputFromFacts(facts, ref.date));
+    const rec = await evaluateJobGate1(jobId, ref.date);
+    const sum = runSummary(rec);
     const failedSources = g.checks.filter((c) => c.status === "error" || c.status === "timeout");
     const status = failedSources.length ? "partial" : "complete";
-    await admin.from("property_intelligence_runs").update({ status, result: rec.outcome, result_reason: rec.reasons.join(" • "), next_action: rec.nextAction, completeness_pct: completeness(facts), completed_at: new Date().toISOString(), error_summary: failedSources.map((c) => `${c.source_key}: ${c.error}`).join("; ") || null }).eq("id", run.id);
-    await logEvent(jobId, actorId, "property_intelligence_run", `Property intelligence (${status}): preliminary ${rec.outcome.replace(/_/g, " ")} – information only, admin confirms Gate 1`, { run_id: run.id, trigger, ruleset: RULESET.version, reference_date: ref.date, reasons: rec.reasons, sources: g.checks }, { internal: true });
+    await admin.from("property_intelligence_runs").update({ status, ...sum, completeness_pct: completeness(facts), completed_at: new Date().toISOString(), error_summary: failedSources.map((c) => `${c.source_key}: ${c.error}`).join("; ") || null }).eq("id", run.id);
+    await logEvent(jobId, actorId, "property_intelligence_run", `Property intelligence (${status}): evidence gathered – Gate 1 now ${String(sum.result ?? "unknown").replace(/_/g, " ")} (single Gate 1 engine)`, { run_id: run.id, trigger, ruleset: RULESET.version, reference_date: ref.date, reasons: sum.result_reason, sources: g.checks }, { internal: true });
     // Feed the single deterministic Gate 1 decider (it only uses trusted direct evidence; anything else stays review).
-    try { const { autoDecideEligibility } = await import("./eligibility.server"); await autoDecideEligibility(jobId); } catch { /* never fail the run */ }
+    try { await autoDecideEligibility(jobId); } catch { /* never fail the run */ }
     return { runId: run.id, status, recommendation: rec };
   } catch (e) {
     await admin.from("property_intelligence_runs").update({ status: "error", error_summary: (e as Error).message.slice(0, 500), completed_at: new Date().toISOString() }).eq("id", run.id);
@@ -97,10 +95,12 @@ export async function reevaluateIntelligence(jobId: string, actorId: string | nu
   const { data: rows } = await admin.from("property_facts").select("*").eq("job_id", jobId).eq("is_current", true);
   const facts: Fact[] = (rows ?? []).map((r) => ({ key: r.fact_key, value: r.value, status: r.check_status as Fact["status"], sourceType: r.source_type as Fact["sourceType"], sourceName: r.source_name, confidence: r.confidence as Fact["confidence"], evidence: r.evidence_kind as Fact["evidence"] }));
   const ref = await referenceDate(jobId);
-  const rec = recommendGate1(gate1InputFromFacts(facts, ref.date));
-  await admin.from("property_intelligence_runs").update({ result: rec.outcome, result_reason: rec.reasons.join(" • "), next_action: rec.nextAction, reference_date: ref.date, reference_date_basis: ref.basis }).eq("id", last.id);
-  if (rec.outcome !== last.result || ref.date !== last.reference_date)
-    await logEvent(jobId, actorId, "property_intelligence_reevaluated", `Gate 1 recommendation re-evaluated (${why}): ${rec.outcome.replace(/_/g, " ")} for reference date ${ref.date}`, { run_id: last.id, previous: last.result, reasons: rec.reasons }, { internal: true });
+  void facts;
+  const rec = await evaluateJobGate1(jobId, ref.date);
+  const sum = runSummary(rec);
+  await admin.from("property_intelligence_runs").update({ ...sum, reference_date: ref.date, reference_date_basis: ref.basis }).eq("id", last.id);
+  if (sum.result !== last.result || ref.date !== last.reference_date)
+    await logEvent(jobId, actorId, "property_intelligence_reevaluated", `Gate 1 re-evaluated (${why}): ${String(sum.result).replace(/_/g, " ")} for reference date ${ref.date}`, { run_id: last.id, previous: last.result, reasons: sum.result_reason }, { internal: true });
   return rec;
 }
 

@@ -37,7 +37,7 @@ export const setEligibility = createServerFn({ method: "POST" }).middleware([req
   )
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { AUTO_FAIL_HOLD_PREFIX } = await import("./eligibility.server");
+    const { AUTO_FAIL_HOLD_PREFIX, refreshGate1Flags } = await import("./eligibility.server");
     const { data: before } = await admin.from("jobs").select("stage, prior_stage, hold_reason, eligibility_outcome, eligibility_decision_source, eligibility_decision_rules").eq("id", data.jobId).single();
     if (!before) throw new WorkflowError("Job not found");
     // Admin correction of a system auto-fail: release the automatic hold back to Gate 1.
@@ -46,14 +46,18 @@ export const setEligibility = createServerFn({ method: "POST" }).middleware([req
       await logEvent(data.jobId, context.userId, "stage_changed", "Auto-fail hold released by admin for Gate 1 correction", { reason: data.reason }, { from: "on_hold", to: before.prior_stage ?? "eligibility_review" });
     }
     let stage = await getStage(data.jobId);
-    await admin.from("jobs").update({ eligibility_outcome: data.outcome, eligibility_reason: data.reason, next_action: data.nextAction, eligibility_set_by: context.userId, eligibility_set_at: new Date().toISOString(), eligibility_decision_source: "admin" }).eq("id", data.jobId);
+    await admin.from("jobs").update({ eligibility_outcome: data.outcome, eligibility_reason: data.reason, next_action: data.nextAction, eligibility_set_by: context.userId, eligibility_set_at: new Date().toISOString(), eligibility_decision_source: "admin", eligibility_review_required: false }).eq("id", data.jobId);
+    const gate = await refreshGate1Flags(data.jobId); // safety/operational flags + 2026 rollout hold (admin outcome stands)
     const overriding = before.eligibility_decision_source === "system";
     await logEvent(data.jobId, context.userId, overriding ? "eligibility_override" : "eligibility_set", `${overriding ? "Admin override of system Gate 1 decision" : "Eligibility"}: ${data.outcome.replaceAll("_", " ")}`, { reason: data.reason, next_action: data.nextAction, previous_outcome: before.eligibility_outcome, previous_source: before.eligibility_decision_source, previous_rules: before.eligibility_decision_rules });
     if (data.outcome === "does_not_appear_eligible" && stage === "awaiting_electrician") {
       await transition(data.jobId, "eligibility_review", context.userId, "Admin corrected Gate 1 – back to eligibility review", { reason: data.reason }, { nextAction: data.nextAction });
       stage = "eligibility_review";
     }
-    if (data.outcome !== "does_not_appear_eligible" && (stage === "new_enquiry" || stage === "eligibility_review")) {
+    if (data.outcome !== "does_not_appear_eligible" && gate?.rolloutHold && (stage === "new_enquiry" || stage === "eligibility_review")) {
+      if (stage === "new_enquiry") await transition(data.jobId, "eligibility_review", context.userId, "Eligibility set – held until general rollout starts 1 Oct 2026", {}, { nextAction: "Hold until general rollout starts 1 Oct 2026, then assign electrician" });
+      await logEvent(data.jobId, context.userId, "gate1_rollout_hold", "Assessment dispatch held: general rollout starts 1 Oct 2026", { flags: gate.flags }, { internal: true });
+    } else if (data.outcome !== "does_not_appear_eligible" && (stage === "new_enquiry" || stage === "eligibility_review")) {
       await transition(data.jobId, "awaiting_electrician", context.userId, "Eligibility passed – awaiting electrician", {}, { nextAction: data.nextAction });
       // Owner Authority is no longer requested before assessment; acceptance happens at quote acceptance.
     } else if (stage === "new_enquiry") {
@@ -972,7 +976,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const [{ data: job }, { data: consents }, { data: media }, { data: fails }] = await Promise.all([
-      admin.from("jobs").select("external_enquiry_id, source, life_support_status, estimated_area_m2, estimated_area_unknown, eligibility_outcome, eligibility_reason, properties(state, occupancy, enrichment)").eq("id", data.jobId).single(),
+      admin.from("jobs").select("external_enquiry_id, source, life_support_status, estimated_area_m2, estimated_area_unknown, eligibility_outcome, eligibility_reason, eligibility_decision_source, properties(state, occupancy, enrichment)").eq("id", data.jobId).single(),
       admin.from("owner_contact_consents").select("consent_status, consent_version, consented_at, age_confirmed, assistance, contact_preference, created_at, sha256").eq("job_id", data.jobId).order("created_at", { ascending: false }).limit(1),
       admin.from("documents").select("id, title, mime_type, storage_path, original_name, size_bytes").eq("job_id", data.jobId).eq("source_system", "base44").order("created_at"),
       admin.from("workflow_events").select("created_at, summary").eq("job_id", data.jobId).eq("event_type", "base44_media_copy_failed").order("created_at", { ascending: false }).limit(1),
@@ -988,7 +992,8 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       lifeSupport: job?.life_support_status ?? null, area: job?.estimated_area_unknown ? null : job?.estimated_area_m2 ?? null,
       consent: consents?.[0] ?? null, declared: b44?.declared ?? null,
       declaredExtras: (await import("./enquiry.core")).declaredExtras(b44?.raw?.answers ?? null),
-      screening: { outcome: job?.eligibility_outcome ?? null, reasons: job?.eligibility_reason ?? null, raw: b44?.raw?.screening ?? null },
+      // Preliminary website screening only – never the authoritative Step-2 category.
+      screening: (() => { const prelim = job?.eligibility_decision_source !== "system" && job?.eligibility_decision_source !== "admin"; const raw = b44?.raw?.screening ?? null; return { outcome: prelim ? job?.eligibility_outcome ?? null : (typeof raw?.status === "string" ? raw.status : null), reasons: prelim ? job?.eligibility_reason ?? null : null, raw }; })(),
       research: b44?.research ?? null, media: links, lastMediaFailure: fails?.[0] ?? null,
       raw: b44?.raw ?? null,
     })) as {
