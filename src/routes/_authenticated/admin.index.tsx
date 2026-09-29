@@ -32,6 +32,8 @@ function Pipeline() {
   const [showExceptions, setShowExceptions] = useState(false);
   const commsStatus = useServerFn(getCommsStatus);
   const { data: comms } = useQuery({ queryKey: ["comms_status"], queryFn: () => commsStatus() });
+  const postIntakeHealth = useServerFn(getPostIntakeHealth);
+  const { data: intakeHealth } = useQuery({ queryKey: ["post_intake_health"], queryFn: () => postIntakeHealth(), refetchInterval: 60_000 });
   const [phase, setPhase] = useState<Phase | "all">("all");
   const { data: allJobs = [] } = useQuery({
     queryKey: ["pipeline"],
@@ -62,6 +64,27 @@ function Pipeline() {
         <div role="alert" className="mb-4 rounded-lg border-2 border-warning bg-warning-soft px-4 py-3 text-sm font-bold uppercase tracking-wide text-accent-foreground">
           PRE-LAUNCH — customer communications disabled
           <span className="ml-2 font-normal normal-case tracking-normal">No email, SMS or notification is sent to customers or trades. Internal workflow changes still apply.</span>
+        </div>
+      )}
+      {intakeHealth && (
+        <div data-testid="post-intake-health" className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border bg-card px-4 py-2 text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">Intake worker</span>
+          <span>Queued: <b className="text-foreground">{intakeHealth.counts.queued}</b></span>
+          <span>Running: <b className="text-foreground">{intakeHealth.counts.running}</b></span>
+          <span className={intakeHealth.counts.stale > 0 ? "text-warning font-semibold" : ""}>Stale: <b>{intakeHealth.counts.stale}</b></span>
+          <span className={intakeHealth.counts.failed > 0 ? "text-danger font-semibold" : ""}>Failed: <b>{intakeHealth.counts.failed}</b></span>
+          {intakeHealth.counts.retry_waiting > 0 && <span>Retrying: <b className="text-foreground">{intakeHealth.counts.retry_waiting}</b></span>}
+          <span className="ml-auto">
+            Last worker run:{" "}
+            {intakeHealth.lastWorkerRun ? (
+              <b className={intakeHealth.lastWorkerRun.status === "error" ? "text-danger" : "text-foreground"}>
+                {new Date(intakeHealth.lastWorkerRun.created_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}
+                {intakeHealth.lastWorkerRun.status === "error" && " (failed)"}
+              </b>
+            ) : (
+              <b className="text-warning">never</b>
+            )}
+          </span>
         </div>
       )}
       <div className="mb-4 flex flex-wrap items-center gap-3">
