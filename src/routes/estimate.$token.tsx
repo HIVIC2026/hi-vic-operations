@@ -29,7 +29,7 @@ export const Route = createFileRoute("/estimate/$token")({
   component: PublicEstimatePage,
 });
 
-type Payload = { job: { job_number: string | null; address: string | null }; estimate: CustomerData; referralShareUrl: string | null; assessment: AssessmentAcceptanceState | null } | null;
+type Payload = { job: { job_number: string | null; address: string | null }; estimate: CustomerData; referralShareUrl: string | null; assessment: AssessmentAcceptanceState | null; assessmentTestMode: boolean } | null;
 
 function PublicEstimatePage() {
   const { token } = Route.useParams();
@@ -63,7 +63,7 @@ function PublicEstimatePage() {
           : <>
              {(data.job.address || data.job.job_number) && <p className="mb-4 px-1 text-xs font-medium text-estimate-navy/70">{data.job.address}{data.job.address && data.job.job_number ? " · " : ""}{data.job.job_number}</p>}
              {showConfirm
-               ? <ConfirmQuote estimatedPrice={standard.estimated_customer_total} assessmentFee={fee} state={data.assessment} busy={busy} error={actionError} onAccept={acceptCurrent} onTestPayment={simulatePayment} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
+               ? <ConfirmQuote estimatedPrice={standard.estimated_customer_total} assessmentFee={fee} state={data.assessment} testMode={data.assessmentTestMode} busy={busy} error={actionError} onAccept={acceptCurrent} onTestPayment={simulatePayment} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
                 : <div className="estimate-offset overflow-hidden rounded-2xl border border-estimate-blue-soft bg-estimate-white px-5 py-7 sm:px-10 sm:py-11"><CustomerEstimate data={data.estimate} publicPage propertyAddress={data.job.address} onCalculatorUse={onCalculatorUse} /></div>}
              {!showConfirm && data.referralShareUrl && <ReferralShare url={data.referralShareUrl} />}
           </>}

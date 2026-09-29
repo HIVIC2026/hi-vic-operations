@@ -22,11 +22,11 @@ export const getOwnerEstimate = createServerFn({ method: "POST" }).middleware([r
   });
 
 /** Public, no-login: the token is the only credential. Generic null on any failure. */
-export const getPublicEstimate = createServerFn({ method: "POST" })
+export const getPublicEstimate = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token: z.string().max(200) }).parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { resolvePublicEstimate } = await import("./estimatelink.server");
-    return JSON.parse(JSON.stringify(await resolvePublicEstimate(data.token)));
+    return JSON.parse(JSON.stringify(await resolvePublicEstimate(data.token, context.assessmentTestMode)));
   });
 
 export const acceptPreAssessment = createServerFn({ method: "POST" }).middleware([withRequestMeta])

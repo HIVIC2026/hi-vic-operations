@@ -64,20 +64,16 @@ export async function acceptAssessment(token: unknown, meta: RequestMeta = {}) {
     customer_total_inc_gst: total, estimated_discount_inc_gst: Number(ctx.estimate.applied_discount), assessment_amount_inc_gst: ASSESSMENT_PAYMENT_AMOUNT,
     estimated_remaining_balance_inc_gst: remaining, labels: CUSTOMER_QUOTE_LABELS, payment_copy: CUSTOMER_PAYMENT_COPY, what_could_change: CUSTOMER_WHAT_COULD_CHANGE,
   };
-  const { data: acceptance, error } = await admin.from("assessment_acceptances").insert({
-    job_id: ctx.link.job_id, estimate_id: ctx.estimate.id, estimate_input_signature: ctx.estimate.input_signature,
-    estimate_settings_version: ctx.estimate.settings_version, customer_total_inc_gst: total, estimated_discount_inc_gst: Number(ctx.estimate.applied_discount),
-    assessment_amount_inc_gst: ASSESSMENT_PAYMENT_AMOUNT, estimated_remaining_balance_inc_gst: remaining, copy_version: ASSESSMENT_ACCEPTANCE_COPY_VERSION,
-    snapshot: snapshot as unknown as Json, accepted_ip: meta.ip ?? null, accepted_user_agent: meta.userAgent ?? null,
-  }).select("*").single();
-  if (error) {
-    if (/duplicate/i.test(error.message)) return loadAcceptance(ctx.link.job_id, ctx.estimate.id);
-    throw new Error(error.message);
-  }
-  const { data: payment, error: paymentError } = await admin.from("assessment_payments").insert({ acceptance_id: acceptance.id, job_id: ctx.link.job_id, amount_inc_gst: ASSESSMENT_PAYMENT_AMOUNT }).select("*").single();
-  if (paymentError) throw new Error(paymentError.message);
-  await logOnce(ctx.link.job_id, `pre_assessment_accepted:${acceptance.id}`, "pre_assessment_accepted", "Customer accepted the Measure + PIESA assessment", { acceptance_id: acceptance.id, estimate_id: ctx.estimate.id, amount_inc_gst: ASSESSMENT_PAYMENT_AMOUNT });
-  return publicState(acceptance as Record<string, unknown>, payment as Record<string, unknown>, ctx.estimate.id);
+  const { error } = await admin.rpc("accept_pre_assessment_test", {
+    _job_id: ctx.link.job_id, _estimate_id: ctx.estimate.id, _estimate_input_signature: ctx.estimate.input_signature,
+    _estimate_settings_version: ctx.estimate.settings_version, _customer_total: total, _estimated_discount: Number(ctx.estimate.applied_discount),
+    _estimated_remaining: remaining, _copy_version: ASSESSMENT_ACCEPTANCE_COPY_VERSION, _snapshot: snapshot as unknown as Json,
+    _accepted_ip: meta.ip ?? undefined, _accepted_user_agent: meta.userAgent ?? undefined,
+  });
+  if (error) throw new Error(error.message);
+  const created = await loadAcceptance(ctx.link.job_id, ctx.estimate.id);
+  if (!created) throw new Error("Assessment acceptance unavailable");
+  return created;
 }
 
 async function logOnce(jobId: string, auditKey: string, eventType: string, summary: string, details: Record<string, unknown>) {
@@ -95,20 +91,14 @@ export async function simulateAssessmentPayment(token: unknown, outcome: TestPay
   if (!state) throw new Error("Accept the current estimate before payment.");
   if (state.stale) throw new Error("Your estimate changed. Please review and accept the updated estimate before paying.");
   if (state.paymentStatus === "paid") return state;
-  const { data: replay } = await admin.from("assessment_payment_attempts").select("id").eq("payment_id", state.paymentId).eq("idempotency_key", idempotencyKey).maybeSingle();
-  if (replay) return state;
   const next = testPaymentTransition(state.paymentStatus, outcome);
-  const now = new Date().toISOString();
-  const { error: attemptError } = await admin.from("assessment_payment_attempts").insert({ payment_id: state.paymentId, job_id: ctx.link.job_id, idempotency_key: idempotencyKey, outcome });
-  if (attemptError && !/duplicate/i.test(attemptError.message)) throw new Error(attemptError.message);
-  const patch = next === "paid" ? { status: next, paid_at: now, attempt_count: 1 } : { status: next, failed_at: now, attempt_count: 1 };
-  const { data: payment, error } = await admin.from("assessment_payments").update(patch).eq("id", state.paymentId).neq("status", "paid").select("*").maybeSingle();
+  const { data: result, error } = await admin.rpc("apply_pre_assessment_test_payment", { _payment_id: state.paymentId, _idempotency_key: idempotencyKey, _outcome: outcome });
   if (error) throw new Error(error.message);
-  const actual = payment ?? (await admin.from("assessment_payments").select("*").eq("id", state.paymentId).single()).data;
-  if (!actual) throw new Error("Assessment payment unavailable");
-  await logOnce(ctx.link.job_id, `pre_assessment_payment:${state.paymentId}:${idempotencyKey}`, next === "paid" ? "pre_assessment_payment_received" : "pre_assessment_payment_failed", next === "paid" ? "$349 Measure + PIESA test payment received" : "$349 Measure + PIESA test payment failed", { payment_id: state.paymentId, acceptance_id: state.acceptanceId, amount_inc_gst: ASSESSMENT_PAYMENT_AMOUNT, mode: "test", idempotency_key: idempotencyKey });
-  if (next === "paid") await advanceAfterAssessmentPayment(ctx.link.job_id, state.paymentId);
-  return publicState({ id: state.acceptanceId, estimate_id: state.estimateId, accepted_at: state.acceptedAt, estimated_remaining_balance_inc_gst: state.estimatedRemainingBalanceIncGst }, actual as Record<string, unknown>, ctx.estimate.id);
+  const transition = result?.[0];
+  if (next === "paid" && transition?.changed) await advanceAfterAssessmentPayment(ctx.link.job_id, state.paymentId);
+  const updated = await loadAcceptance(ctx.link.job_id, ctx.estimate.id);
+  if (!updated) throw new Error("Assessment payment unavailable");
+  return updated;
 }
 
 async function advanceAfterAssessmentPayment(jobId: string, paymentId: string) {
