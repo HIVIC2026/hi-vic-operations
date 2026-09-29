@@ -75,6 +75,19 @@ describe("pre-assessment acceptance and test payment", () => {
     expect(calc).not.toMatch(/\.insert\(|\.update\(|\.upsert\(/);
   });
 
+  test("test controls are host-gated and require explicit acknowledgement", () => {
+    const requestMeta = readFileSync("src/lib/request-meta.ts", "utf8");
+    const functions = readFileSync("src/lib/estimate.functions.ts", "utf8");
+    const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
+    expect(requestMeta).toContain("assessmentTestMode");
+    expect(functions).toContain('if (!context.assessmentTestMode) throw new Error("Pre-assessment payments are not live.")');
+    expect(functions).toContain('if (!context.assessmentTestMode) throw new Error("Test payments are unavailable.")');
+    expect(ui).toContain("checked={!!state || acknowledged}");
+    expect(ui).toContain("disabled={!acknowledged || busy || !onAccept}");
+    expect(ui).toContain("PAY $349 & CONTINUE →");
+    expect(ui).toContain("PAYMENT CURRENTLY UNAVAILABLE");
+  });
+
   test("existing final installation deposit and Xero rules remain present", () => {
     const workflow = readFileSync("src/lib/workflow.server.ts", "utf8");
     const xero = readFileSync("src/lib/xero.server.ts", "utf8");

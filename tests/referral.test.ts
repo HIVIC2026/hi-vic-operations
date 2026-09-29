@@ -66,7 +66,7 @@ describe("customer payload + emails", () => {
     const url = referralShareUrl(newReferralToken());
     const p = publicPayload({ job_number: "HV-1", address: "1 St" }, { visible: true }, url);
     expect(p.referralShareUrl).toBe(url);
-    expect(Object.keys(p).sort()).toEqual(["estimate", "job", "referralShareUrl"]);
+    expect(Object.keys(p).sort()).toEqual(["assessment", "estimate", "job", "referralShareUrl"]);
     expect(src("src/lib/referral.server.ts")).toMatch(/Full share URL only/);
   });
   test("estimate email referral strip only when supplied", () => {
