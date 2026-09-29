@@ -48,7 +48,7 @@ function job(opts: { email?: string; linkExpires?: number; linkStatus?: string; 
   return { jobId, linkId };
 }
 beforeEach(() => {
-  tables = { jobs: [], customer_estimate_links: [], customer_email_sends: [], customer_followups: [], engagement_tracking_tokens: [], customer_engagement_events: [], customer_referral_tokens: [], customer_referral_events: [], workflow_events: [], customer_email_optouts: [], owner_contact_consents: [], customer_delivery_settings: [{ id: 1, jobs_created_after: "2026-01-01T00:00:00Z" }] };
+  tables = { jobs: [], post_intake_work: [], customer_estimate_links: [], customer_email_sends: [], customer_followups: [], engagement_tracking_tokens: [], customer_engagement_events: [], customer_referral_tokens: [], customer_referral_events: [], workflow_events: [], customer_email_optouts: [], owner_contact_consents: [], customer_delivery_settings: [{ id: 1, jobs_created_after: "2026-01-01T00:00:00Z" }] };
   db = fakeDb(tables, {
     claim_customer_followups: ({ _limit }: any) => { const due = tables.customer_followups!.filter((f) => Date.parse(f.due_at) <= Date.now() && f.status === "pending").slice(0, _limit); for (const f of due) { f.status = "queued"; f.attempts++; } return due.map((f) => ({ ...f })); },
   });
