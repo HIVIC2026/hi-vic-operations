@@ -14,5 +14,5 @@ export function safeReason(r: string | null | undefined): string | null {
 
 export function renderIneligibleEmail(input: IneligibleEmailInput): EstimateEmail {
   const reasons = (input.reasons ?? [input.reason]).map(safeReason).filter((reason): reason is string => Boolean(reason));
-  return renderIneligibleOutcomeEmail({ referralUrl: input.referralUrl, resultUrl: input.resultUrl, reasons, reference: input.reference, apCount: input.apCount });
+  return renderIneligibleOutcomeEmail({ referralUrl: input.referralUrl, reasons, reference: input.reference, apCount: input.apCount, ...(input.resultUrl !== undefined ? { resultUrl: input.resultUrl } : {}) });
 }
