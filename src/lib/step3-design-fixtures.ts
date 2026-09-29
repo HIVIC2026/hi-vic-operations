@@ -24,7 +24,7 @@ export function step3DesignFixtures(): { knownData: CustomerData; unknownData: C
   const fees = { piesa: 349, ap: 349, minCopay: 200 };
   return {
     knownData: {
-      visible: true, mode: "onsite", fees,
+       visible: true, mode: "onsite", onsiteDrivers: ["Owner says insulation is present – type and R-value must be confirmed onsite"], fees,
       calc: { location, insulation: "present", settings: sampleSettings },
       estimate: { area: { m2: known.area.m2, label: known.area.label }, scenarios: known.scenarios, access_adjustment: known.access_adjustment },
     },
