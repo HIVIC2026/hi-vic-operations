@@ -1637,6 +1637,7 @@ export type Database = {
           endpoint_url: string | null
           hmac_secret: string | null
           id: number
+          jobs_created_after: string | null
           provider: string
           updated_at: string
         }
@@ -1645,6 +1646,7 @@ export type Database = {
           endpoint_url?: string | null
           hmac_secret?: string | null
           id?: number
+          jobs_created_after?: string | null
           provider?: string
           updated_at?: string
         }
@@ -1653,10 +1655,57 @@ export type Database = {
           endpoint_url?: string | null
           hmac_secret?: string | null
           id?: number
+          jobs_created_after?: string | null
           provider?: string
           updated_at?: string
         }
         Relationships: []
+      }
+      customer_email_optouts: {
+        Row: {
+          created_at: string
+          id: string
+          job_id: string
+          opted_out_at: string | null
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          job_id: string
+          opted_out_at?: string | null
+          token: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          job_id?: string
+          opted_out_at?: string | null
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_email_optouts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_email_optouts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "customer_email_optouts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       customer_email_sends: {
         Row: {

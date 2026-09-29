@@ -274,6 +274,13 @@
       "when": 1790665309687,
       "tag": "0038_customer_delivery_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1790671396767,
+      "tag": "0039_customer_email_safety",
+      "breakpoints": true
     }
   ]
 }
