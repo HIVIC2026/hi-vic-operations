@@ -17,4 +17,5 @@
 - [x] Step 3: indicative customer price + official Activity 48 VEU savings estimator (no payment/booking)
 - [x] Step 3 design review: admin-only static known-area and unknown-area examples
 - [x] Public sample-only Step 3 design preview, independent of admin login
+- [x] Sample-only Step 3 customer estimate email renderer, preview and screenshots; no sending
 - [ ] Step 4: booking + payment for Onsite Measure + PIESA
