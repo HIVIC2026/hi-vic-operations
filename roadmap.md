@@ -19,3 +19,4 @@
 - [x] Public sample-only Step 3 design preview, independent of admin login
 - [x] Sample-only Step 3 customer estimate email renderer, preview and screenshots; no sending
 - [ ] Step 4: booking + payment for Onsite Measure + PIESA
+- [x] Step 3 engagement tracking + follow-ups (sending waits on Base44 delivery endpoint + comms switch)
