@@ -51,6 +51,7 @@ describe("confirmed previous Activity 48 provenance", () => {
 
 import { declaredExtras } from "../src/lib/enquiry.core";
 import { resolveGate1Facts as _rf } from "../src/lib/eligibility.core";
+const it = test;
 describe("Step 1 → Step 2 mapping uses the same answer keys as the intake summary", () => {
   const prop = (answers: Record<string, unknown>) => ({ state: "VIC", postcode: "3058", occupancy: "owner_occupied", is_residential: null, year_built: null,
     enrichment: { base44: { declared: { property_type: "unit" }, raw: { answers } } } });
