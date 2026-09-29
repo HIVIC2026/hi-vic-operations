@@ -16,7 +16,7 @@ const ELIGIBILITY_COPY = {
 } as const;
 
 function plainOnsiteDriver(driver: string) {
-  if (/existing insulation/i.test(driver)) return "the type and condition of existing insulation";
+  if (/insulation/i.test(driver)) return "the type and condition of existing insulation";
   if (/roof|access|cavity/i.test(driver)) return "roof space and access";
   return driver;
 }
