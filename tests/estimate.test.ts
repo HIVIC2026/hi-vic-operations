@@ -140,10 +140,12 @@ describe("Step 3 v2 refinement", () => {
     for (const bad of ["", "abc", "0", "-5", "NaN", "19", "1001"]) expect(parseAssumption(bad)).toBeNull();
     expect(parseAssumption("150")).toBe(150); expect(parseAssumption(" 134.1 ")).toBe(134.1);
   });
-  test("what-if uses same core; none single scenario, unknown two; no location => null", () => {
+  test("what-if mirrors the removal rule: present two scenarios, none/unknown one; no location => null", () => {
     const loc = lookupLocation("3058")!;
     expect(whatIfEstimate(150, loc, "none", S)!.scenarios.length).toBe(1);
-    expect(whatIfEstimate(150, loc, "unknown", S)!.scenarios.length).toBe(2);
+    expect(whatIfEstimate(150, loc, "unknown", S)!.scenarios.length).toBe(1);
+    expect(whatIfEstimate(150, loc, null, S)!.scenarios.length).toBe(1);
+    expect(whatIfEstimate(150, loc, "present", S)!.scenarios.length).toBe(2);
     expect(whatIfEstimate(150, loc, "present", S)!.primary.by_access.standard.estimated_customer_total).toBeCloseTo(computeEstimate(owner(150), loc, "present", S).primary.by_access.standard.estimated_customer_total, 6);
     expect(whatIfEstimate(null, loc, "none", S)).toBeNull();
     expect(whatIfEstimate(150, lookupLocation("3005"), "none", S)).toBeNull();
