@@ -94,7 +94,7 @@ export const DISCLAIMER = "Indicative estimate only. Your final price depends on
 export const MEASURE_REQUIRED = "We need a ceiling-area estimate before we can calculate indicative savings";
 
 // ---- Step 3 refinement: public wording + customer what-if calculator (pure; never persisted) ----
-export const FEE_LABEL = "Home Insulation Victoria — AP & Compliance Management";
+export const FEE_LABEL = "Home Insulation Victoria — Accredited Person Management";
 export const FEE_DESCRIPTION = "Covers eligibility management, Accredited Person compliance, job administration, evidence review and VEEC processing.";
 export const BENCHMARK_LABEL = "Consumer estimate benchmark";
 export const benchmarkNote = (v: number) => `Your estimated VEU discount uses a ${dollars(v)} per VEEC-equivalent benchmark calibrated to the Victorian Government's published 150 m² Metropolitan/Mild example (about $1,482). It is not the live VEEC market price. Certificate values fluctuate, so your final discount may change.`;

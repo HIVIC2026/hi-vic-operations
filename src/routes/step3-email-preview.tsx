@@ -6,6 +6,7 @@ import { AreaCalculator, ConfirmQuote } from "@/components/portal/estimate";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
 import { lookupLocation } from "@/lib/activity48.core";
 import type { RetailSettings } from "@/lib/estimate.core";
+import { CUSTOMER_BRAND, CUSTOMER_QUOTE_LABELS } from "@/lib/customer-quote-system";
 
 
 const estimateUrl = "https://quote.homeinsulationvictoria.com.au/estimate/sample-secure-link";
@@ -90,8 +91,8 @@ function EmailPreview() {
   const calculatorTestUrl = `${estimateUrl}#calculator`;
   const outcomeTestUrl = outcome === "ineligible" ? "https://homeinsulationvictoria.com.au/homeowner" : `${estimateUrl}#confirm`;
   const width = view === "desktop" ? 640 : view === "mobile" ? 390 : undefined;
-  const brand = { fontFamily: "'Open Sans', Arial, Helvetica, sans-serif", background: "#FBFCFA", color: "#22376B" };
-  const pill = (active: boolean) => ({ fontFamily: brand.fontFamily, background: active ? "#3C51C4" : "#FFFFFF", color: active ? "#FFFFFF" : "#3C51C4", border: "2px solid #3C51C4", boxShadow: active ? "3px 3px 0 #07BF61" : "none" });
+  const brand = { fontFamily: CUSTOMER_BRAND.font, background: CUSTOMER_BRAND.colors.offWhite, color: CUSTOMER_BRAND.colors.navy };
+  const pill = (active: boolean) => ({ fontFamily: brand.fontFamily, background: active ? CUSTOMER_BRAND.colors.blue : CUSTOMER_BRAND.colors.white, color: active ? CUSTOMER_BRAND.colors.white : CUSTOMER_BRAND.colors.blue, border: `2px solid ${CUSTOMER_BRAND.colors.blue}`, boxShadow: active ? `3px 3px 0 ${CUSTOMER_BRAND.colors.green}` : "none" });
   const btn = "ep-btn min-h-11 px-3 py-2 text-xs font-extrabold uppercase tracking-wider";
   return <main className="min-h-screen px-3 py-6 sm:px-6" style={brand}>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" />
@@ -99,7 +100,7 @@ function EmailPreview() {
     <div className="mx-auto max-w-[760px]">
        <p className="mb-4 px-4 py-3 text-sm font-bold" style={{ background: "#ECF9F1", borderLeft: "4px solid #07BF61" }}>SAMPLE EMAIL PREVIEW ONLY. Buttons are disabled here; nothing is sent, saved or paid.</p>
        <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-1 pb-4 text-sm font-bold" style={{ borderBottom: "2px solid #3C51C4" }} aria-label="Preview sample values">
-        <span>Alex</span><span>150 m²</span><span>Project ${SAMPLE_GROSS.toLocaleString("en-AU")}</span><span style={{ color: "#07BF61" }}>VEU discount −${SAMPLE_DISCOUNT.toLocaleString("en-AU")}</span><span>Estimated price ${SAMPLE_CUSTOMER.toLocaleString("en-AU")}</span><span>$349 now · ${(SAMPLE_CUSTOMER - PIESA_FEE).toLocaleString("en-AU")} remaining</span>
+        <span>Alex</span><span>150 m²</span><span>{CUSTOMER_QUOTE_LABELS.projectTotal} ${SAMPLE_GROSS.toLocaleString("en-AU")}</span><span style={{ color: CUSTOMER_BRAND.colors.green }}>{CUSTOMER_QUOTE_LABELS.discount} −${SAMPLE_DISCOUNT.toLocaleString("en-AU")}</span><span>{CUSTOMER_QUOTE_LABELS.finalCost} ${SAMPLE_CUSTOMER.toLocaleString("en-AU")}</span><span>{CUSTOMER_QUOTE_LABELS.payableNow} · {CUSTOMER_QUOTE_LABELS.remainingBalance} ${(SAMPLE_CUSTOMER - PIESA_FEE).toLocaleString("en-AU")}</span>
       </div>
        <div className="mb-4 flex flex-wrap gap-2" aria-label="Email outcome">
           {(["likely", "onsite", "ineligible"] as const).map((item) => <button key={item} type="button" aria-pressed={outcome === item} className={btn} style={pill(outcome === item)} onClick={() => { setOutcome(item); if (item === "ineligible") setPreviewKind("email"); }}>{item === "likely" ? "Likely eligible" : item === "onsite" ? "Needs onsite confirmation" : "Does not appear eligible"}</button>)}

@@ -83,18 +83,18 @@
   --font-sans: var(--app-font);
 }
 
-/* HI VIC customer-estimate identity, scoped so the operating portal is unchanged. */
+/* Home Insulation Victoria customer-estimate identity, scoped so the operating portal is unchanged. */
 .estimate-brand {
-  --estimate-blue: oklch(0.48845 0.18021 270.395);
-  --estimate-green: oklch(0.70494 0.18565 151.66);
-  --estimate-navy: oklch(0.34936 0.09433 265.301);
-  --estimate-canvas: oklch(0.98976 0.00283 128.492);
+  --estimate-blue: #3c51c4;
+  --estimate-green: #07bf61;
+  --estimate-navy: #22376b;
+  --estimate-canvas: #fbfcfa;
   --estimate-blue-soft: oklch(0.9571 0.0162 278.507);
   --estimate-blue-pale: oklch(0.9571 0.0162 278.507);
   --estimate-green-soft: oklch(0.97024 0.01728 159.124);
   --estimate-shadow-green: oklch(0.34936 0.09433 265.301 / 12%);
   --estimate-green-light: oklch(0.97024 0.01728 159.124);
-  --estimate-accent: oklch(0.70494 0.18565 151.66);
+  --estimate-accent: #52c875;
   --estimate-accent-soft: oklch(0.97024 0.01728 159.124);
   --estimate-white: oklch(1 0 0);
   --background: var(--estimate-canvas);
