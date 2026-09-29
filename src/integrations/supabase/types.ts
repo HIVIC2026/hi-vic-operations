@@ -2809,10 +2809,12 @@ export type Database = {
           electrician_choice: string | null
           eligibility_decision_rules: Json
           eligibility_decision_source: string | null
+          eligibility_flags: Json
           eligibility_outcome:
             | Database["public"]["Enums"]["eligibility_outcome"]
             | null
           eligibility_reason: string | null
+          eligibility_review_required: boolean
           eligibility_set_at: string | null
           eligibility_set_by: string | null
           estimated_area_m2: number | null
@@ -2850,10 +2852,12 @@ export type Database = {
           electrician_choice?: string | null
           eligibility_decision_rules?: Json
           eligibility_decision_source?: string | null
+          eligibility_flags?: Json
           eligibility_outcome?:
             | Database["public"]["Enums"]["eligibility_outcome"]
             | null
           eligibility_reason?: string | null
+          eligibility_review_required?: boolean
           eligibility_set_at?: string | null
           eligibility_set_by?: string | null
           estimated_area_m2?: number | null
@@ -2891,10 +2895,12 @@ export type Database = {
           electrician_choice?: string | null
           eligibility_decision_rules?: Json
           eligibility_decision_source?: string | null
+          eligibility_flags?: Json
           eligibility_outcome?:
             | Database["public"]["Enums"]["eligibility_outcome"]
             | null
           eligibility_reason?: string | null
+          eligibility_review_required?: boolean
           eligibility_set_at?: string | null
           eligibility_set_by?: string | null
           estimated_area_m2?: number | null
@@ -5857,9 +5863,11 @@ export type Database = {
           deposit_cleared: boolean | null
           electrician_id: string | null
           electrician_name: string | null
+          eligibility_flags: Json | null
           eligibility_outcome:
             | Database["public"]["Enums"]["eligibility_outcome"]
             | null
+          eligibility_review_required: boolean | null
           hold_reason: string | null
           id: string | null
           install_deadline: string | null

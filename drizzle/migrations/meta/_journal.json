@@ -204,6 +204,13 @@
       "when": 1790637799738,
       "tag": "0028_base44_full_intake_handoff",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1790643096476,
+      "tag": "0029_gate1_review_required_flags",
+      "breakpoints": true
     }
   ]
 }
