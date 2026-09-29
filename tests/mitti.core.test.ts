@@ -206,6 +206,26 @@ describe("correctness hardening", () => {
     await expect(createOrReuseAudit(api, ctx())).rejects.toThrow(/ambiguous/);
     expect(calls.some((c) => c.path === "/audits")).toBe(false);
   });
+  test("duplicate exact labels are ambiguous and block creation", async () => {
+    for (const dup of ["Site address", "Portal Job Number"]) {
+      const t = { ...TEMPLATE, header_items: [...TEMPLATE.header_items, { item_id: `dup_${dup}`, label: dup, type: "text" }] };
+      const { api, calls } = fake({ template: t });
+      await expect(createOrReuseAudit(api, ctx())).rejects.toThrow(/ambiguous/);
+      expect(calls.some((c) => c.path === "/audits")).toBe(false);
+    }
+  });
+  test("duplicate exact on one alias is not escaped by a unique exact on another alias", async () => {
+    const t = { ...TEMPLATE, header_items: [...TEMPLATE.header_items, { item_id: "dup_addr", label: "Site address", type: "address" }] };
+    const { api, calls } = fake({ template: t });
+    await expect(createOrReuseAudit(api, ctx())).rejects.toThrow(/ambiguous/);
+    expect(calls.some((c) => c.path === "/audits")).toBe(false);
+  });
+  test("unique exact label still wins over merely-prefix variants", async () => {
+    const t = { ...TEMPLATE, header_items: [...TEMPLATE.header_items, { item_id: "x1", label: "Site address line 2", type: "text" }] };
+    const { api } = fake({ template: t });
+    const auditRef = await createOrReuseAudit(api, ctx());
+    expect(auditRef.auditId).toMatch(/^audit_/);
+  });
   test("repeated-zone area fields never become whole-house area", () => {
     const a = audit({ extra: [{ item_id: "n2", label: "Net insulation area", responses: { text: "60" } }] });
     const p = parseAudit(a);
