@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "fs";
 import { A48_SPEC, V25_LOCATIONS, ghgEquivalentReduction, lookupLocation } from "../src/lib/activity48.core";
-import { computeEstimate, customerCanSee, displayModeFor, estimateSignature, pickArea, type RetailSettings } from "../src/lib/estimate.core";
+import { CALC_NOTE, FEE_LABEL, benchmarkNote, parseAssumption, whatIfEstimate, computeEstimate, customerCanSee, displayModeFor, estimateSignature, pickArea, type RetailSettings } from "../src/lib/estimate.core";
 
 const S: RetailSettings = {
   id: "s1", version: 1, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 15, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349,
-  access_standard_multiplier: 1, access_moderate_multiplier: 1.1, access_difficult_multiplier: 1.25, indicative_veec_value: 86,
+  access_standard_multiplier: 1, access_moderate_multiplier: 1.1, access_difficult_multiplier: 1.25, indicative_veec_value: 70,
   veec_value_source_label: "DEECA webinar", veec_value_source_url: "https://www.energy.vic.gov.au/x", veec_value_checked_at: "2026-09-29",
   minimum_customer_copayment_inc_gst: 200, spec_version: "25.0", spec_source_url: A48_SPEC.sourceUrl,
 };
@@ -28,7 +28,7 @@ describe("Equation 48.1", () => {
 });
 
 describe("3058 / 134.1 m² sample", () => {
-  const ghg = 0.00576 * 134.1 * 25 * 0.98, disc = ghg * 86;
+  const ghg = 0.00576 * 134.1 * 25 * 0.98, disc = ghg * 70;
   const none = computeEstimate(owner(134.1), lookupLocation("3058")!, "none", S);
   const pres = computeEstimate(owner(134.1), lookupLocation("3058")!, "present", S);
   test("GHG + discount unrounded", () => { expect(none.ghg.ghgReduction).toBeCloseTo(ghg, 12); expect(none.raw_estimated_discount).toBeCloseTo(disc, 10); });
@@ -73,9 +73,9 @@ describe("guards", () => {
     expect(customerCanSee("withheld_review")).toBe(false); expect(customerCanSee("none_ineligible")).toBe(false);
   });
   test("idempotent signature; changes on material inputs", () => {
-    const base = { mode: "likely" as const, area: owner(134.1), postcode: "3058", insulation: "none" as const, settingsId: "s1", settingsVersion: 1, veecValue: 86, veecSource: "u|2026-09-29", specVersion: "25.0" };
+    const base = { mode: "likely" as const, area: owner(134.1), postcode: "3058", insulation: "none" as const, settingsId: "s1", settingsVersion: 1, veecValue: 70, veecSource: "u|2026-09-29", specVersion: "25.0" };
     expect(estimateSignature(base)).toBe(estimateSignature({ ...base, area: owner(134.1) }));
-    for (const ch of [{ area: owner(140) }, { postcode: "3300" }, { insulation: "present" as const }, { mode: "onsite" as const }, { settingsVersion: 2 }, { veecValue: 90 }, { veecSource: "u|2026-10-01" }])
+    for (const ch of [{ area: owner(140) }, { postcode: "3300" }, { insulation: "present" as const }, { mode: "onsite" as const }, { settingsVersion: 2 }, { veecValue: 86 }, { veecSource: "u|2026-10-01" }])
       expect(estimateSignature({ ...base, ...ch })).not.toBe(estimateSignature(base));
   });
 });
@@ -90,7 +90,9 @@ describe("static separation / UI", () => {
   const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
   test("customer copy", () => {
     for (const t of ["Your home looks suitable to progress", "Your home may be eligible — onsite confirmation needed", "R5.0 insulation supply &amp; installation", "Estimated VEU discount", "Estimated price after VEU discount", "Onsite Measure + PIESA", "already included", "Access is confirmed onsite"]) expect(ui).toContain(t);
-    expect(ui).not.toMatch(/<Button|Pay now|onClick/);
+    expect(ui).not.toMatch(/<Button|Pay now|[Pp]ay\(|createBooking|useServerFn\(create/);
+    expect(ui).toContain("{FEE_LABEL}");
+    expect(ui).not.toContain("AP management &amp; compliance");
     expect(ui).toContain("Step 3 · Indicative estimate");
   });
   test("owner page shows card; admin tab places it after Gate 1", () => {
@@ -101,5 +103,49 @@ describe("static separation / UI", () => {
     const srv = readFileSync("src/lib/estimate.server.ts", "utf8");
     const cv = srv.slice(srv.indexOf("export function customerView"));
     expect(cv).not.toContain("snapshot"); expect(cv).not.toContain("raw_estimated_discount");
+  });
+});
+
+describe("Step 3 v2 refinement", () => {
+  test("HV-1051 exact v2 numbers", () => {
+    const e = computeEstimate(owner(134.1), lookupLocation("3058")!, "present", S);
+    expect(e.ghg.ghgReduction).toBeCloseTo(18.924192, 9);
+    expect(e.raw_estimated_discount).toBeCloseTo(1324.69344, 8);
+    const [cr, fr] = e.scenarios;
+    expect(cr!.by_access.standard.pre_discount_total).toBeCloseTo(4721, 2);
+    expect(cr!.by_access.standard.estimated_customer_total).toBeCloseTo(3396.31, 2);
+    expect(fr!.by_access.standard.pre_discount_total).toBeCloseTo(6732.5, 2);
+    expect(fr!.by_access.standard.estimated_customer_total).toBeCloseTo(5407.81, 2);
+    expect(e.access_adjustment).toEqual({ moderate: 402.3, difficult: 1005.75 });
+  });
+  test("wording: benchmark not market price; fee not government-mandated", () => {
+    const n = benchmarkNote(70);
+    expect(n).toContain("$70 per VEEC-equivalent benchmark"); expect(n).toContain("not the live VEEC market price"); expect(n).not.toMatch(/official (fixed )?VEEC price|guarantee/i);
+    expect(FEE_LABEL).toBe("HI VIC compliance & administration");
+    const core = readFileSync("src/lib/estimate.core.ts", "utf8"); expect(core).not.toMatch(/government[- ]mandated/i);
+  });
+  test("assumption validation", () => {
+    for (const bad of ["", "abc", "0", "-5", "NaN", "19", "1001"]) expect(parseAssumption(bad)).toBeNull();
+    expect(parseAssumption("150")).toBe(150); expect(parseAssumption(" 134.1 ")).toBe(134.1);
+  });
+  test("what-if uses same core; none single scenario, unknown two; no location => null", () => {
+    const loc = lookupLocation("3058")!;
+    expect(whatIfEstimate(150, loc, "none", S)!.scenarios.length).toBe(1);
+    expect(whatIfEstimate(150, loc, "unknown", S)!.scenarios.length).toBe(2);
+    expect(whatIfEstimate(150, loc, "present", S)!.primary.by_access.standard.estimated_customer_total).toBeCloseTo(computeEstimate(owner(150), loc, "present", S).primary.by_access.standard.estimated_customer_total, 6);
+    expect(whatIfEstimate(null, loc, "none", S)).toBeNull();
+    expect(whatIfEstimate(150, lookupLocation("3005"), "none", S)).toBeNull();
+    // official consumer example: 150 m² metro/mild ≈ $1,482
+    expect(whatIfEstimate(150, loc, "none", S)!.raw_estimated_discount).toBeCloseTo(1481.76, 2);
+  });
+  test("calculator is client-only and never persisted", () => {
+    const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
+    const calc = ui.slice(ui.indexOf("function AreaCalculator"), ui.indexOf("export function OwnerEstimateCard"));
+    expect(calc).not.toMatch(/useServerFn|supabase|fetch\(|useMutation|useAction/);
+    expect(calc).toContain("useState(initial == null ? \"\" : String(initial))"); // no silent 150 default
+    expect(ui).toContain("CALC_NOTE"); expect(CALC_NOTE).toContain("does not change your recorded property details");
+    const srv = readFileSync("src/lib/estimate.server.ts", "utf8");
+    expect(srv).not.toMatch(/from\("(jobs|ceiling_measurements|property_area_estimates)"\)\.(update|insert|upsert)/);
+    expect(srv).not.toMatch(/assumption/i);
   });
 });
