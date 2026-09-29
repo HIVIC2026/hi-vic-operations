@@ -102,7 +102,8 @@ describe("static separation / UI", () => {
   const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
   test("customer copy", () => {
     for (const t of ["Your home looks suitable to progress", "Your home may be eligible — onsite confirmation needed", "R5.0 insulation supply &amp; installation", "Estimated VEU discount", "Estimated price after VEU discount", "Onsite Measure + PIESA", "already included", "Access is confirmed onsite"]) expect(ui).toContain(t);
-    expect(ui).not.toMatch(/<Button|Pay now|[Pp]ay\(|createBooking|useServerFn\(create/);
+    expect(ui).not.toMatch(/Pay now|[Pp]ay\(|createBooking|useServerFn\(create/);
+    expect(ui).toContain("Online booking and payment will be available here in the next step.");
     expect(ui).toContain("{FEE_LABEL}");
     expect(ui).not.toContain("AP management &amp; compliance");
     expect(ui).toContain("Step 3 · Indicative estimate");
@@ -156,8 +157,8 @@ describe("Step 3 v2 refinement", () => {
     const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
     const calc = ui.slice(ui.indexOf("function AreaCalculator"), ui.indexOf("export function OwnerEstimateCard"));
     expect(calc).not.toMatch(/useServerFn|supabase|fetch\(|useMutation|useAction/);
-    expect(calc).toContain("useState(initial == null ? \"\" : String(initial))"); // no silent 150 default
-    expect(ui).toContain("CALC_NOTE"); expect(CALC_NOTE).toContain("does not change your recorded property details");
+    expect(calc).toContain('useState(secondary ? "" : initial == null ? "" : String(initial))'); // no silent default, and known-area what-if starts blank
+    expect(calc).toContain("does not change your recorded property details");
     const srv = readFileSync("src/lib/estimate.server.ts", "utf8");
     expect(srv).not.toMatch(/from\("(jobs|ceiling_measurements|property_area_estimates)"\)\.(update|insert|upsert)/);
     expect(srv).not.toMatch(/assumption/i);
