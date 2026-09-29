@@ -35,7 +35,7 @@ describe("customer outcome email renderers", () => {
     const m = renderEstimateEmail({ ...common, firstName: "Alex", address: "30 Dash St, Fraser Rise VIC 3336" });
     expect(m.html).toContain("GOOD NEWS, ALEX.");
     expect(m.html).toContain("30 Dash St, Fraser Rise VIC 3336");
-    expect(m.html.indexOf("ESTIMATED VEU DISCOUNT")).toBeLessThan(m.html.indexOf("ESTIMATED PRICE AFTER DISCOUNT"));
+    expect(m.html.indexOf("ESTIMATED VEU DISCOUNT")).toBeLessThan(m.html.indexOf("YOUR ESTIMATED COST AFTER DISCOUNT"));
     expect(m.html).toContain("background-color:#52C875");
     expect(renderEstimateEmail(common).html).not.toContain("30 Dash St");
   });
