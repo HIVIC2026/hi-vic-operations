@@ -120,6 +120,12 @@ export async function depositCleared(jobId: string) {
   return (count ?? 0) > 0;
 }
 
+/** Separate pre-assessment gate. This never reads installation invoices, Xero state, or the 50% deposit. */
+export async function preAssessmentPaymentCleared(jobId: string) {
+  const { count } = await admin.from("assessment_payments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("purpose", "measure_piesa_pre_assessment").eq("status", "paid");
+  return (count ?? 0) > 0;
+}
+
 async function openRectCount(jobId: string) {
   const { count } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "required");
   return count ?? 0;
@@ -146,6 +152,7 @@ export async function measurementBlocker(jobId: string): Promise<string | null> 
 
 export async function stageEntryBlockers(jobId: string, to: Stage): Promise<string[]> {
   const blockers: string[] = [];
+  if (to === "assessment_booking" && !(await preAssessmentPaymentCleared(jobId))) blockers.push("$349 Measure + PIESA pre-assessment payment not received.");
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {
     const cb = await commercialBlocker(jobId);
     if (cb) blockers.push(cb);

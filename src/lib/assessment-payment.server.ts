@@ -112,14 +112,11 @@ export async function simulateAssessmentPayment(token: unknown, outcome: TestPay
 }
 
 async function advanceAfterAssessmentPayment(jobId: string, paymentId: string) {
+  const { autoAdvanceJob } = await import("./autoadvance.server");
+  await autoAdvanceJob(jobId, null, "pre-assessment payment received");
   const { data: job } = await admin.from("jobs").select("stage").eq("id", jobId).single();
-  if (!job || !["new_enquiry", "eligibility_review", "awaiting_electrician", "assessment_booking"].includes(job.stage)) return;
-  if (job.stage === "new_enquiry" || job.stage === "eligibility_review") {
-    const { transition } = await import("./workflow.server");
-    await transition(jobId, "awaiting_electrician", null, "$349 Measure + PIESA payment received – ready for electrician assignment", { payment_id: paymentId, pre_assessment: true }, { nextAction: readyForAssessmentNextAction("awaiting_electrician") });
-  } else {
-    const { error } = await admin.from("jobs").update({ next_action: readyForAssessmentNextAction(job.stage) }).eq("id", jobId);
-    if (error) throw new Error(error.message);
-  }
+  if (!job || !["awaiting_electrician", "assessment_booking", "assessment_booked"].includes(job.stage)) return;
+  const { error } = await admin.from("jobs").update({ next_action: readyForAssessmentNextAction(job.stage) }).eq("id", jobId);
+  if (error) throw new Error(error.message);
   await logOnce(jobId, `pre_assessment_ready:${paymentId}`, "pre_assessment_ready", "Job ready for Measure + PIESA assignment or scheduling", { payment_id: paymentId });
 }

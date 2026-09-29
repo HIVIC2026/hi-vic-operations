@@ -59,7 +59,9 @@ export async function resolvePublicEstimate(token: unknown) {
   const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const { referralUrlForJob } = await import("./referral.server");
   const referral = await referralUrlForJob(l.job_id).catch(() => null);
-  return publicPayload({ job_number: j?.job_number ?? null, address: p ? [p.address_line, p.suburb, p.postcode].filter(Boolean).join(", ") : null }, cv, referral);
+  const { assessmentAcceptanceState } = await import("./assessment-payment.server");
+  const assessment = await assessmentAcceptanceState(token).catch(() => null);
+  return publicPayload({ job_number: j?.job_number ?? null, address: p ? [p.address_line, p.suburb, p.postcode].filter(Boolean).join(", ") : null }, cv, referral, assessment);
 }
 
 export async function estimateDeliveryReady(jobId: string) {
