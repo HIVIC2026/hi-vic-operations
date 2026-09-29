@@ -38,7 +38,7 @@ Fonts: Open Sans throughout; one “Back to home” link; no stray platform bran
 - **D2 (High):** result + “Keep an eye on your inbox, we’ll email you…” appear before the save succeeds, and stay on screen when the save fails. With both email locks OFF, no email will be sent at all — the promise is currently untrue for every enquiry.
 - **D3 (Medium):** while saving, header “Back to home”, reload and browser back lose the enquiry with no warning; “Check another property” is not disabled during save.
 - **D4 (Medium):** when sync fails or is slow, the referral card never appears and nothing tells the customer; the “preparing your estimate” copy remains.
-- **Carry-over source findings (still open, from repo review):** no unsubscribe link/route in customer emails; follow-up suppression/consent-expiry gaps; provider-accepted-but-DB-write-failed can retry a send; older active estimate links could become eligible for the pending-email scanner when locks turn on.
+- **Carry-over source findings (from an earlier review; NOT re-checked in this run):** no unsubscribe link/route in customer emails; follow-up suppression/consent-expiry gaps; provider-accepted-but-DB-write-failed can retry a send; older active estimate links could become eligible for the pending-email scanner when locks turn on.
 
 ## 4. Blocked / not tested
 Real inbox delivery (locks OFF by design), live Base44→Lovable round-trip (forbidden), quote domain DNS (network check out of scope this run), clipboard copy in headless browser.
