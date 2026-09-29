@@ -1,0 +1,33 @@
+import { describe, expect, it } from "bun:test";
+import { readFileSync } from "node:fs";
+
+// Static assertion: pipeline/job card badge precedence for Gate 1 during
+// new_enquiry / eligibility_review — display-only, no business logic.
+const src = readFileSync(new URL("../src/components/portal/JobCard.tsx", import.meta.url), "utf8");
+
+describe("JobCard Gate 1 labels (display only)", () => {
+  it("shows REVIEW REQUIRED only when eligibility_review_required is true", () => {
+    expect(src).toContain("job.eligibility_review_required\n        ? <div className=\"mt-2 rounded-md bg-warning-soft");
+  });
+
+  it("shows Needs onsite confirmation for needs_onsite_confirmation", () => {
+    expect(src).toContain('job.eligibility_outcome === "needs_onsite_confirmation" ?');
+  });
+
+  it("adds a green Likely eligible label for likely_eligible", () => {
+    expect(src).toContain('job.eligibility_outcome === "likely_eligible" ?');
+    expect(src).toContain("Gate 1: Likely eligible");
+    expect(src).toContain("bg-success-soft");
+  });
+
+  it("checks review-required before likely_eligible (no dual label)", () => {
+    const reviewIdx = src.indexOf("job.eligibility_review_required");
+    const likelyIdx = src.indexOf('job.eligibility_outcome === "likely_eligible"');
+    expect(reviewIdx).toBeGreaterThan(-1);
+    expect(likelyIdx).toBeGreaterThan(reviewIdx);
+  });
+
+  it("adds no does_not_appear_eligible label on the card", () => {
+    expect(src).not.toContain("does_not_appear_eligible");
+  });
+});
