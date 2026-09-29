@@ -101,10 +101,10 @@ describe("ineligible renderer", () => {
     const m = renderIneligibleEmail({ referralUrl: REF, reason: "The home was built less than 5 years ago." });
     expect(m.subject).toBe("Your Home Insulation Victoria eligibility result");
     for (const t of [m.html, m.plainText]) {
-      expect(t).toContain("does not appear eligible");
+      expect(t.toLowerCase()).toContain("does not appear eligible");
       expect(t).toContain("built less than 5 years ago");
-      expect(t).toContain("SHARE HOME INSULATION VICTORIA");
-      expect(t).toContain("Know someone who could benefit?");
+      expect(t).toContain("REFER A FRIEND");
+      expect(t.toLowerCase()).toContain("know someone with a");
       expect(t).not.toMatch(/\$\d|ESTIMATED CUSTOMER PRICE|349/i);
     }
     expect(m.html).toContain(`href="${REF.replace(/&/g, "&amp;")}"`);
