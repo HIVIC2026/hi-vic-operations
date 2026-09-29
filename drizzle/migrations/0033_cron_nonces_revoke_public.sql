@@ -1,0 +1,1 @@
+REVOKE ALL ON public.cron_nonces FROM anon, authenticated;
