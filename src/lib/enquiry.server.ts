@@ -1,3 +1,6 @@
+import { enqueueInitialGate1, processPostIntakeWork } from "./postintake.server";
+import { eligibilityFactsVersion } from "./postintake.core";
+import { runAfterResponse } from "./background.server";
 import { addressHash } from "./intelligence.core";
 import { z } from "zod";
 import type { Json, TablesUpdate } from "@/integrations/supabase/types";
@@ -69,8 +72,6 @@ export type EnquiryInput = z.infer<typeof enquirySchema>;
 /** Create/update owner, property and job from an enquiry. Idempotent on external_enquiry_id. */
 export type JobOrigin = { channel: "hivic_sourced" } | { channel: "installer_sourced"; businessId: string; userId: string };
 
-import { enqueueInitialGate1 } from "./postintake.server";
-import { eligibilityFactsVersion } from "./postintake.core";
 
 /** Step 1 intake → durable enqueue. Initial Property Intelligence + first official Gate 1 run in the post-intake processor. */
 export async function upsertEnquiry(input: EnquiryInput, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }) {
@@ -114,6 +115,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, plan?.details ?? {});
     if (source === "base44") await completeIntake(existingJob.id, owner!.id, input);
     const queued = await enqueueInitialGate1(existingJob.id, await eligibilityFactsVersion(input), addrChanged ? "address changed" : "eligibility facts changed");
+    if (queued !== "none") runAfterResponse(() => processPostIntakeWork({ jobId: existingJob.id })); // best-effort; scheduled worker is the durable fallback
     return { job_id: existingJob.id, job_number: existingJob.job_number, created: false, post_intake: queued };
   }
   const { data: prop, error: pe } = await admin.from("properties").insert({ ...propFields, ...(source === "base44" ? { enrichment: mergeEvidence(null, input) } : {}) }).select("id").single();
@@ -146,6 +148,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
   if (source === "base44") await completeIntake(job.id, owner!.id, input);
   // Durable hand-off: initial Property Intelligence + the first official Gate 1 run in the post-intake processor.
   const queued = await enqueueInitialGate1(job.id, await eligibilityFactsVersion(input), "new enquiry");
+  if (queued !== "none") runAfterResponse(() => processPostIntakeWork({ jobId: job.id })); // best-effort; scheduled worker is the durable fallback
   return { job_id: job.id, job_number: job.job_number, created: true, post_intake: queued };
 }
 
