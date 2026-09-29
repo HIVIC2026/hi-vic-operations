@@ -176,7 +176,7 @@ describe("email renderers", () => {
   const quote = { estimatedTotal: 3396, veuDiscount: 1325, areaM2: 134.1 };
   test("tracked CTA + pixel only when supplied", () => {
     const plain = renderEstimateEmail({ estimateUrl: link, ...quote });
-    expect(plain.html).toContain(`href="${link}"`);
+    expect(plain.html).toContain(`href="${link}#confirm"`);
     expect(plain.html).not.toContain("/t/o/");
     const tracked = renderEstimateEmail({ estimateUrl: link, trackingClickUrl: clickUrl(tok), trackingPixelUrl: pixelUrl(tok), ...quote });
     expect(tracked.html).toContain(`href="${clickUrl(tok)}"`);
