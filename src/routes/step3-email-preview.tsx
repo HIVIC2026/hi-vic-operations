@@ -68,7 +68,7 @@ function EmailPreview() {
     ...quote,
     outcome,
     existingInsulationPresent: hasExistingInsulation,
-    reasons: outcome === "onsite" ? ["The existing insulation and eligible ceiling area need to be confirmed onsite.", "Roof access and electrical safety need to be checked."] : undefined,
+    ...(outcome === "onsite" ? { reasons: ["The existing insulation and eligible ceiling area need to be confirmed onsite.", "Roof access and electrical safety need to be checked."] } : {}),
   }), unsubscribeUrl);
   const srcDoc = sample.html
     .replaceAll("https://quote.homeinsulationvictoria.com.au/email-preview/hi-vic-logo.png", "/email-preview/hi-vic-logo.png")
