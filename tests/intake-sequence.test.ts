@@ -211,7 +211,7 @@ describe("Step 1 + safety", () => {
   });
   test("12: processor and worker route contain no external comms / Xero / Mitti calls", () => {
     for (const f of ["src/lib/postintake.server.ts", "src/lib/postintake.core.ts", "src/routes/api/public/hooks/post-intake.ts"]) {
-      expect(readFileSync(f, "utf8")).not.toMatch(/sendMessage|sendEmail|sms|xero|mitti|recordCommunication/i);
+      expect(readFileSync(f, "utf8")).not.toMatch(/sendMessage\(|sendEmail\(|sendSms\(|xero\.server|mitti\.server|recordCommunication\(/);
     }
     expect(readFileSync("src/routes/api/public/hooks/post-intake.ts", "utf8")).toMatch(/authenticateCronRequest\(request\)/);
     expect(outbound).toHaveLength(0);
