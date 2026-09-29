@@ -16,7 +16,7 @@ const fixtureFetch = (fail: string[] = []): FetchJson => async (url) => {
 };
 const input = { addressLine: "3 Lucerne Rd", suburb: "Ferntree Gully", postcode: "3156", state: "VIC", ownerEstimateM2: 140, partnerMeasurement: null, provider: null };
 
-const ok: Gate1Input = { addressVerified: true, inVictoria: true, residentialLikelihood: "high", nccClass: { value: "class1", direct: true }, ageStatus: "strong_over_5y", recentExtensionRisk: "no", roofForm: "pitched", roofCavityOrExposed: "likely", storeyAbove: "no", noRelevantCeilingDirect: false };
+const ok: Gate1Input = { state: "VIC", postcode: "3156", occupancy: "owner_occupied", isResidential: true, yearBuilt: null, yearBuiltVerified: false, verifiedMinAgeYears: 20, minBuildingAgeYears: 5, lifeSupportStatus: "no", previousCeilingUpgrade: false, flatRoofOrAccessConcern: false, preliminaryOutcome: null, currentYear: 2026, declaredInsulation: "none" };
 
 describe("property intelligence", () => {
   test("address normaliser expands road types", () => expect(normaliseAddress("7 Lucerne Rd", "Ferntree Gully", "3156")?.prefix).toBe("7 LUCERNE ROAD"));
@@ -35,23 +35,24 @@ describe("property intelligence", () => {
     expect(zone.find((f) => f.key === "residential_likelihood")?.value).toBe("medium");
     const r = await gatherEvidence(input, fixtureFetch());
     expect(r.facts.find((f) => f.key === "ncc_class_evidence")?.value).toBe("unknown");
-    expect(recommendGate1(gate1InputFromFacts(r.facts, "2026-09-28")).outcome).toBe("needs_onsite_confirmation");
+    const rec = recommendGate1(gate1InputFromFacts(r.facts, "2026-09-28"));
+    expect(rec.outcome).toBeNull(); expect(rec.reviewRequired).toBe(true);
   });
   test("parcel area never becomes ceiling area", async () => {
     expect(JSON.stringify(parseProperty(PROPERTY_FC as never))).not.toContain("812");
     const r = await gatherEvidence({ ...input, ownerEstimateM2: null }, fixtureFetch());
     expect(r.areas).toHaveLength(0);
   });
-  test("flat/low-slope roof => review, not automatic fail", () => expect(recommendGate1({ ...ok, roofForm: "low_slope_flat" }).outcome).toBe("needs_onsite_confirmation"));
+  test("flat/low-slope roof => onsite, not automatic fail", () => expect(recommendGate1({ ...ok, flatRoofOrAccessConcern: true }).outcome).toBe("needs_onsite_confirmation"));
   test("direct <5-year evidence => does_not_appear_eligible", () => {
     expect(ageStatusFor({ date: "2024-03-01", kind: "direct_record" }, "2026-09-28")).toBe("recent_under_5y");
-    expect(recommendGate1({ ...ok, ageStatus: "recent_under_5y" }).outcome).toBe("does_not_appear_eligible");
+    expect(recommendGate1({ ...ok, verifiedMinAgeYears: null, yearBuilt: 2024, yearBuiltVerified: true }).outcome).toBe("does_not_appear_eligible");
   });
-  test("unknown age => needs_onsite_confirmation", () => expect(recommendGate1({ ...ok, ageStatus: "unknown" }).outcome).toBe("needs_onsite_confirmation"));
+  test("unknown age => review required", () => expect(recommendGate1({ ...ok, verifiedMinAgeYears: null }).reviewRequired).toBe(true));
   test("strong old age + residential + compatible roof => likely_eligible with onsite checks", () => {
     const r = recommendGate1(ok);
     expect(r.outcome).toBe("likely_eligible");
-    expect(r.nextAction).toContain("pending onsite insulation, lighting and electrical confirmation");
+    expect(r.nextAction).toContain("subject to onsite insulation, lighting and electrical confirmation");
     expect(r.onsite.length).toBeGreaterThan(2);
   });
   test("listing year built is supporting, never strong", () => expect(ageStatusFor({ date: "1990-12-31", kind: "listing_year_built" }, "2026-09-28")).toBe("supporting_over_5y"));

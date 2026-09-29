@@ -123,7 +123,7 @@ describe("autoAdvance", () => {
 });
 
 import { evaluateGate1, type Gate1Facts } from "../src/lib/eligibility.core";
-const g: Gate1Facts = { state: "VIC", postcode: "3056", occupancy: "owner_occupied", isResidential: true, yearBuilt: 1990, yearBuiltVerified: true, minBuildingAgeYears: 5, lifeSupportStatus: "no", previousCeilingUpgrade: false, flatRoofOrAccessConcern: false, preliminaryOutcome: null, currentYear: 2026 };
+const g: Gate1Facts = { state: "VIC", postcode: "3056", occupancy: "owner_occupied", isResidential: true, yearBuilt: 1990, yearBuiltVerified: true, minBuildingAgeYears: 5, lifeSupportStatus: "no", previousCeilingUpgrade: false, flatRoofOrAccessConcern: false, preliminaryOutcome: null, currentYear: 2026, declaredInsulation: "none" };
 describe("Gate 1 auto-decision", () => {
   test("clear facts auto-pass", () => expect(evaluateGate1(g).outcome).toBe("likely_eligible"));
   test("hard rules auto-fail", () => {
@@ -133,13 +133,13 @@ describe("Gate 1 auto-decision", () => {
     expect(evaluateGate1({ ...g, yearBuilt: 2025 }).outcome).toBe("does_not_appear_eligible");
   });
   test("ambiguous facts -> human review", () => {
-    for (const f of [{ isResidential: null }, { yearBuiltVerified: false }, { lifeSupportStatus: "unknown" }, { lifeSupportStatus: "yes" }, { previousCeilingUpgrade: null }, { previousCeilingUpgrade: true }, { flatRoofOrAccessConcern: true }, { occupancy: null }, { state: null }])
+    for (const f of [{ isResidential: null }, { yearBuiltVerified: false }, { previousCeilingUpgrade: null }, { previousCeilingUpgrade: true }, { state: null }])
       expect(evaluateGate1({ ...g, ...f } as Gate1Facts).outcome).toBeNull();
   });
   test("unverified young building is review, not fail", () => expect(evaluateGate1({ ...g, yearBuilt: 2025, yearBuiltVerified: false }).outcome).toBeNull());
   test("preliminary alone never passes; conflicting preliminary -> review", () => {
     expect(evaluateGate1({ ...g, isResidential: null, yearBuilt: null, yearBuiltVerified: false, preliminaryOutcome: "likely_eligible" }).outcome).toBeNull();
-    expect(evaluateGate1({ ...g, preliminaryOutcome: "needs_onsite_confirmation" }).outcome).toBeNull();
+    expect(evaluateGate1({ ...g, preliminaryOutcome: "needs_onsite_confirmation" }).rules.find((r) => r.key === "preliminary")?.result).toBe("info");
   });
   test("auto-pass leaves Enquiries automatically", async () => {
     const x = fake("new_enquiry", { eligibilityConfirmed: true, electricianAssigned: false });

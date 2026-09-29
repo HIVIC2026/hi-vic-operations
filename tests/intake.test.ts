@@ -127,7 +127,7 @@ describe("repeat sync and Gate 1 safety", () => {
   });
   test("full normalised research can still feed existing Gate 1 rules", () => {
     const research = { status: "complete", state: "vic", postcode: "3056", formatted_address: "1 Test St", premises_classification: "Residential dwelling", first_appearance_year: 2001 };
-    const b = { ...buildBase44Evidence({ declared_property_type: "house", declared_over_five_years: "yes", declared_previous_upgrade: "no", property_research: research }), raw: buildBase44Raw({}) };
+    const b = { ...buildBase44Evidence({ declared_property_type: "house", declared_over_five_years: "yes", declared_previous_upgrade: "no", property_research: research }), raw: buildBase44Raw({ base44_answers: { insulation: "none" } }) };
     expect(evaluateGate1(resolveGate1Facts(prop(b), { lifeSupportStatus: "no", preliminaryOutcome: null }, 5, 2026)).outcome).toBe("likely_eligible");
   });
 });
