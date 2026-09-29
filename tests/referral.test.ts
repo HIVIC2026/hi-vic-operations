@@ -69,16 +69,16 @@ describe("customer payload + emails", () => {
     expect(Object.keys(p).sort()).toEqual(["estimate", "job", "referralShareUrl"]);
     expect(src("src/lib/referral.server.ts")).toMatch(/Full share URL only/);
   });
-  test("estimate email REFER A FRIEND only when supplied", () => {
+  test("estimate email referral strip only when supplied", () => {
     const url = referralShareUrl(newReferralToken());
     const quote = { estimatedTotal: 3396, veuDiscount: 1325, areaM2: 134.1 };
     const withRef = renderEstimateEmail({ estimateUrl, referralUrl: url, ...quote });
-    expect(withRef.html).toContain("REFER A FRIEND");
-    expect(withRef.html).toContain("KNOW SOMEONE WITH A");
-    expect(withRef.plainText).toContain(`REFER A FRIEND: ${url}`);
+    expect(withRef.html).toContain("Refer a friend");
+    expect(withRef.html).toContain("KNOW SOMEONE WHO MIGHT QUALIFY?");
+    expect(withRef.plainText).toContain(`Refer a friend: ${url}`);
     const none = renderEstimateEmail({ estimateUrl, ...quote });
-    expect(none.html).not.toContain("REFER A FRIEND");
-    expect(none.plainText).not.toContain("REFER A FRIEND");
+    expect(none.html.toLowerCase()).not.toContain("refer a friend");
+    expect(none.plainText.toLowerCase()).not.toContain("refer a friend");
     expect(() => renderEstimateEmail({ estimateUrl, referralUrl: "https://evil.example/homeowner?ref=x", ...quote })).toThrow();
     expect(withRef.html).not.toContain("lovable.app");
   });
