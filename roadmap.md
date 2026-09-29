@@ -16,4 +16,5 @@
 - [x] Refinement 1: assessment scheduling = one proposal flow; admin override audited; 24/48h + can't-agree review
 - [x] Step 3: indicative customer price + official Activity 48 VEU savings estimator (no payment/booking)
 - [x] Step 3 design review: admin-only static known-area and unknown-area examples
+- [x] Public sample-only Step 3 design preview, independent of admin login
 - [ ] Step 4: booking + payment for Onsite Measure + PIESA
