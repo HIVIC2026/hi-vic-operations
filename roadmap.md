@@ -24,3 +24,4 @@
 - [ ] Blocked on Base44: homeowner preliminary result, save/navigation guards, and sync fallback changes (A–D)
 - [x] Revalidate Operations Hub email suppression, unsubscribe, deduplication, backlog exclusion, and disabled locks (E)
 - [x] Build and validate three branded customer outcome email designs without enabling delivery
+- [x] Add the approved itemised quote and included-$349 payment section to the likely-eligible email preview
