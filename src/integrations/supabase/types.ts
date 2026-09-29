@@ -1631,6 +1631,97 @@ export type Database = {
           },
         ]
       }
+      customer_estimate_links: {
+        Row: {
+          created_at: string
+          current_estimate_id: string | null
+          expires_at: string
+          id: string
+          job_id: string
+          last_viewed_at: string | null
+          owner_id: string
+          purpose: string
+          revocation_reason: string | null
+          revoked_at: string | null
+          status: string
+          token: string
+          view_count: number
+        }
+        Insert: {
+          created_at?: string
+          current_estimate_id?: string | null
+          expires_at: string
+          id?: string
+          job_id: string
+          last_viewed_at?: string | null
+          owner_id: string
+          purpose?: string
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          status?: string
+          token: string
+          view_count?: number
+        }
+        Update: {
+          created_at?: string
+          current_estimate_id?: string | null
+          expires_at?: string
+          id?: string
+          job_id?: string
+          last_viewed_at?: string | null
+          owner_id?: string
+          purpose?: string
+          revocation_reason?: string | null
+          revoked_at?: string | null
+          status?: string
+          token?: string
+          view_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_estimate_links_current_estimate_id_fkey"
+            columns: ["current_estimate_id"]
+            isOneToOne: false
+            referencedRelation: "indicative_estimates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_estimate_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_estimate_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "customer_estimate_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_estimate_links_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["owner_id"]
+          },
+          {
+            foreignKeyName: "customer_estimate_links_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       declarations: {
         Row: {
           declared_at: string

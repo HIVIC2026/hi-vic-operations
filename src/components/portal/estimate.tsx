@@ -1,14 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { getAdminEstimate, getOwnerEstimate } from "@/lib/estimate.functions";
+import { getAdminEstimate, getAdminEstimateLink, getAdminEstimateLinkUrl, getOwnerEstimate } from "@/lib/estimate.functions";
+import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
 import { BENCHMARK_LABEL, CALC_ASSUMPTION_LABEL, CALC_EMPTY_BODY, CALC_EMPTY_TITLE, CALC_MAX_M2, CALC_MIN_M2, CALC_NOTE, CALC_QUICK, DISCLAIMER, FEE_DESCRIPTION, FEE_LABEL, benchmarkNote, dollars, electricalNote, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings, type Scenario } from "@/lib/estimate.core";
 import type { LocationVariables } from "@/lib/activity48.core";
 import { Pill } from "./badges";
 
 export const HEADLINE = { likely: "Your home looks suitable to progress", onsite: "Your home may be eligible — onsite confirmation needed" } as const;
 
-type CustomerData = {
+export type CustomerData = {
   visible: boolean; mode?: "likely" | "onsite"; measureRequired?: boolean; onsiteDrivers?: string[]; rolloutHold?: boolean; accessConcern?: boolean;
   fees?: { piesa: number; ap: number; minCopay: number } | null;
   calc?: { location: LocationVariables; insulation: string | null; settings: RetailSettings } | null; postcodeUnlisted?: boolean;
@@ -144,8 +145,33 @@ export function AdminEstimateCard({ jobId }: { jobId: string }) {
           <div>Access totals (primary): {(["standard", "moderate", "difficult"] as const).map((a) => `${a} ${dollars(e.primary.by_access[a].estimated_customer_total)}`).join(" · ")}</div>
         </div>
       )}
+      <EstimateLinkPanel jobId={jobId} />
       <div className="rounded-lg border border-dashed p-2"><div className="mb-1 text-xs font-bold uppercase text-muted-foreground">Customer-facing preview</div>{cust.visible ? <CustomerEstimate data={cust} adminPreview /> : <p className="text-sm text-muted-foreground">Nothing is shown to the customer.</p>}</div>
       {e && <details className="mt-3 text-xs"><summary className="cursor-pointer font-medium">Exact calculation audit</summary><pre className="mt-2 max-h-96 overflow-auto rounded bg-muted p-2">{JSON.stringify({ area: e.area, location: e.location, ghg: e.ghg, raw_estimated_discount: e.raw_estimated_discount, scenarios: e.scenarios, settings: s, history: v.history }, null, 2)}</pre></details>}
     </section>
+  );
+}
+
+type LinkStatus = { link: { status: string; created_at: string; expires_at: string; revocation_reason: string | null; last_viewed_at: string | null; view_count: number } | null; delivery: { ready: boolean; state: string; consent: boolean; commsEnabled: boolean } };
+/** Admin-only link management. The token is fetched only on an explicit click; never auto-copied or sent. */
+function EstimateLinkPanel({ jobId }: { jobId: string }) {
+  const statusFn = useServerFn(getAdminEstimateLink);
+  const urlFn = useServerFn(getAdminEstimateLinkUrl);
+  const { data } = useQuery({ queryKey: ["admin_estimate_link", jobId], queryFn: () => statusFn({ data: { jobId } }) as Promise<LinkStatus> });
+  const [url, setUrl] = useState<string | null>(null);
+  if (!data) return null;
+  const l = data.link;
+  const active = l?.status === "active" && Date.parse(l.expires_at) > Date.now();
+  const reveal = async () => { const r = await urlFn({ data: { jobId } }); setUrl(r.path ? `${window.location.origin}${r.path}` : null); };
+  return (
+    <div className="mb-3 rounded-lg border p-3 text-sm" data-testid="estimate-link-panel">
+      <div className="mb-1 flex flex-wrap items-center gap-2"><b>Secure customer estimate link</b>{active ? <Pill t="good">Active</Pill> : <Pill t="warn">{l ? l.status : "Not prepared"}</Pill>}</div>
+      {l && <div className="text-muted-foreground">Created {new Date(l.created_at).toLocaleString("en-AU")} · expires {new Date(l.expires_at).toLocaleDateString("en-AU")} · views {l.view_count}{l.last_viewed_at ? ` (last ${new Date(l.last_viewed_at).toLocaleString("en-AU")})` : ""}{l.revocation_reason ? ` · ${l.revocation_reason}` : ""}</div>}
+      <div className="mt-1 font-medium">{data.delivery.commsEnabled ? (data.delivery.ready ? "Delivery allowed (not sent automatically)" : "Owner contact consent missing — delivery not allowed") : LINK_COMMS_OFF}</div>
+      {active && <p className="mt-1 text-xs text-warning-foreground">{LINK_ADMIN_WARNING}</p>}
+      {active && (url
+        ? <div className="mt-2 flex flex-wrap gap-2"><input readOnly className="h-10 flex-1 rounded border bg-background px-2 text-xs" value={url} /><button type="button" className="h-10 rounded border px-3" onClick={() => navigator.clipboard.writeText(url)}>Copy</button><a className="h-10 rounded border px-3 leading-10" href={url} target="_blank" rel="noreferrer noopener">Open</a></div>
+        : <button type="button" className="mt-2 h-10 rounded border px-3" onClick={reveal}>Show link (admin only)</button>)}
+    </div>
   );
 }

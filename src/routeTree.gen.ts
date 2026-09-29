@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminBusinessesRouteImport } from './routes/_authenticated/admin.businesses'
 import { Route as AuthenticatedAdminComplianceRouteImport } from './routes/_authenticated/admin.compliance'
@@ -48,6 +49,11 @@ const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   id: '/home',
   path: '/home',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const EstimateTokenRoute = EstimateTokenRouteImport.update({
+  id: '/estimate/$token',
+  path: '/estimate/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/admin/',
@@ -142,6 +148,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/estimate/$token': typeof EstimateTokenRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
@@ -163,6 +170,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/estimate/$token': typeof EstimateTokenRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
@@ -186,6 +194,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/estimate/$token': typeof EstimateTokenRoute
   '/_authenticated/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/_authenticated/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
@@ -209,6 +218,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/home'
+    | '/estimate/$token'
     | '/admin/businesses'
     | '/admin/compliance'
     | '/admin/partners'
@@ -230,6 +240,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/home'
+    | '/estimate/$token'
     | '/admin/businesses'
     | '/admin/compliance'
     | '/admin/partners'
@@ -252,6 +263,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/home'
+    | '/estimate/$token'
     | '/_authenticated/admin/businesses'
     | '/_authenticated/admin/compliance'
     | '/_authenticated/admin/partners'
@@ -274,6 +286,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  EstimateTokenRoute: typeof EstimateTokenRoute
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
   ApiPublicPartnerEnquiryRoute: typeof ApiPublicPartnerEnquiryRoute
   ApiPublicHooksPostIntakeRoute: typeof ApiPublicHooksPostIntakeRoute
@@ -308,6 +321,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/home'
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/estimate/$token': {
+      id: '/estimate/$token'
+      path: '/estimate/$token'
+      fullPath: '/estimate/$token'
+      preLoaderRoute: typeof EstimateTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
@@ -465,6 +485,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  EstimateTokenRoute: EstimateTokenRoute,
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
   ApiPublicPartnerEnquiryRoute: ApiPublicPartnerEnquiryRoute,
   ApiPublicHooksPostIntakeRoute: ApiPublicHooksPostIntakeRoute,

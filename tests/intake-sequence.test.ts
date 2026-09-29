@@ -48,6 +48,8 @@ const rpc = async (_fn: string, a: { _limit: number; _lease_seconds: number; _jo
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: q, rpc } }));
 mock.module("../src/lib/workflow.server", () => ({ WorkflowError: class extends Error {}, logEvent: async (job_id: string, _a: unknown, event_type: string) => { db["workflow_events"]!.push({ job_id, event_type }); } }));
 const outbound: string[] = [];
+export const step3Calls: string[] = [];
+mock.module("../src/lib/estimatelink.server", () => ({ syncStep3: async (jobId: string) => { step3Calls.push(jobId); return { status: "issued" }; } }));
 mock.module("../src/lib/esc.server", () => ({ regenerateEscNotification: async () => {} }));
 mock.module("../src/lib/autoadvance.server", () => ({ autoAdvanceJob: async (jobId: string) => { const { autoDecideEligibility } = await import("../src/lib/eligibility.server"); await autoDecideEligibility(jobId); return null; } }));
 let intelMode: "ok" | "partial" | "error" = "ok";
