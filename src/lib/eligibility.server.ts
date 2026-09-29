@@ -83,7 +83,7 @@ export async function previewGate1(jobId: string) {
   const { data: j } = await admin.from("jobs").select(JOB_COLS).eq("id", jobId).single();
   if (!j) return null;
   const { d } = await evaluateStored(j as StoredJob, jobId);
-  const rec = j.eligibility_decision_rules as Record<string, unknown> | null;
+  const rec = (j.eligibility_decision_rules ?? null) as Json;
   return {
     live: d,
     recorded: {
