@@ -31,7 +31,10 @@ import { Route as AuthenticatedPartnerImportRouteImport } from './routes/_authen
 import { Route as AuthenticatedPartnerProfileRouteImport } from './routes/_authenticated/partner.profile'
 import { Route as ApiPublicEnquiryRouteImport } from './routes/api/public/enquiry'
 import { Route as ApiPublicPartnerEnquiryRouteImport } from './routes/api/public/partner-enquiry'
+import { Route as TETokenRouteImport } from './routes/t.e.$token'
+import { Route as TOFileRouteImport } from './routes/t.o.$file'
 import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authenticated/admin.jobs.$jobId'
+import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
 import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/public/hooks/post-intake'
 
 const IndexRoute = IndexRouteImport.update({
@@ -150,11 +153,27 @@ const ApiPublicPartnerEnquiryRoute = ApiPublicPartnerEnquiryRouteImport.update({
   path: '/api/public/partner-enquiry',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TETokenRoute = TETokenRouteImport.update({
+  id: '/t/e/$token',
+  path: '/t/e/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TOFileRoute = TOFileRouteImport.update({
+  id: '/t/o/$file',
+  path: '/t/o/$file',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminJobsJobIdRoute =
   AuthenticatedAdminJobsJobIdRouteImport.update({
     id: '/admin/jobs/$jobId',
     path: '/admin/jobs/$jobId',
     getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const ApiPublicHooksCustomerFollowupsRoute =
+  ApiPublicHooksCustomerFollowupsRouteImport.update({
+    id: '/api/public/hooks/customer-followups',
+    path: '/api/public/hooks/customer-followups',
+    getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksPostIntakeRoute =
   ApiPublicHooksPostIntakeRouteImport.update({
@@ -181,11 +200,14 @@ export interface FileRoutesByFullPath {
   '/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
+  '/t/e/$token': typeof TETokenRoute
+  '/t/o/$file': typeof TOFileRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/field/': typeof AuthenticatedFieldIndexRoute
   '/owner/': typeof AuthenticatedOwnerIndexRoute
   '/partner/': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
+  '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
 }
 export interface FileRoutesByTo {
@@ -206,11 +228,14 @@ export interface FileRoutesByTo {
   '/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
+  '/t/e/$token': typeof TETokenRoute
+  '/t/o/$file': typeof TOFileRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/field': typeof AuthenticatedFieldIndexRoute
   '/owner': typeof AuthenticatedOwnerIndexRoute
   '/partner': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
+  '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
 }
 export interface FileRoutesById {
@@ -233,11 +258,14 @@ export interface FileRoutesById {
   '/_authenticated/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
+  '/t/e/$token': typeof TETokenRoute
+  '/t/o/$file': typeof TOFileRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/field/': typeof AuthenticatedFieldIndexRoute
   '/_authenticated/owner/': typeof AuthenticatedOwnerIndexRoute
   '/_authenticated/partner/': typeof AuthenticatedPartnerIndexRoute
   '/_authenticated/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
+  '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
 }
 export interface FileRouteTypes {
@@ -260,11 +288,14 @@ export interface FileRouteTypes {
     | '/partner/profile'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
+    | '/t/e/$token'
+    | '/t/o/$file'
     | '/admin/'
     | '/field/'
     | '/owner/'
     | '/partner/'
     | '/admin/jobs/$jobId'
+    | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -285,11 +316,14 @@ export interface FileRouteTypes {
     | '/partner/profile'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
+    | '/t/e/$token'
+    | '/t/o/$file'
     | '/admin'
     | '/field'
     | '/owner'
     | '/partner'
     | '/admin/jobs/$jobId'
+    | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
   id:
     | '__root__'
@@ -311,11 +345,14 @@ export interface FileRouteTypes {
     | '/_authenticated/partner/profile'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
+    | '/t/e/$token'
+    | '/t/o/$file'
     | '/_authenticated/admin/'
     | '/_authenticated/field/'
     | '/_authenticated/owner/'
     | '/_authenticated/partner/'
     | '/_authenticated/admin/jobs/$jobId'
+    | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
   fileRoutesById: FileRoutesById
 }
@@ -328,6 +365,9 @@ export interface RootRouteChildren {
   EstimateTokenRoute: typeof EstimateTokenRoute
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
   ApiPublicPartnerEnquiryRoute: typeof ApiPublicPartnerEnquiryRoute
+  TETokenRoute: typeof TETokenRoute
+  TOFileRoute: typeof TOFileRoute
+  ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
   ApiPublicHooksPostIntakeRoute: typeof ApiPublicHooksPostIntakeRoute
 }
 
@@ -487,12 +527,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPartnerEnquiryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/t/e/$token': {
+      id: '/t/e/$token'
+      path: '/t/e/$token'
+      fullPath: '/t/e/$token'
+      preLoaderRoute: typeof TETokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/t/o/$file': {
+      id: '/t/o/$file'
+      path: '/t/o/$file'
+      fullPath: '/t/o/$file'
+      preLoaderRoute: typeof TOFileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/jobs/$jobId': {
       id: '/_authenticated/admin/jobs/$jobId'
       path: '/admin/jobs/$jobId'
       fullPath: '/admin/jobs/$jobId'
       preLoaderRoute: typeof AuthenticatedAdminJobsJobIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/hooks/customer-followups': {
+      id: '/api/public/hooks/customer-followups'
+      path: '/api/public/hooks/customer-followups'
+      fullPath: '/api/public/hooks/customer-followups'
+      preLoaderRoute: typeof ApiPublicHooksCustomerFollowupsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/post-intake': {
       id: '/api/public/hooks/post-intake'
@@ -552,6 +613,9 @@ const rootRouteChildren: RootRouteChildren = {
   EstimateTokenRoute: EstimateTokenRoute,
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
   ApiPublicPartnerEnquiryRoute: ApiPublicPartnerEnquiryRoute,
+  TETokenRoute: TETokenRoute,
+  TOFileRoute: TOFileRoute,
+  ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,
   ApiPublicHooksPostIntakeRoute: ApiPublicHooksPostIntakeRoute,
 }
 export const routeTree = rootRouteImport
