@@ -108,9 +108,11 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     const { error: ue } = await admin.from("jobs").update(update).eq("id", existingJob.id);
     if (ue) throw new Error(ue.message);
     await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, plan?.details ?? {});
-    if (source === "base44") await completeIntake(existingJob.id, owner!.id, input);
-    await runGate1(existingJob.id, actorId);
-    await afterEnquiry(existingJob.id, actorId, addrChanged ? "address changed" : null);
+    await runPostIntakeSequence({
+      completeIntake: source === "base44" ? () => completeIntake(existingJob.id, owner!.id, input) : null,
+      intelligence: () => afterEnquiry(existingJob.id, actorId, addrChanged ? "address changed" : null),
+      gate1: () => runGate1(existingJob.id, actorId),
+    });
     return { job_id: existingJob.id, job_number: existingJob.job_number, created: false };
   }
   const { data: prop, error: pe } = await admin.from("properties").insert({ ...propFields, ...(source === "base44" ? { enrichment: mergeEvidence(null, input) } : {}) }).select("id").single();
@@ -140,10 +142,22 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
   await logEvent(job.id, actorId, "job_source_recorded",
     origin.channel === "installer_sourced" ? "Job source: Installer-sourced (attribution locked)" : "Job source: HI VIC-sourced",
     origin.channel === "installer_sourced" ? { channel: origin.channel, originating_installer_business_id: origin.businessId, originating_installer_user_id: origin.userId, commercial_model: "not_configured" } : { channel: origin.channel });
-  if (source === "base44") await completeIntake(job.id, owner!.id, input);
-  await runGate1(job.id, actorId);
-  await afterEnquiry(job.id, actorId, "new enquiry");
+  await runPostIntakeSequence({
+    completeIntake: source === "base44" ? () => completeIntake(job.id, owner!.id, input) : null,
+    intelligence: () => afterEnquiry(job.id, actorId, "new enquiry"),
+    gate1: () => runGate1(job.id, actorId),
+  });
   return { job_id: job.id, job_number: job.job_number, created: true };
+}
+
+/**
+ * Intake order (locked): Step 1 intake → initial Property Intelligence (success, partial or error) → ONE official Gate 1
+ * categorisation. Gate 1 is never persisted before the intelligence attempt, so no premature REVIEW REQUIRED event.
+ */
+export async function runPostIntakeSequence(steps: { completeIntake: (() => Promise<void>) | null; intelligence: () => Promise<void>; gate1: () => Promise<unknown> }) {
+  if (steps.completeIntake) await steps.completeIntake();
+  try { await steps.intelligence(); } catch (e) { console.error("property intelligence failed", (e as Error).message); }
+  await steps.gate1();
 }
 
 /** Property intelligence after the job is committed. Information only; failures never fail the enquiry. */
