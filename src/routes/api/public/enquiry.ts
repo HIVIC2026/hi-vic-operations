@@ -42,7 +42,13 @@ export const Route = createFileRoute("/api/public/enquiry")({
           } catch (e) {
             console.error("referral link creation failed", e);
           }
-          return Response.json({ ok: true, ...result, referral_share_url });
+          // Truthful customer messaging: Base44 may only promise an email when delivery is really possible.
+          let customer_email_enabled = false;
+          try {
+            const [{ customerCommsEnabled, hasCurrentOwnerContactConsent }, { configuredDeliveryAdapter }] = await Promise.all([import("@/lib/comms.server"), import("@/lib/delivery.server")]);
+            customer_email_enabled = (await customerCommsEnabled()) && !!(await configuredDeliveryAdapter()) && (await hasCurrentOwnerContactConsent(result.job_id));
+          } catch { customer_email_enabled = false; }
+          return Response.json({ ok: true, ...result, referral_share_url, customer_email_enabled });
         } catch (e) {
           console.error("enquiry webhook failed", e);
           await supabaseAdmin.from("external_sync_logs").insert({ system: "base44", direction: "inbound", entity_type: "enquiry", status: "error", payload: ref, error: String(e) });
