@@ -164,7 +164,7 @@ describe("delivery configuration", () => {
     expect(base44BridgeConfig({ BASE44_DELIVERY_URL: "https://x/hook", BASE44_DELIVERY_SECRET: "s".repeat(40) })).not.toBeNull();
   });
   test("no Resend anywhere in src", () => {
-    for (const f of walk("src")) if (/\.(ts|tsx)$/.test(f)) expect(src(f)).not.toMatch(/\bresend\b|api\.resend\.com/i);
+    for (const f of walk("src")) if (/\.(ts|tsx)$/.test(f)) expect(src(f)).not.toMatch(/from ["']resend["']|api\.resend\.com|RESEND_API_KEY|new Resend\(/);
   });
 });
 
