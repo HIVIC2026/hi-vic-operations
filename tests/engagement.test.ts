@@ -197,7 +197,7 @@ describe("email renderers", () => {
     expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).plainText).toContain("$349 payable now for the Measure + PIESA. Already included in your estimated total — not an extra fee.");
     const seven = renderFollowupEmail({ kind: "estimate_second_reminder_7d", estimateUrl: link }).plainText;
     expect(seven).toContain("Warmer in winter");
-    expect(seven).toContain("Transparent HI VIC pricing");
+    expect(seven).toContain("Transparent Home Insulation Victoria pricing");
   });
   test("sample preview never calls live tracking", () => {
     const p = src("src/routes/step3-email-preview.tsx");
