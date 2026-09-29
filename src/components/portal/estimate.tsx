@@ -27,27 +27,27 @@ function PriceResult({ est, fees, area, assumption = false }: { est: Est; fees: 
   const removal = est.scenarios.find((s) => s.key === "full_removal");
   return (
     <div className="space-y-7">
-      <div className="overflow-hidden rounded-lg border border-primary/20 bg-card shadow-sm">
+      <div className="estimate-offset rounded-[1.35rem] border-2 border-estimate-blue bg-estimate-white">
         <div className="px-5 pb-6 pt-7 sm:px-8 sm:pb-8 sm:pt-9">
-          <p className="text-sm font-medium text-muted-foreground">Estimated price after VEU discount</p>
-          {removal && <p className="mt-1 text-sm font-semibold text-primary">If existing insulation can remain</p>}
-          <div className="mt-2 flex items-end gap-3"><span className="text-5xl font-extrabold leading-none text-foreground sm:text-6xl" data-testid={assumption ? "calculator-total-can_remain" : "total-can_remain"}>{dollars(standard.estimated_customer_total)}</span><span className="pb-1 text-sm text-muted-foreground">inc GST</span></div>
-          <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-5 text-sm sm:text-base"><span className="inline-flex items-center gap-2 font-semibold text-primary"><Sparkles aria-hidden="true" className="size-4" />Estimated VEU discount</span><strong className="text-lg text-primary">−{dollars(standard.applied_discount)}</strong></div>
+          <p className="text-sm font-semibold text-estimate-navy">Estimated price after VEU discount</p>
+          {removal && <p className="mt-1 text-sm font-bold text-estimate-blue">If existing insulation can remain</p>}
+          <div className="mt-3 flex flex-wrap items-end gap-x-3 gap-y-1"><span className="text-5xl font-extrabold leading-none text-estimate-navy sm:text-6xl" data-testid={assumption ? "calculator-total-can_remain" : "total-can_remain"}>{dollars(standard.estimated_customer_total)}</span><span className="pb-1 text-sm text-estimate-navy">inc GST</span></div>
+          <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-estimate-green-soft px-4 py-3 text-sm sm:text-base"><span className="inline-flex items-center gap-2 font-bold text-estimate-navy"><Sparkles aria-hidden="true" className="size-4 text-estimate-blue" />Estimated VEU discount</span><strong className="text-lg text-estimate-navy">−{dollars(standard.applied_discount)}</strong></div>
         </div>
       </div>
       {removal ? (
-        <div className="border-l-4 border-warning bg-warning-soft px-5 py-4">
-          <p className="font-semibold">If full removal is required: approximately <span data-testid={assumption ? "calculator-total-full_removal" : "total-full_removal"}>{dollars(removal.by_access.standard.estimated_customer_total)}</span></p>
-          <p className="mt-1 text-sm text-foreground/80">Your onsite assessment confirms whether existing insulation can remain or must be removed.</p>
+        <div className="rounded-[1.2rem] bg-estimate-blue-soft px-5 py-4">
+          <p className="font-bold text-estimate-navy">If full removal is required: approximately <span data-testid={assumption ? "calculator-total-full_removal" : "total-full_removal"}>{dollars(removal.by_access.standard.estimated_customer_total)}</span></p>
+          <p className="mt-1 text-sm text-estimate-navy">Your onsite assessment confirms whether existing insulation can remain or must be removed.</p>
         </div>
-      ) : <p className="text-sm text-muted-foreground">Your onsite assessment will confirm whether any unexpected existing insulation is present and whether it affects your final price.</p>}
-      <section aria-label="What this estimate includes" className="border-t pt-7">
-        <h3 className="text-lg font-bold">What this estimate includes</h3>
-        <dl className="mt-4 divide-y divide-border">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3"><dt className="flex min-w-0 items-center gap-3"><Home aria-hidden="true" className="size-5 shrink-0 text-primary" /><span>R5.0 insulation supply &amp; installation <span className="block text-sm text-muted-foreground">Based on {area} m²{assumption ? " calculator assumption" : " estimated ceiling area"}</span></span></dt><dd className="shrink-0 font-semibold">{dollars(standard.installation)}</dd></div>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3"><dt className="flex min-w-0 items-center gap-3"><Ruler aria-hidden="true" className="size-5 shrink-0 text-primary" /><span>Onsite Measure + PIESA</span></dt><dd className="shrink-0 font-semibold">{dollars(fees.piesa)}</dd></div>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3"><dt className="flex min-w-0 items-center gap-3"><ShieldCheck aria-hidden="true" className="size-5 shrink-0 text-primary" /><span>{FEE_LABEL}<details className="mt-1 text-sm text-muted-foreground"><summary className="cursor-pointer text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">What this covers</summary><p className="pt-1">{FEE_DESCRIPTION}</p></details></span></dt><dd className="shrink-0 self-start pt-1 font-semibold">{dollars(fees.ap)}</dd></div>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 text-primary"><dt className="flex min-w-0 items-center gap-3 font-semibold"><Sparkles aria-hidden="true" className="size-5 shrink-0" />Estimated VEU discount</dt><dd className="shrink-0 font-bold">−{dollars(standard.applied_discount)}</dd></div>
+      ) : <p className="text-sm text-estimate-navy">Your onsite assessment will confirm whether any unexpected existing insulation is present and whether it affects your final price.</p>}
+      <section aria-label="What this estimate includes" className="border-t-2 border-estimate-blue/20 pt-7">
+        <h3 className="text-lg font-extrabold uppercase tracking-tight text-estimate-blue">What this estimate includes</h3>
+        <dl className="mt-4 divide-y divide-estimate-blue/20">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3"><dt className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-estimate-green-soft text-estimate-blue"><Home aria-hidden="true" className="size-5" /></span><span>R5.0 insulation supply &amp; installation <span className="block text-sm text-estimate-navy/80">Based on {area} m²{assumption ? " calculator assumption" : " estimated ceiling area"}</span></span></dt><dd className="shrink-0 font-bold">{dollars(standard.installation)}</dd></div>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3"><dt className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-estimate-green-soft text-estimate-blue"><Ruler aria-hidden="true" className="size-5" /></span><span>Onsite Measure + PIESA</span></dt><dd className="shrink-0 font-bold">{dollars(fees.piesa)}</dd></div>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3"><dt className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-estimate-green-soft text-estimate-blue"><ShieldCheck aria-hidden="true" className="size-5" /></span><span>{FEE_LABEL}<details className="mt-1 text-sm text-estimate-navy"><summary className="cursor-pointer text-estimate-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">What this covers</summary><p className="pt-1">{FEE_DESCRIPTION}</p></details></span></dt><dd className="shrink-0 self-start pt-1 font-bold">{dollars(fees.ap)}</dd></div>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 text-estimate-blue"><dt className="flex min-w-0 items-center gap-3 font-bold"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-estimate-green-soft text-estimate-blue"><Sparkles aria-hidden="true" className="size-5" /></span>Estimated VEU discount</dt><dd className="shrink-0 font-bold">−{dollars(standard.applied_discount)}</dd></div>
         </dl>
         {standard.copayment_capped && <p className="mt-2 text-sm text-muted-foreground">The discount is limited so your contribution meets the program minimum.</p>}
       </section>
