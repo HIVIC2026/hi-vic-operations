@@ -67,16 +67,23 @@ describe("customer outcome email renderers", () => {
     expect(() => renderEstimateEmail({ ...common, assessmentFee: 349 })).toThrow();
   });
 
-  test("uses email-safe markup and remains a pure renderer", () => {
+  test("uses email-safe markup, loads Open Sans for likely, and remains a pure renderer", () => {
     const source = readFileSync("src/lib/estimate-email.ts", "utf8");
     const preview = readFileSync("src/routes/step3-email-preview.tsx", "utf8");
     for (const email of [renderEstimateEmail(common), renderIneligibleOutcomeEmail({ referralUrl, reasons: ["Fixture reason"] })]) {
-      expect(email.html).not.toMatch(/<script\b|class=|<style\b/i);
+      expect(email.html).not.toMatch(/<script\b|\son\w+=/i);
       expect(email.html).toContain("max-width:640px");
       expect(email.html).toContain("font-family:'Open Sans',Arial,Helvetica,sans-serif");
       for (const colour of ["#3C51C4", "#07BF61", "#52C875"]) expect(email.html).toContain(colour);
     }
+    const likely = renderEstimateEmail(common).html;
+    expect(likely).toContain("fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800");
+    expect(likely).toContain("<!--[if !mso]><!-->");
+    expect(likely).toContain("<!--[if mso]>");
+    expect(likely).toContain("@media only screen and (max-width:480px)");
     expect(source + preview).not.toMatch(/sendTemplateEmail|sendLovableEmail|createServerFn|supabase|fetch\(|\.insert\(|\.update\(/);
     expect(preview).toContain("likely-eligible");
+    expect(preview).toContain("640 desktop");
+    expect(preview).toContain("390 mobile");
   });
 });
