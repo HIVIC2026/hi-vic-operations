@@ -44,6 +44,7 @@ const samples = {
   }), unsubscribeUrl),
   ineligible: withUnsubscribe(renderIneligibleOutcomeEmail({
     referralUrl,
+    resultUrl: `${estimateUrl}#result`,
     reasons: ["The information supplied indicates this property does not meet the preliminary requirements for this offer."],
     reference: "SAMPLE-1001",
   }), unsubscribeUrl),
@@ -75,6 +76,8 @@ function EmailPreview() {
     ...(outcome === "onsite" ? { reasons: ["The existing insulation and eligible ceiling area need to be confirmed onsite.", "Roof access and electrical safety need to be checked."] } : {}),
   }), unsubscribeUrl);
   const srcDoc = sample.html.replace(/(<a\b[^>]*?)\s+href="[^"]*"/g, "$1");
+  const calculatorTestUrl = `${estimateUrl}#calculator`;
+  const outcomeTestUrl = outcome === "ineligible" ? `${estimateUrl}#result` : `${estimateUrl}#confirm`;
   const width = view === "desktop" ? 640 : view === "mobile" ? 390 : undefined;
   const brand = { fontFamily: "'Open Sans', Arial, Helvetica, sans-serif", background: "#FBFCFA", color: "#22376B" };
   const pill = (active: boolean) => ({ fontFamily: brand.fontFamily, background: active ? "#3C51C4" : "#FFFFFF", color: active ? "#FFFFFF" : "#3C51C4", border: "2px solid #3C51C4", boxShadow: active ? "3px 3px 0 #07BF61" : "none" });
@@ -95,6 +98,10 @@ function EmailPreview() {
          {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "confirm"} className={btn} style={pill(previewKind === "confirm")} onClick={() => setPreviewKind("confirm")}>Secure next step</button>}
        </div>
       {previewKind === "email" && <><p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p><p className="mb-6 text-sm"><strong>Preheader:</strong> {sample.previewText}</p></>}
+       {previewKind === "email" && <div className="mb-4 flex flex-wrap items-center gap-3 text-xs font-bold">
+         {outcome !== "ineligible" && <a href={calculatorTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test CHANGE → calculator</a>}
+         <a href={outcomeTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: outcome === "ineligible" ? "#3C51C4" : "#07BF61" }}>{outcome === "ineligible" ? "Test REVIEW MY RESULT →" : "Test PAY $349 & CONTINUE →"}</a>
+       </div>}
       <div className="mb-4 flex flex-wrap gap-2" aria-label="Preview width">
         <button type="button" aria-pressed={view === "fit"} className={btn} style={pill(view === "fit")} onClick={() => setView("fit")}>Fit</button>
         <button type="button" aria-pressed={view === "desktop"} className={btn} style={pill(view === "desktop")} onClick={() => setView("desktop")}>640 desktop</button>

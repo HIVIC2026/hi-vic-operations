@@ -32,3 +32,4 @@
 - [x] Simplify likely/onsite email conversion flow and add secure estimate confirm state
 - [x] Fix Step 3 outcome-email routing to use only official recorded eligibility, including safe retries
 - [x] Correct the estimate email so only the assessment fee is fixed at $349 and AP management remains dynamic
+- [ ] Complete approved-design onsite and ineligible customer emails, preview switching, and secure link checks
