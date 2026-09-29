@@ -45,3 +45,43 @@ Real inbox delivery (locks OFF by design), live Base44→Lovable round-trip (for
 
 ## 5. Recommendation
 **NO LOCK.** Automated checks are green, but D1 and D2 give customers wrong eligibility/email promises. Fix D1–D2 (and ideally D3–D4 and the unsubscribe gap), then re-run this audit.
+
+---
+## 6. Fix pass + re-run (2026-09-29, later)
+### Fixed in the Lovable Operations Hub (item 5)
+- Unsubscribe footer added to every customer email (estimate, follow-ups, ineligible); `/api/public/unsubscribe` (GET = confirm page only, POST = opt-out). Opt-out stores a `not_granted` contact consent and suppresses queued follow-ups.
+- Suppression: opt-out, bounce/complaint/opted_out/payment_received/quote_declined/booking_completed events, QA/example recipients, closed or progressed stages, and backlog. Backlog cutoff `customer_delivery_settings.jobs_created_after` is NULL, so **no job is eligible** until an admin sets it at enablement; initial/ineligible emails also refuse jobs older than 14 days.
+- Duplicates: provider success + DB failure → `delivered_unrecorded`, never retried; stale `sending` rows never auto-resend; follow-up rows re-read after claim.
+- Enquiry webhook response now also returns `customer_email_enabled` (true only when comms lock ON + bridge configured + owner consent) so Base44 can decide whether to promise an email. Currently always false.
+- Locks re-read: `customer_comms_enabled=false`, `customer_delivery_settings.enabled=false`, cutoff NULL.
+
+### Checks
+| Check | Result |
+|---|---|
+| `bun test ./tests/` | 502 pass, 0 fail (new `tests/email-safety.test.ts`) |
+| `bun test ./qa/prelock` | 55 pass, 0 fail (6 former known-defect tests now pass normally) |
+| `tsgo --noEmit` | exit 0 |
+| `vite build --outDir /tmp/prelock-build2` | exit 0 |
+
+### Live Base44 re-run (intercepted, 390×844 + 1280×900) — evidence `/mnt/documents/prelock-qa/rerun/`
+| Case | Result |
+|---|---|
+| Likely eligible / custom 175 m² | PASS (reference ≤0.9 s, referral ≤1.1 s, no overflow) — but still promises email: FAIL D2 |
+| Existing insulation (review) | shows “Likely eligible — onsite confirmation needed” (acceptable) + email promise: FAIL D2 |
+| Previous VEU = Yes | FAIL D1 (shows likely-onsite + estimate) |
+| Home age ≤5 yrs | FAIL D1 |
+| Garage/commercial | PASS outcome; “We’ll email you this outcome”: FAIL D2 |
+| Slow save / navigation during save | FAIL D3 (Back to home leaves, no prompt; Check another not disabled; reload/back lose answers) |
+| Save failure → retry | PASS (same submission id) |
+| Double submit | PASS (1 save) |
+| Slow sync / sync failure | FAIL D4 (no progress or fallback; referral never shown) |
+
+### Why D1–D4 remain
+They live in the Base44 homeowner page code (client `QT()` preliminary check and result screen), which this project cannot edit. Base44 changes required:
+1. `previous_upgrade==='yes'` or `property_over_five_years==='no'` → `not_suitable` (reason text), no estimate promise.
+2. Show “we’ll email you” only when the save succeeded AND the sync response has `customer_email_enabled===true`; otherwise: “Your enquiry is saved (reference X). Our team will review it and contact you about the next step.”
+3. While `screen` is in flight: disable “Check another property”, intercept header links, add `beforeunload` guard; clear on success/failure.
+4. While `sync` runs show “Finishing up…”; after final failure show “Your result is saved — your share link will be available shortly” with a retry; render the referral card whenever `referral_share_url` arrives.
+
+### Recommendation
+Lovable side: gates pass. Overall journey: **NO LOCK** until the Base44 changes above ship and this re-run passes.

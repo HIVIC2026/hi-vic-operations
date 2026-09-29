@@ -77,7 +77,7 @@ describe("post-intake + worker wiring", () => {
   test("pending scan gates on comms + adapter first, uses idempotent sender", () => {
     const s = f.slice(f.indexOf("export async function processPendingInitialEstimateEmails"), f.indexOf("async function base44Preliminary"));
     expect(s.indexOf("customerCommsEnabled()")).toBeLessThan(s.indexOf("customer_estimate_links"));
-    expect(s).toContain('.eq("status", "sent")');
+    expect(s).toContain('.in("status", ["sent", "delivered_unrecorded", "sending"])');
     expect(s).toContain("sendInitialEstimateEmail(l.job_id, null, adapter)");
   });
   test("estimate tracking/follow-ups only after confirmed send", () => {

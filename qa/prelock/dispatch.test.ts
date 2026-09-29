@@ -41,13 +41,13 @@ const estimateFor = (m2: number, ins: "none" | "present" = "none") => ({ id: `es
 let tables: Tables;
 function job(opts: { email?: string; linkExpires?: number; linkStatus?: string; linkCreated?: string } = {}) {
   const jobId = id();
-  tables.jobs!.push({ id: jobId, owners: { email: opts.email ?? "fixture-owner@example.invalid" } });
+  tables.jobs!.push({ id: jobId, owner_id: "o-" + jobId, stage: "new_enquiry", source: "base44", created_at: new Date().toISOString(), owners: { email: opts.email ?? "fixture.owner@homeowner-fixture.com.au" } });
   const linkId = id();
   tables.customer_estimate_links!.push({ id: linkId, job_id: jobId, token: "T".repeat(43), purpose: "step3_estimate", status: opts.linkStatus ?? "active", expires_at: new Date(Date.now() + (opts.linkExpires ?? 30 * 86_400_000)).toISOString(), created_at: opts.linkCreated ?? new Date().toISOString() });
   return { jobId, linkId };
 }
 beforeEach(() => {
-  tables = { jobs: [], customer_estimate_links: [], customer_email_sends: [], customer_followups: [], engagement_tracking_tokens: [], customer_engagement_events: [], customer_referral_tokens: [], customer_referral_events: [], workflow_events: [] };
+  tables = { jobs: [], customer_estimate_links: [], customer_email_sends: [], customer_followups: [], engagement_tracking_tokens: [], customer_engagement_events: [], customer_referral_tokens: [], customer_referral_events: [], workflow_events: [], customer_email_optouts: [], owner_contact_consents: [], customer_delivery_settings: [{ id: 1, jobs_created_after: "2026-01-01T00:00:00Z" }] };
   db = fakeDb(tables, {
     claim_customer_followups: ({ _limit }: any) => { const due = tables.customer_followups!.filter((f) => Date.parse(f.due_at) <= Date.now() && f.status === "pending").slice(0, _limit); for (const f of due) { f.status = "queued"; f.attempts++; } return due.map((f) => ({ ...f })); },
   });
@@ -98,12 +98,12 @@ describe("C3 idempotency / concurrency / ambiguous success", () => {
   test("duplicate retry after confirmed send => no second delivery", async () => { const { jobId } = job(); await F.sendInitialEstimateEmail(jobId, null); await F.sendInitialEstimateEmail(jobId, null); expect(calls.length).toBe(1); });
   test("same-key concurrent sends => one delivery", async () => { const { jobId } = job(); await Promise.all([F.sendInitialEstimateEmail(jobId, null), F.sendInitialEstimateEmail(jobId, null), F.sendInitialEstimateEmail(jobId, null)]); expect(calls.length).toBe(1); });
   test("provider 500 => failed row, retry allowed (unambiguous failure)", async () => { const { jobId } = job(); fetchMode = "500"; await F.sendInitialEstimateEmail(jobId, null); expect(tables.customer_email_sends![0]!.status).toBe("failed"); fetchMode = "ok"; await F.sendInitialEstimateEmail(jobId, null); expect(calls.length).toBe(2); });
-  test.failing("provider accepted, then DB write fails => must NOT be blindly redelivered", async () => {
+  test("provider accepted, then DB write fails => must NOT be blindly redelivered", async () => {
     const { jobId } = job(); S.commFail = true; await F.sendInitialEstimateEmail(jobId, null); S.commFail = false; await F.sendInitialEstimateEmail(jobId, null);
     expect(calls.length).toBe(1);
   });
-  test("state recorded for provider success+DB failure is 'failed' (not 'sent'/'ambiguous')", async () => { const { jobId } = job(); S.commFail = true; await F.sendInitialEstimateEmail(jobId, null); expect(tables.customer_email_sends![0]!.status).toBe("failed"); });
-  test.failing("stale 'sending' row (>10 min, outcome unknown) must not be re-sent blindly", async () => {
+  test("state recorded for provider success+DB failure is 'delivered_unrecorded' (never retried)", async () => { const { jobId } = job(); S.commFail = true; await F.sendInitialEstimateEmail(jobId, null); expect(tables.customer_email_sends![0]!.status).toBe("delivered_unrecorded"); });
+  test("stale 'sending' row (>10 min, outcome unknown) must not be re-sent blindly", async () => {
     const { jobId, linkId } = job(); tables.customer_email_sends!.push({ id: id(), job_id: jobId, estimate_link_id: linkId, purpose: "step3_estimate", idempotency_key: `step3_estimate:${linkId}:est-150`, status: "sending", created_at: new Date(Date.now() - 11 * 60_000).toISOString() });
     await F.sendInitialEstimateEmail(jobId, null); expect(calls.length).toBe(0);
   });
@@ -111,7 +111,7 @@ describe("C3 idempotency / concurrency / ambiguous success", () => {
 });
 
 describe("C4 backlog release when sending is unlocked later", () => {
-  test.failing("links prepared while comms were OFF (e.g. QA @example.com jobs) are not all released on unlock", async () => {
+  test("links prepared while comms were OFF (e.g. QA @example.com jobs) are not all released on unlock", async () => {
     for (let i = 0; i < 3; i++) job({ email: `qa-${i}@example.com`, linkCreated: new Date(Date.now() - 20 * 86_400_000).toISOString() });
     const r = await F.processPendingInitialEstimateEmails(20);
     expect(r.sent).toBe(0);
@@ -162,9 +162,9 @@ describe("C6 follow-ups with fake time", () => {
   test("Day 7 reminder after Day 3", async () => { const { sentAt } = await sentJob(); at(sentAt + 7 * DAY + 1000); calls = []; try { await F.processDueFollowups(); } finally { Date.now = realNow; } expect(calls.map((c) => JSON.parse(c.body).purpose).sort()).toEqual(["estimate_second_reminder_7d", "estimate_unopened_3d"]); });
   test("booking completed => both suppressed, no delivery", async () => { const { sentAt } = await sentJob([{ event_type: "booking_completed", offsetMs: DAY }]); calls = []; at(sentAt + 8 * DAY); try { await F.processDueFollowups(); } finally { Date.now = realNow; } expect(calls.length).toBe(0); });
   for (const ev of ["email_bounced", "complaint", "opted_out", "payment_received", "quote_declined"]) {
-    test.failing(`${ev} => pending reminders suppressed`, async () => { const { sentAt } = await sentJob([{ event_type: ev, offsetMs: DAY }]); calls = []; at(sentAt + 3 * DAY + 1000); try { await F.processDueFollowups(); } finally { Date.now = realNow; } expect(calls.length).toBe(0); });
+    test(`${ev} => pending reminders suppressed`, async () => { const { sentAt } = await sentJob([{ event_type: ev, offsetMs: DAY }]); calls = []; at(sentAt + 3 * DAY + 1000); try { await F.processDueFollowups(); } finally { Date.now = realNow; } expect(calls.length).toBe(0); });
   }
-  test.failing("row manually suppressed AFTER being claimed is re-read before delivery", async () => {
+  test("row manually suppressed AFTER being claimed is re-read before delivery", async () => {
     const { sentAt } = await sentJob(); calls = []; at(sentAt + 3 * DAY + 1000);
     const orig = db!.rpc; db!.rpc = async (n: string, a: any) => { const r = await orig(n, a); for (const f of tables.customer_followups!) if (f.status === "queued") f.status = "suppressed"; return r; };
     try { await F.processDueFollowups(); } finally { Date.now = realNow; db!.rpc = orig; }
@@ -180,8 +180,8 @@ describe("C8 email type vs eligibility", () => {
 });
 
 describe("C7 unsubscribe / opt-out", () => {
-  test.failing("every customer email carries a visible unsubscribe link", async () => { const { jobId } = job(); await F.sendInitialEstimateEmail(jobId, null); expect(JSON.parse(calls[0]!.body).html).toMatch(/unsubscribe/i); });
-  test.failing("an unsubscribe route exists", async () => { const fs = await import("fs"); expect(fs.readdirSync("src/routes", { recursive: true }).map(String).some((p) => /unsubscribe|opt-?out/i.test(p))).toBe(true); });
+  test("every customer email carries a visible unsubscribe link", async () => { const { jobId } = job(); await F.sendInitialEstimateEmail(jobId, null); expect(JSON.parse(calls[0]!.body).html).toMatch(/unsubscribe/i); });
+  test("an unsubscribe route exists", async () => { const fs = await import("fs"); expect(fs.readdirSync("src/routes", { recursive: true }).map(String).some((p) => /unsubscribe|opt-?out/i.test(p))).toBe(true); });
 });
 
 describe("C9 secure link + tracking", () => {

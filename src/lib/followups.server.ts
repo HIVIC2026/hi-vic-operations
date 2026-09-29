@@ -11,6 +11,8 @@ import { issueTrackingTokens, jobSummary, recordEngagement } from "./engagement.
 import { configuredDeliveryAdapter } from "./delivery.server";
 import { referralUrlForJob } from "./referral.server";
 import type { DeliveryAdapter } from "./delivery.core";
+import { reservationAllowed, statusAfterDelivery, withUnsubscribe } from "./emailsafety.core";
+import { suppressionFor, unsubscribeUrlForJob } from "./emailsafety.server";
 
 async function gatesFor(jobId: string, adapter: DeliveryAdapter | null) {
   const [{ data: link }, commsEnabled, consent, view] = await Promise.all([
@@ -29,8 +31,8 @@ async function ownerEmail(jobId: string) {
 /** Reserve an idempotency key. Returns the send row id, or null when already sent / in flight. */
 async function reserve(jobId: string, linkId: string, purpose: string, key: string) {
   const { data: ex } = await admin.from("customer_email_sends").select("id, status, created_at").eq("idempotency_key", key).maybeSingle();
-  if (ex?.status === "sent") return null;
-  if (ex?.status === "sending" && Date.now() - Date.parse(ex.created_at) < 10 * 60_000) return null;
+  // Sent, in flight (any age) or delivered-but-unrecorded never re-calls the provider; only clean failures retry.
+  if (ex && !reservationAllowed(ex)) return null;
   if (ex) { await admin.from("customer_email_sends").update({ status: "sending", error: null, created_at: new Date().toISOString() }).eq("id", ex.id); return ex.id; }
   const { data, error } = await admin.from("customer_email_sends").insert({ job_id: jobId, estimate_link_id: linkId, purpose, idempotency_key: key }).select("id").single();
   if (error) return null; // unique race: another worker holds it
@@ -40,16 +42,23 @@ async function reserve(jobId: string, linkId: string, purpose: string, key: stri
 async function deliverTracked(x: { jobId: string; linkId: string; linkToken: string; purpose: string; key: string; adapter: DeliveryAdapter; to: string; render: (u: { estimateUrl: string; trackingClickUrl: string; trackingPixelUrl: string; referralUrl: string | null }) => { subject: string; html: string; plainText: string }; actorId: string | null }) {
   const sendId = await reserve(x.jobId, x.linkId, x.purpose, x.key);
   if (!sendId) return { sent: false as const, reason: "already_sent" };
+  let delivered = false;
   try {
     const t = await issueTrackingTokens({ jobId: x.jobId, linkId: x.linkId, sendId, purpose: x.purpose });
     const referralUrl = await referralUrlForJob(x.jobId).catch(() => null);
-    const mail = x.render({ estimateUrl: estimateUrl(x.linkToken), trackingClickUrl: clickUrl(t.click), trackingPixelUrl: pixelUrl(t.open), referralUrl });
+    const mail = withUnsubscribe(x.render({ estimateUrl: estimateUrl(x.linkToken), trackingClickUrl: clickUrl(t.click), trackingPixelUrl: pixelUrl(t.open), referralUrl }), await unsubscribeUrlForJob(x.jobId));
     const r = await x.adapter.deliver({ to: x.to, subject: mail.subject, html: mail.html, text: mail.plainText, idempotencyKey: x.key, purpose: x.purpose });
+    delivered = true;
     const communicationId = await recordCommunication({ jobId: x.jobId, direction: "outbound", channel: "email", recipients: [x.to], subject: mail.subject, body: mail.plainText, provider: x.adapter.provider, providerMessageId: r.providerMessageId, visibility: "customer", sourceEvent: x.purpose, sourceReference: x.key, createdBy: x.actorId, deliveryStatus: "sent" });
     await admin.from("customer_email_sends").update({ status: "sent", sent_at: new Date().toISOString(), provider: x.adapter.provider, provider_message_id: r.providerMessageId, communication_id: communicationId }).eq("id", sendId);
     return { sent: true as const, communicationId };
   } catch (e) {
     const msg = (e as Error).message.slice(0, 300);
+    if (delivered) {
+      // Provider accepted it: record as delivered so no retry can send a duplicate.
+      await admin.from("customer_email_sends").update({ status: statusAfterDelivery(false), sent_at: new Date().toISOString(), provider: x.adapter.provider, error: `record_failed: ${msg}` }).eq("id", sendId);
+      return { sent: false as const, reason: "delivered_unrecorded" };
+    }
     await admin.from("customer_email_sends").update({ status: "failed", error: msg }).eq("id", sendId);
     await recordEngagement({ jobId: x.jobId, linkId: x.linkId, type: "email_failed", source: x.adapter.provider, metadata: { purpose: x.purpose } });
     return { sent: false as const, reason: "delivery_failed" };
@@ -66,6 +75,8 @@ export async function sendInitialEstimateEmail(jobId: string, actorId: string | 
   if (blocked) return { sent: false as const, reason: blocked };
   const to = await ownerEmail(jobId);
   if (!to) return { sent: false as const, reason: "no_owner_email" };
+  const suppressed = await suppressionFor(jobId, "step3_estimate", to);
+  if (suppressed) return { sent: false as const, reason: suppressed };
   const e = view.estimate;
   const values = e ? { estimatedTotal: e.primary.by_access.standard.estimated_customer_total, veuDiscount: e.applied_discount, areaM2: e.area.m2 } : {};
   const r = await deliverTracked({ jobId, linkId: link!.id, linkToken: link!.token, purpose: "step3_estimate", key, adapter: adapter!, to, actorId, render: (u) => renderEstimateEmail({ ...u, ...values }) });
@@ -102,6 +113,15 @@ export async function processDueFollowups(opts: { limit?: number; adapter?: Deli
       }
       const to = await ownerEmail(f.job_id);
       if (!to) { await admin.from("customer_followups").update({ status: "pending", blocked_reason: "no_owner_email", lease_until: null }).eq("id", f.id); results.push({ status: "blocked", reason: "no_owner_email" }); continue; }
+      const suppressed = await suppressionFor(f.job_id, "followup", to);
+      if (suppressed === "backlog_cutoff_not_set") { await admin.from("customer_followups").update({ status: "pending", blocked_reason: suppressed, lease_until: null, due_at: retryAt() }).eq("id", f.id); results.push({ status: "blocked", reason: suppressed }); continue; }
+      if (suppressed) {
+        await admin.from("customer_followups").update({ status: "suppressed", suppression_reason: suppressed, lease_until: null }).eq("id", f.id);
+        await recordEngagement({ jobId: f.job_id, type: "followup_suppressed", metadata: { followup_kind: f.kind, reason: suppressed }, dedupeKey: dedupe.followup(f.id, "suppressed") });
+        results.push({ status: "suppressed", reason: suppressed }); continue;
+      }
+      const { data: fresh } = await admin.from("customer_followups").select("status").eq("id", f.id).maybeSingle();
+      if (!fresh || fresh.status !== "queued") { results.push({ status: "suppressed", reason: "changed_after_claim" }); continue; }
       const kind: FollowupKind = plan.kind;
       await admin.from("customer_followups").update({ kind, reason: kind }).eq("id", f.id);
       const r = await deliverTracked({ jobId: f.job_id, linkId: link!.id, linkToken: link!.token, purpose: kind, key: `followup:${f.id}`, adapter: adapter!, to, actorId: null, render: (u) => renderFollowupEmail({ kind, ...u }) });
@@ -131,7 +151,7 @@ export async function processPendingInitialEstimateEmails(limit = 20, adapterIn?
   const { data: links } = await admin.from("customer_estimate_links").select("id, job_id, status, expires_at").eq("purpose", LINK_PURPOSE).eq("status", "active").order("created_at", { ascending: true }).limit(200);
   const usable = (links ?? []).filter((l) => linkUsable(l));
   if (!usable.length) return counts;
-  const { data: sent } = await admin.from("customer_email_sends").select("estimate_link_id").eq("purpose", "step3_estimate").eq("status", "sent").in("estimate_link_id", usable.map((l) => l.id));
+  const { data: sent } = await admin.from("customer_email_sends").select("estimate_link_id").eq("purpose", "step3_estimate").in("status", ["sent", "delivered_unrecorded", "sending"]).in("estimate_link_id", usable.map((l) => l.id));
   const done = new Set((sent ?? []).map((s) => s.estimate_link_id));
   for (const l of usable.filter((x) => !done.has(x.id)).slice(0, limit)) {
     counts.scanned++;
@@ -165,9 +185,11 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
   const key = ineligibleKey(jobId);
   const to = await ownerEmail(jobId);
   if (!to) return { sent: false as const, reason: "no_owner_email" };
+  const suppressed = await suppressionFor(jobId, "preliminary_ineligible", to);
+  if (suppressed) return { sent: false as const, reason: suppressed };
   const { data: ex } = await admin.from("customer_email_sends").select("id, status, created_at").eq("idempotency_key", key).maybeSingle();
   if (ex?.status === "sent") return { sent: false as const, reason: "already_sent" };
-  if (ex?.status === "sending" && Date.now() - Date.parse(ex.created_at) < 10 * 60_000) return { sent: false as const, reason: "already_sent" };
+  if (ex && !reservationAllowed(ex)) return { sent: false as const, reason: "already_sent" };
   let sendId = ex?.id ?? null;
   if (ex) await admin.from("customer_email_sends").update({ status: "sending", error: null, created_at: new Date().toISOString() }).eq("id", ex.id);
   else {
@@ -175,14 +197,20 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
     if (error) return { sent: false as const, reason: "already_sent" };
     sendId = data.id;
   }
+  let delivered = false;
   try {
     const { renderIneligibleEmail } = await import("./ineligible-email");
-    const mail = renderIneligibleEmail({ referralUrl: await referralUrlForJob(jobId), reason: pre.reason });
+    const mail = withUnsubscribe(renderIneligibleEmail({ referralUrl: await referralUrlForJob(jobId), reason: pre.reason }), await unsubscribeUrlForJob(jobId));
     const r = await adapter.deliver({ to, subject: mail.subject, html: mail.html, text: mail.plainText, idempotencyKey: key, purpose: INELIGIBLE_PURPOSE });
+    delivered = true;
     const communicationId = await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: adapter.provider, providerMessageId: r.providerMessageId, visibility: "customer", sourceEvent: INELIGIBLE_PURPOSE, sourceReference: key, createdBy: actorId, deliveryStatus: "sent" });
     await admin.from("customer_email_sends").update({ status: "sent", sent_at: new Date().toISOString(), provider: adapter.provider, provider_message_id: r.providerMessageId, communication_id: communicationId }).eq("id", sendId!);
     return { sent: true as const, communicationId };
   } catch (e) {
+    if (delivered) {
+      await admin.from("customer_email_sends").update({ status: statusAfterDelivery(false), sent_at: new Date().toISOString(), provider: adapter.provider, error: `record_failed: ${(e as Error).message.slice(0, 280)}` }).eq("id", sendId!);
+      return { sent: false as const, reason: "delivered_unrecorded" };
+    }
     await admin.from("customer_email_sends").update({ status: "failed", error: (e as Error).message.slice(0, 300) }).eq("id", sendId!);
     return { sent: false as const, reason: "delivery_failed" };
   }
