@@ -15,7 +15,7 @@ export function EngagementPanel({ jobId }: { jobId: string }) {
   const send = useServerFn(sendEstimateEmailAdmin);
   const qc = useQueryClient();
   const [msg, setMsg] = useState<string | null>(null);
-  const { data } = useQuery({ queryKey: ["admin_engagement", jobId], queryFn: () => fn({ data: { jobId } }) as Promise<{ summary: Summary; followups: Followup[] }> });
+  const { data } = useQuery({ queryKey: ["admin_engagement", jobId], queryFn: () => fn({ data: { jobId } }) as Promise<{ summary: Summary; followups: Followup[]; referral: { status: string; click_count: number; referred_submission_count: number } | null }> });
   if (!data) return null;
   const s = data.summary;
   const next = data.followups.find((f) => f.status === "pending" || f.status === "queued");
@@ -25,6 +25,9 @@ export function EngagementPanel({ jobId }: { jobId: string }) {
     ["Calculator", s.firstCalc ? `Used ${d(s.lastCalc)}` : "Not used"],
     ["Booking", s.bookingCompleted ? `Booked ${d(s.bookingCompleted)}` : s.bookingStarted ? "Started" : "Not started"],
     ["Next follow-up", next ? `${next.slot} · ${d(next.due_at)} · ${next.status}${next.blocked_reason ? ` (${REASON[next.blocked_reason] ?? next.blocked_reason})` : ""}` : data.followups.length ? "None pending" : "None scheduled"],
+    ["Referral link", data.referral ? (data.referral.status === "active" ? "Active" : "Revoked") : "Not created"],
+    ["Referral clicks", String(data.referral?.click_count ?? 0)],
+    ["Referred enquiries", String(data.referral?.referred_submission_count ?? 0)],
   ];
   const doSuppress = async () => {
     const reason = window.prompt("Reason for suppressing follow-ups?");

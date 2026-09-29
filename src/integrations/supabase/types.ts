@@ -1964,6 +1964,102 @@ export type Database = {
           },
         ]
       }
+      customer_referral_events: {
+        Row: {
+          dedupe_key: string | null
+          event_type: string
+          id: string
+          metadata: Json
+          occurred_at: string
+          referral_token_id: string
+          referred_external_enquiry_id: string | null
+        }
+        Insert: {
+          dedupe_key?: string | null
+          event_type: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          referral_token_id: string
+          referred_external_enquiry_id?: string | null
+        }
+        Update: {
+          dedupe_key?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          referral_token_id?: string
+          referred_external_enquiry_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_referral_events_referral_token_id_fkey"
+            columns: ["referral_token_id"]
+            isOneToOne: false
+            referencedRelation: "customer_referral_tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_referral_tokens: {
+        Row: {
+          click_count: number
+          created_at: string
+          external_enquiry_id: string | null
+          id: string
+          job_id: string | null
+          last_used_at: string | null
+          referred_submission_count: number
+          status: string
+          token: string
+        }
+        Insert: {
+          click_count?: number
+          created_at?: string
+          external_enquiry_id?: string | null
+          id?: string
+          job_id?: string | null
+          last_used_at?: string | null
+          referred_submission_count?: number
+          status?: string
+          token: string
+        }
+        Update: {
+          click_count?: number
+          created_at?: string
+          external_enquiry_id?: string | null
+          id?: string
+          job_id?: string | null
+          last_used_at?: string | null
+          referred_submission_count?: number
+          status?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_referral_tokens_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_referral_tokens_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "customer_referral_tokens_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       declarations: {
         Row: {
           declared_at: string
@@ -6659,6 +6755,10 @@ export type Database = {
       }
     }
     Functions: {
+      bump_referral_counter: {
+        Args: { _field: string; _id: string }
+        Returns: undefined
+      }
       can_access_job: { Args: { _job: string }; Returns: boolean }
       claim_customer_followups: {
         Args: { _lease_seconds: number; _limit: number }
