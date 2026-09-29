@@ -18,16 +18,17 @@ const text = (content: string, extra = "") => `<p style="margin:0;font-size:14px
 export function renderEstimateEmail(input: EstimateEmailInput): EstimateEmail {
   const link = new URL(input.estimateUrl);
   if (link.origin !== BASE || !/^\/estimate\/[A-Za-z0-9_-]+\/?$/.test(link.pathname) || link.search || link.hash) throw new Error("An HTTPS HI VIC estimate link is required.");
-  const values = [input.estimatedTotal, input.veuDiscount, input.areaM2];
-  const knownArea = values.every((n) => typeof n === "number" && Number.isFinite(n) && n > 0);
+  const { estimatedTotal, veuDiscount, areaM2 } = input;
+  const values = [estimatedTotal, veuDiscount, areaM2];
+  const knownArea = typeof estimatedTotal === "number" && Number.isFinite(estimatedTotal) && estimatedTotal > 0 && typeof veuDiscount === "number" && Number.isFinite(veuDiscount) && veuDiscount > 0 && typeof areaM2 === "number" && Number.isFinite(areaM2) && areaM2 > 0;
   const noArea = values.every((n) => n == null);
   if (!knownArea && !noArea) throw new Error("Estimate values must all be positive finite numbers or all be absent.");
   const subject = knownArea ? SUBJECT : NO_AREA_SUBJECT;
   const previewText = knownArea ? PREVIEW : NO_AREA_PREVIEW;
   const url = escape(link.toString());
-  const total = knownArea ? escape(money(input.estimatedTotal as number)) : "";
-  const discount = knownArea ? escape(money(input.veuDiscount as number)) : "";
-  const area = knownArea ? escape(new Intl.NumberFormat("en-AU", { maximumFractionDigits: 1 }).format(input.areaM2 as number)) : "";
+  const total = knownArea ? escape(money(estimatedTotal)) : "";
+  const discount = knownArea ? escape(money(veuDiscount)) : "";
+  const area = knownArea ? escape(new Intl.NumberFormat("en-AU", { maximumFractionDigits: 1 }).format(areaM2)) : "";
   const headline = "Your home looks likely to qualify.";
   const why = "One managed pathway. The right qualified people. No chasing trades.";
   const assessment = "A licensed electrician employed by a Registered Electrical Contractor confirms ceiling area, existing insulation, access and electrical safety.";
