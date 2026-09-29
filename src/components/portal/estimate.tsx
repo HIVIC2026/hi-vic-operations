@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, ChevronDown, Flame, Leaf, Sun } from "lucide-react";
+import { BadgeCheck, Check, ChevronDown, ClipboardCheck, Flame, Leaf, ShieldCheck, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getAdminEstimate, getAdminEstimateLink, getAdminEstimateLinkUrl, getOwnerEstimate } from "@/lib/estimate.functions";
 import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
@@ -74,7 +74,7 @@ function NextStep({ fee, hasPrice }: { fee: number; hasPrice: boolean }) {
     <h3 id={`${id}-next-step`} className="mt-2 text-2xl font-extrabold leading-tight">Book your onsite Measure + PIESA</h3>
     <p className="mt-3 text-4xl font-extrabold">{dollars(fee)} <span className="text-base font-semibold">inc GST</span></p>
     <p className="mt-4 rounded-lg bg-estimate-white/10 px-4 py-3 text-sm font-bold leading-relaxed">{hasPrice ? `This ${dollars(fee)} is already included in your estimated project total above — it is not an extra charge.` : `This ${dollars(fee)} is included in the estimated project total when you enter an area — it is not an extra charge.`}</p>
-    <p className="mt-5 text-sm leading-relaxed">One onsite visit confirms the information we need to turn your estimate into a final quote.</p>
+    <p className="mt-5 text-sm leading-relaxed">One onsite visit confirms the information we need to turn your estimate into a final quote. Your assessment is completed by a licensed electrician employed by a Registered Electrical Contractor (REC).</p>
     <p className="mt-6 font-bold">What your visit covers</p>
     <ul className="mt-3 grid gap-x-5 gap-y-3 text-sm sm:grid-cols-2">{["Exact ceiling-area measurement", "Existing insulation check and whether removal is needed", "Roof/ceiling access assessment", "Electrical safety assessment (PIESA)", "Downlights, exhaust fans and electrical-clearance checks", "Any required electrical rectification identified before installation", "Information needed to prepare your final insulation quote"].map((item) => <li key={item} className="flex items-start gap-2 leading-relaxed"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green-light" />{item}</li>)}</ul>
     <div className="mt-7 border-t border-estimate-white/30 pt-5"><p className="font-bold">What happens after that?</p><ol className="mt-4 grid gap-4 text-sm sm:grid-cols-3">{["Onsite assessment completed", "You receive your final quote", "Once approved, we coordinate installation and manage the VEU compliance/evidence process"].map((item, index) => <li key={item} className="flex items-start gap-2 leading-relaxed"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-estimate-green-soft font-bold text-estimate-blue">{index + 1}</span>{item}</li>)}</ol></div>
@@ -83,7 +83,22 @@ function NextStep({ fee, hasPrice }: { fee: number; hasPrice: boolean }) {
 }
 
 function ManagedProcess() {
-  return <section className="border-t border-estimate-blue/20 pt-6"><h3 className="text-xl font-extrabold text-estimate-blue">HI VIC handles the hard part</h3><p className="mt-2 text-sm">From eligibility to installation, we manage the process.</p><ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">{["Eligibility checks", "Accredited Person compliance", "Electrical safety requirements", "Installer coordination", "Evidence review", "VEEC processing"].map((item) => <li key={item} className="flex items-center gap-2"><Check aria-hidden="true" className="size-4 shrink-0 text-estimate-green" />{item}</li>)}</ul></section>;
+  const id = useId();
+  const cards = [
+    { icon: ShieldCheck, title: "Licensed electrical safety assessment", copy: "Your PIESA is completed by a licensed electrician employed by a Registered Electrical Contractor (REC), checking the ceiling space for electrical hazards before insulation work proceeds." },
+    { icon: BadgeCheck, title: "Certified insulation installation", copy: "Your insulation upgrade is carried out by an EEC Certified Insulation Installer (CII) — the certification required for installers working under the VEU ceiling-insulation activity." },
+    { icon: ClipboardCheck, title: "HI VIC manages it end-to-end", copy: "We coordinate eligibility, assessment, vetted trades, quoting, compliance, evidence and VEEC processing through to completion." },
+  ];
+  return <section aria-labelledby={id} className="border-t border-estimate-blue/20 pt-6">
+    <h3 id={id} className="text-xl font-extrabold leading-snug text-estimate-blue sm:text-2xl">We give you access to the right qualified people — and manage the whole process.</h3>
+    <div className="mt-5 grid gap-3">
+      {cards.map(({ icon: Icon, title, copy }) => <div key={title} className="flex items-start gap-4 rounded-xl bg-estimate-blue-soft px-4 py-5">
+        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-estimate-green-soft"><Icon aria-hidden="true" className="size-5 text-estimate-blue" /></span>
+        <div><p className="font-extrabold leading-snug text-estimate-blue">{title}</p><p className="mt-1.5 text-sm leading-relaxed">{copy}</p></div>
+      </div>)}
+    </div>
+    <p className="mt-4 text-sm leading-relaxed">That means you don't need to work out which trades meet the program requirements — we coordinate appropriately qualified participants for the job.</p>
+  </section>;
 }
 
 function RemovalNote({ est, assumption = false }: { est: Est; assumption?: boolean }) {
