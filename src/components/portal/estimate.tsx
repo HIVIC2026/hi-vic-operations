@@ -56,13 +56,13 @@ const energyTipsSource = "https://www.energy.vic.gov.au/households/save-energy-a
 function HouseholdBenefits() {
   const id = useId();
   return <section aria-labelledby={id}>
-    <h3 id={id} className="text-xl font-extrabold text-estimate-blue sm:text-2xl">What this upgrade could mean for your home</h3>
+    <h3 id={id} className="text-xl font-bold text-estimate-navy sm:text-2xl">What this upgrade could mean for your home</h3>
     <div className="mt-5 grid gap-3 sm:grid-cols-3">
       {[
         { icon: Leaf, value: "$400+ / year*", label: "average potential energy-bill savings from upgrading ceiling insulation" },
         { icon: Flame, value: "Up to 20%*", label: "potential savings on heating and cooling costs" },
         { icon: Sun, value: "Warmer in winter. Cooler in summer.", label: "Better year-round comfort with less energy wasted through the ceiling." },
-      ].map(({ icon: Icon, value, label }) => <div key={value} className="rounded-xl bg-estimate-green-soft px-4 py-5"><Icon aria-hidden="true" className="mb-4 size-7 text-estimate-blue" /><p className="text-lg font-extrabold leading-snug text-estimate-blue">{value}</p><p className="mt-2 text-sm leading-relaxed">{label}</p></div>)}
+      ].map(({ icon: Icon, value, label }) => <div key={value} className="border-t-2 border-estimate-green px-1 py-5"><Icon aria-hidden="true" className="mb-4 size-6 text-estimate-green" /><p className="text-lg font-bold leading-snug text-estimate-navy">{value}</p><p className="mt-2 text-sm leading-relaxed">{label}</p></div>)}
     </div>
     <p className="mt-4 text-sm leading-relaxed">That means insulation isn&apos;t just an upfront upgrade — it can keep reducing energy use and household running costs year after year.</p>
     <p className="mt-3 text-xs leading-relaxed">*Victorian Government estimates/averages. Actual savings vary with your home, climate, energy use, energy prices and heating/cooling habits. <a href={insulationSource} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">Insulation discounts</a> · <a href={energyTipsSource} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">Energy-saving tips</a></p>
@@ -79,27 +79,27 @@ function PriceProtection({ settings, fees }: { settings: RetailSettings | undefi
     ...(settings ? [`Access adjustments: fixed +${pct(settings.access_moderate_multiplier)} moderate / +${pct(settings.access_difficult_multiplier)} difficult on the installation component`] : []),
     "Electrical rectification: separately itemised and approved before work",
   ];
-  return <section aria-labelledby={id} className="rounded-[1.35rem] border-2 border-estimate-green bg-estimate-green-soft px-5 py-6 sm:px-8">
-    <p className="text-xs font-extrabold uppercase tracking-widest text-estimate-green">Price protection</p>
-    <h3 id={id} className="mt-2 text-xl font-extrabold leading-snug text-estimate-blue sm:text-2xl">Transparent HI VIC pricing — no installer mark-up surprises.</h3>
+  return <section aria-labelledby={id} className="border-y border-estimate-blue-soft py-7">
+    <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Price protection</p>
+    <h3 id={id} className="mt-2 text-xl font-bold leading-snug text-estimate-navy sm:text-2xl">Transparent HI VIC pricing — no installer mark-up surprises.</h3>
     <p className="mt-3 text-sm leading-relaxed">HI VIC sets the customer pricing. Once the onsite facts are confirmed, your final quote is calculated from our set customer rate card. Our partner electricians and insulation installers do not decide what you pay.</p>
-    <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">{rows.map((r) => <li key={r} className="flex items-start gap-2 rounded-lg bg-estimate-white px-3 py-2.5 leading-snug"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" />{r}</li>)}</ul>
+    <ul className="mt-5 grid gap-x-7 gap-y-3 text-sm sm:grid-cols-2">{rows.map((r) => <li key={r} className="flex items-start gap-2 leading-snug"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" />{r}</li>)}</ul>
     <p className="mt-4 text-xs leading-relaxed">Your final total still depends on the measured area, whether removal is needed, access and any electrical rectification.</p>
   </section>;
 }
 
 function NextStep({ fee, hasPrice }: { fee: number; hasPrice: boolean }) {
   const id = useId();
-  return <section className="estimate-offset rounded-[1.35rem] bg-estimate-blue px-5 py-7 text-estimate-white sm:px-8 sm:py-8" aria-labelledby={`${id}-next-step`}>
-    <p className="text-xs font-extrabold uppercase tracking-widest text-estimate-green-light">Your next step</p>
-    <h3 id={`${id}-next-step`} className="mt-2 text-2xl font-extrabold leading-tight">Your next step: book your onsite Measure + PIESA</h3>
-    <p className="mt-3 text-4xl font-extrabold">{dollars(fee)} <span className="text-base font-semibold">inc GST</span></p>
-    <p className="mt-4 rounded-lg bg-estimate-green px-4 py-3 text-sm font-extrabold leading-relaxed text-estimate-white">{hasPrice ? "Already included in your estimated project total — not an extra charge if you proceed." : "Included in the estimated project total — not an extra charge if you proceed."}</p>
+  return <section className="rounded-xl bg-estimate-blue px-5 py-8 text-estimate-white sm:px-8 sm:py-10" aria-labelledby={`${id}-next-step`}>
+    <p className="text-xs font-semibold uppercase tracking-wider text-estimate-accent">Your next step</p>
+    <h3 id={`${id}-next-step`} className="mt-2 text-2xl font-bold leading-tight">Onsite Measure + PIESA</h3>
+    <p className="mt-4 text-4xl font-bold">{dollars(fee)} <span className="text-base font-medium">inc GST</span></p>
+    <p className="mt-4 border-l-2 border-estimate-accent bg-estimate-white/10 px-4 py-3 text-sm font-semibold leading-relaxed">{hasPrice ? "Already included in your estimated project total — not an extra charge if you proceed." : "Included in the estimated project total — not an extra charge if you proceed."}</p>
     <p className="mt-5 text-sm leading-relaxed">One visit gives us the verified information needed to finalise your job. Your assessment is completed by a licensed electrician employed by a Registered Electrical Contractor (REC).</p>
     <p className="mt-6 font-bold">What it covers</p>
     <ul className="mt-3 grid gap-x-5 gap-y-3 text-sm sm:grid-cols-2">{["Exact ceiling-area measurement", "Existing insulation/R-value check", "Whether removal is required", "Roof/ceiling access assessment", "PIESA by a licensed electrician employed by a REC", "Wiring, downlights, exhaust fans and electrical-clearance checks", "Identification of any rectification required before install", "Information required to prepare the final insulation quote"].map((item) => <li key={item} className="flex items-start gap-2 leading-relaxed"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green-light" />{item}</li>)}</ul>
     <div className="mt-7 border-t border-estimate-white/30 pt-5"><p className="font-bold">What happens next?</p><ol className="mt-4 grid gap-4 text-sm sm:grid-cols-3">{["We complete the onsite Measure + PIESA", "You receive your final HI VIC-priced quote", "Once you approve it, we coordinate the qualified installer and manage the job through installation, evidence and VEEC processing"].map((item, index) => <li key={item} className="flex items-start gap-2 leading-relaxed"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-estimate-green-soft font-bold text-estimate-blue">{index + 1}</span>{item}</li>)}</ol></div>
-    <div className="mt-7 rounded-lg border border-estimate-green-light/70 bg-estimate-white/10 px-4 py-4 text-center text-sm font-bold">Online booking &amp; payment — coming in the next step</div>
+    <div className="mt-8 border-t border-estimate-white/25 pt-5 text-sm font-semibold text-estimate-green-light">Online booking and payment will be available in the next step.</div>
   </section>;
 }
 
@@ -111,13 +111,13 @@ function ManagedProcess() {
     { icon: ClipboardCheck, title: "We manage it end-to-end", copy: "Eligibility, onsite assessment, vetted trades, quoting, compliance, evidence, installation coordination and VEEC processing — managed through one HI VIC process.", note: "" },
   ];
   return <section aria-labelledby={id}>
-    <p className="text-xs font-extrabold uppercase tracking-widest text-estimate-green">Why HI VIC</p>
-    <h3 id={id} className="mt-2 text-xl font-extrabold leading-snug text-estimate-blue sm:text-2xl">One managed pathway. The right qualified people. No chasing trades.</h3>
+    <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Why HI VIC</p>
+    <h3 id={id} className="mt-2 text-xl font-bold leading-snug text-estimate-navy sm:text-2xl">One managed pathway. The right qualified people. No chasing trades.</h3>
     <p className="mt-3 text-sm leading-relaxed sm:text-base">From eligibility through to installation and VEEC processing, HI VIC coordinates the people, paperwork and compliance for you.</p>
     <div className="mt-5 grid gap-3">
-      {cards.map(({ icon: Icon, title, copy, note }) => <div key={title} className="flex items-start gap-4 rounded-xl border-2 border-estimate-blue bg-estimate-white px-4 py-5">
-        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-estimate-green-soft"><Icon aria-hidden="true" className="size-5 text-estimate-blue" /></span>
-        <div><p className="font-extrabold leading-snug text-estimate-blue">{title}</p><p className="mt-1.5 text-sm leading-relaxed">{copy}</p>{note && <p className="mt-2 text-xs leading-relaxed">{note}</p>}</div>
+      {cards.map(({ icon: Icon, title, copy, note }) => <div key={title} className="flex items-start gap-4 border-b border-estimate-blue-soft px-1 py-5 last:border-b-0">
+        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-estimate-green-soft"><Icon aria-hidden="true" className="size-5 text-estimate-green" /></span>
+        <div><p className="font-bold leading-snug text-estimate-navy">{title}</p><p className="mt-1.5 text-sm leading-relaxed">{copy}</p>{note && <p className="mt-2 text-xs leading-relaxed">{note}</p>}</div>
       </div>)}
     </div>
     <p className="mt-4 text-sm font-semibold leading-relaxed">You don&apos;t need to work out which trades meet the program requirements — we coordinate appropriately qualified participants for the job.</p>
@@ -127,7 +127,7 @@ function ManagedProcess() {
 function RemovalNote({ est, assumption = false }: { est: Est; assumption?: boolean }) {
   const removal = est.scenarios.find((s) => s.key === "full_removal");
   if (!removal) return null;
-  return <p className="border-l-4 border-estimate-blue bg-estimate-blue-pale px-4 py-4 text-sm leading-relaxed">If full removal is required, your estimated total would be around <strong data-testid={assumption ? "calculator-total-full_removal" : "total-full_removal"}>{dollars(removal.by_access.standard.estimated_customer_total)}</strong>. Your onsite assessment confirms whether removal is actually needed.</p>;
+  return <p className="border-l-2 border-estimate-accent bg-estimate-accent-soft px-4 py-4 text-sm leading-relaxed">If full removal is required, your estimated total would be around <strong data-testid={assumption ? "calculator-total-full_removal" : "total-full_removal"}>{dollars(removal.by_access.standard.estimated_customer_total)}</strong>. Your onsite assessment confirms whether removal is actually needed.</p>;
 }
 
 function EstimateDetails({ data }: { data: CustomerData }) {
@@ -140,12 +140,12 @@ export function CustomerEstimate({ data, publicPage = false, onCalculatorUse }: 
   const fees = data.fees;
   const Heading = publicPage ? "h1" : "h2";
   return (
-    <div className="estimate-brand space-y-7 text-estimate-navy sm:space-y-9" aria-label="Indicative estimate">
-       <div>
-         <p className="mb-2 text-xs font-extrabold uppercase tracking-widest text-estimate-green">GOOD NEWS</p>
-         <Heading className="text-2xl font-extrabold leading-tight text-estimate-blue sm:text-3xl">{HEADLINE[data.mode]}</Heading>
-          <span className="mt-3 inline-flex max-w-full rounded-full bg-estimate-green-soft px-3 py-2 text-xs font-extrabold uppercase leading-snug text-estimate-navy">{ELIGIBILITY_COPY[data.mode].badge}</span>
-          <p className="mt-3 text-sm leading-relaxed text-estimate-navy sm:text-base">{ELIGIBILITY_COPY[data.mode].description}</p>
+    <div className="estimate-brand space-y-8 text-estimate-navy sm:space-y-11" aria-label="Indicative estimate">
+       <div className="border-b border-estimate-blue-soft pb-7 sm:pb-9">
+         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-estimate-green">Good news</p>
+         <Heading className="max-w-[620px] text-3xl font-bold leading-tight text-estimate-navy sm:text-4xl">{HEADLINE[data.mode]}</Heading>
+          <span className="mt-5 inline-flex max-w-full rounded-md bg-estimate-green-soft px-3 py-2 text-xs font-bold uppercase leading-snug text-estimate-green">{ELIGIBILITY_COPY[data.mode].badge}</span>
+          <p className="mt-4 max-w-[620px] text-sm leading-relaxed text-estimate-navy/85 sm:text-base">{ELIGIBILITY_COPY[data.mode].description}</p>
          {data.mode === "onsite" && !!data.onsiteDrivers?.length && <p className="mt-3 text-sm leading-relaxed text-estimate-navy"><span className="font-bold">We just need to confirm:</span> {[...new Set(data.onsiteDrivers.map(plainOnsiteDriver))].join(" · ")}</p>}
        </div>
       {data.rolloutHold && <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Assessments for private homes open from 1 October 2026. This is a scheduling hold only, not an eligibility result.</p>}
@@ -180,14 +180,14 @@ function AreaCalculator({ calc, initial, fees, secondary = false, onUse }: { cal
   return (
     <section className="" data-testid="area-calculator" aria-label="Ceiling area calculator">
       {secondary && !open ? <Button variant="ghost" size="field" className="h-auto min-h-12 max-w-full justify-start whitespace-normal px-0 text-left font-bold text-estimate-blue underline underline-offset-4 hover:bg-transparent hover:text-estimate-blue" onClick={() => setOpen(true)}>Want to test a different ceiling area? <ChevronDown aria-hidden="true" /></Button> : <>
-        <div className="rounded-[1.3rem] bg-estimate-blue-pale px-5 py-6 sm:px-7">
-        <h3 className="text-xl font-extrabold text-estimate-blue">{secondary ? "Test a different ceiling area" : "See what your upgrade could cost"}</h3>
+        <div className="rounded-xl bg-estimate-blue-pale px-5 py-6 sm:px-7">
+        <h3 className="text-xl font-bold text-estimate-navy">{secondary ? "Test a different ceiling area" : "See what your upgrade could cost"}</h3>
         <p className="mt-1 text-sm leading-relaxed">Enter a rough ceiling area to see your estimated VEU discount, project price and potential household savings. Nothing you enter here is saved.</p>
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <label className="sr-only" htmlFor={id}>Approximate ceiling area (m²)</label>
           <input id={id} aria-label="Approximate ceiling area (m²)" inputMode="decimal" type="number" min={CALC_MIN_M2} max={CALC_MAX_M2} className="h-14 w-28 rounded-xl border border-estimate-blue bg-estimate-white px-3 text-lg text-estimate-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="Area" />
           <span className="mr-2 text-sm text-estimate-navy">m²</span>
-          {CALC_QUICK.map((q) => <Button key={q} type="button" size="field" variant="outline" className={`rounded-full border border-estimate-blue px-3 font-bold text-estimate-navy hover:bg-estimate-green-soft hover:text-estimate-navy ${m2 === q ? "bg-estimate-green-soft" : "bg-estimate-white"}`} aria-pressed={m2 === q} onClick={() => setRaw(String(q))}>{q} m²</Button>)}
+          {CALC_QUICK.map((q) => <Button key={q} type="button" size="field" variant="outline" className={`rounded-lg border border-estimate-blue-soft px-3 font-semibold text-estimate-navy hover:bg-estimate-green-soft hover:text-estimate-navy ${m2 === q ? "bg-estimate-green-soft" : "bg-estimate-white"}`} aria-pressed={m2 === q} onClick={() => setRaw(String(q))}>{q} m²</Button>)}
         </div>
         {raw.trim() !== "" && m2 == null && <p role="alert" className="mt-2 text-sm text-danger">Enter an area between {CALC_MIN_M2} and {CALC_MAX_M2} m².</p>}
         </div>
