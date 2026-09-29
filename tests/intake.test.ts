@@ -109,7 +109,7 @@ describe("media", () => {
   test("media errors cannot fail the enquiry (wrapped) and run before Gate 1", () => {
     const src = readFileSync("src/lib/enquiry.server.ts", "utf8");
     expect(src).toMatch(/try \{ await importBase44Media[\s\S]*catch/);
-    expect(src.indexOf("completeIntake(job.id")).toBeLessThan(src.indexOf("gate1: () => runGate1(job.id"));
+    expect(src.indexOf("completeIntake(job.id")).toBeLessThan(src.indexOf("enqueueInitialGate1(job.id"));
     expect(src.indexOf("completeIntake(job.id")).toBeGreaterThan(-1);
   });
 });
