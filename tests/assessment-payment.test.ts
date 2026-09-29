@@ -31,6 +31,7 @@ describe("pre-assessment acceptance and test payment", () => {
   test("schema is immutable, idempotent and service-only", () => {
     const sql = readFileSync("drizzle/migrations/0040_pre_assessment_acceptance_test_payments.sql", "utf8");
     const atomic = readFileSync("drizzle/migrations/0041_atomic_pre_assessment_test_lifecycle.sql", "utf8");
+    const corrected = readFileSync("drizzle/migrations/0042_correct_pre_assessment_attempt_row_count.sql", "utf8");
     for (const table of ["assessment_acceptances", "assessment_payments", "assessment_payment_attempts"]) {
       expect(sql).toContain(`CREATE TABLE public.${table}`);
       expect(sql).toContain(`GRANT ALL ON public.${table} TO service_role`);
@@ -45,6 +46,7 @@ describe("pre-assessment acceptance and test payment", () => {
     expect(atomic).toContain("FOR UPDATE");
     expect(atomic).toContain("REVOKE ALL ON FUNCTION public.accept_pre_assessment_test");
     expect(atomic).toContain("REVOKE ALL ON FUNCTION public.apply_pre_assessment_test_payment");
+    expect(corrected).toContain("inserted_attempt_count integer");
   });
 
   test("server remains separate from final quote, invoice, deposit and Xero machinery", () => {
