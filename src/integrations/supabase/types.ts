@@ -4253,6 +4253,79 @@ export type Database = {
           },
         ]
       }
+      post_intake_work: {
+        Row: {
+          attempts: number
+          available_at: string
+          completed_at: string | null
+          created_at: string
+          facts_version: string
+          id: string
+          job_id: string
+          last_error: string | null
+          lease_expires_at: string | null
+          locked_at: string | null
+          reason: string | null
+          status: string
+          updated_at: string
+          work_type: string
+        }
+        Insert: {
+          attempts?: number
+          available_at?: string
+          completed_at?: string | null
+          created_at?: string
+          facts_version: string
+          id?: string
+          job_id: string
+          last_error?: string | null
+          lease_expires_at?: string | null
+          locked_at?: string | null
+          reason?: string | null
+          status?: string
+          updated_at?: string
+          work_type?: string
+        }
+        Update: {
+          attempts?: number
+          available_at?: string
+          completed_at?: string | null
+          created_at?: string
+          facts_version?: string
+          id?: string
+          job_id?: string
+          last_error?: string | null
+          lease_expires_at?: string | null
+          locked_at?: string | null
+          reason?: string | null
+          status?: string
+          updated_at?: string
+          work_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_intake_work_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_intake_work_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "post_intake_work_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pricing_settings: {
         Row: {
           access_loadings: Json
@@ -5931,6 +6004,31 @@ export type Database = {
     }
     Functions: {
       can_access_job: { Args: { _job: string }; Returns: boolean }
+      claim_post_intake_work: {
+        Args: { _job?: string; _lease_seconds: number; _limit: number }
+        Returns: {
+          attempts: number
+          available_at: string
+          completed_at: string | null
+          created_at: string
+          facts_version: string
+          id: string
+          job_id: string
+          last_error: string | null
+          lease_expires_at: string | null
+          locked_at: string | null
+          reason: string | null
+          status: string
+          updated_at: string
+          work_type: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "post_intake_work"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
