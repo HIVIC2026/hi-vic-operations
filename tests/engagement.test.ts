@@ -192,7 +192,7 @@ describe("email renderers", () => {
       expect(m.html).not.toMatch(/lovable\.app|<script|\bresend\b/i);
       expect(m.plainText).toContain(clickUrl(tok));
     }
-    expect(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: link }).subject).toContain("Just checking you received your HI VIC estimate");
+    expect(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: link }).subject).toContain("Just checking you received your Home Insulation Victoria estimate");
     expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).html).toContain("Ready for us to confirm your estimate onsite?");
     expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).plainText).toContain("$349 onsite Measure + PIESA is already included");
     const seven = renderFollowupEmail({ kind: "estimate_second_reminder_7d", estimateUrl: link }).plainText;
