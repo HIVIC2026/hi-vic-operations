@@ -28,6 +28,7 @@ describe("customer outcome email renderers", () => {
     expect(h).not.toContain("CONTINUE WITH HOME INSULATION VICTORIA");
     expect(h).not.toContain("CHANGE THE CEILING SIZE FOR A REVISED ESTIMATE");
     expect(h).not.toContain("WE HANDLE THE VEU PROCESS");
+    expect(h).toContain(`${estimateUrl}#calculator`);
     expect(`${h} ${email.plainText}`).not.toMatch(/RESERVED CAPACITY|WHY INSULATE/);
     expect(email.html).not.toContain("YOUR ANSWERS HAVEN'T RULED YOU OUT");
     expect(email.html.split("All prices include GST.").length - 1).toBe(1);
