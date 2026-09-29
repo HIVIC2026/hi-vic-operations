@@ -1,6 +1,6 @@
 // Gate 1 Property Intelligence – PURE logic (no network, no database). Deterministic and tested.
 // NEVER fabricate: unknown stays unknown; absence of evidence is never a "no".
-// Output is a PRELIMINARY recommendation only – it never moves the pipeline.
+// Gate 1 categorisation is NOT decided here – see eligibility.core (single authoritative engine).
 
 export const RULESET = {
   version: "A48-2026.1",
@@ -151,70 +151,27 @@ export function ageStatusFor(e: { date: string | null; kind: "historical_imagery
   return e.kind === "direct_record" ? "recent_under_5y" : "unknown";
 }
 
-// ---------- Deterministic Gate 1 recommendation ----------
-export type Gate1Input = {
-  addressVerified: boolean | null;
-  inVictoria: boolean | null;
-  residentialLikelihood: "high" | "medium" | "low" | "unknown";
-  nccClass: { value: "class1" | "class2_sou" | "not_eligible" | "unknown"; direct: boolean };
-  ageStatus: AgeStatus;
-  recentExtensionRisk: "yes" | "no" | "unknown";
-  roofForm: "pitched" | "low_slope_flat" | "mixed" | "unknown";
-  roofCavityOrExposed: "likely" | "unlikely" | "unknown";
-  storeyAbove: "yes" | "no" | "unknown";
-  noRelevantCeilingDirect: boolean; // direct evidence no ceiling can satisfy the relevant-ceiling rule
-};
-export type Recommendation = { outcome: "likely_eligible" | "needs_onsite_confirmation" | "does_not_appear_eligible"; reasons: string[]; nextAction: string; onsite: string[] };
-export const ONSITE_ALWAYS = [
-  "Existing insulation type / R-value (< R2.0, foil / uncompressed only)",
-  "All luminaires IC / IC-4",
-  "Electrical safety / PIESA",
-  "Measured relevant ceiling area",
-];
+// ---------- Gate 1: NO independent engine here ----------
+// Property Intelligence only gathers facts. Its diagnostic recommendation is produced by the ONE authoritative
+// categoriser in eligibility.core (evaluateGate1) so the two can never disagree.
+import { evaluateGate1, resolveGate1Facts, ONSITE_ALWAYS as A48_ONSITE, type Gate1Facts, type IntelFact } from "./eligibility.core";
+export type Gate1Input = Gate1Facts;
+export type Recommendation = { outcome: "likely_eligible" | "needs_onsite_confirmation" | "does_not_appear_eligible" | null; reviewRequired: boolean; reasons: string[]; nextAction: string; onsite: string[] };
+export const ONSITE_ALWAYS = A48_ONSITE;
 
-export function recommendGate1(i: Gate1Input): Recommendation {
-  const fail: string[] = [];
-  if (i.inVictoria === false) fail.push("Property is not in Victoria");
-  if (i.nccClass.direct && i.nccClass.value === "not_eligible") fail.push("Direct evidence: premises not Class 1 / Class 2 sole-occupancy unit");
-  if (i.ageStatus === "recent_under_5y") fail.push("Direct evidence: relevant ceiling/structure constructed within 5 years of the activity date");
-  if (i.noRelevantCeilingDirect) fail.push("Direct evidence: no ceiling with roof cavity/exposed roof above and no storey above");
-  if (fail.length) return { outcome: "does_not_appear_eligible", reasons: fail, nextAction: "HI VIC to review evidence and confirm before closing (never auto-closed)", onsite: ONSITE_ALWAYS };
-
-  const review: string[] = [];
-  if (i.addressVerified !== true) review.push("Address not verified");
-  if (i.inVictoria !== true) review.push("Victorian location not confirmed");
-  const strongRes = (i.nccClass.direct && (i.nccClass.value === "class1" || i.nccClass.value === "class2_sou")) || i.residentialLikelihood === "high";
-  if (!strongRes) review.push(i.residentialLikelihood === "medium" ? "Residential zoning is an indicator only – NCC class not proven" : "Residential / NCC class not evidenced");
-  if (i.ageStatus === "unknown") review.push("Ceiling age (> 5 years) not evidenced");
-  else if (i.ageStatus === "supporting_over_5y") review.push("Ceiling age supported only by listing/imagery date – needs direct evidence");
-  if (i.recentExtensionRisk !== "no") review.push(i.recentExtensionRisk === "yes" ? "Recent extension / added storey risk" : "Recent extension / added storey risk unknown");
-  if (i.roofForm === "low_slope_flat" || i.roofForm === "mixed") review.push("Flat / low-slope or mixed roof – confirm cavity or exposed roof onsite (not a disqualifier)");
-  else if (i.roofForm === "unknown") review.push("Roof form unknown");
-  if (i.roofCavityOrExposed !== "likely") review.push("Roof cavity / exposed roof above ceiling not evidenced");
-  if (i.storeyAbove !== "no") review.push(i.storeyAbove === "yes" ? "Another storey above part of the ceiling" : "Storey above relevant ceiling unknown");
-  if (review.length) return { outcome: "needs_onsite_confirmation", reasons: review, nextAction: "Confirm Gate 1 – arrange onsite confirmation with the assessment visit", onsite: ONSITE_ALWAYS };
-  return { outcome: "likely_eligible", reasons: ["All remote Gate 1 checks satisfied – pending onsite insulation, lighting and electrical confirmation"], nextAction: "Confirm Gate 1 – pending onsite insulation, lighting and electrical confirmation", onsite: ONSITE_ALWAYS };
+export function recommendGate1(f: Gate1Facts): Recommendation {
+  const d = evaluateGate1(f);
+  const reasons = d.failed.length ? d.failed : d.review.length ? d.review : d.onsite.length ? d.onsite : ["All remote Gate 1 checks satisfied – pending onsite insulation, lighting and electrical confirmation"];
+  return { outcome: d.outcome, reviewRequired: d.reviewRequired, reasons, nextAction: d.nextAction, onsite: d.onsiteRequirements };
 }
 
-/** Maps a set of current facts to the recommendation input. Missing facts = unknown. */
-export function gate1InputFromFacts(facts: Fact[], referenceDate: string): Gate1Input {
-  const v = (k: string) => facts.find((f) => f.key === k);
-  const val = <T,>(k: string, d: T): T => (v(k)?.value ?? d) as T;
-  const age = v("age_evidence");
-  const ageVal = (age?.value ?? null) as { date: string | null; kind: "historical_imagery_same_footprint" | "direct_record" | "listing_year_built" | "imagery_building_detected" | "none" } | null;
-  const ncc = v("ncc_class_evidence");
-  return {
-    addressVerified: (v("address_verified")?.value as boolean | undefined) ?? null,
-    inVictoria: (v("in_victoria")?.value as boolean | undefined) ?? null,
-    residentialLikelihood: val("residential_likelihood", "unknown"),
-    nccClass: { value: (ncc?.value as Gate1Input["nccClass"]["value"]) ?? "unknown", direct: ncc?.evidence === "direct" },
-    ageStatus: ageVal ? ageStatusFor(ageVal, referenceDate) : "unknown",
-    recentExtensionRisk: val("recent_extension_or_added_storey_risk", "unknown"),
-    roofForm: val("roof_form", "unknown"),
-    roofCavityOrExposed: val("roof_cavity_or_exposed_roof_likelihood", "unknown"),
-    storeyAbove: val("another_storey_above_relevant_ceiling", "unknown"),
-    noRelevantCeilingDirect: v("no_relevant_ceiling")?.evidence === "direct" && v("no_relevant_ceiling")?.value === true,
-  };
+export function factsToIntel(facts: Fact[]): IntelFact[] {
+  return facts.map((f) => ({ fact_key: f.key, value: f.value, evidence_kind: f.evidence, confidence: f.confidence, source_type: f.sourceType, source_name: f.sourceName, source_url: f.sourceUrl ?? null, is_current: true, is_stale: false }));
+}
+
+/** Intelligence-only facts (no portal/Base44 data) resolved through the same fact resolver as the authoritative decider. */
+export function gate1InputFromFacts(facts: Fact[], referenceDate: string): Gate1Facts {
+  return resolveGate1Facts(null, { lifeSupportStatus: null, preliminaryOutcome: null, referenceDate }, 5, Number(referenceDate.slice(0, 4)), factsToIntel(facts));
 }
 
 export const COMPLETENESS_KEYS = ["address_verified", "in_victoria", "planning_zone", "residential_likelihood", "ncc_class_evidence", "age_evidence", "roof_form", "another_storey_above_relevant_ceiling", "floorplan_status", "preliminary_ceiling_area"];
