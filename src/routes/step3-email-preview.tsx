@@ -44,7 +44,6 @@ const samples = {
   }), unsubscribeUrl),
   ineligible: withUnsubscribe(renderIneligibleOutcomeEmail({
     referralUrl,
-    resultUrl: `${estimateUrl}#result`,
     reasons: ["The information supplied indicates this property does not meet the preliminary requirements for this offer."],
     reference: "SAMPLE-1001",
   }), unsubscribeUrl),
@@ -77,7 +76,7 @@ function EmailPreview() {
   }), unsubscribeUrl);
   const srcDoc = sample.html.replace(/(<a\b[^>]*?)\s+href="[^"]*"/g, "$1");
   const calculatorTestUrl = `${estimateUrl}#calculator`;
-  const outcomeTestUrl = outcome === "ineligible" ? `${estimateUrl}#result` : `${estimateUrl}#confirm`;
+  const outcomeTestUrl = outcome === "ineligible" ? "https://homeinsulationvictoria.com.au/homeowner" : `${estimateUrl}#confirm`;
   const width = view === "desktop" ? 640 : view === "mobile" ? 390 : undefined;
   const brand = { fontFamily: "'Open Sans', Arial, Helvetica, sans-serif", background: "#FBFCFA", color: "#22376B" };
   const pill = (active: boolean) => ({ fontFamily: brand.fontFamily, background: active ? "#3C51C4" : "#FFFFFF", color: active ? "#FFFFFF" : "#3C51C4", border: "2px solid #3C51C4", boxShadow: active ? "3px 3px 0 #07BF61" : "none" });

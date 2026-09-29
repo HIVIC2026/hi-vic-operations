@@ -125,9 +125,10 @@ describe("customer outcome email renderers", () => {
       expect(email.html).not.toMatch(/<script\b|\son\w+=/i);
       expect(email.html).toContain("max-width:640px");
       expect(email.html).toContain("font-family:'Open Sans',Arial,Helvetica,sans-serif");
-      for (const colour of ["#3C51C4", "#07BF61", "#52C875"]) expect(email.html).toContain(colour);
+      for (const colour of ["#3C51C4", "#07BF61"]) expect(email.html).toContain(colour);
     }
     const likely = renderEstimateEmail(common).html;
+    expect(likely).toContain("#52C875");
     expect(likely).toContain("fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800");
     expect(likely).toContain("<!--[if !mso]><!-->");
     expect(likely).toContain("<!--[if mso]>");
