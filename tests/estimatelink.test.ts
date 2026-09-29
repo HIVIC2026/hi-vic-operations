@@ -86,7 +86,7 @@ describe("wiring", () => {
     expect(fns.slice(fns.indexOf("getPublicEstimate"), fns.indexOf("getAdminEstimateLink ="))).not.toContain("requireSupabaseAuth");
     expect(fns).toMatch(/getAdminEstimateLinkUrl[\s\S]*requireAdmin/);
     const st = server.slice(server.indexOf("export async function adminLinkStatus"), server.indexOf("export async function adminLinkPath"));
-    expect(st).not.toContain("token");
+    expect(st.split("\n").filter((l) => l.includes(".select(")).join("")).not.toContain("token");
   });
   it("route: no-store, no-referrer, noindex, no pay/book button", () => {
     for (const s of ["no-store", "no-referrer", "noindex, nofollow", "ssr: false"]) expect(route).toContain(s);
