@@ -54,11 +54,11 @@ describe("customer outcome email renderers", () => {
   });
 
   test("preview sample keeps AP management dynamic while only assessment/payable-now are $349", () => {
-    const e = renderEstimateEmail({ ...common, estimatedTotal: 2710, veuDiscount: 2140, areaM2: 150, installationPrice: 3801, assessmentFee: 349, apFee: 700, grossProjectTotal: 4850, amountPayableNow: 349, estimatedRemainingBalance: 2361 });
-    for (const t of ["$3,801", "$349", "$700", "$4,850", "$2,140", "$2,710"]) expect(e.html).toContain(t);
+    const e = renderEstimateEmail({ ...common, estimatedTotal: 3716.24, veuDiscount: 1481.76, areaM2: 150, installationPrice: 4500, assessmentFee: 349, apFee: 349, grossProjectTotal: 5198, amountPayableNow: 349, estimatedRemainingBalance: 3367.24 });
+    for (const t of ["$4,500", "$349", "$5,198", "$1,482", "$3,716"]) expect(e.html).toContain(t);
     expect(e.html).not.toContain("$2,361");
     const preview = readFileSync("src/routes/step3-email-preview.tsx", "utf8");
-    for (const value of ["AP_FEE = 700", "SAMPLE_GROSS = SAMPLE_INSTALL + PIESA_FEE + AP_FEE", "SAMPLE_CUSTOMER = SAMPLE_GROSS - SAMPLE_DISCOUNT", "estimatedRemainingBalance: SAMPLE_CUSTOMER - PIESA_FEE"]) expect(preview).toContain(value);
+    for (const value of ["AP_FEE = 349", "SAMPLE_INSTALL = 4500", "SAMPLE_DISCOUNT = 1481.76", "SAMPLE_GROSS = SAMPLE_INSTALL + PIESA_FEE + AP_FEE", "SAMPLE_CUSTOMER = SAMPLE_GROSS - SAMPLE_DISCOUNT", "estimatedRemainingBalance: SAMPLE_CUSTOMER - PIESA_FEE"]) expect(preview).toContain(value);
     expect(preview).not.toMatch(/bg-background|text-primary/);
   });
 

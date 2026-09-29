@@ -10,7 +10,8 @@ const estimateUrl = "https://quote.homeinsulationvictoria.com.au/estimate/sample
 const referralUrl = `https://homeinsulationvictoria.com.au/homeowner?ref=${"R".repeat(43)}`;
 const unsubscribeUrl = `https://quote.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"U".repeat(43)}`;
 // PREVIEW SAMPLE ONLY. The assessment is fixed at $349; AP management remains a dynamic quote input.
-const SAMPLE_INSTALL = 3801, SAMPLE_DISCOUNT = 2140, PIESA_FEE = 349, AP_FEE = 700;
+// Illustrative example only — real Step 3 calculation for postcode 3336, 150 m², standard access, no removal, current settings v2.
+const SAMPLE_INSTALL = 4500, SAMPLE_DISCOUNT = 1481.76, PIESA_FEE = 349, AP_FEE = 349;
 const SAMPLE_GROSS = SAMPLE_INSTALL + PIESA_FEE + AP_FEE;
 const SAMPLE_CUSTOMER = SAMPLE_GROSS - SAMPLE_DISCOUNT;
 const quote = {
@@ -73,9 +74,7 @@ function EmailPreview() {
     existingInsulationPresent: hasExistingInsulation,
     ...(outcome === "onsite" ? { reasons: ["The existing insulation and eligible ceiling area need to be confirmed onsite.", "Roof access and electrical safety need to be checked."] } : {}),
   }), unsubscribeUrl);
-  const srcDoc = sample.html
-    .replaceAll("https://quote.homeinsulationvictoria.com.au/email-preview/hi-vic-logo.png", "/email-preview/hi-vic-logo.png")
-    .replace(/(<a\b[^>]*?)\s+href="[^"]*"/g, "$1");
+  const srcDoc = sample.html.replace(/(<a\b[^>]*?)\s+href="[^"]*"/g, "$1");
   const width = view === "desktop" ? 640 : view === "mobile" ? 390 : undefined;
   const brand = { fontFamily: "'Open Sans', Arial, Helvetica, sans-serif", background: "#FBFCFA", color: "#22376B" };
   const pill = (active: boolean) => ({ fontFamily: brand.fontFamily, background: active ? "#3C51C4" : "#FFFFFF", color: active ? "#FFFFFF" : "#3C51C4", border: "2px solid #3C51C4", boxShadow: active ? "3px 3px 0 #07BF61" : "none" });
