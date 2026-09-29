@@ -20,4 +20,4 @@
 - [x] Sample-only Step 3 customer estimate email renderer, preview and screenshots; no sending
 - [ ] Step 4: booking + payment for Onsite Measure + PIESA
 - [x] Step 3 engagement tracking + follow-ups (sending waits on Base44 delivery endpoint + comms switch)
-- [ ] Redesign Step 3 estimate in HI VIC brand voice with a clear cover, reading flow and next step
+- [x] Redesign Step 3 estimate in HI VIC brand voice with a clear cover, reading flow and next step
