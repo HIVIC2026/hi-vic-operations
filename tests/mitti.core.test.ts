@@ -152,11 +152,12 @@ describe("sync mapping", () => {
     expect(p.syncStatus).toBe("pending");
     expect(p.patch.piesa_outcome).toBeUndefined();
   });
-  test("'No rectification required' → pass; gross − excluded fallback", () => {
+  test("'No rectification required' is preliminary B1 only (never pass); gross − excluded fallback", () => {
     const a = audit();
     a.items = a.items.filter((i) => i.item_id !== "n").map((i) => (i.item_id === "p2" ? { ...i, responses: sel("No rectification required") } : i));
     const p = parseAudit(a);
-    expect(p.patch.piesa_outcome).toBe("pass");
+    expect(p.patch.piesa_outcome).toBeUndefined();
+    expect(p.issues.some((i) => /preliminary B1/.test(i))).toBe(true);
     expect(p.patch.measured_area_m2).toBe(137.5);
   });
   test("job number / template mismatch fails closed", () => {
@@ -187,5 +188,57 @@ describe("sync mapping", () => {
     expect(parseAudit(a).patch.switchboard_condition).toBeUndefined();
     a.items.push({ item_id: "sb2", label: "Switchboard condition", responses: sel("Upgrade required") });
     expect(parseAudit(a).patch.switchboard_condition).toBe("upgrade_required");
+  });
+});
+
+describe("correctness hardening", () => {
+  const withItem = (id: string, text: string) => { const a = audit(); a.items = a.items.map((i) => (i.item_id === id ? { ...i, responses: { text } } : i)); return a; };
+  test("blank required prefill blocks before any audit is created", async () => {
+    for (const k of ["jobNumber", "address", "ownerName", "assessorName"] as const) {
+      const { api, calls } = fake();
+      await expect(createOrReuseAudit(api, ctx({ prefill: { ...ctx().prefill, [k]: "   " } }))).rejects.toThrow(/blank/);
+      expect(calls.some((c) => c.path === "/audits")).toBe(false);
+    }
+  });
+  test("ambiguous prefix mapping blocks creation", async () => {
+    const t = { ...TEMPLATE, header_items: [...TEMPLATE.header_items.filter((h) => h.item_id !== "h2"), { item_id: "a1", label: "Site address line 1" }, { item_id: "a2", label: "Site address line 2" }] };
+    const { api, calls } = fake({ template: t });
+    await expect(createOrReuseAudit(api, ctx())).rejects.toThrow(/ambiguous/);
+    expect(calls.some((c) => c.path === "/audits")).toBe(false);
+  });
+  test("repeated-zone area fields never become whole-house area", () => {
+    const a = audit({ extra: [{ item_id: "n2", label: "Net insulation area", responses: { text: "60" } }] });
+    const p = parseAudit(a);
+    expect(p.patch.measured_area_m2).toBeUndefined();
+    expect(p.issues.some((i) => /Repeated ceiling area/.test(i))).toBe(true);
+  });
+  test("malformed / negative measurements and R-values are rejected with review issues", () => {
+    for (const [id, text, key] of [["n", "about 137", "measured_area_m2"], ["n", "-5", "measured_area_m2"], ["n", "12abc", "measured_area_m2"], ["e2", "R-1.5", "existing_r_value"], ["e2", "Infinity", "existing_r_value"], ["e4", "-40", "removal_m2"]] as const) {
+      const a = audit(); a.items = a.items.map((i) => (i.item_id === "e" ? { ...i, children: i.children!.map((c) => (c.item_id === id ? { ...c, responses: { text } } : c)) } : i.item_id === id ? { ...i, responses: { text } } : i));
+      const p = parseAudit(a);
+      if (key === "measured_area_m2") expect(p.patch.measured_area_m2).not.toBe(137.5);
+      else expect((p.patch as Record<string, unknown>)[key]).toBeUndefined();
+      expect(p.issues.some((i) => /not a valid number|negative/.test(i))).toBe(true);
+    }
+  });
+  test("safe legacy numeric forms still parse", () => {
+    expect(parseAudit(withItem("n", "137.5 m²")).patch.measured_area_m2).toBe(137.5);
+    expect(parseAudit(withItem("n", "1,137.5")).patch.measured_area_m2).toBe(1137.5);
+  });
+  test("fractional and negative counts are rejected, never rounded", () => {
+    const f = parseAudit(withItem("d1", "14.6"));
+    expect(f.patch.downlights_qty).toBeUndefined();
+    expect(f.issues.some((i) => /whole number/.test(i))).toBe(true);
+    const n = parseAudit(withItem("r2", "-2"));
+    expect(n.patch.rcds_required_qty).toBeUndefined();
+    expect(n.issues.some((i) => /negative/.test(i))).toBe(true);
+  });
+  test("incomplete B1 clearance never yields PIESA pass and sync stays non-completing", () => {
+    const a = audit({ completed: true }); a.items = a.items.map((i) => (i.item_id === "p2" ? { ...i, responses: sel("No rectification required") } : i));
+    const p = planSync(a, { storedAuditId: "audit_1", jobNumber: "HV-1020", assessmentStatus: "draft" });
+    if (p.locked) throw new Error("locked");
+    expect(p.patch.piesa_outcome).toBeUndefined();
+    for (const k of ["status", "completed_at", "stage"]) expect(k in p.patch).toBe(false);
+    expect(p.snapshot.length).toBeGreaterThan(0);
   });
 });

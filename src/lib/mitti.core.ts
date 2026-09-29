@@ -64,13 +64,29 @@ export function flatten(doc: Any): Entry[] {
   });
 }
 
-function find(entries: Entry[], aliases: string[], opts: { section?: string | undefined; withValue?: boolean } = {}): Entry | undefined {
+/** Exact normalized label first; prefix fallback only when it yields exactly one candidate. */
+function resolve(entries: Entry[], aliases: string[], opts: { section?: string | undefined; withValue?: boolean } = {}): { entry?: Entry | undefined; ambiguous: boolean } {
   const pool = entries.filter((e) => (!opts.section || e.section.includes(opts.section) || e.norm.includes(opts.section)) && (!opts.withValue || e.value != null));
-  for (const a of aliases.map(norm)) { const x = pool.find((e) => e.norm === a); if (x) return x; }
-  for (const a of aliases.map(norm)) { const x = pool.find((e) => e.norm.startsWith(a)); if (x) return x; }
-  return undefined;
+  for (const a of aliases.map(norm)) { const x = pool.find((e) => e.norm === a); if (x) return { entry: x, ambiguous: false }; }
+  let ambiguous = false;
+  for (const a of aliases.map(norm)) {
+    const xs = pool.filter((e) => e.norm.startsWith(a));
+    if (xs.length === 1) return { entry: xs[0], ambiguous: false };
+    if (xs.length > 1) ambiguous = true;
+  }
+  return { ambiguous };
+}
+function find(entries: Entry[], aliases: string[], opts: { section?: string | undefined; withValue?: boolean } = {}): Entry | undefined {
+  return resolve(entries, aliases, opts).entry;
 }
 const val = (entries: Entry[], aliases: string[], section?: string) => find(entries, aliases, { section, withValue: true })?.value ?? null;
+/** All valued entries for the first alias that matches (exact, else prefix). >1 = repeated field. */
+function candidates(entries: Entry[], aliases: string[]): Entry[] {
+  const pool = entries.filter((e) => e.value != null);
+  const ns = aliases.map(norm);
+  const exact = pool.filter((e) => ns.includes(e.norm));
+  return exact.length ? exact : pool.filter((e) => ns.some((a) => e.norm.startsWith(a)));
+}
 
 export function yesNo(v: string | null): boolean | null {
   if (v == null) return null;
@@ -79,12 +95,30 @@ export function yesNo(v: string | null): boolean | null {
   if (/^(no|n|false|none|not present|absent|nil)\b/.test(n)) return false;
   return null;
 }
+const NUM_RE = /^(?:r\s*)?\$?\s*(-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*(?:m2|m²|sq\s?m|sqm|m|mm|ea|x)?$/i;
+/** Strict: the whole value must be one finite number (optional R prefix, $, thousands commas, unit). */
 export function num(v: string | null): number | null {
   if (v == null) return null;
-  const m = String(v).replace(/,/g, "").match(/-?\d+(\.\d+)?/);
-  return m ? Number(m[0]) : null;
+  const m = String(v).trim().match(NUM_RE);
+  if (!m) return null;
+  const n = Number(m[1]!.replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
 }
-const int = (v: string | null) => { const n = num(v); return n == null || n < 0 ? null : Math.round(n); };
+type Parsed = { value: number | null; issue: string | null };
+/** Nonnegative finite physical value; malformed/negative → issue, never coerced. */
+function physical(v: string | null, what: string): Parsed {
+  if (v == null) return { value: null, issue: null };
+  const n = num(v);
+  if (n == null) return { value: null, issue: `${what} "${v}" is not a valid number – office review required.` };
+  if (n < 0) return { value: null, issue: `${what} "${v}" is negative – office review required.` };
+  return { value: n, issue: null };
+}
+/** Nonnegative whole count; fractional values are rejected, never rounded. */
+function count(v: string | null, what: string): Parsed {
+  const p = physical(v, what);
+  if (p.value != null && !Number.isInteger(p.value)) return { value: null, issue: `${what} "${v}" is not a whole number – office review required.` };
+  return p;
+}
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 export function melbourneDay(v: string | null): string | null {
@@ -115,16 +149,19 @@ const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; 
 
 export function buildPrefill(template: Any, ctx: PrefillCtx) {
   const entries = flatten(template);
-  const header_items: Any[] = [], items: Any[] = [], missing: string[] = [];
+  const header_items: Any[] = [], items: Any[] = [], missing: string[] = [], ambiguous: string[] = [], blank: string[] = [];
   for (const f of PREFILL) {
-    const e = find(entries, f.aliases);
-    if (!e) { if (f.mandatory) missing.push(f.aliases[0]!); continue; }
     const v = ctx[f.key];
-    if (v == null || v === "") continue;
+    const empty = v == null || String(v).trim() === "";
+    if (f.mandatory && empty) blank.push(f.aliases[0]!);
+    const r = resolve(entries, f.aliases);
+    if (!r.entry) { if (r.ambiguous) ambiguous.push(f.aliases[0]!); else if (f.mandatory) missing.push(f.aliases[0]!); continue; }
+    const e = r.entry;
+    if (empty) continue;
     const row = { item_id: e.id, label: e.label, type: e.type, responses: f.datetime ? { datetime: String(v) } : { text: String(v) } };
     (e.header ? header_items : items).push(row);
   }
-  return { header_items, items, count: header_items.length + items.length, missing };
+  return { header_items, items, count: header_items.length + items.length, missing, ambiguous, blank };
 }
 
 // ---------- create / reuse ----------
@@ -157,11 +194,15 @@ export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise
     await api.shareAudit(ctx.existingAuditId, String(userId));
     return { auditId: ctx.existingAuditId, reused: true, mittiUserId: String(userId), assigneeEmail: email, prefillCount: null, createdAt: null };
   }
+  const blankRequired = (["jobNumber", "address", "ownerName", "assessorName"] as const).filter((k) => String(ctx.prefill[k] ?? "").trim() === "");
+  if (blankRequired.length) throw new MittiError(`Required office details are blank: ${blankRequired.join(", ")}. Fill them in before creating the Mitti assessment.`);
   const template = await api.getTemplate(templateId);
   const tid = template?.template_id ?? template?.id;
   if (tid && tid !== templateId) throw new MittiError("Mitti returned an unexpected template.");
   const p = buildPrefill(template, ctx.prefill);
+  if (p.ambiguous.length) throw new MittiError(`The Mitti template has ambiguous office fields (more than one match): ${p.ambiguous.join(", ")}.`);
   if (p.missing.length) throw new MittiError(`The Mitti template is missing required office fields: ${p.missing.join(", ")}.`);
+  if (p.blank.length) throw new MittiError(`Required office details are blank: ${p.blank.join(", ")}.`);
   const audit = await api.createAudit({ template_id: templateId, header_items: p.header_items, items: p.items });
   const auditId = audit?.audit_id ?? audit?.id;
   if (!auditId) throw new MittiError("Mitti did not return an audit ID.");
@@ -188,26 +229,42 @@ export function parseAudit(audit: Any) {
   const patch: AssessmentPatch = {};
   const issues: string[] = [];
 
-  // Area: net → total to insulate → gross − excluded.
-  const net = num(val(entries, ["Net insulation area (m²) = Gross minus Excluded", "Net insulation area"]));
-  const total = num(val(entries, ["Total area to insulate", "Area to insulate", "Total insulation area"]));
-  const gross = num(val(entries, ["Gross ceiling area", "Gross area"])), excl = num(val(entries, ["Excluded area", "Excluded ceiling area"]));
-  const area = net ?? total ?? (gross != null ? r2(gross - (excl ?? 0)) : null);
-  if (area != null && area > 0) patch.measured_area_m2 = r2(area); else issues.push("Measured ceiling area not found in Mitti.");
+  const note = (p: Parsed) => { if (p.issue) issues.push(p.issue); return p.value; };
+
+  // Area: net → total to insulate → gross − excluded. Repeated (per-zone) fields are never treated as a
+  // whole-house aggregate and never summed without a validated zone schema.
+  const AREA = {
+    net: ["Net insulation area (m²) = Gross minus Excluded", "Net insulation area"],
+    total: ["Total area to insulate", "Area to insulate", "Total insulation area"],
+    gross: ["Gross ceiling area", "Gross area"],
+    excl: ["Excluded area", "Excluded ceiling area"],
+  };
+  const repeated = Object.values(AREA).some((a) => candidates(entries, a).length > 1);
+  if (repeated) issues.push("Repeated ceiling area fields found (per-zone values) – whole-house area not taken from Mitti; office review required.");
+  else {
+    const areaStart = issues.length;
+    const net = note(physical(val(entries, AREA.net), "Net insulation area"));
+    const total = note(physical(val(entries, AREA.total), "Total area to insulate"));
+    const gross = note(physical(val(entries, AREA.gross), "Gross ceiling area")), excl = note(physical(val(entries, AREA.excl), "Excluded area"));
+    const area = net ?? total ?? (gross != null ? r2(gross - (excl ?? 0)) : null);
+    // Invalid supplied area fields fail closed: no fallback to other area fields.
+    if (issues.length > areaStart) issues.push("Ceiling area not taken from Mitti because a supplied area value was invalid.");
+    else if (area != null && area > 0) patch.measured_area_m2 = r2(area); else issues.push("Measured ceiling area not found in Mitti.");
+  }
 
   const ins = yesNo(val(entries, ["Existing insulation present", "Insulation present"]));
   if (ins != null) patch.insulation_present = ins;
-  const rv = num(val(entries, ["Existing R-value", "Measured R-value", "Confirmed R-value", "Existing insulation R-value"]));
+  const rv = note(physical(val(entries, ["Existing R-value", "Measured R-value", "Confirmed R-value", "Existing insulation R-value"]), "Existing R-value"));
   if (rv != null && ins !== false) patch.existing_r_value = rv;
   const rem = yesNo(val(entries, ["Removal required", "Existing insulation removal required"]));
   if (rem != null) patch.removal_required = rem;
-  const remM2 = num(val(entries, ["Removal area", "Removal m2", "Area to remove"]));
+  const remM2 = note(physical(val(entries, ["Removal area", "Removal m2", "Area to remove"]), "Removal area"));
   if (rem && remM2 != null) patch.removal_m2 = remM2;
 
   const acc = norm(val(entries, ["Ceiling access", "Access difficulty", "Roof space access"]));
   if (acc) { const a = /difficult|hard|restricted/.test(acc) ? "difficult" : /moderate|medium/.test(acc) ? "moderate" : /easy|good/.test(acc) ? "easy" : null; if (a) patch.access_difficulty = a; else issues.push("Ceiling access answer not recognised."); }
 
-  const setInt = (k: keyof AssessmentPatch, aliases: string[]) => { const n = int(val(entries, aliases)); if (n != null) (patch as Any)[k] = n; };
+  const setInt = (k: keyof AssessmentPatch, aliases: string[]) => { const e = find(entries, aliases, { withValue: true }); const n = note(count(e?.value ?? null, e?.label ?? aliases[0]!)); if (n != null) (patch as Any)[k] = n; };
   setInt("downlights_upgrade_qty", ["Downlights requiring upgrade", "Downlights to upgrade", "Downlight upgrade qty"]);
   setInt("downlights_qty", ["Number of downlights", "Downlights qty", "Downlight count", "Downlights"]);
   setInt("exhaust_fans_clearance_qty", ["Exhaust fans requiring clearance", "Exhaust fan clearance", "Exhaust fans needing clearance"]);
@@ -228,8 +285,9 @@ export function parseAudit(audit: Any) {
     ?? yesNo(val(entries, ["Life support equipment onsite", "Life support equipment present", "Life support confirmed"]));
   if (ls != null) patch.life_support_confirmed = ls;
 
+  // Imported B1 "No rectification required" is a preliminary result only – it never establishes a PIESA pass.
   const po = norm(val(entries, ["PIESA outcome", "PIESA result", "Rectification outcome", "Rectification required"]));
-  if (/no rectification required/.test(po)) patch.piesa_outcome = "pass";
+  if (/no rectification required/.test(po)) issues.push("Mitti reports no rectification required (preliminary B1 only) – PIESA clearance stays pending until confirmed in the portal.");
   else if (/rectification required/.test(po)) patch.piesa_outcome = "fail";
   else issues.push("PIESA outcome not recorded or ambiguous – stays pending.");
 
@@ -242,8 +300,9 @@ export function parseAudit(audit: Any) {
   const descs = entries.filter((e) => e.value && /^(work item description|other work description|non standard (work|item) description|additional work description)/.test(e.norm));
   for (const d of descs) {
     const sib = entries.filter((e) => e.parent === d.parent);
-    const qty = num(val(sib, ["Quantity", "Qty"])) ?? 1;
-    const totalInc = num(val(sib, ["Proposed total price inc GST", "Proposed total price", "Total price inc GST", "Price inc GST"]));
+    const qRaw = val(sib, ["Quantity", "Qty"]);
+    const qty = qRaw == null ? 1 : note(physical(qRaw, `Quantity for "${d.value}"`)) ?? 0;
+    const totalInc = note(physical(val(sib, ["Proposed total price inc GST", "Proposed total price", "Total price inc GST", "Price inc GST"]), `Price for "${d.value}"`));
     const expl = val(sib, ["Explanation", "Reason", "Why is this needed"]) ?? "From Mitti assessment";
     const priced = totalInc != null && totalInc > 0 && qty > 0;
     if (!priced) issues.push(`"${d.value}" needs office pricing.`);

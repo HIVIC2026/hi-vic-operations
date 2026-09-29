@@ -73,7 +73,8 @@ describe("measurement update planning", () => {
     ] };
     const { measure, electrical } = splitPatch(parseAudit(audit).patch);
     expect(measure).toEqual({ measured_area_m2: 88.5, insulation_present: false });
-    expect(electrical).toMatchObject({ piesa_outcome: "pass", rcds_present: true });
+    expect(electrical).toMatchObject({ rcds_present: true });
+    expect(electrical.piesa_outcome).toBeUndefined(); // imported B1 no-work stays pending
     expect("measured_area_m2" in electrical).toBe(false);
     const p = planMeasurementUpdate({ scope: "COMBINED", current: null, incoming: measure, source: "electrician", external: { source: "mitti", id: "a1" } });
     expect(p).toMatchObject({ action: "create", values: { measured_area_m2: 88.5, insulation_present: false } });
