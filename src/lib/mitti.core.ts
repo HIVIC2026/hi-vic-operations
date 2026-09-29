@@ -242,11 +242,14 @@ export function parseAudit(audit: Any) {
   const repeated = Object.values(AREA).some((a) => candidates(entries, a).length > 1);
   if (repeated) issues.push("Repeated ceiling area fields found (per-zone values) – whole-house area not taken from Mitti; office review required.");
   else {
+    const areaStart = issues.length;
     const net = note(physical(val(entries, AREA.net), "Net insulation area"));
     const total = note(physical(val(entries, AREA.total), "Total area to insulate"));
     const gross = note(physical(val(entries, AREA.gross), "Gross ceiling area")), excl = note(physical(val(entries, AREA.excl), "Excluded area"));
     const area = net ?? total ?? (gross != null ? r2(gross - (excl ?? 0)) : null);
-    if (area != null && area > 0) patch.measured_area_m2 = r2(area); else issues.push("Measured ceiling area not found in Mitti.");
+    // Invalid supplied area fields fail closed: no fallback to other area fields.
+    if (issues.length > areaStart) issues.push("Ceiling area not taken from Mitti because a supplied area value was invalid.");
+    else if (area != null && area > 0) patch.measured_area_m2 = r2(area); else issues.push("Measured ceiling area not found in Mitti.");
   }
 
   const ins = yesNo(val(entries, ["Existing insulation present", "Insulation present"]));
