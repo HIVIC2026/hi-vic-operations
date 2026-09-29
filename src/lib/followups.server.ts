@@ -57,7 +57,8 @@ async function deliverTracked(x: { jobId: string; linkId: string; linkToken: str
 }
 
 /** Initial Step 3 estimate email. Idempotent per secure link + current estimate version. */
-export async function sendInitialEstimateEmail(jobId: string, actorId: string | null, adapter: DeliveryAdapter | null = configuredDeliveryAdapter()) {
+export async function sendInitialEstimateEmail(jobId: string, actorId: string | null, adapterIn?: DeliveryAdapter | null) {
+  const adapter = adapterIn === undefined ? await configuredDeliveryAdapter() : adapterIn;
   const { link, view, gates } = await gatesFor(jobId, adapter);
   const key = `step3_estimate:${link?.id ?? "none"}:${view.estimate?.id ?? "no_area"}`;
   const { data: prior } = await admin.from("customer_email_sends").select("status").eq("idempotency_key", key).maybeSingle();
@@ -82,7 +83,7 @@ export async function sendInitialEstimateEmail(jobId: string, actorId: string | 
 
 /** Hourly worker: claim due follow-ups, recheck everything, deliver only through a configured adapter. */
 export async function processDueFollowups(opts: { limit?: number; adapter?: DeliveryAdapter | null } = {}) {
-  const adapter = opts.adapter === undefined ? configuredDeliveryAdapter() : opts.adapter;
+  const adapter = opts.adapter === undefined ? await configuredDeliveryAdapter() : opts.adapter;
   const { data: claimed, error } = await admin.rpc("claim_customer_followups", { _limit: opts.limit ?? 20, _lease_seconds: 300 });
   if (error) throw new Error(error.message);
   const results: Array<{ status: string; reason?: string }> = [];
