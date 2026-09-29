@@ -43,8 +43,8 @@ function EmailPreview() {
       <p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p>
       <p className="mb-6 text-sm"><strong>Preheader:</strong> {sample.previewText}</p>
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,640px)_minmax(0,390px)]">
-        <section aria-label="Desktop email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Desktop · 640px</h2><iframe title={`${labels.find(([value]) => value === variant)?.[1]} desktop email`} srcDoc={srcDoc} sandbox="" className="block h-[3500px] w-full border border-border bg-background" /></section>
-        <section aria-label="Mobile email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Mobile · 390px</h2><div className="mx-auto w-full max-w-[390px] border-[6px] border-foreground bg-background"><iframe title={`${labels.find(([value]) => value === variant)?.[1]} mobile email`} srcDoc={srcDoc} sandbox="" className="block h-[3500px] w-full border-0 bg-background" /></div></section>
+        <section aria-label="Desktop email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Desktop · 640px</h2><iframe title={`${labels.find(([value]) => value === variant)?.[1]} desktop email`} srcDoc={srcDoc} sandbox="" className="block h-[3800px] lg:h-[3800px] w-full border border-border bg-background" /></section>
+        <section aria-label="Mobile email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Mobile · 390px</h2><div className="mx-auto w-full max-w-[390px] border-[6px] border-foreground bg-background"><iframe title={`${labels.find(([value]) => value === variant)?.[1]} mobile email`} srcDoc={srcDoc} sandbox="" className="block h-[5100px] w-full border-0 bg-background" /></div></section>
       </div>
     </div>
   </main>;
