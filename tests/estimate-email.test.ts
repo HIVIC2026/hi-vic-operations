@@ -23,7 +23,7 @@ describe("Step 3 email renderer", () => {
     expect(email.html).not.toMatch(/<script\b|lovable\.app|class=|<style\b/i);
     expect(email.plainText).not.toContain("lovable.app");
     expect(source + preview).not.toMatch(/sendTemplateEmail|sendLovableEmail|createServerFn|supabase|fetch\(|\.insert\(|\.update\(|onClick/);
-    expect(preview).toContain("srcDoc={sample.html}");
+    expect(preview).toContain('srcDoc={sample.html.replace(');
     expect(preview).toContain("sample-secure-link");
   });
 

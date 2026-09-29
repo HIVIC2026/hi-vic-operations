@@ -28,7 +28,7 @@ function EmailPreview() {
       <p className="mb-4 border-l-4 border-primary bg-card px-4 py-3 text-sm font-bold">SAMPLE EMAIL PREVIEW ONLY — nothing is sent or saved.</p>
       <p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p>
       <p className="mb-5 text-sm"><strong>Preheader:</strong> {sample.previewText}</p>
-      <iframe title="Sample HI VIC estimate email" srcDoc={sample.html} sandbox="" className="block h-[2900px] w-full border-0 bg-background sm:h-[2500px]" />
+      <iframe title="Sample HI VIC estimate email" srcDoc={sample.html.replace("https://quote.homeinsulationvictoria.com.au/email-preview/hi-vic-logo.png", "/email-preview/hi-vic-logo.png")} sandbox="" className="block h-[2900px] w-full border-0 bg-background sm:h-[2500px]" />
     </div>
   </main>;
 }
