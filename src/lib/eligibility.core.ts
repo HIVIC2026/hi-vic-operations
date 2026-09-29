@@ -235,6 +235,16 @@ export function classifyPremises(v: unknown): "residential" | "non_residential" 
 }
 const RESEARCH_DONE = new Set(["complete", "completed", "verified", "success", "done"]);
 
+/** Geocoded formatted address "…, Suburb VIC 3336[, Australia]" vs intake postcode. */
+export function geocodedVicMatch(formatted: unknown, intakePostcode: string | null): { match: boolean; conflict: boolean; postcode: string | null } {
+  if (typeof formatted !== "string") return { match: false, conflict: false, postcode: null };
+  const m = formatted.match(/\b(VIC|Victoria)\s+(\d{4})\b/i);
+  if (!m) return { match: false, conflict: false, postcode: null };
+  const pc = m[2]!, intake = intakePostcode?.trim() ?? null;
+  if (!intake) return { match: false, conflict: false, postcode: pc };
+  return { match: pc === intake, conflict: pc !== intake, postcode: pc };
+}
+
 /** Base44 answers.insulation -> none / present / unknown. */
 export function normaliseInsulation(v: unknown): "none" | "present" | "unknown" | null {
   if (v === false) return "none"; if (v === true) return "present";
@@ -359,6 +369,10 @@ function resolveBaseFacts(p: StoredProperty | null, job: Gate1JobInput, minAge: 
       : `Owner declares ${declaredType} – not verified by property research`;
     evidence.residential = { fact: [researchClass && `research: ${r["premises_classification"]}`, declaredType && `owner: ${declaredType}`].filter(Boolean).join("; "), source: researchClass ? "base44.property_research" : "base44 owner declaration", basis: researchClass ? "verified" : "declared" };
   }
+  // Geocoded research address (any research status): VIC + postcode matching the intake postcode
+  // verifies the Victorian premises for the preliminary declared-house rule. A postcode conflict never verifies.
+  const geo = geocodedVicMatch(r["formatted_address"], postcode);
+  if (geo.conflict && residentialNote?.startsWith("Owner declares")) residentialNote = `Owner declares ${declaredType}; geocoded address postcode ${geo.postcode} conflicts with intake postcode ${postcode} – confirm the premises`;
 
   // Relevant ceiling / structure age
   const yearBuiltVerified = e["year_built_verified"] === true;
@@ -400,7 +414,7 @@ function resolveBaseFacts(p: StoredProperty | null, job: Gate1JobInput, minAge: 
     preliminaryOutcome: job.preliminaryOutcome, currentYear, verifiedMinAgeYears, declaredOverMinAge, residentialNote, evidence,
     addressAmbiguous, declaredPropertyType: declaredType,
     declaredHouse: researchClass == null && isResidential == null && !!declaredType && /\b(house|townhouse|town house)\b/i.test(declaredType) && !APARTMENT.test(declaredType),
-    addressVerifiedVic: evidence.location?.basis === "verified" && state?.toUpperCase() === "VIC", declaredTopFloor, noRelevantCeilingDirect, recentExtensionRisk,
+    addressVerifiedVic: geo.conflict ? false : (evidence.location?.basis === "verified" && state?.toUpperCase() === "VIC") || geo.match, declaredTopFloor, noRelevantCeilingDirect, recentExtensionRisk,
     previousActivity48Confirmed, declaredInsulation, verifiedInsulation, areaKnown: job.areaUnknown == null ? null : !job.areaUnknown,
     publicHousingVerified: e["public_community_housing_verified"] === true, referenceDate: job.referenceDate ?? null,
   };
