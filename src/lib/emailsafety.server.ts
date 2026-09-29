@@ -43,6 +43,6 @@ export async function recordUnsubscribe(token: string): Promise<boolean> {
     const sha256 = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
     await admin.from("owner_contact_consents").insert({ job_id: row.job_id, owner_id: job.owner_id, source: "unsubscribe", consent_key: `unsubscribe:${row.id}`, consent_status: "not_granted", contact_consent: false, snapshot, sha256 });
   }
-  await admin.from("customer_followups").update({ status: "suppressed", suppression_reason: "unsubscribed" }).eq("job_id", row.job_id).in("status", ["pending", "claimed"]);
+  await admin.from("customer_followups").update({ status: "suppressed", suppression_reason: "unsubscribed" }).eq("job_id", row.job_id).in("status", ["pending", "queued"]);
   return true;
 }
