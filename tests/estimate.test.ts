@@ -166,7 +166,7 @@ describe("Step 3 v2 refinement", () => {
     const calc = ui.slice(ui.indexOf("function AreaCalculator"), ui.indexOf("export function OwnerEstimateCard"));
     expect(calc).not.toMatch(/useServerFn|supabase|fetch\(|useMutation|useAction/);
     expect(calc).toContain('useState(secondary ? "" : initial == null ? "" : String(initial))'); // no silent default, and known-area what-if starts blank
-    expect(calc).toContain("does not change your recorded property details");
+    expect(calc).toContain("Nothing you enter here is saved.");
     const srv = readFileSync("src/lib/estimate.server.ts", "utf8");
     expect(srv).not.toMatch(/from\("(jobs|ceiling_measurements|property_area_estimates)"\)\.(update|insert|upsert)/);
     expect(srv).not.toMatch(/assumption/i);
