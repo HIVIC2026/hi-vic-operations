@@ -89,11 +89,11 @@ function EmailPreview() {
         <span>Alex</span><span>150 m²</span><span>Project ${SAMPLE_GROSS.toLocaleString("en-AU")}</span><span style={{ color: "#07BF61" }}>VEU discount −${SAMPLE_DISCOUNT.toLocaleString("en-AU")}</span><span>Estimated price ${SAMPLE_CUSTOMER.toLocaleString("en-AU")}</span><span>$349 now · ${(SAMPLE_CUSTOMER - PIESA_FEE).toLocaleString("en-AU")} remaining</span>
       </div>
        <div className="mb-4 flex flex-wrap gap-2" aria-label="Email outcome">
-         {(["likely", "onsite", "ineligible"] as const).map((item) => <button key={item} type="button" aria-pressed={outcome === item} className={btn} style={pill(outcome === item)} onClick={() => setOutcome(item)}>{item === "likely" ? "Likely eligible" : item === "onsite" ? "Needs onsite confirmation" : "Does not appear eligible"}</button>)}
+          {(["likely", "onsite", "ineligible"] as const).map((item) => <button key={item} type="button" aria-pressed={outcome === item} className={btn} style={pill(outcome === item)} onClick={() => { setOutcome(item); if (item === "ineligible") setPreviewKind("email"); }}>{item === "likely" ? "Likely eligible" : item === "onsite" ? "Needs onsite confirmation" : "Does not appear eligible"}</button>)}
        </div>
        <div className="mb-4 flex flex-wrap gap-2" aria-label="Preview screen">
          <button type="button" aria-pressed={previewKind === "email"} className={btn} style={pill(previewKind === "email")} onClick={() => setPreviewKind("email")}>Email</button>
-         <button type="button" aria-pressed={previewKind === "confirm"} className={btn} style={pill(previewKind === "confirm")} onClick={() => setPreviewKind("confirm")}>Secure next step</button>
+         {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "confirm"} className={btn} style={pill(previewKind === "confirm")} onClick={() => setPreviewKind("confirm")}>Secure next step</button>}
        </div>
       {previewKind === "email" && <><p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p><p className="mb-6 text-sm"><strong>Preheader:</strong> {sample.previewText}</p></>}
       <div className="mb-4 flex flex-wrap gap-2" aria-label="Preview width">

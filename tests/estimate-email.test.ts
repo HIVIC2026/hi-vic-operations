@@ -17,7 +17,7 @@ describe("customer outcome email renderers", () => {
     for (const removed of ["$349 payable now", "PAY $349 &amp; CONTINUE", "WHAT HAPPENS NEXT"]) expect(email.html).not.toContain(removed);
     expect(email.html).not.toContain("% estimated saving");
     expect(email.plainText).toContain("Estimated ceiling size: 134.1 m² — CHANGE:");
-    expect(email.plainText).toContain("Any additional work is quoted to you before you decide whether to proceed.");
+    expect(email.plainText).toContain("we’ll quote it separately and get your approval before any additional work or cost is incurred.");
     expect(`${email.html} ${email.plainText}`).not.toMatch(/multiple providers|estimated saving|reserved capacity/i);
     expect(email.html).not.toContain("is shown to you before anything is added");
     expect(email.html).not.toContain("background-color:#ECF9F1;border-radius:14px");
@@ -25,7 +25,7 @@ describe("customer outcome email renderers", () => {
     const h = email.html;
     const order = ["YOUR PRELIMINARY QUOTE", "Estimated ceiling size:", "CHANGE →", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "THERE ARE NO OTHER STANDARD FEES", "CONFIRM MY QUOTE"].map((t) => h.indexOf(t));
     expect(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1]!))).toBe(true);
-    expect(h.split("PAY $349 &amp; CONTINUE").length - 1).toBe(1);
+    expect(h.split("CONFIRM MY QUOTE →").length - 1).toBe(1);
     expect(h).not.toContain("CONTINUE WITH HOME INSULATION VICTORIA");
     expect(h).not.toContain("CHANGE THE CEILING SIZE FOR A REVISED ESTIMATE");
     expect(h).not.toContain("WE HANDLE THE VEU PROCESS");
@@ -46,7 +46,7 @@ describe("customer outcome email renderers", () => {
   test("shows the removal note only for a declared existing-insulation answer", () => {
     const present = renderEstimateEmail({ ...detailed, outcome: "onsite", existingInsulationPresent: true });
     const absent = renderEstimateEmail({ ...detailed, outcome: "likely", existingInsulationPresent: false });
-    const note = "Existing insulation: Removal may be required. This will be assessed onsite and, if required, priced separately before you proceed.";
+    const note = "Existing insulation: Removal may be required and is not included in this estimate. We’ll confirm and quote it before you decide whether to proceed.";
     expect(present.html).toContain(note.replace("Existing insulation:", "<strong>Existing insulation:</strong>"));
     expect(present.plainText).toContain(note);
     expect(absent.html).not.toContain("Removal may be required");
@@ -55,7 +55,8 @@ describe("customer outcome email renderers", () => {
 
   test("preview sample reconciles the two $349 fees", () => {
     const e = renderEstimateEmail({ ...common, estimatedTotal: 2359, veuDiscount: 2140, areaM2: 150, installationPrice: 3801, assessmentFee: 349, apFee: 349, grossProjectTotal: 4499, amountPayableNow: 349, estimatedRemainingBalance: 2010 });
-    for (const t of ["$3,801", "$4,499", "$2,359", "$2,010"]) expect(e.html).toContain(t);
+    for (const t of ["$3,801", "$4,499", "$2,359"]) expect(e.html).toContain(t);
+    expect(e.html).not.toContain("$2,010");
     const preview = readFileSync("src/routes/step3-email-preview.tsx", "utf8");
     expect(preview).not.toMatch(/apFee: 700|4850|2710|2361|bg-background|text-primary/);
   });
