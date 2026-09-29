@@ -73,7 +73,7 @@ describe("fresh Base44 intake sequencing", () => {
   });
   test("E: admin decision is never overwritten", async () => {
     reset({ eligibility_decision_source: "admin", eligibility_outcome: "does_not_appear_eligible" }); const log: string[] = [];
-    await runPostIntakeSequence({ completeIntake: null, intelligence: fakeIntel(true, log).bind(null), gate1: gate1(log) }).catch(() => {});
+    await runPostIntakeSequence({ completeIntake: null, intelligence: async () => { db["property_facts"]!.push(trusted("address_verified", true), trusted("in_victoria", true)); await autoDecideEligibility(JOB); }, gate1: gate1(log) });
     expect(db["jobs"]![0]!["eligibility_outcome"]).toBe("does_not_appear_eligible");
     expect(db["jobs"]![0]!["eligibility_decision_source"]).toBe("admin");
     expect(gate1Events()).toHaveLength(0);
