@@ -21,6 +21,9 @@ describe("pre-assessment acceptance and test payment", () => {
     expect(acceptanceIsCurrent("estimate-1", "estimate-1")).toBe(true);
     expect(acceptanceIsCurrent("estimate-1", "estimate-2")).toBe(false);
     expect(acceptanceIsCurrent("estimate-1", null)).toBe(false);
+    const server = readFileSync("src/lib/assessment-payment.server.ts", "utf8");
+    expect(server).toContain('acceptance["estimate_input_signature"]');
+    expect(server).toContain('acceptance["estimate_settings_version"]');
   });
 
   test("successful payment points only to Measure + PIESA assignment or scheduling", () => {

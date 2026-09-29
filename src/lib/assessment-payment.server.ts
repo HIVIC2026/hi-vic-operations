@@ -28,32 +28,36 @@ function standardTotal(estimate: { scenarios: Json }): number | null {
   return Number.isFinite(total) && total >= ASSESSMENT_PAYMENT_AMOUNT ? total : null;
 }
 
-function publicState(acceptance: Record<string, unknown>, payment: Record<string, unknown>, currentEstimateId: string | null): AssessmentAcceptanceState {
+type CurrentEstimateIdentity = { id: string; input_signature: string; settings_version: number } | null;
+
+function publicState(acceptance: Record<string, unknown>, payment: Record<string, unknown>, current: CurrentEstimateIdentity): AssessmentAcceptanceState {
   return {
     acceptanceId: String(acceptance["id"]), estimateId: String(acceptance["estimate_id"]), acceptedAt: String(acceptance["accepted_at"]),
     paymentId: String(payment["id"]), paymentStatus: payment["status"] as AssessmentAcceptanceState["paymentStatus"], amountIncGst: Number(payment["amount_inc_gst"]),
     estimatedRemainingBalanceIncGst: Number(acceptance["estimated_remaining_balance_inc_gst"]), paidAt: payment["paid_at"] ? String(payment["paid_at"]) : null,
-    stale: !acceptanceIsCurrent(String(acceptance["estimate_id"]), currentEstimateId),
+    stale: !current || !acceptanceIsCurrent(String(acceptance["estimate_id"]), current.id)
+      || String(acceptance["estimate_input_signature"]) !== current.input_signature
+      || Number(acceptance["estimate_settings_version"]) !== current.settings_version,
   };
 }
 
-async function loadAcceptance(jobId: string, currentEstimateId: string | null) {
+async function loadAcceptance(jobId: string, current: CurrentEstimateIdentity) {
   const { data: acceptance } = await admin.from("assessment_acceptances").select("*").eq("job_id", jobId).order("accepted_at", { ascending: false }).limit(1).maybeSingle();
   if (!acceptance) return null;
   const { data: payment } = await admin.from("assessment_payments").select("*").eq("acceptance_id", acceptance.id).maybeSingle();
-  return payment ? publicState(acceptance as Record<string, unknown>, payment as Record<string, unknown>, currentEstimateId) : null;
+  return payment ? publicState(acceptance as Record<string, unknown>, payment as Record<string, unknown>, current) : null;
 }
 
 export async function assessmentAcceptanceState(token: unknown) {
   const ctx = await secureContext(token);
-  return ctx ? loadAcceptance(ctx.link.job_id, ctx.estimate.id) : null;
+  return ctx ? loadAcceptance(ctx.link.job_id, ctx.estimate) : null;
 }
 
 /** Idempotent per job + estimate. A changed estimate requires a new explicit acceptance. */
 export async function acceptAssessment(token: unknown, meta: RequestMeta = {}) {
   const ctx = await secureContext(token);
   if (!ctx) throw new Error("Estimate unavailable");
-  const existing = await loadAcceptance(ctx.link.job_id, ctx.estimate.id);
+  const existing = await loadAcceptance(ctx.link.job_id, ctx.estimate);
   if (existing && !existing.stale) return existing;
   if (existing?.paymentStatus === "paid") throw new Error("The paid assessment acceptance is already recorded.");
   const total = standardTotal(ctx.estimate);
@@ -71,7 +75,7 @@ export async function acceptAssessment(token: unknown, meta: RequestMeta = {}) {
     _accepted_ip: meta.ip ?? null, _accepted_user_agent: meta.userAgent ?? "",
   });
   if (error) throw new Error(error.message);
-  const created = await loadAcceptance(ctx.link.job_id, ctx.estimate.id);
+  const created = await loadAcceptance(ctx.link.job_id, ctx.estimate);
   if (!created) throw new Error("Assessment acceptance unavailable");
   return created;
 }
@@ -87,7 +91,7 @@ async function logOnce(jobId: string, auditKey: string, eventType: string, summa
 export async function simulateAssessmentPayment(token: unknown, outcome: TestPaymentOutcome, idempotencyKey: string) {
   const ctx = await secureContext(token);
   if (!ctx) throw new Error("Estimate unavailable");
-  const state = await loadAcceptance(ctx.link.job_id, ctx.estimate.id);
+  const state = await loadAcceptance(ctx.link.job_id, ctx.estimate);
   if (!state) throw new Error("Accept the current estimate before payment.");
   if (state.stale) throw new Error("Your estimate changed. Please review and accept the updated estimate before paying.");
   if (state.paymentStatus === "paid") return state;
@@ -96,7 +100,7 @@ export async function simulateAssessmentPayment(token: unknown, outcome: TestPay
   if (error) throw new Error(error.message);
   const transition = result?.[0];
   if (next === "paid" && transition?.changed) await advanceAfterAssessmentPayment(ctx.link.job_id, state.paymentId);
-  const updated = await loadAcceptance(ctx.link.job_id, ctx.estimate.id);
+  const updated = await loadAcceptance(ctx.link.job_id, ctx.estimate);
   if (!updated) throw new Error("Assessment payment unavailable");
   return updated;
 }
