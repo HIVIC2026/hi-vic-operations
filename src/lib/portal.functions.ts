@@ -964,6 +964,14 @@ export const autoAdvancePipeline = createServerFn({ method: "POST" }).middleware
   return autoAdvanceOpenJobs(context.userId);
 });
 
+/** Admin-only pipeline read. Verify the caller with their RLS-scoped client, then load the complete board. */
+export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  await requireAdmin(context.supabase);
+  const { data, error } = await admin.from("job_overview").select("*").order("last_activity_at", { ascending: false });
+  if (error) throw new Error(`Pipeline could not be loaded: ${error.message}`);
+  return data ?? [];
+});
+
 export const getGate1Evidence = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
