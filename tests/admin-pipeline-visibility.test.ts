@@ -23,6 +23,8 @@ describe("admin pipeline visibility", () => {
     expect(pipeline).toContain("useServerFn(getAdminPipeline)");
     expect(pipeline).toContain("return loadPipeline()");
     expect(pipeline).not.toContain('supabase.from("job_overview").select("*")');
+    expect(pipeline).toContain("error: pipelineError");
+    expect(pipeline).toContain("The Pipeline could not be loaded");
   });
 
   it("keeps unrelated jobs hidden from non-admins at the RLS boundary", () => {

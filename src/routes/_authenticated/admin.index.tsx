@@ -36,7 +36,7 @@ function Pipeline() {
   const postIntakeHealth = useServerFn(getPostIntakeHealth);
   const { data: intakeHealth } = useQuery({ queryKey: ["post_intake_health"], queryFn: () => postIntakeHealth(), refetchInterval: 60_000 });
   const [phase, setPhase] = useState<Phase | "all">("all");
-  const { data: allJobs = [] } = useQuery({
+  const { data: allJobs = [], error: pipelineError } = useQuery({
     queryKey: ["pipeline"],
     queryFn: async () => {
       await sweep().catch(() => null);
@@ -65,6 +65,11 @@ function Pipeline() {
 
   return (
     <AppShell wide>
+      {pipelineError && (
+        <div role="alert" className="mb-4 rounded-lg border-2 border-danger bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
+          The Pipeline could not be loaded. Refresh the page or sign in again.
+        </div>
+      )}
       {comms?.enabled !== true && (
         <div role="alert" className="mb-4 rounded-lg border-2 border-warning bg-warning-soft px-4 py-3 text-sm font-bold uppercase tracking-wide text-accent-foreground">
           PRE-LAUNCH — customer communications disabled
