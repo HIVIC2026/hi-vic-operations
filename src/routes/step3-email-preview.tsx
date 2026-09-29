@@ -42,6 +42,9 @@ function EmailPreview() {
   return <main className="min-h-screen bg-background px-3 py-6 text-foreground sm:px-6">
     <div className="mx-auto max-w-[1120px]">
       <p className="mb-4 border-l-4 border-primary bg-card px-4 py-3 text-sm font-bold">SAMPLE EMAIL PREVIEW ONLY — nothing is sent or saved. Values shown are illustrative.</p>
+      <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-1 border-b-2 border-primary pb-4 text-sm font-bold" aria-label="Preview sample values">
+        <span>150 m²</span><span>Package $4,850</span><span className="text-primary">VEU discount −$2,140</span><span>Estimated price $2,710</span><span>44% reduction</span>
+      </div>
       <div role="tablist" aria-label="Customer outcome email" className="mb-5 flex flex-wrap gap-2">
         {labels.map(([value, text]) => <Button key={value} type="button" role="tab" aria-selected={variant === value} variant={variant === value ? "default" : "outline"} onClick={() => setVariant(value)}>{text}</Button>)}
       </div>
