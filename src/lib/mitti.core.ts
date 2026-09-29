@@ -64,13 +64,29 @@ export function flatten(doc: Any): Entry[] {
   });
 }
 
-function find(entries: Entry[], aliases: string[], opts: { section?: string | undefined; withValue?: boolean } = {}): Entry | undefined {
+/** Exact normalized label first; prefix fallback only when it yields exactly one candidate. */
+function resolve(entries: Entry[], aliases: string[], opts: { section?: string | undefined; withValue?: boolean } = {}): { entry?: Entry; ambiguous: boolean } {
   const pool = entries.filter((e) => (!opts.section || e.section.includes(opts.section) || e.norm.includes(opts.section)) && (!opts.withValue || e.value != null));
-  for (const a of aliases.map(norm)) { const x = pool.find((e) => e.norm === a); if (x) return x; }
-  for (const a of aliases.map(norm)) { const x = pool.find((e) => e.norm.startsWith(a)); if (x) return x; }
-  return undefined;
+  for (const a of aliases.map(norm)) { const x = pool.find((e) => e.norm === a); if (x) return { entry: x, ambiguous: false }; }
+  let ambiguous = false;
+  for (const a of aliases.map(norm)) {
+    const xs = pool.filter((e) => e.norm.startsWith(a));
+    if (xs.length === 1) return { entry: xs[0], ambiguous: false };
+    if (xs.length > 1) ambiguous = true;
+  }
+  return { ambiguous };
+}
+function find(entries: Entry[], aliases: string[], opts: { section?: string | undefined; withValue?: boolean } = {}): Entry | undefined {
+  return resolve(entries, aliases, opts).entry;
 }
 const val = (entries: Entry[], aliases: string[], section?: string) => find(entries, aliases, { section, withValue: true })?.value ?? null;
+/** All valued entries for the first alias that matches (exact, else prefix). >1 = repeated field. */
+function candidates(entries: Entry[], aliases: string[]): Entry[] {
+  const pool = entries.filter((e) => e.value != null);
+  for (const a of aliases.map(norm)) { const xs = pool.filter((e) => e.norm === a); if (xs.length) return xs; }
+  for (const a of aliases.map(norm)) { const xs = pool.filter((e) => e.norm.startsWith(a)); if (xs.length) return xs; }
+  return [];
+}
 
 export function yesNo(v: string | null): boolean | null {
   if (v == null) return null;
@@ -79,12 +95,30 @@ export function yesNo(v: string | null): boolean | null {
   if (/^(no|n|false|none|not present|absent|nil)\b/.test(n)) return false;
   return null;
 }
+const NUM_RE = /^(?:r\s*)?\$?\s*(-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*(?:m2|m²|sq\s?m|sqm|m|mm|ea|x)?$/i;
+/** Strict: the whole value must be one finite number (optional R prefix, $, thousands commas, unit). */
 export function num(v: string | null): number | null {
   if (v == null) return null;
-  const m = String(v).replace(/,/g, "").match(/-?\d+(\.\d+)?/);
-  return m ? Number(m[0]) : null;
+  const m = String(v).trim().match(NUM_RE);
+  if (!m) return null;
+  const n = Number(m[1]!.replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
 }
-const int = (v: string | null) => { const n = num(v); return n == null || n < 0 ? null : Math.round(n); };
+type Parsed = { value: number | null; issue: string | null };
+/** Nonnegative finite physical value; malformed/negative → issue, never coerced. */
+function physical(v: string | null, what: string): Parsed {
+  if (v == null) return { value: null, issue: null };
+  const n = num(v);
+  if (n == null) return { value: null, issue: `${what} "${v}" is not a valid number – office review required.` };
+  if (n < 0) return { value: null, issue: `${what} "${v}" is negative – office review required.` };
+  return { value: n, issue: null };
+}
+/** Nonnegative whole count; fractional values are rejected, never rounded. */
+function count(v: string | null, what: string): Parsed {
+  const p = physical(v, what);
+  if (p.value != null && !Number.isInteger(p.value)) return { value: null, issue: `${what} "${v}" is not a whole number – office review required.` };
+  return p;
+}
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 export function melbourneDay(v: string | null): string | null {
@@ -115,12 +149,15 @@ const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; 
 
 export function buildPrefill(template: Any, ctx: PrefillCtx) {
   const entries = flatten(template);
-  const header_items: Any[] = [], items: Any[] = [], missing: string[] = [];
+  const header_items: Any[] = [], items: Any[] = [], missing: string[] = [], ambiguous: string[] = [], blank: string[] = [];
   for (const f of PREFILL) {
-    const e = find(entries, f.aliases);
-    if (!e) { if (f.mandatory) missing.push(f.aliases[0]!); continue; }
     const v = ctx[f.key];
-    if (v == null || v === "") continue;
+    const empty = v == null || String(v).trim() === "";
+    if (f.mandatory && empty) blank.push(f.aliases[0]!);
+    const r = resolve(entries, f.aliases);
+    if (!r.entry) { if (r.ambiguous) ambiguous.push(f.aliases[0]!); else if (f.mandatory) missing.push(f.aliases[0]!); continue; }
+    const e = r.entry;
+    if (empty) continue;
     const row = { item_id: e.id, label: e.label, type: e.type, responses: f.datetime ? { datetime: String(v) } : { text: String(v) } };
     (e.header ? header_items : items).push(row);
   }
