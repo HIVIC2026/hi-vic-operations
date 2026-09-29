@@ -48,3 +48,22 @@ describe("confirmed previous Activity 48 provenance", () => {
     expect(r(x, "previous_activity")).toMatchObject({ result: "fail", basis: "verified", source: "properties.enrichment.previous_activity_48_confirmed" });
   });
 });
+
+import { declaredExtras } from "../src/lib/enquiry.core";
+import { resolveGate1Facts as _rf } from "../src/lib/eligibility.core";
+describe("Step 1 → Step 2 mapping uses the same answer keys as the intake summary", () => {
+  const prop = (answers: Record<string, unknown>) => ({ state: "VIC", postcode: "3058", occupancy: "owner_occupied", is_residential: null, year_built: null,
+    enrichment: { base44: { declared: { property_type: "unit" }, raw: { answers } } } });
+  const job = { lifeSupportStatus: "no", preliminaryOutcome: null, referenceDate: "2026-10-02", areaUnknown: false };
+  for (const [k, v] of [["insulation", "present"], ["has_existing_insulation", "present"], ["current_insulation", "none"], ["declared_existing_insulation", false]] as const) {
+    it(`insulation via ${k}`, () => {
+      const f = _rf(prop({ [k]: v }) as never, job as never, 5, 2026);
+      expect(f.declaredInsulation).toBe(v === false || v === "none" ? "none" : "present");
+      expect(declaredExtras({ [k]: v }).existing_insulation).not.toBeNull();
+    });
+  }
+  for (const k of ["top_floor", "declared_top_floor", "is_top_floor", "top_floor_unit", "top_storey"]) {
+    it(`top floor via ${k}`, () => expect(_rf(prop({ [k]: "yes" }) as never, job as never, 5, 2026).declaredTopFloor).toBe("yes"));
+  }
+  it("empty Base44 top_floor stays unknown-null, not 'no'", () => expect(_rf(prop({ top_floor: "" }) as never, job as never, 5, 2026).declaredTopFloor).toBeNull());
+});
