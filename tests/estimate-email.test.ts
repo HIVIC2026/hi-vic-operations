@@ -29,7 +29,7 @@ describe("customer outcome email renderers", () => {
     expect(h.split("PAY $349 &amp; CONTINUE →").length - 1).toBe(1);
     expect(h).toContain("border-left:4px solid #07BF61");
     expect(email.plainText).toContain("PAY $349 & CONTINUE:");
-    expect(email.plainText).toContain("Included in your estimated total — not an extra fee.");
+    expect(email.plainText).toContain(CUSTOMER_PAYMENT_COPY.included);
     expect(h).not.toContain("CONTINUE WITH HOME INSULATION VICTORIA");
     expect(h).not.toContain("CHANGE THE CEILING SIZE FOR A REVISED ESTIMATE");
     expect(h).not.toContain("WE HANDLE THE VEU PROCESS");
