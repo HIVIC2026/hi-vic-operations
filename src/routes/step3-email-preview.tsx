@@ -63,7 +63,13 @@ export const Route = createFileRoute("/step3-email-preview")({
 function EmailPreview() {
   const [view, setView] = useState<"fit" | "desktop" | "mobile">("fit");
   const [outcome, setOutcome] = useState<keyof typeof samples>("likely");
-  const sample = samples[outcome];
+  const [hasExistingInsulation, setHasExistingInsulation] = useState(false);
+  const sample = outcome === "ineligible" ? samples.ineligible : withUnsubscribe(renderEstimateEmail({
+    ...quote,
+    outcome,
+    existingInsulationPresent: hasExistingInsulation,
+    reasons: outcome === "onsite" ? ["The existing insulation and eligible ceiling area need to be confirmed onsite.", "Roof access and electrical safety need to be checked."] : undefined,
+  }), unsubscribeUrl);
   const srcDoc = sample.html
     .replaceAll("https://quote.homeinsulationvictoria.com.au/email-preview/hi-vic-logo.png", "/email-preview/hi-vic-logo.png")
     .replace(/(<a\b[^>]*?)\s+href="[^"]*"/g, "$1");
@@ -94,6 +100,10 @@ function EmailPreview() {
         <div className="mx-auto max-w-full overflow-x-auto p-1 sm:p-3" style={{ background: "#FFFFFF", border: "2px solid #3C51C4", ...(width ? { width: width + 30 } : {}) }}>
            <iframe title={`${outcome} email`} srcDoc={srcDoc} sandbox="" className="block h-[3400px] max-w-full border-0" style={{ width: width ?? "100%", background: "#FBFCFA" }} />
         </div>
+       {outcome !== "ineligible" && <div className="mb-4 flex flex-wrap gap-2" aria-label="Existing insulation sample">
+         <button type="button" aria-pressed={!hasExistingInsulation} className={btn} style={pill(!hasExistingInsulation)} onClick={() => setHasExistingInsulation(false)}>No existing insulation</button>
+         <button type="button" aria-pressed={hasExistingInsulation} className={btn} style={pill(hasExistingInsulation)} onClick={() => setHasExistingInsulation(true)}>Existing insulation: yes</button>
+       </div>}
       </section>
     </div>
   </main>;
