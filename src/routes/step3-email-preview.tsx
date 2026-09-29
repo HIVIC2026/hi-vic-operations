@@ -47,7 +47,7 @@ function EmailPreview() {
   const [view, setView] = useState<"fit" | "desktop" | "mobile">("fit");
   const srcDoc = sample.html
     .replaceAll("https://quote.homeinsulationvictoria.com.au/email-preview/hi-vic-logo.png", "/email-preview/hi-vic-logo.png")
-    .replace(/\s+href="[^"]*"/g, "");
+    .replace(/(<a\b[^>]*?)\s+href="[^"]*"/g, "$1");
   const width = view === "desktop" ? 640 : view === "mobile" ? 390 : undefined;
   return <main className="min-h-screen bg-background px-3 py-6 text-foreground sm:px-6">
     <div className="mx-auto max-w-[760px]">
