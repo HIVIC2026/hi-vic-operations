@@ -21,7 +21,7 @@ mock.module("../../src/lib/comms.server", () => ({
   recordCommunication: async (c: any) => { if (!active) return realComms.recordCommunication(c); if (S.commFail) throw new Error("db write failed after provider accepted"); return id(); },
 }));
 const realEst = { ...(await import("../../src/lib/estimate.server")) };
-mock.module("../../src/lib/estimate.server", () => ({ ...realEst, refreshIndicativeEstimate: async (j: string) => (active ? { mode: S.mode, estimate: S.estimate } : realEst.refreshIndicativeEstimate(j)), customerView: (v: any) => (active ? { visible: v.mode === "likely" || v.mode === "onsite", mode: v.mode } : realEst.customerView(v)) }));
+mock.module("../../src/lib/estimate.server", () => ({ ...realEst, refreshIndicativeEstimate: async (j: string) => (active ? { mode: S.mode, estimate: S.estimate, settings, onsiteDrivers: [], insulationDeclared: S.estimate?.scenarios?.length > 1 ? "present" : "none" } : realEst.refreshIndicativeEstimate(j)), customerView: (v: any) => (active ? { visible: v.mode === "likely" || v.mode === "onsite", mode: v.mode } : realEst.customerView(v)) }));
 const realDel = { ...(await import("../../src/lib/delivery.server")) };
 mock.module("../../src/lib/delivery.server", () => ({ ...realDel, configuredDeliveryAdapter: async () => (active ? S.adapter : realDel.configuredDeliveryAdapter()) }));
 afterAll(() => { active = false; db = null; });
@@ -39,9 +39,10 @@ const settings = { id: "s", version: 2, r5_install_inc_gst_per_m2: 30, removal_i
 const estimateFor = (m2: number, ins: "none" | "present" = "none") => ({ id: `est-${m2}`, ...computeEstimate({ m2, source: "owner_estimate", basis: "declared", id: null, label: "Your estimate" }, lookupLocation("3336")!, ins, settings as any) });
 
 let tables: Tables;
-function job(opts: { email?: string; linkExpires?: number; linkStatus?: string; linkCreated?: string } = {}) {
+function job(opts: { email?: string; linkExpires?: number; linkStatus?: string; linkCreated?: string; officialOutcome?: string | null; officialSource?: string | null; reviewRequired?: boolean; officialReason?: string | null } = {}) {
   const jobId = id();
-  tables.jobs!.push({ id: jobId, owner_id: "o-" + jobId, stage: "new_enquiry", source: "base44", created_at: new Date().toISOString(), owners: { email: opts.email ?? "fixture.owner@homeowner-fixture.com.au" } });
+  const modeOutcome = S.mode === "likely" ? "likely_eligible" : S.mode === "onsite" ? "needs_onsite_confirmation" : S.mode === "none_ineligible" ? "does_not_appear_eligible" : null;
+  tables.jobs!.push({ id: jobId, owner_id: "o-" + jobId, stage: "new_enquiry", source: "base44", created_at: new Date().toISOString(), eligibility_outcome: opts.officialOutcome === undefined ? modeOutcome : opts.officialOutcome, eligibility_reason: opts.officialReason ?? null, eligibility_decision_source: opts.officialSource === undefined ? (modeOutcome ? "system" : null) : opts.officialSource, eligibility_review_required: opts.reviewRequired ?? S.mode === "withheld_review", owners: { email: opts.email ?? "fixture.owner@homeowner-fixture.com.au" } });
   const linkId = id();
   tables.customer_estimate_links!.push({ id: linkId, job_id: jobId, token: "T".repeat(43), purpose: "step3_estimate", status: opts.linkStatus ?? "active", expires_at: new Date(Date.now() + (opts.linkExpires ?? 30 * 86_400_000)).toISOString(), created_at: opts.linkCreated ?? new Date().toISOString() });
   return { jobId, linkId };
@@ -63,7 +64,7 @@ describe("C1 send gates (all must deny; provider must not be called)", () => {
     ["Gate 1 review", () => { S.mode = "withheld_review"; }],
     ["Gate 1 ineligible", () => { S.mode = "none_ineligible"; }],
   ];
-  for (const [name, set] of cases) test(name, async () => { const { jobId } = job(); set(); const r = await F.sendInitialEstimateEmail(jobId, null); expect(r.sent).toBe(false); expect(calls.length).toBe(0); });
+  for (const [name, set] of cases) test(name, async () => { set(); const { jobId } = job(); const r = await F.sendInitialEstimateEmail(jobId, null); expect(r.sent).toBe(false); expect(calls.length).toBe(0); });
   test("expired link", async () => { const { jobId } = job({ linkExpires: -1000 }); expect((await F.sendInitialEstimateEmail(jobId, null)).sent).toBe(false); expect(calls.length).toBe(0); });
   test("revoked link", async () => { const { jobId } = job({ linkStatus: "revoked" }); expect((await F.sendInitialEstimateEmail(jobId, null)).sent).toBe(false); expect(calls.length).toBe(0); });
   test("control: all gates open => exactly one provider call", async () => { const { jobId } = job(); expect((await F.sendInitialEstimateEmail(jobId, null)).sent).toBe(true); expect(calls.length).toBe(1); });
@@ -124,20 +125,20 @@ describe("C5 Base44 bridge contract (mocked HTTP)", () => {
     expect(Object.keys(b).sort()).toEqual(["html", "idempotency_key", "purpose", "subject", "text", "to"]);
     expect(c.body).toBe(bridgeBody({ to: b.to, subject: b.subject, html: b.html, text: b.text, idempotencyKey: b.idempotency_key, purpose: b.purpose }));
   });
-  test("ineligible: only signed Base44 does_not_appear_eligible; key per job; once; no follow-ups", async () => {
-    const { jobId } = job(); tables.workflow_events!.push({ job_id: jobId, event_type: "preliminary_eligibility_recorded", details: { preliminary_outcome: "does_not_appear_eligible", preliminary_reasons: "This activity covers residential ceiling insulation." }, created_at: new Date().toISOString() });
+  test("ineligible: only official does_not_appear_eligible; key per job; once; no follow-ups", async () => {
+    const { jobId } = job({ officialOutcome: "does_not_appear_eligible", officialReason: "This activity covers residential ceiling insulation." });
     expect((await F.sendPreliminaryIneligibleEmail(jobId)).sent).toBe(true);
     expect((await F.sendPreliminaryIneligibleEmail(jobId)).sent).toBe(false);
     const b = JSON.parse(calls[0]!.body); expect(calls.length).toBe(1); expect(b.purpose).toBe("preliminary_ineligible"); expect(b.idempotency_key).toBe(`preliminary_ineligible:${jobId}`);
     expect(calls[0]!.headers["x-hivic-signature"]).toBe(createHmac("sha256", SECRET).update(calls[0]!.body).digest("hex"));
     expect(b.html).toContain("homeinsulationvictoria.com.au/homeowner?ref="); expect(tables.customer_followups!.length).toBe(0);
   });
-  test("ineligible: comms OFF / no consent / no adapter / likely preliminary => blocked", async () => {
-    const { jobId } = job(); tables.workflow_events!.push({ job_id: jobId, event_type: "preliminary_eligibility_recorded", details: { preliminary_outcome: "does_not_appear_eligible" }, created_at: new Date().toISOString() });
+  test("ineligible: comms OFF / no consent / no adapter / official likely => blocked", async () => {
+    const { jobId } = job({ officialOutcome: "does_not_appear_eligible" });
     S.comms = false; expect((await F.sendPreliminaryIneligibleEmail(jobId)).reason).toBe("comms_disabled"); S.comms = true;
     S.consent = false; expect((await F.sendPreliminaryIneligibleEmail(jobId)).reason).toBe("no_consent"); S.consent = true;
     S.adapter = null; expect((await F.sendPreliminaryIneligibleEmail(jobId)).reason).toBe("provider_not_configured");
-    const j2 = job(); expect((await F.sendPreliminaryIneligibleEmail(j2.jobId)).reason).toBe("not_preliminary_ineligible"); expect(calls.length).toBe(0);
+    const j2 = job(); expect((await F.sendPreliminaryIneligibleEmail(j2.jobId)).reason).toBe("official_not_ineligible"); expect(calls.length).toBe(0);
   });
 });
 
@@ -194,7 +195,7 @@ describe("C9 secure link + tracking", () => {
     tables.customer_estimate_links = []; job({ linkStatus: "revoked" }); expect(await (await L()).resolvePublicEstimate("T".repeat(43))).toBeNull();
     expect(await (await L()).resolvePublicEstimate("short")).toBeNull(); expect(await (await L()).resolvePublicEstimate("U".repeat(43))).toBeNull();
   });
-  test("Gate 1 later review => link revoked on open, estimate not shown", async () => { job(); S.mode = "withheld_review"; expect(await (await L()).resolvePublicEstimate("T".repeat(43))).toBeNull(); expect(tables.customer_estimate_links![0]!.status).not.toBe("active"); });
+  test("Gate 1 later review => link revoked on open, estimate not shown", async () => { const { jobId } = job(); S.mode = "withheld_review"; Object.assign(tables.jobs!.find((j) => j.id === jobId)!, { eligibility_outcome: null, eligibility_review_required: true }); expect(await (await L()).resolvePublicEstimate("T".repeat(43))).toBeNull(); expect(tables.customer_estimate_links![0]!.status).not.toBe("active"); });
   test("tracking write failure does not stop a valid estimate opening", async () => {
     job(); const orig = db!.from; db!.from = (n: string) => { if (n === "customer_engagement_events") throw new Error("tracking down"); return orig(n); };
     try { expect(await (await L()).resolvePublicEstimate("T".repeat(43))).not.toBeNull(); } finally { db!.from = orig; }
@@ -211,9 +212,51 @@ describe("C9 secure link + tracking", () => {
   });
   test("click token => 302 target is the secure path; expired link => generic unavailable", async () => {
     const { jobId, linkId } = job(); tables.engagement_tracking_tokens!.push({ id: id(), token: "C".repeat(43), kind: "click", job_id: jobId, estimate_link_id: linkId, purpose: "step3_estimate", expires_at: new Date(Date.now() + 86_400_000).toISOString(), created_at: new Date().toISOString() });
-    expect(await (await E()).resolveClick("C".repeat(43))).toBe(`/estimate/${"T".repeat(43)}`);
+    expect(await (await E()).resolveClick("C".repeat(43))).toBe(`/estimate/${"T".repeat(43)}#confirm`);
     tables.customer_estimate_links![0]!.status = "revoked"; expect(await (await E()).resolveClick("C".repeat(43))).toBe("/estimate/unavailable");
     expect(await (await E()).resolveClick("bad")).toBe("/estimate/unavailable");
+  });
+});
+
+describe("C11 official outcome routing", () => {
+  const P = () => import("../../src/lib/postintake.server");
+  const preliminary = (jobId: string, outcome: string) => tables.workflow_events!.push({ job_id: jobId, event_type: "preliminary_eligibility_recorded", details: { preliminary_outcome: outcome, preliminary_reasons: "stale website reason" }, created_at: new Date().toISOString() });
+
+  test("official ineligible sends without a preliminary event and uses the official reason", async () => {
+    S.mode = "none_ineligible"; const { jobId } = job({ officialReason: "The official customer-safe reason." });
+    const r = await (await P()).attemptCustomerEmail(jobId);
+    expect(r.sent).toBe(true); expect(calls.length).toBe(1); expect(JSON.parse(calls[0]!.body).text).toContain("official customer-safe reason");
+  });
+  test("official ineligible wins over stale preliminary likely", async () => {
+    S.mode = "none_ineligible"; const { jobId } = job({ officialReason: "Official ineligible reason." }); preliminary(jobId, "likely_eligible");
+    expect((await (await P()).attemptCustomerEmail(jobId)).sent).toBe(true); expect(JSON.parse(calls[0]!.body).text).toContain("Official ineligible reason");
+  });
+  test("official likely wins over stale preliminary ineligible", async () => {
+    S.mode = "likely"; const { jobId } = job(); preliminary(jobId, "does_not_appear_eligible");
+    expect((await (await P()).attemptCustomerEmail(jobId)).sent).toBe(true); expect(JSON.parse(calls[0]!.body).purpose).toBe("step3_estimate");
+  });
+  for (const [name, opts, mode, reason] of [
+    ["review", { officialOutcome: null, officialSource: "system", reviewRequired: true }, "withheld_review", "eligibility_review_required"],
+    ["unrecorded", { officialOutcome: null, officialSource: null }, "withheld_undecided", "official_decision_not_recorded"],
+  ] as const) test(`${name} state holds without reservation or delivery`, async () => {
+    S.mode = mode; const { jobId } = job(opts); preliminary(jobId, "does_not_appear_eligible");
+    expect(await (await P()).attemptCustomerEmail(jobId)).toEqual({ sent: false, reason }); expect(calls.length).toBe(0); expect(tables.customer_email_sends!.length).toBe(0);
+  });
+  test("pending initial checks hold both route and direct sender", async () => {
+    S.mode = "none_ineligible"; const { jobId } = job({ officialReason: "Official reason." }); tables.post_intake_work!.push({ id: id(), job_id: jobId, status: "retry" });
+    expect((await (await P()).attemptCustomerEmail(jobId)).reason).toBe("initial_checks_pending");
+    expect((await F.sendPreliminaryIneligibleEmail(jobId, null, S.adapter)).reason).toBe("initial_checks_pending");
+    expect(calls.length).toBe(0); expect(tables.customer_email_sends!.length).toBe(0);
+  });
+  test("direct ineligible sender cannot bypass an official likely result", async () => {
+    const { jobId } = job(); preliminary(jobId, "does_not_appear_eligible");
+    expect((await F.sendPreliminaryIneligibleEmail(jobId, null, S.adapter)).reason).toBe("official_not_ineligible"); expect(calls.length).toBe(0); expect(tables.customer_email_sends!.length).toBe(0);
+  });
+  test("scheduled scan retries confirmed ineligible once and preserves duplicate history", async () => {
+    S.mode = "none_ineligible"; const { jobId } = job({ officialReason: "Official reason." }); tables.customer_estimate_links = [];
+    expect(await F.processPendingInitialEstimateEmails(20, S.adapter)).toEqual({ scanned: 1, sent: 1, blocked: 0 });
+    expect(await F.processPendingInitialEstimateEmails(20, S.adapter)).toEqual({ scanned: 0, sent: 0, blocked: 0 });
+    expect(calls.length).toBe(1); expect(tables.customer_email_sends!.filter((s) => s.job_id === jobId).length).toBe(1);
   });
 });
 
