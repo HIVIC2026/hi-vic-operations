@@ -225,26 +225,39 @@ export function parseAudit(audit: Any) {
   const patch: AssessmentPatch = {};
   const issues: string[] = [];
 
-  // Area: net → total to insulate → gross − excluded.
-  const net = num(val(entries, ["Net insulation area (m²) = Gross minus Excluded", "Net insulation area"]));
-  const total = num(val(entries, ["Total area to insulate", "Area to insulate", "Total insulation area"]));
-  const gross = num(val(entries, ["Gross ceiling area", "Gross area"])), excl = num(val(entries, ["Excluded area", "Excluded ceiling area"]));
-  const area = net ?? total ?? (gross != null ? r2(gross - (excl ?? 0)) : null);
-  if (area != null && area > 0) patch.measured_area_m2 = r2(area); else issues.push("Measured ceiling area not found in Mitti.");
+  const note = (p: Parsed) => { if (p.issue) issues.push(p.issue); return p.value; };
+
+  // Area: net → total to insulate → gross − excluded. Repeated (per-zone) fields are never treated as a
+  // whole-house aggregate and never summed without a validated zone schema.
+  const AREA = {
+    net: ["Net insulation area (m²) = Gross minus Excluded", "Net insulation area"],
+    total: ["Total area to insulate", "Area to insulate", "Total insulation area"],
+    gross: ["Gross ceiling area", "Gross area"],
+    excl: ["Excluded area", "Excluded ceiling area"],
+  };
+  const repeated = Object.values(AREA).some((a) => candidates(entries, a).length > 1);
+  if (repeated) issues.push("Repeated ceiling area fields found (per-zone values) – whole-house area not taken from Mitti; office review required.");
+  else {
+    const net = note(physical(val(entries, AREA.net), "Net insulation area"));
+    const total = note(physical(val(entries, AREA.total), "Total area to insulate"));
+    const gross = note(physical(val(entries, AREA.gross), "Gross ceiling area")), excl = note(physical(val(entries, AREA.excl), "Excluded area"));
+    const area = net ?? total ?? (gross != null ? r2(gross - (excl ?? 0)) : null);
+    if (area != null && area > 0) patch.measured_area_m2 = r2(area); else issues.push("Measured ceiling area not found in Mitti.");
+  }
 
   const ins = yesNo(val(entries, ["Existing insulation present", "Insulation present"]));
   if (ins != null) patch.insulation_present = ins;
-  const rv = num(val(entries, ["Existing R-value", "Measured R-value", "Confirmed R-value", "Existing insulation R-value"]));
+  const rv = note(physical(val(entries, ["Existing R-value", "Measured R-value", "Confirmed R-value", "Existing insulation R-value"]), "Existing R-value"));
   if (rv != null && ins !== false) patch.existing_r_value = rv;
   const rem = yesNo(val(entries, ["Removal required", "Existing insulation removal required"]));
   if (rem != null) patch.removal_required = rem;
-  const remM2 = num(val(entries, ["Removal area", "Removal m2", "Area to remove"]));
+  const remM2 = note(physical(val(entries, ["Removal area", "Removal m2", "Area to remove"]), "Removal area"));
   if (rem && remM2 != null) patch.removal_m2 = remM2;
 
   const acc = norm(val(entries, ["Ceiling access", "Access difficulty", "Roof space access"]));
   if (acc) { const a = /difficult|hard|restricted/.test(acc) ? "difficult" : /moderate|medium/.test(acc) ? "moderate" : /easy|good/.test(acc) ? "easy" : null; if (a) patch.access_difficulty = a; else issues.push("Ceiling access answer not recognised."); }
 
-  const setInt = (k: keyof AssessmentPatch, aliases: string[]) => { const n = int(val(entries, aliases)); if (n != null) (patch as Any)[k] = n; };
+  const setInt = (k: keyof AssessmentPatch, aliases: string[]) => { const e = find(entries, aliases, { withValue: true }); const n = note(count(e?.value ?? null, e?.label ?? aliases[0]!)); if (n != null) (patch as Any)[k] = n; };
   setInt("downlights_upgrade_qty", ["Downlights requiring upgrade", "Downlights to upgrade", "Downlight upgrade qty"]);
   setInt("downlights_qty", ["Number of downlights", "Downlights qty", "Downlight count", "Downlights"]);
   setInt("exhaust_fans_clearance_qty", ["Exhaust fans requiring clearance", "Exhaust fan clearance", "Exhaust fans needing clearance"]);
@@ -265,8 +278,9 @@ export function parseAudit(audit: Any) {
     ?? yesNo(val(entries, ["Life support equipment onsite", "Life support equipment present", "Life support confirmed"]));
   if (ls != null) patch.life_support_confirmed = ls;
 
+  // Imported B1 "No rectification required" is a preliminary result only – it never establishes a PIESA pass.
   const po = norm(val(entries, ["PIESA outcome", "PIESA result", "Rectification outcome", "Rectification required"]));
-  if (/no rectification required/.test(po)) patch.piesa_outcome = "pass";
+  if (/no rectification required/.test(po)) issues.push("Mitti reports no rectification required (preliminary B1 only) – PIESA clearance stays pending until confirmed in the portal.");
   else if (/rectification required/.test(po)) patch.piesa_outcome = "fail";
   else issues.push("PIESA outcome not recorded or ambiguous – stays pending.");
 
