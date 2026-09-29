@@ -20,7 +20,7 @@ describe("customer outcome email renderers", () => {
     expect(email.plainText).toContain("As your Accredited Person, Home Insulation Victoria coordinates the electrical assessment, qualified trades, compliance and VEEC processing for your upgrade.");
     expect(`${email.html} ${email.plainText}`).not.toMatch(/multiple providers|estimated saving|reserved capacity/i);
     expect(email.html).not.toContain("is shown to you before anything is added");
-    expect(email.html).not.toContain("background-color:" + PALE_GREEN + ";border-radius:14px");
+    expect(email.html).not.toContain("background-color:#ECF9F1;border-radius:14px");
     expect(email.html).not.toContain("MORE THAN AN INSULATION QUOTE.");
     const h = email.html;
     const order = ["YOUR PRELIMINARY QUOTE", "ADJUST MY ESTIMATE", "$349 payable now", "PAY $349 &amp; CONTINUE", "WHAT HAPPENS NEXT", "WE HANDLE THE VEU PROCESS."].map((t) => h.indexOf(t));
