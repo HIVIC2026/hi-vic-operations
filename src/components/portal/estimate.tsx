@@ -130,8 +130,9 @@ function AreaCalculator({ calc, initial, fees, secondary = false }: { calc: NonN
   const m2 = parseAssumption(raw);
   const est = whatIfEstimate(m2, calc.location, calc.insulation as InsulationDeclared, calc.settings);
   return (
-    <section className={secondary && !open ? "" : "rounded-[1.3rem] bg-estimate-blue-pale px-5 py-6 sm:px-7"} data-testid="area-calculator" aria-label="Ceiling area calculator">
+    <section className="" data-testid="area-calculator" aria-label="Ceiling area calculator">
       {secondary && !open ? <Button variant="ghost" size="field" className="h-auto min-h-12 max-w-full justify-start whitespace-normal px-0 text-left font-bold text-estimate-blue underline underline-offset-4 hover:bg-transparent hover:text-estimate-blue" onClick={() => setOpen(true)}>Want to test a different ceiling area? <ChevronDown aria-hidden="true" /></Button> : <>
+        <div className="rounded-[1.3rem] bg-estimate-blue-pale px-5 py-6 sm:px-7">
         <h3 className="text-xl font-extrabold text-estimate-blue">{secondary ? "Test a different ceiling area" : "See what your upgrade could cost"}</h3>
         <p className="mt-1 text-sm leading-relaxed">Enter a rough ceiling area to see your estimated VEU discount, project price and potential household savings. Nothing you enter here is saved.</p>
         <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -141,6 +142,7 @@ function AreaCalculator({ calc, initial, fees, secondary = false }: { calc: NonN
           {CALC_QUICK.map((q) => <Button key={q} type="button" size="field" variant="outline" className={`rounded-full border border-estimate-blue px-3 font-bold text-estimate-navy hover:bg-estimate-green-soft hover:text-estimate-navy ${m2 === q ? "bg-estimate-green-soft" : "bg-estimate-white"}`} aria-pressed={m2 === q} onClick={() => setRaw(String(q))}>{q} m²</Button>)}
         </div>
         {raw.trim() !== "" && m2 == null && <p role="alert" className="mt-2 text-sm text-danger">Enter an area between {CALC_MIN_M2} and {CALC_MAX_M2} m².</p>}
+        </div>
         {est && <div className="mt-6 space-y-7 sm:space-y-9"><PriceResult est={est} area={m2 ?? 0} fees={fees} assumption />{!secondary && <><HouseholdBenefits /><NextStep fee={fees.piesa} hasPrice /><ManagedProcess /><RemovalNote est={est} assumption /></>}</div>}
       </>}
     </section>
