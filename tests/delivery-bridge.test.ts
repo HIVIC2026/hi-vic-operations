@@ -65,6 +65,7 @@ describe("post-intake + worker wiring", () => {
     expect(pi.indexOf("await attemptCustomerEmail")).toBeLessThan(pi.indexOf('status: "complete"'));
     const fn = pi.slice(pi.indexOf("export async function attemptCustomerEmail"));
     expect(fn).toMatch(/try \{[\s\S]*\} catch/);
+    expect(fn).toContain('view.mode === "none_ineligible"');
     expect(fn).toContain("sendPreliminaryIneligibleEmail");
   });
   test("worker runs initial scan then follow-ups; counts only", () => {
@@ -75,18 +76,20 @@ describe("post-intake + worker wiring", () => {
   });
   const f = src("src/lib/followups.server.ts");
   test("pending scan gates on comms + adapter first, uses idempotent sender", () => {
-    const s = f.slice(f.indexOf("export async function processPendingInitialEstimateEmails"), f.indexOf("async function base44Preliminary"));
+    const s = f.slice(f.indexOf("export async function processPendingInitialEstimateEmails"), f.indexOf("export const INELIGIBLE_PURPOSE"));
     expect(s.indexOf("customerCommsEnabled()")).toBeLessThan(s.indexOf("customer_estimate_links"));
     expect(s).toContain('.in("status", ["sent", "delivered_unrecorded", "sending"])');
     expect(s).toContain("sendInitialEstimateEmail(l.job_id, null, adapter)");
+    expect(s).toContain("sendPreliminaryIneligibleEmail(j.id, null, adapter)");
   });
   test("estimate tracking/follow-ups only after confirmed send", () => {
     const s = f.slice(f.indexOf("export async function sendInitialEstimateEmail"), f.indexOf("export async function processDueFollowups"));
     expect(s.indexOf("if (!r.sent) return r")).toBeLessThan(s.indexOf("planInitialFollowups"));
   });
-  test("ineligible: signed preliminary only, all locks, per-job key, no follow-ups, send marked after deliver", () => {
+  test("ineligible: official recorded result only, all locks, per-job key, no follow-ups, send marked after deliver", () => {
     const s = f.slice(f.indexOf("export async function sendPreliminaryIneligibleEmail"));
-    expect(s).toContain('"does_not_appear_eligible"');
+    expect(f).toContain("officialOutcomeForDelivery");
+    expect(s).toContain('official.kind !== "ineligible"');
     expect(s).toContain("customerCommsEnabled()");
     expect(s).toContain("hasCurrentOwnerContactConsent");
     expect(s).toContain('if (ex?.status === "sent")');
