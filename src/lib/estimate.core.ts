@@ -89,6 +89,6 @@ export function estimateSignature(i: { mode: DisplayMode; area: AreaCandidate; p
 }
 
 export const dollars = (n: number) => `$${Math.round(n).toLocaleString("en-AU")}`;
-export const ELECTRICAL_NOTE = "Electrical safety assessment included in the $349 onsite assessment. Any electrical rectification identified by the PIESA is not included in this estimate and will be itemised for approval before work proceeds.";
+export const electricalNote = (fee: number) => `Electrical safety assessment included in the ${dollars(fee)} onsite assessment. Any electrical rectification identified by the PIESA is not included in this estimate and will be itemised for approval before work proceeds.`;
 export const DISCLAIMER = "Indicative estimate only. Your final price depends on the onsite measurement, existing insulation, access, electrical safety, eligibility and the VEEC market value at the time.";
 export const MEASURE_REQUIRED = "We need a ceiling-area estimate before we can calculate indicative savings";
