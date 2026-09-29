@@ -96,3 +96,30 @@ export async function postIntakeStatus(jobId: string) {
   const { data } = await admin.from("post_intake_work").select("status, attempts, last_error, available_at, updated_at, completed_at, reason").eq("job_id", jobId).eq("work_type", WORK_TYPE).maybeSingle();
   return data ?? null;
 }
+
+/** Record one worker tick so admins can see the scheduler is alive. */
+export async function recordWorkerRun(result: { recovered: number; claimed: number; failed: number }, error?: string) {
+  await admin.from("external_sync_logs").insert({
+    system: "post_intake_worker", direction: "inbound", entity_type: "worker_run",
+    status: error ? "error" : "synced", error: error ?? null,
+    payload: { recovered: result.recovered, claimed: result.claimed, failed: result.failed },
+  });
+}
+
+/** Admin health snapshot: queue counts by state + latest worker tick. */
+export async function postIntakeHealth() {
+  const now = new Date().toISOString();
+  const { data: rows } = await admin.from("post_intake_work").select("status, lease_expires_at, available_at").eq("work_type", WORK_TYPE);
+  const counts = { queued: 0, running: 0, stale: 0, failed: 0, retry_waiting: 0, complete: 0 };
+  for (const r of rows ?? []) {
+    if (r.status === "processing") {
+      if (r.lease_expires_at && r.lease_expires_at < now) counts.stale++;
+      else counts.running++;
+    } else if (r.status === "queued") counts.queued++;
+    else if (r.status === "retry") counts.retry_waiting++;
+    else if (r.status === "failed") counts.failed++;
+    else if (r.status === "complete") counts.complete++;
+  }
+  const { data: last } = await admin.from("external_sync_logs").select("created_at, status, error, payload").eq("system", "post_intake_worker").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return { counts, lastWorkerRun: last ?? null };
+}

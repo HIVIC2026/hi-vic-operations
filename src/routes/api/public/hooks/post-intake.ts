@@ -18,12 +18,15 @@ export const Route = createFileRoute("/api/public/hooks/post-intake")({
           const denied = await authenticateCronRequest(request);
           if (denied) return denied;
         }
-        const { processPostIntakeWork } = await import("@/lib/postintake.server");
+        const { processPostIntakeWork, recordWorkerRun } = await import("@/lib/postintake.server");
         try {
           const r = await processPostIntakeWork({ limit: 5 });
+          const failed = r.results.filter((x) => x.status === "failed" || x.status === "retry").length;
+          await recordWorkerRun({ recovered: r.recovered, claimed: r.claimed, failed }).catch(() => {});
           return Response.json({ ok: true, recovered: r.recovered, claimed: r.claimed, results: r.results.map((x) => ({ status: x.status })) });
         } catch (e) {
           console.error("post-intake worker failed", (e as Error).message);
+          await recordWorkerRun({ recovered: 0, claimed: 0, failed: 0 }, "worker failed").catch(() => {});
           return Response.json({ ok: false, error: "worker failed" }, { status: 500 });
         }
       },

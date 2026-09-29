@@ -1016,6 +1016,12 @@ export const getCommsStatus = createServerFn({ method: "POST" }).middleware([req
   return { enabled: await customerCommsEnabled() };
 });
 
+/** Admin-only health snapshot of the durable post-intake queue (Step 1 -> Step 2 worker). */
+export const getPostIntakeHealth = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  await requireAdmin(context.supabase);
+  return (await import("./postintake.server")).postIntakeHealth();
+});
+
 export const sweepAuthorities = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
   const { data } = await admin.from("owner_authorities").select("job_id").eq("status", "accepted").lt("expires_at", new Date().toISOString());
