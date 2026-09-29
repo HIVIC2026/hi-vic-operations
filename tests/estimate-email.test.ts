@@ -13,20 +13,21 @@ const detailed = { ...common, installationPrice: 4023, assessmentFee: 349, apFee
 describe("customer outcome email renderers", () => {
   test("likely eligible leads with the complete personalised quote", () => {
     const email = withUnsubscribe(renderEstimateEmail({ ...detailed, outcome: "likely" }), unsubscribeUrl);
-    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "YOUR HOME LOOKS LIKELY TO QUALIFY", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "Includes onsite ceiling measure-up.", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$1,325", "$4,721", "$3,396", "$349 payable now", "covers your onsite Measure + Electrical Safety Assessment", "It's already included in your estimated project total — it is not an additional charge", "will not pay this assessment fee again", "$3,047", "CHANGE THE CEILING SIZE FOR A REVISED ESTIMATE →", "PAY $349 &amp; CONTINUE", "WHAT HAPPENS NEXT", "final quote", "you'll see the cost before deciding whether to proceed", "estimated ceiling size you provided in your enquiry: <strong>134.1 m².", "All prices include GST.", "Electrical rectification is not included in this preliminary insulation estimate.", "WE HANDLE THE VEU PROCESS.", "As your Accredited Person, Home Insulation Victoria coordinates the electrical assessment, qualified trades, compliance and VEEC processing for your upgrade.", "ONE PROCESS. ONE TEAM. WE HANDLE THE REST.", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
+    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "YOUR HOME LOOKS LIKELY TO QUALIFY", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "Includes onsite ceiling measure-up.", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$1,325", "$4,721", "$3,396", "$349 payable now", "Covers your onsite Measure + Electrical Safety Assessment", "Already included in the estimated project total — not an extra charge", "$3,047", "Estimated ceiling size: <strong>134.1 m²", "CHANGE →", "Based on the estimated ceiling size provided in your enquiry. Change it to see a revised estimate.", "PAY $349 &amp; CONTINUE", "WHAT HAPPENS NEXT", "We arrange your onsite Measure + Electrical Safety Assessment.", "We confirm your eligible ceiling area, final quote and any separate removal/electrical rectification required.", "Home Insulation Victoria coordinates the VEU compliance pathway, qualified trades and VEEC processing.", "Any additional work is quoted to you before you decide whether to proceed.", "All prices include GST.", "Electrical rectification is not included in this preliminary insulation estimate.", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
     expect(email.html).not.toContain("% estimated saving");
-    expect(email.plainText).toContain("One onsite visit confirms your ceiling area, existing insulation, access and electrical safety. We then confirm your final quote.");
-    expect(email.plainText).toContain("If anything changes — such as insulation removal or electrical rectification — you'll see the cost before deciding whether to proceed.");
-    expect(email.plainText).toContain("As your Accredited Person, Home Insulation Victoria coordinates the electrical assessment, qualified trades, compliance and VEEC processing for your upgrade.");
+    expect(email.plainText).toContain("Estimated ceiling size: 134.1 m² — CHANGE:");
+    expect(email.plainText).toContain("Any additional work is quoted to you before you decide whether to proceed.");
     expect(`${email.html} ${email.plainText}`).not.toMatch(/multiple providers|estimated saving|reserved capacity/i);
     expect(email.html).not.toContain("is shown to you before anything is added");
     expect(email.html).not.toContain("background-color:#ECF9F1;border-radius:14px");
     expect(email.html).not.toContain("MORE THAN AN INSULATION QUOTE.");
     const h = email.html;
-    const order = ["YOUR PRELIMINARY QUOTE", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "CHANGE THE CEILING SIZE FOR A REVISED ESTIMATE →", "$349 payable now", "PAY $349 &amp; CONTINUE", "WHAT HAPPENS NEXT", "WE HANDLE THE VEU PROCESS."].map((t) => h.indexOf(t));
+    const order = ["YOUR PRELIMINARY QUOTE", "Estimated ceiling size:", "CHANGE →", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$349 payable now", "PAY $349 &amp; CONTINUE", "WHAT HAPPENS NEXT"].map((t) => h.indexOf(t));
     expect(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1]!))).toBe(true);
     expect(h.split("PAY $349 &amp; CONTINUE").length - 1).toBe(1);
     expect(h).not.toContain("CONTINUE WITH HOME INSULATION VICTORIA");
+    expect(h).not.toContain("CHANGE THE CEILING SIZE FOR A REVISED ESTIMATE");
+    expect(h).not.toContain("WE HANDLE THE VEU PROCESS");
     expect(`${h} ${email.plainText}`).not.toMatch(/RESERVED CAPACITY|WHY INSULATE/);
     expect(email.html).not.toContain("YOUR ANSWERS HAVEN'T RULED YOU OUT");
     expect(email.html.split("All prices include GST.").length - 1).toBe(1);
@@ -36,7 +37,7 @@ describe("customer outcome email renderers", () => {
 
   test("onsite confirmation remains positive and renders dynamic reasons", () => {
     const email = renderEstimateEmail({ ...detailed, outcome: "onsite", reasons: ["Existing insulation needs confirmation.", "Roof access must be checked."] });
-    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY", "What we need to confirm", "Existing insulation needs confirmation.", "Roof access must be checked.", "$1,325", "$3,396", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "Accredited Person Management", "CHANGE THE CEILING SIZE FOR A REVISED ESTIMATE"]) expect(email.html).toContain(copy);
+    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY", "What we need to confirm", "Existing insulation needs confirmation.", "Roof access must be checked.", "$1,325", "$3,396", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "Accredited Person Management", "CHANGE →"]) expect(email.html).toContain(copy);
     expect(email.html.indexOf("YOUR PRELIMINARY QUOTE")).toBeLessThan(email.html.indexOf("What we need to confirm"));
   });
 
@@ -67,6 +68,7 @@ describe("customer outcome email renderers", () => {
     const m = renderEstimateEmail({ ...common, firstName: "Alex", address: "30 Dash St, Fraser Rise VIC 3336" });
     expect(m.html).toContain("GOOD NEWS, ALEX.");
     expect(m.html).toContain("30 Dash St, Fraser Rise VIC 3336");
+    expect(m.html).toContain("PROPERTY");
     expect(m.html.indexOf("ESTIMATED VEU DISCOUNT")).toBeLessThan(m.html.indexOf("YOUR ESTIMATED COST AFTER DISCOUNT"));
     expect(m.html).toContain("background-color:#52C875");
     expect(renderEstimateEmail(common).html).not.toContain("30 Dash St");
