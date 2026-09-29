@@ -24,8 +24,8 @@ async function gatesFor(jobId: string, adapter: DeliveryAdapter | null) {
 }
 
 async function ownerEmail(jobId: string) {
-  const { data } = await admin.from("jobs").select("owners(email)").eq("id", jobId).single();
-  return (data?.owners as { email: string | null } | null)?.email ?? null;
+  const { data } = await admin.from("jobs").select("external_enquiry_id, owners(email)").eq("id", jobId).single();
+  return { email: (data?.owners as { email: string | null } | null)?.email ?? null, reference: data?.external_enquiry_id ?? null };
 }
 
 /** Reserve an idempotency key. Returns the send row id, or null when already sent / in flight. */
@@ -73,13 +73,14 @@ export async function sendInitialEstimateEmail(jobId: string, actorId: string | 
   const { data: prior } = await admin.from("customer_email_sends").select("status").eq("idempotency_key", key).maybeSingle();
   const blocked = sendBlocker({ ...gates, alreadySent: prior?.status === "sent" });
   if (blocked) return { sent: false as const, reason: blocked };
-  const to = await ownerEmail(jobId);
+  const owner = await ownerEmail(jobId);
+  const to = owner.email;
   if (!to) return { sent: false as const, reason: "no_owner_email" };
   const suppressed = await suppressionFor(jobId, "step3_estimate", to);
   if (suppressed) return { sent: false as const, reason: suppressed };
   const e = view.estimate;
   const values = e ? { estimatedTotal: e.primary.by_access.standard.estimated_customer_total, veuDiscount: e.applied_discount, areaM2: e.area.m2 } : {};
-  const r = await deliverTracked({ jobId, linkId: link!.id, linkToken: link!.token, purpose: "step3_estimate", key, adapter: adapter!, to, actorId, render: (u) => renderEstimateEmail({ ...u, ...values }) });
+  const r = await deliverTracked({ jobId, linkId: link!.id, linkToken: link!.token, purpose: "step3_estimate", key, adapter: adapter!, to, actorId, render: (u) => renderEstimateEmail({ ...u, ...values, outcome: view.mode === "onsite" ? "onsite" : "likely", reasons: view.onsiteDrivers, reference: owner.reference }) });
   if (!r.sent) return r;
   const at = new Date().toISOString();
   await recordEngagement({ jobId, linkId: link!.id, type: "email_sent", source: adapter!.provider, metadata: { purpose: "step3_estimate" }, dedupeKey: dedupe.sent(key), at });
@@ -111,7 +112,7 @@ export async function processDueFollowups(opts: { limit?: number; adapter?: Deli
         await admin.from("customer_followups").update({ status: "pending", blocked_reason: plan.reason, lease_until: null }).eq("id", f.id);
         results.push({ status: "blocked", reason: plan.reason }); continue;
       }
-      const to = await ownerEmail(f.job_id);
+      const to = (await ownerEmail(f.job_id)).email;
       if (!to) { await admin.from("customer_followups").update({ status: "pending", blocked_reason: "no_owner_email", lease_until: null }).eq("id", f.id); results.push({ status: "blocked", reason: "no_owner_email" }); continue; }
       const suppressed = await suppressionFor(f.job_id, "followup", to);
       if (suppressed === "backlog_cutoff_not_set") { await admin.from("customer_followups").update({ status: "pending", blocked_reason: suppressed, lease_until: null, due_at: retryAt() }).eq("id", f.id); results.push({ status: "blocked", reason: suppressed }); continue; }
@@ -183,7 +184,8 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
   if (!(await hasCurrentOwnerContactConsent(jobId))) return { sent: false as const, reason: "no_consent" };
   if (!adapter) return { sent: false as const, reason: "provider_not_configured" };
   const key = ineligibleKey(jobId);
-  const to = await ownerEmail(jobId);
+  const owner = await ownerEmail(jobId);
+  const to = owner.email;
   if (!to) return { sent: false as const, reason: "no_owner_email" };
   const suppressed = await suppressionFor(jobId, "preliminary_ineligible", to);
   if (suppressed) return { sent: false as const, reason: suppressed };
@@ -200,7 +202,7 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
   let delivered = false;
   try {
     const { renderIneligibleEmail } = await import("./ineligible-email");
-    const mail = withUnsubscribe(renderIneligibleEmail({ referralUrl: await referralUrlForJob(jobId), reason: pre.reason }), await unsubscribeUrlForJob(jobId));
+    const mail = withUnsubscribe(renderIneligibleEmail({ referralUrl: await referralUrlForJob(jobId), reason: pre.reason, reference: owner.reference }), await unsubscribeUrlForJob(jobId));
     const r = await adapter.deliver({ to, subject: mail.subject, html: mail.html, text: mail.plainText, idempotencyKey: key, purpose: INELIGIBLE_PURPOSE });
     delivered = true;
     const communicationId = await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: adapter.provider, providerMessageId: r.providerMessageId, visibility: "customer", sourceEvent: INELIGIBLE_PURPOSE, sourceReference: key, createdBy: actorId, deliveryStatus: "sent" });

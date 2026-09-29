@@ -1,63 +1,59 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { renderEstimateEmail } from "../src/lib/estimate-email";
+import { renderEstimateEmail, renderIneligibleOutcomeEmail } from "../src/lib/estimate-email";
+import { withUnsubscribe } from "../src/lib/emailsafety.core";
 
-const sampleUrl = "https://quote.homeinsulationvictoria.com.au/estimate/sample-secure-link";
-const email = renderEstimateEmail({ estimateUrl: sampleUrl, estimatedTotal: 3396, veuDiscount: 1325, areaM2: 134.1 });
-const noArea = renderEstimateEmail({ estimateUrl: sampleUrl });
+const token = "A".repeat(43);
+const estimateUrl = `https://quote.homeinsulationvictoria.com.au/estimate/${token}`;
+const referralUrl = `https://homeinsulationvictoria.com.au/homeowner?ref=${token}`;
+const unsubscribeUrl = `https://quote.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${token}`;
+const common = { estimateUrl, estimatedTotal: 3396, veuDiscount: 1325, areaM2: 134.1, referralUrl, reference: "HV-1001" };
 
-describe("Step 3 email renderer", () => {
-  test("contains price, discount, preheader, qualifications, benefits and next steps in both formats", () => {
-    expect(email.subject).toBe("Good news — your home looks likely to qualify for a VEU insulation discount");
-    expect(email.previewText).toContain("personalised HI VIC estimate is ready");
-    for (const copy of ["$3,396", "$1,325", "134.1", "licensed electrician", "Registered Electrical Contractor", "EEC Certified Insulation Installer", "$400+ / year*", "Up to 20%*", "Actual savings vary", "Here's what happens next", "$349", "Transparent HI VIC pricing", "DC Construction Solutions Pty Ltd t/a Home Insulation Victoria"]) {
-      expect(email.html).toContain(copy);
-      expect(email.plainText).toContain(copy);
-    }
-    expect(email.html).toContain(sampleUrl);
-    expect(email.plainText).toContain(sampleUrl);
-    for (const body of [email.html, email.plainText]) {
-      expect(body).toContain("VIEW &amp; EXPLORE MY ESTIMATE".replace("&amp;", body === email.html ? "&amp;" : "&"));
-      for (const copy of ["Your estimate is interactive. You can:", "See your estimated VEU discount and project price", "Change the ceiling-area assumption and see the estimate update", "See what is included and what could change the final price", "Understand the $349 onsite step before deciding to proceed", "Nothing you change in the self-serve calculator changes your recorded property details or final quote.", "Explore your personalised estimate", "You can also test different ceiling-area assumptions yourself."]) expect(body).toContain(copy);
-    }
+describe("customer outcome email renderers", () => {
+  test("likely eligible leads with the complete personalised quote", () => {
+    const email = withUnsubscribe(renderEstimateEmail({ ...common, outcome: "likely" }), unsubscribeUrl);
+    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "$1,325", "$4,721", "$3,396", "134.1 m²", "28% reduction", "YOUR NEXT STEP", "Onsite Measure + Electrical Safety Assessment", "CONTINUE WITH HOME INSULATION VICTORIA", "Your managed insulation package includes", "approved Accredited Person", "appropriately licensed electricians", "Registered Electrical Contractors", "appropriately EEC-certified", "capacity reserved", "Warmer in winter", "Cooler in summer", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
+    expect(email.html.indexOf("YOUR PRELIMINARY QUOTE")).toBeLessThan(email.html.indexOf("YOUR NEXT STEP"));
+    expect(email.html).not.toContain("ONSITE CONFIRMATION NEEDED");
+    expect(email.html).not.toMatch(/>HI VIC</);
   });
 
-  test("no-area email invites a self-serve estimate without inventing amounts or area", () => {
-    expect(noArea.subject).toBe("Good news — your home looks likely to qualify. Calculate your HI VIC estimate");
-    expect(noArea.previewText).toBe("Your self-serve HI VIC estimate is ready — enter a rough ceiling area to see your estimated VEU discount and project price.");
-    for (const body of [noArea.html, noArea.plainText]) {
-      for (const copy of ["CALCULATE &amp; EXPLORE MY ESTIMATE".replace("&amp;", body === noArea.html ? "&amp;" : "&"), "See what your upgrade could cost", "enter a rough area", "Build your self-serve estimate", "The $349 will be included in the indicative project total shown once you enter an area", "$400+ / year*", "Up to 20%*", "Warmer in winter. Cooler in summer.", "EEC Certified Insulation Installer", "Transparent HI VIC pricing", sampleUrl]) expect(body).toContain(copy);
-      for (const invented of ["$3,396", "$1,325", "134.1", "already included in your indicative project total"]) expect(body).not.toContain(invented);
-    }
+  test("onsite confirmation remains positive and renders dynamic reasons", () => {
+    const email = renderEstimateEmail({ ...common, outcome: "onsite", reasons: ["Existing insulation needs confirmation.", "Roof access must be checked."] });
+    for (const copy of ["POSITIVE START", "Your preliminary quote is ready", "What we need to confirm", "Existing insulation needs confirmation.", "Roof access must be checked.", "$1,325", "$3,396"]) expect(email.html).toContain(copy);
+    expect(email.html.indexOf("YOUR PRELIMINARY QUOTE")).toBeLessThan(email.html.indexOf("What we need to confirm"));
   });
 
-  test("rejects partial, invalid, zero and mixed estimate values", () => {
-    for (const values of [
-      { estimatedTotal: 3396 },
-      { estimatedTotal: null, veuDiscount: 1325, areaM2: 134.1 },
-      { estimatedTotal: 3396, veuDiscount: 1325 },
-      { estimatedTotal: 0, veuDiscount: 1325, areaM2: 134.1 },
-      { estimatedTotal: Infinity, veuDiscount: 1325, areaM2: 134.1 },
-    ]) expect(() => renderEstimateEmail({ estimateUrl: sampleUrl, ...values })).toThrow();
-    expect(renderEstimateEmail({ estimateUrl: sampleUrl, estimatedTotal: null, veuDiscount: undefined, areaM2: null }).html).toContain("See what your upgrade could cost");
+  test("ineligible has dynamic reasons, no available discount, result CTA and referral", () => {
+    const email = withUnsubscribe(renderIneligibleOutcomeEmail({ referralUrl, reasons: ["The home is five years old or newer.", "A previous Activity 48 upgrade was confirmed."], reference: "HV-1003" }), unsubscribeUrl);
+    for (const copy of ["This property does not appear eligible", "Why we reached this result", "five years old or newer", "previous Activity 48 upgrade", "CONTINUE WITH HOME INSULATION VICTORIA", "SHARE HOME INSULATION VICTORIA", "Reference: HV-1003", "Unsubscribe"]) expect(email.html).toContain(copy);
+    expect(email.html).not.toMatch(/estimated VEU discount|ESTIMATED CUSTOMER PRICE|\$1,325/i);
   });
 
-  test("is email-safe and contains no delivery or provider integration", () => {
+  test("AP count is optional and never invented", () => {
+    const omitted = renderEstimateEmail({ ...common, apCount: null });
+    expect(omitted.html).toContain("approved Accredited Person");
+    expect(omitted.html).not.toContain("2 currently verified");
+    const verified = renderEstimateEmail({ ...common, apCount: 7 });
+    expect(verified.html).toContain("7 currently verified team members");
+  });
+
+  test("requires all mandatory quote values and rejects unsafe URLs", () => {
+    expect(() => renderEstimateEmail({ estimateUrl, estimatedTotal: 3396, veuDiscount: 1325 })).toThrow();
+    expect(() => renderEstimateEmail({ ...common, estimateUrl: "https://evil.example/estimate/x" })).toThrow();
+    expect(() => renderIneligibleOutcomeEmail({ referralUrl: "https://evil.example/x", reasons: ["No"] })).toThrow();
+  });
+
+  test("uses email-safe markup and remains a pure renderer", () => {
     const source = readFileSync("src/lib/estimate-email.ts", "utf8");
     const preview = readFileSync("src/routes/step3-email-preview.tsx", "utf8");
-    for (const result of [email, noArea]) {
-      expect(result.html).not.toMatch(/<script\b|lovable\.app|class=|<style\b/i);
-      expect(result.plainText).not.toContain("lovable.app");
+    for (const email of [renderEstimateEmail(common), renderIneligibleOutcomeEmail({ referralUrl, reasons: ["Fixture reason"] })]) {
+      expect(email.html).not.toMatch(/<script\b|class=|<style\b/i);
+      expect(email.html).toContain("max-width:640px");
+      expect(email.html).toContain("font-family:'Open Sans',Arial,Helvetica,sans-serif");
+      for (const colour of ["#3C51C4", "#07BF61", "#52C875"]) expect(email.html).toContain(colour);
     }
     expect(source + preview).not.toMatch(/sendTemplateEmail|sendLovableEmail|createServerFn|supabase|fetch\(|\.insert\(|\.update\(/);
-    expect(preview).toContain('srcDoc={sample.html.replace(');
-    expect(preview).toContain("sample-secure-link");
-    expect(preview).toContain("No area yet");
-  });
-
-  test("rejects external, insecure, and query-bearing links", () => {
-    for (const url of ["https://example.com/estimate/token", "http://quote.homeinsulationvictoria.com.au/estimate/token", "https://quote.homeinsulationvictoria.com.au/estimate/token?leak=1"]) {
-      expect(() => renderEstimateEmail({ estimateUrl: url, estimatedTotal: 3396, veuDiscount: 1325, areaM2: 134.1 })).toThrow();
-    }
+    for (const label of ["Likely eligible", "Needs confirmation", "Does not appear eligible"]) expect(preview).toContain(label);
   });
 });

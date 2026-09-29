@@ -99,13 +99,13 @@ describe("post-intake + worker wiring", () => {
 describe("ineligible renderer", () => {
   test("reason + referral CTA, no price/booking", () => {
     const m = renderIneligibleEmail({ referralUrl: REF, reason: "The home was built less than 5 years ago." });
-    expect(m.subject).toBe("Your HI VIC eligibility check");
+    expect(m.subject).toBe("Your Home Insulation Victoria eligibility result");
     for (const t of [m.html, m.plainText]) {
-      expect(t).toContain("doesn’t appear eligible for this VEU ceiling-insulation offer");
+      expect(t).toContain("does not appear eligible");
       expect(t).toContain("built less than 5 years ago");
-      expect(t).toContain("REFER A FRIEND");
+      expect(t).toContain("SHARE HOME INSULATION VICTORIA");
       expect(t).toContain("Know someone who could benefit?");
-      expect(t).not.toMatch(/\$\d|book|estimate|349/i);
+      expect(t).not.toMatch(/\$\d|ESTIMATED CUSTOMER PRICE|349/i);
     }
     expect(m.html).toContain(`href="${REF.replace(/&/g, "&amp;")}"`);
   });
