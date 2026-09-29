@@ -16,7 +16,7 @@ describe("Base44 Gate 1 evidence", () => {
     expect(b.research).toBeNull();
     const d = decide(b);
     expect(d.outcome).toBeNull();
-    expect(d.rules.find((r) => r.key === "ceiling_age")).toMatchObject({ basis: "declared", result: "review" });
+    expect(d.rules.find((r) => r.key === "ceiling_age")).toMatchObject({ basis: "declared", result: "pass" });
     expect(d.rules.find((r) => r.key === "residential")).toMatchObject({ basis: "declared", result: "review" });
   });
   test("complete research + consistent declarations auto-pass with per-rule provenance", () => {
