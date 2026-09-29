@@ -8,11 +8,12 @@ const estimateUrl = `https://quote.homeinsulationvictoria.com.au/estimate/${toke
 const referralUrl = `https://homeinsulationvictoria.com.au/homeowner?ref=${token}`;
 const unsubscribeUrl = `https://quote.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${token}`;
 const common = { estimateUrl, estimatedTotal: 3396, veuDiscount: 1325, areaM2: 134.1, referralUrl, reference: "HV-1001" };
+const detailed = { ...common, installationPrice: 3200, assessmentFee: 349, apFee: 1172, grossProjectTotal: 4721, amountPayableNow: 349, estimatedRemainingBalance: 3047 };
 
 describe("customer outcome email renderers", () => {
   test("likely eligible leads with the complete personalised quote", () => {
-    const email = withUnsubscribe(renderEstimateEmail({ ...common, outcome: "likely" }), unsubscribeUrl);
-    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "YOUR HOME LOOKS LIKELY TO QUALIFY", "ESTIMATED VEU DISCOUNT", "ESTIMATED PRICE AFTER DISCOUNT", "$1,325", "$4,721", "$3,396", "134.1 m²", "28% estimated saving", "THIS IS MORE THAN AN", "Ceiling measure-up", "Electrical safety assessment", "Vetted REC electricians", "Appropriately EEC-certified installers", "VEEC creation and discount pathway", "YOU'RE IN THE RIGHT HANDS.", "ACCREDITED PERSON", "VETTED TRADES", "RESERVED CAPACITY", "Appropriately licensed electricians/RECs", "appropriately EEC-certified insulation providers", "Warmer in winter", "Cooler in summer", "Less heating &amp; cooling demand", "YOUR ESTIMATED VEU DISCOUNT: $1,325", "YOUR NEXT STEP", "MEASURE + ELECTRICAL SAFETY ASSESSMENT", "CONTINUE WITH HOME INSULATION VICTORIA", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Refer a friend", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
+    const email = withUnsubscribe(renderEstimateEmail({ ...detailed, outcome: "likely" }), unsubscribeUrl);
+    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "YOUR HOME LOOKS LIKELY TO QUALIFY", "R5.0 ceiling insulation installation", "Onsite Measure + Electrical Safety Assessment", "Included in your total", "AP &amp; Compliance Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$1,325", "$4,721", "$3,396", "$349 payable now", "not an extra charge", "will not pay this assessment fee again", "$3,047", "PAY $349 &amp; CONTINUE", "WHAT COULD CHANGE AFTER THE ASSESSMENT?", "Nothing additional is simply added without being shown to you first.", "134.1 m²", "28% estimated saving", "THIS IS MORE THAN AN", "YOU'RE IN THE RIGHT HANDS.", "YOUR NEXT STEP", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
     expect(email.html.indexOf("ESTIMATED VEU DISCOUNT")).toBeLessThan(email.html.indexOf("YOUR NEXT STEP"));
     expect(email.html).not.toContain("YOUR ANSWERS HAVEN'T RULED YOU OUT");
     expect(email.html).not.toMatch(/>HI VIC</);
@@ -55,6 +56,15 @@ describe("customer outcome email renderers", () => {
     expect(() => renderEstimateEmail({ estimateUrl, estimatedTotal: 3396, veuDiscount: 1325 })).toThrow();
     expect(() => renderEstimateEmail({ ...common, estimateUrl: "https://evil.example/estimate/x" })).toThrow();
     expect(() => renderIneligibleOutcomeEmail({ referralUrl: "https://evil.example/x", reasons: ["No"] })).toThrow();
+  });
+
+  test("validates detailed quote arithmetic and never fabricates missing line items", () => {
+    const email = renderEstimateEmail(detailed);
+    expect(email.plainText).toContain("R5.0 ceiling insulation installation: $3,200");
+    expect(renderEstimateEmail(common).html).not.toContain("AP &amp; Compliance Management");
+    expect(() => renderEstimateEmail({ ...detailed, grossProjectTotal: 4700 })).toThrow();
+    expect(() => renderEstimateEmail({ ...detailed, estimatedRemainingBalance: 3000 })).toThrow();
+    expect(() => renderEstimateEmail({ ...common, assessmentFee: 349 })).toThrow();
   });
 
   test("uses email-safe markup and remains a pure renderer", () => {

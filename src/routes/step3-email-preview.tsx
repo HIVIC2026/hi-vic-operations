@@ -12,6 +12,12 @@ const sample = withUnsubscribe(
     estimatedTotal: 2710,
     veuDiscount: 2140,
     areaM2: 150,
+    installationPrice: 3801,
+    assessmentFee: 349,
+    apFee: 700,
+    grossProjectTotal: 4850,
+    amountPayableNow: 349,
+    estimatedRemainingBalance: 2361,
     savingsPercent: 44,
     firstName: "Alex",
     address: "30 Dash St, Fraser Rise VIC 3336",
@@ -39,15 +45,15 @@ function EmailPreview() {
   const srcDoc = sample.html.replaceAll("https://quote.homeinsulationvictoria.com.au/email-preview/hi-vic-logo.png", "/email-preview/hi-vic-logo.png");
   return <main className="min-h-screen bg-background px-3 py-6 text-foreground sm:px-6">
     <div className="mx-auto max-w-[1120px]">
-      <p className="mb-4 border-l-4 border-primary bg-card px-4 py-3 text-sm font-bold">SAMPLE EMAIL PREVIEW ONLY — likely-eligible version. Nothing is sent or saved. Values shown are illustrative.</p>
+      <p className="mb-4 border-l-4 border-primary bg-card px-4 py-3 text-sm font-bold">SAMPLE EMAIL PREVIEW ONLY — likely-eligible version. Buttons are disabled here; nothing is sent, saved or paid.</p>
       <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-1 border-b-2 border-primary pb-4 text-sm font-bold" aria-label="Preview sample values">
         <span>Alex</span><span>30 Dash St, Fraser Rise VIC 3336</span><span>150 m²</span><span>Package $4,850</span><span className="text-primary">VEU discount −$2,140</span><span>Estimated price $2,710</span><span>44% estimated saving</span>
       </div>
       <p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p>
       <p className="mb-6 text-sm"><strong>Preheader:</strong> {sample.previewText}</p>
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,640px)_minmax(0,390px)]">
-        <section aria-label="Desktop email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Desktop · 640px</h2><iframe title="Likely-eligible desktop email" srcDoc={srcDoc} sandbox="" className="block h-[2820px] w-full border border-border bg-background" /></section>
-        <section aria-label="Mobile email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Mobile · 390px</h2><div className="mx-auto w-full max-w-[390px] border-[6px] border-foreground bg-background"><iframe title="Likely-eligible mobile email" srcDoc={srcDoc} sandbox="" className="block h-[3330px] w-full border-0 bg-background" /></div></section>
+        <section aria-label="Desktop email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Desktop · 640px</h2><iframe title="Likely-eligible desktop email" srcDoc={srcDoc} sandbox="" className="block h-[3550px] w-full border border-border bg-background" /></section>
+        <section aria-label="Mobile email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Mobile · 390px</h2><div className="mx-auto w-full max-w-[390px] border-[6px] border-foreground bg-background"><iframe title="Likely-eligible mobile email" srcDoc={srcDoc} sandbox="" className="block h-[4300px] w-full border-0 bg-background" /></div></section>
       </div>
     </div>
   </main>;
