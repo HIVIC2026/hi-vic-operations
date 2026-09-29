@@ -9,8 +9,8 @@ import { EstimateHeader } from "@/components/portal/EstimateHeader";
 const estimateUrl = "https://quote.homeinsulationvictoria.com.au/estimate/sample-secure-link";
 const referralUrl = `https://homeinsulationvictoria.com.au/homeowner?ref=${"R".repeat(43)}`;
 const unsubscribeUrl = `https://quote.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"U".repeat(43)}`;
-// PREVIEW SAMPLE ONLY. Fees mirror the two approved $349 fields; totals are derived, never typed.
-const SAMPLE_INSTALL = 3801, SAMPLE_DISCOUNT = 2140, PIESA_FEE = 349, AP_FEE = 349;
+// PREVIEW SAMPLE ONLY. The assessment is fixed at $349; AP management remains a dynamic quote input.
+const SAMPLE_INSTALL = 3801, SAMPLE_DISCOUNT = 2140, PIESA_FEE = 349, AP_FEE = 700;
 const SAMPLE_GROSS = SAMPLE_INSTALL + PIESA_FEE + AP_FEE;
 const SAMPLE_CUSTOMER = SAMPLE_GROSS - SAMPLE_DISCOUNT;
 const quote = {
