@@ -57,7 +57,8 @@ async function deliverTracked(x: { jobId: string; linkId: string; linkToken: str
 }
 
 /** Initial Step 3 estimate email. Idempotent per secure link + current estimate version. */
-export async function sendInitialEstimateEmail(jobId: string, actorId: string | null, adapter: DeliveryAdapter | null = configuredDeliveryAdapter()) {
+export async function sendInitialEstimateEmail(jobId: string, actorId: string | null, adapterIn?: DeliveryAdapter | null) {
+  const adapter = adapterIn === undefined ? await configuredDeliveryAdapter() : adapterIn;
   const { link, view, gates } = await gatesFor(jobId, adapter);
   const key = `step3_estimate:${link?.id ?? "none"}:${view.estimate?.id ?? "no_area"}`;
   const { data: prior } = await admin.from("customer_email_sends").select("status").eq("idempotency_key", key).maybeSingle();
@@ -82,7 +83,7 @@ export async function sendInitialEstimateEmail(jobId: string, actorId: string | 
 
 /** Hourly worker: claim due follow-ups, recheck everything, deliver only through a configured adapter. */
 export async function processDueFollowups(opts: { limit?: number; adapter?: DeliveryAdapter | null } = {}) {
-  const adapter = opts.adapter === undefined ? configuredDeliveryAdapter() : opts.adapter;
+  const adapter = opts.adapter === undefined ? await configuredDeliveryAdapter() : opts.adapter;
   const { data: claimed, error } = await admin.rpc("claim_customer_followups", { _limit: opts.limit ?? 20, _lease_seconds: 300 });
   if (error) throw new Error(error.message);
   const results: Array<{ status: string; reason?: string }> = [];
@@ -119,4 +120,70 @@ export async function processDueFollowups(opts: { limit?: number; adapter?: Deli
     }
   }
   return { claimed: (claimed ?? []).length, results };
+}
+
+/** Fallback scan: jobs with an ACTIVE usable Step 3 link that never had a confirmed initial send. Idempotent via reserve(). */
+export async function processPendingInitialEstimateEmails(limit = 20, adapterIn?: DeliveryAdapter | null) {
+  const adapter = adapterIn === undefined ? await configuredDeliveryAdapter() : adapterIn;
+  const counts = { scanned: 0, sent: 0, blocked: 0 };
+  // Both global locks first: nothing to do while comms are OFF or delivery is disabled.
+  if (!adapter || !(await customerCommsEnabled())) return counts;
+  const { data: links } = await admin.from("customer_estimate_links").select("id, job_id, status, expires_at").eq("purpose", LINK_PURPOSE).eq("status", "active").order("created_at", { ascending: true }).limit(200);
+  const usable = (links ?? []).filter((l) => linkUsable(l));
+  if (!usable.length) return counts;
+  const { data: sent } = await admin.from("customer_email_sends").select("estimate_link_id").eq("purpose", "step3_estimate").eq("status", "sent").in("estimate_link_id", usable.map((l) => l.id));
+  const done = new Set((sent ?? []).map((s) => s.estimate_link_id));
+  for (const l of usable.filter((x) => !done.has(x.id)).slice(0, limit)) {
+    counts.scanned++;
+    if (!(await hasCurrentOwnerContactConsent(l.job_id))) { counts.blocked++; continue; }
+    try {
+      const r = await sendInitialEstimateEmail(l.job_id, null, adapter); // rechecks Gate 1 mode, link, consent, idempotency key
+      if (r.sent) counts.sent++; else counts.blocked++;
+    } catch { counts.blocked++; }
+  }
+  return counts;
+}
+
+/** Signed Base44 preliminary outcome (from the intake event written only for source=base44; never the official Gate 1 result). */
+async function base44Preliminary(jobId: string) {
+  const { data } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "preliminary_eligibility_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const d = (data?.details ?? {}) as { preliminary_outcome?: string | null; preliminary_reasons?: string | null };
+  return { outcome: d.preliminary_outcome ?? null, reason: typeof d.preliminary_reasons === "string" ? d.preliminary_reasons : null };
+}
+
+export const INELIGIBLE_PURPOSE = "preliminary_ineligible" as const;
+export const ineligibleKey = (jobId: string) => `${INELIGIBLE_PURPOSE}:${jobId}`;
+
+/** One-time preliminary-ineligible email. Never schedules follow-ups; never resends (key is per job, not per Gate 1 result). */
+export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: string | null = null, adapterIn?: DeliveryAdapter | null) {
+  const adapter = adapterIn === undefined ? await configuredDeliveryAdapter() : adapterIn;
+  const pre = await base44Preliminary(jobId);
+  if (pre.outcome !== "does_not_appear_eligible") return { sent: false as const, reason: "not_preliminary_ineligible" };
+  if (!(await customerCommsEnabled())) return { sent: false as const, reason: "comms_disabled" };
+  if (!(await hasCurrentOwnerContactConsent(jobId))) return { sent: false as const, reason: "no_consent" };
+  if (!adapter) return { sent: false as const, reason: "provider_not_configured" };
+  const key = ineligibleKey(jobId);
+  const to = await ownerEmail(jobId);
+  if (!to) return { sent: false as const, reason: "no_owner_email" };
+  const { data: ex } = await admin.from("customer_email_sends").select("id, status, created_at").eq("idempotency_key", key).maybeSingle();
+  if (ex?.status === "sent") return { sent: false as const, reason: "already_sent" };
+  if (ex?.status === "sending" && Date.now() - Date.parse(ex.created_at) < 10 * 60_000) return { sent: false as const, reason: "already_sent" };
+  let sendId = ex?.id ?? null;
+  if (ex) await admin.from("customer_email_sends").update({ status: "sending", error: null, created_at: new Date().toISOString() }).eq("id", ex.id);
+  else {
+    const { data, error } = await admin.from("customer_email_sends").insert({ job_id: jobId, estimate_link_id: null, purpose: INELIGIBLE_PURPOSE, idempotency_key: key }).select("id").single();
+    if (error) return { sent: false as const, reason: "already_sent" };
+    sendId = data.id;
+  }
+  try {
+    const { renderIneligibleEmail } = await import("./ineligible-email");
+    const mail = renderIneligibleEmail({ referralUrl: await referralUrlForJob(jobId), reason: pre.reason });
+    const r = await adapter.deliver({ to, subject: mail.subject, html: mail.html, text: mail.plainText, idempotencyKey: key, purpose: INELIGIBLE_PURPOSE });
+    const communicationId = await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: adapter.provider, providerMessageId: r.providerMessageId, visibility: "customer", sourceEvent: INELIGIBLE_PURPOSE, sourceReference: key, createdBy: actorId, deliveryStatus: "sent" });
+    await admin.from("customer_email_sends").update({ status: "sent", sent_at: new Date().toISOString(), provider: adapter.provider, provider_message_id: r.providerMessageId, communication_id: communicationId }).eq("id", sendId!);
+    return { sent: true as const, communicationId };
+  } catch (e) {
+    await admin.from("customer_email_sends").update({ status: "failed", error: (e as Error).message.slice(0, 300) }).eq("id", sendId!);
+    return { sent: false as const, reason: "delivery_failed" };
+  }
 }

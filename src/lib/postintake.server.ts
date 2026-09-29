@@ -81,6 +81,7 @@ async function processItem(item: Claimed) {
     // Step 3 preparation after the official Gate 1 decision, BEFORE completing. A failure retries the item; Gate 1 is never rolled back.
     const { syncStep3 } = await import("./estimatelink.server");
     await syncStep3(item.job_id, null);
+    await attemptCustomerEmail(item.job_id); // best-effort; never throws, never fails/retries this work item
     const { error: ce } = await mine({ status: "complete", completed_at: new Date().toISOString(), locked_at: null, lease_expires_at: null, last_error: null });
     if (ce) throw new Error(ce.message);
     const { autoAdvanceJob } = await import("./autoadvance.server");
@@ -125,4 +126,18 @@ export async function postIntakeHealth() {
   }
   const { data: last } = await admin.from("external_sync_logs").select("created_at, status, error, payload").eq("system", "post_intake_worker").order("created_at", { ascending: false }).limit(1).maybeSingle();
   return { counts, lastWorkerRun: last ?? null };
+}
+
+/** Best-effort customer email after Step 3 preparation. Blocked states (comms OFF, delivery disabled, no consent) are normal. Never throws. */
+export async function attemptCustomerEmail(jobId: string) {
+  try {
+    const { refreshIndicativeEstimate } = await import("./estimate.server");
+    const { linkAllowed } = await import("./estimatelink.core");
+    const f = await import("./followups.server");
+    const view = await refreshIndicativeEstimate(jobId);
+    return linkAllowed(view.mode) ? await f.sendInitialEstimateEmail(jobId, null) : await f.sendPreliminaryIneligibleEmail(jobId, null);
+  } catch (e) {
+    console.warn("post-intake customer email attempt failed (ignored)", (e as Error).message.slice(0, 200));
+    return { sent: false as const, reason: "error" };
+  }
 }

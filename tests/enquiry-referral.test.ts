@@ -17,11 +17,17 @@ const fakeAdmin = {
 let failReferral = false;
 let thrown = false;
 
-mock.module("@/lib/enquiry.core", () => ({ verifyEd25519: async () => true, BASE44_KEY_ID: "base44-v1" }));
+// Spread the real modules and only bypass while this file runs, so other test files see real behaviour.
+let active = true;
+const realCore = { ...(await import("../src/lib/enquiry.core")) };
+const realServer = { ...(await import("../src/lib/enquiry.server")) };
+mock.module("@/lib/enquiry.core", () => ({ ...realCore, verifyEd25519: async (...a: Parameters<typeof realCore.verifyEd25519>) => (active ? true : realCore.verifyEd25519(...a)) }));
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fakeAdmin }));
 mock.module("@/lib/enquiry.server", () => ({
-  enquirySchema: { safeParse: (d: unknown) => ({ success: true, data: d }) },
-  upsertEnquiry: async () => {
+  ...realServer,
+  enquirySchema: { ...realServer.enquirySchema, safeParse: (d: unknown) => (active ? { success: true, data: d } : realServer.enquirySchema.safeParse(d)) },
+  upsertEnquiry: async (...a: unknown[]) => {
+    if (!active) return (realServer.upsertEnquiry as (...x: unknown[]) => unknown)(...a);
     if (thrown) throw new Error("boom");
     return { job_id: JOB, created: false };
   },
@@ -46,6 +52,9 @@ async function post(body: unknown) {
     }),
   });
 }
+
+import { afterAll } from "bun:test";
+afterAll(() => { active = false; });
 
 describe("Base44 enquiry response referral share URL", () => {
   test("successful enquiry returns referral_share_url — full URL only, no raw token field", async () => {

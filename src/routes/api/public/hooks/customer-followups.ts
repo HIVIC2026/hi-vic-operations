@@ -16,10 +16,13 @@ export const Route = createFileRoute("/api/public/hooks/customer-followups")({
           const denied = await authenticateCronRequest(request);
           if (denied) return denied;
         }
-        const { processDueFollowups } = await import("@/lib/followups.server");
+        const { processDueFollowups, processPendingInitialEstimateEmails } = await import("@/lib/followups.server");
         try {
+          const initial = await processPendingInitialEstimateEmails(20);
           const r = await processDueFollowups();
-          return Response.json({ ok: true, claimed: r.claimed, results: r.results });
+          const n = (s: string) => r.results.filter((x) => x.status === s).length;
+          // Counts only — never PII.
+          return Response.json({ ok: true, initial, followups: { claimed: r.claimed, sent: n("sent"), suppressed: n("suppressed"), blocked: n("blocked"), retry: n("retry"), failed: n("failed"), error: n("error") } });
         } catch (e) {
           console.error("customer follow-up worker failed", (e as Error).message);
           return Response.json({ ok: false, error: "worker failed" }, { status: 500 });

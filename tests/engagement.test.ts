@@ -157,11 +157,13 @@ describe("follow-ups", () => {
 });
 
 describe("delivery configuration", () => {
-  test("bridge requires https URL and secret", () => {
-    expect(base44BridgeConfig({})).toBeNull();
-    expect(base44BridgeConfig({ BASE44_DELIVERY_URL: "https://x.base44.app/hook" })).toBeNull();
-    expect(base44BridgeConfig({ BASE44_DELIVERY_URL: "http://x/hook", BASE44_DELIVERY_SECRET: "s".repeat(40) })).toBeNull();
-    expect(base44BridgeConfig({ BASE44_DELIVERY_URL: "https://x/hook", BASE44_DELIVERY_SECRET: "s".repeat(40) })).not.toBeNull();
+  test("bridge requires enabled row, https URL and secret", () => {
+    const ok = { endpoint_url: "https://x/hook", hmac_secret: "s".repeat(40), enabled: true };
+    expect(base44BridgeConfig(null)).toBeNull();
+    expect(base44BridgeConfig({ ...ok, hmac_secret: null })).toBeNull();
+    expect(base44BridgeConfig({ ...ok, endpoint_url: "http://x/hook" })).toBeNull();
+    expect(base44BridgeConfig({ ...ok, enabled: false })).toBeNull();
+    expect(base44BridgeConfig(ok)).not.toBeNull();
   });
   test("no Resend anywhere in src", () => {
     for (const f of walk("src")) if (/\.(ts|tsx)$/.test(f)) expect(src(f)).not.toMatch(/from ["']resend["']|api\.resend\.com|RESEND_API_KEY|new Resend\(/);
