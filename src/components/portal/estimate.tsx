@@ -9,6 +9,7 @@ import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
 import { BENCHMARK_LABEL, CALC_ASSUMPTION_LABEL, CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, FEE_DESCRIPTION, FEE_LABEL, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings, type Scenario } from "@/lib/estimate.core";
 import type { LocationVariables } from "@/lib/activity48.core";
 import { CUSTOMER_BRAND, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
+import type { AssessmentAcceptanceState } from "@/lib/assessment-payment.core";
 import { Pill } from "./badges";
 
 export const HEADLINE = { likely: "Your home has passed our initial eligibility checks.", onsite: "Your home looks likely to qualify." } as const;
@@ -31,9 +32,11 @@ export type CustomerData = {
 
 type Est = { scenarios: Scenario[]; access_adjustment: { moderate: number; difficult: number } };
 
-export function ConfirmQuote({ estimatedPrice, assessmentFee, onBack, preview = false }: { estimatedPrice: number; assessmentFee: number; onBack: () => void; preview?: boolean }) {
+export function ConfirmQuote({ estimatedPrice, assessmentFee, onBack, preview = false, state = null, busy = false, error = null, onAccept, onTestPayment }: { estimatedPrice: number; assessmentFee: number; onBack: () => void; preview?: boolean; state?: AssessmentAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; onTestPayment?: (outcome: "success" | "failure") => void }) {
   const remaining = Math.max(0, estimatedPrice - assessmentFee);
+  const paid = state?.paymentStatus === "paid";
   return <section className="estimate-brand overflow-hidden border-2 border-estimate-blue bg-estimate-white text-estimate-navy shadow-[6px_6px_0_var(--estimate-green)]" aria-labelledby="confirm-quote-title">
+    <div className="bg-warning-soft px-5 py-3 text-center text-xs font-extrabold uppercase text-warning-foreground">Test mode · no real payment will be taken</div>
     <div className="bg-estimate-blue px-5 py-7 text-estimate-white sm:px-9 sm:py-9">
       <p className="text-xs font-extrabold uppercase tracking-wider text-estimate-green-light">Your next step</p>
       <h1 id="confirm-quote-title" className="mt-2 text-3xl font-extrabold leading-tight sm:text-4xl">LET’S CONFIRM YOUR QUOTE</h1>
@@ -46,6 +49,10 @@ export function ConfirmQuote({ estimatedPrice, assessmentFee, onBack, preview = 
         <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">{CUSTOMER_QUOTE_LABELS.remainingBalance}</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(remaining)}</dd></div>
       </dl>
       <div className="mt-6 border-l-4 border-estimate-green bg-estimate-green-soft px-4 py-4 text-sm leading-relaxed"><p className="font-extrabold">{CUSTOMER_PAYMENT_COPY.included}</p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.notAgain}</p></div>
+      <label className="mt-6 flex items-start gap-3 border border-estimate-blue-soft p-4 text-sm leading-relaxed">
+        <input type="checkbox" checked={!!state} readOnly className="mt-1 size-4 accent-estimate-blue" />
+        <span>I accept proceeding with the Measure + PIESA assessment. I understand the $349 is included in this estimate, is not paid again if the project proceeds, and final figures may change only for the onsite factors already disclosed.</span>
+      </label>
       <div className="mt-7">
         <h2 className="text-lg font-extrabold text-estimate-blue">What this visit confirms</h2>
         <ul className="mt-4 space-y-3 text-sm font-semibold">
@@ -57,7 +64,11 @@ export function ConfirmQuote({ estimatedPrice, assessmentFee, onBack, preview = 
         <p className="mt-2 text-sm font-bold leading-relaxed">{CUSTOMER_PAYMENT_COPY.noSilentAdditions}</p><p className="mt-2 text-sm leading-relaxed">If the onsite assessment identifies insulation removal or electrical rectification that isn’t included in your estimate, we’ll show you exactly what’s required and what it costs before you decide whether to proceed.</p>
       </div>
       <div className="mt-7 space-y-3">
-        <Button type="button" size="field" className="h-auto min-h-14 w-full rounded-none bg-estimate-blue px-5 py-4 font-extrabold text-estimate-white shadow-[4px_4px_0_var(--estimate-green)] disabled:opacity-100" disabled>{preview ? "PAYMENT SETUP IN PROGRESS" : "PAYMENT CURRENTLY UNAVAILABLE"}</Button>
+        {!state && <Button type="button" size="field" className="h-auto min-h-14 w-full rounded-none bg-estimate-blue px-5 py-4 font-extrabold text-estimate-white shadow-[4px_4px_0_var(--estimate-green)]" disabled={preview || busy || !onAccept} onClick={onAccept}>{busy ? "RECORDING…" : "ACCEPT & OPEN TEST PAYMENT →"}</Button>}
+        {state && !paid && <div className="border-2 border-dashed border-estimate-blue p-4" data-testid="test-payment-controls"><p className="text-xs font-extrabold uppercase text-estimate-blue">Test payment controls</p><p className="mt-2 text-sm">Current state: <strong>{state.paymentStatus === "failed" ? "Payment failed — retry available" : "Unpaid"}</strong></p><div className="mt-4 grid gap-3 sm:grid-cols-2"><Button type="button" variant="outline" size="field" disabled={preview || busy || !onTestPayment} onClick={() => onTestPayment?.("failure")}>SIMULATE FAILURE</Button><Button type="button" size="field" className="bg-estimate-blue text-estimate-white" disabled={preview || busy || !onTestPayment} onClick={() => onTestPayment?.("success")}>SIMULATE SUCCESS</Button></div></div>}
+        {paid && <div className="border-l-4 border-estimate-green bg-estimate-green-soft px-4 py-5" role="status"><p className="text-lg font-extrabold text-estimate-blue">$349 Measure + PIESA payment received</p><p className="mt-2 text-sm">{CUSTOMER_QUOTE_LABELS.remainingBalance}: <strong>{dollars(state.estimatedRemainingBalanceIncGst)}</strong></p><p className="mt-2 text-sm">Next: Home Insulation Victoria will arrange electrician assignment or Measure + PIESA scheduling.</p></div>}
+        {state?.stale && <p className="border-l-4 border-danger bg-danger-soft px-4 py-3 text-sm font-bold" role="alert">Your estimate changed. Please review and accept the updated estimate before paying.</p>}
+        {error && <p className="text-sm font-bold text-danger" role="alert">{error}</p>}
         <Button type="button" variant="ghost" size="field" className="w-full font-bold text-estimate-blue hover:bg-estimate-green-soft hover:text-estimate-blue" onClick={onBack}>← BACK TO MY ESTIMATE</Button>
       </div>
     </div>
