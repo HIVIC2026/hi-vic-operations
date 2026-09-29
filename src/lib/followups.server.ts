@@ -120,6 +120,8 @@ export async function processDueFollowups(opts: { limit?: number; adapter?: Deli
         await recordEngagement({ jobId: f.job_id, type: "followup_suppressed", metadata: { followup_kind: f.kind, reason: suppressed }, dedupeKey: dedupe.followup(f.id, "suppressed") });
         results.push({ status: "suppressed", reason: suppressed }); continue;
       }
+      const { data: fresh } = await admin.from("customer_followups").select("status").eq("id", f.id).maybeSingle();
+      if (!fresh || fresh.status !== "queued") { results.push({ status: "suppressed", reason: "changed_after_claim" }); continue; }
       const kind: FollowupKind = plan.kind;
       await admin.from("customer_followups").update({ kind, reason: kind }).eq("id", f.id);
       const r = await deliverTracked({ jobId: f.job_id, linkId: link!.id, linkToken: link!.token, purpose: kind, key: `followup:${f.id}`, adapter: adapter!, to, actorId: null, render: (u) => renderFollowupEmail({ kind, ...u }) });

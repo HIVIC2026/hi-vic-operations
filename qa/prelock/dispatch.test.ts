@@ -164,7 +164,7 @@ describe("C6 follow-ups with fake time", () => {
   for (const ev of ["email_bounced", "complaint", "opted_out", "payment_received", "quote_declined"]) {
     test(`${ev} => pending reminders suppressed`, async () => { const { sentAt } = await sentJob([{ event_type: ev, offsetMs: DAY }]); calls = []; at(sentAt + 3 * DAY + 1000); try { await F.processDueFollowups(); } finally { Date.now = realNow; } expect(calls.length).toBe(0); });
   }
-  test.failing("row manually suppressed AFTER being claimed is re-read before delivery", async () => {
+  test("row manually suppressed AFTER being claimed is re-read before delivery", async () => {
     const { sentAt } = await sentJob(); calls = []; at(sentAt + 3 * DAY + 1000);
     const orig = db!.rpc; db!.rpc = async (n: string, a: any) => { const r = await orig(n, a); for (const f of tables.customer_followups!) if (f.status === "queued") f.status = "suppressed"; return r; };
     try { await F.processDueFollowups(); } finally { Date.now = realNow; db!.rpc = orig; }
