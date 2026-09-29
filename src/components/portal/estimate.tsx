@@ -179,8 +179,11 @@ function AreaCalculator({ calc, initial, fees, secondary = false, onUse }: { cal
     return () => clearTimeout(t);
   }, [m2, touched, onUse]);
   const est = whatIfEstimate(m2, calc.location, calc.insulation as InsulationDeclared, calc.settings);
+  useEffect(() => {
+    if (secondary && window.location.hash === "#calculator") setOpen(true);
+  }, [secondary]);
   return (
-    <section className="" data-testid="area-calculator" aria-label="Ceiling area calculator">
+    <section id={secondary ? "calculator" : undefined} className="scroll-mt-6" data-testid="area-calculator" aria-label="Ceiling area calculator">
       {secondary && !open ? <Button variant="ghost" size="field" className="h-auto min-h-12 max-w-full justify-start whitespace-normal px-0 text-left font-bold text-estimate-blue underline underline-offset-4 hover:bg-transparent hover:text-estimate-blue" onClick={() => setOpen(true)}>Want to test a different ceiling area? <ChevronDown aria-hidden="true" /></Button> : <>
         <div className="rounded-xl bg-estimate-blue-pale px-5 py-6 sm:px-7">
         <h3 className="text-xl font-bold text-estimate-navy">{secondary ? "Test a different ceiling area" : "See what your upgrade could cost"}</h3>

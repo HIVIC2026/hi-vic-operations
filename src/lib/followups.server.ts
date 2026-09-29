@@ -79,7 +79,20 @@ export async function sendInitialEstimateEmail(jobId: string, actorId: string | 
   const suppressed = await suppressionFor(jobId, "step3_estimate", to);
   if (suppressed) return { sent: false as const, reason: suppressed };
   const e = view.estimate;
-  const values = e ? { estimatedTotal: e.primary.by_access.standard.estimated_customer_total, veuDiscount: e.applied_discount, areaM2: e.area.m2 } : {};
+  const standard = e?.primary.by_access.standard;
+  const fees = view.fees;
+  const values = e && standard && fees ? {
+    estimatedTotal: standard.estimated_customer_total,
+    veuDiscount: e.applied_discount,
+    areaM2: e.area.m2,
+    installationPrice: standard.installation,
+    installationRatePerM2: view.calc?.settings.r5_install_inc_gst_per_m2,
+    assessmentFee: fees.piesa,
+    apFee: fees.ap,
+    grossProjectTotal: standard.pre_discount_total,
+    amountPayableNow: fees.piesa,
+    estimatedRemainingBalance: Math.max(0, standard.estimated_customer_total - fees.piesa),
+  } : {};
   const r = await deliverTracked({ jobId, linkId: link!.id, linkToken: link!.token, purpose: "step3_estimate", key, adapter: adapter!, to, actorId, render: (u) => renderEstimateEmail({ ...u, ...values, outcome: view.mode === "onsite" ? "onsite" : "likely", reasons: view.onsiteDrivers, reference: owner.reference }) });
   if (!r.sent) return r;
   const at = new Date().toISOString();
