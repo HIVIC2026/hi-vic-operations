@@ -27,3 +27,5 @@
 - [x] Add the approved itemised quote and included-$349 payment section to the likely-eligible email preview
 
 - [x] Correct both $349 fees, all three outcome emails, and the secure area calculator without enabling delivery
+- [ ] Fix email sample arithmetic (two $349 fees), shorten quote-email flow, single PAY CTA, brand preview wrapper
+- [ ] Mitti bridge integrity fix (awaiting plan approval)
