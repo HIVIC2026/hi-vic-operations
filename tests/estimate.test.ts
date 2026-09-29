@@ -48,7 +48,19 @@ describe("3058 / 134.1 m² sample", () => {
     const fr = pres.scenarios[1]!.by_access;
     expect(fr.difficult.pre_discount_total - fr.standard.pre_discount_total).toBeCloseTo(134.1 * 30 * 0.25, 2);
   });
-  test("unknown insulation => two scenarios", () => { expect(computeEstimate(owner(134.1), lookupLocation("3058")!, "unknown", S).scenarios.length).toBe(2); });
+  test("unknown/null/unanswered insulation => single no-removal scenario", () => {
+    for (const d of ["unknown", null] as const) {
+      const e = computeEstimate(owner(134.1), lookupLocation("3058")!, d, S);
+      expect(e.scenarios.length).toBe(1);
+      expect(e.scenarios[0]!.key).toBe("can_remain");
+    }
+  });
+  test("only explicit present declaration shows removal scenario", () => {
+    expect(needsRemovalScenario("present")).toBe(true);
+    expect(needsRemovalScenario("none")).toBe(false);
+    expect(needsRemovalScenario("unknown")).toBe(false);
+    expect(needsRemovalScenario(null)).toBe(false);
+  });
 });
 
 describe("guards", () => {
