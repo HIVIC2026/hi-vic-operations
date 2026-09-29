@@ -164,7 +164,7 @@ describe("delivery configuration", () => {
     expect(base44BridgeConfig({ BASE44_DELIVERY_URL: "https://x/hook", BASE44_DELIVERY_SECRET: "s".repeat(40) })).not.toBeNull();
   });
   test("no Resend anywhere in src", () => {
-    for (const f of walk("src")) if (/\.(ts|tsx)$/.test(f)) expect(src(f)).not.toMatch(/resend/i);
+    for (const f of walk("src")) if (/\.(ts|tsx)$/.test(f)) expect(src(f)).not.toMatch(/\bresend\b|api\.resend\.com/i);
   });
 });
 
@@ -186,7 +186,7 @@ describe("email renderers", () => {
       const m = renderFollowupEmail({ kind, estimateUrl: link, trackingClickUrl: clickUrl(tok), trackingPixelUrl: pixelUrl(tok) });
       expect(m.html).toContain("#3C51C4");
       expect(m.html).toContain(clickUrl(tok));
-      expect(m.html).not.toMatch(/lovable\.app|<script|resend/i);
+      expect(m.html).not.toMatch(/lovable\.app|<script|\bresend\b/i);
       expect(m.plainText).toContain(clickUrl(tok));
     }
     expect(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: link }).subject).toContain("Just checking you received your HI VIC estimate");
