@@ -135,7 +135,9 @@ export async function attemptCustomerEmail(jobId: string) {
     const { linkAllowed } = await import("./estimatelink.core");
     const f = await import("./followups.server");
     const view = await refreshIndicativeEstimate(jobId);
-    return linkAllowed(view.mode) ? await f.sendInitialEstimateEmail(jobId, null) : await f.sendPreliminaryIneligibleEmail(jobId, null);
+    if (linkAllowed(view.mode)) return await f.sendInitialEstimateEmail(jobId, null);
+    if (view.mode === "none_ineligible") return await f.sendPreliminaryIneligibleEmail(jobId, null);
+    return { sent: false as const, reason: view.mode === "withheld_review" ? "eligibility_review_required" : "official_decision_not_recorded" };
   } catch (e) {
     console.warn("post-intake customer email attempt failed (ignored)", (e as Error).message.slice(0, 200));
     return { sent: false as const, reason: "error" };

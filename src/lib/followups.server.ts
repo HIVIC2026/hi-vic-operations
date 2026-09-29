@@ -14,6 +14,24 @@ import type { DeliveryAdapter } from "./delivery.core";
 import { reservationAllowed, statusAfterDelivery, withUnsubscribe } from "./emailsafety.core";
 import { suppressionFor, unsubscribeUrlForJob } from "./emailsafety.server";
 
+type OfficialOutcome = { kind: "eligible"; mode: "likely" | "onsite" } | { kind: "ineligible"; reason: string | null } | { kind: "hold"; reason: string };
+
+/** Delivery may use only a completed, recorded system/admin Gate 1 decision. */
+async function officialOutcomeForDelivery(jobId: string): Promise<OfficialOutcome> {
+  const [{ data: job }, { data: activeWork }] = await Promise.all([
+    admin.from("jobs").select("eligibility_outcome, eligibility_reason, eligibility_decision_source, eligibility_review_required").eq("id", jobId).maybeSingle(),
+    admin.from("post_intake_work").select("id").eq("job_id", jobId).in("status", ["queued", "processing", "retry"]).limit(1).maybeSingle(),
+  ]);
+  if (!job) return { kind: "hold", reason: "job_not_found" };
+  if (activeWork) return { kind: "hold", reason: "initial_checks_pending" };
+  if (job.eligibility_decision_source !== "system" && job.eligibility_decision_source !== "admin") return { kind: "hold", reason: "official_decision_not_recorded" };
+  if (job.eligibility_review_required) return { kind: "hold", reason: "eligibility_review_required" };
+  if (job.eligibility_outcome === "likely_eligible") return { kind: "eligible", mode: "likely" };
+  if (job.eligibility_outcome === "needs_onsite_confirmation") return { kind: "eligible", mode: "onsite" };
+  if (job.eligibility_outcome === "does_not_appear_eligible") return { kind: "ineligible", reason: typeof job.eligibility_reason === "string" ? job.eligibility_reason : null };
+  return { kind: "hold", reason: "official_decision_not_recorded" };
+}
+
 async function gatesFor(jobId: string, adapter: DeliveryAdapter | null) {
   const [{ data: link }, commsEnabled, consent, view] = await Promise.all([
     admin.from("customer_estimate_links").select("id, token, status, expires_at").eq("job_id", jobId).eq("purpose", LINK_PURPOSE).eq("status", "active").maybeSingle(),
@@ -67,8 +85,11 @@ async function deliverTracked(x: { jobId: string; linkId: string; linkToken: str
 
 /** Initial Step 3 estimate email. Idempotent per secure link + current estimate version. */
 export async function sendInitialEstimateEmail(jobId: string, actorId: string | null, adapterIn?: DeliveryAdapter | null) {
+  const official = await officialOutcomeForDelivery(jobId);
+  if (official.kind !== "eligible") return { sent: false as const, reason: official.kind === "hold" ? official.reason : "official_ineligible" };
   const adapter = adapterIn === undefined ? await configuredDeliveryAdapter() : adapterIn;
   const { link, view, gates } = await gatesFor(jobId, adapter);
+  if (view.mode !== official.mode) return { sent: false as const, reason: "eligibility_view_mismatch" };
   const key = `step3_estimate:${link?.id ?? "none"}:${view.estimate?.id ?? "no_area"}`;
   const { data: prior } = await admin.from("customer_email_sends").select("status").eq("idempotency_key", key).maybeSingle();
   const blocked = sendBlocker({ ...gates, alreadySent: prior?.status === "sent" });
@@ -156,7 +177,7 @@ export async function processDueFollowups(opts: { limit?: number; adapter?: Deli
   return { claimed: (claimed ?? []).length, results };
 }
 
-/** Fallback scan: jobs with an ACTIVE usable Step 3 link that never had a confirmed initial send. Idempotent via reserve(). */
+/** Fallback scan: eligible links and confirmed-ineligible jobs. Each sender rechecks official Gate 1 and idempotency. */
 export async function processPendingInitialEstimateEmails(limit = 20, adapterIn?: DeliveryAdapter | null) {
   const adapter = adapterIn === undefined ? await configuredDeliveryAdapter() : adapterIn;
   const counts = { scanned: 0, sent: 0, blocked: 0 };
@@ -164,8 +185,7 @@ export async function processPendingInitialEstimateEmails(limit = 20, adapterIn?
   if (!adapter || !(await customerCommsEnabled())) return counts;
   const { data: links } = await admin.from("customer_estimate_links").select("id, job_id, status, expires_at").eq("purpose", LINK_PURPOSE).eq("status", "active").order("created_at", { ascending: true }).limit(200);
   const usable = (links ?? []).filter((l) => linkUsable(l));
-  if (!usable.length) return counts;
-  const { data: sent } = await admin.from("customer_email_sends").select("estimate_link_id").eq("purpose", "step3_estimate").in("status", ["sent", "delivered_unrecorded", "sending"]).in("estimate_link_id", usable.map((l) => l.id));
+  const { data: sent } = usable.length ? await admin.from("customer_email_sends").select("estimate_link_id").eq("purpose", "step3_estimate").in("status", ["sent", "delivered_unrecorded", "sending"]).in("estimate_link_id", usable.map((l) => l.id)) : { data: [] };
   const done = new Set((sent ?? []).map((s) => s.estimate_link_id));
   for (const l of usable.filter((x) => !done.has(x.id)).slice(0, limit)) {
     counts.scanned++;
@@ -175,24 +195,30 @@ export async function processPendingInitialEstimateEmails(limit = 20, adapterIn?
       if (r.sent) counts.sent++; else counts.blocked++;
     } catch { counts.blocked++; }
   }
+  const remaining = Math.max(0, limit - counts.scanned);
+  if (!remaining) return counts;
+  const { data: ineligible } = await admin.from("jobs").select("id").eq("eligibility_outcome", "does_not_appear_eligible").in("eligibility_decision_source", ["system", "admin"]).eq("eligibility_review_required", false).order("created_at", { ascending: true }).limit(Math.min(200, remaining));
+  const candidates = ineligible ?? [];
+  const { data: ineligibleSent } = candidates.length ? await admin.from("customer_email_sends").select("job_id").eq("purpose", INELIGIBLE_PURPOSE).in("status", ["sent", "delivered_unrecorded", "sending"]).in("job_id", candidates.map((j) => j.id)) : { data: [] };
+  const completedJobs = new Set((ineligibleSent ?? []).map((s) => s.job_id));
+  for (const j of candidates.filter((x) => !completedJobs.has(x.id)).slice(0, remaining)) {
+    counts.scanned++;
+    try {
+      const r = await sendPreliminaryIneligibleEmail(j.id, null, adapter);
+      if (r.sent) counts.sent++; else counts.blocked++;
+    } catch { counts.blocked++; }
+  }
   return counts;
-}
-
-/** Signed Base44 preliminary outcome (from the intake event written only for source=base44; never the official Gate 1 result). */
-async function base44Preliminary(jobId: string) {
-  const { data } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "preliminary_eligibility_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const d = (data?.details ?? {}) as { preliminary_outcome?: string | null; preliminary_reasons?: string | null };
-  return { outcome: d.preliminary_outcome ?? null, reason: typeof d.preliminary_reasons === "string" ? d.preliminary_reasons : null };
 }
 
 export const INELIGIBLE_PURPOSE = "preliminary_ineligible" as const;
 export const ineligibleKey = (jobId: string) => `${INELIGIBLE_PURPOSE}:${jobId}`;
 
-/** One-time preliminary-ineligible email. Never schedules follow-ups; never resends (key is per job, not per Gate 1 result). */
+/** Legacy export name retained. Sends only a confirmed official ineligible result; never schedules follow-ups or resends. */
 export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: string | null = null, adapterIn?: DeliveryAdapter | null) {
+  const official = await officialOutcomeForDelivery(jobId);
+  if (official.kind !== "ineligible") return { sent: false as const, reason: official.kind === "hold" ? official.reason : "official_not_ineligible" };
   const adapter = adapterIn === undefined ? await configuredDeliveryAdapter() : adapterIn;
-  const pre = await base44Preliminary(jobId);
-  if (pre.outcome !== "does_not_appear_eligible") return { sent: false as const, reason: "not_preliminary_ineligible" };
   if (!(await customerCommsEnabled())) return { sent: false as const, reason: "comms_disabled" };
   if (!(await hasCurrentOwnerContactConsent(jobId))) return { sent: false as const, reason: "no_consent" };
   if (!adapter) return { sent: false as const, reason: "provider_not_configured" };
@@ -215,7 +241,7 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
   let delivered = false;
   try {
     const { renderIneligibleEmail } = await import("./ineligible-email");
-    const mail = withUnsubscribe(renderIneligibleEmail({ referralUrl: await referralUrlForJob(jobId), reason: pre.reason, reference: owner.reference }), await unsubscribeUrlForJob(jobId));
+    const mail = withUnsubscribe(renderIneligibleEmail({ referralUrl: await referralUrlForJob(jobId), reason: official.reason, reference: owner.reference }), await unsubscribeUrlForJob(jobId));
     const r = await adapter.deliver({ to, subject: mail.subject, html: mail.html, text: mail.plainText, idempotencyKey: key, purpose: INELIGIBLE_PURPOSE });
     delivered = true;
     const communicationId = await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: adapter.provider, providerMessageId: r.providerMessageId, visibility: "customer", sourceEvent: INELIGIBLE_PURPOSE, sourceReference: key, createdBy: actorId, deliveryStatus: "sent" });
