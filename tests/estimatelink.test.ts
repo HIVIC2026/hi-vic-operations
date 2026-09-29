@@ -77,7 +77,7 @@ describe("wiring", () => {
   });
   it("public payload is whitelisted: no email/phone/audit/supplier/margin", () => {
     const p = JSON.stringify(publicPayload({ job_number: "HV-1", address: "1 A St" }, { visible: true }));
-    expect(Object.keys(JSON.parse(p))).toEqual(["job", "estimate", "referralShareUrl", "assessment"]);
+    expect(Object.keys(JSON.parse(p))).toEqual(["job", "estimate", "referralShareUrl"]);
     const sel = server.slice(server.indexOf("resolvePublicEstimate"), server.indexOf("estimateDeliveryReady"));
     for (const bad of ["email", "phone", "history", "snapshot", "margin", "cost", "internal_notes"]) expect(sel).not.toContain(bad);
     expect(sel).toContain("customerView(view)");
