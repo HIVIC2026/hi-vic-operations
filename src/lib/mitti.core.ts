@@ -65,7 +65,7 @@ export function flatten(doc: Any): Entry[] {
 }
 
 /** Exact normalized label first; prefix fallback only when it yields exactly one candidate. */
-function resolve(entries: Entry[], aliases: string[], opts: { section?: string | undefined; withValue?: boolean } = {}): { entry?: Entry; ambiguous: boolean } {
+function resolve(entries: Entry[], aliases: string[], opts: { section?: string | undefined; withValue?: boolean } = {}): { entry?: Entry | undefined; ambiguous: boolean } {
   const pool = entries.filter((e) => (!opts.section || e.section.includes(opts.section) || e.norm.includes(opts.section)) && (!opts.withValue || e.value != null));
   for (const a of aliases.map(norm)) { const x = pool.find((e) => e.norm === a); if (x) return { entry: x, ambiguous: false }; }
   let ambiguous = false;
@@ -83,9 +83,9 @@ const val = (entries: Entry[], aliases: string[], section?: string) => find(entr
 /** All valued entries for the first alias that matches (exact, else prefix). >1 = repeated field. */
 function candidates(entries: Entry[], aliases: string[]): Entry[] {
   const pool = entries.filter((e) => e.value != null);
-  for (const a of aliases.map(norm)) { const xs = pool.filter((e) => e.norm === a); if (xs.length) return xs; }
-  for (const a of aliases.map(norm)) { const xs = pool.filter((e) => e.norm.startsWith(a)); if (xs.length) return xs; }
-  return [];
+  const ns = aliases.map(norm);
+  const exact = pool.filter((e) => ns.includes(e.norm));
+  return exact.length ? exact : pool.filter((e) => ns.some((a) => e.norm.startsWith(a)));
 }
 
 export function yesNo(v: string | null): boolean | null {
