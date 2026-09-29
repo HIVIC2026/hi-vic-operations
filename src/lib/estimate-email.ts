@@ -1,5 +1,5 @@
 /** Pure Step 3 renderer: no data access, delivery, or side effects. */
-export type EstimateEmailInput = { estimateUrl: string; estimatedTotal?: number | null; veuDiscount?: number | null; areaM2?: number | null };
+export type EstimateEmailInput = { estimateUrl: string; estimatedTotal?: number | null; veuDiscount?: number | null; areaM2?: number | null; trackingClickUrl?: string | null; trackingPixelUrl?: string | null };
 export type EstimateEmail = { subject: string; previewText: string; html: string; plainText: string };
 
 const BASE = "https://quote.homeinsulationvictoria.com.au";
@@ -10,14 +10,30 @@ const NO_AREA_PREVIEW = "Your self-serve HI VIC estimate is ready — enter a ro
 const INTRO = "Based on your answers and our initial checks, your property is a strong candidate for the VEU insulation discount. We just need to confirm the remaining onsite items before the final quote.";
 const FOOTNOTE = "*Victorian Government estimates/averages. Actual savings vary with home, climate, energy use, energy prices and heating/cooling habits.";
 const REASSURANCE = "You don't need to work out which trades meet the program requirements — we coordinate appropriately qualified participants for the job.";
-const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+export const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 const money = (n: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(n);
 const cell = (content: string, padding = "0 0 22px") => `<tr><td style="padding:${padding};">${content}</td></tr>`;
 const text = (content: string, extra = "") => `<p style="margin:0;font-size:14px;line-height:1.65;color:#22376B;${extra}">${content}</p>`;
 
-export function renderEstimateEmail(input: EstimateEmailInput): EstimateEmail {
-  const link = new URL(input.estimateUrl);
+/** Tracked HI VIC URLs only: /t/e/<token> (click) and /t/o/<token>.gif (open pixel). */
+export function validTrackingUrl(u: string | null | undefined, kind: "click" | "pixel"): string | null {
+  if (u == null) return null;
+  const x = new URL(u);
+  const re = kind === "click" ? /^\/t\/e\/[A-Za-z0-9_-]{43,128}$/ : /^\/t\/o\/[A-Za-z0-9_-]{43,128}\.gif$/;
+  if (x.origin !== BASE || !re.test(x.pathname) || x.search || x.hash) throw new Error("A HI VIC tracking link is required.");
+  return x.toString();
+}
+export function validEstimateUrl(u: string): URL {
+  const link = new URL(u);
   if (link.origin !== BASE || !/^\/estimate\/[A-Za-z0-9_-]+\/?$/.test(link.pathname) || link.search || link.hash) throw new Error("An HTTPS HI VIC estimate link is required.");
+  return link;
+}
+export const pixelTag = (u: string | null) => (u ? `<img src="${escape(u)}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;opacity:0;">` : "");
+
+export function renderEstimateEmail(input: EstimateEmailInput): EstimateEmail {
+  const link = validEstimateUrl(input.estimateUrl);
+  const clickUrl = validTrackingUrl(input.trackingClickUrl, "click");
+  const pixel = validTrackingUrl(input.trackingPixelUrl, "pixel");
   const { estimatedTotal, veuDiscount, areaM2 } = input;
   const values = [estimatedTotal, veuDiscount, areaM2];
   const knownArea = typeof estimatedTotal === "number" && Number.isFinite(estimatedTotal) && estimatedTotal > 0 && typeof veuDiscount === "number" && Number.isFinite(veuDiscount) && veuDiscount > 0 && typeof areaM2 === "number" && Number.isFinite(areaM2) && areaM2 > 0;
@@ -25,7 +41,8 @@ export function renderEstimateEmail(input: EstimateEmailInput): EstimateEmail {
   if (!knownArea && !noArea) throw new Error("Estimate values must all be positive finite numbers or all be absent.");
   const subject = knownArea ? SUBJECT : NO_AREA_SUBJECT;
   const previewText = knownArea ? PREVIEW : NO_AREA_PREVIEW;
-  const url = escape(link.toString());
+  const target = clickUrl ?? link.toString();
+  const url = escape(target);
   const total = knownArea ? escape(money(estimatedTotal)) : "";
   const discount = knownArea ? escape(money(veuDiscount)) : "";
   const area = knownArea ? escape(new Intl.NumberFormat("en-AU", { maximumFractionDigits: 1 }).format(areaM2)) : "";
@@ -71,8 +88,8 @@ ${cell(`<h2 style="margin:0 0 16px;font-size:20px;color:#3C51C4;">Here's what ha
 ${cell(`${knownArea ? `<h2 style="margin:0 0 8px;font-size:19px;color:#3C51C4;">Your estimate is interactive. You can:</h2>${interactive.map((point) => text(`<span style="color:#07BF61;font-weight:800;">✓</span> ${escape(point)}`, "margin:7px 0;")).join("")}${text(calculatorReassurance, "margin:12px 0 16px;font-weight:700;")}` : ""}<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td align="center" style="background-color:#07BF61;border-radius:8px;"><a href="${url}" style="display:block;padding:16px 18px;color:#ffffff;text-decoration:none;font-size:16px;font-weight:800;">${escape(cta)}</a></td></tr></table>${text("Your secure estimate link is personal to your property.", "margin-top:10px;font-size:12px;text-align:center;")}`, "0 24px 30px")}
 ${cell(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#EEF0FC;"><tr><td style="padding:18px;"><h2 style="margin:0 0 8px;font-size:17px;color:#3C51C4;">Transparent HI VIC pricing</h2>${text("Once onsite facts are confirmed, your final quote is calculated from our set customer rate card. Partner electricians and installers do not decide what you pay.")}</td></tr></table>`, "0 24px 28px")}
 ${cell(`${text("Home Insulation Victoria", "font-weight:800;")}${text("DC Construction Solutions Pty Ltd t/a Home Insulation Victoria", "font-size:12px;")}${text('<a href="https://homeinsulationvictoria.com.au" style="color:#3C51C4;text-decoration:underline;">homeinsulationvictoria.com.au</a>', "font-size:12px;")}`, "18px 24px 28px;border-top:1px solid #EEF0FC;")}
-</table></td></tr></table></body></html>`;
+</table>${pixelTag(pixel)}</td></tr></table></body></html>`;
 
-  const plainText = `${subject}\n\nYOUR PERSONALISED ESTIMATE\n\nGOOD NEWS\n${headline}\nLIKELY ELIGIBLE — ONSITE CONFIRMATION NEEDED\n${INTRO}\n\n${snapshot.plain}\n\nWHAT THIS UPGRADE COULD MEAN FOR YOUR HOME\n$400+ / year* — average potential energy-bill savings\nUp to 20%* — potential savings on heating & cooling costs\nWarmer in winter. Cooler in summer. — better year-round comfort\n${FOOTNOTE}\n\n${why}\n${points.map((point) => `✓ ${point}`).join("\n")}\n${REASSURANCE}\n\nHere's what happens next\n${steps.map(([title, copy], i) => `${i + 1}. ${title}\n${copy}`).join("\n\n")}\n\n${knownArea ? `Your estimate is interactive. You can:\n${interactive.map((point) => `✓ ${point}`).join("\n")}\n${calculatorReassurance}\n\n` : ""}${cta}: ${link.toString()}\nYour secure estimate link is personal to your property.\n\nTransparent HI VIC pricing\nOnce onsite facts are confirmed, your final quote is calculated from our set customer rate card. Partner electricians and installers do not decide what you pay.\n\nHome Insulation Victoria\nDC Construction Solutions Pty Ltd t/a Home Insulation Victoria\nhomeinsulationvictoria.com.au`;
+  const plainText = `${subject}\n\nYOUR PERSONALISED ESTIMATE\n\nGOOD NEWS\n${headline}\nLIKELY ELIGIBLE — ONSITE CONFIRMATION NEEDED\n${INTRO}\n\n${snapshot.plain}\n\nWHAT THIS UPGRADE COULD MEAN FOR YOUR HOME\n$400+ / year* — average potential energy-bill savings\nUp to 20%* — potential savings on heating & cooling costs\nWarmer in winter. Cooler in summer. — better year-round comfort\n${FOOTNOTE}\n\n${why}\n${points.map((point) => `✓ ${point}`).join("\n")}\n${REASSURANCE}\n\nHere's what happens next\n${steps.map(([title, copy], i) => `${i + 1}. ${title}\n${copy}`).join("\n\n")}\n\n${knownArea ? `Your estimate is interactive. You can:\n${interactive.map((point) => `✓ ${point}`).join("\n")}\n${calculatorReassurance}\n\n` : ""}${cta}: ${target}\nYour secure estimate link is personal to your property.\n\nTransparent HI VIC pricing\nOnce onsite facts are confirmed, your final quote is calculated from our set customer rate card. Partner electricians and installers do not decide what you pay.\n\nHome Insulation Victoria\nDC Construction Solutions Pty Ltd t/a Home Insulation Victoria\nhomeinsulationvictoria.com.au`;
   return { subject, previewText, html, plainText };
 }

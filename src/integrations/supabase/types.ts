@@ -1631,6 +1631,152 @@ export type Database = {
           },
         ]
       }
+      customer_email_sends: {
+        Row: {
+          communication_id: string | null
+          created_at: string
+          error: string | null
+          estimate_link_id: string | null
+          id: string
+          idempotency_key: string
+          job_id: string
+          provider: string | null
+          provider_message_id: string | null
+          purpose: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          communication_id?: string | null
+          created_at?: string
+          error?: string | null
+          estimate_link_id?: string | null
+          id?: string
+          idempotency_key: string
+          job_id: string
+          provider?: string | null
+          provider_message_id?: string | null
+          purpose: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          communication_id?: string | null
+          created_at?: string
+          error?: string | null
+          estimate_link_id?: string | null
+          id?: string
+          idempotency_key?: string
+          job_id?: string
+          provider?: string | null
+          provider_message_id?: string | null
+          purpose?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_email_sends_communication_id_fkey"
+            columns: ["communication_id"]
+            isOneToOne: false
+            referencedRelation: "job_communications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_email_sends_estimate_link_id_fkey"
+            columns: ["estimate_link_id"]
+            isOneToOne: false
+            referencedRelation: "customer_estimate_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_email_sends_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_email_sends_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "customer_email_sends_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_engagement_events: {
+        Row: {
+          created_at: string
+          dedupe_key: string | null
+          estimate_link_id: string | null
+          event_type: string
+          id: string
+          job_id: string
+          metadata: Json
+          occurred_at: string
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          dedupe_key?: string | null
+          estimate_link_id?: string | null
+          event_type: string
+          id?: string
+          job_id: string
+          metadata?: Json
+          occurred_at?: string
+          source?: string
+        }
+        Update: {
+          created_at?: string
+          dedupe_key?: string | null
+          estimate_link_id?: string | null
+          event_type?: string
+          id?: string
+          job_id?: string
+          metadata?: Json
+          occurred_at?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_engagement_events_estimate_link_id_fkey"
+            columns: ["estimate_link_id"]
+            isOneToOne: false
+            referencedRelation: "customer_estimate_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_engagement_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_engagement_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "customer_engagement_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_estimate_links: {
         Row: {
           created_at: string
@@ -1718,6 +1864,102 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_followups: {
+        Row: {
+          attempts: number
+          blocked_reason: string | null
+          communication_id: string | null
+          created_at: string
+          due_at: string
+          estimate_link_id: string | null
+          id: string
+          job_id: string
+          kind: string
+          last_error: string | null
+          lease_until: string | null
+          reason: string | null
+          sent_at: string | null
+          slot: string
+          status: string
+          suppression_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          blocked_reason?: string | null
+          communication_id?: string | null
+          created_at?: string
+          due_at: string
+          estimate_link_id?: string | null
+          id?: string
+          job_id: string
+          kind: string
+          last_error?: string | null
+          lease_until?: string | null
+          reason?: string | null
+          sent_at?: string | null
+          slot: string
+          status?: string
+          suppression_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          blocked_reason?: string | null
+          communication_id?: string | null
+          created_at?: string
+          due_at?: string
+          estimate_link_id?: string | null
+          id?: string
+          job_id?: string
+          kind?: string
+          last_error?: string | null
+          lease_until?: string | null
+          reason?: string | null
+          sent_at?: string | null
+          slot?: string
+          status?: string
+          suppression_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_followups_communication_id_fkey"
+            columns: ["communication_id"]
+            isOneToOne: false
+            referencedRelation: "job_communications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_followups_estimate_link_id_fkey"
+            columns: ["estimate_link_id"]
+            isOneToOne: false
+            referencedRelation: "customer_estimate_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_followups_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_followups_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "customer_followups_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
         ]
@@ -1945,6 +2187,78 @@ export type Database = {
             columns: ["nominating_business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      engagement_tracking_tokens: {
+        Row: {
+          created_at: string
+          email_send_id: string | null
+          estimate_link_id: string | null
+          expires_at: string
+          id: string
+          job_id: string
+          kind: string
+          purpose: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          email_send_id?: string | null
+          estimate_link_id?: string | null
+          expires_at: string
+          id?: string
+          job_id: string
+          kind: string
+          purpose: string
+          token: string
+        }
+        Update: {
+          created_at?: string
+          email_send_id?: string | null
+          estimate_link_id?: string | null
+          expires_at?: string
+          id?: string
+          job_id?: string
+          kind?: string
+          purpose?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_tracking_tokens_email_send_id_fkey"
+            columns: ["email_send_id"]
+            isOneToOne: false
+            referencedRelation: "customer_email_sends"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_tracking_tokens_estimate_link_id_fkey"
+            columns: ["estimate_link_id"]
+            isOneToOne: false
+            referencedRelation: "customer_estimate_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_tracking_tokens_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_tracking_tokens_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "engagement_tracking_tokens_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
         ]
@@ -6346,6 +6660,34 @@ export type Database = {
     }
     Functions: {
       can_access_job: { Args: { _job: string }; Returns: boolean }
+      claim_customer_followups: {
+        Args: { _lease_seconds: number; _limit: number }
+        Returns: {
+          attempts: number
+          blocked_reason: string | null
+          communication_id: string | null
+          created_at: string
+          due_at: string
+          estimate_link_id: string | null
+          id: string
+          job_id: string
+          kind: string
+          last_error: string | null
+          lease_until: string | null
+          reason: string | null
+          sent_at: string | null
+          slot: string
+          status: string
+          suppression_reason: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "customer_followups"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_post_intake_work: {
         Args: { _job?: string; _lease_seconds: number; _limit: number }
         Returns: {
@@ -6375,6 +6717,7 @@ export type Database = {
         Args: { _nonce: string; _purpose: string }
         Returns: boolean
       }
+      customer_followups_tick: { Args: { _url: string }; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
