@@ -976,7 +976,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const [{ data: job }, { data: consents }, { data: media }, { data: fails }] = await Promise.all([
-      admin.from("jobs").select("external_enquiry_id, source, life_support_status, estimated_area_m2, estimated_area_unknown, eligibility_outcome, eligibility_reason, properties(state, occupancy, enrichment)").eq("id", data.jobId).single(),
+      admin.from("jobs").select("external_enquiry_id, source, life_support_status, estimated_area_m2, estimated_area_unknown, eligibility_outcome, eligibility_reason, eligibility_decision_source, properties(state, occupancy, enrichment)").eq("id", data.jobId).single(),
       admin.from("owner_contact_consents").select("consent_status, consent_version, consented_at, age_confirmed, assistance, contact_preference, created_at, sha256").eq("job_id", data.jobId).order("created_at", { ascending: false }).limit(1),
       admin.from("documents").select("id, title, mime_type, storage_path, original_name, size_bytes").eq("job_id", data.jobId).eq("source_system", "base44").order("created_at"),
       admin.from("workflow_events").select("created_at, summary").eq("job_id", data.jobId).eq("event_type", "base44_media_copy_failed").order("created_at", { ascending: false }).limit(1),
@@ -992,7 +992,8 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       lifeSupport: job?.life_support_status ?? null, area: job?.estimated_area_unknown ? null : job?.estimated_area_m2 ?? null,
       consent: consents?.[0] ?? null, declared: b44?.declared ?? null,
       declaredExtras: (await import("./enquiry.core")).declaredExtras(b44?.raw?.answers ?? null),
-      screening: { outcome: job?.eligibility_outcome ?? null, reasons: job?.eligibility_reason ?? null, raw: b44?.raw?.screening ?? null },
+      // Preliminary website screening only – never the authoritative Step-2 category.
+      screening: (() => { const prelim = job?.eligibility_decision_source !== "system" && job?.eligibility_decision_source !== "admin"; const raw = b44?.raw?.screening ?? null; return { outcome: prelim ? job?.eligibility_outcome ?? null : (typeof raw?.status === "string" ? raw.status : null), reasons: prelim ? job?.eligibility_reason ?? null : null, raw }; })(),
       research: b44?.research ?? null, media: links, lastMediaFailure: fails?.[0] ?? null,
       raw: b44?.raw ?? null,
     })) as {
