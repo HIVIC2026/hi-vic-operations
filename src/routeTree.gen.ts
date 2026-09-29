@@ -18,6 +18,7 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminBusinessesRouteImport } from './routes/_authenticated/admin.businesses'
 import { Route as AuthenticatedAdminComplianceRouteImport } from './routes/_authenticated/admin.compliance'
 import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authenticated/admin.partners'
+import { Route as AuthenticatedAdminStep3DesignRouteImport } from './routes/_authenticated/admin.step3-design'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedFieldIndexRouteImport } from './routes/_authenticated/field.index'
 import { Route as AuthenticatedFieldJobIdRouteImport } from './routes/_authenticated/field.$jobId'
@@ -76,6 +77,12 @@ const AuthenticatedAdminPartnersRoute =
   AuthenticatedAdminPartnersRouteImport.update({
     id: '/admin/partners',
     path: '/admin/partners',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminStep3DesignRoute =
+  AuthenticatedAdminStep3DesignRouteImport.update({
+    id: '/admin/step3-design',
+    path: '/admin/step3-design',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
@@ -152,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
+  '/admin/step3-design': typeof AuthenticatedAdminStep3DesignRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
@@ -174,6 +182,7 @@ export interface FileRoutesByTo {
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
+  '/admin/step3-design': typeof AuthenticatedAdminStep3DesignRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
@@ -198,6 +207,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/_authenticated/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
+  '/_authenticated/admin/step3-design': typeof AuthenticatedAdminStep3DesignRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/_authenticated/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
@@ -222,6 +232,7 @@ export interface FileRouteTypes {
     | '/admin/businesses'
     | '/admin/compliance'
     | '/admin/partners'
+    | '/admin/step3-design'
     | '/admin/users'
     | '/field/$jobId'
     | '/owner/$jobId'
@@ -244,6 +255,7 @@ export interface FileRouteTypes {
     | '/admin/businesses'
     | '/admin/compliance'
     | '/admin/partners'
+    | '/admin/step3-design'
     | '/admin/users'
     | '/field/$jobId'
     | '/owner/$jobId'
@@ -267,6 +279,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/businesses'
     | '/_authenticated/admin/compliance'
     | '/_authenticated/admin/partners'
+    | '/_authenticated/admin/step3-design'
     | '/_authenticated/admin/users'
     | '/_authenticated/field/$jobId'
     | '/_authenticated/owner/$jobId'
@@ -355,6 +368,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/partners'
       fullPath: '/admin/partners'
       preLoaderRoute: typeof AuthenticatedAdminPartnersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/step3-design': {
+      id: '/_authenticated/admin/step3-design'
+      path: '/admin/step3-design'
+      fullPath: '/admin/step3-design'
+      preLoaderRoute: typeof AuthenticatedAdminStep3DesignRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/users': {
@@ -449,6 +469,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminBusinessesRoute: typeof AuthenticatedAdminBusinessesRoute
   AuthenticatedAdminComplianceRoute: typeof AuthenticatedAdminComplianceRoute
   AuthenticatedAdminPartnersRoute: typeof AuthenticatedAdminPartnersRoute
+  AuthenticatedAdminStep3DesignRoute: typeof AuthenticatedAdminStep3DesignRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedFieldJobIdRoute: typeof AuthenticatedFieldJobIdRoute
   AuthenticatedOwnerJobIdRoute: typeof AuthenticatedOwnerJobIdRoute
@@ -466,6 +487,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminBusinessesRoute: AuthenticatedAdminBusinessesRoute,
   AuthenticatedAdminComplianceRoute: AuthenticatedAdminComplianceRoute,
   AuthenticatedAdminPartnersRoute: AuthenticatedAdminPartnersRoute,
+  AuthenticatedAdminStep3DesignRoute: AuthenticatedAdminStep3DesignRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedFieldJobIdRoute: AuthenticatedFieldJobIdRoute,
   AuthenticatedOwnerJobIdRoute: AuthenticatedOwnerJobIdRoute,
