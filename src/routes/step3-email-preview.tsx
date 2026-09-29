@@ -34,6 +34,11 @@ function EmailPreview() {
   const sample = samples[variant];
   const labels: Array<[keyof typeof samples, string]> = [["likely", "Likely eligible"], ["onsite", "Needs confirmation"], ["ineligible", "Does not appear eligible"]];
   const srcDoc = sample.html.replaceAll("https://quote.homeinsulationvictoria.com.au/email-preview/hi-vic-logo.png", "/email-preview/hi-vic-logo.png");
+  const frameHeights = {
+    likely: { desktop: "h-[3450px]", mobile: "h-[4300px]" },
+    onsite: { desktop: "h-[3750px]", mobile: "h-[4700px]" },
+    ineligible: { desktop: "h-[1950px]", mobile: "h-[2450px]" },
+  }[variant];
   return <main className="min-h-screen bg-background px-3 py-6 text-foreground sm:px-6">
     <div className="mx-auto max-w-[1120px]">
       <p className="mb-4 border-l-4 border-primary bg-card px-4 py-3 text-sm font-bold">SAMPLE EMAIL PREVIEW ONLY — nothing is sent or saved. Values shown are illustrative.</p>
@@ -43,8 +48,8 @@ function EmailPreview() {
       <p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p>
       <p className="mb-6 text-sm"><strong>Preheader:</strong> {sample.previewText}</p>
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,640px)_minmax(0,390px)]">
-        <section aria-label="Desktop email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Desktop · 640px</h2><iframe title={`${labels.find(([value]) => value === variant)?.[1]} desktop email`} srcDoc={srcDoc} sandbox="" className="block h-[3800px] lg:h-[3800px] w-full border border-border bg-background" /></section>
-        <section aria-label="Mobile email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Mobile · 390px</h2><div className="mx-auto w-full max-w-[390px] border-[6px] border-foreground bg-background"><iframe title={`${labels.find(([value]) => value === variant)?.[1]} mobile email`} srcDoc={srcDoc} sandbox="" className="block h-[5100px] w-full border-0 bg-background" /></div></section>
+        <section aria-label="Desktop email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Desktop · 640px</h2><iframe title={`${labels.find(([value]) => value === variant)?.[1]} desktop email`} srcDoc={srcDoc} sandbox="" className={`block w-full border border-border bg-background ${frameHeights.desktop}`} /></section>
+        <section aria-label="Mobile email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Mobile · 390px</h2><div className="mx-auto w-full max-w-[390px] border-[6px] border-foreground bg-background"><iframe title={`${labels.find(([value]) => value === variant)?.[1]} mobile email`} srcDoc={srcDoc} sandbox="" className={`block w-full border-0 bg-background ${frameHeights.mobile}`} /></div></section>
       </div>
     </div>
   </main>;
