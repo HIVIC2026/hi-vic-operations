@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as Step3DesignPreviewRouteImport } from './routes/step3-design-preview'
+import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
@@ -50,6 +51,11 @@ const AuthRoute = AuthRouteImport.update({
 const Step3DesignPreviewRoute = Step3DesignPreviewRouteImport.update({
   id: '/step3-design-preview',
   path: '/step3-design-preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Step3EmailPreviewRoute = Step3EmailPreviewRouteImport.update({
+  id: '/step3-email-preview',
+  path: '/step3-email-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
@@ -161,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/step3-design-preview': typeof Step3DesignPreviewRoute
+  '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
@@ -185,6 +192,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/step3-design-preview': typeof Step3DesignPreviewRoute
+  '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
@@ -211,6 +219,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/step3-design-preview': typeof Step3DesignPreviewRoute
+  '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/_authenticated/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
@@ -237,6 +246,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/step3-design-preview'
+    | '/step3-email-preview'
     | '/home'
     | '/estimate/$token'
     | '/admin/businesses'
@@ -261,6 +271,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/step3-design-preview'
+    | '/step3-email-preview'
     | '/home'
     | '/estimate/$token'
     | '/admin/businesses'
@@ -286,6 +297,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/step3-design-preview'
+    | '/step3-email-preview'
     | '/_authenticated/home'
     | '/estimate/$token'
     | '/_authenticated/admin/businesses'
@@ -312,6 +324,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   Step3DesignPreviewRoute: typeof Step3DesignPreviewRoute
+  Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
   ApiPublicPartnerEnquiryRoute: typeof ApiPublicPartnerEnquiryRoute
@@ -346,6 +359,13 @@ declare module '@tanstack/react-router' {
       path: '/step3-design-preview'
       fullPath: '/step3-design-preview'
       preLoaderRoute: typeof Step3DesignPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/step3-email-preview': {
+      id: '/step3-email-preview'
+      path: '/step3-email-preview'
+      fullPath: '/step3-email-preview'
+      preLoaderRoute: typeof Step3EmailPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/home': {
@@ -528,6 +548,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   Step3DesignPreviewRoute: Step3DesignPreviewRoute,
+  Step3EmailPreviewRoute: Step3EmailPreviewRoute,
   EstimateTokenRoute: EstimateTokenRoute,
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
   ApiPublicPartnerEnquiryRoute: ApiPublicPartnerEnquiryRoute,
