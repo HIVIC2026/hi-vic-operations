@@ -2,6 +2,7 @@
 // Called by the scheduled worker route and (best-effort) right after the webhook response. Never sends communications.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { addressHash, STALE_AFTER_DAYS } from "./intelligence.core";
 import { ACTIVE, LEASE_SECONDS, PROCESSING_NEXT_ACTION, WORK_TYPE, afterFailure, intelligenceNeeded, isAbandonedRun, planEnqueue, retryDelayMs, STALE_RUN_MS } from "./postintake.core";
 
@@ -60,7 +61,7 @@ export async function processPostIntakeWork(opts: { jobId?: string; limit?: numb
 }
 
 async function processItem(item: Claimed) {
-  const mine = (patch: Record<string, unknown>) => admin.from("post_intake_work").update(patch).eq("id", item.id).eq("locked_at", item.locked_at);
+  const mine = (patch: TablesUpdate<"post_intake_work">) => admin.from("post_intake_work").update(patch).eq("id", item.id).eq("locked_at", item.locked_at);
   try {
     const intel = await import("./intelligence.server");
     const { data: p } = await admin.from("jobs").select("properties(address_line, suburb, postcode)").eq("id", item.job_id).single();

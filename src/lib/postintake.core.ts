@@ -8,10 +8,11 @@ export const MAX_ATTEMPTS = 6;
 export const PROCESSING_NEXT_ACTION = "Initial eligibility checks processing";
 export const ACTIVE = ["queued", "processing", "retry"] as const;
 
+type O<T> = T | null | undefined;
 type Input = {
-  address_line?: string | null; suburb?: string | null; postcode?: string | null; state?: string | null; occupancy?: string | null;
-  estimated_area_m2?: number | null; area_unknown?: boolean | null; life_support?: boolean | null; life_support_status?: string | null;
-  declared_property_type?: string | null; declared_over_five_years?: string | null; declared_previous_upgrade?: string | null;
+  address_line?: O<string>; suburb?: O<string>; postcode?: O<string>; state?: O<string>; occupancy?: O<string>;
+  estimated_area_m2?: O<number>; area_unknown?: O<boolean>; life_support?: O<boolean>; life_support_status?: O<string>;
+  declared_property_type?: O<string>; declared_over_five_years?: O<string>; declared_previous_upgrade?: O<string>;
   property_research?: unknown; base44_answers?: unknown;
 };
 const norm = (v: unknown) => (typeof v === "string" ? v.trim().toLowerCase().replace(/\s+/g, " ") : v ?? null);

@@ -3,7 +3,7 @@
 // fallback: if this best-effort run is cut short, the item's lease expires and the scheduled worker retries it.
 import { AsyncLocalStorage } from "node:async_hooks";
 
-type Ctx = { waitUntil?: (p: Promise<unknown>) => void };
+type Ctx = { waitUntil?: ((p: Promise<unknown>) => void) | undefined };
 export const requestContext = new AsyncLocalStorage<Ctx>();
 
 /** Returns how the work was scheduled. Never throws. */
