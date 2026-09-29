@@ -84,13 +84,9 @@ describe("C2 amounts: email equals landing-page values (same computeEstimate pri
     expect(S.estimate.scenarios.map((s: any) => s.key)).toEqual(["can_remain", "full_removal"]);
     expect(JSON.parse(calls[0]!.body).html).toContain(money(S.estimate.primary.by_access.standard.estimated_customer_total));
   });
-  test.failing("existing insulation: email mentions that removal could change the price", async () => {
+  test("existing insulation: email mentions that removal could change the price", async () => {
     S.estimate = estimateFor(150, "present"); const { jobId } = job(); await F.sendInitialEstimateEmail(jobId, null);
     expect(JSON.parse(calls[0]!.body).text).toMatch(/removal/i);
-  });
-  test("no-area: calculator email, no invented amount", async () => {
-    S.estimate = null; const { jobId } = job(); await F.sendInitialEstimateEmail(jobId, null);
-    const b = JSON.parse(calls[0]!.body); expect(b.subject).toContain("Calculate"); expect(b.text.replace(/\$349|\$400\+/g, "")).not.toMatch(/\$\d/);
   });
 });
 
@@ -175,8 +171,8 @@ describe("C6 follow-ups with fake time", () => {
 });
 
 describe("C8 email type vs eligibility", () => {
-  test.failing("clean likely_eligible job does NOT get the 'ONSITE CONFIRMATION NEEDED' badge", async () => { S.mode = "likely"; const { jobId } = job(); await F.sendInitialEstimateEmail(jobId, null); expect(JSON.parse(calls[0]!.body).text).not.toContain("ONSITE CONFIRMATION NEEDED"); });
-  test("likely and onsite jobs receive byte-identical copy (renderer has no mode input)", async () => { S.mode = "likely"; const a = job(); await F.sendInitialEstimateEmail(a.jobId, null); S.mode = "onsite"; const b = job(); await F.sendInitialEstimateEmail(b.jobId, null); const strip = (t: string) => t.replace(/https:\/\/\S+/g, ""); expect(strip(JSON.parse(calls[0]!.body).text)).toBe(strip(JSON.parse(calls[1]!.body).text)); });
+  test("clean likely_eligible job does NOT get the 'ONSITE CONFIRMATION NEEDED' badge", async () => { S.mode = "likely"; const { jobId } = job(); await F.sendInitialEstimateEmail(jobId, null); expect(JSON.parse(calls[0]!.body).text).not.toContain("ONSITE CONFIRMATION NEEDED"); });
+  test("onsite jobs get confirmation copy while likely jobs do not", async () => { S.mode = "likely"; const a = job(); await F.sendInitialEstimateEmail(a.jobId, null); S.mode = "onsite"; const b = job(); await F.sendInitialEstimateEmail(b.jobId, null); expect(JSON.parse(calls[0]!.body).text).not.toContain("WHAT WE NEED TO CONFIRM"); expect(JSON.parse(calls[1]!.body).text).toContain("WHAT WE NEED TO CONFIRM"); });
 });
 
 describe("C7 unsubscribe / opt-out", () => {

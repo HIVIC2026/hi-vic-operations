@@ -71,14 +71,15 @@ describe("customer payload + emails", () => {
   });
   test("estimate email REFER A FRIEND only when supplied", () => {
     const url = referralShareUrl(newReferralToken());
-    const withRef = renderEstimateEmail({ estimateUrl, referralUrl: url });
-    expect(withRef.html).toContain("REFER A FRIEND");
-    expect(withRef.html).toContain("Know someone who could benefit too?");
-    expect(withRef.plainText).toContain(`REFER A FRIEND: ${url}`);
-    const none = renderEstimateEmail({ estimateUrl });
-    expect(none.html).not.toContain("REFER A FRIEND");
-    expect(none.plainText).not.toContain("REFER A FRIEND");
-    expect(() => renderEstimateEmail({ estimateUrl, referralUrl: "https://evil.example/homeowner?ref=x" })).toThrow();
+    const quote = { estimatedTotal: 3396, veuDiscount: 1325, areaM2: 134.1 };
+    const withRef = renderEstimateEmail({ estimateUrl, referralUrl: url, ...quote });
+    expect(withRef.html).toContain("SHARE HOME INSULATION VICTORIA");
+    expect(withRef.html).toContain("Know someone who could benefit?");
+    expect(withRef.plainText).toContain(`SHARE HOME INSULATION VICTORIA: ${url}`);
+    const none = renderEstimateEmail({ estimateUrl, ...quote });
+    expect(none.html).not.toContain("SHARE HOME INSULATION VICTORIA");
+    expect(none.plainText).not.toContain("SHARE HOME INSULATION VICTORIA");
+    expect(() => renderEstimateEmail({ estimateUrl, referralUrl: "https://evil.example/homeowner?ref=x", ...quote })).toThrow();
     expect(withRef.html).not.toContain("lovable.app");
   });
   test("follow-ups carry a small referral line only when supplied", () => {

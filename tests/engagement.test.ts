@@ -173,15 +173,16 @@ describe("delivery configuration", () => {
 describe("email renderers", () => {
   const link = `${CUSTOMER_BASE}/estimate/${newTrackingToken()}`;
   const tok = newTrackingToken();
+  const quote = { estimatedTotal: 3396, veuDiscount: 1325, areaM2: 134.1 };
   test("tracked CTA + pixel only when supplied", () => {
-    const plain = renderEstimateEmail({ estimateUrl: link });
+    const plain = renderEstimateEmail({ estimateUrl: link, ...quote });
     expect(plain.html).toContain(`href="${link}"`);
     expect(plain.html).not.toContain("/t/o/");
-    const tracked = renderEstimateEmail({ estimateUrl: link, trackingClickUrl: clickUrl(tok), trackingPixelUrl: pixelUrl(tok) });
+    const tracked = renderEstimateEmail({ estimateUrl: link, trackingClickUrl: clickUrl(tok), trackingPixelUrl: pixelUrl(tok), ...quote });
     expect(tracked.html).toContain(`href="${clickUrl(tok)}"`);
     expect(tracked.html).toContain(`src="${pixelUrl(tok)}"`);
     expect(tracked.plainText).toContain(clickUrl(tok));
-    expect(() => renderEstimateEmail({ estimateUrl: link, trackingClickUrl: "https://evil.example/t/e/x" })).toThrow();
+    expect(() => renderEstimateEmail({ estimateUrl: link, trackingClickUrl: "https://evil.example/t/e/x", ...quote })).toThrow();
   });
   test("follow-ups: branded, same domain, $349 included, no provider branding", () => {
     for (const kind of ["estimate_unopened_3d", "estimate_engaged_no_booking_3d", "estimate_second_reminder_7d"] as const) {

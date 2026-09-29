@@ -18,8 +18,8 @@ export type IneligibleOutcomeEmailInput = {
   reasons?: string[] | null;
   referralUrl: string;
   resultUrl?: string | null;
-  reference?: string | null;
-  apCount?: number | null;
+  reference?: string | null | undefined;
+  apCount?: number | null | undefined;
 };
 export type EstimateEmail = { subject: string; previewText: string; html: string; plainText: string };
 
@@ -69,7 +69,7 @@ function logo() {
 }
 
 function includedCards() {
-  const items = [
+  const items: Array<[string, string]> = [
     ["Onsite measure", "Eligible ceiling area measured for the final quote."],
     ["Electrical safety assessment", "A PIESA completed through an appropriately licensed electrician and REC."],
     ["R5.0 insulation", "Supply and installation for the confirmed eligible area."],
@@ -104,9 +104,9 @@ function referral(url: string | null) {
   return url ? row(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background-color:${PALE_GREEN};"><tr><td style="padding:21px 20px;">${heading("Know someone who could benefit?")}${p("Share Home Insulation Victoria with a friend or family member. They can complete their own eligibility check—no contact details are shared by you.")}<p style="margin:14px 0 0;"><a href="${escape(url)}" style="color:${BLUE};font-size:14px;font-weight:800;text-decoration:underline;">SHARE HOME INSULATION VICTORIA</a></p></td></tr></table>`) : "";
 }
 
-function footer(reference?: string | null) {
+function footer(reference?: string | null, kind: "estimate" | "result" = "estimate") {
   const ref = reference?.trim() ? `<br>Reference: ${escape(reference.trim())}` : "";
-  return row(`${p("Pleased to meet you. You'll be pleased to meet the savings.", "font-weight:700;margin-bottom:12px;")}${p("DC Construction Solutions Pty Ltd trading as Home Insulation Victoria", "font-size:12px;")}${p(`You are receiving this because you requested a Home Insulation Victoria eligibility result or estimate.${ref}`, "font-size:12px;margin-top:7px;")}${p(`<a href="${SITE}/privacy" style="color:${BLUE};text-decoration:underline;">Privacy</a> &nbsp;·&nbsp; <a href="${SITE}/contact" style="color:${BLUE};text-decoration:underline;">Contact</a><br>A secure unsubscribe link appears directly below this footer.`, "font-size:12px;margin-top:7px;")}`, `20px 28px 26px;border-top:1px solid ${PALE_BLUE};`);
+  return row(`${p("Pleased to meet you. You'll be pleased to meet the savings.", "font-weight:700;margin-bottom:12px;")}${p("DC Construction Solutions Pty Ltd trading as Home Insulation Victoria", "font-size:12px;")}${p(`You are receiving this because you requested a Home Insulation Victoria ${kind === "result" ? "eligibility result" : "eligibility result or estimate"}.${ref}`, "font-size:12px;margin-top:7px;")}${p(`<a href="${SITE}/privacy" style="color:${BLUE};text-decoration:underline;">Privacy</a> &nbsp;·&nbsp; <a href="${SITE}/contact" style="color:${BLUE};text-decoration:underline;">Contact</a><br>A secure unsubscribe link appears directly below this footer.`, "font-size:12px;margin-top:7px;")}`, `20px 28px 26px;border-top:1px solid ${PALE_BLUE};`);
 }
 
 function shell(content: string, preview: string, pixel: string | null) {
@@ -154,7 +154,7 @@ export function renderIneligibleOutcomeEmail(input: IneligibleOutcomeEmailInput)
   const subject = "Your Home Insulation Victoria eligibility result";
   const previewText = "Your eligibility result and the options available from here.";
   const reasonList = reasons.length ? reasons.map((reason) => p(`<span style="color:${BLUE};font-weight:800;">•</span> ${escape(reason)}`, "margin-top:8px;")).join("") : p("Based on the information provided, this property does not meet the preliminary requirements for this VEU ceiling-insulation offer.");
-  const html = shell(`${logo()}${row(`<p style="margin:0 0 7px;color:${BLUE};font-size:12px;font-weight:800;letter-spacing:1px;">YOUR ELIGIBILITY RESULT</p><h1 style="margin:0 0 13px;font-size:29px;line-height:1.2;color:${INK};font-weight:800;">This property does not appear eligible.</h1>${p("Based on the information provided, we can’t present a VEU discount or preliminary quote for this property. This is a preliminary result, not a guarantee or final determination.")}`, "0 28px 24px")}${row(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${PALE_BLUE}" style="border-collapse:collapse;background-color:${PALE_BLUE};"><tr><td style="padding:21px 20px;">${heading("Why we reached this result")}${reasonList}</td></tr></table>`)}${row(`${cta(resultUrl)}${p("You can review the pathway and submit updated information if your property details have changed.", "margin-top:10px;font-size:12px;text-align:center;")}`)}${row(trust(input.apCount))}${row(benefits())}${row(includedCards())}${referral(referralUrl)}${footer(input.reference)}`, previewText, null);
+  const html = shell(`${logo()}${row(`<p style="margin:0 0 7px;color:${BLUE};font-size:12px;font-weight:800;letter-spacing:1px;">YOUR ELIGIBILITY RESULT</p><h1 style="margin:0 0 13px;font-size:29px;line-height:1.2;color:${INK};font-weight:800;">This property does not appear eligible.</h1>${p("Based on the information provided, we can’t present a VEU discount or preliminary quote for this property. This is a preliminary result, not a guarantee or final determination.")}`, "0 28px 24px")}${row(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${PALE_BLUE}" style="border-collapse:collapse;background-color:${PALE_BLUE};"><tr><td style="padding:21px 20px;">${heading("Why we reached this result")}${reasonList}</td></tr></table>`)}${row(`${cta(resultUrl)}${p("You can review the pathway and submit updated information if your property details have changed.", "margin-top:10px;font-size:12px;text-align:center;")}`)}${row(trust(input.apCount))}${row(benefits())}${row(includedCards())}${referral(referralUrl)}${footer(input.reference, "result")}`, previewText, null);
   const plainText = `${subject}\n\nYOUR ELIGIBILITY RESULT\nThis property does not appear eligible.\nBased on the information provided, we can’t present a VEU discount or preliminary quote for this property. This is a preliminary result, not a guarantee or final determination.\n\nWHY WE REACHED THIS RESULT\n${reasons.length ? reasons.map((r) => `• ${r}`).join("\n") : "Based on the information provided, this property does not meet the preliminary requirements for this VEU ceiling-insulation offer."}\n\nCONTINUE WITH HOME INSULATION VICTORIA: ${resultUrl}\n\nHome Insulation Victoria is the approved Accredited Person for this managed VEU pathway. Our vetted network includes appropriately licensed electricians and Registered Electrical Contractors, and appropriately EEC-certified insulation providers.\n\nWHY CEILING INSULATION MATTERS\nWarmer in winter. Cooler in summer. Less heating and cooling demand. Better year-round comfort.\n\nSHARE HOME INSULATION VICTORIA: ${referralUrl}\n\nPleased to meet you. You'll be pleased to meet the savings.\nDC Construction Solutions Pty Ltd trading as Home Insulation Victoria\nYou are receiving this because you requested a Home Insulation Victoria eligibility result.${input.reference ? `\nReference: ${input.reference}` : ""}\nPrivacy: ${SITE}/privacy\nContact: ${SITE}/contact\nA secure unsubscribe link appears below.`;
   return { subject, previewText, html, plainText };
 }
