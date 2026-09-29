@@ -38,7 +38,7 @@ export async function resolveClick(token: string): Promise<string> {
   await recordEngagement({ jobId: t.job_id, linkId: t.estimate_link_id, type: "email_clicked", source: "tracking", metadata: { purpose: t.purpose }, dedupeKey: dedupe.click(t.id) });
   if (!t.estimate_link_id) return "/estimate/unavailable";
   const { data: l } = await admin.from("customer_estimate_links").select("token, status, expires_at").eq("id", t.estimate_link_id).maybeSingle();
-  return l && linkUsable(l) ? `/estimate/${l.token}` : "/estimate/unavailable";
+  return l && linkUsable(l) ? `/estimate/${l.token}${t.purpose === "step3_estimate" ? "#confirm" : ""}` : "/estimate/unavailable";
 }
 
 /** Open pixel: supporting signal only. Opens within the prefetch window after the send are flagged. */

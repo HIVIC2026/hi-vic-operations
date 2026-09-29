@@ -125,8 +125,8 @@ function footer(reference?: string | null, kind: "estimate" | "result" = "estima
 /** Editorial likely-eligible email: one money card, one trust band, no card grids. */
 function renderLikelyEmail(input: EstimateEmailInput): EstimateEmail {
   const link = validEstimateUrl(input.estimateUrl);
-  validTrackingUrl(input.trackingClickUrl, "click");
-  const confirmTarget = `${link.toString().replace(/\/$/, "")}#confirm`;
+  const trackedTarget = validTrackingUrl(input.trackingClickUrl, "click");
+  const confirmTarget = trackedTarget ?? `${link.toString().replace(/\/$/, "")}#confirm`;
   const calculatorTarget = `${link.toString().replace(/\/$/, "")}#calculator`;
   const pixel = validTrackingUrl(input.trackingPixelUrl, "pixel");
   const referralUrl = validReferralUrl(input.referralUrl);
