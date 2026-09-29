@@ -112,7 +112,7 @@ describe("static separation / UI", () => {
     expect(ui).toContain("HI VIC eligibility, Accredited Person compliance, job administration, evidence review & VEEC processing");
     expect(ui).not.toContain("AP management &amp; compliance");
     expect(ui).toContain("Step 3 · Indicative estimate");
-    expect(ui.indexOf("<HouseholdBenefits />")).toBeLessThan(ui.indexOf("<NextStep fee"));
+    expect(ui.indexOf("<NextStep fee")).toBeLessThan(ui.indexOf("<HouseholdBenefits />"));
     expect(ui.indexOf("<NextStep fee")).toBeLessThan(ui.indexOf("<EstimateDetails data"));
     expect(ui).toContain("See what your upgrade could cost");
     expect(ui).toContain("*Victorian Government estimates/averages. Actual savings vary");
