@@ -13,7 +13,7 @@ const detailed = { ...common, installationPrice: 4023, assessmentFee: 349, apFee
 describe("customer outcome email renderers", () => {
   test("likely eligible leads with the complete personalised quote", () => {
     const email = withUnsubscribe(renderEstimateEmail({ ...detailed, outcome: "likely" }), unsubscribeUrl);
-    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "YOUR HOME LOOKS LIKELY TO QUALIFY", "R5.0 ceiling insulation installation", "Onsite Measure + Electrical Safety Assessment", "Included in your total", "AP &amp; Compliance Management", "Separate included line item", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$1,325", "$4,721", "$3,396", "$349 payable now", "not an extra charge", "will not pay this assessment fee again", "$3,047", "ADJUST MY ESTIMATE", "CONTINUE WITH HOME INSULATION VICTORIA", "WHAT COULD CHANGE AFTER THE ASSESSMENT?", "Nothing additional is simply added without being shown to you first.", "134.1 m²", "28% estimated saving", "THIS IS MORE THAN AN", "YOU'RE IN THE RIGHT HANDS.", "YOUR NEXT STEP", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
+    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "YOUR HOME LOOKS LIKELY TO QUALIFY", "R5.0 ceiling insulation installation", "Onsite Measure + PIESA", "Included in your total", "AP &amp; Compliance Management", "Separate included line item", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$1,325", "$4,721", "$3,396", "$349 payable now", "not an extra charge", "will not pay this assessment fee again", "$3,047", "ADJUST MY ESTIMATE", "CONTINUE WITH HOME INSULATION VICTORIA", "WHAT COULD CHANGE AFTER THE ASSESSMENT?", "Nothing additional is simply added without being shown to you first.", "134.1 m²", "28% estimated saving", "THIS IS MORE THAN AN", "YOU'RE IN THE RIGHT HANDS.", "YOUR NEXT STEP", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
     expect(email.html.indexOf("ESTIMATED VEU DISCOUNT")).toBeLessThan(email.html.indexOf("YOUR NEXT STEP"));
     expect(email.html).not.toContain("YOUR ANSWERS HAVEN'T RULED YOU OUT");
     expect(email.html).not.toMatch(/>HI VIC</);
@@ -84,7 +84,7 @@ describe("customer outcome email renderers", () => {
     expect(likely).toContain("<!--[if mso]>");
     expect(likely).toContain("@media only screen and (max-width:480px)");
     expect(source + preview).not.toMatch(/sendTemplateEmail|sendLovableEmail|createServerFn|supabase|fetch\(|\.insert\(|\.update\(/);
-    expect(preview).toContain("likely-eligible");
+    expect(preview).toContain("Likely eligible");
     expect(preview).toContain("640 desktop");
     expect(preview).toContain("390 mobile");
   });
