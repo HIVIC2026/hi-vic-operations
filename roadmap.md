@@ -21,3 +21,5 @@
 - [ ] Step 4: booking + payment for Onsite Measure + PIESA
 - [x] Step 3 engagement tracking + follow-ups (sending waits on Base44 delivery endpoint + comms switch)
 - [x] Redesign Step 3 estimate in HI VIC brand voice with a clear cover, reading flow and next step
+- [ ] Blocked on Base44: homeowner preliminary result, save/navigation guards, and sync fallback changes (A–D)
+- [x] Revalidate Operations Hub email suppression, unsubscribe, deduplication, backlog exclusion, and disabled locks (E)
