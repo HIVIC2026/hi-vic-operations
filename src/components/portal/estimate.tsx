@@ -97,7 +97,7 @@ function ManagedProcess() {
         <div><p className="font-extrabold leading-snug text-estimate-blue">{title}</p><p className="mt-1.5 text-sm leading-relaxed">{copy}</p></div>
       </div>)}
     </div>
-    <p className="mt-4 text-sm leading-relaxed">That means you don&apos;t need to work out which trades meet the program requirements — we coordinate appropriately qualified participants for the job.</p>
+    <p className="mt-4 text-sm leading-relaxed">That means you don't need to work out which trades meet the program requirements — we coordinate appropriately qualified participants for the job.</p>
   </section>;
 }
 
