@@ -1631,6 +1631,33 @@ export type Database = {
           },
         ]
       }
+      customer_delivery_settings: {
+        Row: {
+          enabled: boolean
+          endpoint_url: string | null
+          hmac_secret: string | null
+          id: number
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          enabled?: boolean
+          endpoint_url?: string | null
+          hmac_secret?: string | null
+          id?: number
+          provider?: string
+          updated_at?: string
+        }
+        Update: {
+          enabled?: boolean
+          endpoint_url?: string | null
+          hmac_secret?: string | null
+          id?: number
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       customer_email_sends: {
         Row: {
           communication_id: string | null

@@ -267,6 +267,13 @@
       "when": 1790663046802,
       "tag": "0037_customer_referrals",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790665309687,
+      "tag": "0038_customer_delivery_settings",
+      "breakpoints": true
     }
   ]
 }
