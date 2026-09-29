@@ -42,8 +42,10 @@ describe("customer outcome email renderers", () => {
 
   test("onsite confirmation remains positive and renders dynamic reasons", () => {
     const email = renderEstimateEmail({ ...detailed, outcome: "onsite", reasons: ["Existing insulation needs confirmation.", "Roof access must be checked."] });
-    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY", "What we need to confirm", "Existing insulation needs confirmation.", "Roof access must be checked.", "$1,325", "$3,747", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "Accredited Person Management", "CHANGE →"]) expect(email.html).toContain(copy);
+    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY — WE JUST NEED TO CONFIRM A FEW THINGS.", "What we need to confirm", "Existing insulation needs confirmation.", "Roof access must be checked.", "YOUR ANSWERS HAVEN'T RULED YOU OUT.", "$1,325", "$3,747", "$3,398", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "Accredited Person Management", "CHANGE →", "PAY $349 &amp; CONTINUE →", "Included in your estimated total — not an extra fee.", "you do not pay this $349 again"]) expect(email.html).toContain(copy);
     expect(email.html.indexOf("YOUR PRELIMINARY QUOTE")).toBeLessThan(email.html.indexOf("What we need to confirm"));
+    expect(email.html).toContain(`${estimateUrl}#calculator`);
+    expect(email.html.split("PAY $349 &amp; CONTINUE →").length - 1).toBe(1);
   });
 
   test("shows the removal note only for a declared existing-insulation answer", () => {
@@ -66,9 +68,14 @@ describe("customer outcome email renderers", () => {
   });
 
   test("ineligible has dynamic reasons, no available discount, result CTA and referral", () => {
-    const email = withUnsubscribe(renderIneligibleOutcomeEmail({ referralUrl, reasons: ["The home is five years old or newer.", "A previous Activity 48 upgrade was confirmed."], reference: "HV-1003" }), unsubscribeUrl);
-    for (const copy of ["THIS PROPERTY DOES NOT APPEAR ELIGIBLE", "Why we reached this result", "five years old or newer", "previous Activity 48 upgrade", "REVIEW MY RESULT", "REFER A FRIEND", "Reference: HV-1003", "Unsubscribe"]) expect(email.html).toContain(copy);
-    expect(email.html).not.toMatch(/estimated VEU discount|ESTIMATED CUSTOMER PRICE|\$1,325/i);
+    const resultUrl = `${estimateUrl}#result`;
+    const email = withUnsubscribe(renderIneligibleOutcomeEmail({ referralUrl, resultUrl, reasons: ["The home is five years old or newer.", "A previous Activity 48 upgrade was confirmed."], reference: "HV-1003" }), unsubscribeUrl);
+    for (const copy of ["WE'VE COMPLETED YOUR PROPERTY CHECK.", "THIS PROPERTY DOESN'T CURRENTLY APPEAR ELIGIBLE.", "WHY WE REACHED THIS RESULT", "five years old or newer", "previous Activity 48 upgrade", "REVIEW MY RESULT →", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Refer a friend →", "Reference: HV-1003", "Unsubscribe", "home-insulation-victoria-logo.png"]) expect(email.html).toContain(copy);
+    expect(email.html).toContain(`href="${resultUrl}"`);
+    expect(email.html).not.toMatch(/estimated VEU discount|ESTIMATED CUSTOMER PRICE|PAY \$349|assessment payment available|\$1,325/i);
+    expect(email.html).not.toContain("WHY INSULATION MATTERS");
+    expect(email.html).not.toContain("COMFORT THROUGH THE SEASONS");
+    expect(() => renderIneligibleOutcomeEmail({ referralUrl, resultUrl: `${estimateUrl}#confirm`, reasons: ["No"] })).toThrow();
   });
 
   test("sample-only personalisation and premium money card", () => {
@@ -118,15 +125,18 @@ describe("customer outcome email renderers", () => {
       expect(email.html).not.toMatch(/<script\b|\son\w+=/i);
       expect(email.html).toContain("max-width:640px");
       expect(email.html).toContain("font-family:'Open Sans',Arial,Helvetica,sans-serif");
-      for (const colour of ["#3C51C4", "#07BF61", "#52C875"]) expect(email.html).toContain(colour);
+      for (const colour of ["#3C51C4", "#07BF61"]) expect(email.html).toContain(colour);
     }
     const likely = renderEstimateEmail(common).html;
+    expect(likely).toContain("#52C875");
     expect(likely).toContain("fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800");
     expect(likely).toContain("<!--[if !mso]><!-->");
     expect(likely).toContain("<!--[if mso]>");
     expect(likely).toContain("@media only screen and (max-width:480px)");
     expect(source + preview).not.toMatch(/sendTemplateEmail|sendLovableEmail|createServerFn|supabase|fetch\(|\.insert\(|\.update\(/);
     expect(preview).toContain("Likely eligible");
+    expect(preview).toContain("Test CHANGE → calculator");
+    expect(preview).toContain("Test REVIEW MY RESULT →");
     expect(preview).toContain("640 desktop");
     expect(preview).toContain("390 mobile");
   });
