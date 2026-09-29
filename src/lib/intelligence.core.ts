@@ -2,6 +2,8 @@
 // NEVER fabricate: unknown stays unknown; absence of evidence is never a "no".
 // Gate 1 categorisation is NOT decided here – see eligibility.core (single authoritative engine).
 
+import { evaluateGate1, resolveGate1Facts, ONSITE_ALWAYS as A48_ONSITE, type Gate1Facts, type IntelFact } from "./eligibility.core";
+
 export const RULESET = {
   version: "A48-2026.1",
   source: "VEU Specifications 2018 v25.0 / Ceiling Insulation Amendment Regulations 2026",
@@ -154,7 +156,6 @@ export function ageStatusFor(e: { date: string | null; kind: "historical_imagery
 // ---------- Gate 1: NO independent engine here ----------
 // Property Intelligence only gathers facts. Its diagnostic recommendation is produced by the ONE authoritative
 // categoriser in eligibility.core (evaluateGate1) so the two can never disagree.
-import { evaluateGate1, resolveGate1Facts, ONSITE_ALWAYS as A48_ONSITE, type Gate1Facts, type IntelFact } from "./eligibility.core";
 export type Gate1Input = Gate1Facts;
 export type Recommendation = { outcome: "likely_eligible" | "needs_onsite_confirmation" | "does_not_appear_eligible" | null; reviewRequired: boolean; reasons: string[]; nextAction: string; onsite: string[] };
 export const ONSITE_ALWAYS = A48_ONSITE;
