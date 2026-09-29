@@ -3,11 +3,14 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { newToken, isWellFormedToken } from "./estimatelink.core";
 import { emailSuppression, unsubscribeUrl, type EmailPurpose } from "./emailsafety.core";
 
+/** Engagement events that permanently stop marketing/follow-up email for a job. */
+export const SUPPRESSING_EVENTS = ["email_bounced", "email_complained", "complaint", "opted_out", "payment_received", "quote_declined", "booking_completed"];
+
 export async function suppressionFor(jobId: string, purpose: EmailPurpose, recipient: string | null): Promise<string | null> {
   const [{ data: job }, { data: opt }, { data: bounce }, { data: cfg }] = await Promise.all([
     admin.from("jobs").select("stage, source, created_at").eq("id", jobId).maybeSingle(),
     admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", jobId).maybeSingle(),
-    admin.from("customer_engagement_events").select("id").eq("job_id", jobId).eq("event_type", "email_bounced").limit(1).maybeSingle(),
+    admin.from("customer_engagement_events").select("id").eq("job_id", jobId).in("event_type", SUPPRESSING_EVENTS).limit(1).maybeSingle(),
     admin.from("customer_delivery_settings").select("jobs_created_after").eq("id", 1).maybeSingle(),
   ]);
   if (!job) return "job_not_found";

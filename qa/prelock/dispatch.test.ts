@@ -102,7 +102,7 @@ describe("C3 idempotency / concurrency / ambiguous success", () => {
     const { jobId } = job(); S.commFail = true; await F.sendInitialEstimateEmail(jobId, null); S.commFail = false; await F.sendInitialEstimateEmail(jobId, null);
     expect(calls.length).toBe(1);
   });
-  test("state recorded for provider success+DB failure is 'delivered_unrecorded' (never retried)", async () => { const { jobId } = job(); S.commFail = true; await F.sendInitialEstimateEmail(jobId, null); expect(tables.customer_email_sends![0]!.status).toBe("failed"); });
+  test("state recorded for provider success+DB failure is 'delivered_unrecorded' (never retried)", async () => { const { jobId } = job(); S.commFail = true; await F.sendInitialEstimateEmail(jobId, null); expect(tables.customer_email_sends![0]!.status).toBe("delivered_unrecorded"); });
   test("stale 'sending' row (>10 min, outcome unknown) must not be re-sent blindly", async () => {
     const { jobId, linkId } = job(); tables.customer_email_sends!.push({ id: id(), job_id: jobId, estimate_link_id: linkId, purpose: "step3_estimate", idempotency_key: `step3_estimate:${linkId}:est-150`, status: "sending", created_at: new Date(Date.now() - 11 * 60_000).toISOString() });
     await F.sendInitialEstimateEmail(jobId, null); expect(calls.length).toBe(0);
@@ -162,7 +162,7 @@ describe("C6 follow-ups with fake time", () => {
   test("Day 7 reminder after Day 3", async () => { const { sentAt } = await sentJob(); at(sentAt + 7 * DAY + 1000); calls = []; try { await F.processDueFollowups(); } finally { Date.now = realNow; } expect(calls.map((c) => JSON.parse(c.body).purpose).sort()).toEqual(["estimate_second_reminder_7d", "estimate_unopened_3d"]); });
   test("booking completed => both suppressed, no delivery", async () => { const { sentAt } = await sentJob([{ event_type: "booking_completed", offsetMs: DAY }]); calls = []; at(sentAt + 8 * DAY); try { await F.processDueFollowups(); } finally { Date.now = realNow; } expect(calls.length).toBe(0); });
   for (const ev of ["email_bounced", "complaint", "opted_out", "payment_received", "quote_declined"]) {
-    test.failing(`${ev} => pending reminders suppressed`, async () => { const { sentAt } = await sentJob([{ event_type: ev, offsetMs: DAY }]); calls = []; at(sentAt + 3 * DAY + 1000); try { await F.processDueFollowups(); } finally { Date.now = realNow; } expect(calls.length).toBe(0); });
+    test(`${ev} => pending reminders suppressed`, async () => { const { sentAt } = await sentJob([{ event_type: ev, offsetMs: DAY }]); calls = []; at(sentAt + 3 * DAY + 1000); try { await F.processDueFollowups(); } finally { Date.now = realNow; } expect(calls.length).toBe(0); });
   }
   test.failing("row manually suppressed AFTER being claimed is re-read before delivery", async () => {
     const { sentAt } = await sentJob(); calls = []; at(sentAt + 3 * DAY + 1000);
