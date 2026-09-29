@@ -82,7 +82,7 @@ function includedCards() {
     const cells = items.slice(i, i + 2).map(([title, copy]) => `<td width="50%" valign="top" style="padding:${i ? "8px 6px 0" : "0 6px 0"};"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background-color:${OUTER};border-top:3px solid ${ACCENT};"><tr><td style="padding:15px 14px 17px;">${p(`<strong style="color:${BLUE};">${escape(title)}</strong><br>${escape(copy)}`, "font-size:13px;")}</td></tr></table></td>`).join("");
     pairs.push(`<tr>${cells}</tr>`);
   }
-  return `${heading("Your managed insulation package includes")}<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;table-layout:fixed;margin:0 -6px;width:calc(100% + 12px);">${pairs.join("")}</table>`;
+  return `${heading("Your managed insulation package includes")}<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;table-layout:fixed;">${pairs.join("")}</table>`;
 }
 
 function trust(apCount?: number | null) {
@@ -148,7 +148,9 @@ export function renderIneligibleOutcomeEmail(input: IneligibleOutcomeEmailInput)
   const referralUrl = validReferralUrl(input.referralUrl);
   if (!referralUrl) throw new Error("A Home Insulation Victoria referral link is required.");
   const reasons = cleanReasons(input.reasons);
-  const resultUrl = input.resultUrl ? validReferralUrl(input.resultUrl) ?? `${SITE}/homeowner` : `${SITE}/homeowner`;
+  const resultUrl = input.resultUrl ?? `${SITE}/homeowner`;
+  const parsedResultUrl = new URL(resultUrl);
+  if (parsedResultUrl.origin !== SITE || parsedResultUrl.pathname !== "/homeowner") throw new Error("A Home Insulation Victoria result link is required.");
   const subject = "Your Home Insulation Victoria eligibility result";
   const previewText = "Your eligibility result and the options available from here.";
   const reasonList = reasons.length ? reasons.map((reason) => p(`<span style="color:${BLUE};font-weight:800;">•</span> ${escape(reason)}`, "margin-top:8px;")).join("") : p("Based on the information provided, this property does not meet the preliminary requirements for this VEU ceiling-insulation offer.");
