@@ -7041,6 +7041,41 @@ export type Database = {
       }
     }
     Functions: {
+      accept_pre_assessment_test: {
+        Args: {
+          _accepted_ip?: unknown
+          _accepted_user_agent?: string
+          _copy_version: string
+          _customer_total: number
+          _estimate_id: string
+          _estimate_input_signature: string
+          _estimate_settings_version: number
+          _estimated_discount: number
+          _estimated_remaining: number
+          _job_id: string
+          _snapshot: Json
+        }
+        Returns: {
+          acceptance_id: string
+          accepted_at: string
+          created: boolean
+          paid_at: string
+          payment_id: string
+          payment_status: string
+        }[]
+      }
+      apply_pre_assessment_test_payment: {
+        Args: {
+          _idempotency_key: string
+          _outcome: string
+          _payment_id: string
+        }
+        Returns: {
+          changed: boolean
+          paid_at: string
+          payment_status: string
+        }[]
+      }
       bump_referral_counter: {
         Args: { _field: string; _id: string }
         Returns: undefined

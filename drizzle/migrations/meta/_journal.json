@@ -288,6 +288,13 @@
       "when": 1790725953190,
       "tag": "0040_pre_assessment_acceptance_test_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790726154096,
+      "tag": "0041_atomic_pre_assessment_test_lifecycle",
+      "breakpoints": true
     }
   ]
 }
