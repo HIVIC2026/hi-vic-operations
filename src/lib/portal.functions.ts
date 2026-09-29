@@ -995,6 +995,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       // Preliminary website screening only – never the authoritative Step-2 category.
       screening: (() => { const prelim = job?.eligibility_decision_source !== "system" && job?.eligibility_decision_source !== "admin"; const raw = b44?.raw?.screening ?? null; return { outcome: prelim ? job?.eligibility_outcome ?? null : (typeof raw?.status === "string" ? raw.status : null), reasons: prelim ? job?.eligibility_reason ?? null : null, raw }; })(),
       research: b44?.research ?? null, media: links, lastMediaFailure: fails?.[0] ?? null,
+      postIntake: await (await import("./postintake.server")).postIntakeStatus(data.jobId),
       raw: b44?.raw ?? null,
     })) as {
       reference: string | null; source: string | null; state: string | null; occupancy: string | null; lifeSupport: string | null; area: number | null;
@@ -1005,6 +1006,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       research: { status: string | null; evidence_summary: string | null; first_appearance_year: number | null; premises_classification: string | null } | null;
       media: { id: string; name: string; mime: string | null; size: number | null; url: string | null }[];
       lastMediaFailure: { created_at: string; summary: string } | null; raw: Json;
+      postIntake: { status: string; attempts: number; last_error: string | null; available_at: string; updated_at: string; completed_at: string | null; reason: string | null } | null;
     };
   });
 

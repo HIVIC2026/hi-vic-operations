@@ -34,7 +34,17 @@ export function IntakeSummary({ jobId }: { jobId: string }) {
         {c?.consent_status === "granted"
           ? <Pill t="good">Contact consent granted</Pill>
           : <Pill t="bad">Contact consent missing — no external contact</Pill>}
+        {data.postIntake && data.postIntake.status !== "complete" && (
+          <Pill t={data.postIntake.status === "failed" ? "bad" : "warn"}>
+            {data.postIntake.status === "failed" ? "Initial eligibility checks failed" : "Initial eligibility checks processing"} · {data.postIntake.status}
+            {data.postIntake.attempts ? ` · attempt ${data.postIntake.attempts}` : ""}
+          </Pill>
+        )}
       </div>
+      {data.postIntake?.last_error && data.postIntake.status !== "complete" && (
+        <p className="mb-2 text-xs text-muted-foreground">Last error: {data.postIntake.last_error} · next try {when(data.postIntake.available_at)}</p>
+      )}
+      {data.postIntake?.status === "complete" && <p className="mb-2 text-xs text-muted-foreground">Initial eligibility checks complete {when(data.postIntake.completed_at)}</p>}
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1 text-sm">
           <div className="text-xs font-medium uppercase text-muted-foreground">Contact</div>

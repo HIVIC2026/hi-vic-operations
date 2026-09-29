@@ -1,3 +1,6 @@
+import { enqueueInitialGate1, processPostIntakeWork } from "./postintake.server";
+import { eligibilityFactsVersion } from "./postintake.core";
+import { runAfterResponse } from "./background.server";
 import { addressHash } from "./intelligence.core";
 import { z } from "zod";
 import type { Json, TablesUpdate } from "@/integrations/supabase/types";
@@ -69,6 +72,8 @@ export type EnquiryInput = z.infer<typeof enquirySchema>;
 /** Create/update owner, property and job from an enquiry. Idempotent on external_enquiry_id. */
 export type JobOrigin = { channel: "hivic_sourced" } | { channel: "installer_sourced"; businessId: string; userId: string };
 
+
+/** Step 1 intake → durable enqueue. Initial Property Intelligence + first official Gate 1 run in the post-intake processor. */
 export async function upsertEnquiry(input: EnquiryInput, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }) {
   const email = input.email.toLowerCase();
   let { data: owner } = await admin.from("owners").select("id").ilike("email", email).maybeSingle();
@@ -108,12 +113,10 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     const { error: ue } = await admin.from("jobs").update(update).eq("id", existingJob.id);
     if (ue) throw new Error(ue.message);
     await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, plan?.details ?? {});
-    await runPostIntakeSequence({
-      completeIntake: source === "base44" ? () => completeIntake(existingJob.id, owner!.id, input) : null,
-      intelligence: () => afterEnquiry(existingJob.id, actorId, addrChanged ? "address changed" : null),
-      gate1: () => runGate1(existingJob.id, actorId),
-    });
-    return { job_id: existingJob.id, job_number: existingJob.job_number, created: false };
+    if (source === "base44") await completeIntake(existingJob.id, owner!.id, input);
+    const queued = await enqueueInitialGate1(existingJob.id, await eligibilityFactsVersion(input), addrChanged ? "address changed" : "eligibility facts changed");
+    if (queued !== "none") runAfterResponse(() => processPostIntakeWork({ jobId: existingJob.id })); // best-effort; scheduled worker is the durable fallback
+    return { job_id: existingJob.id, job_number: existingJob.job_number, created: false, post_intake: queued };
   }
   const { data: prop, error: pe } = await admin.from("properties").insert({ ...propFields, ...(source === "base44" ? { enrichment: mergeEvidence(null, input) } : {}) }).select("id").single();
   if (pe) throw new Error(pe.message);
@@ -142,44 +145,11 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
   await logEvent(job.id, actorId, "job_source_recorded",
     origin.channel === "installer_sourced" ? "Job source: Installer-sourced (attribution locked)" : "Job source: HI VIC-sourced",
     origin.channel === "installer_sourced" ? { channel: origin.channel, originating_installer_business_id: origin.businessId, originating_installer_user_id: origin.userId, commercial_model: "not_configured" } : { channel: origin.channel });
-  await runPostIntakeSequence({
-    completeIntake: source === "base44" ? () => completeIntake(job.id, owner!.id, input) : null,
-    intelligence: () => afterEnquiry(job.id, actorId, "new enquiry"),
-    gate1: () => runGate1(job.id, actorId),
-  });
-  return { job_id: job.id, job_number: job.job_number, created: true };
-}
-
-/**
- * Intake order (locked): Step 1 intake → initial Property Intelligence (success, partial or error) → ONE official Gate 1
- * categorisation. Gate 1 is never persisted before the intelligence attempt, so no premature REVIEW REQUIRED event.
- */
-export async function runPostIntakeSequence(steps: { completeIntake: (() => Promise<void>) | null; intelligence: () => Promise<void>; gate1: () => Promise<unknown> }) {
-  if (steps.completeIntake) await steps.completeIntake();
-  try { await steps.intelligence(); } catch (e) { console.error("property intelligence failed", (e as Error).message); }
-  await steps.gate1();
-}
-
-/** Property intelligence after the job is committed. Information only; failures never fail the enquiry. */
-async function afterEnquiry(jobId: string, actorId: string | null, reason: string | null) {
-  try {
-    const intel = await import("./intelligence.server");
-    const { data: p } = await admin.from("jobs").select("properties(address_line, suburb, postcode)").eq("id", jobId).single();
-    const pr = p?.properties as { address_line: string; suburb: string | null; postcode: string | null } | null;
-    if (reason === "address changed") await intel.markIntelligenceStale(jobId, "address changed");
-    const why = reason === "new enquiry" ? reason : pr ? await intel.needsRerun(jobId, addressHash(pr.address_line, pr.suburb, pr.postcode)) : null;
-    if (why) await intel.runPropertyIntelligence(jobId, actorId, why);
-    const { regenerateEscNotification } = await import("./esc.server");
-    await regenerateEscNotification(jobId, actorId); // owner/address change stales a prepared ESC notice
-  } catch (e) {
-    console.error("property intelligence failed", (e as Error).message);
-  }
-}
-
-/** Deterministic Gate 1 auto-decision + safe progression (never throws for workflow reasons). */
-async function runGate1(jobId: string, actorId: string | null) {
-  const { autoAdvanceJob } = await import("./autoadvance.server");
-  await autoAdvanceJob(jobId, actorId, "enquiry received");
+  if (source === "base44") await completeIntake(job.id, owner!.id, input);
+  // Durable hand-off: initial Property Intelligence + the first official Gate 1 run in the post-intake processor.
+  const queued = await enqueueInitialGate1(job.id, await eligibilityFactsVersion(input), "new enquiry");
+  if (queued !== "none") runAfterResponse(() => processPostIntakeWork({ jobId: job.id })); // best-effort; scheduled worker is the durable fallback
+  return { job_id: job.id, job_number: job.job_number, created: true, post_intake: queued };
 }
 
 /** Merge Base44 Gate 1 evidence under enrichment.base44 without touching other keys (e.g. verified portal facts). */

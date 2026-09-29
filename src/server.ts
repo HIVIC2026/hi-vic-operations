@@ -1,4 +1,5 @@
 import "./lib/error-capture";
+import { requestContext } from "./lib/background.server";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
@@ -48,7 +49,9 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
+      const c = ctx as { waitUntil?: (p: Promise<unknown>) => void } | undefined;
+      const waitUntil = typeof c?.waitUntil === "function" ? c.waitUntil.bind(c) : undefined;
+      const response = await requestContext.run({ waitUntil }, () => handler.fetch(request, env, ctx));
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {
       console.error(error);

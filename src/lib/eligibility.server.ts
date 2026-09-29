@@ -38,10 +38,15 @@ export async function evaluateJobGate1(jobId: string, refDate?: string): Promise
   return (await evaluateStored(j as StoredJob, jobId, refDate)).d;
 }
 
-export async function autoDecideEligibility(jobId: string): Promise<Gate1Decision | null> {
+export async function autoDecideEligibility(jobId: string, opts: { initialProcessor?: boolean } = {}): Promise<Gate1Decision | null> {
   const { data: j } = await admin.from("jobs").select(JOB_COLS).eq("id", jobId).single();
   if (!j) return null;
   if (j.eligibility_decision_source === "admin") { await refreshGate1Flags(jobId); return null; } // admin decisions stand
+  // Initial checks still queued/processing: only the post-intake processor may record the first official decision.
+  if (!opts.initialProcessor) {
+    const { data: pending } = await admin.from("post_intake_work").select("id").eq("job_id", jobId).in("status", ["queued", "processing", "retry"]).limit(1);
+    if ((pending ?? []).length) return null;
+  }
   if (!["new_enquiry", "eligibility_review"].includes(j.stage)) return null;
   const { facts, d } = await evaluateStored(j as StoredJob, jobId);
   const prev = j.eligibility_decision_rules as { ruleset_version?: string; signature?: string } | null;
