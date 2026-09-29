@@ -161,7 +161,7 @@ export function buildPrefill(template: Any, ctx: PrefillCtx) {
     const row = { item_id: e.id, label: e.label, type: e.type, responses: f.datetime ? { datetime: String(v) } : { text: String(v) } };
     (e.header ? header_items : items).push(row);
   }
-  return { header_items, items, count: header_items.length + items.length, missing };
+  return { header_items, items, count: header_items.length + items.length, missing, ambiguous, blank };
 }
 
 // ---------- create / reuse ----------
