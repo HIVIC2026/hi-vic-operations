@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, ChevronDown, CircleHelp, Home, Info, Ruler, ShieldCheck, Sparkles } from "lucide-react";
+import { Check, ChevronDown, Home, Ruler, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getAdminEstimate, getAdminEstimateLink, getAdminEstimateLinkUrl, getOwnerEstimate } from "@/lib/estimate.functions";
 import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
-import { BENCHMARK_LABEL, CALC_ASSUMPTION_LABEL, CALC_EMPTY_TITLE, CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, FEE_DESCRIPTION, FEE_LABEL, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings, type Scenario } from "@/lib/estimate.core";
+import { BENCHMARK_LABEL, CALC_ASSUMPTION_LABEL, CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, FEE_DESCRIPTION, FEE_LABEL, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings, type Scenario } from "@/lib/estimate.core";
 import type { LocationVariables } from "@/lib/activity48.core";
 import { Pill } from "./badges";
 
@@ -30,53 +30,38 @@ export type CustomerData = {
 
 type Est = { scenarios: Scenario[]; access_adjustment: { moderate: number; difficult: number } };
 
-function PriceResult({ est, fees, area, assumption = false }: { est: Est; fees: { piesa: number; ap: number }; area: number; assumption?: boolean }) {
+function PriceResult({ est, area, assumption = false }: { est: Est; area: number; assumption?: boolean }) {
   const primary = est.scenarios.find((s) => s.key === "can_remain") ?? est.scenarios[0];
   if (!primary) return null;
   const standard = primary.by_access.standard;
   const removal = est.scenarios.find((s) => s.key === "full_removal");
   return (
-    <div className="space-y-7">
-      <div className="estimate-offset rounded-[1.35rem] border-2 border-estimate-blue bg-estimate-white">
-        <div className="px-5 pb-6 pt-7 sm:px-8 sm:pb-8 sm:pt-9">
-          <p className="text-sm font-semibold text-estimate-navy">Estimated price after VEU discount</p>
-          {removal && <p className="mt-1 text-sm font-bold text-estimate-blue">If existing insulation can remain</p>}
-          <div className="mt-3 flex flex-wrap items-end gap-x-3 gap-y-1"><span className="text-5xl font-extrabold leading-none text-estimate-navy sm:text-6xl" data-testid={assumption ? "calculator-total-can_remain" : "total-can_remain"}>{dollars(standard.estimated_customer_total)}</span><span className="pb-1 text-sm text-estimate-navy">inc GST</span></div>
-          <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border-l-4 border-estimate-green bg-estimate-green-soft px-4 py-3 text-sm sm:text-base"><span className="inline-flex items-center gap-2 font-bold text-estimate-navy"><Sparkles aria-hidden="true" className="size-4 text-estimate-blue" />Estimated VEU discount</span><strong className="text-lg text-estimate-navy">−{dollars(standard.applied_discount)}</strong></div>
-        </div>
-      </div>
-      {removal ? (
-        <div className="rounded-[1.2rem] bg-estimate-blue-soft px-5 py-4">
-          <p className="font-bold text-estimate-navy">If full removal is required: approximately <span data-testid={assumption ? "calculator-total-full_removal" : "total-full_removal"}>{dollars(removal.by_access.standard.estimated_customer_total)}</span></p>
-          <p className="mt-1 text-sm text-estimate-navy">Your onsite assessment confirms whether existing insulation can remain or must be removed.</p>
-        </div>
-      ) : <p className="text-sm text-estimate-navy">Your onsite assessment will confirm whether any unexpected existing insulation is present and whether it affects your final price.</p>}
-      <section aria-label="What this estimate includes" className="border-t-2 border-estimate-blue/20 pt-7">
-        <h3 className="text-lg font-extrabold uppercase tracking-tight text-estimate-blue">What this estimate includes</h3>
-        <dl className="mt-4 divide-y divide-estimate-blue/20">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3"><dt className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-estimate-green-soft text-estimate-blue"><Home aria-hidden="true" className="size-5" /></span><span>R5.0 insulation supply &amp; installation <span className="block text-sm text-estimate-navy/80">Based on {area} m²{assumption ? " calculator assumption" : " estimated ceiling area"}</span></span></dt><dd className="shrink-0 font-bold">{dollars(standard.installation)}</dd></div>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3"><dt className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-estimate-green-soft text-estimate-blue"><Ruler aria-hidden="true" className="size-5" /></span><span>Onsite Measure + PIESA</span></dt><dd className="shrink-0 font-bold">{dollars(fees.piesa)}</dd></div>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3"><dt className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-estimate-green-soft text-estimate-blue"><ShieldCheck aria-hidden="true" className="size-5" /></span><span>{FEE_LABEL}<details className="mt-1 text-sm text-estimate-navy"><summary className="cursor-pointer text-estimate-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">What this covers</summary><p className="pt-1">{FEE_DESCRIPTION}</p></details></span></dt><dd className="shrink-0 self-start pt-1 font-bold">{dollars(fees.ap)}</dd></div>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 text-estimate-blue"><dt className="flex min-w-0 items-center gap-3 font-bold"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-estimate-green-soft text-estimate-blue"><Sparkles aria-hidden="true" className="size-5" /></span>Estimated VEU discount</dt><dd className="shrink-0 font-bold">−{dollars(standard.applied_discount)}</dd></div>
-        </dl>
-        {standard.copayment_capped && <p className="mt-2 text-sm text-muted-foreground">The discount is limited so your contribution meets the program minimum.</p>}
-      </section>
+    <div className={assumption ? "border-t border-estimate-blue/20 pt-5" : "estimate-offset rounded-[1.35rem] border-2 border-estimate-blue bg-estimate-white px-5 py-6 sm:px-8 sm:py-8"}>
+      <p className="text-xs font-extrabold uppercase tracking-widest text-estimate-blue">Estimated price after VEU discount</p>
+      <div className="mt-3 flex flex-wrap items-end gap-x-3 gap-y-1"><strong className="text-5xl font-extrabold leading-none text-estimate-navy sm:text-6xl" data-testid={assumption ? "calculator-total-can_remain" : "total-can_remain"}>{dollars(standard.estimated_customer_total)}</strong><span className="pb-1 text-sm">inc GST</span></div>
+      <div className="mt-5 inline-flex flex-wrap items-center gap-x-2 rounded-full bg-estimate-green-soft px-4 py-2 text-sm font-bold text-estimate-navy"><Sparkles aria-hidden="true" className="size-4 shrink-0 text-estimate-green" />Estimated VEU discount: <strong>{dollars(standard.applied_discount)}</strong></div>
+      <p className="mt-5 text-sm leading-relaxed">{assumption ? "Calculator estimate only — final area measured onsite." : `Based on an estimated ${area} m² ceiling area, assuming your existing insulation can remain.`}</p>
+      {removal && <div className="mt-5 border-t border-estimate-blue/20 pt-4 text-sm"><p className="text-xs font-bold uppercase tracking-widest text-estimate-blue">If full removal is needed</p><p className="mt-1 font-bold">Estimated total: <span data-testid={assumption ? "calculator-total-full_removal" : "total-full_removal"}>{dollars(removal.by_access.standard.estimated_customer_total)}</span></p><p className="mt-1">Your onsite assessment confirms whether removal is actually required.</p></div>}
+      {standard.copayment_capped && <p className="mt-3 text-sm">The discount is limited so your contribution meets the program minimum.</p>}
     </div>
   );
 }
 
-function Assumptions({ est, accessConcern, headingId }: { est?: Est | null | undefined; accessConcern?: boolean | undefined; headingId: string }) {
-  return (
-    <section className="rounded-[1.3rem] bg-estimate-blue-pale px-5 py-6 sm:px-7" aria-labelledby={headingId}>
-      <h3 id={headingId} className="text-lg font-extrabold uppercase tracking-tight text-estimate-blue">What may change</h3>
-      <p className="mt-1 text-sm text-estimate-navy">Your final price is confirmed after the onsite assessment.</p>
-      <div className="mt-5 grid gap-4 sm:grid-cols-3">
-        <div><Ruler aria-hidden="true" className="mb-2 size-5 text-estimate-blue" /><h4 className="font-bold">Ceiling area</h4><p className="mt-1 text-sm text-estimate-navy">Final measurement onsite.</p></div>
-        <div><Home aria-hidden="true" className="mb-2 size-5 text-estimate-blue" /><h4 className="font-bold">Access</h4><p className="mt-1 text-sm text-estimate-navy">Access is confirmed onsite. Standard access is assumed.{est ? ` Moderate access may add ${dollars(est.access_adjustment.moderate)}; difficult access may add ${dollars(est.access_adjustment.difficult)}.` : ""}{accessConcern ? " Access needs checking onsite." : ""}</p></div>
-        <div><ShieldCheck aria-hidden="true" className="mb-2 size-5 text-estimate-blue" /><h4 className="font-bold">Electrical</h4><p className="mt-1 text-sm text-estimate-navy">Safety assessment included; rectification, if required, is quoted separately before approval.</p></div>
-      </div>
-    </section>
-  );
+function Reassurance() {
+  return <div className="grid gap-4 sm:grid-cols-3" aria-label="Why this estimate is useful">{[
+    { icon: Sparkles, title: "VEU discount included", copy: "Your estimated discount is already applied to the price shown." },
+    { icon: ShieldCheck, title: "Managed by HI VIC", copy: "We handle eligibility, compliance, evidence and VEEC processing." },
+    { icon: Ruler, title: "Final price confirmed onsite", copy: "One assessment confirms area, insulation, access and electrical safety." },
+  ].map(({ icon: Icon, title, copy }) => <div key={title} className="flex min-w-0 items-start gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-estimate-green-soft text-estimate-blue"><Icon aria-hidden="true" className="size-5" /></span><div className="min-w-0"><h3 className="text-sm font-bold text-estimate-blue">{title}</h3><p className="mt-1 text-sm leading-relaxed">{copy}</p></div></div>)}</div>;
+}
+
+function EstimateDetails({ data }: { data: CustomerData }) {
+  const primary = data.estimate?.scenarios.find((s) => s.key === "can_remain") ?? data.estimate?.scenarios[0];
+  const standard = primary?.by_access.standard;
+  return <div className="divide-y divide-estimate-blue/20 border-y border-estimate-blue/20">
+    <details className="group py-5"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-bold text-estimate-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">What's included in this estimate <ChevronDown aria-hidden="true" className="size-5 shrink-0 transition-transform group-open:rotate-180" /></summary><div className="pt-5 text-sm"><dl className="space-y-4">{[["R5.0 insulation supply & installation", standard ? dollars(standard.installation) : "Included in your calculated estimate"], ["Onsite Measure + PIESA", dollars(data.fees?.piesa ?? 0)], [FEE_LABEL, dollars(data.fees?.ap ?? 0)], ["Estimated VEU discount", standard ? `−${dollars(standard.applied_discount)}` : "Applied to your calculated estimate"]].map(([label, amount]) => <div key={label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4"><dt className="min-w-0">{label}</dt><dd className="text-right font-bold">{amount}</dd></div>)}</dl><p className="mt-4 text-sm">{FEE_DESCRIPTION}</p></div></details>
+    <details className="group py-5"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-bold text-estimate-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">What could change the final price? <ChevronDown aria-hidden="true" className="size-5 shrink-0 transition-transform group-open:rotate-180" /></summary><ul className="space-y-3 pt-5 text-sm leading-relaxed"><li>Final measured ceiling area may differ from this estimate.</li><li>Access is confirmed onsite. Standard access is assumed.{data.estimate ? ` Moderate access may add ${dollars(data.estimate.access_adjustment.moderate)}; difficult access may add ${dollars(data.estimate.access_adjustment.difficult)}.` : ""}{data.accessConcern ? " Access needs checking onsite." : ""}</li><li>Existing insulation may need removal after onsite inspection.</li><li>Electrical rectification, if required, is quoted separately before approval.</li></ul></details>
+  </div>;
 }
 
 /** Customer-facing estimate. Renders nothing when Gate 1 does not permit display. */
