@@ -25,7 +25,9 @@ mock.module("@/lib/enquiry.core", () => ({ ...realCore, verifyEd25519: async (..
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fakeAdmin }));
 mock.module("@/lib/enquiry.server", () => ({
   ...realServer,
-  upsertEnquiry: async () => {
+  enquirySchema: { ...realServer.enquirySchema, safeParse: (d: unknown) => (active ? { success: true, data: d } : realServer.enquirySchema.safeParse(d)) },
+  upsertEnquiry: async (...a: unknown[]) => {
+    if (!active) return (realServer.upsertEnquiry as (...x: unknown[]) => unknown)(...a);
     if (thrown) throw new Error("boom");
     return { job_id: JOB, created: false };
   },
