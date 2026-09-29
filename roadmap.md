@@ -26,4 +26,4 @@
 - [x] Build and validate three branded customer outcome email designs without enabling delivery
 - [x] Add the approved itemised quote and included-$349 payment section to the likely-eligible email preview
 
-- [ ] Correct both $349 fees, all three outcome emails, and the secure area calculator without enabling delivery
+- [x] Correct both $349 fees, all three outcome emails, and the secure area calculator without enabling delivery
