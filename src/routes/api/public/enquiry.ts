@@ -34,7 +34,15 @@ export const Route = createFileRoute("/api/public/enquiry")({
         try {
           const result = await upsertEnquiry(parsed.data, "base44", null);
           await supabaseAdmin.from("external_sync_logs").insert({ system: "base44", direction: "inbound", entity_type: "job", entity_id: result.job_id, status: "synced", payload: { ...ref, created: result.created, preliminary_outcome: parsed.data.preliminary_outcome ?? parsed.data.eligibility_outcome ?? null, life_support_status: parsed.data.life_support_status ?? null } });
-          return Response.json({ ok: true, ...result });
+          // Referral share link is best-effort: never fail the enquiry over it.
+          let referral_share_url: string | null = null;
+          try {
+            const { referralUrlForJob } = await import("@/lib/referral.server");
+            referral_share_url = await referralUrlForJob(result.job_id);
+          } catch (e) {
+            console.error("referral link creation failed", e);
+          }
+          return Response.json({ ok: true, ...result, referral_share_url });
         } catch (e) {
           console.error("enquiry webhook failed", e);
           await supabaseAdmin.from("external_sync_logs").insert({ system: "base44", direction: "inbound", entity_type: "enquiry", status: "error", payload: ref, error: String(e) });
