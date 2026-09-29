@@ -6,7 +6,7 @@ export const LINK_TTL_DAYS = 30;
 export const TOKEN_BYTES = 32; // 256 bits
 export const LINK_ADMIN_WARNING = "Anyone with this secure link can view this estimate. Do not post it publicly.";
 export const LINK_COMMS_OFF = "Customer communications OFF — link has not been sent";
-export const LINK_UNAVAILABLE = "This estimate link is not available. Please contact HI VIC.";
+export const LINK_UNAVAILABLE = "This estimate link is not available. Please contact Home Insulation Victoria.";
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{43,128}$/;
 
