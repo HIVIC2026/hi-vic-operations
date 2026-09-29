@@ -60,7 +60,7 @@ export async function processPostIntakeWork(opts: { jobId?: string; limit?: numb
 }
 
 async function processItem(item: Claimed) {
-  const mine = () => admin.from("post_intake_work").update({}).eq("id", item.id).eq("locked_at", item.locked_at);
+  const mine = (patch: Record<string, unknown>) => admin.from("post_intake_work").update(patch).eq("id", item.id).eq("locked_at", item.locked_at);
   try {
     const intel = await import("./intelligence.server");
     const { data: p } = await admin.from("jobs").select("properties(address_line, suburb, postcode)").eq("id", item.job_id).single();
@@ -77,7 +77,7 @@ async function processItem(item: Claimed) {
     // The ONE official initial categorisation, after the intelligence attempt, then safe progression.
     const { autoDecideEligibility } = await import("./eligibility.server");
     await autoDecideEligibility(item.job_id, { initialProcessor: true });
-    const { error: ce } = await mine().update({ status: "complete", completed_at: new Date().toISOString(), locked_at: null, lease_expires_at: null, last_error: null });
+    const { error: ce } = await mine({ status: "complete", completed_at: new Date().toISOString(), locked_at: null, lease_expires_at: null, last_error: null });
     if (ce) throw new Error(ce.message);
     const { autoAdvanceJob } = await import("./autoadvance.server");
     await autoAdvanceJob(item.job_id, null, "initial checks complete");
@@ -85,7 +85,7 @@ async function processItem(item: Claimed) {
   } catch (e) {
     const msg = (e as Error).message.slice(0, 500);
     const status = afterFailure(item.attempts);
-    await mine().update({ status, last_error: msg, available_at: new Date(Date.now() + retryDelayMs(item.attempts)).toISOString(), locked_at: null, lease_expires_at: null });
+    await mine({ status, last_error: msg, available_at: new Date(Date.now() + retryDelayMs(item.attempts)).toISOString(), locked_at: null, lease_expires_at: null });
     return { id: item.id, job_id: item.job_id, status, error: msg };
   }
 }
