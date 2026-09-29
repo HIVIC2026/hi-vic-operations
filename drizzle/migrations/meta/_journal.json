@@ -281,6 +281,13 @@
       "when": 1790671396767,
       "tag": "0039_customer_email_safety",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790725953190,
+      "tag": "0040_pre_assessment_acceptance_test_payments",
+      "breakpoints": true
     }
   ]
 }

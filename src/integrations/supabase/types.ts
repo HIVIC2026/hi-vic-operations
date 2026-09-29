@@ -135,6 +135,216 @@ export type Database = {
           },
         ]
       }
+      assessment_acceptances: {
+        Row: {
+          accepted_at: string
+          accepted_ip: unknown
+          accepted_user_agent: string | null
+          assessment_amount_inc_gst: number
+          copy_version: string
+          customer_total_inc_gst: number
+          estimate_id: string
+          estimate_input_signature: string
+          estimate_settings_version: number
+          estimated_discount_inc_gst: number
+          estimated_remaining_balance_inc_gst: number
+          id: string
+          job_id: string
+          snapshot: Json
+        }
+        Insert: {
+          accepted_at?: string
+          accepted_ip?: unknown
+          accepted_user_agent?: string | null
+          assessment_amount_inc_gst: number
+          copy_version: string
+          customer_total_inc_gst: number
+          estimate_id: string
+          estimate_input_signature: string
+          estimate_settings_version: number
+          estimated_discount_inc_gst: number
+          estimated_remaining_balance_inc_gst: number
+          id?: string
+          job_id: string
+          snapshot: Json
+        }
+        Update: {
+          accepted_at?: string
+          accepted_ip?: unknown
+          accepted_user_agent?: string | null
+          assessment_amount_inc_gst?: number
+          copy_version?: string
+          customer_total_inc_gst?: number
+          estimate_id?: string
+          estimate_input_signature?: string
+          estimate_settings_version?: number
+          estimated_discount_inc_gst?: number
+          estimated_remaining_balance_inc_gst?: number
+          id?: string
+          job_id?: string
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_acceptances_estimate_id_fkey"
+            columns: ["estimate_id"]
+            isOneToOne: false
+            referencedRelation: "indicative_estimates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessment_acceptances_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessment_acceptances_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "assessment_acceptances_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessment_payment_attempts: {
+        Row: {
+          created_at: string
+          id: string
+          idempotency_key: string
+          job_id: string
+          outcome: string
+          payment_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          job_id: string
+          outcome: string
+          payment_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          job_id?: string
+          outcome?: string
+          payment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_payment_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessment_payment_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "assessment_payment_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessment_payment_attempts_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "assessment_payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessment_payments: {
+        Row: {
+          acceptance_id: string
+          amount_inc_gst: number
+          attempt_count: number
+          created_at: string
+          failed_at: string | null
+          id: string
+          job_id: string
+          mode: string
+          paid_at: string | null
+          purpose: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          acceptance_id: string
+          amount_inc_gst: number
+          attempt_count?: number
+          created_at?: string
+          failed_at?: string | null
+          id?: string
+          job_id: string
+          mode?: string
+          paid_at?: string | null
+          purpose?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          acceptance_id?: string
+          amount_inc_gst?: number
+          attempt_count?: number
+          created_at?: string
+          failed_at?: string | null
+          id?: string
+          job_id?: string
+          mode?: string
+          paid_at?: string | null
+          purpose?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_payments_acceptance_id_fkey"
+            columns: ["acceptance_id"]
+            isOneToOne: true
+            referencedRelation: "assessment_acceptances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessment_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessment_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "assessment_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assessments: {
         Row: {
           access_difficulty:
