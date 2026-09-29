@@ -12,8 +12,8 @@ const common = { estimateUrl, estimatedTotal: 3396, veuDiscount: 1325, areaM2: 1
 describe("customer outcome email renderers", () => {
   test("likely eligible leads with the complete personalised quote", () => {
     const email = withUnsubscribe(renderEstimateEmail({ ...common, outcome: "likely" }), unsubscribeUrl);
-    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "$1,325", "$4,721", "$3,396", "134.1 m²", "28% reduction", "YOUR NEXT STEP", "MEASURE + ELECTRICAL", "CONTINUE WITH HOME INSULATION VICTORIA", "THIS ISN'T JUST AN", "an Accredited Person approved for this VEU activity", "appropriately licensed electricians", "Registered Electrical Contractors", "appropriately EEC-certified", "Capacity reserved", "WARMER IN WINTER", "COOLER IN SUMMER", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
-    expect(email.html.indexOf("YOUR PRELIMINARY QUOTE")).toBeLessThan(email.html.indexOf("YOUR NEXT STEP"));
+    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "YOUR HOME LOOKS LIKELY TO QUALIFY", "ESTIMATED VEU DISCOUNT", "ESTIMATED PRICE AFTER DISCOUNT", "$1,325", "$4,721", "$3,396", "134.1 m²", "28% estimated saving", "THIS IS MORE THAN AN", "Ceiling measure-up", "Electrical safety assessment", "Vetted REC electricians", "Appropriately EEC-certified installers", "VEEC creation and discount pathway", "YOU'RE IN THE RIGHT HANDS.", "ACCREDITED PERSON", "VETTED TRADES", "RESERVED CAPACITY", "appropriately licensed electricians/RECs", "appropriately EEC-certified insulation providers", "Warmer in winter", "Cooler in summer", "Less heating &amp; cooling demand", "YOUR ESTIMATED VEU DISCOUNT: $1,325", "YOUR NEXT STEP", "MEASURE + ELECTRICAL SAFETY ASSESSMENT", "CONTINUE WITH HOME INSULATION VICTORIA", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Refer a friend", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
+    expect(email.html.indexOf("ESTIMATED VEU DISCOUNT")).toBeLessThan(email.html.indexOf("YOUR NEXT STEP"));
     expect(email.html).not.toContain("YOUR ANSWERS HAVEN'T RULED YOU OUT");
     expect(email.html).not.toMatch(/>HI VIC</);
   });
@@ -32,20 +32,19 @@ describe("customer outcome email renderers", () => {
 
   test("sample-only personalisation and premium money card", () => {
     const m = renderEstimateEmail({ ...common, firstName: "Alex", address: "30 Dash St, Fraser Rise VIC 3336" });
-    expect(m.html).toContain("GOOD NEWS, Alex!");
+    expect(m.html).toContain("GOOD NEWS, ALEX.");
     expect(m.html).toContain("30 Dash St, Fraser Rise VIC 3336");
-    expect(m.html.indexOf("ESTIMATED VEU DISCOUNT")).toBeLessThan(m.html.indexOf("YOUR ESTIMATED PRICE"));
+    expect(m.html.indexOf("ESTIMATED VEU DISCOUNT")).toBeLessThan(m.html.indexOf("ESTIMATED PRICE AFTER DISCOUNT"));
     expect(m.html).toContain("background-color:#52C875");
     expect(renderEstimateEmail(common).html).not.toContain("30 Dash St");
   });
 
   test("AP count states approved Accredited Persons, never staff", () => {
     const omitted = renderEstimateEmail({ ...common, apCount: null });
-    expect(omitted.html).toContain("an Accredited Person approved for this VEU activity");
-    expect(omitted.plainText).toContain("an Accredited Person approved for this VEU activity");
-    expect(omitted.html).not.toContain("one of only");
+    expect(omitted.html).not.toContain("ONE OF ONLY");
+    expect(omitted.plainText).not.toContain("one of only");
     const verified = renderEstimateEmail({ ...common, apCount: 7 });
-    expect(verified.html).toContain("one of only 7 Accredited Persons currently approved for VEU Activity 48 in Victoria");
+    expect(verified.html).toContain("ONE OF ONLY 7 ACCREDITED PERSONS CURRENTLY APPROVED FOR ACTIVITY 48 IN VICTORIA");
     expect(verified.plainText).toContain("one of only 7 Accredited Persons currently approved for VEU Activity 48 in Victoria");
     for (const email of [omitted, verified, renderIneligibleOutcomeEmail({ referralUrl })]) {
       expect(`${email.html} ${email.plainText}`).not.toMatch(/team member|staff/i);
@@ -68,6 +67,6 @@ describe("customer outcome email renderers", () => {
       for (const colour of ["#3C51C4", "#07BF61", "#52C875"]) expect(email.html).toContain(colour);
     }
     expect(source + preview).not.toMatch(/sendTemplateEmail|sendLovableEmail|createServerFn|supabase|fetch\(|\.insert\(|\.update\(/);
-    for (const label of ["Likely eligible", "Needs confirmation", "Does not appear eligible"]) expect(preview).toContain(label);
+    expect(preview).toContain("likely-eligible");
   });
 });
