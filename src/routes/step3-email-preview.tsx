@@ -2,8 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { renderEstimateEmail, renderIneligibleOutcomeEmail } from "@/lib/estimate-email";
 import { withUnsubscribe } from "@/lib/emailsafety.core";
-import { ConfirmQuote } from "@/components/portal/estimate";
+import { AreaCalculator, ConfirmQuote } from "@/components/portal/estimate";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
+import { lookupLocation } from "@/lib/activity48.core";
+import type { RetailSettings } from "@/lib/estimate.core";
 
 
 const estimateUrl = "https://quote.homeinsulationvictoria.com.au/estimate/sample-secure-link";
@@ -14,6 +16,16 @@ const unsubscribeUrl = `https://quote.homeinsulationvictoria.com.au/api/public/u
 const SAMPLE_INSTALL = 4500, SAMPLE_DISCOUNT = 1481.76, PIESA_FEE = 349, AP_FEE = 349;
 const SAMPLE_GROSS = SAMPLE_INSTALL + PIESA_FEE + AP_FEE;
 const SAMPLE_CUSTOMER = SAMPLE_GROSS - SAMPLE_DISCOUNT;
+const previewSettings: RetailSettings = {
+  id: "preview-v2", version: 2, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 15,
+  piesa_assessment_inc_gst: PIESA_FEE, ap_management_inc_gst: AP_FEE,
+  access_standard_multiplier: 1, access_moderate_multiplier: 1.1, access_difficult_multiplier: 1.25,
+  indicative_veec_value: 70, veec_value_source_label: "Current settings example",
+  veec_value_source_url: "https://www.energy.vic.gov.au/victorian-energy-upgrades/products/insulation-discounts",
+  veec_value_checked_at: "2026-09-29", minimum_customer_copayment_inc_gst: 200,
+  spec_version: "25.0", spec_source_url: "https://www.energy.vic.gov.au/",
+};
+const previewLocation = lookupLocation("3336");
 const quote = {
   estimateUrl,
   estimatedTotal: SAMPLE_CUSTOMER,
@@ -67,7 +79,7 @@ function EmailPreview() {
   const [view, setView] = useState<"fit" | "desktop" | "mobile">("fit");
   const [outcome, setOutcome] = useState<keyof typeof samples>("likely");
   const [hasExistingInsulation, setHasExistingInsulation] = useState(false);
-  const [previewKind, setPreviewKind] = useState<"email" | "confirm">("email");
+  const [previewKind, setPreviewKind] = useState<"email" | "calculator" | "confirm">("email");
   const sample = outcome === "ineligible" ? samples.ineligible : withUnsubscribe(renderEstimateEmail({
     ...quote,
     outcome,
@@ -94,11 +106,12 @@ function EmailPreview() {
        </div>
        <div className="mb-4 flex flex-wrap gap-2" aria-label="Preview screen">
          <button type="button" aria-pressed={previewKind === "email"} className={btn} style={pill(previewKind === "email")} onClick={() => setPreviewKind("email")}>Email</button>
-         {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "confirm"} className={btn} style={pill(previewKind === "confirm")} onClick={() => setPreviewKind("confirm")}>Secure next step</button>}
+          {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "calculator"} className={btn} style={pill(previewKind === "calculator")} onClick={() => setPreviewKind("calculator")}>Calculator</button>}
+          {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "confirm"} className={btn} style={pill(previewKind === "confirm")} onClick={() => setPreviewKind("confirm")}>Secure next step</button>}
        </div>
       {previewKind === "email" && <><p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p><p className="mb-6 text-sm"><strong>Preheader:</strong> {sample.previewText}</p></>}
        {previewKind === "email" && <div className="mb-4 flex flex-wrap items-center gap-3 text-xs font-bold">
-         {outcome !== "ineligible" && <a href={calculatorTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test CHANGE → calculator</a>}
+          {outcome !== "ineligible" && <a href={calculatorTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test CHECK ANOTHER CEILING SIZE →</a>}
          <a href={outcomeTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: outcome === "ineligible" ? "#3C51C4" : "#07BF61" }}>{outcome === "ineligible" ? "Test REVIEW MY RESULT →" : "Test PAY $349 & CONTINUE →"}</a>
        </div>}
       <div className="mb-4 flex flex-wrap gap-2" aria-label="Preview width">
@@ -110,7 +123,7 @@ function EmailPreview() {
         <h2 className="mb-3 text-sm font-extrabold uppercase" style={{ color: "#3C51C4" }}>{view === "fit" ? "Responsive fit" : view === "desktop" ? "Desktop · 640px" : "Mobile · 390px"}</h2>
          {previewKind === "email" ? <div className="mx-auto max-w-full overflow-x-auto p-1 sm:p-3" style={{ background: "#FFFFFF", border: "2px solid #3C51C4", ...(width ? { width: width + 30 } : {}) }}>
             <iframe title={`${outcome} email`} srcDoc={srcDoc} sandbox="" className="block h-[2800px] max-w-full border-0" style={{ width: width ?? "100%", background: "#FBFCFA" }} />
-         </div> : <div className="estimate-brand mx-auto max-w-full overflow-hidden bg-estimate-canvas" style={{ width: width ?? "100%" }}><EstimateHeader /><div className="px-4 pb-10"><ConfirmQuote estimatedPrice={SAMPLE_CUSTOMER} assessmentFee={PIESA_FEE} preview onBack={() => setPreviewKind("email")} /></div></div>}
+          </div> : previewKind === "calculator" && previewLocation ? <div className="estimate-brand mx-auto max-w-full overflow-hidden bg-estimate-canvas" style={{ width: width ?? "100%" }}><EstimateHeader /><div className="px-4 pb-10"><AreaCalculator calc={{ location: previewLocation, insulation: hasExistingInsulation ? "present" : "none", settings: previewSettings }} initial={150} fees={{ piesa: PIESA_FEE, ap: AP_FEE, minCopay: 200 }} propertyAddress="30 Dash St, Fraser Rise VIC 3336" preview /></div></div> : <div className="estimate-brand mx-auto max-w-full overflow-hidden bg-estimate-canvas" style={{ width: width ?? "100%" }}><EstimateHeader /><div className="px-4 pb-10"><ConfirmQuote estimatedPrice={SAMPLE_CUSTOMER} assessmentFee={PIESA_FEE} preview onBack={() => setPreviewKind("email")} /></div></div>}
        {outcome !== "ineligible" && <div className="mb-4 flex flex-wrap gap-2" aria-label="Existing insulation sample">
          <button type="button" aria-pressed={!hasExistingInsulation} className={btn} style={pill(!hasExistingInsulation)} onClick={() => setHasExistingInsulation(false)}>No existing insulation</button>
          <button type="button" aria-pressed={hasExistingInsulation} className={btn} style={pill(hasExistingInsulation)} onClick={() => setHasExistingInsulation(true)}>Existing insulation: yes</button>

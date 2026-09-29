@@ -102,6 +102,9 @@ describe("wiring", () => {
   it("calculator stays client-only (no server call on input)", () => {
     const calc = ui.slice(ui.indexOf("function AreaCalculator"), ui.indexOf("export function OwnerEstimateCard"));
     expect(calc).not.toContain("useServerFn"); expect(calc).not.toContain("useMutation");
+    expect(calc).not.toMatch(/fetch\(|\.insert\(|\.update\(|\.upsert\(/);
+    expect(calc).toContain('window.location.hash === "#calculator"');
+    expect(route).toContain("propertyAddress={data.job.address}");
   });
   it("table: RLS on, no anon/authenticated access, one active link per job", () => {
     expect(mig).toContain("ENABLE ROW LEVEL SECURITY");
