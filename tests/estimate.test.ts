@@ -114,7 +114,7 @@ describe("static separation / UI", () => {
     expect(ui).toContain("Step 3 · Indicative estimate");
     expect(ui.indexOf("<NextStep fee")).toBeLessThan(ui.indexOf("<HouseholdBenefits />"));
     expect(ui.indexOf("<NextStep fee")).toBeLessThan(ui.indexOf("<EstimateDetails data"));
-    expect(ui).toContain("See what your upgrade could cost");
+    expect(ui).toContain("CHECK ANOTHER CEILING SIZE");
     expect(ui).toContain("*Victorian Government estimates/averages. Actual savings vary");
     expect(ui).toContain("Up to 20%*");
     expect(ui).toContain("$400+ / year*");
