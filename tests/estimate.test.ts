@@ -173,9 +173,28 @@ describe("Step 3 v2 refinement", () => {
     expect(calc).not.toMatch(/useServerFn|supabase|fetch\(|useMutation|useAction/);
     expect(calc).toContain('useState(initial == null ? "" : String(initial))');
     expect(calc).toContain("Other / custom");
-    expect(calc).toContain("Nothing you enter here is saved.");
+    expect(calc).toContain("This is a what-if calculator only. It does not change the property details you submitted.");
     const srv = readFileSync("src/lib/estimate.server.ts", "utf8");
     expect(srv).not.toMatch(/from\("(jobs|ceiling_measurements|property_area_estimates)"\)\.(update|insert|upsert)/);
     expect(srv).not.toMatch(/assumption/i);
+  });
+  test("calculator uses the approved quote hierarchy and payment-safe copy", () => {
+    const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
+    const calc = ui.slice(ui.indexOf("function CalculatorQuoteResult"), ui.indexOf("export function OwnerEstimateCard"));
+    for (const text of ["CHECK ANOTHER CEILING SIZE", "Estimated ceiling size", "R5.0 ceiling insulation — supply & install", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA) + onsite measure", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "Your estimated cost after discount", "payable now", "Estimated remaining balance", "All prices incl GST.", "WHAT COULD CHANGE AFTER THE ONSITE ASSESSMENT?", "PAY {dollars(fees.piesa)} &amp; CONTINUE →", "Secure payment is not yet available."]) expect(calc).toContain(text);
+    expect(calc).toContain('existingInsulation={calc.insulation === "present"}');
+    expect(calc).toContain("Nothing additional is simply added without being shown to you first.");
+    expect(calc).toContain("what-if calculator only");
+  });
+  test.each([100, 125, 150, 175, 200])("calculator %i m² reconciles every displayed amount", (m2) => {
+    const e = whatIfEstimate(m2, lookupLocation("3336"), "none", S)!;
+    const standard = e.primary.by_access.standard;
+    expect(standard.installation).toBe(m2 * 30);
+    expect(standard.pre_discount_total).toBeCloseTo(standard.installation + 349 + 349, 2);
+    expect(standard.estimated_customer_total).toBeCloseTo(standard.pre_discount_total - standard.applied_discount, 2);
+    expect(standard.estimated_customer_total - 349).toBeCloseTo(Math.max(0, standard.estimated_customer_total - S.piesa_assessment_inc_gst), 2);
+  });
+  test("calculator rejects zero, negative and out-of-range assumptions", () => {
+    for (const value of ["0", "-1", "19.99", "1000.01", "1001", "not-a-number"]) expect(parseAssumption(value)).toBeNull();
   });
 });
