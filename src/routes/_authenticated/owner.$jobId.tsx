@@ -1,3 +1,4 @@
+import { OwnerEstimateCard } from "@/components/portal/estimate";
 import { AppointmentPanel } from "@/components/portal/partner";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -35,6 +36,7 @@ function OwnerJob() {
         <dl className="mt-3 grid grid-cols-2 gap-1 text-sm"><dt className="text-muted-foreground">Electrician</dt><dd>{job.electrician_name ?? "Being arranged"}</dd><dt className="text-muted-foreground">Installer</dt><dd>{job.installer_name ?? "Being arranged"}</dd></dl>
       </div>
       <div className="space-y-4">
+        {(s === "new_enquiry" || s === "eligibility_review" || s === "awaiting_electrician" || s === "assessment_booking") && <OwnerEstimateCard jobId={jobId} />}
         <OwnerAssignmentCard jobId={jobId} />
         <QuotesPanel jobId={jobId} canRespond />
         <PaymentsPanel jobId={jobId} isAdmin={false} />
