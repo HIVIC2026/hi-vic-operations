@@ -12,7 +12,7 @@ const common = { estimateUrl, estimatedTotal: 3396, veuDiscount: 1325, areaM2: 1
 describe("customer outcome email renderers", () => {
   test("likely eligible leads with the complete personalised quote", () => {
     const email = withUnsubscribe(renderEstimateEmail({ ...common, outcome: "likely" }), unsubscribeUrl);
-    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "$1,325", "$4,721", "$3,396", "134.1 m²", "28% reduction", "YOUR NEXT STEP", "MEASURE + ELECTRICAL", "CONTINUE WITH HOME INSULATION VICTORIA", "THIS ISN'T JUST AN", "approved Accredited Person", "appropriately licensed electricians", "Registered Electrical Contractors", "appropriately EEC-certified", "Capacity reserved", "WARMER IN WINTER", "COOLER IN SUMMER", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
+    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "$1,325", "$4,721", "$3,396", "134.1 m²", "28% reduction", "YOUR NEXT STEP", "MEASURE + ELECTRICAL", "CONTINUE WITH HOME INSULATION VICTORIA", "THIS ISN'T JUST AN", "an Accredited Person approved for this VEU activity", "appropriately licensed electricians", "Registered Electrical Contractors", "appropriately EEC-certified", "Capacity reserved", "WARMER IN WINTER", "COOLER IN SUMMER", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
     expect(email.html.indexOf("YOUR PRELIMINARY QUOTE")).toBeLessThan(email.html.indexOf("YOUR NEXT STEP"));
     expect(email.html).not.toContain("YOUR ANSWERS HAVEN'T RULED YOU OUT");
     expect(email.html).not.toMatch(/>HI VIC</);
@@ -39,12 +39,17 @@ describe("customer outcome email renderers", () => {
     expect(renderEstimateEmail(common).html).not.toContain("30 Dash St");
   });
 
-  test("AP count is optional and never invented", () => {
+  test("AP count states approved Accredited Persons, never staff", () => {
     const omitted = renderEstimateEmail({ ...common, apCount: null });
-    expect(omitted.html).toContain("approved Accredited Person");
-    expect(omitted.html).not.toContain("2 currently verified");
+    expect(omitted.html).toContain("an Accredited Person approved for this VEU activity");
+    expect(omitted.plainText).toContain("an Accredited Person approved for this VEU activity");
+    expect(omitted.html).not.toContain("one of only");
     const verified = renderEstimateEmail({ ...common, apCount: 7 });
-    expect(verified.html).toContain("7 currently verified team members");
+    expect(verified.html).toContain("one of only 7 Accredited Persons currently approved for VEU Activity 48 in Victoria");
+    expect(verified.plainText).toContain("one of only 7 Accredited Persons currently approved for VEU Activity 48 in Victoria");
+    for (const email of [omitted, verified, renderIneligibleOutcomeEmail({ referralUrl })]) {
+      expect(`${email.html} ${email.plainText}`).not.toMatch(/team member|staff/i);
+    }
   });
 
   test("requires all mandatory quote values and rejects unsafe URLs", () => {
