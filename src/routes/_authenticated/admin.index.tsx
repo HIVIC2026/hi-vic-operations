@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAction } from "@/hooks/use-me";
-import { autoAdvancePipeline, createEnquiry, getCommsStatus, sweepAuthorities } from "@/lib/portal.functions";
+import { autoAdvancePipeline, createEnquiry, getCommsStatus, getPostIntakeHealth, sweepAuthorities } from "@/lib/portal.functions";
 import { useServerFn } from "@tanstack/react-start";
 
 const ACCEPTANCE_STAGES = ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"];
