@@ -53,8 +53,9 @@ function PriceResult({ est, area, fees, assumption = false }: { est: Est; area: 
 const insulationSource = "https://www.energy.vic.gov.au/victorian-energy-upgrades/products/insulation-discounts";
 const energyTipsSource = "https://www.energy.vic.gov.au/households/save-energy-and-money/top-10-energy-saving-tips";
 function HouseholdBenefits() {
-  return <section aria-labelledby="home-benefits">
-    <h3 id="home-benefits" className="text-xl font-extrabold text-estimate-blue sm:text-2xl">What this upgrade could mean for your home</h3>
+  const id = useId();
+  return <section aria-labelledby={id}>
+    <h3 id={id} className="text-xl font-extrabold text-estimate-blue sm:text-2xl">What this upgrade could mean for your home</h3>
     <div className="mt-5 grid gap-3 sm:grid-cols-3">
       {[
         { icon: Leaf, value: "$400+ per year*", label: "Average potential energy-bill savings" },

@@ -108,7 +108,7 @@ describe("static separation / UI", () => {
      expect(ui).toContain('roof space and access');
     expect(ui).not.toMatch(/Pay now|[Pp]ay\(|createBooking|useServerFn\(create/);
     expect(ui).toContain("Online booking &amp; payment — coming in the next step");
-    expect(ui).toContain("If full removal is needed");
+    expect(ui).toContain("If full removal is required");
     expect(ui).toContain("HI VIC eligibility, Accredited Person compliance, job administration, evidence review & VEEC processing");
     expect(ui).not.toContain("AP management &amp; compliance");
     expect(ui).toContain("Step 3 · Indicative estimate");
