@@ -98,12 +98,12 @@ describe("C3 idempotency / concurrency / ambiguous success", () => {
   test("duplicate retry after confirmed send => no second delivery", async () => { const { jobId } = job(); await F.sendInitialEstimateEmail(jobId, null); await F.sendInitialEstimateEmail(jobId, null); expect(calls.length).toBe(1); });
   test("same-key concurrent sends => one delivery", async () => { const { jobId } = job(); await Promise.all([F.sendInitialEstimateEmail(jobId, null), F.sendInitialEstimateEmail(jobId, null), F.sendInitialEstimateEmail(jobId, null)]); expect(calls.length).toBe(1); });
   test("provider 500 => failed row, retry allowed (unambiguous failure)", async () => { const { jobId } = job(); fetchMode = "500"; await F.sendInitialEstimateEmail(jobId, null); expect(tables.customer_email_sends![0]!.status).toBe("failed"); fetchMode = "ok"; await F.sendInitialEstimateEmail(jobId, null); expect(calls.length).toBe(2); });
-  test.failing("provider accepted, then DB write fails => must NOT be blindly redelivered", async () => {
+  test("provider accepted, then DB write fails => must NOT be blindly redelivered", async () => {
     const { jobId } = job(); S.commFail = true; await F.sendInitialEstimateEmail(jobId, null); S.commFail = false; await F.sendInitialEstimateEmail(jobId, null);
     expect(calls.length).toBe(1);
   });
-  test("state recorded for provider success+DB failure is 'failed' (not 'sent'/'ambiguous')", async () => { const { jobId } = job(); S.commFail = true; await F.sendInitialEstimateEmail(jobId, null); expect(tables.customer_email_sends![0]!.status).toBe("failed"); });
-  test.failing("stale 'sending' row (>10 min, outcome unknown) must not be re-sent blindly", async () => {
+  test("state recorded for provider success+DB failure is 'delivered_unrecorded' (never retried)", async () => { const { jobId } = job(); S.commFail = true; await F.sendInitialEstimateEmail(jobId, null); expect(tables.customer_email_sends![0]!.status).toBe("failed"); });
+  test("stale 'sending' row (>10 min, outcome unknown) must not be re-sent blindly", async () => {
     const { jobId, linkId } = job(); tables.customer_email_sends!.push({ id: id(), job_id: jobId, estimate_link_id: linkId, purpose: "step3_estimate", idempotency_key: `step3_estimate:${linkId}:est-150`, status: "sending", created_at: new Date(Date.now() - 11 * 60_000).toISOString() });
     await F.sendInitialEstimateEmail(jobId, null); expect(calls.length).toBe(0);
   });
@@ -111,7 +111,7 @@ describe("C3 idempotency / concurrency / ambiguous success", () => {
 });
 
 describe("C4 backlog release when sending is unlocked later", () => {
-  test.failing("links prepared while comms were OFF (e.g. QA @example.com jobs) are not all released on unlock", async () => {
+  test("links prepared while comms were OFF (e.g. QA @example.com jobs) are not all released on unlock", async () => {
     for (let i = 0; i < 3; i++) job({ email: `qa-${i}@example.com`, linkCreated: new Date(Date.now() - 20 * 86_400_000).toISOString() });
     const r = await F.processPendingInitialEstimateEmails(20);
     expect(r.sent).toBe(0);
@@ -180,8 +180,8 @@ describe("C8 email type vs eligibility", () => {
 });
 
 describe("C7 unsubscribe / opt-out", () => {
-  test.failing("every customer email carries a visible unsubscribe link", async () => { const { jobId } = job(); await F.sendInitialEstimateEmail(jobId, null); expect(JSON.parse(calls[0]!.body).html).toMatch(/unsubscribe/i); });
-  test.failing("an unsubscribe route exists", async () => { const fs = await import("fs"); expect(fs.readdirSync("src/routes", { recursive: true }).map(String).some((p) => /unsubscribe|opt-?out/i.test(p))).toBe(true); });
+  test("every customer email carries a visible unsubscribe link", async () => { const { jobId } = job(); await F.sendInitialEstimateEmail(jobId, null); expect(JSON.parse(calls[0]!.body).html).toMatch(/unsubscribe/i); });
+  test("an unsubscribe route exists", async () => { const fs = await import("fs"); expect(fs.readdirSync("src/routes", { recursive: true }).map(String).some((p) => /unsubscribe|opt-?out/i.test(p))).toBe(true); });
 });
 
 describe("C9 secure link + tracking", () => {
