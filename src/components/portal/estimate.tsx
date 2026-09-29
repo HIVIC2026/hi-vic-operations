@@ -71,12 +71,12 @@ export function CustomerEstimate({ data, publicPage = false }: { data: CustomerD
   const fees = data.fees;
   const Heading = publicPage ? "h1" : "h2";
   return (
-    <div className="estimate-brand space-y-8 text-estimate-navy" aria-label="Indicative estimate">
+    <div className="estimate-brand space-y-7 text-estimate-navy sm:space-y-9" aria-label="Indicative estimate">
        <div>
          <p className="mb-2 text-xs font-extrabold uppercase tracking-widest text-estimate-green">GOOD NEWS</p>
          <Heading className="text-2xl font-extrabold leading-tight text-estimate-blue sm:text-3xl">{HEADLINE[data.mode]}</Heading>
-         <span className="mt-4 inline-flex max-w-full rounded-full bg-estimate-green-soft px-3 py-2 text-xs font-extrabold uppercase leading-snug text-estimate-navy">{ELIGIBILITY_COPY[data.mode].badge}</span>
-         <p className="mt-4 text-base leading-relaxed text-estimate-navy">{ELIGIBILITY_COPY[data.mode].description}</p>
+          <span className="mt-3 inline-flex max-w-full rounded-full bg-estimate-green-soft px-3 py-2 text-xs font-extrabold uppercase leading-snug text-estimate-navy">{ELIGIBILITY_COPY[data.mode].badge}</span>
+          <p className="mt-3 text-sm leading-relaxed text-estimate-navy sm:text-base">{ELIGIBILITY_COPY[data.mode].description}</p>
          {data.mode === "onsite" && !!data.onsiteDrivers?.length && <p className="mt-3 text-sm leading-relaxed text-estimate-navy"><span className="font-bold">We just need to confirm:</span> {[...new Set(data.onsiteDrivers.map(plainOnsiteDriver))].join(" · ")}</p>}
        </div>
       {data.rolloutHold && <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Assessments for private homes open from 1 October 2026. This is a scheduling hold only, not an eligibility result.</p>}
