@@ -109,7 +109,7 @@ describe("static separation / UI", () => {
     expect(ui).not.toMatch(/Pay now|[Pp]ay\(|createBooking|useServerFn\(create/);
     expect(ui).toContain("Online booking &amp; payment — coming in the next step");
     expect(ui).toContain("If full removal is required");
-     expect(ui).toContain("Home Insulation Victoria — AP & Compliance Management");
+     expect(ui).toContain("CUSTOMER_QUOTE_LABELS.apManagement");
     expect(ui).not.toContain("AP management &amp; compliance");
     expect(ui).toContain("Step 3 · Indicative estimate");
     expect(ui.indexOf("<NextStep fee")).toBeLessThan(ui.indexOf("<HouseholdBenefits />"));
@@ -118,7 +118,7 @@ describe("static separation / UI", () => {
     expect(ui).toContain("*Victorian Government estimates/averages. Actual savings vary");
     expect(ui).toContain("Up to 20%*");
     expect(ui).toContain("$400+ / year*");
-    for (const t of ["From eligibility through to installation and VEEC processing, HI VIC coordinates the people, paperwork and compliance for you.", "Licensed electrical safety assessment", "EEC Certified Insulation Installer", "We manage it end-to-end", "an EEC Certified Insulation Installer (CII)", "a licensed electrician employed by a Registered Electrical Contractor (REC)", "which trades meet the program requirements", "Your assessment is completed by a licensed electrician employed by a Registered Electrical Contractor (REC)."]) expect(ui).toContain(t);
+     for (const t of ["From eligibility through to installation and VEEC processing, Home Insulation Victoria coordinates the people, paperwork and compliance for you.", "Licensed electrical safety assessment", "EEC Certified Insulation Installer", "We manage it end-to-end", "an EEC Certified Insulation Installer (CII)", "a licensed electrician employed by a Registered Electrical Contractor (REC)", "which trades meet the program requirements", "Your assessment is completed by a licensed electrician employed by a Registered Electrical Contractor (REC)."]) expect(ui).toContain(t);
     expect(ui).not.toContain("registered with ESV");
   });
   test("owner page shows card; admin tab places it after Gate 1", () => {
@@ -147,7 +147,7 @@ describe("Step 3 v2 refinement", () => {
   test("wording: benchmark not market price; fee not government-mandated", () => {
     const n = benchmarkNote(70);
     expect(n).toContain("$70 per VEEC-equivalent benchmark"); expect(n).toContain("not the live VEEC market price"); expect(n).not.toMatch(/official (fixed )?VEEC price|guarantee/i);
-    expect(FEE_LABEL).toBe("Home Insulation Victoria — AP & Compliance Management");
+    expect(FEE_LABEL).toBe("Home Insulation Victoria — Accredited Person Management");
     expect(CALC_QUICK).toEqual([100, 125, 150, 200]);
     const core = readFileSync("src/lib/estimate.core.ts", "utf8"); expect(core).not.toMatch(/government[- ]mandated/i);
   });
@@ -181,7 +181,7 @@ describe("Step 3 v2 refinement", () => {
   test("calculator uses the approved quote hierarchy and payment-safe copy", () => {
     const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
     const calc = ui.slice(ui.indexOf("function CalculatorQuoteResult"), ui.indexOf("export function OwnerEstimateCard"));
-    for (const text of ["CHECK ANOTHER CEILING SIZE", "Estimated ceiling size", "R5.0 ceiling insulation — supply & install", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA) + onsite measure", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "Your estimated cost after discount", "payable now", "Estimated remaining balance", "All prices incl GST.", "WHAT COULD CHANGE AFTER THE ONSITE ASSESSMENT?", "PAY {dollars(fees.piesa)} &amp; CONTINUE →", "Secure payment is not yet available."]) expect(calc).toContain(text);
+    for (const text of ["CHECK ANOTHER CEILING SIZE", "Estimated ceiling size", "CUSTOMER_QUOTE_LABELS", "CUSTOMER_PAYMENT_COPY", "CUSTOMER_WHAT_COULD_CHANGE", "CUSTOMER_EXISTING_INSULATION_NOTE", "All prices incl GST.", "PAY {dollars(fees.piesa)} &amp; CONTINUE →", "Secure payment is not yet available."]) expect(calc).toContain(text);
     expect(calc).toContain('existingInsulation={calc.insulation === "present"}');
     expect(calc).toContain("Nothing additional is simply added without being shown to you first.");
     expect(calc).toContain("what-if calculator only");

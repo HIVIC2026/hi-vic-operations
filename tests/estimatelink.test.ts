@@ -95,7 +95,7 @@ describe("wiring", () => {
   });
   it("secure estimate supports the confirm state without inventing a payment action", () => {
     expect(route).toContain('window.location.hash === "#confirm"');
-    for (const copy of ["LET’S CONFIRM YOUR QUOTE", "PAY TODAY", "ESTIMATED REMAINING BALANCE", "NO SURPRISE ADD-ONS.", "PAYMENT CURRENTLY UNAVAILABLE", "BACK TO MY ESTIMATE"]) expect(ui).toContain(copy);
+    for (const copy of ["LET’S CONFIRM YOUR QUOTE", "CUSTOMER_QUOTE_LABELS.payableNow", "CUSTOMER_QUOTE_LABELS.remainingBalance", "NO SURPRISE ADD-ONS.", "CUSTOMER_PAYMENT_COPY.noSilentAdditions", "PAYMENT CURRENTLY UNAVAILABLE", "BACK TO MY ESTIMATE"]) expect(ui).toContain(copy);
     expect(ui).not.toMatch(/stripe|checkout|paymentIntent/i);
     expect(engagementServer).toContain('t.purpose === "step3_estimate" ? "#confirm" : ""');
   });
