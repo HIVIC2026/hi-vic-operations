@@ -43,6 +43,10 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   const when = new Date(start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
   if (stage === target) await logEvent(jobId, actorId, "booking_rescheduled", `${kind} rescheduled to ${when} by ${roleLabel}`);
   else await transition(jobId, target, actorId, `${kind.charAt(0).toUpperCase() + kind.slice(1)} booked for ${when} by ${roleLabel}`);
+  if (kind === "assessment") {
+    const { recordBookingCompleted } = await import("./engagement.server");
+    await recordBookingCompleted(jobId).catch((e) => console.error("engagement booking record failed", (e as Error).message));
+  }
   await autoAdvanceJob(jobId, actorId, "booking confirmed");
   return { ok: true };
 }

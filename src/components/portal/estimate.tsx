@@ -134,7 +134,7 @@ function EstimateDetails({ data }: { data: CustomerData }) {
 }
 
 /** Customer-facing estimate. Renders nothing when Gate 1 does not permit display. */
-export function CustomerEstimate({ data, publicPage = false }: { data: CustomerData; publicPage?: boolean }) {
+export function CustomerEstimate({ data, publicPage = false, onCalculatorUse }: { data: CustomerData; publicPage?: boolean; onCalculatorUse?: (m2: number) => void }) {
   if (!data.visible || !data.mode) return null;
   const fees = data.fees;
   const Heading = publicPage ? "h1" : "h2";
@@ -149,9 +149,9 @@ export function CustomerEstimate({ data, publicPage = false }: { data: CustomerD
        </div>
       {data.rolloutHold && <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Assessments for private homes open from 1 October 2026. This is a scheduling hold only, not an eligibility result.</p>}
       {!fees ? <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Your estimate is being prepared.</p> : <>
-        {data.estimate ? <PriceResult est={data.estimate} area={data.estimate.area.m2} fees={fees} /> : data.calc ? <AreaCalculator calc={data.calc} initial={null} fees={fees} /> : <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">{data.postcodeUnlisted ? "We can't calculate a VEU discount for this postcode yet because it isn't in the official VEU location list. We'll confirm your pricing directly." : "Your estimate is being prepared."}</p>}
+        {data.estimate ? <PriceResult est={data.estimate} area={data.estimate.area.m2} fees={fees} /> : data.calc ? <AreaCalculator calc={data.calc} initial={null} fees={fees} {...(onCalculatorUse ? { onUse: onCalculatorUse } : {})} /> : <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">{data.postcodeUnlisted ? "We can't calculate a VEU discount for this postcode yet because it isn't in the official VEU location list. We'll confirm your pricing directly." : "Your estimate is being prepared."}</p>}
         {data.estimate && <><RemovalNote est={data.estimate} /><HouseholdBenefits /><PriceProtection settings={data.calc?.settings} fees={fees} /><NextStep fee={fees.piesa} hasPrice /><ManagedProcess /></>}
-        {data.estimate && data.calc && <AreaCalculator calc={data.calc} initial={data.estimate.area.m2} fees={fees} secondary />}
+        {data.estimate && data.calc && <AreaCalculator calc={data.calc} initial={data.estimate.area.m2} fees={fees} secondary {...(onCalculatorUse ? { onUse: onCalculatorUse } : {})} />}
         <EstimateDetails data={data} />
         {data.calc && <details className="group border-b border-estimate-blue/20 pb-5 text-sm"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-bold text-estimate-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">How is the VEU discount estimated? <ChevronDown aria-hidden="true" className="size-5 shrink-0 transition-transform group-open:rotate-180" /></summary><p className="mt-4 leading-relaxed">We use the official Activity 48 postcode/climate calculation and a {dollars(data.calc.settings.indicative_veec_value)} consumer benchmark calibrated to the Victorian Government&apos;s published example. Final certificate values can change. This is not the live VEEC market price.</p>{data.calc.settings.veec_value_source_url?.startsWith("https://") && <a className="mt-2 inline-block font-bold text-estimate-blue underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" href={data.calc.settings.veec_value_source_url} target="_blank" rel="noopener noreferrer">View the published example <span aria-hidden="true">↗</span></a>}</details>}
         <p className="pb-6 text-xs leading-relaxed text-estimate-navy">Indicative estimate only. Final price depends on onsite measurement, existing insulation, access, electrical safety, eligibility and certificate values.</p>
@@ -161,11 +161,20 @@ export function CustomerEstimate({ data, publicPage = false }: { data: CustomerD
 }
 
 /** Pure client-side what-if. Local state only: no server call, never saved to the job, measurements or estimates. */
-function AreaCalculator({ calc, initial, fees, secondary = false }: { calc: NonNullable<CustomerData["calc"]>; initial: number | null; fees: NonNullable<CustomerData["fees"]>; secondary?: boolean }) {
+function AreaCalculator({ calc, initial, fees, secondary = false, onUse }: { calc: NonNullable<CustomerData["calc"]>; initial: number | null; fees: NonNullable<CustomerData["fees"]>; secondary?: boolean; onUse?: (m2: number) => void }) {
   const id = useId();
   const [open, setOpen] = useState(!secondary);
-  const [raw, setRaw] = useState(secondary ? "" : initial == null ? "" : String(initial));
+  const [raw, setRawState] = useState(secondary ? "" : initial == null ? "" : String(initial));
+  const [touched, setTouched] = useState(false);
+  const setRaw = (v: string) => { setTouched(true); setRawState(v); };
   const m2 = parseAssumption(raw);
+  const reported = useRef(false);
+  // Engagement signal only (never the area itself to the job): debounced, at most once per page session.
+  useEffect(() => {
+    if (!onUse || !touched || m2 == null || reported.current) return;
+    const t = setTimeout(() => { reported.current = true; onUse(m2); }, 1500);
+    return () => clearTimeout(t);
+  }, [m2, touched, onUse]);
   const est = whatIfEstimate(m2, calc.location, calc.insulation as InsulationDeclared, calc.settings);
   return (
     <section className="" data-testid="area-calculator" aria-label="Ceiling area calculator">

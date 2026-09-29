@@ -53,6 +53,8 @@ export async function resolvePublicEstimate(token: unknown) {
   const cv = customerView(view);
   if (!cv.visible) return null;
   await admin.from("customer_estimate_links").update({ view_count: (l.view_count ?? 0) + 1, last_viewed_at: new Date().toISOString() }).eq("id", l.id);
+  const { recordEstimateView } = await import("./engagement.server");
+  await recordEstimateView(l.job_id, l.id).catch(() => {});
   const { data: j } = await admin.from("jobs").select("job_number, properties(address_line, suburb, postcode)").eq("id", l.job_id).single();
   const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   return publicPayload({ job_number: j?.job_number ?? null, address: p ? [p.address_line, p.suburb, p.postcode].filter(Boolean).join(", ") : null }, cv);
