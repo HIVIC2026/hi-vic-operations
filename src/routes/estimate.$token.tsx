@@ -6,6 +6,7 @@ import { trackCalculatorUse } from "@/lib/engagement.functions";
 import { useCallback } from "react";
 import { CustomerEstimate, type CustomerData } from "@/components/portal/estimate";
 import { LINK_UNAVAILABLE } from "@/lib/estimatelink.core";
+import { ReferralShare } from "@/components/portal/ReferralShare";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
 
 // Public no-login Step 3 estimate. The token is the only credential; nothing is fetched during SSR.
@@ -27,7 +28,7 @@ export const Route = createFileRoute("/estimate/$token")({
   component: PublicEstimatePage,
 });
 
-type Payload = { job: { job_number: string | null; address: string | null }; estimate: CustomerData } | null;
+type Payload = { job: { job_number: string | null; address: string | null }; estimate: CustomerData; referralShareUrl: string | null } | null;
 
 function PublicEstimatePage() {
   const { token } = Route.useParams();
@@ -44,6 +45,7 @@ function PublicEstimatePage() {
           : <>
              {(data.job.address || data.job.job_number) && <p className="mb-6 text-xs text-estimate-navy/70">{data.job.address}{data.job.address && data.job.job_number ? " · " : ""}{data.job.job_number}</p>}
             <CustomerEstimate data={data.estimate} publicPage onCalculatorUse={onCalculatorUse} />
+            {data.referralShareUrl && <ReferralShare url={data.referralShareUrl} />}
           </>}
       </main>
     </div>

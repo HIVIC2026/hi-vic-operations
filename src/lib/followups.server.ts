@@ -9,6 +9,7 @@ import { renderFollowupEmail } from "./followup-email";
 import { clickUrl, dedupe, estimateUrl, pixelUrl, planFollowup, planInitialFollowups, retryAt, sendBlocker, type FollowupKind } from "./engagement.core";
 import { issueTrackingTokens, jobSummary, recordEngagement } from "./engagement.server";
 import { configuredDeliveryAdapter } from "./delivery.server";
+import { referralUrlForJob } from "./referral.server";
 import type { DeliveryAdapter } from "./delivery.core";
 
 async function gatesFor(jobId: string, adapter: DeliveryAdapter | null) {
@@ -36,12 +37,13 @@ async function reserve(jobId: string, linkId: string, purpose: string, key: stri
   return data.id;
 }
 
-async function deliverTracked(x: { jobId: string; linkId: string; linkToken: string; purpose: string; key: string; adapter: DeliveryAdapter; to: string; render: (u: { estimateUrl: string; trackingClickUrl: string; trackingPixelUrl: string }) => { subject: string; html: string; plainText: string }; actorId: string | null }) {
+async function deliverTracked(x: { jobId: string; linkId: string; linkToken: string; purpose: string; key: string; adapter: DeliveryAdapter; to: string; render: (u: { estimateUrl: string; trackingClickUrl: string; trackingPixelUrl: string; referralUrl: string | null }) => { subject: string; html: string; plainText: string }; actorId: string | null }) {
   const sendId = await reserve(x.jobId, x.linkId, x.purpose, x.key);
   if (!sendId) return { sent: false as const, reason: "already_sent" };
   try {
     const t = await issueTrackingTokens({ jobId: x.jobId, linkId: x.linkId, sendId, purpose: x.purpose });
-    const mail = x.render({ estimateUrl: estimateUrl(x.linkToken), trackingClickUrl: clickUrl(t.click), trackingPixelUrl: pixelUrl(t.open) });
+    const referralUrl = await referralUrlForJob(x.jobId).catch(() => null);
+    const mail = x.render({ estimateUrl: estimateUrl(x.linkToken), trackingClickUrl: clickUrl(t.click), trackingPixelUrl: pixelUrl(t.open), referralUrl });
     const r = await x.adapter.deliver({ to: x.to, subject: mail.subject, html: mail.html, text: mail.plainText, idempotencyKey: x.key, purpose: x.purpose });
     const communicationId = await recordCommunication({ jobId: x.jobId, direction: "outbound", channel: "email", recipients: [x.to], subject: mail.subject, body: mail.plainText, provider: x.adapter.provider, providerMessageId: r.providerMessageId, visibility: "customer", sourceEvent: x.purpose, sourceReference: x.key, createdBy: x.actorId, deliveryStatus: "sent" });
     await admin.from("customer_email_sends").update({ status: "sent", sent_at: new Date().toISOString(), provider: x.adapter.provider, provider_message_id: r.providerMessageId, communication_id: communicationId }).eq("id", sendId);

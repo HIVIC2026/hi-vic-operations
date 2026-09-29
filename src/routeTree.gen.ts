@@ -36,6 +36,8 @@ import { Route as TOFileRouteImport } from './routes/t.o.$file'
 import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authenticated/admin.jobs.$jobId'
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
 import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/public/hooks/post-intake'
+import { Route as ApiPublicReferralsRecordSubmissionRouteImport } from './routes/api/public/referrals/record-submission'
+import { Route as ApiPublicReferralsTrackClickRouteImport } from './routes/api/public/referrals/track-click'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -181,6 +183,18 @@ const ApiPublicHooksPostIntakeRoute =
     path: '/api/public/hooks/post-intake',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicReferralsRecordSubmissionRoute =
+  ApiPublicReferralsRecordSubmissionRouteImport.update({
+    id: '/api/public/referrals/record-submission',
+    path: '/api/public/referrals/record-submission',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicReferralsTrackClickRoute =
+  ApiPublicReferralsTrackClickRouteImport.update({
+    id: '/api/public/referrals/track-click',
+    path: '/api/public/referrals/track-click',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -209,6 +223,8 @@ export interface FileRoutesByFullPath {
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
+  '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
+  '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -237,6 +253,8 @@ export interface FileRoutesByTo {
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
+  '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
+  '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -267,6 +285,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
+  '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
+  '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -297,6 +317,8 @@ export interface FileRouteTypes {
     | '/admin/jobs/$jobId'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
+    | '/api/public/referrals/record-submission'
+    | '/api/public/referrals/track-click'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -325,6 +347,8 @@ export interface FileRouteTypes {
     | '/admin/jobs/$jobId'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
+    | '/api/public/referrals/record-submission'
+    | '/api/public/referrals/track-click'
   id:
     | '__root__'
     | '/'
@@ -354,6 +378,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/jobs/$jobId'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
+    | '/api/public/referrals/record-submission'
+    | '/api/public/referrals/track-click'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -369,6 +395,8 @@ export interface RootRouteChildren {
   TOFileRoute: typeof TOFileRoute
   ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
   ApiPublicHooksPostIntakeRoute: typeof ApiPublicHooksPostIntakeRoute
+  ApiPublicReferralsRecordSubmissionRoute: typeof ApiPublicReferralsRecordSubmissionRoute
+  ApiPublicReferralsTrackClickRoute: typeof ApiPublicReferralsTrackClickRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -562,6 +590,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksPostIntakeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/referrals/record-submission': {
+      id: '/api/public/referrals/record-submission'
+      path: '/api/public/referrals/record-submission'
+      fullPath: '/api/public/referrals/record-submission'
+      preLoaderRoute: typeof ApiPublicReferralsRecordSubmissionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/referrals/track-click': {
+      id: '/api/public/referrals/track-click'
+      path: '/api/public/referrals/track-click'
+      fullPath: '/api/public/referrals/track-click'
+      preLoaderRoute: typeof ApiPublicReferralsTrackClickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -617,6 +659,9 @@ const rootRouteChildren: RootRouteChildren = {
   TOFileRoute: TOFileRoute,
   ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,
   ApiPublicHooksPostIntakeRoute: ApiPublicHooksPostIntakeRoute,
+  ApiPublicReferralsRecordSubmissionRoute:
+    ApiPublicReferralsRecordSubmissionRoute,
+  ApiPublicReferralsTrackClickRoute: ApiPublicReferralsTrackClickRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

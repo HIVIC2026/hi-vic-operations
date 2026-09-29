@@ -1,5 +1,5 @@
 /** Pure Step 3 renderer: no data access, delivery, or side effects. */
-export type EstimateEmailInput = { estimateUrl: string; estimatedTotal?: number | null; veuDiscount?: number | null; areaM2?: number | null; trackingClickUrl?: string | null; trackingPixelUrl?: string | null };
+export type EstimateEmailInput = { estimateUrl: string; estimatedTotal?: number | null; veuDiscount?: number | null; areaM2?: number | null; trackingClickUrl?: string | null; trackingPixelUrl?: string | null; referralUrl?: string | null };
 export type EstimateEmail = { subject: string; previewText: string; html: string; plainText: string };
 
 const BASE = "https://quote.homeinsulationvictoria.com.au";
@@ -28,12 +28,21 @@ export function validEstimateUrl(u: string): URL {
   if (link.origin !== BASE || !/^\/estimate\/[A-Za-z0-9_-]+\/?$/.test(link.pathname) || link.search || link.hash) throw new Error("An HTTPS HI VIC estimate link is required.");
   return link;
 }
+const REFERRAL_ORIGIN = "https://homeinsulationvictoria.com.au";
+/** Referral share URL: homeinsulationvictoria.com.au/homeowner?ref=<43-char opaque token> only. */
+export function validReferralUrl(u: string | null | undefined): string | null {
+  if (u == null) return null;
+  const x = new URL(u);
+  if (x.origin !== REFERRAL_ORIGIN || x.pathname !== "/homeowner" || x.hash || [...x.searchParams.keys()].join() !== "ref" || !/^[A-Za-z0-9_-]{43}$/.test(x.searchParams.get("ref") ?? "")) throw new Error("A HI VIC referral link is required.");
+  return x.toString();
+}
 export const pixelTag = (u: string | null) => (u ? `<img src="${escape(u)}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;opacity:0;">` : "");
 
 export function renderEstimateEmail(input: EstimateEmailInput): EstimateEmail {
   const link = validEstimateUrl(input.estimateUrl);
   const clickUrl = validTrackingUrl(input.trackingClickUrl, "click");
   const pixel = validTrackingUrl(input.trackingPixelUrl, "pixel");
+  const referral = validReferralUrl(input.referralUrl);
   const { estimatedTotal, veuDiscount, areaM2 } = input;
   const values = [estimatedTotal, veuDiscount, areaM2];
   const knownArea = typeof estimatedTotal === "number" && Number.isFinite(estimatedTotal) && estimatedTotal > 0 && typeof veuDiscount === "number" && Number.isFinite(veuDiscount) && veuDiscount > 0 && typeof areaM2 === "number" && Number.isFinite(areaM2) && areaM2 > 0;
@@ -87,9 +96,10 @@ ${cell(`<h2 style="margin:0 0 8px;font-size:20px;line-height:1.3;color:#3C51C4;"
 ${cell(`<h2 style="margin:0 0 16px;font-size:20px;color:#3C51C4;">Here's what happens next</h2>${steps.map(([title, copy], i) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;"><tr><td width="32" valign="top" style="padding:0 8px 18px 0;color:#07BF61;font-size:20px;font-weight:800;">${i + 1}.</td><td valign="top" style="padding:0 0 18px;">${text(`<strong>${escape(title)}</strong><br>${escape(copy)}`)}</td></tr></table>`).join("")}`, "0 24px 6px")}
 ${cell(`${knownArea ? `<h2 style="margin:0 0 8px;font-size:19px;color:#3C51C4;">Your estimate is interactive. You can:</h2>${interactive.map((point) => text(`<span style="color:#07BF61;font-weight:800;">✓</span> ${escape(point)}`, "margin:7px 0;")).join("")}${text(calculatorReassurance, "margin:12px 0 16px;font-weight:700;")}` : ""}<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td align="center" style="background-color:#07BF61;border-radius:8px;"><a href="${url}" style="display:block;padding:16px 18px;color:#ffffff;text-decoration:none;font-size:16px;font-weight:800;">${escape(cta)}</a></td></tr></table>${text("Your secure estimate link is personal to your property.", "margin-top:10px;font-size:12px;text-align:center;")}`, "0 24px 30px")}
 ${cell(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#EEF0FC;"><tr><td style="padding:18px;"><h2 style="margin:0 0 8px;font-size:17px;color:#3C51C4;">Transparent HI VIC pricing</h2>${text("Once onsite facts are confirmed, your final quote is calculated from our set customer rate card. Partner electricians and installers do not decide what you pay.")}</td></tr></table>`, "0 24px 28px")}
+${referral ? cell(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ECF9F1;"><tr><td style="padding:18px;"><h2 style="margin:0 0 8px;font-size:17px;color:#3C51C4;">Know someone who could benefit too?</h2>${text("Share HI VIC with a friend or family member — they can check whether their home may qualify in a few minutes.")}<p style="margin:12px 0 0;"><a href="${escape(referral)}" style="display:inline-block;padding:10px 16px;border:2px solid #3C51C4;border-radius:8px;background-color:#ffffff;color:#3C51C4;text-decoration:none;font-size:14px;font-weight:800;">REFER A FRIEND</a></p></td></tr></table>`, "0 24px 28px") : ""}
 ${cell(`${text("Home Insulation Victoria", "font-weight:800;")}${text("DC Construction Solutions Pty Ltd t/a Home Insulation Victoria", "font-size:12px;")}${text('<a href="https://homeinsulationvictoria.com.au" style="color:#3C51C4;text-decoration:underline;">homeinsulationvictoria.com.au</a>', "font-size:12px;")}`, "18px 24px 28px;border-top:1px solid #EEF0FC;")}
 </table>${pixelTag(pixel)}</td></tr></table></body></html>`;
 
-  const plainText = `${subject}\n\nYOUR PERSONALISED ESTIMATE\n\nGOOD NEWS\n${headline}\nLIKELY ELIGIBLE — ONSITE CONFIRMATION NEEDED\n${INTRO}\n\n${snapshot.plain}\n\nWHAT THIS UPGRADE COULD MEAN FOR YOUR HOME\n$400+ / year* — average potential energy-bill savings\nUp to 20%* — potential savings on heating & cooling costs\nWarmer in winter. Cooler in summer. — better year-round comfort\n${FOOTNOTE}\n\n${why}\n${points.map((point) => `✓ ${point}`).join("\n")}\n${REASSURANCE}\n\nHere's what happens next\n${steps.map(([title, copy], i) => `${i + 1}. ${title}\n${copy}`).join("\n\n")}\n\n${knownArea ? `Your estimate is interactive. You can:\n${interactive.map((point) => `✓ ${point}`).join("\n")}\n${calculatorReassurance}\n\n` : ""}${cta}: ${target}\nYour secure estimate link is personal to your property.\n\nTransparent HI VIC pricing\nOnce onsite facts are confirmed, your final quote is calculated from our set customer rate card. Partner electricians and installers do not decide what you pay.\n\nHome Insulation Victoria\nDC Construction Solutions Pty Ltd t/a Home Insulation Victoria\nhomeinsulationvictoria.com.au`;
+  const plainText = `${subject}\n\nYOUR PERSONALISED ESTIMATE\n\nGOOD NEWS\n${headline}\nLIKELY ELIGIBLE — ONSITE CONFIRMATION NEEDED\n${INTRO}\n\n${snapshot.plain}\n\nWHAT THIS UPGRADE COULD MEAN FOR YOUR HOME\n$400+ / year* — average potential energy-bill savings\nUp to 20%* — potential savings on heating & cooling costs\nWarmer in winter. Cooler in summer. — better year-round comfort\n${FOOTNOTE}\n\n${why}\n${points.map((point) => `✓ ${point}`).join("\n")}\n${REASSURANCE}\n\nHere's what happens next\n${steps.map(([title, copy], i) => `${i + 1}. ${title}\n${copy}`).join("\n\n")}\n\n${knownArea ? `Your estimate is interactive. You can:\n${interactive.map((point) => `✓ ${point}`).join("\n")}\n${calculatorReassurance}\n\n` : ""}${cta}: ${target}\nYour secure estimate link is personal to your property.\n\nTransparent HI VIC pricing\nOnce onsite facts are confirmed, your final quote is calculated from our set customer rate card. Partner electricians and installers do not decide what you pay.${referral ? `\n\nKnow someone who could benefit too?\nShare HI VIC with a friend or family member — they can check whether their home may qualify in a few minutes.\nREFER A FRIEND: ${referral}` : ""}\n\nHome Insulation Victoria\nDC Construction Solutions Pty Ltd t/a Home Insulation Victoria\nhomeinsulationvictoria.com.au`;
   return { subject, previewText, html, plainText };
 }

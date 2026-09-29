@@ -83,5 +83,6 @@ export async function adminEngagement(jobId: string) {
     jobSummary(jobId),
     admin.from("customer_followups").select("id, slot, kind, status, due_at, suppression_reason, blocked_reason, sent_at, attempts").eq("job_id", jobId).order("due_at"),
   ]);
-  return { summary, followups: followups ?? [] };
+  const { adminReferral } = await import("./referral.server");
+  return { summary, followups: followups ?? [], referral: await adminReferral(jobId) };
 }

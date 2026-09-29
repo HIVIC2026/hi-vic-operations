@@ -1,8 +1,8 @@
 /** Pure Step 3 follow-up renderers (3-day unopened, 3-day engaged, 7-day). No data access or delivery. */
-import { escape, pixelTag, validEstimateUrl, validTrackingUrl, type EstimateEmail } from "./estimate-email";
+import { escape, pixelTag, validEstimateUrl, validReferralUrl, validTrackingUrl, type EstimateEmail } from "./estimate-email";
 import type { FollowupKind } from "./engagement.core";
 
-export type FollowupEmailInput = { kind: FollowupKind; estimateUrl: string; trackingClickUrl?: string | null; trackingPixelUrl?: string | null };
+export type FollowupEmailInput = { kind: FollowupKind; estimateUrl: string; trackingClickUrl?: string | null; trackingPixelUrl?: string | null; referralUrl?: string | null };
 
 const INCLUDED = "The $349 onsite Measure + PIESA is already included in your indicative project total if you proceed — it is not an extra charge.";
 const FOOTNOTE = "*Victorian Government estimates/averages. Actual savings vary with home, climate, energy use, energy prices and heating/cooling habits.";
@@ -39,6 +39,7 @@ export function renderFollowupEmail(input: FollowupEmailInput): EstimateEmail {
   const link = validEstimateUrl(input.estimateUrl);
   const target = validTrackingUrl(input.trackingClickUrl, "click") ?? link.toString();
   const pixel = validTrackingUrl(input.trackingPixelUrl, "pixel");
+  const referral = validReferralUrl(input.referralUrl);
   const bullets = c.bullets ? c.bullets.map((b) => p(`<span style="color:#07BF61;font-weight:800;">✓</span> ${escape(b)}`, "margin:0 0 8px;")).join("") + p(escape(FOOTNOTE), "font-size:11px;margin-top:10px;") : "";
   const html = `<!doctype html><html lang="en-AU"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(c.subject)}</title></head>
 <body style="margin:0;padding:0;background-color:#FBFCFA;font-family:'Open Sans',Arial,Helvetica,sans-serif;color:#22376B;">
@@ -48,8 +49,8 @@ export function renderFollowupEmail(input: FollowupEmailInput): EstimateEmail {
 <tr><td style="padding:24px 24px 18px;"><img src="https://quote.homeinsulationvictoria.com.au/email-preview/hi-vic-logo.png" alt="Home Insulation Victoria" width="205" height="88" style="display:block;width:205px;height:auto;max-width:100%;border:0;"></td></tr>
 <tr><td style="padding:0 24px 8px;"><h1 style="margin:0 0 16px;font-size:24px;line-height:1.25;color:#3C51C4;font-weight:800;">${escape(c.heading)}</h1>${c.paras.map((x) => p(escape(x))).join("")}${bullets}</td></tr>
 <tr><td style="padding:8px 24px 28px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td align="center" style="background-color:#07BF61;border-radius:8px;"><a href="${escape(target)}" style="display:block;padding:16px 18px;color:#ffffff;text-decoration:none;font-size:16px;font-weight:800;">${escape(c.cta)}</a></td></tr></table>${p("Your secure estimate link is personal to your property.", "margin-top:10px;font-size:12px;text-align:center;")}</td></tr>
-<tr><td style="padding:18px 24px 28px;border-top:1px solid #EEF0FC;">${p("Home Insulation Victoria", "font-weight:800;margin:0;")}${p("DC Construction Solutions Pty Ltd t/a Home Insulation Victoria", "font-size:12px;margin:0;")}${p('<a href="https://homeinsulationvictoria.com.au" style="color:#3C51C4;text-decoration:underline;">homeinsulationvictoria.com.au</a>', "font-size:12px;margin:0;")}</td></tr>
+<tr><td style="padding:18px 24px 28px;border-top:1px solid #EEF0FC;">${referral ? p(`Know someone else who may benefit? <a href="${escape(referral)}" style="color:#3C51C4;text-decoration:underline;">Share HI VIC.</a>`, "font-size:12px;") : ""}${p("Home Insulation Victoria", "font-weight:800;margin:0;")}${p("DC Construction Solutions Pty Ltd t/a Home Insulation Victoria", "font-size:12px;margin:0;")}${p('<a href="https://homeinsulationvictoria.com.au" style="color:#3C51C4;text-decoration:underline;">homeinsulationvictoria.com.au</a>', "font-size:12px;margin:0;")}</td></tr>
 </table>${pixelTag(pixel)}</td></tr></table></body></html>`;
-  const plainText = `${c.heading}\n\n${c.paras.join("\n\n")}\n${c.bullets ? `\n${c.bullets.map((b) => `✓ ${b}`).join("\n")}\n${FOOTNOTE}\n` : ""}\n${c.cta}: ${target}\nYour secure estimate link is personal to your property.\n\nHome Insulation Victoria\nDC Construction Solutions Pty Ltd t/a Home Insulation Victoria\nhomeinsulationvictoria.com.au`;
+  const plainText = `${c.heading}\n\n${c.paras.join("\n\n")}\n${c.bullets ? `\n${c.bullets.map((b) => `✓ ${b}`).join("\n")}\n${FOOTNOTE}\n` : ""}\n${c.cta}: ${target}\nYour secure estimate link is personal to your property.${referral ? `\n\nKnow someone else who may benefit? Share HI VIC: ${referral}` : ""}\n\nHome Insulation Victoria\nDC Construction Solutions Pty Ltd t/a Home Insulation Victoria\nhomeinsulationvictoria.com.au`;
   return { subject: c.subject, previewText: c.preview, html, plainText };
 }
