@@ -34,9 +34,11 @@ mock.module("@/lib/referral.server", () => ({
 }));
 
 const { Route } = await import("../src/routes/api/public/enquiry");
+// File routes expose the server handlers under Route.options.server.
+const POST = Route.options.server!.handlers.POST as (ctx: { request: Request }) => Promise<Response>;
 
 async function post(body: unknown) {
-  return Route.server.handlers.POST({
+  return POST({
     request: new Request("http://localhost/api/public/enquiry", {
       method: "POST",
       headers: { "content-type": "application/json", "x-hivic-key-id": "base44-v1", "x-hivic-signature": "sig" },
