@@ -297,8 +297,9 @@ export function parseAudit(audit: Any) {
   const descs = entries.filter((e) => e.value && /^(work item description|other work description|non standard (work|item) description|additional work description)/.test(e.norm));
   for (const d of descs) {
     const sib = entries.filter((e) => e.parent === d.parent);
-    const qty = num(val(sib, ["Quantity", "Qty"])) ?? 1;
-    const totalInc = num(val(sib, ["Proposed total price inc GST", "Proposed total price", "Total price inc GST", "Price inc GST"]));
+    const qRaw = val(sib, ["Quantity", "Qty"]);
+    const qty = qRaw == null ? 1 : note(physical(qRaw, `Quantity for "${d.value}"`)) ?? 0;
+    const totalInc = note(physical(val(sib, ["Proposed total price inc GST", "Proposed total price", "Total price inc GST", "Price inc GST"]), `Price for "${d.value}"`));
     const expl = val(sib, ["Explanation", "Reason", "Why is this needed"]) ?? "From Mitti assessment";
     const priced = totalInc != null && totalInc > 0 && qty > 0;
     if (!priced) issues.push(`"${d.value}" needs office pricing.`);
