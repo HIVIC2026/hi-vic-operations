@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "fs";
 import { A48_SPEC, V25_LOCATIONS, ghgEquivalentReduction, lookupLocation } from "../src/lib/activity48.core";
-import { CALC_NOTE, FEE_LABEL, benchmarkNote, parseAssumption, whatIfEstimate, computeEstimate, customerCanSee, displayModeFor, estimateSignature, pickArea, type RetailSettings } from "../src/lib/estimate.core";
+import { CALC_NOTE, FEE_LABEL, benchmarkNote, needsRemovalScenario, parseAssumption, whatIfEstimate, computeEstimate, customerCanSee, displayModeFor, estimateSignature, pickArea, type RetailSettings } from "../src/lib/estimate.core";
 
 const S: RetailSettings = {
   id: "s1", version: 1, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 15, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349,
@@ -48,7 +48,19 @@ describe("3058 / 134.1 m² sample", () => {
     const fr = pres.scenarios[1]!.by_access;
     expect(fr.difficult.pre_discount_total - fr.standard.pre_discount_total).toBeCloseTo(134.1 * 30 * 0.25, 2);
   });
-  test("unknown insulation => two scenarios", () => { expect(computeEstimate(owner(134.1), lookupLocation("3058")!, "unknown", S).scenarios.length).toBe(2); });
+  test("unknown/null/unanswered insulation => single no-removal scenario", () => {
+    for (const d of ["unknown", null] as const) {
+      const e = computeEstimate(owner(134.1), lookupLocation("3058")!, d, S);
+      expect(e.scenarios.length).toBe(1);
+      expect(e.scenarios[0]!.key).toBe("can_remain");
+    }
+  });
+  test("only explicit present declaration shows removal scenario", () => {
+    expect(needsRemovalScenario("present")).toBe(true);
+    expect(needsRemovalScenario("none")).toBe(false);
+    expect(needsRemovalScenario("unknown")).toBe(false);
+    expect(needsRemovalScenario(null)).toBe(false);
+  });
 });
 
 describe("guards", () => {
@@ -128,10 +140,12 @@ describe("Step 3 v2 refinement", () => {
     for (const bad of ["", "abc", "0", "-5", "NaN", "19", "1001"]) expect(parseAssumption(bad)).toBeNull();
     expect(parseAssumption("150")).toBe(150); expect(parseAssumption(" 134.1 ")).toBe(134.1);
   });
-  test("what-if uses same core; none single scenario, unknown two; no location => null", () => {
+  test("what-if mirrors the removal rule: present two scenarios, none/unknown one; no location => null", () => {
     const loc = lookupLocation("3058")!;
     expect(whatIfEstimate(150, loc, "none", S)!.scenarios.length).toBe(1);
-    expect(whatIfEstimate(150, loc, "unknown", S)!.scenarios.length).toBe(2);
+    expect(whatIfEstimate(150, loc, "unknown", S)!.scenarios.length).toBe(1);
+    expect(whatIfEstimate(150, loc, null, S)!.scenarios.length).toBe(1);
+    expect(whatIfEstimate(150, loc, "present", S)!.scenarios.length).toBe(2);
     expect(whatIfEstimate(150, loc, "present", S)!.primary.by_access.standard.estimated_customer_total).toBeCloseTo(computeEstimate(owner(150), loc, "present", S).primary.by_access.standard.estimated_customer_total, 6);
     expect(whatIfEstimate(null, loc, "none", S)).toBeNull();
     expect(whatIfEstimate(150, lookupLocation("3005"), "none", S)).toBeNull();

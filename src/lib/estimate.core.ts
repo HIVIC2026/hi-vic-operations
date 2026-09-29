@@ -40,8 +40,8 @@ export function displayModeFor(g: Gate1View): DisplayMode {
 export const customerCanSee = (m: DisplayMode) => m === "likely" || m === "onsite";
 
 export type InsulationDeclared = "none" | "present" | "unknown" | null;
-/** none => single no-removal scenario; present/unknown/not answered => two scenarios. */
-export const needsRemovalScenario = (d: InsulationDeclared) => d !== "none";
+/** Only an explicit owner declaration of "present" shows the removal scenario; none/unknown/unanswered => single no-removal scenario. */
+export const needsRemovalScenario = (d: InsulationDeclared) => d === "present";
 
 export type AccessTotals = { access: Access; multiplier: number; installation: number; pre_discount_total: number; applied_discount: number; estimated_customer_total: number; copayment_capped: boolean };
 export type Scenario = { key: "can_remain" | "full_removal"; label: string; removal_m2: number; removal: number; fixed: number; by_access: Record<Access, AccessTotals> };

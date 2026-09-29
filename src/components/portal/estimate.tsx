@@ -81,6 +81,7 @@ function EstimateBody({ est, fees, accessConcern }: { est: Est; fees: { piesa: n
         {est.scenarios.map((s) => <ScenarioCard key={s.key} s={s} fees={fees} single={est.scenarios.length === 1} />)}
       </div>
       {est.scenarios.length > 1 && <p className="text-sm text-muted-foreground">The onsite assessment determines whether your existing insulation can stay. Suitable existing insulation may remain; unsuitable, metallic or non-compliant insulation must be removed.</p>}
+      {est.scenarios.length === 1 && <p className="text-sm text-muted-foreground">Your onsite assessment will confirm whether any existing insulation is present and whether this affects your final price.</p>}
       <p className={`rounded px-3 py-2 text-sm ${accessConcern ? "border border-warning bg-warning-soft font-medium" : "bg-muted"}`}>Access is confirmed onsite. Moderate access would add {dollars(est.access_adjustment.moderate)}; difficult access would add {dollars(est.access_adjustment.difficult)}.</p>
     </>
   );
