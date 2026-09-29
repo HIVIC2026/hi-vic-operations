@@ -239,6 +239,13 @@
       "when": 1790646792050,
       "tag": "0033_cron_nonces_revoke_public",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790651412191,
+      "tag": "0034_step3_indicative_estimator",
+      "breakpoints": true
     }
   ]
 }

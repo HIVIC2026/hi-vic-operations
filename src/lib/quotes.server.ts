@@ -70,6 +70,8 @@ export function priceInstallerOption(input: {
     return { code: l.code, description: l.description, quantity: l.quantity, unit: l.unit, unit_price_inc_gst: unitInc, line_total_inc_gst: r2(unitInc * l.quantity), sort: i };
   });
   const subtotal = r2(items.reduce((a, i) => a + i.line_total_inc_gst, 0));
+  // LEGACY: flat per-m² VEEC credit (pricing_settings.veec_credit_per_m2_inc_gst). Final quotes only; Step 3 must NOT use this –
+  // it uses the official Activity 48 Eq 48.1 calculator in activity48.core.ts.
   const veec = r2(Math.min(subtotal, input.areaM2 * Number(s.veec_credit_per_m2_inc_gst)));
   return {
     items,

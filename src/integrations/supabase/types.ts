@@ -2243,6 +2243,134 @@ export type Database = {
         }
         Relationships: []
       }
+      indicative_estimates: {
+        Row: {
+          applied_discount: number
+          area_basis: string
+          area_m2: number
+          area_source: string
+          area_source_id: string | null
+          created_at: string
+          display_mode: string
+          eligibility_outcome: string | null
+          ghg_savings_factor: number
+          id: string
+          input_signature: string
+          insulation_declared: string | null
+          job_id: string
+          lifetime_years: number
+          location: Json
+          postcode: string
+          raw_estimated_discount: number
+          raw_ghg_reduction: number
+          regional_factor: number
+          scenarios: Json
+          settings_id: string
+          settings_version: number
+          snapshot: Json
+          spec_source_url: string
+          spec_version: string
+          status: string
+          superseded_at: string | null
+          veec_checked_at: string
+          veec_source_url: string
+          veec_value: number
+        }
+        Insert: {
+          applied_discount: number
+          area_basis: string
+          area_m2: number
+          area_source: string
+          area_source_id?: string | null
+          created_at?: string
+          display_mode: string
+          eligibility_outcome?: string | null
+          ghg_savings_factor: number
+          id?: string
+          input_signature: string
+          insulation_declared?: string | null
+          job_id: string
+          lifetime_years: number
+          location: Json
+          postcode: string
+          raw_estimated_discount: number
+          raw_ghg_reduction: number
+          regional_factor: number
+          scenarios: Json
+          settings_id: string
+          settings_version: number
+          snapshot: Json
+          spec_source_url: string
+          spec_version: string
+          status?: string
+          superseded_at?: string | null
+          veec_checked_at: string
+          veec_source_url: string
+          veec_value: number
+        }
+        Update: {
+          applied_discount?: number
+          area_basis?: string
+          area_m2?: number
+          area_source?: string
+          area_source_id?: string | null
+          created_at?: string
+          display_mode?: string
+          eligibility_outcome?: string | null
+          ghg_savings_factor?: number
+          id?: string
+          input_signature?: string
+          insulation_declared?: string | null
+          job_id?: string
+          lifetime_years?: number
+          location?: Json
+          postcode?: string
+          raw_estimated_discount?: number
+          raw_ghg_reduction?: number
+          regional_factor?: number
+          scenarios?: Json
+          settings_id?: string
+          settings_version?: number
+          snapshot?: Json
+          spec_source_url?: string
+          spec_version?: string
+          status?: string
+          superseded_at?: string | null
+          veec_checked_at?: string
+          veec_source_url?: string
+          veec_value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "indicative_estimates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "indicative_estimates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "indicative_estimates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "indicative_estimates_settings_id_fkey"
+            columns: ["settings_id"]
+            isOneToOne: false
+            referencedRelation: "retail_estimator_settings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       installer_declarations: {
         Row: {
           created_at: string
@@ -5528,6 +5656,75 @@ export type Database = {
           },
         ]
       }
+      retail_estimator_settings: {
+        Row: {
+          access_difficult_multiplier: number
+          access_moderate_multiplier: number
+          access_standard_multiplier: number
+          ap_management_inc_gst: number
+          created_at: string
+          created_by: string | null
+          id: string
+          indicative_veec_value: number
+          is_current: boolean
+          minimum_customer_copayment_inc_gst: number
+          notes: string | null
+          piesa_assessment_inc_gst: number
+          r5_install_inc_gst_per_m2: number
+          removal_inc_gst_per_m2: number
+          spec_source_url: string
+          spec_version: string
+          veec_value_checked_at: string
+          veec_value_source_label: string
+          veec_value_source_url: string
+          version: number
+        }
+        Insert: {
+          access_difficult_multiplier: number
+          access_moderate_multiplier: number
+          access_standard_multiplier: number
+          ap_management_inc_gst: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          indicative_veec_value: number
+          is_current?: boolean
+          minimum_customer_copayment_inc_gst: number
+          notes?: string | null
+          piesa_assessment_inc_gst: number
+          r5_install_inc_gst_per_m2: number
+          removal_inc_gst_per_m2: number
+          spec_source_url: string
+          spec_version: string
+          veec_value_checked_at: string
+          veec_value_source_label: string
+          veec_value_source_url: string
+          version: number
+        }
+        Update: {
+          access_difficult_multiplier?: number
+          access_moderate_multiplier?: number
+          access_standard_multiplier?: number
+          ap_management_inc_gst?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          indicative_veec_value?: number
+          is_current?: boolean
+          minimum_customer_copayment_inc_gst?: number
+          notes?: string | null
+          piesa_assessment_inc_gst?: number
+          r5_install_inc_gst_per_m2?: number
+          removal_inc_gst_per_m2?: number
+          spec_source_url?: string
+          spec_version?: string
+          veec_value_checked_at?: string
+          veec_value_source_label?: string
+          veec_value_source_url?: string
+          version?: number
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -5611,6 +5808,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      veu_location_variables: {
+        Row: {
+          climate_region: string
+          climate_zone: number | null
+          created_at: string
+          metropolitan_or_regional: string
+          postcode: string
+          reticulated_gas: boolean | null
+          source_sha256: string | null
+          source_url: string
+          source_version: string
+        }
+        Insert: {
+          climate_region: string
+          climate_zone?: number | null
+          created_at?: string
+          metropolitan_or_regional: string
+          postcode: string
+          reticulated_gas?: boolean | null
+          source_sha256?: string | null
+          source_url: string
+          source_version: string
+        }
+        Update: {
+          climate_region?: string
+          climate_zone?: number | null
+          created_at?: string
+          metropolitan_or_regional?: string
+          postcode?: string
+          reticulated_gas?: boolean | null
+          source_sha256?: string | null
+          source_url?: string
+          source_version?: string
+        }
+        Relationships: []
       }
       workflow_events: {
         Row: {
