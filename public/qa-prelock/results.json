@@ -1,0 +1,1071 @@
+{
+ "generated": "2026-09-29",
+ "note": "Fixture data only; all homeowner-check-v2 POSTs fulfilled locally; analytics aborted; no request forwarded to production.",
+ "results": [
+  {
+   "case": "clean-eligible-390",
+   "width": 390,
+   "badge_s": 0.08,
+   "immediate_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE\nYour home has passed our initial eligibility checks.\n\nBased on your answers, your home is on track to qualify for a VEU insulation discount. We\u2019ll confirm the ceiling area and remaining technical requirements during the onsite Measure + PIESA before your final quote.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour enquiry is saved. We\u2019re preparing the secure estimate and referral link in the background.\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "reference_s": 0.43,
+   "referral_s": 0.97,
+   "final_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE\nYour home has passed our initial eligibility checks.\n\nBased on your answers, your home is on track to qualify for a VEU insulation discount. We\u2019ll confirm the ceiling area and remaining technical requirements during the onsite Measure + PIESA before your final quote.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour reference\nHIV-QAFIX0001\n\nREFER A FRIEND\n\nKnow someone who could benefit too?\n\nShare HI VIC with a friend or family member. They could be eligible to save on ceiling insulation too.\n\nShare with a friend\nCopy referral link\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "style": {
+    "overflowX": 0,
+    "fonts": [
+     "Open Sans"
+    ],
+    "headings": [
+     {
+      "t": "Could your home qualify?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "26px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Your home has passed our initial eligibility checks.",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "21px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "We\u2019re preparing your personalised estimate.",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "19px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Know someone who could benefit too?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "16px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "READY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "14.72px",
+      "c": "rgb(255, 255, 255)"
+     }
+    ],
+    "buttons": [
+     {
+      "t": "Share with a friend",
+      "bg": "rgb(60, 81, 196)",
+      "c": "rgb(255, 255, 255)",
+      "fs": "12px",
+      "fw": "800",
+      "r": "11px",
+      "sh": "rgba(7, 191, 97, 0.18) 0px 4px 0px 0px",
+      "b": "rgb(255, 255, 255)"
+     },
+     {
+      "t": "Copy referral link",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(102, 115, 140)",
+      "fs": "11px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(102, 115, 140)"
+     },
+     {
+      "t": "Check another property",
+      "bg": "rgb(255, 255, 255)",
+      "c": "rgb(60, 81, 196)",
+      "fs": "16px",
+      "fw": "400",
+      "r": "11px",
+      "sh": "none",
+      "b": "rgba(60, 81, 196, 0.22)"
+     },
+     {
+      "t": "How we use your information",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(101, 112, 137)",
+      "fs": "9px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(101, 112, 137)"
+     }
+    ],
+    "backHome": 1,
+    "lovable": false
+   },
+   "copy_after_click": "curely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.07,
+     "submission_id_hash": 46946
+    },
+    {
+     "action": "sync",
+     "t": 0.38,
+     "submission_id_hash": 46946
+    }
+   ],
+   "other_nonget_intercepted": 2,
+   "analytics_aborted": 1
+  },
+  {
+   "case": "ineligible-390",
+   "width": 390,
+   "badge_s": 0.07,
+   "immediate_copy": "YOUR PRELIMINARY CHECK\n\nDOES NOT APPEAR ELIGIBLE\nUnfortunately, this property doesn\u2019t appear eligible for this VEU ceiling-insulation offer.\n\nBased on your answers, this property does not appear to meet one of the current requirements for this offer.\n\nWhy it doesn\u2019t appear eligible\nThis activity covers residential ceiling insulation, rather than garages, sheds or commercial premises.\n\nWHAT HAPPENS NEXT\n\nWe\u2019ll email you this outcome.\n\nWe\u2019ll email you a copy of the outcome and your referral link. If you opted in to HI VIC updates, we can also let you know about other home-energy offers that may suit you.\n\nYour enquiry is saved. We\u2019re preparing the secure estimate and referral link in the background.\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "reference_s": 0.4,
+   "referral_s": 0.94,
+   "final_copy": "YOUR PRELIMINARY CHECK\n\nDOES NOT APPEAR ELIGIBLE\nUnfortunately, this property doesn\u2019t appear eligible for this VEU ceiling-insulation offer.\n\nBased on your answers, this property does not appear to meet one of the current requirements for this offer.\n\nWhy it doesn\u2019t appear eligible\nThis activity covers residential ceiling insulation, rather than garages, sheds or commercial premises.\n\nWHAT HAPPENS NEXT\n\nWe\u2019ll email you this outcome.\n\nWe\u2019ll email you a copy of the outcome and your referral link. If you opted in to HI VIC updates, we can also let you know about other home-energy offers that may suit you.\n\nYour reference\nHIV-QAFIX0001\n\nREFER A FRIEND\n\nKnow someone who could benefit too?\n\nThis property may not qualify, but someone you know might. Share HI VIC and they can check in just a few minutes.\n\nShare with a friend\nCopy referral link\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "style": {
+    "overflowX": 0,
+    "fonts": [
+     "Open Sans"
+    ],
+    "headings": [
+     {
+      "t": "Could your home qualify?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "26px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Unfortunately, this property doesn\u2019t appear eligible for thi",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "21px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "We\u2019ll email you this outcome.",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "19px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Know someone who could benefit too?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "16px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "READY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "14.72px",
+      "c": "rgb(255, 255, 255)"
+     }
+    ],
+    "buttons": [
+     {
+      "t": "Share with a friend",
+      "bg": "rgb(60, 81, 196)",
+      "c": "rgb(255, 255, 255)",
+      "fs": "12px",
+      "fw": "800",
+      "r": "11px",
+      "sh": "rgba(7, 191, 97, 0.18) 0px 4px 0px 0px",
+      "b": "rgb(255, 255, 255)"
+     },
+     {
+      "t": "Copy referral link",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(102, 115, 140)",
+      "fs": "11px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(102, 115, 140)"
+     },
+     {
+      "t": "Check another property",
+      "bg": "rgb(255, 255, 255)",
+      "c": "rgb(60, 81, 196)",
+      "fs": "16px",
+      "fw": "400",
+      "r": "11px",
+      "sh": "none",
+      "b": "rgba(60, 81, 196, 0.22)"
+     },
+     {
+      "t": "How we use your information",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(101, 112, 137)",
+      "fs": "9px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(101, 112, 137)"
+     }
+    ],
+    "backHome": 1,
+    "lovable": false
+   },
+   "copy_after_click": "curely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.07,
+     "submission_id_hash": 3023
+    },
+    {
+     "action": "sync",
+     "t": 0.38,
+     "submission_id_hash": 3023
+    }
+   ],
+   "other_nonget_intercepted": 2,
+   "analytics_aborted": 1
+  },
+  {
+   "case": "review-prev-upgrade-yes-390",
+   "width": 390,
+   "badge_s": 0.09,
+   "immediate_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE \u2014 ONSITE CONFIRMATION NEEDED\nYour home looks likely to qualify \u2014 we just need to confirm a few things.\n\nBased on your answers, your home is a strong candidate for the VEU insulation discount. We just need to confirm the items below before the final quote.\n\nWhat we need to confirm\nWe need to check whether the property has already received a VEU ceiling insulation upgrade.\nWe need to confirm the existing insulation level.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour enquiry is saved. We\u2019re preparing the secure estimate and referral link in the background.\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "reference_s": 0.44,
+   "referral_s": 1.01,
+   "final_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE \u2014 ONSITE CONFIRMATION NEEDED\nYour home looks likely to qualify \u2014 we just need to confirm a few things.\n\nBased on your answers, your home is a strong candidate for the VEU insulation discount. We just need to confirm the items below before the final quote.\n\nWhat we need to confirm\nWe need to check whether the property has already received a VEU ceiling insulation upgrade.\nWe need to confirm the existing insulation level.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour reference\nHIV-QAFIX0001\n\nREFER A FRIEND\n\nKnow someone who could benefit too?\n\nShare HI VIC with a friend or family member. They could be eligible to save on ceiling insulation too.\n\nShare with a friend\nCopy referral link\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "style": {
+    "overflowX": 0,
+    "fonts": [
+     "Open Sans"
+    ],
+    "headings": [
+     {
+      "t": "Could your home qualify?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "26px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Your home looks likely to qualify \u2014 we just need to confirm ",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "21px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "We\u2019re preparing your personalised estimate.",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "19px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Know someone who could benefit too?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "16px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "READY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "14.72px",
+      "c": "rgb(255, 255, 255)"
+     }
+    ],
+    "buttons": [
+     {
+      "t": "Share with a friend",
+      "bg": "rgb(60, 81, 196)",
+      "c": "rgb(255, 255, 255)",
+      "fs": "12px",
+      "fw": "800",
+      "r": "11px",
+      "sh": "rgba(7, 191, 97, 0.18) 0px 4px 0px 0px",
+      "b": "rgb(255, 255, 255)"
+     },
+     {
+      "t": "Copy referral link",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(102, 115, 140)",
+      "fs": "11px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(102, 115, 140)"
+     },
+     {
+      "t": "Check another property",
+      "bg": "rgb(255, 255, 255)",
+      "c": "rgb(60, 81, 196)",
+      "fs": "16px",
+      "fw": "400",
+      "r": "11px",
+      "sh": "none",
+      "b": "rgba(60, 81, 196, 0.22)"
+     },
+     {
+      "t": "How we use your information",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(101, 112, 137)",
+      "fs": "9px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(101, 112, 137)"
+     }
+    ],
+    "backHome": 1,
+    "lovable": false
+   },
+   "copy_after_click": "curely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.08,
+     "submission_id_hash": 12644
+    },
+    {
+     "action": "sync",
+     "t": 0.39,
+     "submission_id_hash": 12644
+    }
+   ],
+   "other_nonget_intercepted": 2,
+   "analytics_aborted": 1
+  },
+  {
+   "case": "clean-eligible-1280",
+   "width": 1280,
+   "badge_s": 0.07,
+   "immediate_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE\nYour home has passed our initial eligibility checks.\n\nBased on your answers, your home is on track to qualify for a VEU insulation discount. We\u2019ll confirm the ceiling area and remaining technical requirements during the onsite Measure + PIESA before your final quote.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour enquiry is saved. We\u2019re preparing the secure estimate and referral link in the background.\nYour reference\nHIV-QAFIX0001\nCheck another property\nYour information is securely handled.\nHow we use your information\n\nYOUR NEXT STEP STARTS HERE\n\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\n\nTell us who you are and we\u2019ll take you to the right place.\n\nCHOOSE YOUR NEXT STEP\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "reference_s": 0.4,
+   "referral_s": 0.95,
+   "final_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE\nYour home has passed our initial eligibility checks.\n\nBased on your answers, your home is on track to qualify for a VEU insulation discount. We\u2019ll confirm the ceiling area and remaining technical requirements during the onsite Measure + PIESA before your final quote.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour reference\nHIV-QAFIX0001\n\nREFER A FRIEND\n\nKnow someone who could benefit too?\n\nShare HI VIC with a friend or family member. They could be eligible to save on ceiling insulation too.\n\nShare with a friend\nCopy referral link\nCheck another property\nYour information is securely handled.\nHow we use your information\n\nYOUR NEXT STEP STARTS HERE\n\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\n\nTell us who you are and we\u2019ll take you to the right place.\n\nCHOOSE YOUR NEXT STEP\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "style": {
+    "overflowX": 0,
+    "fonts": [
+     "Open Sans"
+    ],
+    "headings": [
+     {
+      "t": "Could your home qualify?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "44px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Your home has passed our initial eligibility checks.",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "29px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "We\u2019re preparing your personalised estimate.",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "19px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Know someone who could benefit too?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "19px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "READY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "24px",
+      "c": "rgb(255, 255, 255)"
+     }
+    ],
+    "buttons": [
+     {
+      "t": "Share with a friend",
+      "bg": "rgb(60, 81, 196)",
+      "c": "rgb(255, 255, 255)",
+      "fs": "13px",
+      "fw": "800",
+      "r": "11px",
+      "sh": "rgba(7, 191, 97, 0.18) 0px 4px 0px 0px",
+      "b": "rgb(255, 255, 255)"
+     },
+     {
+      "t": "Copy referral link",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(102, 115, 140)",
+      "fs": "11px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(102, 115, 140)"
+     },
+     {
+      "t": "Check another property",
+      "bg": "rgb(255, 255, 255)",
+      "c": "rgb(60, 81, 196)",
+      "fs": "16px",
+      "fw": "400",
+      "r": "11px",
+      "sh": "none",
+      "b": "rgba(60, 81, 196, 0.22)"
+     },
+     {
+      "t": "How we use your information",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(101, 112, 137)",
+      "fs": "10px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(101, 112, 137)"
+     }
+    ],
+    "backHome": 1,
+    "lovable": false
+   },
+   "copy_after_click": "EILING INSULATION PROGRAM?\n\nTell us who you are and we\u2019ll take you to the right place.\n\nCHOOSE YOUR NEXT STEP\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.07,
+     "submission_id_hash": 82697
+    },
+    {
+     "action": "sync",
+     "t": 0.38,
+     "submission_id_hash": 82697
+    }
+   ],
+   "other_nonget_intercepted": 2,
+   "analytics_aborted": 1
+  },
+  {
+   "case": "ineligible-1280",
+   "width": 1280,
+   "badge_s": 0.08,
+   "immediate_copy": "YOUR PRELIMINARY CHECK\n\nDOES NOT APPEAR ELIGIBLE\nUnfortunately, this property doesn\u2019t appear eligible for this VEU ceiling-insulation offer.\n\nBased on your answers, this property does not appear to meet one of the current requirements for this offer.\n\nWhy it doesn\u2019t appear eligible\nThis activity covers residential ceiling insulation, rather than garages, sheds or commercial premises.\n\nWHAT HAPPENS NEXT\n\nWe\u2019ll email you this outcome.\n\nWe\u2019ll email you a copy of the outcome and your referral link. If you opted in to HI VIC updates, we can also let you know about other home-energy offers that may suit you.\n\nYour enquiry is saved. We\u2019re preparing the secure estimate and referral link in the background.\nYour reference\nHIV-QAFIX0001\nCheck another property\nYour information is securely handled.\nHow we use your information\n\nYOUR NEXT STEP STARTS HERE\n\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\n\nTell us who you are and we\u2019ll take you to the right place.\n\nCHOOSE YOUR NEXT STEP\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "reference_s": 0.4,
+   "referral_s": 0.94,
+   "final_copy": "YOUR PRELIMINARY CHECK\n\nDOES NOT APPEAR ELIGIBLE\nUnfortunately, this property doesn\u2019t appear eligible for this VEU ceiling-insulation offer.\n\nBased on your answers, this property does not appear to meet one of the current requirements for this offer.\n\nWhy it doesn\u2019t appear eligible\nThis activity covers residential ceiling insulation, rather than garages, sheds or commercial premises.\n\nWHAT HAPPENS NEXT\n\nWe\u2019ll email you this outcome.\n\nWe\u2019ll email you a copy of the outcome and your referral link. If you opted in to HI VIC updates, we can also let you know about other home-energy offers that may suit you.\n\nYour reference\nHIV-QAFIX0001\n\nREFER A FRIEND\n\nKnow someone who could benefit too?\n\nThis property may not qualify, but someone you know might. Share HI VIC and they can check in just a few minutes.\n\nShare with a friend\nCopy referral link\nCheck another property\nYour information is securely handled.\nHow we use your information\n\nYOUR NEXT STEP STARTS HERE\n\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\n\nTell us who you are and we\u2019ll take you to the right place.\n\nCHOOSE YOUR NEXT STEP\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "style": {
+    "overflowX": 0,
+    "fonts": [
+     "Open Sans"
+    ],
+    "headings": [
+     {
+      "t": "Could your home qualify?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "44px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Unfortunately, this property doesn\u2019t appear eligible for thi",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "29px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "We\u2019ll email you this outcome.",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "19px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Know someone who could benefit too?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "19px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "READY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "24px",
+      "c": "rgb(255, 255, 255)"
+     }
+    ],
+    "buttons": [
+     {
+      "t": "Share with a friend",
+      "bg": "rgb(60, 81, 196)",
+      "c": "rgb(255, 255, 255)",
+      "fs": "13px",
+      "fw": "800",
+      "r": "11px",
+      "sh": "rgba(7, 191, 97, 0.18) 0px 4px 0px 0px",
+      "b": "rgb(255, 255, 255)"
+     },
+     {
+      "t": "Copy referral link",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(102, 115, 140)",
+      "fs": "11px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(102, 115, 140)"
+     },
+     {
+      "t": "Check another property",
+      "bg": "rgb(255, 255, 255)",
+      "c": "rgb(60, 81, 196)",
+      "fs": "16px",
+      "fw": "400",
+      "r": "11px",
+      "sh": "none",
+      "b": "rgba(60, 81, 196, 0.22)"
+     },
+     {
+      "t": "How we use your information",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(101, 112, 137)",
+      "fs": "10px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(101, 112, 137)"
+     }
+    ],
+    "backHome": 1,
+    "lovable": false
+   },
+   "copy_after_click": "EILING INSULATION PROGRAM?\n\nTell us who you are and we\u2019ll take you to the right place.\n\nCHOOSE YOUR NEXT STEP\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.07,
+     "submission_id_hash": 82832
+    },
+    {
+     "action": "sync",
+     "t": 0.39,
+     "submission_id_hash": 82832
+    }
+   ],
+   "other_nonget_intercepted": 2,
+   "analytics_aborted": 1
+  },
+  {
+   "case": "review-prev-upgrade-yes-1280",
+   "width": 1280,
+   "badge_s": 0.1,
+   "immediate_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE \u2014 ONSITE CONFIRMATION NEEDED\nYour home looks likely to qualify \u2014 we just need to confirm a few things.\n\nBased on your answers, your home is a strong candidate for the VEU insulation discount. We just need to confirm the items below before the final quote.\n\nWhat we need to confirm\nWe need to check whether the property has already received a VEU ceiling insulation upgrade.\nWe need to confirm the existing insulation level.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour enquiry is saved. We\u2019re preparing the secure estimate and referral link in the background.\nYour reference\nHIV-QAFIX0001\nCheck another property\nYour information is securely handled.\nHow we use your information\n\nYOUR NEXT STEP STARTS HERE\n\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\n\nTell us who you are and we\u2019ll take you to the right place.\n\nCHOOSE YOUR NEXT STEP\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "reference_s": 0.43,
+   "referral_s": 0.98,
+   "final_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE \u2014 ONSITE CONFIRMATION NEEDED\nYour home looks likely to qualify \u2014 we just need to confirm a few things.\n\nBased on your answers, your home is a strong candidate for the VEU insulation discount. We just need to confirm the items below before the final quote.\n\nWhat we need to confirm\nWe need to check whether the property has already received a VEU ceiling insulation upgrade.\nWe need to confirm the existing insulation level.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour reference\nHIV-QAFIX0001\n\nREFER A FRIEND\n\nKnow someone who could benefit too?\n\nShare HI VIC with a friend or family member. They could be eligible to save on ceiling insulation too.\n\nShare with a friend\nCopy referral link\nCheck another property\nYour information is securely handled.\nHow we use your information\n\nYOUR NEXT STEP STARTS HERE\n\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\n\nTell us who you are and we\u2019ll take you to the right place.\n\nCHOOSE YOUR NEXT STEP\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Ho",
+   "style": {
+    "overflowX": 0,
+    "fonts": [
+     "Open Sans"
+    ],
+    "headings": [
+     {
+      "t": "Could your home qualify?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "44px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Your home looks likely to qualify \u2014 we just need to confirm ",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "29px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "We\u2019re preparing your personalised estimate.",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "19px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Know someone who could benefit too?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "19px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "READY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "24px",
+      "c": "rgb(255, 255, 255)"
+     }
+    ],
+    "buttons": [
+     {
+      "t": "Share with a friend",
+      "bg": "rgb(60, 81, 196)",
+      "c": "rgb(255, 255, 255)",
+      "fs": "13px",
+      "fw": "800",
+      "r": "11px",
+      "sh": "rgba(7, 191, 97, 0.18) 0px 4px 0px 0px",
+      "b": "rgb(255, 255, 255)"
+     },
+     {
+      "t": "Copy referral link",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(102, 115, 140)",
+      "fs": "11px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(102, 115, 140)"
+     },
+     {
+      "t": "Check another property",
+      "bg": "rgb(255, 255, 255)",
+      "c": "rgb(60, 81, 196)",
+      "fs": "16px",
+      "fw": "400",
+      "r": "11px",
+      "sh": "none",
+      "b": "rgba(60, 81, 196, 0.22)"
+     },
+     {
+      "t": "How we use your information",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(101, 112, 137)",
+      "fs": "10px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(101, 112, 137)"
+     }
+    ],
+    "backHome": 1,
+    "lovable": false
+   },
+   "copy_after_click": "How we use your information\n\nYOUR NEXT STEP STARTS HERE\n\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\n\nTell us who you are and we\u2019ll take you to the right place.\n\nCHOOSE YOUR NEXT STEP\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Ho",
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.09,
+     "submission_id_hash": 59916
+    },
+    {
+     "action": "sync",
+     "t": 0.4,
+     "submission_id_hash": 59916
+    }
+   ],
+   "other_nonget_intercepted": 2,
+   "analytics_aborted": 1
+  },
+  {
+   "case": "custom-175-390",
+   "width": 390,
+   "badge_s": 0.06,
+   "immediate_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE\nYour home has passed our initial eligibility checks.\n\nBased on your answers, your home is on track to qualify for a VEU insulation discount. We\u2019ll confirm the ceiling area and remaining technical requirements during the onsite Measure + PIESA before your final quote.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour enquiry is saved. We\u2019re preparing the secure estimate and referral link in the background.\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "reference_s": 0.39,
+   "referral_s": 0.94,
+   "final_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE\nYour home has passed our initial eligibility checks.\n\nBased on your answers, your home is on track to qualify for a VEU insulation discount. We\u2019ll confirm the ceiling area and remaining technical requirements during the onsite Measure + PIESA before your final quote.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour reference\nHIV-QAFIX0001\n\nREFER A FRIEND\n\nKnow someone who could benefit too?\n\nShare HI VIC with a friend or family member. They could be eligible to save on ceiling insulation too.\n\nShare with a friend\nCopy referral link\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "style": {
+    "overflowX": 0,
+    "fonts": [
+     "Open Sans"
+    ],
+    "headings": [
+     {
+      "t": "Could your home qualify?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "26px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Your home has passed our initial eligibility checks.",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "21px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "We\u2019re preparing your personalised estimate.",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "19px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Know someone who could benefit too?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "16px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "READY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "14.72px",
+      "c": "rgb(255, 255, 255)"
+     }
+    ],
+    "buttons": [
+     {
+      "t": "Share with a friend",
+      "bg": "rgb(60, 81, 196)",
+      "c": "rgb(255, 255, 255)",
+      "fs": "12px",
+      "fw": "800",
+      "r": "11px",
+      "sh": "rgba(7, 191, 97, 0.18) 0px 4px 0px 0px",
+      "b": "rgb(255, 255, 255)"
+     },
+     {
+      "t": "Copy referral link",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(102, 115, 140)",
+      "fs": "11px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(102, 115, 140)"
+     },
+     {
+      "t": "Check another property",
+      "bg": "rgb(255, 255, 255)",
+      "c": "rgb(60, 81, 196)",
+      "fs": "16px",
+      "fw": "400",
+      "r": "11px",
+      "sh": "none",
+      "b": "rgba(60, 81, 196, 0.22)"
+     },
+     {
+      "t": "How we use your information",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(101, 112, 137)",
+      "fs": "9px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(101, 112, 137)"
+     }
+    ],
+    "backHome": 1,
+    "lovable": false
+   },
+   "copy_after_click": "curely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.06,
+     "submission_id_hash": 74498
+    },
+    {
+     "action": "sync",
+     "t": 0.37,
+     "submission_id_hash": 74498
+    }
+   ],
+   "other_nonget_intercepted": 2,
+   "analytics_aborted": 1
+  },
+  {
+   "case": "age-no-390",
+   "width": 390,
+   "badge_s": 0.08,
+   "immediate_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE \u2014 ONSITE CONFIRMATION NEEDED\nYour home looks likely to qualify \u2014 we just need to confirm a few things.\n\nBased on your answers, your home is a strong candidate for the VEU insulation discount. We just need to confirm the items below before the final quote.\n\nWhat we need to confirm\nThe homeowner indicated the home or part of the relevant area may be less than five years old. Confirm onsite whether the whole dwelling is too new or whether only a recent-work ceiling area must be excluded.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour enquiry is saved. We\u2019re preparing the secure estimate and referral link in the background.\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "reference_s": 0.45,
+   "referral_s": 1.0,
+   "final_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE \u2014 ONSITE CONFIRMATION NEEDED\nYour home looks likely to qualify \u2014 we just need to confirm a few things.\n\nBased on your answers, your home is a strong candidate for the VEU insulation discount. We just need to confirm the items below before the final quote.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour reference\nHIV-QAFIX0001\n\nREFER A FRIEND\n\nKnow someone who could benefit too?\n\nShare HI VIC with a friend or family member. They could be eligible to save on ceiling insulation too.\n\nShare with a friend\nCopy referral link\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "style": {
+    "overflowX": 0,
+    "fonts": [
+     "Open Sans"
+    ],
+    "headings": [
+     {
+      "t": "Could your home qualify?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "26px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Your home looks likely to qualify \u2014 we just need to confirm ",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "21px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "We\u2019re preparing your personalised estimate.",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "19px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "Know someone who could benefit too?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "16px",
+      "c": "rgb(60, 81, 196)"
+     },
+     {
+      "t": "READY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?",
+      "ff": "\"Open Sans\"",
+      "fw": "800",
+      "fs": "14.72px",
+      "c": "rgb(255, 255, 255)"
+     }
+    ],
+    "buttons": [
+     {
+      "t": "Share with a friend",
+      "bg": "rgb(60, 81, 196)",
+      "c": "rgb(255, 255, 255)",
+      "fs": "12px",
+      "fw": "800",
+      "r": "11px",
+      "sh": "rgba(7, 191, 97, 0.18) 0px 4px 0px 0px",
+      "b": "rgb(255, 255, 255)"
+     },
+     {
+      "t": "Copy referral link",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(102, 115, 140)",
+      "fs": "11px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(102, 115, 140)"
+     },
+     {
+      "t": "Check another property",
+      "bg": "rgb(255, 255, 255)",
+      "c": "rgb(60, 81, 196)",
+      "fs": "16px",
+      "fw": "400",
+      "r": "11px",
+      "sh": "none",
+      "b": "rgba(60, 81, 196, 0.22)"
+     },
+     {
+      "t": "How we use your information",
+      "bg": "rgba(0, 0, 0, 0)",
+      "c": "rgb(101, 112, 137)",
+      "fs": "9px",
+      "fw": "400",
+      "r": "0px",
+      "sh": "none",
+      "b": "rgb(101, 112, 137)"
+     }
+    ],
+    "backHome": 1,
+    "lovable": false
+   },
+   "copy_after_click": "curely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.07,
+     "submission_id_hash": 31339
+    },
+    {
+     "action": "sync",
+     "t": 0.39,
+     "submission_id_hash": 31339
+    }
+   ],
+   "other_nonget_intercepted": 2,
+   "analytics_aborted": 1
+  },
+  {
+   "case": "slow-save-wait-390",
+   "width": 390,
+   "during_save_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE\nYour home has passed our initial eligibility checks.\n\nBased on your answers, your home is on track to qualify for a VEU insulation discount. We\u2019ll confirm the ceiling area and remaining technical requirements during the onsite Measure + PIESA before your final quote.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour enquiry is saved. We\u2019re preparing the secure estimate and referral link in the background.\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "check_another_disabled_during_save": false,
+   "reference_s": 8.2,
+   "screen_posts_total": 1,
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.09,
+     "submission_id_hash": 19543
+    },
+    {
+     "action": "sync",
+     "t": 8.1,
+     "submission_id_hash": 19543
+    }
+   ],
+   "other_nonget_intercepted": 2,
+   "analytics_aborted": 1
+  },
+  {
+   "case": "slow-save-header_home-390",
+   "width": 390,
+   "during_save_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE\nYour home has passed our initial eligibility checks.\n\nBased on your answers, your home is on track to qualify for a VEU insulation discount. We\u2019ll confirm the ceiling area and remaining technical requirements during the onsite Measure + PIESA before your final quote.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour enquiry is saved. We\u2019re preparing the secure estimate and referral link in the background.\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "check_another_disabled_during_save": false,
+   "url_after_header_home": "https://homeinsulationvictoria.com.au/",
+   "beforeunload_prompt": [],
+   "screen_posts_total": 1,
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.05,
+     "submission_id_hash": 70956
+    },
+    {
+     "action": "sync",
+     "t": 8.06,
+     "submission_id_hash": 70956
+    }
+   ],
+   "other_nonget_intercepted": 3,
+   "analytics_aborted": 1
+  },
+  {
+   "case": "slow-save-reload-390",
+   "width": 390,
+   "during_save_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE\nYour home has passed our initial eligibility checks.\n\nBased on your answers, your home is on track to qualify for a VEU insulation discount. We\u2019ll confirm the ceiling area and remaining technical requirements during the onsite Measure + PIESA before your final quote.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour enquiry is saved. We\u2019re preparing the secure estimate and referral link in the background.\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "check_another_disabled_during_save": false,
+   "after_reload": "Back to home\n\nHOMEOWNERS & LANDLORDS\n\nCould your home qualify?\n\nAnswer a few quick questions to check whether your property may qualify for discounted ceiling insulation through the Victorian Energy Upgrades program.\n\n1\nYour details\n2\nInsulation\n3\nYour result\nTell us about you.\n\nWe\u2019ll email you the ",
+   "screen_posts_total": 1,
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.06,
+     "submission_id_hash": 70448
+    }
+   ],
+   "other_nonget_intercepted": 4,
+   "analytics_aborted": 2
+  },
+  {
+   "case": "slow-save-back-390",
+   "width": 390,
+   "during_save_copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE\nYour home has passed our initial eligibility checks.\n\nBased on your answers, your home is on track to qualify for a VEU insulation discount. We\u2019ll confirm the ceiling area and remaining technical requirements during the onsite Measure + PIESA before your final quote.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour enquiry is saved. We\u2019re preparing the secure estimate and referral link in the background.\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "check_another_disabled_during_save": false,
+   "url_after_back": "about:blank",
+   "after_back": "",
+   "screen_posts_total": 1,
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.08,
+     "submission_id_hash": 29907
+    }
+   ],
+   "other_nonget_intercepted": 2,
+   "analytics_aborted": 1
+  },
+  {
+   "case": "save-500-retry-390",
+   "width": 390,
+   "error_shown_s": null,
+   "copy_on_failure": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE\nYour home has passed our initial eligibility checks.\n\nBased on your answers, your home is on track to qualify for a VEU insulation discount. We\u2019ll confirm the ceiling area and remaining technical requirements during the onsite Measure + PIESA before your final quote.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nfixture failure\n\nTry saving again\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "reference_after_retry_s": 10.62,
+   "referral_after_retry_s": 10.95,
+   "same_submission_id_on_retry": true,
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.08,
+     "submission_id_hash": 45148
+    },
+    {
+     "action": "screen",
+     "t": 10.3,
+     "submission_id_hash": 45148
+    },
+    {
+     "action": "sync",
+     "t": 10.61,
+     "submission_id_hash": 45148
+    }
+   ],
+   "other_nonget_intercepted": 2,
+   "analytics_aborted": 1
+  },
+  {
+   "case": "double-submit-390",
+   "width": 390,
+   "screen_posts": 1,
+   "sync_posts": 1,
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.06,
+     "submission_id_hash": 41519
+    },
+    {
+     "action": "sync",
+     "t": 1.58,
+     "submission_id_hash": 41519
+    }
+   ],
+   "other_nonget_intercepted": 2,
+   "analytics_aborted": 1
+  },
+  {
+   "case": "sync-500-390",
+   "width": 390,
+   "reference_s": 0.4,
+   "copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE\nYour home has passed our initial eligibility checks.\n\nBased on your answers, your home is on track to qualify for a VEU insulation discount. We\u2019ll confirm the ceiling area and remaining technical requirements during the onsite Measure + PIESA before your final quote.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour enquiry is safely saved. Your personalised estimate is taking a little longer to prepare \u2014 there\u2019s no need to submit again.\nYour reference\nHIV-QAFIX0001\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "referral_visible": false,
+   "sync_posts": 2,
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.07,
+     "submission_id_hash": 28450
+    },
+    {
+     "action": "sync",
+     "t": 0.38,
+     "submission_id_hash": 28450
+    },
+    {
+     "action": "sync",
+     "t": 1.39,
+     "submission_id_hash": 28450
+    }
+   ],
+   "other_nonget_intercepted": 2,
+   "analytics_aborted": 1
+  },
+  {
+   "case": "sync-delayed-12s-390",
+   "width": 390,
+   "reference_s": 0.4,
+   "copy": "YOUR PRELIMINARY CHECK\n\nLIKELY ELIGIBLE\nYour home has passed our initial eligibility checks.\n\nBased on your answers, your home is on track to qualify for a VEU insulation discount. We\u2019ll confirm the ceiling area and remaining technical requirements during the onsite Measure + PIESA before your final quote.\n\nWHAT HAPPENS NEXT\n\nWe\u2019re preparing your personalised estimate.\n\nKeep an eye on your inbox. We\u2019ll email you a secure self-serve estimate showing your estimated VEU discount, project price, energy-saving benefits, what\u2019s included and the next step.\n\nYour enquiry is saved. We\u2019re preparing the secure estimate and referral link in the background.\nYour reference\nHIV-QAFIX0001\nCheck another property\nYour information is securely handled.\nHow we use your information\nREADY TO SIMPLIFY THE VEU CEILING INSULATION PROGRAM?\nGET STARTED\nHOME\nHOMEOWNER OR LANDLORD\nPROPERTY MANAGER\nCERTIFIED INSULATION INSTALLER\nREGISTERED ELECTRICAL CONTRACTOR\nFAQS\nCONTACT US\ninfo@homeinsulationvictoria.com.au\n\n\u00a9 2026 DC Construction Solutions trading as Home Insulation Victoria\n\nACCREDITED PERSON\nVEU CEILING INSULATION \u00b7 ACTIVITY 48\nAdmin",
+   "referral_visible": false,
+   "sync_posts": 1,
+   "posts": [
+    {
+     "action": "screen",
+     "t": 0.06,
+     "submission_id_hash": 93313
+    },
+    {
+     "action": "sync",
+     "t": 0.38,
+     "submission_id_hash": 93313
+    }
+   ],
+   "other_nonget_intercepted": 2,
+   "analytics_aborted": 1
+  }
+ ]
+}
