@@ -30,6 +30,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
             {roles.includes("admin") && (
               <>
                 <Link to="/admin" className={link} activeProps={active} activeOptions={{ exact: true }}>Pipeline</Link>
+                <Link to="/admin/step3-design" className={link} activeProps={active}>Step 3 Design</Link>
                 <Link to="/admin/businesses" className={link} activeProps={active}>Partners</Link>
                 <Link to="/admin/partners" className={link} activeProps={active}>Partner Enquiries</Link>
                 <Link to="/admin/compliance" className={link} activeProps={active}>Compliance Setup</Link>
