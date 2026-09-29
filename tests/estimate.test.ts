@@ -101,7 +101,11 @@ describe("static separation / UI", () => {
   test("legacy final-quote flat credit is marked", () => { expect(readFileSync("src/lib/quotes.server.ts", "utf8")).toContain("LEGACY: flat per-m² VEEC credit"); });
   const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
   test("customer copy", () => {
-    for (const t of ["Your home looks suitable to progress", "Your home may be eligible — onsite confirmation needed", "R5.0 insulation supply &amp; installation", "Estimated VEU discount", "Estimated price after VEU discount", "Onsite Measure + PIESA", "already included", "Access is confirmed onsite"]) expect(ui).toContain(t);
+     for (const t of ["GOOD NEWS", "Your home has passed our initial eligibility checks.", "Your home looks likely to qualify.", "LIKELY ELIGIBLE", "LIKELY ELIGIBLE — ONSITE CONFIRMATION NEEDED", "Based on your answers and our initial property checks, your home is on track to qualify for a VEU insulation discount. The onsite assessment confirms the remaining technical requirements and your final price.", "Based on your answers and our initial checks, your property is a strong candidate for the VEU insulation discount. We just need to confirm the remaining onsite items before the final quote.", "We just need to confirm:", "R5.0 insulation supply &amp; installation", "Estimated VEU discount", "Estimated price after VEU discount", "Onsite Measure + PIESA", "already included", "Access is confirmed onsite"]) expect(ui).toContain(t);
+     expect(ui).not.toMatch(/may be eligible|appears suitable|your home is eligible/i);
+     expect(ui).toContain('data.mode === "onsite" && !!data.onsiteDrivers?.length');
+     expect(ui).toContain('the type and condition of existing insulation');
+     expect(ui).toContain('roof space and access');
     expect(ui).not.toMatch(/Pay now|[Pp]ay\(|createBooking|useServerFn\(create/);
     expect(ui).toContain("Online booking and payment will be available here in the next step.");
     expect(ui).toContain("If existing insulation can remain");

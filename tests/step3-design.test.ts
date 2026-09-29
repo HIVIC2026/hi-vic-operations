@@ -29,6 +29,9 @@ describe("Step 3 design review", () => {
     expect(fixtures).toContain('m2: 134.1');
     expect(fixtures).toContain('lookupLocation("3058")');
     expect(fixtures).toContain('computeEstimate(area, location, "present", sampleSettings)');
+    expect(fixtures).toContain('mode: "onsite", onsiteDrivers:');
+    expect(fixtures).toContain('type and R-value must be confirmed onsite');
+    expect(fixtures).toContain('mode: "likely"');
     expect(fixtures).toContain('insulation: "none"');
     expect(fixtures).not.toMatch(/\.from\(|\.insert\(|\.update\(|getAdminEstimate|createServerFn|supabase/);
   });

@@ -9,7 +9,17 @@ import { BENCHMARK_LABEL, CALC_ASSUMPTION_LABEL, CALC_EMPTY_TITLE, CALC_MAX_M2, 
 import type { LocationVariables } from "@/lib/activity48.core";
 import { Pill } from "./badges";
 
-export const HEADLINE = { likely: "Your home looks suitable to progress", onsite: "Your home may be eligible — onsite confirmation needed" } as const;
+export const HEADLINE = { likely: "Your home has passed our initial eligibility checks.", onsite: "Your home looks likely to qualify." } as const;
+const ELIGIBILITY_COPY = {
+  likely: { badge: "LIKELY ELIGIBLE", description: "Based on your answers and our initial property checks, your home is on track to qualify for a VEU insulation discount. The onsite assessment confirms the remaining technical requirements and your final price." },
+  onsite: { badge: "LIKELY ELIGIBLE — ONSITE CONFIRMATION NEEDED", description: "Based on your answers and our initial checks, your property is a strong candidate for the VEU insulation discount. We just need to confirm the remaining onsite items before the final quote." },
+} as const;
+
+function plainOnsiteDriver(driver: string) {
+  if (/insulation/i.test(driver)) return "the type and condition of existing insulation";
+  if (/roof|access|cavity/i.test(driver)) return "roof space and access";
+  return driver;
+}
 
 export type CustomerData = {
   visible: boolean; mode?: "likely" | "onsite"; measureRequired?: boolean; onsiteDrivers?: string[]; rolloutHold?: boolean; accessConcern?: boolean;
@@ -55,7 +65,7 @@ function PriceResult({ est, fees, area, assumption = false }: { est: Est; fees: 
   );
 }
 
-function Assumptions({ est, drivers, accessConcern, headingId }: { est?: Est | null | undefined; drivers?: string[] | undefined; accessConcern?: boolean | undefined; headingId: string }) {
+function Assumptions({ est, accessConcern, headingId }: { est?: Est | null | undefined; accessConcern?: boolean | undefined; headingId: string }) {
   return (
     <section className="rounded-[1.3rem] bg-estimate-blue-pale px-5 py-6 sm:px-7" aria-labelledby={headingId}>
       <h3 id={headingId} className="text-lg font-extrabold uppercase tracking-tight text-estimate-blue">What may change</h3>
@@ -65,7 +75,6 @@ function Assumptions({ est, drivers, accessConcern, headingId }: { est?: Est | n
         <div><Home aria-hidden="true" className="mb-2 size-5 text-estimate-blue" /><h4 className="font-bold">Access</h4><p className="mt-1 text-sm text-estimate-navy">Access is confirmed onsite. Standard access is assumed.{est ? ` Moderate access may add ${dollars(est.access_adjustment.moderate)}; difficult access may add ${dollars(est.access_adjustment.difficult)}.` : ""}{accessConcern ? " Access needs checking onsite." : ""}</p></div>
         <div><ShieldCheck aria-hidden="true" className="mb-2 size-5 text-estimate-blue" /><h4 className="font-bold">Electrical</h4><p className="mt-1 text-sm text-estimate-navy">Safety assessment included; rectification, if required, is quoted separately before approval.</p></div>
       </div>
-      {!!drivers?.length && <div className="mt-5 border-l-2 border-estimate-blue pl-4"><h4 className="text-sm font-bold">We need to confirm onsite</h4><p className="mt-1 text-sm text-estimate-navy">{drivers.join(" · ")}</p></div>}
     </section>
   );
 }
@@ -78,13 +87,19 @@ export function CustomerEstimate({ data, publicPage = false }: { data: CustomerD
   const Heading = publicPage ? "h1" : "h2";
   return (
     <div className="estimate-brand space-y-8 text-estimate-navy" aria-label="Indicative estimate">
-      <div><p className="mb-2 text-xs font-extrabold uppercase tracking-widest text-estimate-navy">Your home estimate</p><Heading className="text-2xl font-extrabold leading-tight text-estimate-blue sm:text-3xl">{HEADLINE[data.mode]}</Heading></div>
+       <div>
+         <p className="mb-2 text-xs font-extrabold uppercase tracking-widest text-estimate-green">GOOD NEWS</p>
+         <Heading className="text-2xl font-extrabold leading-tight text-estimate-blue sm:text-3xl">{HEADLINE[data.mode]}</Heading>
+         <span className="mt-4 inline-flex max-w-full rounded-full bg-estimate-green-soft px-3 py-2 text-xs font-extrabold uppercase leading-snug text-estimate-navy">{ELIGIBILITY_COPY[data.mode].badge}</span>
+         <p className="mt-4 text-base leading-relaxed text-estimate-navy">{ELIGIBILITY_COPY[data.mode].description}</p>
+         {data.mode === "onsite" && !!data.onsiteDrivers?.length && <p className="mt-3 text-sm leading-relaxed text-estimate-navy"><span className="font-bold">We just need to confirm:</span> {[...new Set(data.onsiteDrivers.map(plainOnsiteDriver))].join(" · ")}</p>}
+       </div>
       {data.rolloutHold && <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Assessments for private homes open from 1 October 2026. This is a scheduling hold only, not an eligibility result.</p>}
       {!fees ? <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Your estimate is being prepared.</p> : <>
         {data.estimate ? <PriceResult est={data.estimate} fees={fees} area={data.estimate.area.m2} /> : !data.calc && <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">{data.postcodeUnlisted ? "We can't calculate a VEU discount for this postcode yet because it isn't in the official VEU location list. We'll confirm your pricing directly." : "Your estimate is being prepared."}</p>}
-        {data.estimate && <Assumptions est={data.estimate} drivers={data.onsiteDrivers} accessConcern={data.accessConcern} headingId={`${id}-assumptions`} />}
+         {data.estimate && <Assumptions est={data.estimate} accessConcern={data.accessConcern} headingId={`${id}-assumptions`} />}
         {data.calc && <AreaCalculator calc={data.calc} fees={fees} initial={data.estimate?.area.m2 ?? null} secondary={!!data.estimate} />}
-        {!data.estimate && <Assumptions drivers={data.onsiteDrivers} accessConcern={data.accessConcern} headingId={`${id}-assumptions`} />}
+         {!data.estimate && <Assumptions accessConcern={data.accessConcern} headingId={`${id}-assumptions`} />}
         {data.calc && <section className="rounded-[1.3rem] bg-estimate-green-soft px-5 py-6 sm:px-7" aria-labelledby={`${id}-veu`}><div className="flex items-start gap-3"><Info aria-hidden="true" className="mt-1 size-5 shrink-0 text-estimate-blue" /><div><p className="text-xs font-extrabold uppercase tracking-widest text-estimate-navy">VEU saving</p><h3 id={`${id}-veu`} className="mt-1 text-lg font-extrabold uppercase tracking-tight text-estimate-blue">How we estimate your VEU discount</h3><p className="mt-2 text-sm leading-relaxed text-estimate-navy">Your estimate uses the official Activity 48 postcode and climate calculation and a {dollars(data.calc.settings.indicative_veec_value)} per VEEC-equivalent consumer benchmark calibrated to the Victorian Government’s published example. It is not the live VEEC market price, and final values can change.</p>{data.calc.settings.veec_value_source_url?.startsWith("https://") && <a className="mt-2 inline-block text-sm font-bold text-estimate-blue underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" href={data.calc.settings.veec_value_source_url} target="_blank" rel="noopener noreferrer">View the published example <span aria-hidden="true">↗</span></a>}</div></div></section>}
         <section className="estimate-offset rounded-[1.35rem] border-2 border-estimate-blue bg-estimate-blue px-5 py-6 text-estimate-white sm:px-8 sm:py-8" aria-labelledby={`${id}-next-step`}><p className="text-xs font-extrabold uppercase tracking-widest text-estimate-green-light">The next step</p><div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"><h3 id={`${id}-next-step`} className="text-xl font-extrabold uppercase tracking-tight sm:text-2xl">Onsite Measure + PIESA</h3><span className="text-2xl font-extrabold">{dollars(fees.piesa)} <span className="text-sm font-normal">inc GST</span></span></div><p className="mt-2 text-sm">{data.estimate ? "This fee is already included in the indicative total above." : "This fee is included in the indicative total once you enter an area."}</p><ul className="mt-5 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">{["Confirms exact ceiling area", "Checks existing insulation and removal", "Confirms access", "Completes electrical safety assessment", "Allows a final quote to be prepared"].map((item) => <li key={item} className="flex items-start gap-2"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green-light" />{item}</li>)}</ul><p className="mt-6 border-t border-estimate-white/30 pt-4 text-sm">Online booking and payment will be available here in the next step.</p></section>
         <p className="pb-6 text-sm leading-relaxed text-estimate-navy">Indicative estimate only. Final price depends on onsite measurement, existing insulation, access, electrical safety, eligibility and certificate values.</p>
