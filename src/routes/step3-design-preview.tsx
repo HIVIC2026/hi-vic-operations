@@ -26,7 +26,7 @@ function Step3DesignPreview() {
 
   return <div className="estimate-brand min-h-screen bg-estimate-canvas">
     <EstimateHeader />
-    <main className="mx-auto max-w-[840px] px-5 pb-12 pt-6 sm:px-8 sm:pt-9">
+     <main className="mx-auto max-w-[720px] px-5 pb-12 pt-6 sm:px-8 sm:pt-9">
       <p className="mb-7 border-l-4 border-estimate-green bg-estimate-green-soft px-4 py-3 text-sm font-extrabold text-estimate-navy" role="note">DESIGN PREVIEW ONLY — sample data, nothing is saved.</p>
       <div className="mb-7 flex flex-wrap gap-2 border-b-2 border-estimate-blue/20 pb-4" role="tablist" aria-label="Sample estimate">
         <Button type="button" role="tab" id="known-tab" aria-controls="known-panel" aria-selected={active === "known"} onClick={() => setActive("known")} variant="outline" className={`h-auto min-h-12 whitespace-normal border-2 border-estimate-blue px-4 py-2 text-left font-bold ${active === "known" ? "bg-estimate-green-soft text-estimate-blue estimate-offset" : "bg-estimate-white text-estimate-navy"}`}>134.1 m² · insulation present</Button>

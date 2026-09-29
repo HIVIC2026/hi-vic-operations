@@ -34,11 +34,11 @@ function PublicEstimatePage() {
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas">
        <EstimateHeader />
-      <main className="mx-auto max-w-[840px] px-5 py-7 sm:px-8 sm:py-10">
+       <main className="mx-auto max-w-[720px] px-5 py-7 sm:px-8 sm:py-10">
         {isLoading ? <p className="text-sm text-muted-foreground">Loading your estimate…</p>
           : isError || !data || !data.estimate?.visible ? <div className="rounded-[1.3rem] border-2 border-estimate-blue bg-estimate-white p-6 text-center estimate-offset"><h1 className="text-xl font-bold">Estimate unavailable</h1><p className="mt-2 text-sm text-estimate-navy">{LINK_UNAVAILABLE}</p></div>
           : <>
-            {(data.job.address || data.job.job_number) && <p className="mb-6 text-sm text-muted-foreground">{data.job.address}{data.job.address && data.job.job_number ? " · " : ""}{data.job.job_number}</p>}
+             {(data.job.address || data.job.job_number) && <p className="mb-6 text-xs text-estimate-navy/70">{data.job.address}{data.job.address && data.job.job_number ? " · " : ""}{data.job.job_number}</p>}
             <CustomerEstimate data={data.estimate} publicPage />
           </>}
       </main>
