@@ -46,8 +46,8 @@ function EmailPreview() {
       <p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p>
       <p className="mb-6 text-sm"><strong>Preheader:</strong> {sample.previewText}</p>
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,640px)_minmax(0,390px)]">
-        <section aria-label="Desktop email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Desktop · 640px</h2><iframe title="Likely-eligible desktop email" srcDoc={srcDoc} sandbox="" className="block h-[3050px] w-full border border-border bg-background" /></section>
-        <section aria-label="Mobile email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Mobile · 390px</h2><div className="mx-auto w-full max-w-[390px] border-[6px] border-foreground bg-background"><iframe title="Likely-eligible mobile email" srcDoc={srcDoc} sandbox="" className="block h-[3700px] w-full border-0 bg-background" /></div></section>
+        <section aria-label="Desktop email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Desktop · 640px</h2><iframe title="Likely-eligible desktop email" srcDoc={srcDoc} sandbox="" className="block h-[2820px] w-full border border-border bg-background" /></section>
+        <section aria-label="Mobile email preview" className="min-w-0"><h2 className="mb-3 text-sm font-bold">Mobile · 390px</h2><div className="mx-auto w-full max-w-[390px] border-[6px] border-foreground bg-background"><iframe title="Likely-eligible mobile email" srcDoc={srcDoc} sandbox="" className="block h-[3330px] w-full border-0 bg-background" /></div></section>
       </div>
     </div>
   </main>;
