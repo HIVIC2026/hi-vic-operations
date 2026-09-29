@@ -8,6 +8,7 @@ import { getAdminEstimate, getAdminEstimateLink, getAdminEstimateLinkUrl, getOwn
 import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
 import { BENCHMARK_LABEL, CALC_ASSUMPTION_LABEL, CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, FEE_DESCRIPTION, FEE_LABEL, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings, type Scenario } from "@/lib/estimate.core";
 import type { LocationVariables } from "@/lib/activity48.core";
+import { CUSTOMER_BRAND, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
 import { Pill } from "./badges";
 
 export const HEADLINE = { likely: "Your home has passed our initial eligibility checks.", onsite: "Your home looks likely to qualify." } as const;
@@ -15,8 +16,6 @@ const ELIGIBILITY_COPY = {
   likely: { badge: "LIKELY ELIGIBLE", description: "Based on your answers and our initial property checks, your home is on track to qualify for a VEU insulation discount. The onsite assessment confirms the remaining technical requirements and your final price." },
   onsite: { badge: "LIKELY ELIGIBLE — ONSITE CONFIRMATION NEEDED", description: "Based on your answers and our initial checks, your property is a strong candidate for the VEU insulation discount. We just need to confirm the remaining onsite items before the final quote." },
 } as const;
-const CUSTOMER_LOGO_URL = "https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png";
-
 function plainOnsiteDriver(driver: string) {
   if (/insulation/i.test(driver)) return "the type and condition of existing insulation";
   if (/roof|access|cavity/i.test(driver)) return "roof space and access";
@@ -42,11 +41,11 @@ export function ConfirmQuote({ estimatedPrice, assessmentFee, onBack, preview = 
     </div>
     <div className="px-5 py-7 sm:px-9 sm:py-9">
       <dl className="space-y-3 border-b border-estimate-blue-soft pb-6 text-sm">
-        <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">ESTIMATED PRICE</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(estimatedPrice)}</dd></div>
-        <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">PAY TODAY</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(assessmentFee)}</dd></div>
-        <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">ESTIMATED REMAINING BALANCE</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(remaining)}</dd></div>
+        <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">{CUSTOMER_QUOTE_LABELS.finalCost}</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(estimatedPrice)}</dd></div>
+        <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">{CUSTOMER_QUOTE_LABELS.payableNow}</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(assessmentFee)}</dd></div>
+        <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">{CUSTOMER_QUOTE_LABELS.remainingBalance}</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(remaining)}</dd></div>
       </dl>
-      <p className="mt-6 border-l-4 border-estimate-green bg-estimate-green-soft px-4 py-4 text-sm font-extrabold leading-relaxed">THE {dollars(assessmentFee)} YOU PAY TODAY IS ALREADY INCLUDED IN YOUR ESTIMATED PRICE — IT IS NOT {dollars(assessmentFee)} ON TOP.</p>
+      <div className="mt-6 border-l-4 border-estimate-green bg-estimate-green-soft px-4 py-4 text-sm leading-relaxed"><p className="font-extrabold">{CUSTOMER_PAYMENT_COPY.included}</p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.notAgain}</p></div>
       <div className="mt-7">
         <h2 className="text-lg font-extrabold text-estimate-blue">What this visit confirms</h2>
         <ul className="mt-4 space-y-3 text-sm font-semibold">
@@ -55,7 +54,7 @@ export function ConfirmQuote({ estimatedPrice, assessmentFee, onBack, preview = 
       </div>
       <div className="mt-7 border-t border-estimate-blue-soft pt-6">
         <h2 className="text-lg font-extrabold text-estimate-blue">NO SURPRISE ADD-ONS.</h2>
-        <p className="mt-2 text-sm leading-relaxed">If the onsite assessment identifies insulation removal or electrical rectification that isn’t included in your estimate, we’ll show you exactly what’s required and what it costs before you decide whether to proceed.</p>
+        <p className="mt-2 text-sm font-bold leading-relaxed">{CUSTOMER_PAYMENT_COPY.noSilentAdditions}</p><p className="mt-2 text-sm leading-relaxed">If the onsite assessment identifies insulation removal or electrical rectification that isn’t included in your estimate, we’ll show you exactly what’s required and what it costs before you decide whether to proceed.</p>
       </div>
       <div className="mt-7 space-y-3">
         <Button type="button" size="field" className="h-auto min-h-14 w-full rounded-none bg-estimate-blue px-5 py-4 font-extrabold text-estimate-white shadow-[4px_4px_0_var(--estimate-green)] disabled:opacity-100" disabled>{preview ? "PAYMENT SETUP IN PROGRESS" : "PAYMENT CURRENTLY UNAVAILABLE"}</Button>
@@ -76,12 +75,12 @@ function PriceResult({ est, area, fees, assumption = false }: { est: Est; area: 
     <div className="mt-7 border-t border-estimate-blue-soft pt-6">
       <h3 className="text-base font-semibold text-estimate-navy">Your itemised estimate</h3>
       <dl className="mt-4 space-y-4 text-sm">
-        {[["R5.0 ceiling insulation — supply & installation", dollars(standard.installation)], ["Onsite Measure + PIESA", `${dollars(fees.piesa)} incl GST`], ["Home Insulation Victoria — AP & Compliance Management", `${dollars(fees.ap)} incl GST`]].map(([label, amount]) => <div key={label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4"><dt className="min-w-0 leading-relaxed">{label}</dt><dd className="font-bold">{amount}</dd></div>)}
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-t border-estimate-blue-soft pt-4 font-semibold text-estimate-navy"><dt className="min-w-0">Estimated project total</dt><dd>{dollars(standard.pre_discount_total)}</dd></div>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-estimate-green-light pb-4 font-semibold text-estimate-navy"><dt className="min-w-0">Estimated VEU discount</dt><dd className="text-estimate-green">−{dollars(standard.applied_discount)}</dd></div>
+        {customerQuoteRows({ piesa: fees.piesa, installation: standard.installation, apManagement: fees.ap }).map(({ label, amount }) => <div key={label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4"><dt className="min-w-0 leading-relaxed">{label}</dt><dd className="font-bold">{dollars(amount)}</dd></div>)}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-t border-estimate-blue-soft pt-4 font-semibold text-estimate-navy"><dt className="min-w-0">{CUSTOMER_QUOTE_LABELS.projectTotal}</dt><dd>{dollars(standard.pre_discount_total)}</dd></div>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-estimate-green-light pb-4 font-semibold text-estimate-navy"><dt className="min-w-0">{CUSTOMER_QUOTE_LABELS.discount}</dt><dd className="text-estimate-green">−{dollars(standard.applied_discount)}</dd></div>
       </dl>
-      <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 font-bold text-estimate-navy"><span className="text-sm">Your estimated total</span><span className="text-xl">{dollars(standard.estimated_customer_total)}</span></div>
-      <div className="mt-5 bg-estimate-green-soft px-4 py-4 text-sm leading-relaxed text-estimate-navy"><p><strong>{dollars(fees.piesa)} payable now</strong> for Onsite Measure + PIESA.</p><p className="mt-1">Included in the estimated project total — not an extra charge and not paid again.</p><p className="mt-2">Estimated remaining balance: <strong>{dollars(Math.max(0, standard.estimated_customer_total - fees.piesa))}</strong></p></div>
+      <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 font-bold text-estimate-navy"><span className="text-sm">{CUSTOMER_QUOTE_LABELS.finalCost}</span><span className="text-xl">{dollars(standard.estimated_customer_total)}</span></div>
+      <div className="mt-5 bg-estimate-green-soft px-4 py-4 text-sm leading-relaxed text-estimate-navy"><p><strong>{CUSTOMER_QUOTE_LABELS.payableNow}</strong></p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.included}</p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.notAgain}</p><p className="mt-2">{CUSTOMER_QUOTE_LABELS.remainingBalance}: <strong>{dollars(Math.max(0, standard.estimated_customer_total - fees.piesa))}</strong></p></div>
     </div>
     {standard.copayment_capped && <p className="mt-3 text-sm">The discount is limited so your contribution meets the program minimum.</p>}
   </section>;
@@ -92,11 +91,7 @@ function CalculatorQuoteResult({ est, area, fees, existingInsulation }: { est: E
   if (!primary) return null;
   const standard = primary.by_access.standard;
   const remaining = Math.max(0, standard.estimated_customer_total - fees.piesa);
-  const rows = [
-    ["R5.0 ceiling insulation — supply & install", dollars(standard.installation)],
-    ["Mandatory Pre-Installation Electrical Safety Assessment (PIESA) + onsite measure", dollars(fees.piesa)],
-    ["Home Insulation Victoria — Accredited Person Management", dollars(fees.ap)],
-  ];
+  const rows = customerQuoteRows({ piesa: fees.piesa, installation: standard.installation, apManagement: fees.ap });
   return <div className="space-y-5" data-testid="calculator-result">
     <section className="overflow-hidden border-2 border-estimate-blue bg-estimate-white shadow-[5px_5px_0_var(--estimate-accent)]" aria-label="Revised preliminary estimate">
       <div className="px-5 py-6 sm:px-8 sm:py-8">
@@ -106,35 +101,35 @@ function CalculatorQuoteResult({ est, area, fees, existingInsulation }: { est: E
           <strong className="text-xl text-estimate-blue" data-testid="calculator-area">{area} m²</strong>
         </div>
         <dl className="text-sm">
-          {rows.map(([name, amount]) => <div key={name} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-estimate-blue-soft py-4"><dt className="min-w-0 font-semibold leading-relaxed">{name}</dt><dd className="font-extrabold text-estimate-blue">{amount}</dd></div>)}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 pt-5"><dt className="font-extrabold">Estimated project total</dt><dd className="font-extrabold text-estimate-blue" data-testid="calculator-gross">{dollars(standard.pre_discount_total)}</dd></div>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-3 text-estimate-green"><dt className="font-extrabold">Estimated VEU / VEEC discount</dt><dd className="font-extrabold" data-testid="calculator-discount">−{dollars(standard.applied_discount)}</dd></div>
+          {rows.map(({ key, label, amount }) => <div key={key} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-estimate-blue-soft py-4"><dt className="min-w-0 font-semibold leading-relaxed">{label}</dt><dd className="font-extrabold text-estimate-blue">{dollars(amount)}</dd></div>)}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 pt-5"><dt className="font-extrabold">{CUSTOMER_QUOTE_LABELS.projectTotal}</dt><dd className="font-extrabold text-estimate-blue" data-testid="calculator-gross">{dollars(standard.pre_discount_total)}</dd></div>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-3 text-estimate-green"><dt className="font-extrabold">{CUSTOMER_QUOTE_LABELS.discount}</dt><dd className="font-extrabold" data-testid="calculator-discount">−{dollars(standard.applied_discount)}</dd></div>
         </dl>
         <div className="mt-2 bg-estimate-blue px-4 py-5 text-estimate-white sm:px-5">
-          <p className="text-xs font-extrabold uppercase text-estimate-green-light">Your estimated cost after discount</p>
+          <p className="text-xs font-extrabold uppercase text-estimate-green-light">{CUSTOMER_QUOTE_LABELS.finalCost}</p>
           <p className="mt-2 text-4xl font-extrabold leading-none" data-testid="calculator-total-can_remain">{dollars(standard.estimated_customer_total)}</p>
         </div>
         <div className="mt-5 border-l-4 border-estimate-green bg-estimate-green-soft px-4 py-4 text-sm leading-relaxed">
-          <p><strong>{dollars(fees.piesa)} payable now</strong> for the Measure + PIESA.</p>
-          <p className="mt-1 font-bold">Already included in your estimated total — not an extra fee.</p>
-          <p className="mt-1">If you proceed, you do not pay the {dollars(fees.piesa)} again.</p>
-          <p className="mt-3 flex items-baseline justify-between gap-3 border-t border-estimate-green/25 pt-3"><span>Estimated remaining balance</span><strong data-testid="calculator-remaining">{dollars(remaining)}</strong></p>
+          <p><strong>{CUSTOMER_QUOTE_LABELS.payableNow}</strong></p>
+          <p className="mt-1 font-bold">{CUSTOMER_PAYMENT_COPY.included}</p>
+          <p className="mt-1">{CUSTOMER_PAYMENT_COPY.notAgain}</p>
+          <p className="mt-3 flex items-baseline justify-between gap-3 border-t border-estimate-green/25 pt-3"><span>{CUSTOMER_QUOTE_LABELS.remainingBalance}</span><strong data-testid="calculator-remaining">{dollars(remaining)}</strong></p>
         </div>
         <p className="mt-4 text-xs font-bold">All prices incl GST.</p>
         {standard.copayment_capped && <p className="mt-2 text-xs">The discount is limited so your contribution meets the program minimum.</p>}
       </div>
     </section>
-    {existingInsulation && <p className="border-l-4 border-estimate-green bg-estimate-green-soft px-4 py-4 text-sm font-semibold leading-relaxed"><strong>Existing insulation:</strong> removal MAY be required. It is not included unless shown in the quote. The onsite assessment confirms whether removal is required and, if so, the price before you proceed.</p>}
+    {existingInsulation && <p className="border-l-4 border-estimate-green bg-estimate-green-soft px-4 py-4 text-sm font-semibold leading-relaxed">{CUSTOMER_EXISTING_INSULATION_NOTE}</p>}
     <section className="border-y border-estimate-blue-soft py-6">
-      <h4 className="text-lg font-extrabold text-estimate-blue">WHAT COULD CHANGE AFTER THE ONSITE ASSESSMENT?</h4>
+      <h4 className="text-lg font-extrabold text-estimate-blue">{CUSTOMER_WHAT_COULD_CHANGE.heading}</h4>
       <ul className="mt-4 space-y-3 text-sm leading-relaxed">
-        {["Final measured eligible ceiling area", "Existing insulation/removal if required", "Access difficulty", "Electrical rectification such as downlights/RCD/switchboard if required", "Final VEU discount / certificate value", "Final installation price"].map((item) => <li key={item} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" /><span>{item}</span></li>)}
+        {CUSTOMER_WHAT_COULD_CHANGE.items.map((item) => <li key={item} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" /><span>{item}</span></li>)}
       </ul>
-      <p className="mt-5 text-sm font-extrabold leading-relaxed">Nothing additional is simply added without being shown to you first. If anything changes, we’ll show you the scope and price before you decide whether to proceed.</p>
+      <p className="mt-5 text-sm font-extrabold leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.closing}</p>
     </section>
     <section className="border border-estimate-green/25 bg-estimate-green-soft p-4 sm:p-5">
       <Button type="button" size="field" className="h-auto min-h-12 w-full rounded-none bg-estimate-blue px-4 py-3 font-extrabold text-estimate-white shadow-[4px_4px_0_var(--estimate-green)] disabled:opacity-100" disabled>PAY {dollars(fees.piesa)} &amp; CONTINUE →</Button>
-      <p className="mt-3 text-center text-sm font-extrabold">Included in your estimated total — not an extra fee.</p>
+      <p className="mt-3 text-center text-sm font-extrabold">{CUSTOMER_PAYMENT_COPY.included}</p><p className="mt-1 text-center text-xs">{CUSTOMER_PAYMENT_COPY.notAgain}</p>
       <p className="mt-1 text-center text-xs leading-relaxed">Home Insulation Victoria manages the VEU pathway from assessment through compliance and VEEC processing.</p>
       <p className="mt-2 text-center text-xs font-bold text-estimate-blue">Secure payment is not yet available.</p>
     </section>
@@ -164,15 +159,15 @@ function PriceProtection({ settings, fees }: { settings: RetailSettings | undefi
   const pct = (m: number) => `${Math.round((m - 1) * 100)}%`;
   const rows = [
     ...(settings ? [`R5.0 insulation: ${dollars(settings.r5_install_inc_gst_per_m2)}/m² inc GST`, `Removal, if required: ${dollars(settings.removal_inc_gst_per_m2)}/m² inc GST`] : []),
-    `Onsite Measure + PIESA: ${dollars(fees.piesa)} inc GST`,
-    `Home Insulation Victoria — AP & Compliance Management: ${dollars(fees.ap)} inc GST`,
+    `${CUSTOMER_QUOTE_LABELS.piesa}: ${dollars(fees.piesa)} inc GST`,
+    `${CUSTOMER_QUOTE_LABELS.apManagement}: ${dollars(fees.ap)} inc GST`,
     ...(settings ? [`Access adjustments: fixed +${pct(settings.access_moderate_multiplier)} moderate / +${pct(settings.access_difficult_multiplier)} difficult on the installation component`] : []),
     "Electrical rectification: separately itemised and approved before work",
   ];
   return <section aria-labelledby={id} className="border-y border-estimate-blue-soft py-7">
     <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Price protection</p>
-    <h3 id={id} className="mt-2 text-xl font-bold leading-snug text-estimate-navy sm:text-2xl">Transparent HI VIC pricing — no installer mark-up surprises.</h3>
-    <p className="mt-3 text-sm leading-relaxed">HI VIC sets the customer pricing. Once the onsite facts are confirmed, your final quote is calculated from our set customer rate card. Our partner electricians and insulation installers do not decide what you pay.</p>
+    <h3 id={id} className="mt-2 text-xl font-bold leading-snug text-estimate-navy sm:text-2xl">Transparent Home Insulation Victoria pricing — no installer mark-up surprises.</h3>
+    <p className="mt-3 text-sm leading-relaxed">Home Insulation Victoria sets the customer pricing. Once the onsite facts are confirmed, your final quote is calculated from our set customer rate card. Our partner electricians and insulation installers do not decide what you pay.</p>
     <ul className="mt-5 grid gap-x-7 gap-y-3 text-sm sm:grid-cols-2">{rows.map((r) => <li key={r} className="flex items-start gap-2 leading-snug"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" />{r}</li>)}</ul>
     <p className="mt-4 text-xs leading-relaxed">Your final total still depends on the measured area, whether removal is needed, access and any electrical rectification.</p>
   </section>;
@@ -182,13 +177,13 @@ function NextStep({ fee, hasPrice }: { fee: number; hasPrice: boolean }) {
   const id = useId();
   return <section className="rounded-xl bg-estimate-blue px-5 py-8 text-estimate-white sm:px-8 sm:py-10" aria-labelledby={`${id}-next-step`}>
     <p className="text-xs font-semibold uppercase tracking-wider text-estimate-accent">Your next step</p>
-    <h3 id={`${id}-next-step`} className="mt-2 text-2xl font-bold leading-tight">Onsite Measure + PIESA</h3>
+    <h3 id={`${id}-next-step`} className="mt-2 text-2xl font-bold leading-tight">{CUSTOMER_QUOTE_LABELS.piesa}</h3>
     <p className="mt-4 text-4xl font-bold">{dollars(fee)} <span className="text-base font-medium">inc GST</span></p>
-    <p className="mt-4 border-l-2 border-estimate-accent bg-estimate-white/10 px-4 py-3 text-sm font-semibold leading-relaxed">{hasPrice ? "Already included in your estimated project total — not an extra charge if you proceed." : "Included in the estimated project total — not an extra charge if you proceed."}</p>
+    <p className="mt-4 border-l-2 border-estimate-accent bg-estimate-white/10 px-4 py-3 text-sm font-semibold leading-relaxed">{hasPrice ? CUSTOMER_PAYMENT_COPY.included : "Included in your estimated total — not an extra fee."}</p>
     <p className="mt-5 text-sm leading-relaxed">One visit gives us the verified information needed to finalise your job. Your assessment is completed by a licensed electrician employed by a Registered Electrical Contractor (REC).</p>
     <p className="mt-6 font-bold">What it covers</p>
     <ul className="mt-3 grid gap-x-5 gap-y-3 text-sm sm:grid-cols-2">{["Exact ceiling-area measurement", "Existing insulation/R-value check", "Whether removal is required", "Roof/ceiling access assessment", "PIESA by a licensed electrician employed by a REC", "Wiring, downlights, exhaust fans and electrical-clearance checks", "Identification of any rectification required before install", "Information required to prepare the final insulation quote"].map((item) => <li key={item} className="flex items-start gap-2 leading-relaxed"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green-light" />{item}</li>)}</ul>
-    <div className="mt-7 border-t border-estimate-white/30 pt-5"><p className="font-bold">What happens next?</p><ol className="mt-4 grid gap-4 text-sm sm:grid-cols-3">{["We complete the onsite Measure + PIESA", "You receive your final HI VIC-priced quote", "Once you approve it, we coordinate the qualified installer and manage the job through installation, evidence and VEEC processing"].map((item, index) => <li key={item} className="flex items-start gap-2 leading-relaxed"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-estimate-green-soft font-bold text-estimate-blue">{index + 1}</span>{item}</li>)}</ol></div>
+    <div className="mt-7 border-t border-estimate-white/30 pt-5"><p className="font-bold">What happens next?</p><ol className="mt-4 grid gap-4 text-sm sm:grid-cols-3">{["We complete the onsite measure and PIESA", "You receive your final Home Insulation Victoria quote", "Once you approve it, we coordinate the qualified installer and manage the job through installation, evidence and VEEC processing"].map((item, index) => <li key={item} className="flex items-start gap-2 leading-relaxed"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-estimate-green-soft font-bold text-estimate-blue">{index + 1}</span>{item}</li>)}</ol></div>
     <div className="mt-8 border-t border-estimate-white/25 pt-5 text-sm font-semibold text-estimate-green-light">Online booking &amp; payment — coming in the next step</div>
   </section>;
 }
@@ -198,12 +193,12 @@ function ManagedProcess() {
   const cards = [
     { icon: ShieldCheck, title: "Licensed electrical safety assessment", copy: "Your PIESA is completed by a licensed electrician employed by a Registered Electrical Contractor (REC). They check the ceiling space for unsafe wiring, prohibited lighting such as halogen downlights, solar/battery cabling and other electrical hazards before insulation work proceeds.", note: "" },
     { icon: BadgeCheck, title: "EEC Certified Insulation Installer", copy: "Your insulation upgrade is carried out by an EEC Certified Insulation Installer (CII) — the certification required for installers working under the VEU ceiling-insulation activity.", note: "CII certification covers the competency pathway for safe retrofit insulation work, including WHS, measurements and calculations, working safely at heights and bulk insulation installation." },
-    { icon: ClipboardCheck, title: "We manage it end-to-end", copy: "Eligibility, onsite assessment, vetted trades, quoting, compliance, evidence, installation coordination and VEEC processing — managed through one HI VIC process.", note: "" },
+    { icon: ClipboardCheck, title: "We manage it end-to-end", copy: "Eligibility, onsite assessment, vetted trades, quoting, compliance, evidence, installation coordination and VEEC processing — managed through one Home Insulation Victoria process.", note: "" },
   ];
   return <section aria-labelledby={id}>
-    <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Why HI VIC</p>
+    <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Why Home Insulation Victoria</p>
     <h3 id={id} className="mt-2 text-xl font-bold leading-snug text-estimate-navy sm:text-2xl">One managed pathway. The right qualified people. No chasing trades.</h3>
-    <p className="mt-3 text-sm leading-relaxed sm:text-base">From eligibility through to installation and VEEC processing, HI VIC coordinates the people, paperwork and compliance for you.</p>
+    <p className="mt-3 text-sm leading-relaxed sm:text-base">From eligibility through to installation and VEEC processing, Home Insulation Victoria coordinates the people, paperwork and compliance for you.</p>
     <div className="mt-5 grid gap-3">
       {cards.map(({ icon: Icon, title, copy, note }) => <div key={title} className="flex items-start gap-4 border-b border-estimate-blue-soft px-1 py-5 last:border-b-0">
         <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-estimate-green-soft"><Icon aria-hidden="true" className="size-5 text-estimate-green" /></span>
@@ -275,7 +270,7 @@ export function AreaCalculator({ calc, initial, fees, propertyAddress, secondary
       {secondary && !open ? <Button variant="ghost" size="field" className="h-auto min-h-12 max-w-full justify-start whitespace-normal px-0 text-left font-bold text-estimate-blue underline underline-offset-4 hover:bg-transparent hover:text-estimate-blue" onClick={() => setOpen(true)}>Want to test a different ceiling area? <ChevronDown aria-hidden="true" /></Button> : <>
         <div className="overflow-hidden border-2 border-estimate-blue bg-estimate-white shadow-[5px_5px_0_var(--estimate-green)]">
         <div className="bg-estimate-blue px-5 py-6 text-estimate-white sm:px-8 sm:py-8">
-          <img src={CUSTOMER_LOGO_URL} alt="Home Insulation Victoria" className="h-auto w-40 max-w-full rounded-sm bg-estimate-white p-2" />
+          <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-auto w-40 max-w-full rounded-sm bg-estimate-white p-2" />
           <p className="mt-6 text-xs font-extrabold uppercase text-estimate-green-light">Interactive preliminary estimate</p>
           <h3 className="mt-2 text-2xl font-extrabold leading-tight sm:text-3xl">CHECK ANOTHER CEILING SIZE</h3>
           <p className="mt-3 max-w-xl text-sm font-semibold leading-relaxed">Change the estimated m² and see how your preliminary project total, VEU discount and estimated balance could change.</p>

@@ -17,7 +17,7 @@ export const Route = createFileRoute("/estimate/$token")({
     meta: [
       { title: "Your indicative insulation estimate — Home Insulation Victoria" },
       { name: "description", content: "Your personal indicative ceiling insulation estimate from Home Insulation Victoria." },
-      { property: "og:title", content: "Your indicative insulation estimate — HI VIC" },
+      { property: "og:title", content: "Your indicative insulation estimate — Home Insulation Victoria" },
       { property: "og:description", content: "Personal indicative ceiling insulation estimate." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
