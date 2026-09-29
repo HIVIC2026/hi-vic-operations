@@ -142,7 +142,7 @@ export function CustomerEstimate({ data, publicPage = false, onCalculatorUse }: 
   return (
     <div className="estimate-brand space-y-8 text-estimate-navy sm:space-y-11" aria-label="Indicative estimate">
        <div className="border-b border-estimate-blue-soft pb-7 sm:pb-9">
-         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-estimate-green">Good news</p>
+         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-estimate-green">GOOD NEWS</p>
          <Heading className="max-w-[620px] text-3xl font-bold leading-tight text-estimate-navy sm:text-4xl">{HEADLINE[data.mode]}</Heading>
           <span className="mt-5 inline-flex max-w-full rounded-md bg-estimate-green-soft px-3 py-2 text-xs font-bold uppercase leading-snug text-estimate-green">{ELIGIBILITY_COPY[data.mode].badge}</span>
           <p className="mt-4 max-w-[620px] text-sm leading-relaxed text-estimate-navy/85 sm:text-base">{ELIGIBILITY_COPY[data.mode].description}</p>

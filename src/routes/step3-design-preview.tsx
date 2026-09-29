@@ -27,7 +27,7 @@ function Step3DesignPreview() {
   return <div className="estimate-brand min-h-screen bg-estimate-canvas">
     <EstimateHeader />
      <main className="mx-auto max-w-[760px] px-4 pb-14 sm:px-8">
-      <p className="mb-5 border-l-2 border-estimate-accent bg-estimate-accent-soft px-4 py-3 text-xs font-semibold uppercase tracking-wider text-estimate-navy" role="note">Design preview only — sample data, nothing is saved.</p>
+      <p className="mb-5 border-l-2 border-estimate-accent bg-estimate-accent-soft px-4 py-3 text-xs font-semibold uppercase tracking-wider text-estimate-navy" role="note">DESIGN PREVIEW ONLY — sample data, nothing is saved.</p>
       <div className="mb-5 flex flex-wrap gap-2" role="tablist" aria-label="Sample estimate">
         <Button type="button" role="tab" id="known-tab" aria-controls="known-panel" aria-selected={active === "known"} onClick={() => setActive("known")} variant="outline" className={`h-auto min-h-11 whitespace-normal rounded-lg border px-4 py-2 text-left text-sm font-semibold ${active === "known" ? "border-estimate-blue bg-estimate-blue text-estimate-white" : "border-estimate-blue-soft bg-estimate-white text-estimate-navy"}`}>134.1 m² · insulation present</Button>
         <Button type="button" role="tab" id="unknown-tab" aria-controls="unknown-panel" aria-selected={active === "unknown"} onClick={() => setActive("unknown")} variant="outline" className={`h-auto min-h-11 whitespace-normal rounded-lg border px-4 py-2 text-left text-sm font-semibold ${active === "unknown" ? "border-estimate-blue bg-estimate-blue text-estimate-white" : "border-estimate-blue-soft bg-estimate-white text-estimate-navy"}`}>Area unknown · no insulation</Button>
