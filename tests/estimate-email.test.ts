@@ -13,8 +13,13 @@ const detailed = { ...common, installationPrice: 4023, assessmentFee: 349, apFee
 describe("customer outcome email renderers", () => {
   test("likely eligible leads with the complete personalised quote", () => {
     const email = withUnsubscribe(renderEstimateEmail({ ...detailed, outcome: "likely" }), unsubscribeUrl);
-    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "YOUR HOME LOOKS LIKELY TO QUALIFY", "R5.0 ceiling insulation installation", "Onsite Measure + PIESA", "Included in your total", "AP &amp; Compliance Management", "Separate included line item", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$1,325", "$4,721", "$3,396", "$349 payable now", "not an extra charge", "will not pay this assessment fee again", "$3,047", "ADJUST MY ESTIMATE", "CONTINUE WITH HOME INSULATION VICTORIA", "WHAT COULD CHANGE AFTER THE ASSESSMENT?", "Nothing additional is simply added without being shown to you first.", "134.1 m²", "28% estimated saving", "THIS IS MORE THAN AN", "YOU'RE IN THE RIGHT HANDS.", "YOUR NEXT STEP", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
-    expect(email.html.indexOf("ESTIMATED VEU DISCOUNT")).toBeLessThan(email.html.indexOf("YOUR NEXT STEP"));
+    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "YOUR HOME LOOKS LIKELY TO QUALIFY", "R5.0 ceiling insulation installation", "Onsite Measure + PIESA", "Included in your total", "AP &amp; Compliance Management", "Separate included line item", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$1,325", "$4,721", "$3,396", "$349 payable now", "not an extra charge", "will not pay this assessment fee again", "$3,047", "ADJUST MY ESTIMATE", "PAY $349 &amp; CONTINUE", "WHAT HAPPENS NEXT", "shown to you before anything is added", "134.1 m²", "28% estimated saving", "MORE THAN AN INSULATION QUOTE.", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
+    const h = email.html;
+    const order = ["YOUR PRELIMINARY QUOTE", "ADJUST MY ESTIMATE", "$349 payable now", "PAY $349 &amp; CONTINUE", "WHAT HAPPENS NEXT", "MORE THAN AN INSULATION QUOTE."].map((t) => h.indexOf(t));
+    expect(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1]!))).toBe(true);
+    expect(h.split("PAY $349 &amp; CONTINUE").length - 1).toBe(1);
+    expect(h).not.toContain("CONTINUE WITH HOME INSULATION VICTORIA");
+    expect(`${h} ${email.plainText}`).not.toMatch(/RESERVED CAPACITY|WHY INSULATE/);
     expect(email.html).not.toContain("YOUR ANSWERS HAVEN'T RULED YOU OUT");
     expect(email.html).not.toMatch(/>HI VIC</);
   });
@@ -23,6 +28,13 @@ describe("customer outcome email renderers", () => {
     const email = renderEstimateEmail({ ...detailed, outcome: "onsite", reasons: ["Existing insulation needs confirmation.", "Roof access must be checked."] });
     for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY", "What we need to confirm", "Existing insulation needs confirmation.", "Roof access must be checked.", "$1,325", "$3,396", "Onsite Measure + PIESA", "AP &amp; Compliance Management", "ADJUST MY ESTIMATE"]) expect(email.html).toContain(copy);
     expect(email.html.indexOf("YOUR PRELIMINARY QUOTE")).toBeLessThan(email.html.indexOf("What we need to confirm"));
+  });
+
+  test("preview sample reconciles the two $349 fees", () => {
+    const e = renderEstimateEmail({ ...common, estimatedTotal: 2359, veuDiscount: 2140, areaM2: 150, installationPrice: 3801, assessmentFee: 349, apFee: 349, grossProjectTotal: 4499, amountPayableNow: 349, estimatedRemainingBalance: 2010 });
+    for (const t of ["$3,801", "$4,499", "$2,359", "$2,010"]) expect(e.html).toContain(t);
+    const preview = readFileSync("src/routes/step3-email-preview.tsx", "utf8");
+    expect(preview).not.toMatch(/apFee: 700|4850|2710|2361|bg-background|text-primary/);
   });
 
   test("ineligible has dynamic reasons, no available discount, result CTA and referral", () => {
