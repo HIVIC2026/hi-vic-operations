@@ -1138,6 +1138,24 @@ export type Database = {
           },
         ]
       }
+      cron_nonces: {
+        Row: {
+          created_at: string
+          nonce: string
+          purpose: string
+        }
+        Insert: {
+          created_at?: string
+          nonce: string
+          purpose: string
+        }
+        Update: {
+          created_at?: string
+          nonce?: string
+          purpose?: string
+        }
+        Relationships: []
+      }
       customer_agreements: {
         Row: {
           agreement_wording_version: string | null
@@ -6029,6 +6047,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      consume_cron_nonce: {
+        Args: { _nonce: string; _purpose: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -6051,6 +6073,7 @@ export type Database = {
       job_authority_status: { Args: { _job: string }; Returns: string }
       job_deposit_cleared: { Args: { _job: string }; Returns: boolean }
       my_job_role: { Args: { _job: string }; Returns: string }
+      post_intake_tick: { Args: { _url: string }; Returns: number }
       shares_job_with: { Args: { _profile: string }; Returns: boolean }
     }
     Enums: {
