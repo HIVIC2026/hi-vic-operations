@@ -35,17 +35,17 @@ function PriceResult({ est, area, fees, assumption = false }: { est: Est; area: 
   const primary = est.scenarios.find((s) => s.key === "can_remain") ?? est.scenarios[0];
   if (!primary) return null;
   const standard = primary.by_access.standard;
-  return <section className="estimate-offset rounded-[1.35rem] border-2 border-estimate-blue bg-estimate-white px-5 py-6 sm:px-8 sm:py-8" aria-label="Your estimated home upgrade">
-    <p className="text-xs font-extrabold uppercase tracking-widest text-estimate-blue">Your estimated home upgrade</p>
-    <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1"><strong className="text-5xl font-extrabold leading-none text-estimate-navy sm:text-6xl" data-testid={assumption ? "calculator-total-can_remain" : "total-can_remain"}>{dollars(standard.estimated_customer_total)}</strong><span className="pb-1 text-sm">inc GST</span></div>
-    <p className="mt-3 text-sm leading-relaxed">{assumption ? `${CALC_ASSUMPTION_LABEL}: ${area} m². Final area measured onsite.` : `Based on an estimated ${area} m² ceiling area${est.scenarios.some((s) => s.key === "full_removal") ? ", assuming your existing insulation can remain" : ""}.`}</p>
-    <div className="mt-6 border-t border-estimate-blue/20 pt-5">
-      <h3 className="text-lg font-extrabold text-estimate-blue">Everything included in this estimate</h3>
+  return <section className="rounded-xl bg-estimate-blue-pale px-5 py-7 sm:px-8 sm:py-9" aria-label="Your estimated home upgrade">
+    <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Your estimated home upgrade</p>
+    <div className="mt-3 flex flex-wrap items-end gap-x-3 gap-y-1"><strong className="text-5xl font-bold leading-none text-estimate-navy sm:text-6xl" data-testid={assumption ? "calculator-total-can_remain" : "total-can_remain"}>{dollars(standard.estimated_customer_total)}</strong><span className="pb-1 text-sm font-medium text-estimate-navy/70">inc GST</span></div>
+    <p className="mt-3 text-sm leading-relaxed text-estimate-navy/80">{assumption ? `${CALC_ASSUMPTION_LABEL}: ${area} m². Final area measured onsite.` : `Based on an estimated ${area} m² ceiling area${est.scenarios.some((s) => s.key === "full_removal") ? ", assuming your existing insulation can remain" : ""}.`}</p>
+    <div className="mt-7 border-t border-estimate-blue-soft pt-6">
+      <h3 className="text-base font-semibold text-estimate-navy">What is included</h3>
       <dl className="mt-4 space-y-4 text-sm">
         {[["R5.0 ceiling insulation — supply & installation", dollars(standard.installation)], ["Onsite Measure + PIESA electrical safety assessment", dollars(fees.piesa)], ["HI VIC eligibility, Accredited Person compliance, job administration, evidence review & VEEC processing", dollars(fees.ap)]].map(([label, amount]) => <div key={label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4"><dt className="min-w-0 leading-relaxed">{label}</dt><dd className="font-bold">{amount}</dd></div>)}
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 rounded-xl bg-estimate-green-soft px-3 py-3 font-bold text-estimate-navy"><dt className="min-w-0">Estimated VEU discount</dt><dd className="text-estimate-blue">−{dollars(standard.applied_discount)}</dd></div>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-y border-estimate-green-light py-3 font-semibold text-estimate-navy"><dt className="min-w-0">Estimated VEU discount</dt><dd className="text-estimate-green">−{dollars(standard.applied_discount)}</dd></div>
       </dl>
-      <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 border-t-2 border-estimate-blue pt-4 font-extrabold text-estimate-blue"><span className="text-sm uppercase tracking-wider">Your estimated total</span><span className="text-xl">{dollars(standard.estimated_customer_total)}</span></div>
+      <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 font-bold text-estimate-navy"><span className="text-sm">Your estimated total</span><span className="text-xl">{dollars(standard.estimated_customer_total)}</span></div>
     </div>
     {standard.copayment_capped && <p className="mt-3 text-sm">The discount is limited so your contribution meets the program minimum.</p>}
   </section>;
