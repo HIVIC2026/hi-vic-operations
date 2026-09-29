@@ -14,3 +14,5 @@
 - [ ] Blocked on EasyMate: API/webhook/export access for automatic two-way sync (manual import works now)
 - [ ] Blocked on user: set up ReInsulate business + team accounts, documents and rate card; supervised Xero supplier sync
 - [x] Refinement 1: assessment scheduling = one proposal flow; admin override audited; 24/48h + can't-agree review
+- [x] Step 3: indicative customer price + official Activity 48 VEU savings estimator (no payment/booking)
+- [ ] Step 4: booking + payment for Onsite Measure + PIESA
