@@ -51,6 +51,8 @@ export type Gate1Facts = {
   noRelevantCeilingDirect?: boolean; // direct evidence: no ceiling with roof cavity/exposed roof and no storey above
   storeyAboveIndicated?: boolean; // evidence of another storey above part of the ceiling (scope uncertain -> review)
   recentExtensionRisk?: "yes" | "no" | "unknown" | null;
+  declaredHouse?: boolean; // owner declared house/townhouse, no research classification (preliminary only)
+  addressVerifiedVic?: boolean; // trusted address evidence: real Victorian premises
   previousActivity48Confirmed?: boolean | null; // only trusted/direct portal or registry fact
   declaredInsulation?: "none" | "present" | "unknown" | null; // Base44 answers.insulation
   verifiedInsulation?: "qualifying" | "disqualifying" | null; // verified onsite finding
@@ -107,6 +109,8 @@ export function evaluateGate1(f: Gate1Facts): Gate1Decision {
   const res = ev("residential", { fact: f.isResidential == null ? "unknown" : String(f.isResidential), source: "properties.is_residential", basis: f.isResidential == null ? "unknown" : "recorded" });
   if (f.isResidential === false) rule("residential", "Class 1 / Class 2 SOU residential", "fail", "Premises recorded/verified as not Class 1 / Class 2 sole-occupancy residential", res);
   else if (f.isResidential === true) rule("residential", "Class 1 / Class 2 SOU residential", "pass", "Residential premises supported", res);
+  else if (f.declaredHouse && f.addressVerifiedVic && !f.addressAmbiguous)
+    rule("residential", "Class 1 / Class 2 SOU residential", "pass", `Owner declares ${f.declaredPropertyType}; verified Victorian premises; no contrary property-class evidence (preliminary)`, { ...res, basis: "declared" });
   else rule("residential", "Class 1 / Class 2 SOU residential", "review", f.residentialNote ?? "Premises class not evidenced", res);
 
   // Relevant ceiling (roof cavity / exposed roof, no storey above)
@@ -127,7 +131,8 @@ export function evaluateGate1(f: Gate1Facts): Gate1Decision {
   else if (verifiedAge != null) rule("ceiling_age", L, "pass", `Relevant structure ${verifiedAge} years old (≥ ${min}), verified`, age);
   else if (f.verifiedMinAgeYears != null && f.verifiedMinAgeYears >= min) rule("ceiling_age", L, "pass", `At least ${f.verifiedMinAgeYears} years old (≥ ${min}), verified first-appearance evidence`, age);
   else if (f.verifiedMinAgeYears != null) rule("ceiling_age", L, "review", `First-appearance evidence only shows ${f.verifiedMinAgeYears} years – confirm relevant ceiling age`, age);
-  else if (f.declaredOverMinAge === "yes") rule("ceiling_age", L, "review", "Owner declares over 5 years – cannot be remotely supported sufficiently", age);
+  else if (f.declaredOverMinAge === "yes" && !f.storeyAboveIndicated) rule("ceiling_age", L, "pass", "Owner declares relevant area is over 5 years; no contrary recent-construction evidence (preliminary)", { ...age, basis: "declared" });
+  else if (f.declaredOverMinAge === "yes") rule("ceiling_age", L, "review", "Owner declares over 5 years but another storey above is indicated – confirm relevant ceiling age", age);
   else if (f.declaredOverMinAge === "no") rule("ceiling_age", L, "review", "Owner declares the ceiling may be under 5 years – verify before deciding (not an auto-fail)", age);
   else rule("ceiling_age", L, "review", "Relevant ceiling age not evidenced", age);
 
@@ -278,7 +283,11 @@ export function applyIntelligence(f: Gate1Facts, intel: IntelFact[], currentYear
     out.addressAmbiguous = true;
     ev.address = { fact: "address not uniquely matched", source: intelSrc(addr), basis: "recorded" };
   }
+  if (trustedIntel(addr) && addr.value === true && trustedIntel(inVic) && inVic.value === true) out.addressVerifiedVic = true;
   const ncc = get("ncc_class_evidence");
+  if (out.declaredHouse && trustedIntel(ncc) && ncc.value === "not_eligible") {
+    out.declaredHouse = false; out.residentialNote = "Owner type conflicts with trusted NCC class evidence – review";
+  }
   if (out.isResidential == null && !out.residentialNote && trustedIntel(ncc)) {
     if (ncc.value === "class1" || ncc.value === "class2_sou") { out.isResidential = true; ev.residential = { fact: `NCC ${ncc.value}`, source: intelSrc(ncc), basis: "verified" }; }
     else if (ncc.value === "not_eligible") { out.isResidential = false; ev.residential = { fact: "not Class 1 / Class 2 SOU", source: intelSrc(ncc), basis: "verified" }; }
@@ -387,7 +396,9 @@ function resolveBaseFacts(p: StoredProperty | null, job: Gate1JobInput, minAge: 
     state, postcode, occupancy: p?.occupancy ?? null, isResidential, yearBuilt: p?.year_built ?? null, yearBuiltVerified,
     minBuildingAgeYears: minAge, lifeSupportStatus: job.lifeSupportStatus, previousCeilingUpgrade, flatRoofOrAccessConcern: flat,
     preliminaryOutcome: job.preliminaryOutcome, currentYear, verifiedMinAgeYears, declaredOverMinAge, residentialNote, evidence,
-    addressAmbiguous, declaredPropertyType: declaredType, declaredTopFloor, noRelevantCeilingDirect, recentExtensionRisk,
+    addressAmbiguous, declaredPropertyType: declaredType,
+    declaredHouse: researchClass == null && isResidential == null && !!declaredType && /\b(house|townhouse|town house)\b/i.test(declaredType) && !APARTMENT.test(declaredType),
+    addressVerifiedVic: evidence.location?.basis === "verified" && state?.toUpperCase() === "VIC", declaredTopFloor, noRelevantCeilingDirect, recentExtensionRisk,
     previousActivity48Confirmed, declaredInsulation, verifiedInsulation, areaKnown: job.areaUnknown == null ? null : !job.areaUnknown,
     publicHousingVerified: e["public_community_housing_verified"] === true, referenceDate: job.referenceDate ?? null,
   };
