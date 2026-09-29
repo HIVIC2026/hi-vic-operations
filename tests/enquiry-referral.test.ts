@@ -65,7 +65,7 @@ describe("Base44 enquiry response referral share URL", () => {
     expect(url).toMatch(/^https:\/\/homeinsulationvictoria\.com\.au\/homeowner\?ref=[A-Za-z0-9_-]{43}$/);
     expect(JSON.stringify(json)).not.toMatch(/"token"/);
     expect(url).toContain(TOKEN); // the token exists only inside the share URL
-    expect(Object.keys(json).sort()).toEqual(["created", "job_id", "ok", "referral_share_url"]);
+    expect(Object.keys(json).sort()).toEqual(["created", "customer_email_enabled", "job_id", "ok", "referral_share_url"]);
     expect(inserts.length).toBe(1);
   });
 
