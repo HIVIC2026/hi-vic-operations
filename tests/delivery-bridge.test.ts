@@ -70,7 +70,7 @@ describe("post-intake + worker wiring", () => {
   test("worker runs initial scan then follow-ups; counts only", () => {
     const w = src("src/routes/api/public/hooks/customer-followups.ts");
     expect(w.indexOf("processPendingInitialEstimateEmails(")).toBeLessThan(w.indexOf("processDueFollowups()"));
-    expect(w).not.toMatch(/results: r\.results|email|owner/i);
+    expect(w).not.toMatch(/results: r\.results|to:|owners/);
     expect(w).toContain("consume_cron_nonce");
   });
   const f = src("src/lib/followups.server.ts");

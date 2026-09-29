@@ -127,3 +127,17 @@ export async function postIntakeHealth() {
   const { data: last } = await admin.from("external_sync_logs").select("created_at, status, error, payload").eq("system", "post_intake_worker").order("created_at", { ascending: false }).limit(1).maybeSingle();
   return { counts, lastWorkerRun: last ?? null };
 }
+
+/** Best-effort customer email after Step 3 preparation. Blocked states (comms OFF, delivery disabled, no consent) are normal. Never throws. */
+export async function attemptCustomerEmail(jobId: string) {
+  try {
+    const { refreshIndicativeEstimate } = await import("./estimate.server");
+    const { linkAllowed } = await import("./estimatelink.core");
+    const f = await import("./followups.server");
+    const view = await refreshIndicativeEstimate(jobId);
+    return linkAllowed(view.mode) ? await f.sendInitialEstimateEmail(jobId, null) : await f.sendPreliminaryIneligibleEmail(jobId, null);
+  } catch (e) {
+    console.warn("post-intake customer email attempt failed (ignored)", (e as Error).message.slice(0, 200));
+    return { sent: false as const, reason: "error" };
+  }
+}
