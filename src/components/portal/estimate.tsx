@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, ChevronDown, CircleHelp, Home, Info, Ruler, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -55,10 +55,10 @@ function PriceResult({ est, fees, area, assumption = false }: { est: Est; fees: 
   );
 }
 
-function Assumptions({ est, drivers, accessConcern }: { est?: Est | null | undefined; drivers?: string[] | undefined; accessConcern?: boolean | undefined }) {
+function Assumptions({ est, drivers, accessConcern, headingId }: { est?: Est | null | undefined; drivers?: string[] | undefined; accessConcern?: boolean | undefined; headingId: string }) {
   return (
-    <section className="rounded-[1.3rem] bg-estimate-blue-pale px-5 py-6 sm:px-7" aria-labelledby="assumptions-heading">
-      <h3 id="assumptions-heading" className="text-lg font-extrabold uppercase tracking-tight text-estimate-blue">What may change</h3>
+    <section className="rounded-[1.3rem] bg-estimate-blue-pale px-5 py-6 sm:px-7" aria-labelledby={headingId}>
+      <h3 id={headingId} className="text-lg font-extrabold uppercase tracking-tight text-estimate-blue">What may change</h3>
       <p className="mt-1 text-sm text-estimate-navy">Your final price is confirmed after the onsite assessment.</p>
       <div className="mt-5 grid gap-4 sm:grid-cols-3">
         <div><Ruler aria-hidden="true" className="mb-2 size-5 text-estimate-blue" /><h4 className="font-bold">Ceiling area</h4><p className="mt-1 text-sm text-estimate-navy">Final measurement onsite.</p></div>
@@ -72,6 +72,7 @@ function Assumptions({ est, drivers, accessConcern }: { est?: Est | null | undef
 
 /** Customer-facing estimate. Renders nothing when Gate 1 does not permit display. */
 export function CustomerEstimate({ data, publicPage = false }: { data: CustomerData; publicPage?: boolean }) {
+  const id = useId();
   if (!data.visible || !data.mode) return null;
   const fees = data.fees;
   const Heading = publicPage ? "h1" : "h2";
@@ -81,11 +82,11 @@ export function CustomerEstimate({ data, publicPage = false }: { data: CustomerD
       {data.rolloutHold && <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Assessments for private homes open from 1 October 2026. This is a scheduling hold only, not an eligibility result.</p>}
       {!fees ? <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Your estimate is being prepared.</p> : <>
         {data.estimate ? <PriceResult est={data.estimate} fees={fees} area={data.estimate.area.m2} /> : !data.calc && <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">{data.postcodeUnlisted ? "We can't calculate a VEU discount for this postcode yet because it isn't in the official VEU location list. We'll confirm your pricing directly." : "Your estimate is being prepared."}</p>}
-        {data.estimate && <Assumptions est={data.estimate} drivers={data.onsiteDrivers} accessConcern={data.accessConcern} />}
+        {data.estimate && <Assumptions est={data.estimate} drivers={data.onsiteDrivers} accessConcern={data.accessConcern} headingId={`${id}-assumptions`} />}
         {data.calc && <AreaCalculator calc={data.calc} fees={fees} initial={data.estimate?.area.m2 ?? null} secondary={!!data.estimate} />}
-        {!data.estimate && <Assumptions drivers={data.onsiteDrivers} accessConcern={data.accessConcern} />}
-        {data.calc && <section className="rounded-[1.3rem] bg-estimate-green-soft px-5 py-6 sm:px-7" aria-labelledby="veu-heading"><div className="flex items-start gap-3"><Info aria-hidden="true" className="mt-1 size-5 shrink-0 text-estimate-blue" /><div><p className="text-xs font-extrabold uppercase tracking-widest text-estimate-navy">VEU saving</p><h3 id="veu-heading" className="mt-1 text-lg font-extrabold uppercase tracking-tight text-estimate-blue">How we estimate your VEU discount</h3><p className="mt-2 text-sm leading-relaxed text-estimate-navy">Your estimate uses the official Activity 48 postcode and climate calculation and a {dollars(data.calc.settings.indicative_veec_value)} per VEEC-equivalent consumer benchmark calibrated to the Victorian Government’s published example. It is not the live VEEC market price, and final values can change.</p>{data.calc.settings.veec_value_source_url?.startsWith("https://") && <a className="mt-2 inline-block text-sm font-bold text-estimate-blue underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" href={data.calc.settings.veec_value_source_url} target="_blank" rel="noopener noreferrer">View the published example <span aria-hidden="true">↗</span></a>}</div></div></section>}
-        <section className="estimate-offset rounded-[1.35rem] border-2 border-estimate-blue bg-estimate-blue px-5 py-6 text-estimate-white sm:px-8 sm:py-8" aria-labelledby="next-step-heading"><p className="text-xs font-extrabold uppercase tracking-widest text-estimate-green-light">The next step</p><div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"><h3 id="next-step-heading" className="text-xl font-extrabold uppercase tracking-tight sm:text-2xl">Onsite Measure + PIESA</h3><span className="text-2xl font-extrabold">{dollars(fees.piesa)} <span className="text-sm font-normal">inc GST</span></span></div><p className="mt-2 text-sm">{data.estimate ? "This fee is already included in the indicative total above." : "This fee is included in the indicative total once you enter an area."}</p><ul className="mt-5 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">{["Confirms exact ceiling area", "Checks existing insulation and removal", "Confirms access", "Completes electrical safety assessment", "Allows a final quote to be prepared"].map((item) => <li key={item} className="flex items-start gap-2"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green-light" />{item}</li>)}</ul><p className="mt-6 border-t border-estimate-white/30 pt-4 text-sm">Online booking and payment will be available here in the next step.</p></section>
+        {!data.estimate && <Assumptions drivers={data.onsiteDrivers} accessConcern={data.accessConcern} headingId={`${id}-assumptions`} />}
+        {data.calc && <section className="rounded-[1.3rem] bg-estimate-green-soft px-5 py-6 sm:px-7" aria-labelledby={`${id}-veu`}><div className="flex items-start gap-3"><Info aria-hidden="true" className="mt-1 size-5 shrink-0 text-estimate-blue" /><div><p className="text-xs font-extrabold uppercase tracking-widest text-estimate-navy">VEU saving</p><h3 id={`${id}-veu`} className="mt-1 text-lg font-extrabold uppercase tracking-tight text-estimate-blue">How we estimate your VEU discount</h3><p className="mt-2 text-sm leading-relaxed text-estimate-navy">Your estimate uses the official Activity 48 postcode and climate calculation and a {dollars(data.calc.settings.indicative_veec_value)} per VEEC-equivalent consumer benchmark calibrated to the Victorian Government’s published example. It is not the live VEEC market price, and final values can change.</p>{data.calc.settings.veec_value_source_url?.startsWith("https://") && <a className="mt-2 inline-block text-sm font-bold text-estimate-blue underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" href={data.calc.settings.veec_value_source_url} target="_blank" rel="noopener noreferrer">View the published example <span aria-hidden="true">↗</span></a>}</div></div></section>}
+        <section className="estimate-offset rounded-[1.35rem] border-2 border-estimate-blue bg-estimate-blue px-5 py-6 text-estimate-white sm:px-8 sm:py-8" aria-labelledby={`${id}-next-step`}><p className="text-xs font-extrabold uppercase tracking-widest text-estimate-green-light">The next step</p><div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"><h3 id={`${id}-next-step`} className="text-xl font-extrabold uppercase tracking-tight sm:text-2xl">Onsite Measure + PIESA</h3><span className="text-2xl font-extrabold">{dollars(fees.piesa)} <span className="text-sm font-normal">inc GST</span></span></div><p className="mt-2 text-sm">{data.estimate ? "This fee is already included in the indicative total above." : "This fee is included in the indicative total once you enter an area."}</p><ul className="mt-5 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">{["Confirms exact ceiling area", "Checks existing insulation and removal", "Confirms access", "Completes electrical safety assessment", "Allows a final quote to be prepared"].map((item) => <li key={item} className="flex items-start gap-2"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green-light" />{item}</li>)}</ul><p className="mt-6 border-t border-estimate-white/30 pt-4 text-sm">Online booking and payment will be available here in the next step.</p></section>
         <p className="pb-6 text-sm leading-relaxed text-estimate-navy">Indicative estimate only. Final price depends on onsite measurement, existing insulation, access, electrical safety, eligibility and certificate values.</p>
       </>}
     </div>
@@ -94,6 +95,7 @@ export function CustomerEstimate({ data, publicPage = false }: { data: CustomerD
 
 /** Pure client-side what-if. Local state only: no server call, never saved to the job, measurements or estimates. */
 function AreaCalculator({ calc, fees, initial, secondary = false }: { calc: NonNullable<CustomerData["calc"]>; fees: { piesa: number; ap: number }; initial: number | null; secondary?: boolean }) {
+  const id = useId();
   const [open, setOpen] = useState(!secondary);
   const [raw, setRaw] = useState(secondary ? "" : initial == null ? "" : String(initial));
   const m2 = parseAssumption(raw);
@@ -104,8 +106,8 @@ function AreaCalculator({ calc, fees, initial, secondary = false }: { calc: NonN
         <h3 className="text-lg font-extrabold uppercase tracking-tight text-estimate-blue">{secondary ? "Test a different ceiling area" : CALC_EMPTY_TITLE}</h3>
         <p className="mt-1 text-sm text-estimate-navy">Enter an approximate ceiling or upper-floor area.</p>
         <div className="mt-5 flex flex-wrap items-center gap-2">
-          <label className="sr-only" htmlFor={secondary ? "area-secondary" : "area-primary"}>Approximate ceiling area (m²)</label>
-          <input id={secondary ? "area-secondary" : "area-primary"} aria-label="Approximate ceiling area (m²)" inputMode="decimal" type="number" min={CALC_MIN_M2} max={CALC_MAX_M2} className="h-12 w-28 rounded-xl border-2 border-estimate-blue bg-estimate-white px-3 text-base text-estimate-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="Area" />
+          <label className="sr-only" htmlFor={id}>Approximate ceiling area (m²)</label>
+          <input id={id} aria-label="Approximate ceiling area (m²)" inputMode="decimal" type="number" min={CALC_MIN_M2} max={CALC_MAX_M2} className="h-12 w-28 rounded-xl border-2 border-estimate-blue bg-estimate-white px-3 text-base text-estimate-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="Area" />
           <span className="mr-2 text-sm text-estimate-navy">m²</span>
           {CALC_QUICK.map((q) => <Button key={q} type="button" size="field" variant="outline" className={`rounded-xl border-2 border-estimate-blue px-3 font-bold text-estimate-navy hover:bg-estimate-green-soft hover:text-estimate-navy ${m2 === q ? "bg-estimate-green-soft estimate-offset" : "bg-estimate-white"}`} aria-pressed={m2 === q} onClick={() => setRaw(String(q))}>{q} m²</Button>)}
         </div>
