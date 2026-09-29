@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, ChevronDown, Home, Ruler, ShieldCheck, Sparkles } from "lucide-react";
+import { Check, ChevronDown, Ruler, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getAdminEstimate, getAdminEstimateLink, getAdminEstimateLinkUrl, getOwnerEstimate } from "@/lib/estimate.functions";
 import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
@@ -40,16 +40,16 @@ function PriceResult({ est, area, assumption = false }: { est: Est; area: number
       <p className="text-xs font-extrabold uppercase tracking-widest text-estimate-blue">Estimated price after VEU discount</p>
       <div className="mt-3 flex flex-wrap items-end gap-x-3 gap-y-1"><strong className="text-5xl font-extrabold leading-none text-estimate-navy sm:text-6xl" data-testid={assumption ? "calculator-total-can_remain" : "total-can_remain"}>{dollars(standard.estimated_customer_total)}</strong><span className="pb-1 text-sm">inc GST</span></div>
       <div className="mt-5 inline-flex flex-wrap items-center gap-x-2 rounded-full bg-estimate-green-soft px-4 py-2 text-sm font-bold text-estimate-navy"><Sparkles aria-hidden="true" className="size-4 shrink-0 text-estimate-green" />Estimated VEU discount: <strong>{dollars(standard.applied_discount)}</strong></div>
-      <p className="mt-5 text-sm leading-relaxed">{assumption ? "Calculator estimate only — final area measured onsite." : `Based on an estimated ${area} m² ceiling area, assuming your existing insulation can remain.`}</p>
+      <p className="mt-5 text-sm leading-relaxed">{assumption ? "Calculator estimate only — final area measured onsite." : removal ? `Based on an estimated ${area} m² ceiling area, assuming your existing insulation can remain.` : `Based on an estimated ${area} m² ceiling area. Final conditions are confirmed onsite.`}</p>
       {removal && <div className="mt-5 border-t border-estimate-blue/20 pt-4 text-sm"><p className="text-xs font-bold uppercase tracking-widest text-estimate-blue">If full removal is needed</p><p className="mt-1 font-bold">Estimated total: <span data-testid={assumption ? "calculator-total-full_removal" : "total-full_removal"}>{dollars(removal.by_access.standard.estimated_customer_total)}</span></p><p className="mt-1">Your onsite assessment confirms whether removal is actually required.</p></div>}
       {standard.copayment_capped && <p className="mt-3 text-sm">The discount is limited so your contribution meets the program minimum.</p>}
     </div>
   );
 }
 
-function Reassurance() {
+function Reassurance({ hasPrice }: { hasPrice: boolean }) {
   return <div className="grid gap-4 sm:grid-cols-3" aria-label="Why this estimate is useful">{[
-    { icon: Sparkles, title: "VEU discount included", copy: "Your estimated discount is already applied to the price shown." },
+    { icon: Sparkles, title: "VEU discount included", copy: hasPrice ? "Your estimated discount is already applied above." : "Your estimated discount is applied when you try an area." },
     { icon: ShieldCheck, title: "Managed by HI VIC", copy: "We handle eligibility, compliance, evidence and VEEC processing." },
     { icon: Ruler, title: "Final price confirmed onsite", copy: "One assessment confirms area, insulation, access and electrical safety." },
   ].map(({ icon: Icon, title, copy }) => <div key={title} className="flex min-w-0 items-start gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-estimate-green-soft text-estimate-blue"><Icon aria-hidden="true" className="size-5" /></span><div className="min-w-0"><h3 className="text-sm font-bold text-estimate-blue">{title}</h3><p className="mt-1 text-sm leading-relaxed">{copy}</p></div></div>)}</div>;
@@ -83,7 +83,7 @@ export function CustomerEstimate({ data, publicPage = false }: { data: CustomerD
       {!fees ? <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Your estimate is being prepared.</p> : <>
         {data.estimate ? <PriceResult est={data.estimate} area={data.estimate.area.m2} /> : !data.calc && <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">{data.postcodeUnlisted ? "We can't calculate a VEU discount for this postcode yet because it isn't in the official VEU location list. We'll confirm your pricing directly." : "Your estimate is being prepared."}</p>}
          {!data.estimate && data.calc && <AreaCalculator calc={data.calc} initial={null} />}
-         <Reassurance />
+         <Reassurance hasPrice={!!data.estimate} />
          <section className="estimate-offset rounded-[1.35rem] bg-estimate-blue px-5 py-6 text-estimate-white sm:px-8 sm:py-8" aria-labelledby={`${id}-next-step`}>
            <p className="text-xs font-extrabold uppercase tracking-widest text-estimate-green-light">Next step</p>
            <div className="mt-2 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"><h3 id={`${id}-next-step`} className="min-w-0 text-xl font-bold leading-tight sm:text-2xl">Confirm your property onsite</h3><span className="shrink-0 text-3xl font-extrabold">{dollars(fees.piesa)} <span className="text-sm font-normal">inc GST</span></span></div>
