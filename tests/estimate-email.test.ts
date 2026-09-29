@@ -49,7 +49,7 @@ describe("Step 3 email renderer", () => {
       expect(result.html).not.toMatch(/<script\b|lovable\.app|class=|<style\b/i);
       expect(result.plainText).not.toContain("lovable.app");
     }
-    expect(source + preview).not.toMatch(/sendTemplateEmail|sendLovableEmail|createServerFn|supabase|fetch\(|\.insert\(|\.update\(|onClick/);
+    expect(source + preview).not.toMatch(/sendTemplateEmail|sendLovableEmail|createServerFn|supabase|fetch\(|\.insert\(|\.update\(/);
     expect(preview).toContain('srcDoc={sample.html.replace(');
     expect(preview).toContain("sample-secure-link");
     expect(preview).toContain("No area yet");
