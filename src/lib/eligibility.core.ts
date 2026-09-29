@@ -1,3 +1,4 @@
+import { declaredExtras } from "./enquiry.core";
 // THE single, pure, deterministic Gate 1 categoriser (Activity 48 – VEET Amendment (Ceiling Insulation) Regulations 2026,
 // reg 10(9)-(10) / Part 48). Property Intelligence and Base44 only supply FACTS; this file alone decides.
 // Hierarchy (locked): A hard failure -> does_not_appear_eligible; B contradiction/insufficient remote evidence -> internal
@@ -379,12 +380,13 @@ function resolveBaseFacts(p: StoredProperty | null, job: Gate1JobInput, minAge: 
   const previousActivity48Confirmed = e["previous_activity_48_confirmed"] === true;
 
   // Relevant ceiling
-  const declaredTopFloor = yesNo(answers["top_floor"] ?? answers["is_top_floor"]);
+  const extras = declaredExtras(answers); // ONE Step 1 → Step 2 mapping, shared with the intake summary
+  const declaredTopFloor = yesNo(extras.top_floor);
   const noRelevantCeilingDirect = e["no_relevant_ceiling"] === true;
   if (noRelevantCeilingDirect) evidence.relevant_ceiling = { fact: "no relevant ceiling", source: "properties.enrichment", basis: "recorded" };
 
   // Insulation
-  const declaredInsulation = normaliseInsulation(answers["insulation"] ?? answers["existing_insulation"]);
+  const declaredInsulation = normaliseInsulation(extras.existing_insulation);
   const vi = e["insulation_verified"];
   const verifiedInsulation = vi === "qualifying" || vi === "disqualifying" ? vi : null;
 
