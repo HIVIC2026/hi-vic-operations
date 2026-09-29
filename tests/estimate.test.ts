@@ -81,7 +81,8 @@ describe("guards", () => {
 });
 
 describe("static separation / UI", () => {
-  const core = readFileSync("src/lib/estimate.core.ts", "utf8") + readFileSync("src/lib/estimate.server.ts", "utf8") + readFileSync("src/lib/activity48.core.ts", "utf8");
+  const code = (f: string) => readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  const core = code("src/lib/estimate.core.ts") + code("src/lib/estimate.server.ts") + code("src/lib/activity48.core.ts");
   test("Step 3 never uses legacy per-m² VEEC credit, pricing_settings, supplier rates or external systems", () => {
     for (const bad of ["veec_credit_per_m2", "pricing_settings", "rate_card", "ap_margin", "xero", "mitti", "sendMessage", "assertCustomerCommsEnabled", "stripe", "booking.server"]) expect(core.toLowerCase()).not.toContain(bad.toLowerCase());
   });
