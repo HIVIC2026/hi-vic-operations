@@ -18,13 +18,13 @@ async function secureContext(token: unknown) {
 
 function standardTotal(estimate: { scenarios: Json }): number | null {
   const scenarios = Array.isArray(estimate.scenarios) ? estimate.scenarios : [];
-  const preferred = scenarios.find((item) => item && typeof item === "object" && "key" in item && item.key === "can_remain") ?? scenarios[0];
+  const preferred = scenarios.find((item) => item && typeof item === "object" && "key" in item && item["key"] === "can_remain") ?? scenarios[0];
   if (!preferred || typeof preferred !== "object" || !("by_access" in preferred)) return null;
-  const access = preferred.by_access;
+  const access = preferred["by_access"];
   if (!access || typeof access !== "object" || !("standard" in access)) return null;
-  const standard = access.standard;
+  const standard = access["standard"];
   if (!standard || typeof standard !== "object" || !("estimated_customer_total" in standard)) return null;
-  const total = Number(standard.estimated_customer_total);
+  const total = Number(standard["estimated_customer_total"]);
   return Number.isFinite(total) && total >= ASSESSMENT_PAYMENT_AMOUNT ? total : null;
 }
 
@@ -68,7 +68,7 @@ export async function acceptAssessment(token: unknown, meta: RequestMeta = {}) {
     _job_id: ctx.link.job_id, _estimate_id: ctx.estimate.id, _estimate_input_signature: ctx.estimate.input_signature,
     _estimate_settings_version: ctx.estimate.settings_version, _customer_total: total, _estimated_discount: Number(ctx.estimate.applied_discount),
     _estimated_remaining: remaining, _copy_version: ASSESSMENT_ACCEPTANCE_COPY_VERSION, _snapshot: snapshot as unknown as Json,
-    _accepted_ip: meta.ip ?? undefined, _accepted_user_agent: meta.userAgent ?? undefined,
+    _accepted_ip: meta.ip ?? null, _accepted_user_agent: meta.userAgent ?? "",
   });
   if (error) throw new Error(error.message);
   const created = await loadAcceptance(ctx.link.job_id, ctx.estimate.id);

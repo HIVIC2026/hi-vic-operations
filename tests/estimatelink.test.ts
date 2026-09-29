@@ -83,7 +83,7 @@ describe("wiring", () => {
     expect(sel).toContain("customerView(view)");
   });
   it("public fn needs no login; admin link fns require admin; status never selects token", () => {
-    expect(fns).toMatch(/getPublicEstimate = createServerFn\(\{ method: "POST" \}\)\s*\.inputValidator/);
+    expect(fns).toMatch(/getPublicEstimate = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[withRequestMeta\]\)\s*\.inputValidator/);
     expect(fns.slice(fns.indexOf("getPublicEstimate"), fns.indexOf("getAdminEstimateLink ="))).not.toContain("requireSupabaseAuth");
     expect(fns).toMatch(/getAdminEstimateLinkUrl[\s\S]*requireAdmin/);
     const st = server.slice(server.indexOf("export async function adminLinkStatus"), server.indexOf("export async function adminLinkPath"));

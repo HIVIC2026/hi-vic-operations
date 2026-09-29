@@ -35,6 +35,7 @@ type Est = { scenarios: Scenario[]; access_adjustment: { moderate: number; diffi
 export function ConfirmQuote({ estimatedPrice, assessmentFee, onBack, preview = false, testMode = preview, state = null, busy = false, error = null, onAccept, onTestPayment }: { estimatedPrice: number; assessmentFee: number; onBack: () => void; preview?: boolean; testMode?: boolean; state?: AssessmentAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; onTestPayment?: (outcome: "success" | "failure") => void }) {
   const remaining = Math.max(0, estimatedPrice - assessmentFee);
   const paid = state?.paymentStatus === "paid";
+  const [acknowledged, setAcknowledged] = useState(false);
   return <section className="estimate-brand overflow-hidden border-2 border-estimate-blue bg-estimate-white text-estimate-navy shadow-[6px_6px_0_var(--estimate-green)]" aria-labelledby="confirm-quote-title">
     {testMode && <div className="bg-warning-soft px-5 py-3 text-center text-xs font-extrabold uppercase text-warning-foreground">Test mode · no real payment will be taken</div>}
     <div className="bg-estimate-blue px-5 py-7 text-estimate-white sm:px-9 sm:py-9">
@@ -50,7 +51,7 @@ export function ConfirmQuote({ estimatedPrice, assessmentFee, onBack, preview = 
       </dl>
       <div className="mt-6 border-l-4 border-estimate-green bg-estimate-green-soft px-4 py-4 text-sm leading-relaxed"><p className="font-extrabold">{CUSTOMER_PAYMENT_COPY.included}</p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.notAgain}</p></div>
       <label className="mt-6 flex items-start gap-3 border border-estimate-blue-soft p-4 text-sm leading-relaxed">
-        <input type="checkbox" checked={!!state} readOnly className="mt-1 size-4 accent-estimate-blue" />
+        <input type="checkbox" checked={!!state || acknowledged} disabled={!!state || busy} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-1 size-4 accent-estimate-blue" />
         <span>I accept proceeding with the Measure + PIESA assessment. I understand the $349 is included in this estimate, is not paid again if the project proceeds, and final figures may change only for the onsite factors already disclosed.</span>
       </label>
       <div className="mt-7">
@@ -64,7 +65,7 @@ export function ConfirmQuote({ estimatedPrice, assessmentFee, onBack, preview = 
         <p className="mt-2 text-sm font-bold leading-relaxed">{CUSTOMER_PAYMENT_COPY.noSilentAdditions}</p><p className="mt-2 text-sm leading-relaxed">If the onsite assessment identifies insulation removal or electrical rectification that isn’t included in your estimate, we’ll show you exactly what’s required and what it costs before you decide whether to proceed.</p>
       </div>
       <div className="mt-7 space-y-3">
-        {!state && testMode && <Button type="button" size="field" className="h-auto min-h-14 w-full rounded-none bg-estimate-blue px-5 py-4 font-extrabold text-estimate-white shadow-[4px_4px_0_var(--estimate-green)]" disabled={busy || !onAccept} onClick={onAccept}>{busy ? "RECORDING…" : "ACCEPT & OPEN TEST PAYMENT →"}</Button>}
+        {!state && testMode && <Button type="button" size="field" className="h-auto min-h-14 w-full rounded-none bg-estimate-blue px-5 py-4 font-extrabold text-estimate-white shadow-[4px_4px_0_var(--estimate-green)]" disabled={!acknowledged || busy || !onAccept} onClick={onAccept}>{busy ? "RECORDING…" : "ACCEPT & OPEN TEST PAYMENT →"}</Button>}
         {state && !paid && testMode && <div className="border-2 border-dashed border-estimate-blue p-4" data-testid="test-payment-controls"><p className="text-xs font-extrabold uppercase text-estimate-blue">Test payment controls</p><p className="mt-2 text-sm">Current state: <strong>{state.paymentStatus === "failed" ? "Payment failed — retry available" : "Unpaid"}</strong></p><div className="mt-4 grid gap-3 sm:grid-cols-2"><Button type="button" variant="outline" size="field" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("failure")}>SIMULATE FAILURE</Button><Button type="button" size="field" className="bg-estimate-blue text-estimate-white" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("success")}>SIMULATE SUCCESS</Button></div></div>}
         {!testMode && !paid && <Button type="button" size="field" className="h-auto min-h-14 w-full rounded-none bg-estimate-blue px-5 py-4 font-extrabold text-estimate-white disabled:opacity-100" disabled>PAYMENT CURRENTLY UNAVAILABLE</Button>}
         {paid && <div className="border-l-4 border-estimate-green bg-estimate-green-soft px-4 py-5" role="status"><p className="text-lg font-extrabold text-estimate-blue">$349 Measure + PIESA payment received</p><p className="mt-2 text-sm">{CUSTOMER_QUOTE_LABELS.remainingBalance}: <strong>{dollars(state.estimatedRemainingBalanceIncGst)}</strong></p><p className="mt-2 text-sm">Next: Home Insulation Victoria will arrange electrician assignment or Measure + PIESA scheduling.</p></div>}

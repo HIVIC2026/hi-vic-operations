@@ -30,6 +30,7 @@ describe("pre-assessment acceptance and test payment", () => {
 
   test("schema is immutable, idempotent and service-only", () => {
     const sql = readFileSync("drizzle/migrations/0040_pre_assessment_acceptance_test_payments.sql", "utf8");
+    const atomic = readFileSync("drizzle/migrations/0041_atomic_pre_assessment_test_lifecycle.sql", "utf8");
     for (const table of ["assessment_acceptances", "assessment_payments", "assessment_payment_attempts"]) {
       expect(sql).toContain(`CREATE TABLE public.${table}`);
       expect(sql).toContain(`GRANT ALL ON public.${table} TO service_role`);
@@ -39,6 +40,11 @@ describe("pre-assessment acceptance and test payment", () => {
     expect(sql).toContain("UNIQUE (payment_id, idempotency_key)");
     expect(sql).toContain("WHERE status = 'paid'");
     expect(sql.match(/amount_inc_gst = 349\.00/g)?.length).toBe(2);
+    expect(atomic).toContain("ON CONFLICT (job_id, estimate_id) DO NOTHING");
+    expect(atomic).toContain("ON CONFLICT (payment_id, idempotency_key) DO NOTHING");
+    expect(atomic).toContain("FOR UPDATE");
+    expect(atomic).toContain("REVOKE ALL ON FUNCTION public.accept_pre_assessment_test");
+    expect(atomic).toContain("REVOKE ALL ON FUNCTION public.apply_pre_assessment_test_payment");
   });
 
   test("server remains separate from final quote, invoice, deposit and Xero machinery", () => {
@@ -46,14 +52,15 @@ describe("pre-assessment acceptance and test payment", () => {
     for (const forbidden of ["from(\"quotes\")", "from(\"invoices\")", "depositCleared", "pushInvoiceToXero", "xero.server", "respondToQuote", "customer_agreements"]) expect(server).not.toContain(forbidden);
     expect(server).toContain("assessment_acceptances");
     expect(server).toContain("assessment_payments");
-    expect(server).toContain("assessment_payment_attempts");
+    expect(server).toContain('admin.rpc("apply_pre_assessment_test_payment"');
     expect(server).toContain("estimate.status !== \"current\"");
   });
 
   test("audit keys and callbacks are deterministic", () => {
     const server = readFileSync("src/lib/assessment-payment.server.ts", "utf8");
-    expect(server).toContain("pre_assessment_accepted:${acceptance.id}");
-    expect(server).toContain("pre_assessment_payment:${state.paymentId}:${idempotencyKey}");
+    const atomic = readFileSync("drizzle/migrations/0041_atomic_pre_assessment_test_lifecycle.sql", "utf8");
+    expect(atomic).toContain("pre_assessment_accepted:' || a.id::text");
+    expect(atomic).toContain("pre_assessment_payment:' || p.id::text || ':' || _idempotency_key");
     expect(server).toContain("pre_assessment_ready:${paymentId}");
     expect(server).toContain("if (state.paymentStatus === \"paid\") return state");
   });
