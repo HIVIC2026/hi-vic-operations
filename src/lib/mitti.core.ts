@@ -313,7 +313,9 @@ export function parseAudit(audit: Any) {
   setInt("exhaust_fans_clearance_qty", ["Exhaust fans requiring clearance", "Exhaust fan clearance", "Exhaust fans needing clearance"]);
   setInt("exhaust_fans_qty", ["Number of exhaust fans", "Exhaust fans qty", "Exhaust fans"]);
   const dt = val(entries, ["Downlight type"]); if (dt) patch.downlights_type = dt.slice(0, 200);
-  const hz = val(entries, ["Hazards identified", "Hazards"]); if (hz) patch.hazards = hz.slice(0, 4000);
+  const hz = val(entries, ["Hazards identified", "Hazards", "Hazards seen in the ceiling space"]); if (hz) patch.hazards = hz.slice(0, 4000);
+  const roof = val(entries, ["Roof type"]); if (roof) notes.push(`Roof type: ${roof}`);
+  const built5 = val(entries, ["Ceiling or roof built in the last 5 years", "Relevant ceiling or roof built in the last 5 years"]); if (built5) notes.push(`Ceiling/roof built in last 5 years (installer observed): ${built5}`);
 
   const sbUp = val(entries, ["Switchboard upgrade required"]);
   const sbCond = norm(val(entries, ["Switchboard condition", "Switchboard"]));
