@@ -386,6 +386,13 @@
       "when": 1790762178291,
       "tag": "0054_partner_coverage_verification_and_retire_ready_check_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1790764339096,
+      "tag": "0055_canonical_property_address",
+      "breakpoints": true
     }
   ]
 }

@@ -8291,6 +8291,15 @@ export type Database = {
         Returns: boolean
       }
       customer_followups_tick: { Args: { _url: string }; Returns: number }
+      format_property_address: {
+        Args: {
+          _address_line: string
+          _postcode: string
+          _state: string
+          _suburb: string
+        }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
