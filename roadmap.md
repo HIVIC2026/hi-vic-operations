@@ -10,3 +10,5 @@
 - [ ] Booking → pre-filled Mitti form (PIESA for REC, install for installer) — blocked on Mitti template IDs
 - [ ] PIESA Mitti return → Job File + pass/fail → Ready for install — blocked on which Mitti field holds the result
 - [ ] Installer Mitti return → evidence → AP sign-off queue
+
+- [ ] Portal-wide visual redesign with exact HIV branding (blue #3C51C4, green #07BF61, navy #22376B, off-white #FBFCFA, Open Sans, approved logo) — directions → pick → implement
