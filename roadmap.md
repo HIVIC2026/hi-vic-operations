@@ -38,4 +38,4 @@
 - [x] Add a personal customer-communication review centre with immutable approved versions and no delivery side effects
 - [x] Add the Activity 48 form register with purpose, signer, timing, blockers, source and retention
 - [ ] Verify the complete portal cleanup across tests, desktop and mobile
-- [ ] Side tabs: Active jobs, Pending quote approval, Enquiries (in that order), then Ineligible + VEEC calculator page
+- [x] Side tabs: Active jobs, Pending quote approval, Enquiries (in that order), then Ineligible + VEEC calculator page
