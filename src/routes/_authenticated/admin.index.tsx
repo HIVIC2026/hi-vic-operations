@@ -18,16 +18,24 @@ import { getAdminCoverage } from "@/lib/coverage.functions";
 
 const ACCEPTANCE_STAGES = ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"];
 type WorkView = "active" | "review" | "ineligible" | "finalised" | "cancelled" | "test";
+type Tab = "jobs" | "quotes" | "enquiries" | "ineligible";
+const QUOTE_STAGES = ["awaiting_quote_acceptance", "measured_estimate_ready"];
+const JOB_STAGES = [...ACCEPTANCE_STAGES, "measured_quote_accepted", "piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete", "electrical_variation_pending", "awaiting_owner_rectification_approval"];
+const tabOf = (stage: string | null | undefined): Tab => QUOTE_STAGES.includes(stage ?? "") ? "quotes" : JOB_STAGES.includes(stage ?? "") ? "jobs" : "enquiries";
+const TAB_TITLE: Record<Tab, string> = { jobs: "ACTIVE JOBS", quotes: "PENDING QUOTE APPROVAL", enquiries: "ENQUIRIES", ineligible: "INELIGIBLE" };
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({ meta: [{ title: "Enquiries – HI VIC Portal" }, { name: "description", content: "HI VIC active enquiry workspace." }, { property: "og:title", content: "Enquiries – HI VIC Portal" }, { property: "og:description", content: "HI VIC active enquiry workspace." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (["jobs", "quotes", "enquiries", "ineligible"].includes(s["tab"] as string) ? { tab: s["tab"] as Tab } : {}),
   component: Pipeline,
 });
 
 function Pipeline() {
   const [q, setQ] = useState("");
   const [source, setSource] = useState<"all" | "hivic_sourced" | "installer_sourced">("all");
+  const { tab = "enquiries" } = Route.useSearch();
   const [workView, setWorkView] = useState<WorkView>("active");
+  useEffect(() => { setWorkView(tab === "ineligible" ? "ineligible" : "active"); }, [tab]);
   const sweep = useServerFn(sweepAuthorities);
   const advance = useServerFn(autoAdvancePipeline);
   const loadPipeline = useServerFn(getAdminPipeline);
@@ -62,7 +70,7 @@ function Pipeline() {
     review: allJobs.filter((job) => job.source !== "qa_test" && job.eligibility_review_required && !["complete", "cancelled", "on_hold"].includes(job.stage ?? "")),
     active: allJobs.filter((job) => job.source !== "qa_test" && !job.eligibility_review_required && job.eligibility_outcome !== "does_not_appear_eligible" && !["complete", "cancelled", "on_hold"].includes(job.stage ?? "")),
   }), [allJobs]);
-  const jobs = groups[workView];
+  const jobs = workView === "active" && tab !== "ineligible" ? groups.active.filter((j) => tabOf(j.stage) === tab) : groups[workView];
   const filtered = useMemo(() => {
     const s = q.toLowerCase();
     return jobs.filter((j) => source === "all" || j.channel === source).filter((j) => !s || [j.job_number, j.property_address, j.owner_name, j.electrician_name, j.installer_name].some((v) => v?.toLowerCase().includes(s)));
@@ -92,7 +100,7 @@ function Pipeline() {
       <div className="mb-5 flex flex-wrap items-start gap-4 border-b pb-5">
         <div>
            <p className="text-xs font-bold uppercase text-primary">Home Insulation Victoria</p>
-           <h1 className="mt-1 text-4xl font-bold">ENQUIRIES</h1>
+           <h1 className="mt-1 text-4xl font-bold">{TAB_TITLE[tab]}</h1>
            <p className="mt-2 text-sm text-muted-foreground">Active enquiries first. Ineligible, finalised, cancelled and test records stay safely filed.</p>
         </div>
          <div className="ml-auto flex items-center gap-2"><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${comms?.enabled === true ? "border-success/30 bg-success-soft text-success" : "border-workspace-sun-strong/40 bg-workspace-sun text-foreground"}`}><span className={`h-2 w-2 rounded-full ${comms?.enabled === true ? "bg-success" : "bg-warning"}`} />Customer messages {comms?.enabled === true ? "on" : "off"}</span><NewEnquiry /></div>
