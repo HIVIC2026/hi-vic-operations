@@ -185,7 +185,7 @@ export function MeasurementForm({ jobId, editable, title, showComplete }: { jobI
   );
   return (
     <Section title={title}>
-      {m?.source_role && m.source_role !== "electrician" && <p className="mb-2 text-xs text-muted-foreground">Original measure-up by {SOURCE[m.source_role]} – only missing or flagged fields can be completed here.</p>}
+      {m?.source_role && <p className="mb-2 text-xs text-muted-foreground">Original measure-up by {SOURCE[m.source_role]} – only missing or flagged fields can be completed here.</p>}
       {provisional && <p className="mb-2 rounded bg-warning-soft p-2 text-sm text-warning">Measure the ceiling area yourself onsite – the installer's figure is kept separately for comparison.</p>}
       <div className="grid gap-3">
         <Num k="measured_area_m2" label="Measured ceiling area (m²)" />
