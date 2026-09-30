@@ -233,7 +233,7 @@ export function flattenDefinition(def: unknown): TemplateItem[] {
 }
 
 const MITTI_TYPE: Record<FieldType, string> = {
-  text: "Text answer", number: "Number answer", choice: "Multiple choice (single answer)", yesno: "Question (response set)",
+  text: "Text answer", number: "Number answer", choice: "Multiple choice (single answer)", multichoice: "Multiple choice (choose ALL that apply)", yesno: "Question (response set)",
   media: "Media (photo/video, camera allowed)", signature: "Signature", datetime: "Date & time",
 };
 /** Exact brief to paste into Mitti's AI template builder. Labels must be copied verbatim — the portal matches on them. */
