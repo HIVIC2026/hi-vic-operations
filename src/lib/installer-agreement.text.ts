@@ -240,7 +240,25 @@ export const INSTALLER_AGREEMENT_SECTIONS: { n: number; title: string; paras: st
    "The parties must first attempt in good faith to resolve a dispute through their nominated business contacts. This does not prevent urgent court, safety or regulatory action.",
    "Notices may be given through Home Insulation Victoria or to the business email addresses recorded in Home Insulation Victoria. The Installer must keep its contact details current.",
    "This agreement is governed by the laws of Victoria, Australia. The parties submit to the courts of Victoria.",
-   "Electronic execution is permitted. The signer agrees that their authenticated account, typed name, position, email, date/time, agreement version, acknowledgement record, device user agent and document hash may be retained as evidence of execution."
-  ]
- }
+    "Electronic execution is permitted. The signer agrees that their authenticated account, typed name, position, email, date/time, agreement version, acknowledgement record, device user agent and document hash may be retained as evidence of execution."
+   ]
+  },
+  {
+   "n": 27,
+   "title": "The two ways we work together",
+   "paras": [
+    "Installer-sourced Jobs (you bring the customer): the Installer submits the customer, its quoted price and any existing measurements and photos through the portal. Complete measure-ups are not repeated; partial measure-ups require only the missing items; otherwise the Installer completes the free Home Insulation Ready Check. Home Insulation Victoria contacts the owner directly for eligibility, consent, the safety check and VEEC assignment because the law makes the Accredited Person responsible for those steps. Home Insulation Victoria issues one co-branded quote and invoice showing the Installer's price plus Home Insulation Victoria's fees, less the VEU discount; the owner e-signs; Home Insulation Victoria invoices and chases all payment. No lead fee applies to the Installer's own customers. The Installer is paid its quoted price once the owner's invoice is paid in full.",
+    "Home Insulation Victoria-sourced Jobs (we bring the customer to you): every lead is pre-qualified through eligibility checks before offer. The Installer accepts or declines the offer in the portal, completes the free Ready Check using the Home Insulation Victoria app, and installs. Home Insulation Victoria quotes the owner at its own set customer price; the Installer is paid the supplier rate agreed at onboarding. A lead fee (Schedule 2) applies only when the owner accepts the quote and is deducted from the Installer's payout; no fee applies to declined, ineligible or cancelled leads.",
+    "For both: the Installer must not take Home Insulation Victoria-related work off-platform, and Home Insulation Victoria sets customer prices independently and is not required to disclose its margin."
+   ]
+  },
+  {
+   "n": 28,
+   "title": "Portal-only communication and response times",
+   "paras": [
+    "All communication about a Job — with the owner, electricians and Home Insulation Victoria — must happen in the Job's messages in the portal, not by phone or outside messaging. Booking dates are proposed and accepted in the portal, and the portal record is the shared audit record. Owner contact details are masked; the portal is the channel.",
+    "On Home Insulation Victoria-sourced Jobs, the Installer must make first contact with the owner in the portal within 24 hours of accepting the offer. If no contact has been made after 24 hours, the owner may be offered the choice to keep waiting or to be transferred to a different installer or electrician; on transfer the Job moves with its full history and no lead fee applies to the original Installer.",
+    "The Installer must submit the PIISA and all install-day evidence through the portal on the day of each installation. Time gates are tracked per Job in the portal, including PIESA validity (30 days), the regulator install-notification window (24 hours to 5 days before install) and delivery of the PIESA copy to the owner at least 24 hours before install."
+   ]
+  }
 ];
