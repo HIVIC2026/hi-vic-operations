@@ -158,16 +158,17 @@ function VeecPage() {
           })}</tbody>
           {(() => {
             const tot = profit.rows.reduce((t, r) => {
-              const m = jobMargin({ installerCostExGst: r.installerCost, installerMarginExGst: r.installerMargin, apFeeExGst: r.apFee, electricalCostExGst: r.electricalCost, electricalChargeExGst: r.electricalChargeEx, installerSourced: r.installerSourced, veecDiscountIncGst: r.discount }, spot);
-              return { installerMarkup: t.installerMarkup + m.installerMarkup, apFee: t.apFee + m.apFee, referral: t.referral + m.referralFeeEx, veec: t.veec + (m.veecMargin ?? 0), profit: m.profit != null ? t.profit + m.profit : t.profit, anyNull: t.anyNull || m.profit == null };
-            }, { installerMarkup: 0, apFee: 0, referral: 0, veec: 0, profit: 0, anyNull: false });
+              const m = jobMargin({ installerCostExGst: r.installerCost, installerMarginExGst: r.installerMargin, apFeeExGst: r.apFee, electricalCostExGst: r.electricalCost, electricalChargeExGst: r.electricalChargeEx, installerSourced: r.installerSourced, veecDiscountIncGst: r.discount, piesaRecCostExGst: r.piesaCostEx, veecLodgementFeeExGst: r.lodgementFeeExGst }, spot);
+              return { installerMarkup: t.installerMarkup + m.installerMarkup, piesaCharge: t.piesaCharge + m.piesaChargeEx, piesaRecPaid: t.piesaRecPaid + (m.piesaRecPaidEx ?? 0), referral: t.referral + m.referralFeeEx, lodgement: t.lodgement + (m.lodgementFeeEx ?? 0), veec: t.veec + (m.veecMargin ?? 0), profit: m.profit != null ? t.profit + m.profit : t.profit, anyNull: t.anyNull || m.profit == null };
+            }, { installerMarkup: 0, piesaCharge: 0, piesaRecPaid: 0, referral: 0, lodgement: 0, veec: 0, profit: 0, anyNull: false });
             return <tfoot><tr className="border-t-2 bg-muted font-bold">
               <td className="p-3">Total – {profit.rows.length} {profit.rows.length === 1 ? "job" : "jobs"}</td>
               <td className="p-3 text-right" colSpan={2}>{money(profit.rows.reduce((t, r) => t + r.installerCost + r.installerMargin + r.apFee, 0))} charged</td>
               <td className="p-3 text-right">{money(tot.installerMarkup)}</td>
               <td className="p-3 text-right" colSpan={2}>{money(profit.rows.reduce((t, r) => t + r.electricalChargeEx, 0))} charged</td>
               <td className="p-3 text-right">{profit.rows.reduce((t, r) => t + r.electricalChargeEx - r.electricalCost, 0) !== 0 ? money(profit.rows.reduce((t, r) => t + r.electricalChargeEx - r.electricalCost, 0)) : "—"}</td>
-              <td className="p-3 text-right">{money(tot.apFee)}</td>
+              <td className="p-3 text-right">{money(tot.piesaCharge)}</td>
+              <td className="p-3 text-right">{profit.rows.some((r) => r.piesaCostMissing) ? `${money(tot.piesaRecPaid)} + not set` : money(tot.piesaRecPaid)}</td>
               <td className="p-3 text-right">{tot.referral > 0 ? `-${money(tot.referral)}` : "—"}</td>
               <td className="p-3 text-right">{spot != null ? money(tot.veec) : "—"}</td>
               <td className={`p-3 text-right ${tot.anyNull ? "" : tot.profit < 0 ? "text-danger" : "text-success"}`}>{tot.anyNull ? "—" : money(tot.profit)}</td>
@@ -175,7 +176,7 @@ function VeecPage() {
           })()}
         </table>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">"—" means a figure is not recorded yet (for example the installer's internal cost). VEEC margin shows only once a spot price is known. Jobs flagged "not recorded" are excluded from totals where marked.</p>
+      <p className="mt-2 text-xs text-muted-foreground">Electrical upgrades pass through at the agreed electrical rate card — no markup. PIESA is charged at $349 inc GST ($317.27 ex GST); the REC is paid a lower negotiated set rate (shown once recorded in pricing settings — until then the profit figure is optimistic). Profit also deducts the ESC $4.35 per VEEC lodgement fee. "—" means a figure is not recorded yet. VEEC margin shows only once a spot price is known.</p>
       </>}
     </section>}
   </AppShell>;
