@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { nextStep, stageMismatches } from "../src/lib/nextstep.core";
 import { planStep, type AdvanceFacts } from "../src/lib/autoadvance.core";
-import { DEFAULT_NEXT_ACTION, STAGES } from "../src/lib/workflow";
+import { DEFAULT_NEXT_ACTION, STAGE_ORDER as STAGES } from "../src/lib/workflow";
 
 const base: AdvanceFacts = { eligibilityConfirmed: true, electricianAssigned: false, assessmentBookingConfirmed: false, openRectItems: 0, rectQuoteIssued: false, rectQuoteAccepted: false, installQuotesIssued: false, installQuoteAccepted: false, consumerSigned: false, invoiceExists: false, depositCleared: false, rectBookingConfirmed: false, installBookingConfirmed: false, installationCompleted: false, installerDeclarationSigned: false, veecLodged: false };
 
