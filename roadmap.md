@@ -3,3 +3,4 @@
 - [ ] Build portal electrician onboarding page (pending audit)
 
 - [ ] Verify electrician onboarding end-to-end (tests, typecheck, browser check) before considering it done
+- [ ] Auto-flag onboarding issues (ESV no, missing REC/fees) in admin Partner Enquiries
