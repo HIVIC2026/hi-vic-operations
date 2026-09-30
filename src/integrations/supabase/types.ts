@@ -701,12 +701,59 @@ export type Database = {
           },
         ]
       }
+      business_bank_detail_events: {
+        Row: {
+          actor_id: string
+          business_id: string
+          created_at: string
+          details: Json
+          event_type: string
+          id: string
+        }
+        Insert: {
+          actor_id: string
+          business_id: string
+          created_at?: string
+          details?: Json
+          event_type: string
+          id?: string
+        }
+        Update: {
+          actor_id?: string
+          business_id?: string
+          created_at?: string
+          details?: Json
+          event_type?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_bank_detail_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_bank_detail_events_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_bank_details: {
         Row: {
           account_name: string
           account_number: string
           bsb: string
           business_id: string
+          review_status: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          supplied_at: string | null
+          supplied_by: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -715,6 +762,11 @@ export type Database = {
           account_number: string
           bsb: string
           business_id: string
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          supplied_at?: string | null
+          supplied_by?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -723,6 +775,11 @@ export type Database = {
           account_number?: string
           bsb?: string
           business_id?: string
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          supplied_at?: string | null
+          supplied_by?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -732,6 +789,20 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: true
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_bank_details_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_bank_details_supplied_by_fkey"
+            columns: ["supplied_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -4666,6 +4737,81 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_activations: {
+        Row: {
+          activated_at: string
+          activated_by: string
+          application_id: string
+          business_id: string
+          id: string
+          override_reason: string | null
+          partner_enquiry_id: string
+          partner_type: string
+          rate_card_id: string
+          snapshot: Json
+        }
+        Insert: {
+          activated_at?: string
+          activated_by: string
+          application_id: string
+          business_id: string
+          id?: string
+          override_reason?: string | null
+          partner_enquiry_id: string
+          partner_type: string
+          rate_card_id: string
+          snapshot: Json
+        }
+        Update: {
+          activated_at?: string
+          activated_by?: string
+          application_id?: string
+          business_id?: string
+          id?: string
+          override_reason?: string | null
+          partner_enquiry_id?: string
+          partner_type?: string
+          rate_card_id?: string
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_activations_activated_by_fkey"
+            columns: ["activated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_activations_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "rec_onboarding_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_activations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_activations_partner_enquiry_id_fkey"
+            columns: ["partner_enquiry_id"]
+            isOneToOne: false
+            referencedRelation: "partner_enquiries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_activations_rate_card_id_fkey"
+            columns: ["rate_card_id"]
+            isOneToOne: false
+            referencedRelation: "rate_cards"
             referencedColumns: ["id"]
           },
         ]

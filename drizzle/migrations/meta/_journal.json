@@ -358,6 +358,13 @@
       "when": 1790759209652,
       "tag": "0050_restrict_partner_and_workflow_reads",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1790760133406,
+      "tag": "0051_partner_activation_and_bank_audit",
+      "breakpoints": true
     }
   ]
 }
