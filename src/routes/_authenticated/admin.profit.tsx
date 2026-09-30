@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAction } from "@/hooks/use-me";
-import { getProfitRegister, recordSpotPrice } from "@/lib/profit.functions";
+import { fetchOnlineSpotPrice, getProfitRegister, recordSpotPrice } from "@/lib/profit.functions";
 import { jobProfit, OWNER_VEEC_RATE, sellSignal } from "@/lib/profit.core";
 
 export const Route = createFileRoute("/_authenticated/admin/profit")({
@@ -23,6 +23,7 @@ function ProfitPage() {
   const load = useServerFn(getProfitRegister);
   const { data, refetch, error } = useQuery({ queryKey: ["profit-register"], queryFn: () => load() });
   const save = useAction(recordSpotPrice);
+  const fetchOnline = useAction(fetchOnlineSpotPrice);
   const [price, setPrice] = useState(""); const [on, setOn] = useState(new Date().toISOString().slice(0, 10)); const [source, setSource] = useState("");
   const spots = data?.spots ?? [];
   const signal = sellSignal(spots, new Date());
@@ -31,7 +32,7 @@ function ProfitPage() {
   return <AppShell wide>
     <p className="text-xs font-bold uppercase text-primary">Admin only – never shown to owners or trades</p>
     <h1 className="mt-1 text-4xl font-bold">PROFIT</h1>
-    <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Accepted jobs only. Profit = customer price (ex GST) + VEECs sold at the latest spot price − trade costs (ex GST). Owners receive ${OWNER_VEEC_RATE} per VEEC as their discount.</p>
+    <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Accepted jobs only. Profit = customer price (ex GST) + VEEC margin − trade costs (ex GST). The owner receives ${OWNER_VEEC_RATE} per VEEC as their discount; HI VIC keeps the spot price minus ${OWNER_VEEC_RATE} on every VEEC.</p>
     {error && <p role="alert" className="mt-4 rounded-md border border-danger bg-danger-soft p-3 text-sm font-semibold text-danger">Profit figures could not be loaded.</p>}
 
     <section className="mt-6 grid gap-3 md:grid-cols-4">
