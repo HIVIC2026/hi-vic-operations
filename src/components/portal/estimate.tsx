@@ -10,7 +10,7 @@ import { BENCHMARK_LABEL, CALC_ASSUMPTION_LABEL, CALC_MAX_M2, CALC_MIN_M2, CALC_
 import type { LocationVariables } from "@/lib/activity48.core";
 import { WHATIF_ADDRESS_COPY, locationBasisLine, postcodeFromAddress, resolveWhatIfLocation } from "@/lib/whatif-location";
 import { CUSTOMER_APPROVAL_REASSURANCE, CUSTOMER_READY_CHECK_PAGE, CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows, discountAmount } from "@/lib/customer-quote-system";
-import { READY_CHECK_BOOKING_SUCCESS, READY_CHECK_FEE, type ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
+import { READY_CHECK_BOOKING_SUCCESS, type ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
 import { Pill } from "./badges";
 
 export const HEADLINE = { likely: "Your home has passed our initial eligibility checks.", onsite: "Your home looks likely to qualify." } as const;
