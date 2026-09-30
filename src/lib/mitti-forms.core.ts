@@ -58,11 +58,8 @@ export const PRICING_FIELDS: FormField[] = [
 
 const READY_CHECK_TITLE = "Home Insulation Victoria | Ready Check – Eligibility & Measure-up (Installer)";
 
-export const FORMS: Record<FormKey, { title: string; role: "installer" | "electrician"; fields: FormField[] }> = {
-  ready_check: {
-    title: READY_CHECK_TITLE,
-    role: "installer",
-    fields: [
+/** Shared evidence fields for both Ready Check variants (A1 installer-sourced, A2 HI VIC-sourced). */
+const READY_CHECK_FIELDS: FormField[] = [
       { label: "Portal Job Number", type: "text", required: true, prefill: true, source: "portal" },
       { label: "Site address", type: "text", required: true, prefill: true, source: "portal" },
       { label: "Owner name", type: "text", required: true, prefill: true, source: "portal" },
