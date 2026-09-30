@@ -225,7 +225,7 @@ function RecOnboarding() {
 
   if (!started) return shell(
     <div style={card}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: GREEN, textTransform: "uppercase", letterSpacing: 0.8 }}>Home Insulation Victoria (Home Insulation Victoria)</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: GREEN, textTransform: "uppercase", letterSpacing: 0.8 }}>Home Insulation Victoria</div>
       <h1 style={{ fontSize: 28, fontWeight: 800, margin: "8px 0 10px", color: BLUE }}>Welcome to our Trade Partner Network</h1>
       <p style={{ fontSize: 15, lineHeight: 1.6, color: MUTED }}>We're really pleased to have you here and can't wait to work with you. Home Insulation Victoria keeps jobs, communication and assessments simple — all in one place.</p>
       <div style={{ fontWeight: 700, margin: "18px 0 10px" }}>Have these handy</div>
