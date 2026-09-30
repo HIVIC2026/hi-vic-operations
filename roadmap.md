@@ -62,4 +62,4 @@
 - [ ] Extend TO ACTION with remaining office tasks (ESC notice, PIESA copies, compliance records, onboarding review)
 - [x] To action: ESC notice, PIESA copies, onboarding review exceptions
 - [x] Bulk select jobs on the pipeline: cancel / delete (test only) / put on hold for many at once
-- [ ] Installer-led jobs with a complete measure-up skip the Ready Check
+- [x] Installer-led jobs with a complete measure-up skip the Ready Check
