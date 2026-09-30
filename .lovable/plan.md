@@ -72,3 +72,25 @@ These already exist or are tracked in the portal's Compliance section, so the fo
 
 ## Open item
 The fillable DEECA PIESA/PIISA documents couldn't be downloaded automatically because the site blocks it. The checklist above comes from the ESC Guide/Conditions, which set out what those forms must contain. If you download the two official forms and upload them, I'll match the wording exactly. Until then, the forms will be labelled "HI VIC checklist", not the official form.
+
+## Installers bringing their own customers (new pathway)
+For an installer who has already quoted their own customer and wants HI VIC as the AP.
+
+**Commercial rules**
+- There is no $220 referral fee on these jobs, in either direction. The job is permanently tagged "Installer's own customer".
+- The owner pays the installer's quoted price plus the HI VIC AP fee, shown clearly inc GST. HI VIC keeps the AP fee and the VEEC margin, and the owner still gets $70 per VEEC.
+- The profit view shows these jobs separately, with no installer markup and no referral fee.
+
+**Streamlined for the installer**
+1. The installer uploads their quote, measure-up, photos and customer details in one step; the portal pre-fills a draft job.
+2. The installer confirms a short screen. Nothing already provided is asked again.
+3. The owner is checked against Gate 1 as normal. Any eligibility fail stops the job here.
+4. The installer's measure-up stays provisional until checked. If their photos/evidence meet the Ready Check list, no separate Ready Check visit is needed. Otherwise only the missing items are requested.
+5. The PIESA is booked with a HI VIC-approved electrician (or the installer's preferred one, once onboarded).
+
+**Streamlined for the owner**
+- One quote showing the installer's price plus the AP fee, the VEU discount and the final cost. All quote-stage documents are signed electronically in a single step.
+- Their portal and emails are co-branded with the installer, and HI VIC is clearly identified as the AP.
+
+**Guard kept**
+Invoicing for these jobs stays on "Commercial setup required" until you confirm who invoices the owner (HI VIC for the full amount, or the installer). Nothing is charged or sent until then.
