@@ -3,7 +3,7 @@
 // AND the validator that must pass before a template ID can be used. Labels are Home Insulation Victoria checklist
 // wording for the Ready Check; PIESA and PIISA follow the official DEECA forms (uploaded 30 Sep 2026).
 export type FormKey = "ready_check" | "piesa" | "piisa";
-export type FieldType = "text" | "number" | "choice" | "yesno" | "media" | "signature" | "datetime";
+export type FieldType = "text" | "number" | "choice" | "multichoice" | "yesno" | "media" | "signature" | "datetime";
 export type FormField = {
   label: string; type: FieldType; required: boolean; choices?: string[];
   when?: string; // human-readable condition; required only when it applies
@@ -56,20 +56,24 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
       { label: "Assessor", type: "text", required: true, prefill: true, source: "portal – person doing the measure-up" },
       { label: "Installer photo at front of premises with photo ID", type: "media", required: true, source: `${G} Table 4` },
       { label: "Property type", type: "choice", required: true, prefill: true, choices: ["House", "Townhouse", "Unit or apartment"], source: "portal – prefilled from enquiry; portal derives building class (House/Townhouse = Class 1, Unit = Class 2 sole-occupancy unit)" },
-      { label: "Relevant ceiling or roof built in the last 5 years", type: "yesno", required: true, choices: YN, source: `${G} eligibility` },
+      { label: "Ceiling or roof built in the last 5 years", type: "choice", required: true, choices: ["Yes", "No", "Not sure"], source: `${G} eligibility` },
+      { label: "Roof type", type: "choice", required: true, choices: ["Tiles", "Metal sheet", "Other"], source: "portal – quoting: tile lift / metal-sheet access extras" },
+      { label: "Ceiling access", type: "choice", required: true, choices: ["Easy", "Moderate", "Difficult"], source: "portal – quoting: access difficulty" },
+      { label: "Ceiling access point photo", type: "media", required: true, source: "portal – quoting + ESC Table 4 access evidence" },
+      { label: "How the ceiling was measured", type: "choice", required: true, choices: ["Laser measure in the ceiling space", "Tape measure in the ceiling space", "Scaled from the floor plan", "Other (explain in notes)"], source: "portal – measurement provenance; aerial/online estimates never accepted" },
+      { label: "Measurement notes", type: "text", required: false, source: "portal – explain Other, obstacles, partial access" },
+      { label: "Hazards seen in the ceiling space", type: "text", required: false, source: `${G} safety – installer observation, electrician confirms` },
+      { label: "Floor plan with dimensions", type: "media", required: true, source: `${G} Table 4` },
+      { label: "Recessed downlights in the ceiling", type: "choice", required: true, choices: ["Yes", "No", "Not sure"], source: "portal – observation only; electrician confirms ratings at PIESA" },
+      { label: "Quote extras", type: "text", required: false, portalOnly: true, source: "portal – tile lift, metal roof, access" },
       { label: "Area name", type: "text", required: true, perArea: true, source: `${G} Table 4 floor plan` },
       { label: "Existing insulation", type: "choice", required: true, perArea: true, choices: ["Uninsulated", "Under-insulated"], source: `${G} eligibility` },
+      { label: "Existing insulation type", type: "multichoice", required: true, perArea: true, choices: ["Batts or blankets", "Loose fill", "Not sure"], when: "Under-insulated", source: "portal – quoting: loose fill and batts price differently; choose all that apply" },
       { label: "Existing insulation depth photo with vertical ruler", type: "media", required: true, perArea: true, when: "Under-insulated", source: `${G} Table 4` },
       { label: "Estimated existing R-value", type: "number", required: true, perArea: true, when: "Under-insulated", source: "Assignment form" },
-      { label: "Removal required", type: "yesno", required: true, perArea: true, choices: YN, when: "Under-insulated", source: `${G} removal criteria` },
+      { label: "What happens to the existing insulation", type: "choice", required: true, perArea: true, choices: ["Must be removed", "Can be topped up", "Not sure – needs office review"], when: "Under-insulated", source: `${G} removal criteria` },
       { label: "Measured area m2", type: "number", required: true, perArea: true, source: "VEEC creation form" },
       { label: "360 video of ceiling space before upgrade", type: "media", required: true, perArea: true, source: `${G} Table 4` },
-      { label: "Total measured ceiling area m2", type: "number", required: true, source: "VEEC creation form – sum of all areas" },
-      { label: "Any existing insulation present", type: "yesno", required: true, choices: YN, source: "portal – whole-house summary" },
-      { label: "Total removal area m2", type: "number", required: true, when: "Any area Removal required = Yes", source: "portal – quoting" },
-      { label: "Floor plan with dimensions", type: "media", required: true, source: `${G} Table 4` },
-      { label: "Luminaires appear IC or IC-4 (observation only)", type: "yesno", required: true, choices: YN, source: "portal – electrician confirms" },
-      { label: "Quote extras", type: "text", required: false, portalOnly: true, source: "portal – tile lift, metal roof, access" },
     ],
   },
   piesa: {
@@ -179,6 +183,7 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const TYPE_ALIASES: Record<FieldType, string[]> = {
   text: ["text", "textsingle"], number: ["number", "slider", "textsingle", "text"], choice: ["list", "question", "choice"],
+  multichoice: ["list", "question", "choice", "multiselect", "checkbox"],
   yesno: ["question", "list", "yesno"], media: ["media", "attachment"], signature: ["signature", "drawing"], datetime: ["datetime"],
 };
 
@@ -228,7 +233,7 @@ export function flattenDefinition(def: unknown): TemplateItem[] {
 }
 
 const MITTI_TYPE: Record<FieldType, string> = {
-  text: "Text answer", number: "Number answer", choice: "Multiple choice (single answer)", yesno: "Question (response set)",
+  text: "Text answer", number: "Number answer", choice: "Multiple choice (single answer)", multichoice: "Multiple choice (choose ALL that apply)", yesno: "Question (response set)",
   media: "Media (photo/video, camera allowed)", signature: "Signature", datetime: "Date & time",
 };
 /** Exact brief to paste into Mitti's AI template builder. Labels must be copied verbatim — the portal matches on them. */
