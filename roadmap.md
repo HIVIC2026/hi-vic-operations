@@ -1,4 +1,5 @@
 ## Tasks
+- [x] Stop enquiries appearing to disappear after login by making the pipeline read immediate and resilient
 - [x] Redesign the signed-in portal navigation and page hierarchy for clarity and ease of use
 - [x] Research Coperniq's operations UX and apply relevant navigation/workflow patterns
 - [x] Remove the obsolete Step 3 design mockup routes and any remaining links/content
