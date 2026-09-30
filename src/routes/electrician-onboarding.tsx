@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
@@ -253,7 +253,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       </>;
     case "contact":
       return <>
-        <Field label="Business address" required><input style={input} autoComplete="street-address" {...t("business_address")} /></Field>
+        <Field label="Business address" required hint="Start typing and pick your address from the list"><AddressInput value={d.business_address ?? ""} onChange={(v) => up({ business_address: v })} /></Field>
         <Field label="Contact name" required><input style={input} {...t("primary_contact_name")} /></Field>
         <Field label="Mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
         <Field label="Business email" required><input style={input} type="email" {...t("business_email")} /></Field>
@@ -288,7 +288,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       </>;
     case "coverage":
       return <>
-        <Field label="Service starting location" required><input style={input} {...t("service_origin")} /></Field>
+        <Field label="Service starting location" required><AddressInput value={d.service_origin ?? ""} onChange={(v) => up({ service_origin: v })} /></Field>
         {d.business_address && d.service_origin !== d.business_address && <button type="button" style={{ ...btn(false), marginBottom: 16 }} onClick={() => up({ service_origin: d.business_address ?? "" })}>Use business address</button>}
         <Field label="Travel radius" required><Choice options={RADII.map((r) => ({ v: r.v as number, l: r.l }))} value={d.travel_radius_km ?? null} onChange={(v) => up({ travel_radius_km: v })} /></Field>
         {d.travel_radius_km != null && <div style={infoCard}>You'll be offered jobs {d.travel_radius_km === 9999 ? "anywhere in Victoria" : `within ${d.travel_radius_km} km of your starting location`}.</div>}
@@ -313,7 +313,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       return <>
         <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
         <div style={infoCard}>{d.gst_registered === false ? "Not GST registered: enter your total rate." : "GST registered: enter rates including GST."} These are proposed supplier rates — HI VIC! reviews them before they apply.</div>
-        <Field label={`Assessment visit (${unit})`} required hint="Measure-up + assessment + PIESA"><Money value={d.assessment_rate} onChange={(v) => up({ assessment_rate: v })} unit="visit" /></Field>
+        <Field label={`Pre-Insulation Electrical Safety Assessment (PIESA) visit (${unit})`} required hint="Ceiling measure-up + electrical safety assessment + PIESA, per visit"><Money value={d.assessment_rate} onChange={(v) => up({ assessment_rate: v })} unit="visit" /></Field>
         {d.service_installation_isolation && <Field label={`Installation-day attendance (${unit})`} required><Money value={d.installation_attendance_rate} onChange={(v) => up({ installation_attendance_rate: v })} unit="visit" /></Field>}
       </>;
     }
