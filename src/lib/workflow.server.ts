@@ -15,8 +15,22 @@ type Sb = SupabaseClient<Database>;
  * -> owner accepts -> Xero invoice -> 50% deposit -> rectification scheduling -> PIESA -> installation scheduling.
  */
 export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
-  new_enquiry: ["eligibility_review", "awaiting_electrician"],
-  eligibility_review: ["awaiting_electrician"],
+  new_enquiry: ["eligibility_review", "awaiting_electrician", "preliminary_estimate_ready"],
+  eligibility_review: ["awaiting_electrician", "preliminary_estimate_ready"],
+  // Ready Check pathway. NO electrician-review stage between ready_check_complete and measured_estimate_ready.
+  preliminary_estimate_ready: ["ready_check_awaiting_acceptance", "ready_check_awaiting_payment", "ready_check_ready_to_schedule"],
+  ready_check_awaiting_acceptance: ["ready_check_awaiting_payment", "ready_check_ready_to_schedule"],
+  ready_check_awaiting_payment: ["ready_check_ready_to_schedule"],
+  ready_check_ready_to_schedule: ["ready_check_scheduled"],
+  ready_check_scheduled: ["ready_check_complete", "ready_check_ready_to_schedule"],
+  ready_check_complete: ["measured_estimate_ready"],
+  measured_estimate_ready: ["measured_quote_accepted"],
+  // The existing final-quote → one Xero invoice → 50% deposit machinery stays separate and later.
+  measured_quote_accepted: ["piesa_and_install_window_pending", "awaiting_quote_acceptance"],
+  piesa_and_install_window_pending: ["piesa_scheduled"],
+  piesa_scheduled: ["piesa_complete", "piesa_and_install_window_pending"],
+  piesa_complete: ["electrical_variation_pending", "rectification_scheduling", "installation_scheduling", "awaiting_deposit_payment"],
+  electrical_variation_pending: ["rectification_scheduling", "installation_scheduling", "awaiting_deposit_payment"],
   awaiting_electrician: ["assessment_booking", "eligibility_review"], // back-step only for admin eligibility correction
   assessment_booking: ["assessment_booked"],
   assessment_booked: ["assessment_complete", "assessment_booking"],
@@ -120,10 +134,34 @@ export async function depositCleared(jobId: string) {
   return (count ?? 0) > 0;
 }
 
-/** Separate pre-assessment gate. This never reads installation invoices, Xero state, or the 50% deposit. */
-export async function preAssessmentPaymentCleared(jobId: string) {
-  const { count } = await admin.from("assessment_payments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("purpose", "measure_piesa_pre_assessment").eq("status", "paid");
+/** Separate $99 Ready Check gate. Never reads installation invoices, Xero state, or the 50% deposit. */
+export async function readyCheckPaymentCleared(jobId: string) {
+  const { count } = await admin.from("ready_check_payments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("purpose", "home_insulation_ready_check").eq("status", "paid");
   return (count ?? 0) > 0;
+}
+
+/** Ready Check pathway guards (pure rules in readycheck.core.ts). */
+async function readyCheckBlockers(jobId: string, to: Stage): Promise<string[]> {
+  const out: string[] = [];
+  if (to === "ready_check_ready_to_schedule" && !(await readyCheckPaymentCleared(jobId))) out.push("$99 Home Insulation Ready Check payment not received.");
+  if (to === "measured_estimate_ready") {
+    const { count } = await admin.from("ready_checks").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "submitted");
+    if (!count) out.push("Ready Check not yet submitted by the installer.");
+  }
+  if (to === "piesa_scheduled") {
+    const { checkPiesaWindow } = await import("./readycheck.core");
+    const { data: w } = await admin.from("job_install_windows").select("planned_piesa_date, planned_install_date, piesa_completed_at").eq("job_id", jobId).maybeSingle();
+    const c = checkPiesaWindow({ planned_piesa_date: w?.planned_piesa_date ?? null, planned_install_date: w?.planned_install_date ?? null, piesa_completed_at: null, today: new Date().toISOString() });
+    if (!c.readyForPiesa) out.push(c.hardWarning ?? "Reserve a realistic installation slot before scheduling the PIESA.");
+  }
+  if (["rectification_scheduling", "installation_scheduling"].includes(to)) {
+    const { data: r } = await admin.from("piesa_reconciliations").select("id, requires_customer_approval").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (r?.requires_customer_approval) {
+      const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "electrical_variation_approved").contains("details", { reconciliation_id: r.id });
+      if (!count) out.push("Electrical variation awaiting customer approval.");
+    }
+  }
+  return out;
 }
 
 async function openRectCount(jobId: string) {
@@ -152,7 +190,7 @@ export async function measurementBlocker(jobId: string): Promise<string | null> 
 
 export async function stageEntryBlockers(jobId: string, to: Stage): Promise<string[]> {
   const blockers: string[] = [];
-  if (to === "assessment_booking" && !(await preAssessmentPaymentCleared(jobId))) blockers.push("$349 Measure + PIESA pre-assessment payment not received.");
+  blockers.push(...(await readyCheckBlockers(jobId, to)));
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {
     const cb = await commercialBlocker(jobId);
     if (cb) blockers.push(cb);

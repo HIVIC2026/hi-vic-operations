@@ -34,3 +34,7 @@
 - [x] Correct the estimate email so only the assessment fee is fixed at $349 and AP management remains dynamic
 - [x] Complete approved-design onsite and ineligible customer emails, preview switching, and secure link checks
 - [x] Refine the secure Step 3 what-if calculator and feature it in eligible/onsite emails
+
+- [ ] Ready Check: map Mitti field IDs (blocked: Mitti template IDs)
+- [ ] Ready Check: live payment gateway (blocked: provider choice/approval)
+- [ ] Ready Check: enter agreed live REC rate card (blocked: agreed rates)

@@ -8,6 +8,18 @@ export type JobRole = "admin" | "electrician" | "installer" | "property_manager"
 export const STAGE_ORDER: Stage[] = [
   "new_enquiry",
   "eligibility_review",
+  "preliminary_estimate_ready",
+  "ready_check_awaiting_acceptance",
+  "ready_check_awaiting_payment",
+  "ready_check_ready_to_schedule",
+  "ready_check_scheduled",
+  "ready_check_complete",
+  "measured_estimate_ready",
+  "measured_quote_accepted",
+  "piesa_and_install_window_pending",
+  "piesa_scheduled",
+  "piesa_complete",
+  "electrical_variation_pending",
   "awaiting_electrician",
   "assessment_booking",
   "assessment_booked",
@@ -31,6 +43,18 @@ export const EXCEPTION_STAGES: Stage[] = ["on_hold", "cancelled"];
 export const STAGE_LABEL: Record<Stage, string> = {
   new_enquiry: "New Enquiry",
   eligibility_review: "Eligibility Review",
+  preliminary_estimate_ready: "Preliminary Estimate Ready",
+  ready_check_awaiting_acceptance: "Ready Check – Awaiting Acceptance",
+  ready_check_awaiting_payment: "Ready Check – Awaiting $99 Payment",
+  ready_check_ready_to_schedule: "Ready Check – Ready to Schedule",
+  ready_check_scheduled: "Ready Check Scheduled",
+  ready_check_complete: "Ready Check Complete",
+  measured_estimate_ready: "Measured Estimate Ready",
+  measured_quote_accepted: "Measured Quote Accepted",
+  piesa_and_install_window_pending: "PIESA + Install Window Pending",
+  piesa_scheduled: "PIESA Scheduled",
+  piesa_complete: "PIESA Complete",
+  electrical_variation_pending: "Electrical Variation Pending",
   awaiting_electrician: "Awaiting Electrician",
   assessment_booking: "Assessment Booking",
   assessment_booked: "Assessment Booked",
@@ -55,6 +79,18 @@ export const STAGE_LABEL: Record<Stage, string> = {
 export const DEFAULT_NEXT_ACTION: Record<Stage, string> = {
   new_enquiry: "Review eligibility",
   eligibility_review: "Confirm eligibility outcome",
+  preliminary_estimate_ready: "Owner to book Home Insulation Ready Check",
+  ready_check_awaiting_acceptance: "Owner to accept the Ready Check",
+  ready_check_awaiting_payment: "Owner to pay $99 Ready Check",
+  ready_check_ready_to_schedule: "Ready Check scheduling / installer assignment",
+  ready_check_scheduled: "Installer to complete Ready Check",
+  ready_check_complete: "Measured estimate generates automatically",
+  measured_estimate_ready: "Owner to accept measured project quote",
+  measured_quote_accepted: "Reserve paired PIESA + installation window",
+  piesa_and_install_window_pending: "Book PIESA 7–14 days before installation",
+  piesa_scheduled: "Licensed electrician to complete PIESA",
+  piesa_complete: "Reconcile PIESA scope against allowance",
+  electrical_variation_pending: "Owner to approve electrical variation",
   awaiting_electrician: "Assign electrician",
   assessment_booking: "Electrician & owner to book measure-up",
   assessment_booked: "Electrician to attend and complete assessment",
@@ -120,9 +156,11 @@ export function installationDateBlocker(p: { piesa_expired?: boolean | null; ins
 }
 
 // ---------- Visible pipeline phases (board lanes). Detailed stages stay the source of truth. ----------
-export type Phase = "enquiries" | "site_assessment" | "quote_approval" | "deposit" | "rectification" | "installation" | "evidence_ap_veec" | "complete" | "exceptions";
+export type Phase = "enquiries" | "ready_check" | "piesa_window" | "site_assessment" | "quote_approval" | "deposit" | "rectification" | "installation" | "evidence_ap_veec" | "complete" | "exceptions";
 export const PIPELINE_PHASES: { key: Phase; label: string; stages: Stage[] }[] = [
-  { key: "enquiries", label: "Enquiries", stages: ["new_enquiry", "eligibility_review"] },
+  { key: "enquiries", label: "Enquiries", stages: ["new_enquiry", "eligibility_review", "preliminary_estimate_ready"] },
+  { key: "ready_check", label: "Ready Check", stages: ["ready_check_awaiting_acceptance", "ready_check_awaiting_payment", "ready_check_ready_to_schedule", "ready_check_scheduled", "ready_check_complete", "measured_estimate_ready", "measured_quote_accepted"] },
+  { key: "piesa_window", label: "PIESA + install window", stages: ["piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete", "electrical_variation_pending"] },
   { key: "site_assessment", label: "Site assessment", stages: ["awaiting_electrician", "assessment_booking", "assessment_booked"] },
   { key: "quote_approval", label: "Quote & approval", stages: ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"] },
   { key: "deposit", label: "Deposit", stages: ["awaiting_deposit_payment"] },
@@ -140,6 +178,10 @@ export function phaseForStage(stage: Stage | null | undefined): Phase {
 export type WaitingOn = "HI VIC" | "Owner" | "Electrician" | "Installer" | "Payment / Xero" | "AP" | null;
 const WAITING: Partial<Record<Stage, WaitingOn>> = {
   new_enquiry: "HI VIC", eligibility_review: "HI VIC", awaiting_electrician: "HI VIC",
+  preliminary_estimate_ready: "Owner", ready_check_awaiting_acceptance: "Owner", ready_check_awaiting_payment: "Owner",
+  ready_check_ready_to_schedule: "HI VIC", ready_check_scheduled: "Installer", ready_check_complete: "HI VIC",
+  measured_estimate_ready: "Owner", measured_quote_accepted: "HI VIC", piesa_and_install_window_pending: "HI VIC",
+  piesa_scheduled: "Electrician", piesa_complete: "HI VIC", electrical_variation_pending: "Owner",
   assessment_booking: "Electrician", assessment_booked: "Electrician", assessment_complete: "HI VIC",
   rectification_required: "HI VIC", awaiting_owner_rectification_approval: "Owner", ready_for_installer_quotes: "HI VIC",
   awaiting_quote_acceptance: "Owner", awaiting_deposit_payment: "Payment / Xero", rectification_scheduling: "Electrician",

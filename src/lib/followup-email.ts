@@ -5,7 +5,7 @@ import { CUSTOMER_BRAND, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS } from "./
 
 export type FollowupEmailInput = { kind: FollowupKind; estimateUrl: string; trackingClickUrl?: string | null; trackingPixelUrl?: string | null; referralUrl?: string | null };
 
-const INCLUDED = `${CUSTOMER_QUOTE_LABELS.payableNow}. ${CUSTOMER_PAYMENT_COPY.included} ${CUSTOMER_PAYMENT_COPY.notAgain}`;
+const INCLUDED = `${CUSTOMER_QUOTE_LABELS.payableNow}. ${CUSTOMER_PAYMENT_COPY.credited} ${CUSTOMER_PAYMENT_COPY.notPiesa}`;
 const FOOTNOTE = "*Victorian Government estimates/averages. Actual savings vary with home, climate, energy use, energy prices and heating/cooling habits.";
 const COPY: Record<FollowupKind, { subject: string; preview: string; heading: string; paras: string[]; bullets?: string[]; cta: string }> = {
   estimate_unopened_3d: {
@@ -16,10 +16,10 @@ const COPY: Record<FollowupKind, { subject: string; preview: string; heading: st
     cta: "VIEW MY ESTIMATE",
   },
   estimate_engaged_no_booking_3d: {
-    subject: "Ready for us to confirm your estimate onsite?",
-    preview: "One onsite measure and PIESA visit turns your estimate into a final Home Insulation Victoria quote.",
-    heading: "Ready for us to confirm your estimate onsite?",
-    paras: ["Thanks for taking a look at your estimate. The next step is a single onsite measure and PIESA visit by a licensed electrician employed by a Registered Electrical Contractor (REC).", "It confirms your ceiling area, existing insulation, access and electrical safety so we can prepare your final Home Insulation Victoria quote.", INCLUDED],
+    subject: "Ready to book your Home Insulation Ready Check?",
+    preview: "Your $99 Ready Check turns your estimate into a measured Home Insulation Victoria project estimate.",
+    heading: "Ready to book your Home Insulation Ready Check?",
+    paras: ["Thanks for taking a look at your estimate. One of our insulation partners visits to measure the ceiling space and collect the site information needed to prepare a more accurate project estimate.", "The Ready Check is not the mandatory electrical safety assessment. Your PIESA is completed later by a licensed electrician, close to installation.", INCLUDED],
     cta: "VIEW MY ESTIMATE",
   },
   estimate_second_reminder_7d: {

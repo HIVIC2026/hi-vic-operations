@@ -8,18 +8,17 @@ describe("customer quote system", () => {
     expect(CUSTOMER_BRAND.logoUrl).toBe("https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png");
     expect(CUSTOMER_BRAND.colors).toEqual({ blue: "#3C51C4", green: "#07BF61", accent: "#52C875", offWhite: "#FBFCFA", navy: "#22376B", white: "#FFFFFF" });
     expect(CUSTOMER_BRAND.font).toBe("'Open Sans',Arial,Helvetica,sans-serif");
-    expect(CUSTOMER_QUOTE_ORDER).toEqual([CUSTOMER_QUOTE_LABELS.piesa, CUSTOMER_QUOTE_LABELS.insulation, CUSTOMER_QUOTE_LABELS.apManagement, CUSTOMER_QUOTE_LABELS.projectTotal, CUSTOMER_QUOTE_LABELS.discount, CUSTOMER_QUOTE_LABELS.finalCost, CUSTOMER_QUOTE_LABELS.payableNow, CUSTOMER_QUOTE_LABELS.remainingBalance]);
+    expect(CUSTOMER_QUOTE_ORDER).toEqual([CUSTOMER_QUOTE_LABELS.insulation, CUSTOMER_QUOTE_LABELS.piesa, CUSTOMER_QUOTE_LABELS.apManagement, CUSTOMER_QUOTE_LABELS.projectTotal, CUSTOMER_QUOTE_LABELS.discount, CUSTOMER_QUOTE_LABELS.finalCost, CUSTOMER_QUOTE_LABELS.payableNow, CUSTOMER_QUOTE_LABELS.remainingBalance]);
     expect(customerQuoteRows({ piesa: 349, installation: 4500, apManagement: 349 }).map((row) => row.label)).toEqual(CUSTOMER_QUOTE_ORDER.slice(0, 3));
   });
 
   test("defines exact shared payment, change, and insulation copy", () => {
-    expect(CUSTOMER_PAYMENT_COPY).toEqual({ included: "Already included in your estimated total — not an extra fee.", notAgain: "If you proceed, you do not pay the $349 again.", noSilentAdditions: "Nothing additional is simply added without being shown to you first." });
-    expect(CUSTOMER_WHAT_COULD_CHANGE.items).toEqual(["Final measured eligible ceiling area", "Existing insulation / removal if required", "Access difficulty", "Electrical rectification if required, including downlights, RCDs or switchboard work", "Final VEU / VEEC discount", "Final installation price"]);
-    expect(CUSTOMER_EXISTING_INSULATION_NOTE).toBe("Existing insulation: removal MAY be required. It is not included unless shown in the quote. The onsite assessment confirms whether removal is required and, if so, the price before you proceed.");
+    expect(CUSTOMER_PAYMENT_COPY.notPiesa).toBe("It is not the PIESA.");
+    expect(CUSTOMER_EXISTING_INSULATION_NOTE).toBe("Existing insulation: removal MAY be required. It is not included unless shown in the quote. Your Ready Check confirms whether removal is required and, if so, the price before you proceed.");
     expect(CUSTOMER_CALCULATOR_COPY).toBe("Try another ceiling size and instantly see how your preliminary project total, VEU / VEEC discount and estimated cost after discount could change.");
     expect(CUSTOMER_VISUAL_SYSTEM).toEqual({ quoteRadiusPx: 20, secondaryRadiusPx: 16, secondaryPaddingPx: 20, actionRadiusPx: 16, actionPaddingPx: 16, softBlueBorder: "#D4DAF5", softGreenBorder: "#BEE8CE", paleGreen: "#ECF9F1", footer: "#F1F8F3" });
-    expect(CUSTOMER_ASSESSMENT_ACTION.cta).toBe("LET’S GET STARTED →");
-    expect(CUSTOMER_ASSESSMENT_ACTION.paragraphs).toContain("To keep the process simple and cost-effective, we combine your onsite ceiling measure-up and mandatory Pre-Installation Electrical Safety Assessment (PIESA) into one visit, helping minimise the cost, time and inconvenience of arranging multiple appointments.");
+    expect(CUSTOMER_ASSESSMENT_ACTION.cta).toBe("BOOK MY READY CHECK →");
+    expect(CUSTOMER_ASSESSMENT_ACTION.paragraphs[0]).toBe("Your $99 Home Insulation Ready Check is credited toward your project if you proceed.");
   });
 
   test("customer-facing Step 3 sources consume the shared system and contain no HI VIC shorthand", () => {
