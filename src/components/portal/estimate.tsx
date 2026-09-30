@@ -209,7 +209,7 @@ function ManagedProcess() {
 function RemovalNote({ est, assumption = false }: { est: Est; assumption?: boolean }) {
   const removal = est.scenarios.find((s) => s.key === "full_removal");
   if (!removal) return null;
-  return <p className="estimate-secondary-card text-sm leading-relaxed">If full removal is required, your estimated total would be around <strong data-testid={assumption ? "calculator-total-full_removal" : "total-full_removal"}>{dollars(removal.by_access.standard.estimated_customer_total)}</strong>. Your onsite assessment confirms whether removal is actually needed.</p>;
+  return <p className="estimate-secondary-card text-sm leading-relaxed">If full removal is required, your estimated total would be around <strong data-testid={assumption ? "calculator-total-full_removal" : "total-full_removal"}>{dollars(removal.by_access.standard.estimated_customer_total)}</strong>. Your Ready Check confirms whether removal is actually needed.</p>;
 }
 
 /** Customer-facing estimate. Renders nothing when Gate 1 does not permit display. */
