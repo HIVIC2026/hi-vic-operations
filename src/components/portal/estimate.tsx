@@ -8,7 +8,7 @@ import { getAdminEstimate, getAdminEstimateLink, getAdminEstimateLinkUrl, getOwn
 import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
 import { BENCHMARK_LABEL, CALC_ASSUMPTION_LABEL, CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, FEE_DESCRIPTION, FEE_LABEL, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings, type Scenario } from "@/lib/estimate.core";
 import type { LocationVariables } from "@/lib/activity48.core";
-import { CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
+import { CUSTOMER_ASSESSMENT_ACTION, CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
 import type { AssessmentAcceptanceState } from "@/lib/assessment-payment.core";
 import { Pill } from "./badges";
 
@@ -49,7 +49,7 @@ export function ConfirmQuote({ estimatedPrice, assessmentFee, onBack, preview = 
         <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">{CUSTOMER_QUOTE_LABELS.payableNow}</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(assessmentFee)}</dd></div>
         <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">{CUSTOMER_QUOTE_LABELS.remainingBalance}</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(remaining)}</dd></div>
       </dl>
-      <div className="estimate-action-card mt-6 text-sm leading-relaxed"><p className="font-extrabold">{CUSTOMER_PAYMENT_COPY.included}</p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.notAgain}</p></div>
+      <div className="estimate-action-card mt-6 space-y-3 text-sm leading-relaxed">{CUSTOMER_ASSESSMENT_ACTION.paragraphs.map((paragraph, index) => <p key={paragraph} className={index === 0 || index === CUSTOMER_ASSESSMENT_ACTION.paragraphs.length - 1 ? "font-extrabold" : undefined}>{paragraph}</p>)}</div>
       <label className="estimate-secondary-card mt-6 flex items-start gap-3 text-sm leading-relaxed">
         <input type="checkbox" checked={!!state || acknowledged} disabled={!!state || busy} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-1 size-4 accent-estimate-blue" />
         <span>I accept proceeding with the Measure + PIESA assessment. I understand the $349 is included in this estimate, is not paid again if the project proceeds, and final figures may change only for the onsite factors already disclosed.</span>
@@ -65,7 +65,7 @@ export function ConfirmQuote({ estimatedPrice, assessmentFee, onBack, preview = 
         <p className="mt-2 text-sm font-bold leading-relaxed">{CUSTOMER_PAYMENT_COPY.noSilentAdditions}</p><p className="mt-2 text-sm leading-relaxed">If the onsite assessment identifies insulation removal or electrical rectification that isn’t included in your estimate, we’ll show you exactly what’s required and what it costs before you decide whether to proceed.</p>
       </div>
       <div className="mt-7 space-y-3">
-        {!state && testMode && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold" disabled={!acknowledged || busy || !onAccept} onClick={onAccept}>{busy ? "RECORDING…" : "PAY $349 & CONTINUE →"}</Button>}
+        {!state && testMode && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold" disabled={!acknowledged || busy || !onAccept} onClick={onAccept}>{busy ? "RECORDING…" : CUSTOMER_ASSESSMENT_ACTION.cta}</Button>}
         {state && !paid && testMode && <div className="estimate-secondary-card" data-testid="test-payment-controls"><p className="text-xs font-extrabold uppercase text-estimate-blue">Test payment controls</p><p className="mt-2 text-sm">Current state: <strong>{state.paymentStatus === "failed" ? "Payment failed — retry available" : "Unpaid"}</strong></p><div className="mt-4 grid gap-3 sm:grid-cols-2"><Button type="button" variant="outline" size="field" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("failure")}>SIMULATE FAILURE</Button><Button type="button" size="field" className="bg-estimate-blue text-estimate-white" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("success")}>SIMULATE SUCCESS</Button></div></div>}
         {!testMode && !paid && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold disabled:opacity-100" disabled>PAYMENT CURRENTLY UNAVAILABLE</Button>}
         {paid && <div className="estimate-action-card" role="status"><p className="text-lg font-extrabold text-estimate-blue">$349 Measure + PIESA payment received</p><p className="mt-2 text-sm">{CUSTOMER_QUOTE_LABELS.remainingBalance}: <strong>{dollars(state.estimatedRemainingBalanceIncGst)}</strong></p><p className="mt-2 text-sm">Next: Home Insulation Victoria will arrange electrician assignment or Measure + PIESA scheduling.</p></div>}
@@ -141,9 +141,9 @@ function CalculatorQuoteResult({ est, area, fees, existingInsulation }: { est: E
       <p className="mt-5 text-sm font-extrabold leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.closing}</p>
     </section>
     <section className="estimate-action-card">
-      <Button type="button" size="field" className="estimate-action-button h-auto min-h-12 w-full px-4 py-3 font-extrabold disabled:opacity-100" disabled>PAY {dollars(fees.piesa)} &amp; CONTINUE →</Button>
-      <p className="mt-3 text-center text-sm font-extrabold">{CUSTOMER_PAYMENT_COPY.included}</p><p className="mt-1 text-center text-xs">{CUSTOMER_PAYMENT_COPY.notAgain}</p>
-      <p className="mt-1 text-center text-xs leading-relaxed">Home Insulation Victoria manages the VEU pathway from assessment through compliance and VEEC processing.</p>
+      <Button type="button" size="field" className="estimate-action-button h-auto min-h-12 w-full px-4 py-3 font-extrabold disabled:opacity-100" disabled>{CUSTOMER_ASSESSMENT_ACTION.cta}</Button>
+      <div className="mt-4 space-y-3 text-sm leading-relaxed">{CUSTOMER_ASSESSMENT_ACTION.paragraphs.map((paragraph, index) => <p key={paragraph} className={index === 0 || index === CUSTOMER_ASSESSMENT_ACTION.paragraphs.length - 1 ? "font-extrabold" : undefined}>{paragraph}</p>)}</div>
+      <p className="mt-3 text-xs leading-relaxed">Home Insulation Victoria manages the VEU pathway from assessment through compliance and VEEC processing.</p>
       <p className="mt-2 text-center text-xs font-bold text-estimate-blue">Secure payment is not yet available.</p>
     </section>
   </div>;
@@ -192,8 +192,7 @@ function NextStep({ fee, hasPrice }: { fee: number; hasPrice: boolean }) {
     <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Your next step</p>
     <h3 id={`${id}-next-step`} className="mt-2 text-2xl font-bold leading-tight text-estimate-blue">{CUSTOMER_QUOTE_LABELS.piesa}</h3>
     <p className="mt-4 text-4xl font-bold">{dollars(fee)} <span className="text-base font-medium">inc GST</span></p>
-    <p className="estimate-secondary-card mt-4 text-sm font-semibold leading-relaxed">{hasPrice ? CUSTOMER_PAYMENT_COPY.included : "Included in your estimated total — not an extra fee."}</p>
-    <p className="mt-5 text-sm leading-relaxed">One visit gives us the verified information needed to finalise your job. Your assessment is completed by a licensed electrician employed by a Registered Electrical Contractor (REC).</p>
+    <div className="estimate-secondary-card mt-4 space-y-3 text-sm leading-relaxed">{CUSTOMER_ASSESSMENT_ACTION.paragraphs.map((paragraph, index) => <p key={paragraph} className={index === 0 || index === CUSTOMER_ASSESSMENT_ACTION.paragraphs.length - 1 ? "font-extrabold" : undefined}>{paragraph}</p>)}</div>
     <p className="mt-6 font-bold">What it covers</p>
     <ul className="mt-3 grid gap-x-5 gap-y-3 text-sm sm:grid-cols-2">{["Exact ceiling-area measurement", "Existing insulation/R-value check", "Whether removal is required", "Roof/ceiling access assessment", "PIESA by a licensed electrician employed by a REC", "Wiring, downlights, exhaust fans and electrical-clearance checks", "Identification of any rectification required before install", "Information required to prepare the final insulation quote"].map((item) => <li key={item} className="flex items-start gap-2 leading-relaxed"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green-light" />{item}</li>)}</ul>
     <div className="mt-7 border-t border-estimate-green/25 pt-5"><p className="font-bold text-estimate-blue">What happens next?</p><ol className="mt-4 grid gap-4 text-sm sm:grid-cols-3">{["We complete the onsite measure and PIESA", "You receive your final Home Insulation Victoria quote", "Once you approve it, we coordinate the qualified installer and manage the job through installation, evidence and VEEC processing"].map((item, index) => <li key={item} className="flex items-start gap-2 leading-relaxed"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-estimate-blue font-bold text-estimate-white">{index + 1}</span>{item}</li>)}</ol></div>

@@ -87,7 +87,7 @@ describe("pre-assessment acceptance and test payment", () => {
     expect(functions).toContain('if (!context.assessmentTestMode) throw new Error("Test payments are unavailable.")');
     expect(ui).toContain("checked={!!state || acknowledged}");
     expect(ui).toContain("disabled={!acknowledged || busy || !onAccept}");
-    expect(ui).toContain("PAY $349 & CONTINUE →");
+    expect(ui).toContain("CUSTOMER_ASSESSMENT_ACTION.cta");
     expect(ui).toContain("PAYMENT CURRENTLY UNAVAILABLE");
   });
 

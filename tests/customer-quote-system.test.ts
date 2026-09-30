@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_QUOTE_ORDER, CUSTOMER_VISUAL_SYSTEM, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "../src/lib/customer-quote-system";
+import { CUSTOMER_ASSESSMENT_ACTION, CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_QUOTE_ORDER, CUSTOMER_VISUAL_SYSTEM, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "../src/lib/customer-quote-system";
 
 describe("customer quote system", () => {
   test("defines the exact shared brand and canonical ordering", () => {
@@ -18,6 +18,8 @@ describe("customer quote system", () => {
     expect(CUSTOMER_EXISTING_INSULATION_NOTE).toBe("Existing insulation: removal MAY be required. It is not included unless shown in the quote. The onsite assessment confirms whether removal is required and, if so, the price before you proceed.");
     expect(CUSTOMER_CALCULATOR_COPY).toBe("Try another ceiling size and instantly see how your preliminary project total, VEU / VEEC discount and estimated cost after discount could change.");
     expect(CUSTOMER_VISUAL_SYSTEM).toEqual({ quoteRadiusPx: 20, secondaryRadiusPx: 16, secondaryPaddingPx: 20, actionRadiusPx: 16, actionPaddingPx: 16, softBlueBorder: "#D4DAF5", softGreenBorder: "#BEE8CE", paleGreen: "#ECF9F1", footer: "#F1F8F3" });
+    expect(CUSTOMER_ASSESSMENT_ACTION.cta).toBe("LET’S GET STARTED →");
+    expect(CUSTOMER_ASSESSMENT_ACTION.paragraphs).toContain("To keep the process simple and cost-effective, we combine your onsite ceiling measure-up and mandatory Pre-Installation Electrical Safety Assessment (PIESA) into one visit, helping minimise the cost, time and inconvenience of arranging multiple appointments.");
   });
 
   test("customer-facing Step 3 sources consume the shared system and contain no HI VIC shorthand", () => {
