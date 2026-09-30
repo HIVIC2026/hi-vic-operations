@@ -136,11 +136,11 @@ function VeecPage() {
       {profit.rows.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">No accepted jobs yet — this table fills in as quotes are accepted.</p> : <>
       <div className="mt-3 overflow-x-auto rounded-md border bg-card">
         <table className="w-full text-sm"><thead className="bg-muted text-left text-xs uppercase">
-          <tr><th className="p-3" rowSpan={2}>Job</th><th className="border-b p-3 text-center" colSpan={3}>Installer</th><th className="border-b p-3 text-center" colSpan={3}>Electrician</th><th className="p-3 text-right" rowSpan={2}>AP fee</th><th className="p-3 text-right" rowSpan={2}>Referral fee</th><th className="p-3 text-right" rowSpan={2}>VEEC margin</th><th className="p-3 text-right" rowSpan={2}>HI VIC profit</th></tr>
-          <tr><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Charged</th><th className="p-3 text-right">Markup</th><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Charged</th><th className="p-3 text-right">Markup</th></tr>
+          <tr><th className="p-3" rowSpan={2}>Job</th><th className="border-b p-3 text-center" colSpan={3}>Installer</th><th className="border-b p-3 text-center" colSpan={3}>Electrician (rectification)</th><th className="border-b p-3 text-center" colSpan={2}>PIESA (AP fee, $349 inc GST)</th><th className="p-3 text-right" rowSpan={2}>Referral fee</th><th className="p-3 text-right" rowSpan={2}>VEEC margin</th><th className="p-3 text-right" rowSpan={2}>HI VIC profit</th></tr>
+          <tr><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Charged</th><th className="p-3 text-right">Markup</th><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Charged</th><th className="p-3 text-right">Markup</th><th className="p-3 text-right">Charged (ex GST)</th><th className="p-3 text-right">REC paid</th></tr>
         </thead>
           <tbody>{profit.rows.map((r) => {
-            const m = jobMargin({ installerCostExGst: r.installerCost, installerMarginExGst: r.installerMargin, apFeeExGst: r.apFee, electricalCostExGst: r.electricalCost, electricalChargeExGst: r.electricalChargeEx, installerSourced: r.installerSourced, veecDiscountIncGst: r.discount }, spot);
+            const m = jobMargin({ installerCostExGst: r.installerCost, installerMarginExGst: r.installerMargin, apFeeExGst: r.apFee, electricalCostExGst: r.electricalCost, electricalChargeExGst: r.electricalChargeEx, installerSourced: r.installerSourced, veecDiscountIncGst: r.discount, piesaRecCostExGst: r.piesaCostEx, veecLodgementFeeExGst: r.lodgementFeeExGst }, spot);
             return <tr key={r.jobId} className="border-t">
               <td className="p-3 font-bold"><Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="text-primary underline">{r.jobNumber ?? "—"}</Link><div className="text-xs font-normal text-muted-foreground">{r.owner ?? ""}</div></td>
               <td className="p-3 text-right">{r.costMissing ? "—" : money(r.installerCost)}</td>
@@ -149,7 +149,8 @@ function VeecPage() {
               <td className="p-3 text-right">{r.electricalChargeEx > 0 || r.electricalCost > 0 ? money(r.electricalCost) : "—"}</td>
               <td className="p-3 text-right">{r.electricalChargeEx > 0 || r.electricalCost > 0 ? money(r.electricalChargeEx) : "—"}</td>
               <td className="p-3 text-right font-semibold">{r.electricalChargeEx > 0 || r.electricalCost > 0 ? money(m.electricalMarkup) : "—"}</td>
-              <td className="p-3 text-right">{r.costMissing ? "—" : money(m.apFee)}</td>
+              <td className="p-3 text-right">{r.costMissing ? "—" : money(m.piesaChargeEx)}</td>
+              <td className={`p-3 text-right ${r.piesaCostMissing ? "text-danger" : ""}`}>{r.costMissing ? "—" : m.piesaRecPaidEx != null ? money(m.piesaRecPaidEx) : "not set"}</td>
               <td className="p-3 text-right">{m.referralFeeEx > 0 ? money(m.referralFeeEx) : "—"}</td>
               <td className="p-3 text-right">{m.veecMargin != null ? money(m.veecMargin) : "—"}</td>
               <td className={`p-3 text-right font-bold ${m.profit != null && m.profit < 0 ? "text-danger" : "text-success"}`}>{m.profit != null ? money(m.profit) : "—"}</td>
