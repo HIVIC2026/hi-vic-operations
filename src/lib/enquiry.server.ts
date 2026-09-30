@@ -6,7 +6,7 @@ import { z } from "zod";
 import type { Json, TablesUpdate } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
-import { buildBase44Evidence, buildBase44Raw, normaliseState, planBase44Job } from "./enquiry.core";
+import { buildBase44Evidence, buildBase44Raw, normaliseState, planBase44Job, properAddress, properName } from "./enquiry.core";
 import { recordContactConsent, importBase44Media } from "./intake.server";
 
 /** A JSON object snapshot capped at 60KB serialised. */
@@ -78,11 +78,12 @@ export type JobOrigin = { channel: "hivic_sourced" } | { channel: "installer_sou
 /** Step 1 intake → durable enqueue. Initial Property Intelligence + first official Gate 1 run in the post-intake processor. */
 export async function upsertEnquiry(input: EnquiryInput, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }) {
   const email = input.email.toLowerCase();
+  const fullName = properName(input.full_name);
   let { data: owner } = await admin.from("owners").select("id").ilike("email", email).maybeSingle();
   if (owner) {
-    await admin.from("owners").update({ full_name: input.full_name, phone: input.phone ?? null }).eq("id", owner.id);
+    await admin.from("owners").update({ full_name: fullName, phone: input.phone ?? null }).eq("id", owner.id);
   } else {
-    const { data, error } = await admin.from("owners").insert({ full_name: input.full_name, email, phone: input.phone ?? null }).select("id").single();
+    const { data, error } = await admin.from("owners").insert({ full_name: fullName, email, phone: input.phone ?? null }).select("id").single();
     if (error) throw new Error(error.message);
     owner = data;
     // link to an existing portal account if one exists
@@ -97,7 +98,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     ? (await admin.from("jobs").select("id, property_id, stage, job_number").eq("external_enquiry_id", input.external_enquiry_id).maybeSingle()).data
     : null;
 
-  const propFields = { owner_id: owner!.id, address_line: input.address_line, suburb: input.suburb ?? null, postcode: input.postcode ?? null, occupancy: input.occupancy ?? null, ...(normaliseState(input.state) ? { state: normaliseState(input.state)! } : {}) };
+  const propFields = { owner_id: owner!.id, address_line: properAddress(input.address_line), suburb: input.suburb ? properAddress(input.suburb) : null, postcode: input.postcode ?? null, occupancy: input.occupancy ?? null, ...(normaliseState(input.state) ? { state: normaliseState(input.state)! } : {}) };
   const jobFields = {
     estimated_area_m2: input.estimated_area_m2,
     estimated_area_unknown: false,
