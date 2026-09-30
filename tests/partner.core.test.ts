@@ -91,22 +91,22 @@ describe("partner enquiry endpoint", () => {
 
 describe("partnerIssues", () => {
   const base = { enquiry_type: "electrician_rec", phone: "0400000000", service_areas: ["Melton"], rec_registration_number: "37596", esv_licensed_electricians_confirmed: true, estimated_piesa_fee_inc_gst: 275, estimated_return_visit_fee_inc_gst: 150 };
-  it("flags nothing for a complete electrician application", () => {
+  test("flags nothing for a complete electrician application", () => {
     expect(partnerIssues(base)).toEqual([]);
   });
-  it("flags ESV no, missing REC and missing fees", () => {
+  test("flags ESV no, missing REC and missing fees", () => {
     const issues = partnerIssues({ ...base, esv_licensed_electricians_confirmed: false, rec_registration_number: null, estimated_piesa_fee_inc_gst: null, estimated_return_visit_fee_inc_gst: null });
     expect(issues.some((i) => i.includes("NO ESV-licensed"))).toBe(true);
     expect(issues.some((i) => i.includes("REC registration"))).toBe(true);
     expect(issues.some((i) => i.includes("PIESA fee"))).toBe(true);
     expect(issues.some((i) => i.includes("return visit fee"))).toBe(true);
   });
-  it("flags missing phone and service areas", () => {
+  test("flags missing phone and service areas", () => {
     const issues = partnerIssues({ ...base, phone: null, service_areas: null });
     expect(issues.some((i) => i.includes("phone"))).toBe(true);
     expect(issues.some((i) => i.includes("service areas"))).toBe(true);
   });
-  it("flags installer CII not certified, missing R5 rate and paid quotes", () => {
+  test("flags installer CII not certified, missing R5 rate and paid quotes", () => {
     const issues = partnerIssues({ enquiry_type: "installer", phone: "1", service_areas: ["X"], cii_certification_status: "not_certified", estimated_r5_install_rate_per_sqm_inc_gst: null, free_quotes_for_hivic_leads: false });
     expect(issues.some((i) => i.includes("Not CII certified"))).toBe(true);
     expect(issues.some((i) => i.includes("R5.0"))).toBe(true);
