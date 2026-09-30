@@ -19,9 +19,9 @@ describe("Ready Check variants", () => {
   });
 
   test("priced variant validates against a matching template; evidence-only template fails it", () => {
-    const items = FORMS.ready_check_priced.fields.map((f) => ({ label: f.label, type: f.type === "choice" ? "question" : f.type === "media" ? "media" : f.type }));
+    const items = FORMS.ready_check_priced.fields.map((f) => ({ label: f.label, type: f.type === "choice" ? "question" : f.type === "multichoice" ? "checkbox" : f.type === "yesno" ? "question" : f.type === "media" ? "media" : f.type }));
     expect(validateTemplate("ready_check_priced", items).ok).toBe(true);
-    const missingPricing = FORMS.ready_check.fields.map((f) => ({ label: f.label, type: f.type === "choice" ? "question" : f.type === "media" ? "media" : f.type }));
+    const missingPricing = FORMS.ready_check.fields.map((f) => ({ label: f.label, type: f.type === "choice" ? "question" : f.type === "multichoice" ? "checkbox" : f.type === "yesno" ? "question" : f.type === "media" ? "media" : f.type }));
     const result = validateTemplate("ready_check_priced", missingPricing);
     expect(result.ok).toBe(false);
     expect(result.issues.some((i) => i.includes("Total quoted price incl GST $"))).toBe(true);
