@@ -36,7 +36,7 @@ function Pipeline() {
   const postIntakeHealth = useServerFn(getPostIntakeHealth);
   const loadCoverage = useServerFn(getAdminCoverage);
   const { data: coverageData } = useQuery({ queryKey: ["admin-coverage"], queryFn: () => loadCoverage(), staleTime: 30_000 });
-  const coverageByJob = useMemo(() => new Map((coverageData?.rows ?? []).map((row) => [row.id, row.overall.state])), [coverageData]);
+  const coverageByJob = useMemo(() => new Map((coverageData?.rows ?? []).map((row) => [row.id, row.overall])), [coverageData]);
   const { data: intakeHealth } = useQuery({ queryKey: ["post_intake_health"], queryFn: () => postIntakeHealth(), refetchInterval: 60_000 });
   const [phase, setPhase] = useState<Phase | "all">("all");
   const { data: allJobs = [], error: pipelineError, isPending: pipelinePending, refetch: refetchPipeline } = useQuery({
