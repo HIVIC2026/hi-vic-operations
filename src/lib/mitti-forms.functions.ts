@@ -3,14 +3,14 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
 
-const COL = { ready_check: "mitti_ready_check_template_id", piesa: "mitti_piesa_template_id", piisa: "mitti_piisa_template_id" } as const;
+const COL = { ready_check: "mitti_ready_check_template_id", ready_check_priced: "mitti_ready_check_priced_template_id", piesa: "mitti_piesa_template_id", piisa: "mitti_piisa_template_id" } as const;
 
 export const getMittiForms = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
   const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_piesa_template_id,mitti_piisa_template_id").eq("id", 1).maybeSingle();
+  const { data, error } = await admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_ready_check_priced_template_id,mitti_piesa_template_id,mitti_piisa_template_id").eq("id", 1).maybeSingle();
   if (error) throw new Error(`Mitti form settings could not be loaded: ${error.message}`);
-  return { ready_check: data?.mitti_ready_check_template_id ?? null, piesa: data?.mitti_piesa_template_id ?? null, piisa: data?.mitti_piisa_template_id ?? null };
+  return { ready_check: data?.mitti_ready_check_template_id ?? null, ready_check_priced: data?.mitti_ready_check_priced_template_id ?? null, piesa: data?.mitti_piesa_template_id ?? null, piisa: data?.mitti_piisa_template_id ?? null };
 });
 
 /** Fetches the Mitti form, checks it against the required list, and saves the ID only if every check passes. */
