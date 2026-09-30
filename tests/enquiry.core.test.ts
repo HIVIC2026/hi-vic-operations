@@ -10,7 +10,7 @@ async function keypair() {
 }
 const sign = async (k: CryptoKey, body: string) => b64(await crypto.subtle.sign({ name: "Ed25519" }, k, new TextEncoder().encode(body)));
 
-const payload = { external_enquiry_id: "b44-123", full_name: "Test Owner", email: "t@example.com", address_line: "1 Test St", eligibility_outcome: "likely_eligible", eligibility_reason: "Built 1985", source_reference: "B44-REF-9" };
+const payload = { external_enquiry_id: "b44-123", full_name: "Test Owner", email: "t@example.com", address_line: "1 Test St", eligibility_outcome: "likely_eligible", eligibility_reason: "Built 1985", source_reference: "B44-REF-9", estimated_area_m2: 150 };
 
 describe("Ed25519 signature", () => {
   test("valid signed body accepted", async () => {
@@ -64,7 +64,7 @@ describe("preliminary eligibility mapping", () => {
 });
 
 describe("Base44 Gate 1 handoff plan", () => {
-  const base = { external_enquiry_id: "HIV-000123", full_name: "A", email: "a@b.co", address_line: "1 Test St" };
+  const base = { external_enquiry_id: "HIV-000123", full_name: "A", email: "a@b.co", address_line: "1 Test St", estimated_area_m2: 150 };
   const outcomes = [
     ["likely_eligible", "Review Gate 1 and arrange electrician assessment"],
     ["needs_onsite_confirmation", "Review Gate 1 and confirm onsite checks"],

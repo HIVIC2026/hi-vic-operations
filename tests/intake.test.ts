@@ -33,7 +33,7 @@ const okFetch = (bytes: number) => async () => new Response(new Uint8Array(bytes
 const img = (id: string, extra: Partial<{ mime_type: string; signed_url: string }> = {}) => ({ source_id: id, name: `../photo ${id}.jpg`, mime_type: "image/jpeg", signed_url: `https://base44.example/${id}?sig=x`, ...extra });
 
 describe("payload contract", () => {
-  const base = { external_enquiry_id: "b44-1", full_name: "A", email: "a@b.co", address_line: "1 Test St" };
+  const base = { external_enquiry_id: "b44-1", full_name: "A", email: "a@b.co", address_line: "1 Test St", estimated_area_m2: 150 };
   test("accepts full Base44 payload", () => {
     const r = enquirySchema.safeParse({ ...base, state: "vic", contact_consent: true, contact_consent_version: "v2", contact_consented_at: "2026-09-28T10:00:00+10:00", age_confirmed: true, assistance: "contract_support", contact_preference: "phone",
       base44_answers: { q1: "house" }, base44_screening: { status: "ok", reasons: ["x"] }, base44_ai_observations: { roof: "tile" }, property_research_raw: { any: [1, 2] }, media: [img("m1")] });
