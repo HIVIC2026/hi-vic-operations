@@ -1,0 +1,1 @@
+ALTER TABLE public.rec_onboarding_applications ADD COLUMN IF NOT EXISTS partner_type text NOT NULL DEFAULT 'rec' CHECK (partner_type IN ('rec','installer'));
