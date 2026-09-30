@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { Pill, StageBadge, UrgencyBadge } from "@/components/portal/badges";
 import { JobJourney } from "@/components/portal/journey";
+import { ClearTimeline, WhoHasTheBall } from "@/components/portal/waiting";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, Section, useJob } from "@/components/portal/panels";
 import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { MeasurementDetails, MeasurementForm, MeasurementReadOnly, useJobScope, useMeasurements } from "@/components/portal/requirements";
@@ -42,7 +43,9 @@ function FieldJob() {
         <div className="mt-3"><JobJourney input={job} jobId={job.id} compact /></div>
         <p className="mt-2 rounded bg-accent px-2 py-1 text-sm font-medium text-accent-foreground">Next: {nextStep(job).next}</p>
       </div>
+      <WhoHasTheBall jobId={jobId} />
       <div className="mb-4"><BlockersPanel jobId={jobId} /></div>
+      <ClearTimeline jobId={jobId} initial={5} />
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "installer" && <InstallerJourney jobId={jobId} />}
