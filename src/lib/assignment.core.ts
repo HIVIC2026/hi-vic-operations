@@ -77,7 +77,7 @@ export function activeTemplate(templates: Template[], key: TemplateKey): Templat
 export type Phase = "agreement" | "consent" | "installer" | "final";
 /** Configuration blockers per event. Each event only needs its OWN wording. */
 export function templateBlockers(templates: Template[], phase: Phase): string[] {
-  const keys: TemplateKey[] = phase === "agreement" ? ["consumer_rights", "consumer_declaration"] : phase === "consent" ? ["esc_consent"] : phase === "installer" ? ["installer_declaration"] : ["consumer_declaration"];
+  const keys: TemplateKey[] = phase === "agreement" ? ["consumer_rights"] : phase === "consent" ? ["esc_consent"] : phase === "installer" ? ["installer_declaration"] : ["consumer_declaration"];
   const out = keys.filter((k) => !activeTemplate(templates, k)).map((k) => NOT_READY[k]);
   if (phase === "final") {
     const ap = templates.find((t) => t.template_key === "ap_declaration" && t.is_active);

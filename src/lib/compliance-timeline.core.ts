@@ -70,15 +70,15 @@ export function buildComplianceTimeline(f: TimelineFacts): Gate[] {
   const pre24 = f.installStart ? iso(t(f.installStart) - LEAD_MS) : null;
   const escEarliest = f.installStart ? iso(t(f.installStart) - EARLIEST_MS) : null;
   const piesaDeadline = f.piesaCompletedAt ? iso(t(f.piesaCompletedAt) + windowDays * DAY_MS) : null;
-  const signed = !!f.acceptanceSignedAt && !!f.assignmentSignedAt;
+  const signed = !!f.acceptanceSignedAt;
   const gates: Gate[] = [];
   const push = (g: Gate) => gates.push(g);
 
   push({ key: "acceptance_signed", label: "Customer Acceptance signed", when: "At quote acceptance", status: f.acceptanceSignedAt ? "done" : "open", dueAt: null, detail: null, blocks: "Invoice, deposit and REC request" });
-  push({ key: "veec_assignment_signed", label: "Conditional VEEC rights assignment signed by owner", when: "At quote acceptance", status: f.assignmentSignedAt ? "done" : "open", dueAt: null, detail: null, blocks: "Invoice, deposit and REC request" });
+  push({ key: "veec_assignment_signed", label: "Completed Activity 48 VEEC assignment signed", when: "After installation and final facts are confirmed", status: f.assignmentSignedAt ? "done" : f.installCompletedAt ? "open" : "not_yet", dueAt: null, detail: null, blocks: "VEEC lodgement" });
   push({ key: "deposit_cleared", label: "50% deposit paid (Xero) or audited override", when: "Before any booking", status: f.depositCleared ? "done" : signed ? "open" : "blocked", dueAt: null, detail: signed ? null : "Waiting for signed acceptance", blocks: "REC and installer scheduling" });
 
-  push({ key: "assignment_copy_to_consumer", label: "Copy of signed VEEC assignment form given to owner", when: "At signing, or within 10 business days if signed electronically", status: deadline(f.assignmentCopyGivenAt ?? null, f.assignmentSignedAt ? addBusinessDays(f.assignmentSignedAt, 10) : null, f.now), dueAt: f.assignmentSignedAt ? addBusinessDays(f.assignmentSignedAt, 10) : null, detail: null, blocks: "Compliance record" });
+  push({ key: "assignment_copy_to_consumer", label: "Copy of signed VEEC assignment form given to owner", when: "At written signing, or within 10 business days if signed electronically", status: deadline(f.assignmentCopyGivenAt ?? null, f.assignmentSignedAt ? addBusinessDays(f.assignmentSignedAt, 10) : null, f.now), dueAt: f.assignmentSignedAt ? addBusinessDays(f.assignmentSignedAt, 10) : null, detail: null, blocks: "VEEC lodgement record" });
   if (f.lifeSupport) push({ key: "life_support_plan", label: "Life support written consent / medical plan", when: "Before PIESA starts", status: f.lifeSupportPlanAt ? "done" : "open", dueAt: null, detail: null, blocks: "PIESA and installation" });
   const piesaStatus: GateStatus = f.piesaCompletedAt ? (f.piesaOutcome === "pass" ? "done" : "blocked") : f.depositCleared ? "open" : "blocked";
   push({ key: "piesa_completed", label: "PIESA completed and passed (licensed electrician/REC)", when: "After deposit, before install", status: piesaStatus, dueAt: null, detail: f.piesaCompletedAt && f.piesaOutcome !== "pass" ? `PIESA outcome: ${f.piesaOutcome ?? "not recorded"} — rectification required` : null, blocks: "Ready to install" });

@@ -10,10 +10,9 @@ const base: TimelineFacts = {
 const g = (f: TimelineFacts, k: string) => buildComplianceTimeline(f).find((x) => x.key === k)!;
 
 describe("compliance timeline", () => {
-  test("deposit blocked until both signatures", () => {
+  test("deposit requires commercial quote acceptance, not post-install assignment", () => {
     expect(g(base, "deposit_cleared").status).toBe("blocked");
-    expect(g({ ...base, acceptanceSignedAt: base.now }, "deposit_cleared").status).toBe("blocked");
-    expect(g({ ...base, acceptanceSignedAt: base.now, assignmentSignedAt: base.now }, "deposit_cleared").status).toBe("open");
+    expect(g({ ...base, acceptanceSignedAt: base.now }, "deposit_cleared").status).toBe("open");
   });
   test("PIESA 30-day window deadline and expiry", () => {
     const f = { ...base, piesaCompletedAt: "2026-10-01T00:00:00Z", piesaOutcome: "pass" as const };
@@ -41,7 +40,7 @@ describe("compliance timeline", () => {
     expect(g({ ...base, depositCleared: true, piesaCompletedAt: base.now, piesaOutcome: "fail" }, "piesa_completed").status).toBe("blocked");
   });
   test("urgent ordering", () => {
-    const u = urgentGates(buildComplianceTimeline({ ...base, acceptanceSignedAt: base.now, assignmentSignedAt: base.now, piesaCompletedAt: "2026-09-01T00:00:00Z", piesaOutcome: "pass" }));
+    const u = urgentGates(buildComplianceTimeline({ ...base, acceptanceSignedAt: base.now, piesaCompletedAt: "2026-09-01T00:00:00Z", piesaOutcome: "pass" }));
     expect(u[0].status).toBe("overdue");
   });
 });

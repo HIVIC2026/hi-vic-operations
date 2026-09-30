@@ -218,9 +218,11 @@ export async function prepareFinalAssignment(jobId: string, actorId: string, fie
       await logEvent(jobId, actorId, "LEGACY_CONDITIONAL_ASSIGNMENT_RETIRED", "Legacy quote-stage conditional assignment retained as history; current official assignment prepared after installation", { assignment_id: prev.id }, { internal: true });
       prev = null;
     }
-    await admin.from("customer_assignments").update({ status: "cancelled" }).eq("id", prev.id);
-    await logEvent(jobId, actorId, "FINAL_ASSIGNMENT_SUPERSEDED", "Final VEEC assignment facts changed – previous version superseded; all parties must sign again", { assignment_id: prev.id }, { internal: true });
-    prev = null;
+    if (prev) {
+      await admin.from("customer_assignments").update({ status: "cancelled" }).eq("id", prev.id);
+      await logEvent(jobId, actorId, "FINAL_ASSIGNMENT_SUPERSEDED", "Final VEEC assignment facts changed – previous version superseded; all parties must sign again", { assignment_id: prev.id }, { internal: true });
+      prev = null;
+    }
   }
   const { data: row, error } = await admin.from("customer_assignments").insert({
     job_id: jobId, quote_id: r.agreement.quote_id, quote_version: r.agreement.quote_version, record_kind: "final_veec_assignment", status: "awaiting_installer_signature",
