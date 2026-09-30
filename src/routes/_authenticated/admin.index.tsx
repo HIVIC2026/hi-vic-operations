@@ -26,7 +26,7 @@ const TAB_TITLE: Record<Tab, string> = { jobs: "ACTIVE JOBS", quotes: "PENDING Q
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({ meta: [{ title: "Enquiries – HI VIC Portal" }, { name: "description", content: "HI VIC active enquiry workspace." }, { property: "og:title", content: "Enquiries – HI VIC Portal" }, { property: "og:description", content: "HI VIC active enquiry workspace." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
-  validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (["jobs", "quotes", "enquiries", "ineligible"].includes(s.tab as string) ? { tab: s.tab as Tab } : {}),
+  validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (["jobs", "quotes", "enquiries", "ineligible"].includes(s["tab"] as string) ? { tab: s["tab"] as Tab } : {}),
   component: Pipeline,
 });
 
