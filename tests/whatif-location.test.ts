@@ -4,7 +4,7 @@ import { lookupLocation, V25_LOCATIONS } from "../src/lib/activity48.core";
 import { whatIfEstimate } from "../src/lib/estimate.core";
 import { locationBasisLine, postcodeFromAddress, resolveWhatIfLocation, WHATIF_ADDRESS_COPY } from "../src/lib/whatif-location";
 
-const settings = { r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 15, piesa_fee_inc_gst: 349, ap_fee_inc_gst: 349, min_copayment_inc_gst: 200, indicative_veec_value: 70, access_moderate_multiplier: 1.1, access_difficult_multiplier: 1.25 } as never;
+const settings = { id: "t", version: 2, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 15, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349, access_standard_multiplier: 1, access_moderate_multiplier: 1.1, access_difficult_multiplier: 1.25, indicative_veec_value: 70, minimum_customer_copayment_inc_gst: 200 } as never;
 const original = lookupLocation("3336")!;
 const disc = (loc: typeof original) => whatIfEstimate(150, loc, "none" as never, settings)!.scenarios[0]!.by_access.standard.applied_discount;
 
