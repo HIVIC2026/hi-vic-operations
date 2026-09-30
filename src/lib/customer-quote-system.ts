@@ -56,6 +56,17 @@ export const CUSTOMER_PAYMENT_COPY = {
   noSilentAdditions: "Nothing additional is simply added without being shown to you first.",
 } as const;
 
+export const CUSTOMER_ASSESSMENT_ACTION = {
+  cta: "LET’S GET STARTED →",
+  paragraphs: [
+    "Your $349 assessment payment is already included in your estimated total — it is not an extra fee added on top.",
+    "To keep the process simple and cost-effective, we combine your onsite ceiling measure-up and mandatory Pre-Installation Electrical Safety Assessment (PIESA) into one visit, helping minimise the cost, time and inconvenience of arranging multiple appointments.",
+    "That single visit lets us confirm the actual eligible ceiling area, existing insulation, access conditions and electrical safety requirements so we can finalise your scope and price.",
+    "If the assessment identifies something that wasn’t known beforehand — such as existing insulation that needs removal, difficult access, or electrical work such as downlight upgrades, RCDs or switchboard work — we’ll show you exactly what is required and the revised price before you decide whether to proceed.",
+    "Nothing additional is simply added without being shown to you first.",
+  ],
+} as const;
+
 export const CUSTOMER_WHAT_COULD_CHANGE = {
   heading: "WHAT COULD CHANGE AFTER THE ONSITE ASSESSMENT?",
   items: [
