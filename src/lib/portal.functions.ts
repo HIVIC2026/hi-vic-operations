@@ -985,7 +985,28 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
   await requireAdmin(context.supabase);
   const { data, error } = await admin.from("job_overview").select("*").order("last_activity_at", { ascending: false });
   if (error) throw new Error(`Pipeline could not be loaded: ${error.message}`);
-  return data ?? [];
+  const [{ data: inv }, { data: rc }, { data: bk }] = await Promise.all([
+    admin.from("invoices").select("job_id,last_sync_error").not("last_sync_error", "is", null),
+    admin.from("ready_check_payments").select("job_id,status,paid_at"),
+    admin.from("bookings").select("job_id,kind,scheduled_start").eq("status", "confirmed"),
+  ]);
+  const { stuckReasons } = await import("./stuck.core");
+  const now = new Date();
+  return (data ?? []).map((j) => {
+    const pays = (rc ?? []).filter((p) => p.job_id === j.id);
+    const paid = pays.find((p) => p.status === "paid");
+    return {
+      ...j,
+      stuck_reasons: stuckReasons({
+        stage: j.stage,
+        lastActivityAt: j.last_activity_at,
+        invoiceSyncErrors: (inv ?? []).filter((i) => i.job_id === j.id).map((i) => i.last_sync_error as string),
+        readyCheckFailed: !paid && pays.some((p) => p.status === "failed"),
+        readyCheckPaidAt: paid?.paid_at ?? null,
+        confirmedBookings: (bk ?? []).filter((b) => b.job_id === j.id),
+      }, now),
+    };
+  });
 });
 
 export const getGate1Evidence = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

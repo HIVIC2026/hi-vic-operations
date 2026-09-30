@@ -4,9 +4,10 @@ import type { Database } from "@/integrations/supabase/types";
 import { fmtDateTime, waitingOn } from "@/lib/workflow";
 import { PaymentBadge, SourceBadge, StageBadge, UrgencyBadge } from "./badges";
 
-export type JobRow = Database["public"]["Views"]["job_overview"]["Row"];
+export type JobRow = Database["public"]["Views"]["job_overview"]["Row"] & { stuck_reasons?: string[] };
 
 export function JobCard({ job, to }: { job: JobRow; to: "/admin/jobs/$jobId" | "/field/$jobId" | "/owner/$jobId" }) {
+  const stuck = job.stuck_reasons ?? [];
   return (
     <Link to={to} params={{ jobId: job.id! }} className="block rounded-xl border bg-card p-4 shadow-sm transition hover:border-primary hover:shadow-md">
       <div className="flex items-start justify-between gap-2">
@@ -23,6 +24,12 @@ export function JobCard({ job, to }: { job: JobRow; to: "/admin/jobs/$jobId" | "
         <UrgencyBadge urgency={job.urgency} days={job.days_remaining} />
         <SourceBadge channel={job.channel} business={job.originating_business_name} />
       </div>
+      {stuck.length > 0 && (
+        <div className="mt-2 rounded-md border border-danger/40 bg-danger-soft px-2 py-1.5 text-xs text-danger" role="alert">
+          <div className="font-bold uppercase tracking-wide">Needs attention</div>
+          <ul className="mt-0.5 list-disc pl-4 font-medium">{stuck.map((r) => <li key={r}>{r}</li>)}</ul>
+        </div>
+      )}
       {["new_enquiry", "eligibility_review"].includes(job.stage ?? "") && (job.eligibility_review_required
         ? <div className="mt-2 rounded-md bg-warning-soft px-2 py-1 text-xs font-semibold text-accent-foreground">Gate 1: REVIEW REQUIRED</div>
         : job.eligibility_outcome === "needs_onsite_confirmation" ? <div className="mt-2 rounded-md bg-accent px-2 py-1 text-xs font-semibold text-accent-foreground">Gate 1: Needs onsite confirmation</div>
