@@ -17,5 +17,5 @@
 - [x] Audit fix 1: harden VEEC lodgement (required ref/qty/date, status order, approved final, reason for edits)
 - [x] Audit fix 2: stuck-job alerts on pipeline
 - [x] Audit fix 3: archive dead Owner Authority flow
-- [ ] Audit fix 4: wire compliance timeline into real gates
+- [x] Audit fix 4: wire compliance timeline into real gates
 - [ ] Audit fix 5: failure alert when error log grows
