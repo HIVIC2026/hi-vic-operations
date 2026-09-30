@@ -4,7 +4,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { fmtDateTime, waitingOn } from "@/lib/workflow";
 import { Pill, StageBadge } from "./badges";
 
-export type JobRow = Database["public"]["Views"]["job_overview"]["Row"] & { stuck_reasons?: string[] };
+export type JobRow = Database["public"]["Views"]["job_overview"]["Row"] & { stuck_reasons?: string[]; comms_status?: { label: string; tone: "good" | "warn" | "bad" | "neutral" } | null };
 
 export function JobCard({ job, to, coverage }: { job: JobRow; to: "/admin/jobs/$jobId" | "/field/$jobId" | "/owner/$jobId"; coverage?: "serviceable" | "unserviceable" | "partial" | "not_configured" }) {
   const stuck = job.stuck_reasons ?? [];
@@ -25,6 +25,7 @@ export function JobCard({ job, to, coverage }: { job: JobRow; to: "/admin/jobs/$
             : job.eligibility_outcome === "needs_onsite_confirmation" ? <Pill t="info">Needs onsite confirmation</Pill>
               : job.eligibility_outcome === "likely_eligible" ? <Pill t="good">Likely eligible</Pill>
                 : null}
+        {job.comms_status && <Pill t={job.comms_status.tone}>{job.comms_status.label}</Pill>}
         {coverage && <Pill t={coverage === "serviceable" ? "good" : coverage === "unserviceable" ? "bad" : "warn"}>{coverage === "serviceable" ? <><CheckCircle2 className="mr-1 h-3 w-3" /> SERVICE COVERAGE</> : coverage === "unserviceable" ? <><XCircle className="mr-1 h-3 w-3" /> NO SERVICE COVERAGE</> : "COVERAGE TO CONFIRM"}</Pill>}
       </div>
       {stuck.length > 0 && (
