@@ -23,7 +23,7 @@ export const INSTALLER_AGREEMENT_SECTIONS: { n: number; title: string; paras: st
   "n": 3,
   "title": "Appointment and limited agency",
   "paras": [
-   "HI VIC! appoints the Installer, and the Installer accepts appointment, to perform only the Activity 48 electrical and related services authorised through HI VIC!.",
+   "HI VIC! appoints the Installer, and the Installer accepts appointment, to perform only the Activity 48 insulation installation and related services authorised through HI VIC!.",
    "To the extent the Installer or any Nominated Installer undertakes any part of a prescribed activity or regulated action on HI VIC!'s behalf, the Installer acts as HI VIC!'s limited agent solely for that VEU-regulatory purpose. This limited agency does not authorise the Installer or any installer to bind HI VIC! to a customer contract, vary HI VIC! terms, incur liabilities in HI VIC!'s name, make guarantees for HI VIC!, collect customer money for HI VIC!, create or assign VEECs, or represent themselves as HI VIC! employees unless HI VIC! has expressly authorised that act in writing.",
    "HI VIC! retains control of VEU eligibility, customer contracting, job gating, compliance review, evidence acceptance, VEEC creation and lodgement."
   ]
@@ -226,7 +226,7 @@ export const INSTALLER_AGREEMENT_SECTIONS: { n: number; title: string; paras: st
   "n": 25,
   "title": "Regulatory and workflow changes",
   "paras": [
-   "VEU and electrical requirements can change. The Installer must comply with current mandatory requirements applying when each Job is performed.",
+   "VEU, insulation and safety requirements can change. The Installer must comply with current mandatory requirements applying when each Job is performed.",
    "HI VIC! may update operational procedures, forms, evidence requirements and portal controls to reflect regulatory or safety changes. Approved supplier rates may be changed prospectively only by mutual agreement through HI VIC! or another written record. A material change to the broader legal terms of this agreement requires a new agreement version and acceptance before further Jobs are allocated."
   ]
  },
