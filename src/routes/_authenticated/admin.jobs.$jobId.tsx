@@ -52,7 +52,7 @@ function JobDetail() {
     <AppShell wide>
       <Link to="/admin" className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Enquiries</Link>
       <JobFileHeader jobId={jobId} job={job} />
-      <JobJourney input={job} isTest={job.source === "qa_test"} />
+      <JobJourney input={job} jobId={job.id} isTest={job.source === "qa_test"} />
       <div className="mb-3 flex flex-wrap gap-1.5">
         <StageBadge stage={job.stage} /><PaymentBadge status={job.payment_status} /><UrgencyBadge urgency={job.urgency} days={job.days_remaining} /><SourceBadge channel={job.channel} business={job.originating_business_name} />
         {job.life_support && <Pill t="bad"><HeartPulse className="mr-1 h-3 w-3" /> Life support</Pill>}
