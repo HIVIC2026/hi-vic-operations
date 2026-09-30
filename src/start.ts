@@ -10,6 +10,14 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
     if (error != null && typeof error === "object" && "statusCode" in error) {
       throw error;
     }
+    // The browser closed the connection mid-request (reload/navigation/hot
+    // update). Nobody is waiting for a reply, so don't report it as a crash.
+    const msg = error instanceof Error ? error.message : String(error);
+    const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : "";
+    if (/^aborted$|AbortError|ECONNRESET/i.test(msg) || /^aborted$/i.test(cause) ||
+        (error instanceof Error && error.name === "AbortError")) {
+      return new Response(null, { status: 499 });
+    }
     console.error(error);
     return new Response(renderErrorPage(), {
       status: 500,
