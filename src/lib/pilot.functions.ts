@@ -181,10 +181,16 @@ export const addTeamMember = createServerFn({ method: "POST" }).middleware([requ
     const { data: p } = await admin.from("profiles").select("id, business_id").ilike("email", data.email).maybeSingle();
     if (!p) throw new WorkflowError("No portal account uses that email yet. Ask them to sign up first, then add them.");
     if (p.business_id && p.business_id !== data.businessId && !adminUser) throw new WorkflowError("That person already belongs to another business.");
+    const normalizedEmail = data.email.trim().toLowerCase();
+    const { data: worker } = data.tradeRole === "none"
+      ? { data: null }
+      : await admin.from("partner_workers").select("id, full_legal_name, licence_number, trade_role, account_status").eq("business_id", data.businessId).ilike("email", normalizedEmail).eq("trade_role", data.tradeRole).maybeSingle();
+    if (data.tradeRole !== "none" && !worker) throw new WorkflowError("That worker is not listed in this business's approved onboarding. HI VIC must review additions first.");
     await admin.from("business_members").upsert({ business_id: data.businessId, user_id: p.id, member_role: data.memberRole, active: true, added_by: context.userId }, { onConflict: "business_id,user_id" });
-    if (!p.business_id) await admin.from("profiles").update({ business_id: data.businessId }).eq("id", p.id);
+    if (!p.business_id) await admin.from("profiles").update({ business_id: data.businessId, ...(worker?.full_legal_name ? { full_name: worker.full_legal_name } : {}), ...(worker?.licence_number ? { licence_number: worker.licence_number } : {}) }).eq("id", p.id);
     // Trade roles give job access only through assignments. Partners may grant their own staff a trade role; HI VIC approval still gates the business.
     if (data.tradeRole !== "none") await admin.from("user_roles").upsert({ user_id: p.id, role: data.tradeRole }, { onConflict: "user_id,role" });
+    if (worker) await admin.from("partner_workers").update({ profile_id: p.id, account_status: "linked", linked_by: context.userId, linked_at: new Date().toISOString() }).eq("id", worker.id);
     return { ok: true };
   });
 
@@ -217,9 +223,10 @@ export const getPartnerProfile = createServerFn({ method: "POST" }).middleware([
     if (!adminUser && !mine.has(id)) throw new WorkflowError("Not your business.");
     const { business, credentials } = await loadBusiness(id);
     if (!business) return null;
-    const [{ data: creds }, { data: members }, { data: rels }, { data: agreements }, { data: cards }, { data: electricians }] = await Promise.all([
+    const [{ data: creds }, { data: members }, { data: workers }, { data: rels }, { data: agreements }, { data: cards }, { data: electricians }] = await Promise.all([
       admin.from("business_credentials").select("*").eq("business_id", id).order("created_at"),
       admin.from("business_members").select("user_id, member_role, active, profiles!business_members_user_id_fkey(full_name, email)").eq("business_id", id),
+      admin.from("partner_workers").select("id, profile_id, trade_role, full_legal_name, email, mobile, licence_number, qualification, account_status").eq("business_id", id).order("full_legal_name"),
       admin.from("partner_relationships").select("id, electrician_business_id, preferred, active, businesses!partner_relationships_electrician_business_id_fkey(name, onboarding_status)").eq("installer_business_id", id),
       admin.from("partner_agreements").select("version, signer_name, signed_at, snapshot_sha256").eq("business_id", id).order("signed_at", { ascending: false }),
       admin.from("rate_cards").select("id, kind, name, version, effective_from, is_active").eq("business_id", id).order("version", { ascending: false }),
@@ -228,7 +235,7 @@ export const getPartnerProfile = createServerFn({ method: "POST" }).middleware([
     const { data: methods } = await admin.from("partner_measurement_methods").select("*").eq("business_id", id).order("created_at", { ascending: false });
     const checklist = onboardingChecklist(business as BusinessLike, credentials, !!agreements?.length);
     const { xero_contact_id: _x, xero_contact_error: _e, ...safe } = business;
-    return { business: adminUser ? business : safe, credentials: creds ?? [], members: members ?? [], relationships: rels ?? [], agreements: agreements ?? [], rateCards: cards ?? [], electricianBusinesses: electricians ?? [], measurementMethods: methods ?? [], checklist, myRole: adminUser ? "hivic_admin" : mine.get(id) };
+    return { business: adminUser ? business : safe, credentials: creds ?? [], members: members ?? [], workers: workers ?? [], relationships: rels ?? [], agreements: agreements ?? [], rateCards: cards ?? [], electricianBusinesses: electricians ?? [], measurementMethods: methods ?? [], checklist, myRole: adminUser ? "hivic_admin" : mine.get(id) };
   });
 
 // ---------- Import ----------

@@ -35,7 +35,7 @@ export function BusinessProfile({ businessId, isHivicAdmin }: { businessId?: str
       {!isHivicAdmin && data.myRole === "business_admin" && ["draft", "needs_info"].includes(b.onboarding_status) && <SubmitForReview businessId={b.id} onDone={refetch} />}
       <Details b={b} canEdit={canEdit} isHivicAdmin={isHivicAdmin} onDone={refetch} />
       <Credentials businessId={b.id} creds={data.credentials} isHivicAdmin={isHivicAdmin} canAdd={canEdit || data.myRole === "member"} onDone={refetch} />
-      <Team businessId={b.id} members={data.members} canEdit={canEdit} onDone={refetch} />
+      <Team businessId={b.id} members={data.members} workers={data.workers} canEdit={canEdit} onDone={refetch} />
       <Electricians businessId={b.id} rels={data.relationships} options={data.electricianBusinesses.filter((e) => e.id !== b.id)} canEdit={canEdit} onDone={refetch} />
       <MeasurementMethods businessId={b.id} methods={data.measurementMethods as MethodRow[]} canEdit={canEdit} isHivicAdmin={isHivicAdmin} onDone={refetch} />
       <Section title="Rate cards">{data.rateCards.length === 0 ? <p className="text-sm text-muted-foreground">No agreed rate card on file yet – HI VIC sets these up.</p> : data.rateCards.map((r) => <div key={r.id} className="text-sm">{r.name} · {r.kind} · v{r.version} · from {r.effective_from} {r.is_active && <Badge variant="outline">Active</Badge>}</div>)}</Section>
@@ -162,7 +162,7 @@ function Credentials({ businessId, creds, isHivicAdmin, canAdd, onDone }: { busi
   );
 }
 
-function Team({ businessId, members, canEdit, onDone }: { businessId: string; members: { user_id: string; member_role: string; active: boolean; profiles: unknown }[]; canEdit: boolean; onDone: () => void }) {
+function Team({ businessId, members, workers, canEdit, onDone }: { businessId: string; members: { user_id: string; member_role: string; active: boolean; profiles: unknown }[]; workers: { id: string; profile_id: string | null; trade_role: "electrician" | "installer" | "property_manager"; full_legal_name: string; email: string; licence_number: string | null; qualification: string | null; account_status: string }[]; canEdit: boolean; onDone: () => void }) {
   const add = useAction(addTeamMember);
   const remove = useAction(removeTeamMember);
   const [email, setEmail] = useState("");
@@ -173,13 +173,19 @@ function Team({ businessId, members, canEdit, onDone }: { businessId: string; me
       {members.filter((m) => m.active).map((m) => { const p = m.profiles as { full_name: string | null; email: string | null } | null; return (
         <div key={m.user_id} className="flex items-center justify-between border-b py-1 text-sm last:border-0"><span>{p?.full_name ?? p?.email} <span className="text-muted-foreground">{m.member_role === "business_admin" ? "· Business admin" : ""}</span></span>{canEdit && <Button size="sm" variant="ghost" onClick={async () => { await remove({ businessId, userId: m.user_id }, "Removed"); onDone(); }}>Remove</Button>}</div>
       ); })}
+      {workers.filter((worker) => worker.account_status !== "linked").map((worker) => (
+        <div key={worker.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm last:border-0">
+          <span><b>{worker.full_legal_name}</b> · {worker.trade_role}<span className="block text-xs text-muted-foreground">{worker.email}{worker.licence_number ? ` · ${worker.licence_number}` : worker.qualification ? ` · ${worker.qualification}` : ""}</span></span>
+          <Badge variant="outline">Awaiting account</Badge>
+        </div>
+      ))}
       {canEdit && (
         <div className="mt-2 grid gap-2 sm:grid-cols-4">
           <Input className="sm:col-span-2" placeholder="Their sign-up email" value={email} onChange={(e) => setEmail(e.target.value)} />
           <select className="h-10 rounded border bg-background px-2 text-sm" value={trade} onChange={(e) => setTrade(e.target.value as typeof trade)}><option value="installer">Installer</option><option value="electrician">Electrician</option><option value="none">Office staff</option></select>
           <select className="h-10 rounded border bg-background px-2 text-sm" value={role} onChange={(e) => setRole(e.target.value as typeof role)}><option value="member">Team member</option><option value="business_admin">Business admin</option></select>
           <Button className="sm:col-span-4" disabled={!email.includes("@")} onClick={async () => { await add({ businessId, email, memberRole: role, tradeRole: trade }, "Team member added"); setEmail(""); onDone(); }}>Add team member</Button>
-          <p className="text-xs text-muted-foreground sm:col-span-4">They need a portal account first. Team members only see jobs they're assigned to; business admins see all of your business's jobs.</p>
+          <p className="text-xs text-muted-foreground sm:col-span-4">They need to sign in once with this email first. Trade workers must match someone listed in the approved onboarding. Team members only see assigned jobs; business admins see all business jobs.</p>
         </div>
       )}
     </Section>
