@@ -172,8 +172,8 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const TYPE_ALIASES: Record<FieldType, string[]> = {
-  text: ["text", "textsingle", "question", "list"], number: ["number", "slider", "text"], choice: ["list", "question", "choice"],
-  yesno: ["question", "list", "yesno"], media: ["media", "attachment"], signature: ["signature"], datetime: ["datetime"],
+  text: ["text", "textsingle"], number: ["number", "slider", "textsingle", "text"], choice: ["list", "question", "choice"],
+  yesno: ["question", "list", "yesno"], media: ["media", "attachment"], signature: ["signature", "drawing"], datetime: ["datetime"],
 };
 
 export type TemplateItem = { label: string; type: string };
@@ -200,4 +200,23 @@ export function buildSheet(key: FormKey): string {
   const f = FORMS[key];
   return [f.title, "", ...f.fields.map((x, i) =>
     `${i + 1}. ${x.label} — ${x.type}${x.choices ? ` [${x.choices.join(" | ")}]` : ""}${x.required ? " (required)" : ""}${x.when ? ` · only if: ${x.when}` : ""}${x.perArea ? " · repeat per area" : ""}${x.prefill ? " · prefilled" : ""}`)].join("\n");
+}
+
+/** Flattens a v1 template definition into {label,type}. The item type is its type-named key (e.g. "textsingle"). */
+export function flattenDefinition(def: unknown): TemplateItem[] {
+  const out: TemplateItem[] = [];
+  const skip = new Set(["label", "id", "children", "parent_id", "item_id"]);
+  const walk = (o: unknown) => {
+    if (Array.isArray(o)) { o.forEach(walk); return; }
+    if (!o || typeof o !== "object") return;
+    const r = o as Record<string, unknown>;
+    if (typeof r["label"] === "string" && r["label"].trim()) {
+      const type = typeof r["type"] === "string" ? (r["type"] as string) : Object.keys(r).find((k) => !skip.has(k) && r[k] && typeof r[k] === "object") ?? "";
+      if (!["section", "category", "instruction", "logicfield"].includes(type)) out.push({ label: r["label"] as string, type });
+    }
+    Object.values(r).forEach(walk);
+  };
+  const root = (def as { template?: unknown })?.template ?? def;
+  walk((root as { items?: unknown })?.items ?? []);
+  return out;
 }
