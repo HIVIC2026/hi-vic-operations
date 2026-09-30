@@ -20,7 +20,8 @@ export const Route = createFileRoute("/_authenticated/admin/veec")({
 
 const BUCKETS = [
   ["outstanding", "Outstanding", "Quote accepted – VEECs to lodge once the job is complete"],
-  ["potential", "Potential if job proceeds", "Enquiries and quotes not yet accepted"],
+  ["pending_acceptance", "Pending quote acceptance", "Quote sent – waiting for the owner's approval"],
+  ["potential", "Potential if job proceeds", "No quote yet – preliminary estimate only"],
   ["lodged", "Lodged / complete", "Submitted to the registry or job complete"],
 ] as const;
 const PAID = { paid: ["good", "Paid"], part_paid: ["warn", "Part paid"], unpaid: ["bad", "Unpaid"], no_invoice: ["neutral", "No invoice yet"] } as const;
@@ -51,15 +52,17 @@ function VeecPage() {
   const spot = signal.latest;
   const sum = (rows: VeecRow[]) => rows.reduce((t, r) => t + (r.veecs ?? 0), 0);
   const rows = data.filter((r) => r.bucket === bucket && (paid === "all" || r.paid === paid));
-  const accepted = data.filter((r) => r.bucket !== "potential");
-  const acceptedVeecs = sum(accepted);
+  const confirmed = data.filter((r) => r.quoteState === "accepted");
+  const pending = data.filter((r) => r.quoteState === "issued");
+  const spotValue = (veecs: number) => (spot != null ? money(veecs * spot) : "—");
+  const keeps = (veecs: number) => (spot != null ? money(veecs * (spot - OWNER_VEEC_RATE)) : "—");
   return <AppShell wide>
     <p className="text-xs font-bold uppercase text-primary">Admin only – never shown to owners or trades</p>
     <h1 className="mt-1 text-4xl font-bold">VEECs</h1>
     <p className="mt-2 max-w-3xl text-sm text-muted-foreground">The owner receives ${OWNER_VEEC_RATE} per VEEC as their discount; HI VIC keeps the spot price minus ${OWNER_VEEC_RATE} on every VEEC. VEEC numbers are estimates (VEU discount ÷ ${OWNER_VEEC_RATE}) until a lodged quantity is recorded. Read-only – nothing is lodged or sent from here.</p>
     {error && <p role="alert" className="mt-4 rounded-md border border-danger bg-danger-soft p-3 text-sm font-semibold text-danger">The VEEC register could not be loaded.</p>}
 
-    <section className="mt-6 grid gap-3 md:grid-cols-4">
+    <section className="mt-6 grid gap-3 lg:grid-cols-3">
       <div className={`rounded-md border p-4 ${signal.good ? "border-success bg-success-soft" : "bg-card"}`}>
         <div className="text-xs font-bold uppercase text-muted-foreground">VEEC spot price</div>
         <div className="mt-1 flex items-center gap-2 text-3xl font-bold">{spot != null ? `$${spot.toFixed(2)}` : "—"}{signal.change != null && (signal.change >= 0 ? <TrendingUp className="h-5 w-5 text-success" /> : <TrendingDown className="h-5 w-5 text-danger" />)}</div>
@@ -67,9 +70,24 @@ function VeecPage() {
         <div className="mt-2"><Pill t={signal.good ? "good" : "neutral"}>{signal.good ? "GOOD TO SELL" : "HOLD / WATCH"}</Pill></div>
         <p className="mt-2 text-xs text-muted-foreground">{signal.reason}</p>
       </div>
-      <Stat label="VEECs bought @ $70" value={n(acceptedVeecs)} hint={`${accepted.length} accepted jobs`} />
-      <Stat label="Paid to owners" value={money(acceptedVeecs * OWNER_VEEC_RATE)} hint={`$${OWNER_VEEC_RATE} per VEEC as their discount`} />
-      <Stat label="If sold at spot" value={spot != null ? money(acceptedVeecs * spot) : "—"} hint={spot != null ? `HI VIC keeps ${money(acceptedVeecs * (spot - OWNER_VEEC_RATE))}` : "Record a spot price"} />
+      <div className="rounded-md border border-workspace-blush-strong bg-workspace-blush p-4 shadow-sm">
+        <div className="text-xs font-bold uppercase text-muted-foreground">Confirmed jobs – VEEC value</div>
+        <div className="mt-1 text-4xl font-bold">{spotValue(sum(confirmed))}</div>
+        <div className="mt-1 text-sm font-semibold">{confirmed.length} accepted {confirmed.length === 1 ? "job" : "jobs"} · {n(sum(confirmed))} VEECs</div>
+        <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+          <div>Bought at ${OWNER_VEEC_RATE} (paid to owners): {money(sum(confirmed) * OWNER_VEEC_RATE)}</div>
+          <div>If sold at spot, HI VIC keeps: <b>{keeps(sum(confirmed))}</b></div>
+        </div>
+      </div>
+      <div className="rounded-md border bg-card p-4">
+        <div className="text-xs font-bold uppercase text-muted-foreground">Pending quote acceptance – VEEC value</div>
+        <div className="mt-1 text-4xl font-bold">{spotValue(sum(pending))}</div>
+        <div className="mt-1 text-sm font-semibold">{pending.length} {pending.length === 1 ? "job" : "jobs"} awaiting acceptance · {n(sum(pending))} VEECs</div>
+        <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+          <div>Not yet accepted – value only if the owner proceeds</div>
+          <div>If accepted and sold at spot, HI VIC keeps: {keeps(sum(pending))}</div>
+        </div>
+      </div>
     </section>
 
     <section className="mt-6 grid gap-3 md:grid-cols-3">{BUCKETS.map(([key, label, hint]) => {
