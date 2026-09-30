@@ -49,9 +49,10 @@
 - [x] Mitti forms A/B/C with official PIESA/PIISA wording, validation and Compliance panel
 - [x] Installer-led pricing, coverage checker, no referral fee (core + tests)
 - [x] Installer job tracker + what's-missing checklist on the installer job page
-- [ ] Installer-led screens: owner invite, co-branded invoice layout (waits on AP fee)
+- [x] Co-branded invoice preview (Quotes tab)
+- [ ] Owner invite (draft only while comms locked), Add my electrician, AP evidence register
 - [ ] Build forms A/B/C in Mitti and connect IDs (needs Jo in Mitti)
 - [x] AP fee for installer-led jobs = standard AP management fee
-- [ ] Per-job AP fee override (admin, reason required, audited)
+- [x] Per-job AP fee override (admin, reason required, audited)
 - [x] Auto-fill official PIESA/PIISA PDFs (done; e-sign + delivery wiring waits on Mitti forms)
 - [ ] AP evidence register per job: tick/cross for each Industry Pack record, blocking AP review
