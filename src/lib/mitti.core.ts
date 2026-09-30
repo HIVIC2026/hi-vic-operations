@@ -239,35 +239,68 @@ export function parseAudit(audit: Any) {
 
   const note = (p: Parsed) => { if (p.issue) issues.push(p.issue); return p.value; };
 
-  // Area: net → total to insulate → gross − excluded. Repeated (per-zone) fields are never treated as a
-  // whole-house aggregate and never summed without a validated zone schema.
+  // Area: per-room answers in the repeating "Ceiling area" section are the single source — the installer
+  // is never asked for whole-house totals. The portal sums validated per-room values itself. Legacy
+  // whole-house fields are only used when no per-room groups exist (old templates).
   const AREA = {
     net: ["Net insulation area (m²) = Gross minus Excluded", "Net insulation area"],
     total: ["Total measured ceiling area m2", "Total area to insulate", "Area to insulate", "Total insulation area"],
     gross: ["Gross ceiling area", "Gross area"],
     excl: ["Excluded area", "Excluded ceiling area"],
   };
-  const repeated = Object.values(AREA).some((a) => candidates(entries, a).length > 1);
-  if (repeated) issues.push("Repeated ceiling area fields found (per-zone values) – whole-house area not taken from Mitti; office review required.");
-  else {
-    const areaStart = issues.length;
-    const net = note(physical(val(entries, AREA.net), "Net insulation area"));
-    const total = note(physical(val(entries, AREA.total), "Total area to insulate"));
-    const gross = note(physical(val(entries, AREA.gross), "Gross ceiling area")), excl = note(physical(val(entries, AREA.excl), "Excluded area"));
-    const area = net ?? total ?? (gross != null ? r2(gross - (excl ?? 0)) : null);
-    // Invalid supplied area fields fail closed: no fallback to other area fields.
-    if (issues.length > areaStart) issues.push("Ceiling area not taken from Mitti because a supplied area value was invalid.");
-    else if (area != null && area > 0) patch.measured_area_m2 = r2(area); else issues.push("Measured ceiling area not found in Mitti.");
-  }
+  // Group per-room fields by their repeat-instance parent so each room's m2/removal/insulation stay together.
+  const roomParents = new Set(entries.filter((e) => !e.header && e.norm === norm("Measured area m2") && e.value != null).map((e) => e.parent ?? e.id));
+  const rooms = [...roomParents].map((p) => {
+    const kids = entries.filter((e) => (e.parent ?? e.id) === p);
+    const m2e = kids.find((e) => e.norm === norm("Measured area m2"));
+    const m2 = physical(m2e?.value ?? null, m2e?.label ?? "Measured area m2");
+    if (m2.issue) issues.push(m2.issue);
+    const state = norm(val(kids, ["Existing insulation"]));
+    const removal = yesNo(val(kids, ["Removal required"]));
+    const removalType = val(kids, ["Insulation type to remove"]);
+    return { m2: m2.value, state, removal, removalType };
+  });
+  if (rooms.length > 0) {
+    if (rooms.some((r) => r.m2 == null || r.m2 <= 0)) issues.push("A room's measured area was missing or invalid – whole-house area not taken from Mitti; office review required.");
+    else patch.measured_area_m2 = r2(rooms.reduce((s, r) => s + (r.m2 ?? 0), 0));
+    if (rooms.some((r) => r.state)) patch.insulation_present = rooms.some((r) => /under-insulated/.test(r.state));
+    if (rooms.some((r) => r.removal != null)) {
+      patch.removal_required = rooms.some((r) => r.removal === true);
+      if (patch.removal_required) {
+        const remRooms = rooms.filter((r) => r.removal === true);
+        if (remRooms.some((r) => r.m2 == null || r.m2 <= 0)) issues.push("A removal room's area was missing or invalid – removal area not taken from Mitti; office review required.");
+        else patch.removal_m2 = r2(remRooms.reduce((s, r) => s + (r.m2 ?? 0), 0));
+        const types = [...new Set(remRooms.map((r) => r.removalType).filter(Boolean))] as string[];
+        if (types.length > 0) patch.notes = [patch.notes, `Insulation type to remove: ${types.join(", ")}`].filter(Boolean).join(". ").slice(0, 4000);
+        else issues.push("Insulation type to remove not captured – needed for removal pricing; office follow-up required.");
+      }
+    }
+  } else {
+    const repeated = Object.values(AREA).some((a) => candidates(entries, a).length > 1);
+    if (repeated) issues.push("Repeated ceiling area fields found (per-zone values) – whole-house area not taken from Mitti; office review required.");
+    else {
+      const areaStart = issues.length;
+      const net = note(physical(val(entries, AREA.net), "Net insulation area"));
+      const total = note(physical(val(entries, AREA.total), "Total area to insulate"));
+      const gross = note(physical(val(entries, AREA.gross), "Gross ceiling area")), excl = note(physical(val(entries, AREA.excl), "Excluded area"));
+      const area = net ?? total ?? (gross != null ? r2(gross - (excl ?? 0)) : null);
+      // Invalid supplied area fields fail closed: no fallback to other area fields.
+      if (issues.length > areaStart) issues.push("Ceiling area not taken from Mitti because a supplied area value was invalid.");
+      else if (area != null && area > 0) patch.measured_area_m2 = r2(area); else issues.push("Measured ceiling area not found in Mitti.");
+    }
 
-  const ins = yesNo(val(entries, ["Existing insulation present", "Insulation present", "Any existing insulation present", "Is there insulation present in the ceiling?"]));
-  if (ins != null) patch.insulation_present = ins;
+    const ins = yesNo(val(entries, ["Existing insulation present", "Insulation present", "Any existing insulation present", "Is there insulation present in the ceiling?"]));
+    if (ins != null) patch.insulation_present = ins;
+    const rem = yesNo(val(entries, ["Removal required", "Existing insulation removal required"]));
+    if (rem != null) patch.removal_required = rem;
+    const remM2 = note(physical(val(entries, ["Total removal area m2", "Removal area", "Removal m2", "Area to remove"]), "Removal area"));
+    if (rem && remM2 != null) patch.removal_m2 = remM2;
+  }
   const rv = note(physical(val(entries, ["Existing R-value", "Measured R-value", "Confirmed R-value", "Existing insulation R-value"]), "Existing R-value"));
-  if (rv != null && ins !== false) patch.existing_r_value = rv;
-  const rem = yesNo(val(entries, ["Removal required", "Existing insulation removal required"]));
-  if (rem != null) patch.removal_required = rem;
-  const remM2 = note(physical(val(entries, ["Total removal area m2", "Removal area", "Removal m2", "Area to remove"]), "Removal area"));
-  if (rem && remM2 != null) patch.removal_m2 = remM2;
+  if (rv != null && patch.insulation_present !== false) patch.existing_r_value = rv;
+  const method = val(entries, ["How the ceiling was measured", "Measurement method"]);
+  if (method) patch.notes = [patch.notes, `Measured by: ${method}`].filter(Boolean).join(". ").slice(0, 4000);
+  else if (rooms.length > 0) issues.push("Measurement method not captured – how the ceiling was measured must be documented.");
 
   const acc = norm(val(entries, ["Ceiling access", "Access difficulty", "Roof space access"]));
   if (acc) { const a = /difficult|hard|restricted/.test(acc) ? "difficult" : /moderate|medium/.test(acc) ? "moderate" : /easy|good/.test(acc) ? "easy" : null; if (a) patch.access_difficulty = a; else issues.push("Ceiling access answer not recognised."); }
