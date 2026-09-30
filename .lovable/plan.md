@@ -50,6 +50,8 @@ The underlying retained records and audit history will stay intact, but obsolete
 
 ## 5. Replace the Step 3 shambles with one current customer journey
 - Remove the internal “Step 3” language and obsolete preview/template navigation from active portal pages.
+- Make the portal’s **Customer calculator** a clean standalone calculator page. Remove the old sample eligibility result, preliminary quote, Step 3 heading, Ready Check pitch, and every other fixture block currently shown above it.
+- Open the calculator at the top of the page, with only a clear **CUSTOMER CALCULATOR** heading and the inputs/results needed for the what-if calculation.
 - Replace “Step 3 · Indicative estimate” with the current customer terms: **Preliminary estimate**, **Free Ready Check**, **Measured project quote**, and **PIESA**.
 - Simplify the preliminary estimate to the exact decision information: eligibility result, property, estimated area, ordered price breakdown, discount, estimated cost after discount, what may change, and the free Ready Check action.
 - Keep PIESA clearly described as a later licensed-electrician/REC assessment, never part of the installer Ready Check.
