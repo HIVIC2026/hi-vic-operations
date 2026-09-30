@@ -67,4 +67,4 @@
 
 - [x] Rename and restyle the portal login as Home Insulation Victoria Operations
 
-- [ ] Remove DC Construction Solutions wording from portal login screens
+- [x] Remove DC Construction Solutions wording from portal login screens
