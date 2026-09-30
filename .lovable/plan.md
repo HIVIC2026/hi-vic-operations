@@ -60,3 +60,50 @@ In installer onboarding, ask whether they already work with an electrician. If t
 - Public route `/electrician-onboarding?invite=<token>`: token looked up server-side (hashed), returns only first name and installer business name.
 - Invite delivery goes through the existing comms lock (draft only until unlocked). The To action derivation gets the new task types.
 - Test Centre: add a dummy installer, a nominated electrician and an accept flow, so the whole team-up path can be run from start to finish.
+
+---
+
+# Part 2: Job journey map on every job
+
+## The idea
+The top of every job page gets a **Job journey** strip that shows the whole route in order: where the job is now, what's finished, and exactly what comes next. Anyone opening the job can read it at a glance, for example: "Awaiting quote acceptance, then 50% deposit, then install booking."
+
+## What it looks like
+- A horizontal set of gates across the top of the job page. On phones it becomes a vertical list.
+  - Gate 1 Enquiry and eligibility
+  - Gate 2 Ready Check / measure-up
+  - Gate 3 PIESA
+  - Gate 4 Quote
+  - Gate 5 Acceptance and deposit
+  - Gate 6 Rectification (only if needed)
+  - Gate 7 Install
+  - Gate 8 Evidence and AP review
+  - Gate 9 VEEC
+- Each gate is one of:
+  - **done** (green tick, with date)
+  - **current** (blue, highlighted, labelled "YOU ARE HERE")
+  - **blocked** (red, with the reason)
+  - **upcoming** (grey)
+  - **not needed for this job** (faded, for example no rectification)
+- Under the current gate, a checklist of the exact steps inside that gate, in order. For example, inside "Gate 4 Quote":
+  1. Quote prepared (done)
+  2. Quote sent to owner (done)
+  3. **Awaiting owner acceptance** (current, with who and since when)
+  4. Customer acceptance and VEEC assignment signed
+  5. Xero invoice created automatically
+- An **"Up next"** box with the next 3 steps in plain words. Each step says who does it: Office, Owner, Electrician, Installer, or Automatic. It also shows any deadline, such as the PIESA 30-day window or the ESC 24-hour notice.
+- Clicking any finished gate shows its date, who did it and the related document or form, for example the PIESA PDF or the signed acceptance.
+
+## Always right
+- The strip uses the same single next-step rule already used by the pipeline, the To action tab and the installer tracker. The job page can't say anything different from those.
+- Steps differ by job type, and each job only shows the steps that apply to it:
+  - HI VIC-sourced or installer-sourced
+  - installer measure-up already accepted (Ready Check skipped)
+  - rectification needed or not
+  - on hold or cancelled (the current gate shows "On hold: reason")
+- If a record and the stage disagree, the strip shows the existing red mismatch warning instead of guessing.
+- Test jobs show a "TEST JOB" tag on the strip.
+
+## Technical details
+- New pure `journey.core.ts`: `buildJourney(job facts)` returns ordered gates and sub-steps with the status, actor, done-at and deadline for each. It's derived from `nextstep.core.ts` and stage/record facts, so there's no new stored state. Tests cover every route (HI VIC, installer with or without measure-up, rectification yes/no, hold, cancel, mismatch).
+- New `JobJourney` component placed under `JobFileHeader` on the admin job page. A read-only version goes on the installer and electrician job pages, and the owner view shows a simplified one.
