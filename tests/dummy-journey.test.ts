@@ -23,7 +23,7 @@ const enquiry = { external_enquiry_id: "dummy-1", full_name: "Alex Test", email:
 describe("dummy journey 1-17 (fixtures only)", () => {
   test("1 likely: no insulation, no previous upgrade", () => expect(gate1("none", "no").outcome).toBe("likely_eligible"));
   test("2 onsite: existing insulation present", () => { const d = gate1("present", "no"); expect(d.outcome).toBe("needs_onsite_confirmation"); expect(d.onsite.length).toBeGreaterThan(0); });
-  test("3 previous upgrade yes → not a likely/onsite quote (locked Gate 1: generic yes = internal review)", () => { const d = gate1("none", "yes"); expect(["does_not_appear_eligible", null]).toContain(d.outcome); });
+  test("3 previous upgrade yes → does_not_appear_eligible (hard preliminary fail)", () => { const d = gate1("none", "yes"); expect(d.outcome).toBe("does_not_appear_eligible"); });
   test("4 missing area rejected", () => { for (const v of [undefined, null, "", NaN]) expect(enquirySchema.safeParse({ ...enquiry, estimated_area_m2: v }).success).toBe(false); expect(enquirySchema.safeParse({ ...enquiry, estimated_area_m2: 150, area_unknown: true }).success).toBe(false); });
   test("5 custom 173.5 accepted and used", () => { expect(enquirySchema.safeParse({ ...enquiry, estimated_area_m2: 173.5 }).success).toBe(true); expect(disc(173.5).estimated_customer_total).toBeGreaterThan(disc(150).estimated_customer_total); });
   test("6 same location baseline", () => { expect(disc(150).applied_discount).toBeCloseTo(1481.76, 2); expect(disc(150).estimated_customer_total).toBeCloseTo(3716.24, 2); });

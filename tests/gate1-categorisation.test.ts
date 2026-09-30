@@ -22,7 +22,7 @@ describe("Step 2 Gate 1 categorisation", () => {
     const x = d({ verifiedMinAgeYears: null, declaredOverMinAge: "no" });
     expect(x.outcome).toBeNull(); expect(x.reviewRequired).toBe(true); expect(x.failed).toHaveLength(0);
   });
-  test("6. owner previous upgrade yes -> review, not fail", () => { const x = d({ previousCeilingUpgrade: true }); expect(x.reviewRequired).toBe(true); expect(x.failed).toHaveLength(0); });
+  test("6. owner previous upgrade yes -> fail", () => { const x = d({ previousCeilingUpgrade: true }); expect(x.outcome).toBe("does_not_appear_eligible"); expect(x.failed.length).toBeGreaterThan(0); });
   test("7. confirmed prior Activity 48 -> fail", () => expect(d({ previousActivity48Confirmed: true }).outcome).toBe("does_not_appear_eligible"));
   test("8. insulation none + strong remote rules -> likely eligible", () => expect(d({ declaredInsulation: "none" }).outcome).toBe("likely_eligible"));
   test("9. insulation present -> needs onsite", () => expect(d({ declaredInsulation: "present" }).outcome).toBe("needs_onsite_confirmation"));

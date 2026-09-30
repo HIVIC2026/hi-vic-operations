@@ -142,7 +142,7 @@ export function evaluateGate1(f: Gate1Facts): Gate1Decision {
   const pu = ev("previous_activity", { fact: f.previousCeilingUpgrade == null ? "unknown" : f.previousCeilingUpgrade ? "yes" : "no", source: "properties.enrichment", basis: f.previousCeilingUpgrade == null ? "unknown" : "recorded" });
   if (f.previousActivity48Confirmed === true) rule("previous_activity", PL, "fail", "Previous Activity 48 at the premises confirmed", { fact: "previous Activity 48 confirmed", source: f.evidence?.previous_activity?.basis === "verified" ? pu.source : "properties.enrichment.previous_activity_48_confirmed", basis: "verified" });
   else if (f.previousCeilingUpgrade === false) rule("previous_activity", PL, "pass", pu.basis === "declared" ? "Owner declares no previous ceiling insulation upgrade" : "No previous upgrade recorded", pu);
-  else if (f.previousCeilingUpgrade === true) rule("previous_activity", PL, "review", "Previous upgrade reported – previous Activity 48 not confirmed", pu);
+  else if (f.previousCeilingUpgrade === true) rule("previous_activity", PL, "fail", "Owner declares a previous VEU ceiling insulation upgrade", pu);
   else rule("previous_activity", PL, "review", "Previous upgrade history unknown", pu);
 
   // Existing insulation above the relevant ceiling
