@@ -283,7 +283,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
     case "contact":
       return <>
         <Field label="Business address" required hint="Start typing and pick your address from the list"><AddressInput value={d.business_address ?? ""} onChange={(v) => up({ business_address: v })} /></Field>
-        <div style={{ ...infoCard, marginBottom: 16 }}>Contact: <strong>{d.primary_contact_name}</strong> · {d.business_phone} · {d.business_email} — <button type="button" onClick={() => up({})} style={{ border: "none", background: "none", color: BLUE, fontWeight: 700, cursor: "pointer", padding: 0, fontSize: "inherit" }}>wrong? Go back to "About you"</button></div>
+        <div style={{ ...infoCard, marginBottom: 16 }}>Contact: <strong>{d.primary_contact_name}</strong> · {d.business_phone} · {d.business_email} — if any of these are wrong, go back to "About you".</div>
         <Check checked={d.authorised_to_register === true} onChange={(v) => up({ authorised_to_register: v })}>I'm authorised to set up this business.</Check>
       </>;
     case "insurance":
