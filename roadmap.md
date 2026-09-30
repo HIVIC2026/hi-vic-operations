@@ -12,3 +12,5 @@
 - [ ] Installer Mitti return → evidence → AP sign-off queue
 
 - [ ] Portal-wide visual redesign with exact HIV branding (blue #3C51C4, green #07BF61, navy #22376B, off-white #FBFCFA, Open Sans, approved logo) — directions → pick → implement
+
+- [ ] Full end-to-end flow audit: Base44 enquiry → completion; assess handoff design, find mess/gaps, recommend improvements
