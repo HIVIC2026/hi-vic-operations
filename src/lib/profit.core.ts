@@ -39,6 +39,7 @@ export type MarginInput = {
   electricalCostExGst: number; // what HI VIC pays the electrician/REC for rectification (pass-through)
   electricalChargeExGst: number; // what the customer is charged for electrical work (pass-through → markup 0)
   installerSourced: boolean; // $220 referral fee applies when the job proceeds
+  installerLed?: boolean; // installer brought their own customer: never a referral fee
   veecDiscountIncGst: number; // owner's discount → VEEC count at $70 each
   piesaRecCostExGst: number | null; // negotiated lower set rate paid to the REC for the PIESA; null = not agreed/recorded yet
   veecLodgementFeeExGst: number | null; // ESC fee per VEEC created/registered; null = not set
@@ -53,7 +54,7 @@ export function jobMargin(i: MarginInput, spot: number | null) {
   const piesaRecPaidEx = i.piesaRecCostExGst == null ? null : r2(i.piesaRecCostExGst);
   const piesaMarginEx = piesaRecPaidEx == null ? null : r2(i.apFeeExGst - i.piesaRecCostExGst!);
   const electricalMarkup = r2(i.electricalChargeExGst - i.electricalCostExGst); // upgrades pass through at the agreed rate card
-  const referralFeeEx = i.installerSourced ? r2(INSTALLER_REFERRAL_FEE_INC_GST / 1.1) : 0;
+  const referralFeeEx = i.installerSourced && !i.installerLed ? r2(INSTALLER_REFERRAL_FEE_INC_GST / 1.1) : 0;
   const veecs = i.veecDiscountIncGst / OWNER_VEEC_RATE;
   const veecMargin = spot != null ? r2(veecs * (spot - OWNER_VEEC_RATE)) : null;
   const lodgementFeeEx = i.veecLodgementFeeExGst == null ? null : r2(veecs * i.veecLodgementFeeExGst);
