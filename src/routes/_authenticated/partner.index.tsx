@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { nextStep } from "@/lib/nextstep.core";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -45,7 +46,7 @@ function Dashboard() {
                     <div className="flex items-center justify-between gap-2"><span className="text-xs font-bold text-primary">{j.job_number}</span><StageBadge stage={j.stage as never} /></div>
                     <div className="font-medium">{j.owner ?? "Customer"}</div>
                     <div className="text-muted-foreground">{(j.property as { address_line?: string; suburb?: string } | null)?.address_line}, {(j.property as { suburb?: string } | null)?.suburb}</div>
-                    <div className="mt-1 text-xs">Next: {j.next_action ?? "—"}</div>
+                    <div className="mt-1 text-xs">Next: {nextStep({ stage: j.stage, next_action: j.next_action }).next}</div>
                     <div className="mt-1 text-xs text-muted-foreground">Electrician: {j.electrician ?? "Not assigned"}{j.bookings[0] ? ` · Booked ${new Date(j.bookings[0].scheduled_start).toLocaleDateString("en-AU")}` : ""}</div>
                     <div className="mt-1 flex flex-wrap gap-1">
                       <SlaPill sla={j.sla} />

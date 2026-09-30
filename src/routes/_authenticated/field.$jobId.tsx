@@ -1,4 +1,5 @@
 import { AppointmentPanel, ElectricianChoicePanel, PartnerProposalForm } from "@/components/portal/partner";
+import { nextStep } from "@/lib/nextstep.core";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -37,7 +38,7 @@ function FieldJob() {
         <h1 className="text-xl font-bold">{job.property_address}</h1>
         <div className="mt-1 flex items-center gap-2 text-sm">{job.owner_name}{job.owner_phone && <a href={`tel:${job.owner_phone}`} className="inline-flex items-center gap-1 font-semibold text-primary"><Phone className="h-4 w-4" /> Call</a>}</div>
         <div className="mt-2 flex flex-wrap gap-1.5"><StageBadge stage={job.stage} />{job.deposit_cleared ? <Pill t="good">Deposit cleared</Pill> : null}<UrgencyBadge urgency={job.urgency} days={job.days_remaining} />{job.life_support && <Pill t="bad"><HeartPulse className="mr-1 h-3 w-3" /> Life support</Pill>}</div>
-        <p className="mt-2 rounded bg-accent px-2 py-1 text-sm font-medium text-accent-foreground">Next: {job.next_action}</p>
+        <p className="mt-2 rounded bg-accent px-2 py-1 text-sm font-medium text-accent-foreground">Next: {nextStep(job).next}</p>
       </div>
       <div className="mb-4"><BlockersPanel jobId={jobId} /></div>
       <div className="space-y-4">
