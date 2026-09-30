@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { BriefcaseBusiness, Calculator, ListTodo, ClipboardCheck, ExternalLink, FileCheck2, LayoutDashboard, LogOut, MailCheck, MapPinned, Menu, Users, X } from "lucide-react";
+import { BriefcaseBusiness, Calculator, ListTodo, ClipboardCheck, ExternalLink, FileCheck2, FlaskConical, LayoutDashboard, LogOut, MailCheck, MapPinned, Menu, Users, X } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -48,6 +48,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
           <Link to="/admin/communications" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Customer communications</Link>
           <Link to="/admin/users" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Users className="h-4 w-4" /> Users & access</Link>
           <div className={group}>Tools</div>
+          <Link to="/admin/test-centre" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><FlaskConical className="h-4 w-4" /> Test Centre</Link>
           <a href="/test-customer-estimate#calculator" target="_blank" rel="noopener" className={link}>
              <Calculator className="h-4 w-4" /> Customer calculator <ExternalLink className="ml-auto h-3.5 w-3.5" />
            </a>
