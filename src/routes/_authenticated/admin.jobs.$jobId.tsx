@@ -16,7 +16,6 @@ import { Gate1EvidencePanel } from "@/components/portal/gate1";
 import { IntakeSummary } from "@/components/portal/intake";
 import { JobJourney } from "@/components/portal/journey";
 import { ClearTimeline, WhoHasTheBall } from "@/components/portal/waiting";
-import { useState } from "react";
 import { AllDocuments, Correspondence, ExportJobPack, JobFileHeader, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
 
 const TABS: [string, string][] = [

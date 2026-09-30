@@ -51,6 +51,7 @@ function OwnerJob() {
         <MessagesPanel jobId={jobId} isAdmin={false} role="owner" />
         <TimelinePanel jobId={jobId} />
       </div>
+      <ClearTimeline jobId={jobId} initial={6} />
     </AppShell>
   );
 }
