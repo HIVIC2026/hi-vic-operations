@@ -74,18 +74,22 @@ describe("customer outcome email renderers", () => {
   });
 
   test("onsite confirmation remains positive and renders dynamic reasons", () => {
-    const email = renderEstimateEmail({ ...detailed, outcome: "onsite", reasons: ["Existing insulation needs confirmation.", "Roof access must be checked."] });
-    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY — WE JUST NEED TO CONFIRM A FEW THINGS.", "WHAT WE NEED TO CONFIRM", "Existing insulation needs confirmation.", "Roof access must be checked.", "YOUR ANSWERS HAVEN'T RULED YOU OUT.", "$1,325", "$3,747", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "BOOK MY READY CHECK →", "See exactly what’s included on the next page."]) expect(email.html).toContain(copy);
-    expect(email.html.indexOf("YOUR PRELIMINARY QUOTE")).toBeLessThan(email.html.indexOf("WHAT WE NEED TO CONFIRM"));
+    const email = renderEstimateEmail({ ...detailed, outcome: "onsite", reasons: ["existing_insulation_unknown", "Existing insulation needs confirmation.", "roof_access_review", "eligible_ceiling_area_unverified"] });
+    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY — WE JUST NEED TO CONFIRM A FEW THINGS.", "WHAT WE NEED TO CHECK", "Your property could still qualify. We just need to confirm the following onsite:", "Existing insulation — confirm what is currently installed and whether removal is required.", "Ceiling access — confirm access conditions and whether any access adjustment applies.", "Ceiling area — confirm the measured eligible ceiling area.", "YOUR ANSWERS HAVEN'T RULED YOU OUT.", "$1,325", "$3,747", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "BOOK MY READY CHECK →", "See exactly what’s included on the next page."]) expect(email.html).toContain(copy);
+    expect(email.html.indexOf("WHAT WE NEED TO CHECK")).toBeLessThan(email.html.indexOf("YOUR PRELIMINARY QUOTE"));
+    expect(email.plainText.indexOf("WHAT WE NEED TO CHECK")).toBeLessThan(email.plainText.indexOf("YOUR PRELIMINARY QUOTE"));
+    for (const safeReason of ["Existing insulation — confirm what is currently installed and whether removal is required.", "Ceiling access — confirm access conditions and whether any access adjustment applies.", "Ceiling area — confirm the measured eligible ceiling area."]) {
+      expect(email.html.split(safeReason).length - 1).toBe(1);
+      expect(email.plainText.split(safeReason).length - 1).toBe(1);
+    }
+    for (const internal of ["existing_insulation_unknown", "roof_access_review", "eligible_ceiling_area_unverified", "WHAT WE NEED TO CONFIRM"]) expect(`${email.html} ${email.plainText}`).not.toContain(internal);
     expect(email.html).toContain(`${estimateUrl}#calculator`);
     expect(email.html.split("BOOK MY READY CHECK →").length - 1).toBe(1);
     const onsiteQuote = email.html.slice(email.html.indexOf('data-main-quote-card="true"'), email.html.indexOf("WANT TO CHECK THE NUMBERS FIRST?"));
     expect(onsiteQuote).toContain('data-ready-check-inside-quote="true"');
     expect(onsiteQuote).toContain("BOOK MY READY CHECK →");
     expect(email.html.indexOf("BOOK MY READY CHECK →")).toBeLessThan(email.html.indexOf("WANT TO CHECK THE NUMBERS FIRST?"));
-    expect(email.html.indexOf("OPEN THE INTERACTIVE CALCULATOR →")).toBeLessThan(email.html.indexOf("WHAT WE NEED TO CONFIRM"));
     expect(email.plainText.indexOf("BOOK MY READY CHECK →")).toBeLessThan(email.plainText.indexOf("WANT TO CHECK THE NUMBERS FIRST?"));
-    expect(email.plainText.indexOf("OPEN THE INTERACTIVE CALCULATOR")).toBeLessThan(email.plainText.indexOf("WHAT WE NEED TO CONFIRM"));
     expect(`${email.html} ${email.plainText}`).not.toMatch(/NOT SURE YOUR CEILING SIZE IS RIGHT\?|CHECK ANOTHER CEILING SIZE →/);
     const htmlQuote = email.html.slice(email.html.indexOf("YOUR PRELIMINARY QUOTE"), email.html.indexOf("NEXT STEP"));
     const textQuote = email.plainText.slice(email.plainText.indexOf("YOUR PRELIMINARY QUOTE"), email.plainText.indexOf("NEXT STEP"));
