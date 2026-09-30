@@ -118,12 +118,17 @@ describe("customer outcome email renderers", () => {
 
   test("ineligible has dynamic reasons, no available discount, result CTA and referral", () => {
     const resultUrl = `${estimateUrl}#result`;
-    const email = withUnsubscribe(renderIneligibleOutcomeEmail({ referralUrl, resultUrl, reasons: ["The home is five years old or newer.", "A previous Activity 48 upgrade was confirmed."], reference: "HV-1003" }), unsubscribeUrl);
-    for (const copy of ["WE'VE COMPLETED YOUR PROPERTY CHECK.", "THIS PROPERTY DOESN'T CURRENTLY APPEAR ELIGIBLE.", "WHY WE REACHED THIS RESULT", "five years old or newer", "previous Activity 48 upgrade", "REVIEW MY RESULT →", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Refer a friend →", "Reference: HV-1003", "Unsubscribe", "home-insulation-victoria-logo.png"]) expect(email.html).toContain(copy);
+    const email = withUnsubscribe(renderIneligibleOutcomeEmail({ referralUrl, resultUrl, reasons: ["The home is five years old or newer.", "A previous Activity 48 upgrade was confirmed.", "The home is five years old or newer."], reference: "HV-1003" }), unsubscribeUrl);
+    for (const copy of ["WE'VE COMPLETED YOUR PROPERTY CHECK.", "UNFORTUNATELY, THIS PROPERTY DOESN'T APPEAR TO BE ELIGIBLE AT THIS STAGE.", "Based on the information we have, this is because:", "five years old or newer", "previous Activity 48 upgrade", "If any of the information above isn't correct, you can review your details and we'll reassess the result.", "REVIEW MY RESULT →", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Refer a friend →", "Reference: HV-1003", "Unsubscribe", "home-insulation-victoria-logo.png"]) expect(email.html).toContain(copy);
+    expect(email.html.split("five years old or newer").length - 1).toBe(1);
     expect(email.html).toContain(`href="${resultUrl}"`);
     expect(email.html).not.toMatch(/estimated VEU discount|ESTIMATED CUSTOMER PRICE|PAY \$349|assessment payment available|\$1,325/i);
     expect(email.html).not.toContain("WHY INSULATION MATTERS");
     expect(email.html).not.toContain("COMFORT THROUGH THE SEASONS");
+    expect(email.html).not.toContain("THIS PROPERTY DOESN'T CURRENTLY APPEAR ELIGIBLE.");
+    for (const copy of ["UNFORTUNATELY, THIS PROPERTY DOESN'T APPEAR TO BE ELIGIBLE AT THIS STAGE.", "Based on the information we have, this is because:", "• The home is five years old or newer.", "• A previous Activity 48 upgrade was confirmed.", "If any of the information above isn't correct, you can review your details and we'll reassess the result.", `REVIEW MY RESULT: ${resultUrl}`]) expect(email.plainText).toContain(copy);
+    expect(email.plainText.split("five years old or newer").length - 1).toBe(1);
+    expect(email.plainText).not.toMatch(/quote|payment|\$99|\$349/i);
     expect(() => renderIneligibleOutcomeEmail({ referralUrl, resultUrl: `${estimateUrl}#confirm`, reasons: ["No"] })).toThrow();
   });
 
