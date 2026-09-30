@@ -1,7 +1,10 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { BriefcaseBusiness, Calculator, ClipboardCheck, ExternalLink, FileCheck2, LayoutDashboard, LogOut, MailCheck, MapPinned, Menu, Users, X } from "lucide-react";
+import { BriefcaseBusiness, Calculator, ListTodo, ClipboardCheck, ExternalLink, FileCheck2, LayoutDashboard, LogOut, MailCheck, MapPinned, Menu, Users, X } from "lucide-react";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { getTodos } from "@/lib/todo.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useMe } from "@/hooks/use-me";
 import { Button } from "@/components/ui/button";
@@ -13,6 +16,9 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
   const qc = useQueryClient();
   const navigate = useNavigate();
   const roles = me?.roles ?? [];
+  const loadTodos = useServerFn(getTodos);
+  const { data: todos } = useQuery({ queryKey: ["todos"], queryFn: () => loadTodos(), enabled: roles.includes("admin"), refetchInterval: 60_000 });
+  const todoCount = todos?.items.length ?? 0;
   const signOut = async () => {
     await qc.cancelQueries();
     qc.clear();
@@ -27,6 +33,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
       {roles.includes("admin") && (
         <>
           <div className={group}>Work</div>
+          <Link to="/admin/todo" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><ListTodo className="h-4 w-4" /> To action{todoCount > 0 && <span className="ml-auto rounded-full bg-destructive px-2 text-xs font-bold text-destructive-foreground">{todoCount}</span>}</Link>
           <Link to="/admin" search={{ tab: "jobs" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><BriefcaseBusiness className="h-4 w-4" /> Active jobs</Link>
           <Link to="/admin" search={{ tab: "quotes" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><FileCheck2 className="h-4 w-4" /> Pending quote approval</Link>
           <Link to="/admin" search={{ tab: "enquiries" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><LayoutDashboard className="h-4 w-4" /> Enquiries</Link>
