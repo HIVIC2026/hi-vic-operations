@@ -14,7 +14,7 @@ export const getInstallerJourney = createServerFn({ method: "POST" })
     if (!job || !job.installer_led) return null;
     const [{ data: m }, { data: ev }, { data: asg }] = await Promise.all([
       sb.from("ceiling_measurements").select("measured_area_m2, supplied_area_m2, insulation_present, existing_r_value, removal_required, raw_snapshot").eq("job_id", data.jobId).eq("is_current", true).maybeSingle(),
-      sb.from("evidence_files").select("category").eq("job_id", data.jobId),
+      sb.from("evidence_requirements").select("category").eq("job_id", data.jobId).in("status", ["uploaded", "verified"]),
       sb.from("job_assignments").select("role").eq("job_id", data.jobId).eq("role", "electrician"),
     ]);
     const outcome = job.eligibility_outcome as string | null;
