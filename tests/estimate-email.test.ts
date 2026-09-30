@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { renderEstimateEmail, renderIneligibleOutcomeEmail } from "../src/lib/estimate-email";
 import { withUnsubscribe } from "../src/lib/emailsafety.core";
+const CUSTOMER_VISUAL_SYSTEM_BORDER = "border:1px solid #D4DAF5";
 import { CUSTOMER_BRAND, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_QUOTE_ORDER, CUSTOMER_WHAT_COULD_CHANGE } from "../src/lib/customer-quote-system";
 
 const token = "A".repeat(43);
@@ -45,7 +46,7 @@ describe("customer outcome email renderers", () => {
     for (const quote of [htmlQuote, textQuote]) {
       expect(quote).not.toContain(CUSTOMER_QUOTE_LABELS.payableNow);
       expect(quote).not.toContain(CUSTOMER_PAYMENT_COPY.credited);
-      expect(quote).not.toContain(CUSTOMER_QUOTE_LABELS.remainingBalance);
+      expect(quote).not.toContain("Estimated remaining project balance after Ready Check");
     }
     for (const copy of ["NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "For $99, we’ll arrange your onsite Ready Check so we can measure your ceiling and prepare a more accurate project estimate.", "The $99 is credited toward your project if you proceed."]) {
       expect(h.split(copy).length - 1).toBe(1);
@@ -75,11 +76,23 @@ describe("customer outcome email renderers", () => {
 
   test("onsite confirmation remains positive and renders dynamic reasons", () => {
     const email = renderEstimateEmail({ ...detailed, outcome: "onsite", reasons: ["existing_insulation_unknown", "Existing insulation needs confirmation.", "roof_access_review", "eligible_ceiling_area_unverified"] });
-    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY — WE JUST NEED TO CONFIRM A FEW THINGS.", "WHAT WE NEED TO CHECK", "Your property could still qualify. We just need to confirm the following onsite:", "Existing insulation — confirm what is currently installed and whether removal is required.", "Ceiling access — confirm access conditions and whether any access adjustment applies.", "Ceiling area — confirm the measured eligible ceiling area.", "IT'S LOOKING GOOD SO FAR.", "$1,325", "$3,747", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "BOOK MY READY CHECK →", "See exactly what’s included on the next page."]) expect(email.html).toContain(copy);
-    expect(email.html.indexOf("WHAT WE NEED TO CHECK")).toBeLessThan(email.html.indexOf("YOUR PRELIMINARY QUOTE"));
-    expect(email.plainText.indexOf("WHAT WE NEED TO CHECK")).toBeLessThan(email.plainText.indexOf("YOUR PRELIMINARY QUOTE"));
-    expect(email.html).toContain("IT'S LOOKING GOOD SO FAR.");
-    expect(email.plainText).toContain("IT'S LOOKING GOOD SO FAR.");
+    for (const copy of ["IT'S LOOKING GOOD SO FAR.", "WE JUST NEED TO CHECK A COUPLE OF THINGS ONSITE:", "Existing insulation — confirm what is currently installed and whether removal is required.", "Ceiling access — confirm access conditions and whether any access adjustment applies.", "Ceiling area — confirm the measured eligible ceiling area.", "$1,325", "$3,747", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "BOOK MY READY CHECK →", "See exactly what’s included on the next page."]) expect(email.html).toContain(copy);
+    for (const out of [email.html, email.plainText]) {
+      expect(out.split("IT'S LOOKING GOOD SO FAR").length - 1).toBe(1);
+      for (const gone of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY", "could still qualify", "WHAT WE NEED TO CHECK"]) expect(out).not.toContain(gone);
+      expect(out.indexOf("IT'S LOOKING GOOD SO FAR")).toBeLessThan(out.indexOf("WE JUST NEED TO CHECK"));
+      expect(out.indexOf("Ceiling area — confirm")).toBeLessThan(out.indexOf("YOUR PRELIMINARY QUOTE"));
+    }
+    expect(email.plainText.indexOf("Ceiling area — confirm")).toBeLessThan(email.plainText.indexOf("PROPERTY"));
+    // hero reasons live inside hero; quote card follows directly
+    const afterHero = email.html.slice(email.html.indexOf('data-onsite-reasons="true"'));
+    expect(afterHero.indexOf('data-main-quote-card="true"')).toBeGreaterThan(0);
+    expect(afterHero.slice(0, afterHero.indexOf('data-main-quote-card="true"'))).not.toContain(CUSTOMER_VISUAL_SYSTEM_BORDER);
+    const one = renderEstimateEmail({ ...detailed, outcome: "onsite", reasons: ["roof_access_review"] });
+    expect(one.html).toContain("WE JUST NEED TO CHECK ONE THING ONSITE:");
+    expect(one.plainText).toContain("WE JUST NEED TO CHECK ONE THING ONSITE:");
+    const named = renderEstimateEmail({ ...detailed, outcome: "onsite", firstName: "Alex", reasons: ["roof_access_review"] });
+    expect(named.html).toContain("IT'S LOOKING GOOD SO FAR, ALEX.");
     for (const safeReason of ["Existing insulation — confirm what is currently installed and whether removal is required.", "Ceiling access — confirm access conditions and whether any access adjustment applies.", "Ceiling area — confirm the measured eligible ceiling area."]) {
       expect(email.html.split(safeReason).length - 1).toBe(1);
       expect(email.plainText.split(safeReason).length - 1).toBe(1);

@@ -48,7 +48,7 @@ describe("customer copy", () => {
     expect(CUSTOMER_QUOTE_ORDER).toEqual([
       "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply & install",
       "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount",
-      "YOUR ESTIMATED COST AFTER DISCOUNT", "$99 Home Insulation Ready Check — payable now", "Estimated remaining project balance after Ready Check",
+      "YOUR ESTIMATED COST AFTER DISCOUNT",
     ]);
     expect(customerQuoteRows({ installation: 1, piesa: 2, apManagement: 3 }).map((r) => r.key)).toEqual(["piesa", "insulation", "apManagement"]);
     expect(JSON.stringify(CUSTOMER_QUOTE_LABELS)).not.toMatch(/allowance/i);
