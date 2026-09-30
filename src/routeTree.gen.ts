@@ -24,7 +24,6 @@ import { Route as AuthenticatedAdminCommunicationsRouteImport } from './routes/_
 import { Route as AuthenticatedAdminComplianceRouteImport } from './routes/_authenticated/admin.compliance'
 import { Route as AuthenticatedAdminCoverageRouteImport } from './routes/_authenticated/admin.coverage'
 import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authenticated/admin.partners'
-import { Route as AuthenticatedAdminProfitRouteImport } from './routes/_authenticated/admin.profit'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminVeecRouteImport } from './routes/_authenticated/admin.veec'
 import { Route as AuthenticatedFieldIndexRouteImport } from './routes/_authenticated/field.index'
@@ -122,12 +121,6 @@ const AuthenticatedAdminPartnersRoute =
   AuthenticatedAdminPartnersRouteImport.update({
     id: '/admin/partners',
     path: '/admin/partners',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedAdminProfitRoute =
-  AuthenticatedAdminProfitRouteImport.update({
-    id: '/admin/profit',
-    path: '/admin/profit',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
@@ -248,7 +241,6 @@ export interface FileRoutesByFullPath {
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
-  '/admin/profit': typeof AuthenticatedAdminProfitRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/veec': typeof AuthenticatedAdminVeecRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
@@ -284,7 +276,6 @@ export interface FileRoutesByTo {
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
-  '/admin/profit': typeof AuthenticatedAdminProfitRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/veec': typeof AuthenticatedAdminVeecRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
@@ -322,7 +313,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/_authenticated/admin/coverage': typeof AuthenticatedAdminCoverageRoute
   '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
-  '/_authenticated/admin/profit': typeof AuthenticatedAdminProfitRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/veec': typeof AuthenticatedAdminVeecRoute
   '/_authenticated/field/$jobId': typeof AuthenticatedFieldJobIdRoute
@@ -360,7 +350,6 @@ export interface FileRouteTypes {
     | '/admin/compliance'
     | '/admin/coverage'
     | '/admin/partners'
-    | '/admin/profit'
     | '/admin/users'
     | '/admin/veec'
     | '/field/$jobId'
@@ -396,7 +385,6 @@ export interface FileRouteTypes {
     | '/admin/compliance'
     | '/admin/coverage'
     | '/admin/partners'
-    | '/admin/profit'
     | '/admin/users'
     | '/admin/veec'
     | '/field/$jobId'
@@ -433,7 +421,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/compliance'
     | '/_authenticated/admin/coverage'
     | '/_authenticated/admin/partners'
-    | '/_authenticated/admin/profit'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/veec'
     | '/_authenticated/field/$jobId'
@@ -583,13 +570,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPartnersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/admin/profit': {
-      id: '/_authenticated/admin/profit'
-      path: '/admin/profit'
-      fullPath: '/admin/profit'
-      preLoaderRoute: typeof AuthenticatedAdminProfitRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/admin/users': {
       id: '/_authenticated/admin/users'
       path: '/admin/users'
@@ -733,7 +713,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminComplianceRoute: typeof AuthenticatedAdminComplianceRoute
   AuthenticatedAdminCoverageRoute: typeof AuthenticatedAdminCoverageRoute
   AuthenticatedAdminPartnersRoute: typeof AuthenticatedAdminPartnersRoute
-  AuthenticatedAdminProfitRoute: typeof AuthenticatedAdminProfitRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminVeecRoute: typeof AuthenticatedAdminVeecRoute
   AuthenticatedFieldJobIdRoute: typeof AuthenticatedFieldJobIdRoute
@@ -754,7 +733,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminComplianceRoute: AuthenticatedAdminComplianceRoute,
   AuthenticatedAdminCoverageRoute: AuthenticatedAdminCoverageRoute,
   AuthenticatedAdminPartnersRoute: AuthenticatedAdminPartnersRoute,
-  AuthenticatedAdminProfitRoute: AuthenticatedAdminProfitRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminVeecRoute: AuthenticatedAdminVeecRoute,
   AuthenticatedFieldJobIdRoute: AuthenticatedFieldJobIdRoute,
