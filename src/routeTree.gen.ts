@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as Step3DesignPreviewRouteImport } from './routes/step3-design-preview'
 import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
+import { Route as TestCustomerEstimateRouteImport } from './routes/test-customer-estimate'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
@@ -62,6 +63,11 @@ const Step3DesignPreviewRoute = Step3DesignPreviewRouteImport.update({
 const Step3EmailPreviewRoute = Step3EmailPreviewRouteImport.update({
   id: '/step3-email-preview',
   path: '/step3-email-preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TestCustomerEstimateRoute = TestCustomerEstimateRouteImport.update({
+  id: '/test-customer-estimate',
+  path: '/test-customer-estimate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
@@ -207,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/step3-design-preview': typeof Step3DesignPreviewRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
+  '/test-customer-estimate': typeof TestCustomerEstimateRoute
   '/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
@@ -238,6 +245,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/step3-design-preview': typeof Step3DesignPreviewRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
+  '/test-customer-estimate': typeof TestCustomerEstimateRoute
   '/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
@@ -271,6 +279,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/step3-design-preview': typeof Step3DesignPreviewRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
+  '/test-customer-estimate': typeof TestCustomerEstimateRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/_authenticated/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
@@ -304,6 +313,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/step3-design-preview'
     | '/step3-email-preview'
+    | '/test-customer-estimate'
     | '/home'
     | '/estimate/$token'
     | '/admin/businesses'
@@ -335,6 +345,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/step3-design-preview'
     | '/step3-email-preview'
+    | '/test-customer-estimate'
     | '/home'
     | '/estimate/$token'
     | '/admin/businesses'
@@ -367,6 +378,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/step3-design-preview'
     | '/step3-email-preview'
+    | '/test-customer-estimate'
     | '/_authenticated/home'
     | '/estimate/$token'
     | '/_authenticated/admin/businesses'
@@ -400,6 +412,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   Step3DesignPreviewRoute: typeof Step3DesignPreviewRoute
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
+  TestCustomerEstimateRoute: typeof TestCustomerEstimateRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
   ApiPublicPartnerEnquiryRoute: typeof ApiPublicPartnerEnquiryRoute
@@ -447,6 +460,13 @@ declare module '@tanstack/react-router' {
       path: '/step3-email-preview'
       fullPath: '/step3-email-preview'
       preLoaderRoute: typeof Step3EmailPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/test-customer-estimate': {
+      id: '/test-customer-estimate'
+      path: '/test-customer-estimate'
+      fullPath: '/test-customer-estimate'
+      preLoaderRoute: typeof TestCustomerEstimateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/home': {
@@ -672,6 +692,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   Step3DesignPreviewRoute: Step3DesignPreviewRoute,
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
+  TestCustomerEstimateRoute: TestCustomerEstimateRoute,
   EstimateTokenRoute: EstimateTokenRoute,
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
   ApiPublicPartnerEnquiryRoute: ApiPublicPartnerEnquiryRoute,
