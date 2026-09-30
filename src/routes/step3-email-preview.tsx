@@ -7,13 +7,14 @@ import { EstimateHeader } from "@/components/portal/EstimateHeader";
 import { lookupLocation } from "@/lib/activity48.core";
 import type { RetailSettings } from "@/lib/estimate.core";
 import { CUSTOMER_BRAND, CUSTOMER_QUOTE_LABELS } from "@/lib/customer-quote-system";
-import type { AssessmentAcceptanceState } from "@/lib/assessment-payment.core";
+import { READY_CHECK_FEE, type ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
+import { MeasuredQuoteSample } from "@/components/portal/readycheck";
 
 
 const estimateUrl = "https://quote.homeinsulationvictoria.com.au/estimate/sample-secure-link";
 const referralUrl = `https://homeinsulationvictoria.com.au/homeowner?ref=${"R".repeat(43)}`;
 const unsubscribeUrl = `https://quote.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"U".repeat(43)}`;
-// PREVIEW SAMPLE ONLY. The assessment is fixed at $349; AP management remains a dynamic quote input.
+// PREVIEW SAMPLE ONLY. The $99 Ready Check is the only next paid step; PIESA and AP fees remain dynamic quote inputs.
 // Illustrative example only — real Step 3 calculation for postcode 3336, 150 m², standard access, no removal, current settings v2.
 const SAMPLE_INSTALL = 4500, SAMPLE_DISCOUNT = 1481.76, PIESA_FEE = 349, AP_FEE = 349;
 const SAMPLE_GROSS = SAMPLE_INSTALL + PIESA_FEE + AP_FEE;
@@ -37,7 +38,7 @@ const quote = {
   assessmentFee: PIESA_FEE,
   apFee: AP_FEE,
   grossProjectTotal: SAMPLE_GROSS,
-  amountPayableNow: PIESA_FEE,
+  amountPayableNow: READY_CHECK_FEE,
   estimatedRemainingBalance: SAMPLE_CUSTOMER - PIESA_FEE,
   savingsPercent: Math.round((SAMPLE_DISCOUNT / SAMPLE_GROSS) * 100),
   firstName: "Alex",
@@ -81,9 +82,9 @@ function EmailPreview() {
   const [view, setView] = useState<"fit" | "desktop" | "mobile">("fit");
   const [outcome, setOutcome] = useState<keyof typeof samples>("likely");
   const [hasExistingInsulation, setHasExistingInsulation] = useState(false);
-  const [previewKind, setPreviewKind] = useState<"email" | "calculator" | "confirm">("email");
+  const [previewKind, setPreviewKind] = useState<"email" | "calculator" | "confirm" | "measured">("email");
   const [testState, setTestState] = useState<"unaccepted" | "unpaid" | "failed" | "paid">("unaccepted");
-  const previewAcceptance: AssessmentAcceptanceState | null = testState === "unaccepted" ? null : { acceptanceId: "preview-acceptance", estimateId: "preview-estimate", acceptedAt: "2026-09-29T00:00:00Z", paymentId: "preview-payment", paymentStatus: testState === "paid" ? "paid" : testState === "failed" ? "failed" : "unpaid", amountIncGst: 349, estimatedRemainingBalanceIncGst: SAMPLE_CUSTOMER - 349, paidAt: testState === "paid" ? "2026-09-29T00:01:00Z" : null, stale: false };
+  const previewAcceptance: ReadyCheckAcceptanceState | null = testState === "unaccepted" ? null : { acceptanceId: "preview-acceptance", estimateId: "preview-estimate", acceptedAt: "2026-09-29T00:00:00Z", paymentId: "preview-payment", paymentStatus: testState === "paid" ? "paid" : testState === "failed" ? "failed" : "unpaid", amountIncGst: READY_CHECK_FEE, estimatedRemainingBalanceIncGst: SAMPLE_CUSTOMER - READY_CHECK_FEE, paidAt: testState === "paid" ? "2026-09-29T00:01:00Z" : null, stale: false };
   const sample = outcome === "ineligible" ? samples.ineligible : withUnsubscribe(renderEstimateEmail({
     ...quote,
     outcome,
@@ -103,7 +104,7 @@ function EmailPreview() {
     <div className="mx-auto max-w-[760px]">
        <p className="estimate-action-card mb-4 text-sm font-bold">SAMPLE EMAIL PREVIEW ONLY. Buttons are disabled here; nothing is sent, saved or paid.</p>
        <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-1 pb-4 text-sm font-bold" style={{ borderBottom: "2px solid #3C51C4" }} aria-label="Preview sample values">
-        <span>Alex</span><span>150 m²</span><span>{CUSTOMER_QUOTE_LABELS.projectTotal} ${SAMPLE_GROSS.toLocaleString("en-AU")}</span><span style={{ color: CUSTOMER_BRAND.colors.green }}>{CUSTOMER_QUOTE_LABELS.discount} −${SAMPLE_DISCOUNT.toLocaleString("en-AU")}</span><span>{CUSTOMER_QUOTE_LABELS.finalCost} ${SAMPLE_CUSTOMER.toLocaleString("en-AU")}</span><span>{CUSTOMER_QUOTE_LABELS.payableNow} · {CUSTOMER_QUOTE_LABELS.remainingBalance} ${(SAMPLE_CUSTOMER - PIESA_FEE).toLocaleString("en-AU")}</span>
+        <span>Alex</span><span>150 m²</span><span>{CUSTOMER_QUOTE_LABELS.projectTotal} ${SAMPLE_GROSS.toLocaleString("en-AU")}</span><span style={{ color: CUSTOMER_BRAND.colors.green }}>{CUSTOMER_QUOTE_LABELS.discount} −${SAMPLE_DISCOUNT.toLocaleString("en-AU")}</span><span>{CUSTOMER_QUOTE_LABELS.finalCost} ${SAMPLE_CUSTOMER.toLocaleString("en-AU")}</span><span>{CUSTOMER_QUOTE_LABELS.payableNow} · {CUSTOMER_QUOTE_LABELS.remainingBalance} ${(SAMPLE_CUSTOMER - READY_CHECK_FEE).toLocaleString("en-AU")}</span>
       </div>
        <div className="mb-4 flex flex-wrap gap-2" aria-label="Email outcome">
           {(["likely", "onsite", "ineligible"] as const).map((item) => <button key={item} type="button" aria-pressed={outcome === item} className={btn} style={pill(outcome === item)} onClick={() => { setOutcome(item); if (item === "ineligible") setPreviewKind("email"); }}>{item === "likely" ? "Likely eligible" : item === "onsite" ? "Needs onsite confirmation" : "Does not appear eligible"}</button>)}
@@ -111,12 +112,13 @@ function EmailPreview() {
        <div className="mb-4 flex flex-wrap gap-2" aria-label="Preview screen">
          <button type="button" aria-pressed={previewKind === "email"} className={btn} style={pill(previewKind === "email")} onClick={() => setPreviewKind("email")}>Email</button>
           {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "calculator"} className={btn} style={pill(previewKind === "calculator")} onClick={() => setPreviewKind("calculator")}>Calculator</button>}
-          {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "confirm"} className={btn} style={pill(previewKind === "confirm")} onClick={() => setPreviewKind("confirm")}>Secure next step</button>}
+          {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "confirm"} className={btn} style={pill(previewKind === "confirm")} onClick={() => setPreviewKind("confirm")}>$99 Ready Check (test)</button>}
+          {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "measured"} className={btn} style={pill(previewKind === "measured")} onClick={() => setPreviewKind("measured")}>Measured quote + PIESA (test)</button>}
        </div>
       {previewKind === "email" && <><p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p><p className="mb-6 text-sm"><strong>Preheader:</strong> {sample.previewText}</p></>}
        {previewKind === "email" && <div className="mb-4 flex flex-wrap items-center gap-3 text-xs font-bold">
           {outcome !== "ineligible" && <a href={calculatorTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test CHECK ANOTHER CEILING SIZE →</a>}
-         <a href={outcomeTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: outcome === "ineligible" ? "#3C51C4" : "#07BF61" }}>{outcome === "ineligible" ? "Test REVIEW MY RESULT →" : "Test LET’S GET STARTED →"}</a>
+         <a href={outcomeTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: outcome === "ineligible" ? "#3C51C4" : "#07BF61" }}>{outcome === "ineligible" ? "Test REVIEW MY RESULT →" : "Test BOOK MY READY CHECK →"}</a>
        </div>}
       <div className="mb-4 flex flex-wrap gap-2" aria-label="Preview width">
         <button type="button" aria-pressed={view === "fit"} className={btn} style={pill(view === "fit")} onClick={() => setView("fit")}>Fit</button>
@@ -125,7 +127,7 @@ function EmailPreview() {
       </div>
        <section aria-label={`${outcome} ${previewKind} preview`} className="min-w-0">
         <h2 className="mb-3 text-sm font-extrabold uppercase" style={{ color: "#3C51C4" }}>{view === "fit" ? "Responsive fit" : view === "desktop" ? "Desktop · 640px" : "Mobile · 390px"}</h2>
-          {previewKind === "email" ? <div className="estimate-quote-card mx-auto max-w-full overflow-x-auto p-1 sm:p-3" style={width ? { width: width + 30 } : undefined}>
+          {previewKind === "measured" ? <div className="mx-auto max-w-full" style={{ width: width ?? "100%" }}><MeasuredQuoteSample insulation={SAMPLE_INSTALL} piesa={PIESA_FEE} ap={AP_FEE} discount={SAMPLE_DISCOUNT} existingInsulation={hasExistingInsulation} /></div> : previewKind === "email" ? <div className="estimate-quote-card mx-auto max-w-full overflow-x-auto p-1 sm:p-3" style={width ? { width: width + 30 } : undefined}>
             <iframe title={`${outcome} email`} srcDoc={srcDoc} sandbox="" className="block h-[2800px] max-w-full border-0" style={{ width: width ?? "100%", background: "#FBFCFA" }} />
            </div> : previewKind === "calculator" && previewLocation ? <div className="estimate-brand mx-auto max-w-full overflow-hidden bg-estimate-canvas" style={{ width: width ?? "100%" }}><EstimateHeader /><div className="px-4 pb-10"><AreaCalculator calc={{ location: previewLocation, insulation: hasExistingInsulation ? "present" : "none", settings: previewSettings }} initial={150} fees={{ piesa: PIESA_FEE, ap: AP_FEE, minCopay: 200 }} propertyAddress="30 Dash St, Fraser Rise VIC 3336" preview /></div></div> : <div className="estimate-brand mx-auto max-w-full overflow-hidden bg-estimate-canvas" style={{ width: width ?? "100%" }}><EstimateHeader /><div className="px-4 pb-10"><ConfirmQuote estimatedPrice={SAMPLE_CUSTOMER} assessmentFee={PIESA_FEE} preview testMode state={previewAcceptance} onAccept={() => setTestState("unpaid")} onTestPayment={(result) => setTestState(result === "success" ? "paid" : "failed")} onBack={() => setPreviewKind("email")} /></div></div>}
         {previewKind === "confirm" && outcome !== "ineligible" && <div className="mb-4 flex flex-wrap gap-2" aria-label="Test payment state">{(["unaccepted", "unpaid", "failed", "paid"] as const).map((item) => <button key={item} type="button" className={btn} aria-pressed={testState === item} style={pill(testState === item)} onClick={() => setTestState(item)}>{item}</button>)}</div>}
