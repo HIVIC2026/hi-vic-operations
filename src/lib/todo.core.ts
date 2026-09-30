@@ -8,7 +8,7 @@ export type TodoItem = {
   title: string; action: string; tab: string | null; since: string | null; urgent: boolean;
 };
 
-type Job = { id: string; job_number: string | null; property: string | null; stage: string; eligibility_review_required: boolean | null };
+type Job = { id: string; job_number: string | null; property: string | null; stage: string; eligibility_review_required: boolean | null; eligibility_outcome?: string | null };
 export type TodoInput = {
   jobs: Job[];
   invoices: { id: string; job_id: string; xero_invoice_id: string | null; xero_invoice_number: string | null; deposit_request_raised_at: string | null; deposit_amount: number | null; deposit_cleared: boolean | null; status: string; last_sync_error: string | null; xero_update_pending: boolean | null; created_at: string | null }[];
@@ -60,6 +60,10 @@ export function buildTodos(i: TodoInput): TodoItem[] {
   for (const j of i.jobs) {
     if (j.eligibility_review_required) {
       push(j.id, { key: `gate1:${j.id}`, category: "Eligibility", title: "REVIEW REQUIRED – Gate 1", action: "Open the Eligibility tab, resolve the flagged checks and record the decision.", tab: "eligibility", since: null, urgent: false });
+      continue;
+    }
+    if (j.stage === "awaiting_electrician" && ["likely_eligible", "needs_onsite_confirmation"].includes(j.eligibility_outcome ?? "")) {
+      push(j.id, { key: `readycheck:${j.id}`, category: "Scheduling", title: "Arrange the free installer Ready Check", action: "Open the job and assign an installer for the free Ready Check (measure-up). The electrician PIESA comes after.", tab: "overview", since: null, urgent: false });
       continue;
     }
     const s = OFFICE_STAGE_ACTIONS[j.stage];

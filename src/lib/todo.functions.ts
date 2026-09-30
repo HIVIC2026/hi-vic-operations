@@ -13,7 +13,7 @@ export const getTodos = createServerFn({ method: "GET" }).middleware([requireSup
       return (r.data ?? []) as T;
     };
     const [jobs, invoices, invStatus, rect, meas, reas, penq, esc, books, pdel, onb] = await Promise.all([
-      admin.from("job_overview").select("id, job_number, property_address, stage, source, eligibility_review_required").not("stage", "in", "(complete,cancelled)"),
+      admin.from("job_overview").select("id, job_number, property_address, stage, source, eligibility_review_required, eligibility_outcome").not("stage", "in", "(complete,cancelled)"),
       admin.from("invoices").select("id, job_id, xero_invoice_id, xero_invoice_number, deposit_request_raised_at, deposit_amount, status, last_sync_error, xero_update_pending, created_at"),
       admin.from("invoice_status").select("id, deposit_cleared, effective_status"),
       admin.from("rectification_items").select("id, job_id, description, created_at").eq("needs_office_pricing", true),
@@ -29,7 +29,7 @@ export const getTodos = createServerFn({ method: "GET" }).middleware([requireSup
     const cleared = new Map(ok(invStatus, "payment status").map((s) => [s.id, s]));
     const items = buildTodos({
       now: Date.now(),
-      jobs: jobRows.map((j) => ({ id: j.id!, job_number: j.job_number, property: j.property_address, stage: j.stage as string, eligibility_review_required: j.eligibility_review_required })),
+      jobs: jobRows.map((j) => ({ id: j.id!, job_number: j.job_number, property: j.property_address, stage: j.stage as string, eligibility_review_required: j.eligibility_review_required, eligibility_outcome: j.eligibility_outcome })),
       invoices: ok(invoices, "invoices").map((v) => ({ ...v, deposit_amount: v.deposit_amount == null ? null : Number(v.deposit_amount), deposit_cleared: cleared.get(v.id)?.deposit_cleared ?? false, status: (cleared.get(v.id)?.effective_status ?? v.status) as string })),
       rectOther: ok(rect, "rectification items"),
       measureReview: ok(meas, "measure-ups"),
