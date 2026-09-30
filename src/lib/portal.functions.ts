@@ -973,13 +973,19 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
     admin.from("ready_check_payments").select("job_id,status,paid_at"),
     admin.from("bookings").select("job_id,kind,scheduled_start").eq("status", "confirmed"),
   ]);
+  const [{ data: asg }, { data: msgs }] = await Promise.all([
+    admin.from("job_assignments").select("job_id,user_id,assigned_at,active").eq("active", true),
+    admin.from("messages").select("job_id,sender_id,created_at,internal"),
+  ]);
   const { stuckReasons } = await import("./stuck.core");
+  const { commsStatus } = await import("./comms-status.core");
   const now = new Date();
   return (data ?? []).map((j) => {
     const pays = (rc ?? []).filter((p) => p.job_id === j.id);
     const paid = pays.find((p) => p.status === "paid");
     return {
       ...j,
+      comms_status: commsStatus((asg ?? []).filter((a) => a.job_id === j.id), (msgs ?? []).filter((m) => m.job_id === j.id), new Date()),
       stuck_reasons: stuckReasons({
         stage: j.stage,
         lastActivityAt: j.last_activity_at,
