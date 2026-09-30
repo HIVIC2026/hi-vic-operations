@@ -1,6 +1,7 @@
 // Pure rules for the portal installer onboarding + partner agreement signing.
 // Mirrors rec-onboarding.core.ts (same design/rules); shared validators are reused from there.
 import { INSTALLER_AGREEMENT_SECTIONS } from "./installer-agreement.text";
+import { electricianStepErrors, type ElectricianChoice, type PreferredElectrician } from "./teaming.core";
 import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, DAYS, LEAD_TIMES, RADII } from "./rec-onboarding.core";
 
 export { DAYS, LEAD_TIMES, RADII, validAbn };
@@ -46,6 +47,7 @@ export type InstData = {
   extra_rates?: Partial<Record<(typeof EXTRA_ITEMS)[number]["key"], number | null>>;
   bank_account_name?: string; bank_bsb?: string; bank_account_number?: string;
   agreement_reviewed?: boolean;
+  electrician_choice?: ElectricianChoice | null; preferred_electricians?: PreferredElectrician[]; electrician_contact_consent?: boolean;
 };
 
 export const STEPS = [
@@ -53,6 +55,7 @@ export const STEPS = [
   { key: "contact", title: "Contact details" },
   { key: "insurance", title: "Public liability insurance" },
   { key: "installers", title: "Your installers" },
+  { key: "electrician", title: "Your electrician" },
   { key: "services", title: "HI VIC! work" },
   { key: "coverage", title: "Where you work" },
   { key: "availability", title: "When you work" },
@@ -103,6 +106,9 @@ export function stepErrors(step: StepKey, d: InstData, now = new Date()): string
       if (new Set(emails).size !== emails.length) e.push("Each installer needs a different email.");
       break;
     }
+    case "electrician":
+      e.push(...electricianStepErrors(d));
+      break;
     case "services":
       if (typeof d.free_quotes_for_hivic_leads !== "boolean") e.push("Tell us if you offer free quotes for pre-qualified HI VIC! leads.");
       if (typeof d.free_measureups_for_hivic_quote_leads !== "boolean") e.push("Tell us if you will provide free measure-ups for pre-qualified HI VIC! quote leads.");

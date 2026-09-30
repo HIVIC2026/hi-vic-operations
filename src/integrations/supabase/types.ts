@@ -2710,54 +2710,93 @@ export type Database = {
       }
       electrician_nominations: {
         Row: {
+          accepted_at: string | null
           business_id: string | null
           business_name: string | null
+          consent_confirmed_at: string | null
           contact_name: string
           created_at: string
+          declined_at: string | null
+          electrician_application_id: string | null
           email: string | null
+          ended_at: string | null
           id: string
+          installer_application_id: string | null
+          invite_expires_at: string | null
+          invite_link_issued_at: string | null
+          invite_sent_at: string | null
+          invite_token_hash: string | null
+          is_primary: boolean
           job_id: string | null
           licence_number: string | null
           nominated_by: string | null
           nominated_for: string
           nominating_business_id: string | null
+          opened_at: string | null
           phone: string | null
           rec_number: string | null
           status: string
+          teamed_at: string | null
           updated_at: string
         }
         Insert: {
+          accepted_at?: string | null
           business_id?: string | null
           business_name?: string | null
+          consent_confirmed_at?: string | null
           contact_name: string
           created_at?: string
+          declined_at?: string | null
+          electrician_application_id?: string | null
           email?: string | null
+          ended_at?: string | null
           id?: string
+          installer_application_id?: string | null
+          invite_expires_at?: string | null
+          invite_link_issued_at?: string | null
+          invite_sent_at?: string | null
+          invite_token_hash?: string | null
+          is_primary?: boolean
           job_id?: string | null
           licence_number?: string | null
           nominated_by?: string | null
           nominated_for?: string
           nominating_business_id?: string | null
+          opened_at?: string | null
           phone?: string | null
           rec_number?: string | null
           status?: string
+          teamed_at?: string | null
           updated_at?: string
         }
         Update: {
+          accepted_at?: string | null
           business_id?: string | null
           business_name?: string | null
+          consent_confirmed_at?: string | null
           contact_name?: string
           created_at?: string
+          declined_at?: string | null
+          electrician_application_id?: string | null
           email?: string | null
+          ended_at?: string | null
           id?: string
+          installer_application_id?: string | null
+          invite_expires_at?: string | null
+          invite_link_issued_at?: string | null
+          invite_sent_at?: string | null
+          invite_token_hash?: string | null
+          is_primary?: boolean
           job_id?: string | null
           licence_number?: string | null
           nominated_by?: string | null
           nominated_for?: string
           nominating_business_id?: string | null
+          opened_at?: string | null
           phone?: string | null
           rec_number?: string | null
           status?: string
+          teamed_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2766,6 +2805,20 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrician_nominations_electrician_application_id_fkey"
+            columns: ["electrician_application_id"]
+            isOneToOne: false
+            referencedRelation: "rec_onboarding_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrician_nominations_installer_application_id_fkey"
+            columns: ["installer_application_id"]
+            isOneToOne: false
+            referencedRelation: "rec_onboarding_applications"
             referencedColumns: ["id"]
           },
           {
@@ -5334,8 +5387,10 @@ export type Database = {
           electrician_business_id: string
           id: string
           installer_business_id: string
+          is_primary: boolean
           notes: string | null
           preferred: boolean
+          source: string | null
         }
         Insert: {
           active?: boolean
@@ -5344,8 +5399,10 @@ export type Database = {
           electrician_business_id: string
           id?: string
           installer_business_id: string
+          is_primary?: boolean
           notes?: string | null
           preferred?: boolean
+          source?: string | null
         }
         Update: {
           active?: boolean
@@ -5354,8 +5411,10 @@ export type Database = {
           electrician_business_id?: string
           id?: string
           installer_business_id?: string
+          is_primary?: boolean
           notes?: string | null
           preferred?: boolean
+          source?: string | null
         }
         Relationships: [
           {

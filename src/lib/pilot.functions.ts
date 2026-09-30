@@ -6,6 +6,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { withRequestMeta } from "./request-meta";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { electricianCandidates } from "./teaming.server";
 import { WorkflowError, getStage, logEvent, requireAdmin, requireJobRole, transition } from "./workflow.server";
 import {
   appointmentSla, bucketFor, confirmBlockers, electricianSelectionBlocker, extractFromCsvRow, extractFromText, mergeExtracted, offerBlocker,
@@ -327,27 +328,6 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
   });
 
 // ---------- Electrician selection ----------
-async function electricianCandidates(jobId: string) {
-  const { data: j } = await admin.from("jobs").select("originating_installer_business_id, properties(postcode, suburb)").eq("id", jobId).single();
-  const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
-  const installerBiz = inst?.business_id ?? j?.originating_installer_business_id ?? null;
-  const { data: bizs } = await admin.from("businesses").select("*").or("business_type.eq.rec,capabilities.cs.{electrician}");
-  const ids = (bizs ?? []).map((b) => b.id);
-  const [{ data: creds }, { data: rels }, { data: cards }, { data: load }] = await Promise.all([
-    admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification").in("business_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]),
-    installerBiz ? admin.from("partner_relationships").select("electrician_business_id, preferred").eq("installer_business_id", installerBiz).eq("active", true) : Promise.resolve({ data: [] as { electrician_business_id: string; preferred: boolean }[] }),
-    admin.from("rate_cards").select("business_id").eq("kind", "electrical").eq("is_active", true),
-    admin.from("job_assignments").select("business_id").eq("role", "electrician").eq("active", true),
-  ]);
-  const cands: ElecCandidate[] = (bizs ?? []).map((b) => ({
-    ...(b as unknown as BusinessLike), id: b.id, name: b.trading_name || b.name, weekly_capacity: b.weekly_capacity, lead_time_days: b.lead_time_days,
-    credentials: (creds ?? []).filter((c) => c.business_id === b.id), preferred: !!rels?.some((r) => r.electrician_business_id === b.id && r.preferred),
-    hasRates: !!cards?.some((c) => c.business_id === b.id), activeJobs: (load ?? []).filter((l) => l.business_id === b.id).length,
-  }));
-  const p = j?.properties as { postcode: string | null; suburb: string | null } | null;
-  return { cands, site: { postcode: p?.postcode ?? null, suburb: p?.suburb ?? null }, installerBiz };
-}
-
 export const electricianOptions = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
