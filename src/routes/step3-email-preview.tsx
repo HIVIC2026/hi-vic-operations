@@ -93,7 +93,6 @@ function EmailPreview() {
     ...(outcome === "onsite" ? { reasons: ["The existing insulation and eligible ceiling area need to be confirmed onsite.", "Roof access and electrical safety need to be checked."] } : {}),
   }), unsubscribeUrl);
   const srcDoc = sample.html.replace(/(<a\b[^>]*?)\s+href="[^"]*"/g, "$1");
-  const calculatorTestUrl = `${estimateUrl}#calculator`;
   const outcomeTestUrl = outcome === "ineligible" ? "https://homeinsulationvictoria.com.au/homeowner" : `${estimateUrl}#confirm`;
   const width = view === "desktop" ? 640 : view === "mobile" ? 390 : undefined;
   const brand = { fontFamily: CUSTOMER_BRAND.font, background: CUSTOMER_BRAND.colors.offWhite, color: CUSTOMER_BRAND.colors.navy };
@@ -121,8 +120,10 @@ function EmailPreview() {
       </div>}
       {previewKind === "email" && <><p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p><p className="mb-6 text-sm"><strong>Preheader:</strong> {sample.previewText}</p></>}
        {previewKind === "email" && <div className="mb-4 flex flex-wrap items-center gap-3 text-xs font-bold">
-          {outcome !== "ineligible" && <a href={calculatorTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test OPEN THE INTERACTIVE CALCULATOR →</a>}
-         <a href={outcomeTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: outcome === "ineligible" ? "#3C51C4" : "#07BF61" }}>{outcome === "ineligible" ? "Test REVIEW MY RESULT →" : "Test BOOK MY READY CHECK →"}</a>
+          {outcome !== "ineligible" && <button type="button" onClick={() => setPreviewKind("calculator")} className="underline" style={{ color: "#3C51C4" }}>Test OPEN THE INTERACTIVE CALCULATOR →</button>}
+         {outcome === "ineligible"
+           ? <a href={outcomeTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test REVIEW MY RESULT →</a>
+           : <button type="button" onClick={() => setPreviewKind("confirm")} className="underline" style={{ color: "#07BF61" }}>Test BOOK MY READY CHECK →</button>}
        </div>}
       <div className="mb-4 flex flex-wrap gap-2" aria-label="Preview width">
         <button type="button" aria-pressed={view === "fit"} className={btn} style={pill(view === "fit")} onClick={() => setView("fit")}>Fit</button>
