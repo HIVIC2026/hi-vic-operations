@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BASE44_KEY_ID, verifyEd25519 } from "@/lib/enquiry.core";
 
-// Base44 website -> HI VIC portal. Header `x-hivic-signature` = base64 Ed25519 signature of the exact raw
+// Base44 website -> Home Insulation Victoria portal. Header `x-hivic-signature` = base64 Ed25519 signature of the exact raw
 // UTF-8 body, verified against the trusted Base44 public key (no shared secret). Optional `x-hivic-key-id: base44-v1`.
 // Only POST is handled; every other method gets the framework's 405/404.
 export const Route = createFileRoute("/api/public/enquiry")({

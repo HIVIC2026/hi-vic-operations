@@ -2,7 +2,7 @@
 // Built on nextStep() so stage/next wording never drifts between screens. Pure (no I/O).
 import { nextStep, type NextStepInput } from "./nextstep.core";
 
-export type Party = "Owner" | "Electrician" | "Installer" | "HI VIC";
+export type Party = "Owner" | "Electrician" | "Installer" | "Home Insulation Victoria";
 export type AdminTab = "overview" | "eligibility" | "assessment" | "quotes" | "piesa" | "installation" | "evidence" | "authority" | "veec" | "messages";
 export type Proposal = { kind: string; status: string; proposer_role: string | null; created_at: string; starts_at: string; responded_at: string | null };
 export type BookingFact = { kind: string; status: string; scheduled_start: string | null; scheduled_end: string | null };
@@ -99,25 +99,25 @@ export function waitingOn(job: NextStepInput, f: WaitingFacts): Waiting {
   const base = { arranging: false, since: f.stageEnteredAt, dueAt: null as string | null, dueLabel: null as string | null, status: "ok" as Waiting["status"], overdueBy: null as string | null, terminal };
   if (terminal) return { ...base, parties: [], sentence: stage === "complete" ? "Job complete – nothing outstanding." : "Job cancelled – nothing outstanding.", action: { label: "Open history", tab: "overview" } };
 
-  // Gate 1 review / ineligible / hold / HI VIC-owned stages come straight from nextStep().
-  const rule = ns.waitingOn === "HI VIC" && !RULES[stage] ? null : job.eligibility_review_required ? null : RULES[stage] ?? null;
+  // Gate 1 review / ineligible / hold / Home Insulation Victoria-owned stages come straight from nextStep().
+  const rule = ns.waitingOn === "Home Insulation Victoria" && !RULES[stage] ? null : job.eligibility_review_required ? null : RULES[stage] ?? null;
   let out: Waiting;
   if (!rule) {
-    let sentence = `HI VIC to action: ${ns.next}`;
-    let parties: Party[] = ["HI VIC"];
+    let sentence = `Home Insulation Victoria to action: ${ns.next}`;
+    let parties: Party[] = ["Home Insulation Victoria"];
     let label = ACTION[stage] ?? "Open";
     if (stage === "awaiting_deposit_payment") {
       if (f.depositRequestRaised) { parties = ["Owner"]; sentence = "Waiting on the owner to pay the 50% deposit (request sent from Xero)."; label = "Check deposit"; }
-      else { sentence = "HI VIC to action: raise the 50% deposit request in Xero, then record it here."; label = "Record deposit request"; }
-    } else if (ns.waitingOn === "AP") sentence = `HI VIC (AP) to action: ${ns.next}`;
+      else { sentence = "Home Insulation Victoria to action: raise the 50% deposit request in Xero, then record it here."; label = "Record deposit request"; }
+    } else if (ns.waitingOn === "AP") sentence = `Home Insulation Victoria (AP) to action: ${ns.next}`;
     out = { ...base, parties, sentence, action: { label, tab: job.eligibility_review_required ? "eligibility" : tab } };
-    if (parties[0] === "HI VIC" && f.stageEnteredAt) setDue(out, addH(f.stageEnteredAt, cfg.tradeExceptionHours), f.now, addH(f.stageEnteredAt, cfg.tradeWarnHours), "Target");
+    if (parties[0] === "Home Insulation Victoria" && f.stageEnteredAt) setDue(out, addH(f.stageEnteredAt, cfg.tradeExceptionHours), f.now, addH(f.stageEnteredAt, cfg.tradeWarnHours), "Target");
     if (parties[0] === "Owner" && f.stageEnteredAt) setDue(out, addH(f.stageEnteredAt, cfg.ownerFlagDays * 24), f.now, addH(f.stageEnteredAt, cfg.ownerReminderDays * 24), "Follow up by");
     return out;
   }
 
   const who = rule.who ? rule.who(f) : "the owner";
-  out = { ...base, parties: [rule.party], sentence: rule.say(f, who), action: { label: rule.party === "HI VIC" ? ACTION[stage] ?? "Open" : "Draft a nudge", tab: rule.party === "HI VIC" ? tab : "messages" } };
+  out = { ...base, parties: [rule.party], sentence: rule.say(f, who), action: { label: rule.party === "Home Insulation Victoria" ? ACTION[stage] ?? "Open" : "Draft a nudge", tab: rule.party === "Home Insulation Victoria" ? tab : "messages" } };
 
   // Date being arranged between owner and trade: show both parties and who owes the reply.
   const proposalKind = stage.startsWith("rectification") ? "rectification" : stage.startsWith("installation") ? "installation" : "assessment";

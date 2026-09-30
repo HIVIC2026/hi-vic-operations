@@ -10,7 +10,7 @@ import { endTeamUp, issueTeamInviteLink, listTeamNominations, markTeamInviteSent
 
 const meta = "Preferred electricians nominated by installers, their invites and team-up status.";
 export const Route = createFileRoute("/_authenticated/admin/team-ups")({
-  head: () => ({ meta: [{ title: "Electrician Team-ups – HI VIC Portal" }, { name: "description", content: meta }, { property: "og:title", content: "Electrician Team-ups – HI VIC Portal" }, { property: "og:description", content: meta }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({ meta: [{ title: "Electrician Team-ups – Home Insulation Victoria Portal" }, { name: "description", content: meta }, { property: "og:title", content: "Electrician Team-ups – Home Insulation Victoria Portal" }, { property: "og:description", content: meta }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: TeamUpsPage,
 });
 

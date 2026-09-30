@@ -146,7 +146,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
       plan.details); // informational only — no stage transition
   }
   await logEvent(job.id, actorId, "job_source_recorded",
-    origin.channel === "installer_sourced" ? "Job source: Installer-sourced (attribution locked)" : "Job source: HI VIC-sourced",
+    origin.channel === "installer_sourced" ? "Job source: Installer-sourced (attribution locked)" : "Job source: Home Insulation Victoria-sourced",
     origin.channel === "installer_sourced" ? { channel: origin.channel, originating_installer_business_id: origin.businessId, originating_installer_user_id: origin.userId, commercial_model: "not_configured" } : { channel: origin.channel });
   if (source === "base44") await completeIntake(job.id, owner!.id, input);
   // QA records stay permanently isolated from live post-intake automation.

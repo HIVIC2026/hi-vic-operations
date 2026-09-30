@@ -6,7 +6,7 @@ import { JobCard } from "@/components/portal/JobCard";
 import { useMe } from "@/hooks/use-me";
 
 export const Route = createFileRoute("/_authenticated/owner/")({
-  head: () => ({ meta: [{ title: "My home – HI VIC" }, { name: "description", content: "Your insulation job with HI VIC." }, { property: "og:title", content: "My home – HI VIC" }, { property: "og:description", content: "Your insulation job with HI VIC." }] }),
+  head: () => ({ meta: [{ title: "My home – Home Insulation Victoria" }, { name: "description", content: "Your insulation job with Home Insulation Victoria." }, { property: "og:title", content: "My home – Home Insulation Victoria" }, { property: "og:description", content: "Your insulation job with Home Insulation Victoria." }] }),
   component: OwnerHome,
 });
 

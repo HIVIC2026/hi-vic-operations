@@ -1,11 +1,11 @@
-// Installer-led jobs: the installer brings their own customer; HI VIC is the AP and invoices the
+// Installer-led jobs: the installer brings their own customer; Home Insulation Victoria is the AP and invoices the
 // owner with co-branding. Pure rules only.
 import { FORMS } from "./mitti-forms.core";
 
 export const HIVIC_PIESA_INC_GST = 349;
 export type ElectricianChoice = "installer_own" | "hivic_matched" | "installer_own_hivic_books";
 
-/** PIESA owner charge: $349 with a HI VIC electrician, otherwise the installer's REC's agreed onboarding price. Null = not agreed (fail closed). */
+/** PIESA owner charge: $349 with a Home Insulation Victoria electrician, otherwise the installer's REC's agreed onboarding price. Null = not agreed (fail closed). */
 export function piesaChargeIncGst(choice: ElectricianChoice | null, ownRecPiesaIncGst: number | null): number | null {
   if (choice === "hivic_matched") return HIVIC_PIESA_INC_GST;
   if (choice === "installer_own" || choice === "installer_own_hivic_books") return ownRecPiesaIncGst != null && ownRecPiesaIncGst > 0 ? ownRecPiesaIncGst : null;
@@ -18,7 +18,7 @@ export function installerLedOwnerPrice(i: OwnerPriceInput) {
   const blockers: string[] = [];
   if (!(i.installerQuoteIncGst > 0)) blockers.push("Installer quote amount is missing.");
   if (i.piesaIncGst == null) blockers.push("PIESA price not agreed for the chosen electrician.");
-  if (i.apFeeIncGst == null) blockers.push("HI VIC AP fee for installer-led jobs is not set.");
+  if (i.apFeeIncGst == null) blockers.push("Home Insulation Victoria AP fee for installer-led jobs is not set.");
   const total = Math.round((i.installerQuoteIncGst + (i.piesaIncGst ?? 0) + i.rectificationIncGst + (i.apFeeIncGst ?? 0)) * 100) / 100;
   const afterDiscount = Math.round((total - i.veecDiscountIncGst) * 100) / 100;
   if (afterDiscount < 200) blockers.push("Owner co-payment would be below the $200 minimum.");
@@ -31,7 +31,7 @@ export type SuppliedEvidence = {
 };
 export type Coverage = { status: "complete" | "partial" | "none"; missing: string[]; hardFail: string[] };
 
-/** Maps what the installer already supplied onto the Ready Check list. Only HI VIC can accept a complete result. */
+/** Maps what the installer already supplied onto the Ready Check list. Only Home Insulation Victoria can accept a complete result. */
 export function readyCheckCoverage(e: SuppliedEvidence): Coverage {
   const missing: string[] = []; const hardFail: string[] = [];
   let have = 0;
@@ -73,7 +73,7 @@ export function installerNextAction(s: { eligible: boolean | null; coverage: Cov
   if (s.eligible == null) return "Waiting for the owner to complete their eligibility questions.";
   if (s.coverage.status !== "complete") return s.coverage.status === "none" ? "Book your free Ready Check (Mitti form A)." : `Add the missing items: ${s.coverage.missing.slice(0, 3).join("; ")}${s.coverage.missing.length > 3 ? "…" : ""}`;
   if (!s.electrician) return "Choose an electrician: add your own or request one of ours.";
-  if (s.electrician !== "hivic_matched" && !s.electricianApproved) return "Your electrician must finish HI VIC onboarding before they can be assigned.";
+  if (s.electrician !== "hivic_matched" && !s.electricianApproved) return "Your electrician must finish Home Insulation Victoria onboarding before they can be assigned.";
   return "Book the PIESA with the electrician in portal chat.";
 }
 

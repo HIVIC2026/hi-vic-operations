@@ -36,7 +36,7 @@ export const logCommunication = createServerFn({ method: "POST" }).middleware([r
     await requireAdmin(context.supabase);
     const { recordCommunication } = await import("./comms.server");
     // Record only – a logged call/email never sends anything.
-    return { id: await recordCommunication({ jobId: data.jobId, direction: data.direction, channel: data.channel, senderText: data.direction === "inbound" ? data.party ?? null : "HI VIC",
+    return { id: await recordCommunication({ jobId: data.jobId, direction: data.direction, channel: data.channel, senderText: data.direction === "inbound" ? data.party ?? null : "Home Insulation Victoria",
       recipients: data.direction === "outbound" && data.party ? [data.party] : [], subject: data.subject ?? null, body: data.body, at: data.at ?? null, visibility: data.visibility,
       sourceEvent: "manual_log", createdBy: context.userId }) };
   });

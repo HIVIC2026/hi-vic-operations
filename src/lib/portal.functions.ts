@@ -86,7 +86,7 @@ export const submitInstallerJob = createServerFn({ method: "POST" }).middleware(
     const { data: prof } = await admin.from("profiles").select("business_id, full_name, businesses(name, business_type, is_active)").eq("id", context.userId).single();
     const biz = prof?.businesses as { name: string; business_type: string; is_active: boolean } | null;
     if (!prof?.business_id || !biz || biz.business_type !== "eec_installer" || !biz.is_active)
-      throw new WorkflowError("Your account isn't linked to an approved EEC installer business yet. Ask HI VIC to set this up.");
+      throw new WorkflowError("Your account isn't linked to an approved EEC installer business yet. Ask Home Insulation Victoria to set this up.");
     const res = await upsertEnquiry(data, "installer_portal", context.userId, { channel: "installer_sourced", businessId: prof.business_id, userId: context.userId });
     await admin.from("job_assignments").insert({ job_id: res.job_id, user_id: context.userId, role: "installer", business_id: prof.business_id, assigned_by: context.userId });
     await logEvent(res.job_id, context.userId, "contractor_assigned", `Installer assigned (originating installer): ${prof.full_name ?? "installer"} – ${biz.name}`);
@@ -99,7 +99,7 @@ export const setCommercialModel = createServerFn({ method: "POST" }).middleware(
     await requireAdmin(context.supabase);
     const { data: j } = await admin.from("jobs").select("channel, commercial_model").eq("id", data.jobId).single();
     if (!j) throw new WorkflowError("Job not found");
-    if (j.channel !== "installer_sourced") throw new WorkflowError("HI VIC-sourced jobs always use HI VIC invoicing.");
+    if (j.channel !== "installer_sourced") throw new WorkflowError("Home Insulation Victoria-sourced jobs always use Home Insulation Victoria invoicing.");
     const { count } = await admin.from("invoices").select("id", { count: "exact", head: true }).eq("job_id", data.jobId);
     if (count) throw new WorkflowError("An invoice already exists – the invoice route can no longer change.");
     await admin.from("jobs").update({ commercial_model: data.model, commercial_model_set_by: context.userId, commercial_model_set_at: new Date().toISOString() }).eq("id", data.jobId);
@@ -193,7 +193,7 @@ export const saveAssessment = createServerFn({ method: "POST" }).middleware([req
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
     const { data: existing } = await admin.from("assessments").select("id,status").eq("job_id", data.jobId).maybeSingle();
-    if (existing?.status === "complete") throw new WorkflowError("Assessment is complete and locked. Ask HI VIC to reopen.");
+    if (existing?.status === "complete") throw new WorkflowError("Assessment is complete and locked. Ask Home Insulation Victoria to reopen.");
     if (existing) await admin.from("assessments").update(clean(data.patch)).eq("id", existing.id);
     else await admin.from("assessments").insert(clean({ ...data.patch, job_id: data.jobId, assessor_id: context.userId }));
     return { ok: true, savedAt: new Date().toISOString() };
@@ -448,7 +448,7 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
       .filter((e) => !["uploaded", "verified"].includes(e.status)).map((e) => e.label);
     if (evMissing.length) throw new WorkflowError(`Upload evidence first: ${evMissing.join(", ")}`);
     const { data: unpriced } = await admin.from("rectification_items").select("description").eq("job_id", data.jobId).eq("status", "required").eq("needs_office_pricing", true);
-    if (unpriced?.length) throw new WorkflowError(`HI VIC must price these items first: ${unpriced.map((u) => u.description).join(", ")}`);
+    if (unpriced?.length) throw new WorkflowError(`Home Insulation Victoria must price these items first: ${unpriced.map((u) => u.description).join(", ")}`);
     // Same-day rule: the PIESA submission must carry the rectification decision – priced items, or an explicit "none required".
     const { count: rectCount } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("status", "required");
     if (!rectCount && a.no_rectification_confirmed !== true) throw new WorkflowError("Add the rectification items for today's quote, or tick \"No rectification required\", before completing the PIESA.");
@@ -570,7 +570,7 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
       if (cb) throw new WorkflowError(`Blocked: ${cb}`);
       const p = await piesaStatus(q.job_id);
       const { count: rect } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("status", "required");
-      if (!rect && p?.piesa_expired) throw new WorkflowError("The electrical safety assessment has expired. HI VIC will arrange a reassessment.");
+      if (!rect && p?.piesa_expired) throw new WorkflowError("The electrical safety assessment has expired. Home Insulation Victoria will arrange a reassessment.");
     }
     if (q.kind === "installation" && data.signing) {
       const { assistance, ...input } = data.signing;

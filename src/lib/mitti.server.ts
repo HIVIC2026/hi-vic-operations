@@ -132,7 +132,7 @@ async function applyMeasure(jobId: string, actorId: string, auditId: string, sou
 export async function syncMittiAssessment(jobId: string, actorId: string, call: MittiCall = realMittiCall) {
   const { data: job } = await admin.from("jobs").select("job_number,business_unit").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
-  if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for HI VIC jobs.");
+  if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for Home Insulation Victoria jobs.");
   const { data: a } = await admin.from("assessments").select("id,status,external_mitti_id,mitti_template_id").eq("job_id", jobId).maybeSingle();
   const s = await jobScope(jobId);
   const m = s.measurementRow;

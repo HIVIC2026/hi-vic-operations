@@ -68,7 +68,7 @@ export function MeasurementDetails({ m, admin = false }: { m: M; admin?: boolean
       rows.push(["Variance (supplied − onsite)", m.variance_m2 != null ? `${Number(m.variance_m2)} m² (${Number(m.variance_pct)}%)` : null]);
     }
   }
-  if (m.accepted_at) rows.push(["Accepted by HI VIC", `${fmtDate(m.accepted_at)}${m.accepted_standard_version ? ` · standard ${m.accepted_standard_version}` : ""}${m.accepted_reason ? ` · ${m.accepted_reason}` : ""}`]);
+  if (m.accepted_at) rows.push(["Accepted by Home Insulation Victoria", `${fmtDate(m.accepted_at)}${m.accepted_standard_version ? ` · standard ${m.accepted_standard_version}` : ""}${m.accepted_reason ? ` · ${m.accepted_reason}` : ""}`]);
   if (sup) rows.push(["Completed onsite by", `${sup} (${((m.supplemented_fields as string[]) ?? []).map((f) => MEASURE_FIELD_LABEL[f as MeasureField] ?? f).join(", ")})`]);
   if (m.review_reason) rows.push(["Review note", m.review_reason]);
   return <dl className="grid grid-cols-2 gap-1 text-sm">{rows.map(([k, v]) => <Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd>{yn(v)}</dd></Fragment>)}</dl>;

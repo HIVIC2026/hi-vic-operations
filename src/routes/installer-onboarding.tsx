@@ -26,9 +26,9 @@ export const Route = createFileRoute("/installer-onboarding")({
   headers: () => ({ "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" }),
   head: () => ({ meta: [
     { title: "Installer Partner Onboarding — Home Insulation Victoria" },
-    { name: "description", content: "Join the HI VIC! trade partner network as a ceiling insulation installer." },
+    { name: "description", content: "Join the Home Insulation Victoria trade partner network as a ceiling insulation installer." },
     { property: "og:title", content: "Installer Partner Onboarding — Home Insulation Victoria" },
-    { property: "og:description", content: "Join the HI VIC! trade partner network as a ceiling insulation installer." },
+    { property: "og:description", content: "Join the Home Insulation Victoria trade partner network as a ceiling insulation installer." },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary" },
     { name: "robots", content: "noindex, nofollow" },
@@ -38,6 +38,13 @@ export const Route = createFileRoute("/installer-onboarding")({
 
 const input: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #D7DCE8", fontSize: 15, fontFamily: "inherit", color: NAVY, background: "#fff", boxSizing: "border-box", minHeight: 48 };
 const card: React.CSSProperties = { background: "#fff", borderRadius: 24, padding: 24, border: `1px solid ${BLUE}1A`, boxShadow: "0 10px 30px -18px rgba(34,55,107,.35)" };
+const DISPLAY = "'Outfit', 'Figtree', system-ui, sans-serif";
+const ACCENTS: Array<{ bg: string; fg: string }> = [
+  { bg: "oklch(0.93 0.06 345)", fg: "oklch(0.43 0.13 345)" },
+  { bg: "oklch(0.92 0.055 250)", fg: "oklch(0.4 0.14 255)" },
+  { bg: "oklch(0.93 0.07 145)", fg: "oklch(0.38 0.1 150)" },
+  { bg: "oklch(0.94 0.075 85)", fg: "oklch(0.42 0.1 70)" },
+];
 const infoCard: React.CSSProperties = { background: "#EAF8F0", border: `1px solid ${GREEN}55`, borderRadius: 14, padding: "12px 14px", fontSize: 14, color: NAVY, lineHeight: 1.5, marginBottom: 18 };
 const btn = (primary: boolean, disabled = false): React.CSSProperties => ({ minHeight: 48, padding: "0 20px", borderRadius: 12, border: primary ? "none" : `1px solid #D7DCE8`, background: primary ? (disabled ? "#9AA6D8" : BLUE) : "#fff", color: primary ? "#fff" : NAVY, fontWeight: 800, fontSize: 14, letterSpacing: 0.6, textTransform: "uppercase", cursor: disabled ? "default" : "pointer", fontFamily: "inherit" });
 
@@ -166,7 +173,8 @@ function InstallerOnboarding() {
   }
 
   const shell = (children: React.ReactNode, footer?: React.ReactNode) => (
-    <div style={{ minHeight: "100vh", background: "radial-gradient(circle at top, #fff 0%, #f5f8f5 45%, #eef2f0 100%)", fontFamily: "'Open Sans', system-ui, sans-serif", color: NAVY }}>
+    <div style={{ minHeight: "100vh", background: "radial-gradient(circle at top, #fff 0%, #f5f8f5 45%, #eef2f0 100%)", fontFamily: "'Figtree', system-ui, sans-serif", color: NAVY }}>
+      <style>{`h1,h2,h3{font-family:${DISPLAY}}`}</style>
       <header style={{ position: "sticky", top: 0, zIndex: 10, background: "rgba(255,255,255,.92)", backdropFilter: "blur(8px)", borderBottom: `1px solid ${BLUE}14` }}>
         <div style={{ maxWidth: 672, margin: "0 auto", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <img src={logo.url} alt="Home Insulation Victoria" style={{ height: 40 }} />
@@ -188,19 +196,22 @@ function InstallerOnboarding() {
   if (!loaded) return shell(<p>Loading…</p>);
 
   if (!started) return shell(
-    <div style={card}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: GREEN, textTransform: "uppercase", letterSpacing: 0.8 }}>Home Insulation Victoria (HI VIC!)</div>
-      <h1 style={{ fontSize: 28, fontWeight: 800, margin: "8px 0 10px", color: BLUE }}>Welcome to our Trade Partner Network</h1>
-      <p style={{ fontSize: 15, lineHeight: 1.6, color: MUTED }}>We're really pleased to have you here and can't wait to work with you. HI VIC! keeps jobs, communication and assessments simple — all in one place.</p>
-      <div style={{ fontWeight: 700, margin: "18px 0 10px" }}>Have these handy</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 22 }}>
-        {["ABN + CII training / certification details", "Public liability insurance (Certificate of Currency)", "Installer names + training details", "Your proposed rates incl. removal & extras"].map((t) => (
-          <div key={t} style={{ border: "1px solid #E4E8F0", borderRadius: 14, padding: "12px 14px", fontSize: 14 }}><span style={{ color: GREEN, fontWeight: 800 }}>✓ </span>{t}</div>
-        ))}
+    <div style={{ ...card, padding: 0, overflow: "hidden" }}>
+      <div style={{ height: 6, background: `linear-gradient(90deg, ${GREEN}, ${BLUE})` }} />
+      <div style={{ padding: 24 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: GREEN, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: DISPLAY }}>Home Insulation Victoria</div>
+        <h1 style={{ fontSize: 28, fontWeight: 800, margin: "8px 0 10px", color: NAVY }}>Welcome to our Trade Partner Network</h1>
+        <p style={{ fontSize: 15, lineHeight: 1.6, color: MUTED }}>We're really pleased to have you here and can't wait to work with you. Home Insulation Victoria keeps jobs, communication and assessments simple — all in one place.</p>
+        <div style={{ fontWeight: 700, margin: "18px 0 10px", fontFamily: DISPLAY }}>Have these handy</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 22 }}>
+          {["ABN + CII training / certification details", "Public liability insurance (Certificate of Currency)", "Installer names + training details", "Your proposed rates incl. removal & extras"].map((t, i) => (
+            <div key={t} style={{ background: ACCENTS[i % 4]!.bg, color: ACCENTS[i % 4]!.fg, borderRadius: 14, padding: "12px 14px", fontSize: 14, fontWeight: 600 }}><span style={{ fontWeight: 800 }}>✓ </span>{t}</div>
+          ))}
+        </div>
+        <p style={{ fontSize: 13, color: MUTED }}>Your progress saves as you go on this device.</p>
+        {error && <p style={{ color: "#B3261E" }}>{error}</p>}
+        <button style={{ ...btn(true, busy), width: "100%", minHeight: 52, borderRadius: 16 }} disabled={busy} onClick={begin}>{busy ? "Starting…" : "Get started →"}</button>
       </div>
-      <p style={{ fontSize: 13, color: MUTED }}>Your progress saves as you go on this device.</p>
-      {error && <p style={{ color: "#B3261E" }}>{error}</p>}
-      <button style={{ ...btn(true, busy), width: "100%" }} disabled={busy} onClick={begin}>{busy ? "Starting…" : "Get started"}</button>
     </div>,
   );
 
@@ -208,7 +219,7 @@ function InstallerOnboarding() {
     <div style={{ ...card, textAlign: "center" }}>
       <div style={{ width: 56, height: 56, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 28, lineHeight: "56px", margin: "0 auto 16px" }}>✓</div>
       <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — we've got everything.</h1>
-      <p style={{ color: MUTED, lineHeight: 1.6 }}>Your application and signed agreement are now with the HI VIC! team. We'll review your details, check your CII training / certification, installers and insurance, and be in touch if we need anything else.</p>
+      <p style={{ color: MUTED, lineHeight: 1.6 }}>Your application and signed agreement are now with the Home Insulation Victoria team. We'll review your details, check your CII training / certification, installers and insurance, and be in touch if we need anything else.</p>
       <p style={{ color: MUTED, lineHeight: 1.6 }}>Once you're approved and your rates are agreed, you'll start receiving job offers through the portal. We'll also reach out then to collect your payment details.</p>
       <div style={{ ...infoCard, textAlign: "left", marginTop: 8 }}><strong>What happens next:</strong> review and verification → rates confirmed → welcome aboard. Keep an eye on {d.business_email || "your email"} — that's where we'll contact you.</div>
       <p style={{ color: MUTED, fontSize: 13 }}>Agreement version {INSTALLER_AGREEMENT_VERSION} · A copy of everything you've submitted is kept on your file.</p>
@@ -266,7 +277,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       const list = d.installers ?? [];
       const set = (i: number, p: Partial<NonNullable<RecData["installers"]>[number]>) => up({ installers: list.map((x, j) => (j === i ? { ...x, ...p } : x)) });
       return <>
-        <div style={infoCard}>You only need to add ONE installer to continue. Add more only if they may attend HI VIC! jobs.</div>
+        <div style={infoCard}>You only need to add ONE installer to continue. Add more only if they may attend Home Insulation Victoria jobs.</div>
         {list.map((x, i) => (
           <div key={i} style={{ border: "1px solid #E4E8F0", borderRadius: 14, padding: 14, marginBottom: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><strong>Installer {i + 1}</strong>
@@ -285,11 +296,11 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       const set = (i: number, p: Partial<NonNullable<RecData["preferred_electricians"]>[number]>) => up({ preferred_electricians: list.map((x, j) => (j === i ? { ...x, ...p } : p.is_primary ? { ...x, is_primary: false } : x)) });
       return <>
         <Field label="Do you have a preferred electrician, or one who works with or under you?" required>
-          <Choice options={[{ v: "have", l: "Yes – add them" }, { v: "match", l: "No – match me with an HI VIC! electrician" }, { v: "later", l: "Not sure yet" }]} value={d.electrician_choice ?? null}
+          <Choice options={[{ v: "have", l: "Yes – add them" }, { v: "match", l: "No – match me with an Home Insulation Victoria electrician" }, { v: "later", l: "Not sure yet" }]} value={d.electrician_choice ?? null}
             onChange={(v) => up({ electrician_choice: v as "have" | "match" | "later", preferred_electricians: v === "have" && list.length === 0 ? [{ is_primary: true }] : list })} />
         </Field>
         {d.electrician_choice === "have" && <>
-          <div style={infoCard}>We'll invite them to join HI VIC! as your team electrician. Once they accept and we've checked their licence, REC and insurance, your jobs go to them automatically. You can change this any time.</div>
+          <div style={infoCard}>We'll invite them to join Home Insulation Victoria as your team electrician. Once they accept and we've checked their licence, REC and insurance, your jobs go to them automatically. You can change this any time.</div>
           {list.map((x, i) => (
             <div key={i} style={{ border: `1px solid ${x.is_primary ? BLUE : "#E4E8F0"}`, borderRadius: 14, padding: 14, marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><strong>Electrician {i + 1}{x.is_primary ? " · Main" : " · Backup"}</strong>
@@ -306,14 +317,14 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
           {list.length < 5 && <button type="button" style={{ ...btn(false), marginBottom: 16 }} onClick={() => up({ preferred_electricians: [...list, { is_primary: list.length === 0 }] })}>+ Add another electrician</button>}
           <Check checked={!!d.electrician_contact_consent} onChange={(v) => up({ electrician_contact_consent: v })}>I confirm {list.length > 1 ? "these electricians have" : "this electrician has"} agreed to be contacted by Home Insulation Victoria.</Check>
         </>}
-        {d.electrician_choice === "later" && <div style={infoCard}>No problem – you can add your electrician later from your profile. Until then HI VIC! will match each job with an approved local electrician.</div>}
+        {d.electrician_choice === "later" && <div style={infoCard}>No problem – you can add your electrician later from your profile. Until then Home Insulation Victoria will match each job with an approved local electrician.</div>}
       </>;
     }
     case "services":
       return <>
         <div style={infoCard}><strong>Included for all installer partners:</strong> R5.0 ceiling insulation supply & installation, plus removal of existing insulation (batts and loose fill) where a job needs it. Removal is part of every installer's service — you'll set your rate for each removal type on the pricing step.</div>
-        <Field label="Do you offer free quotes for pre-qualified HI VIC! leads?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.free_quotes_for_hivic_leads ?? null} onChange={(v) => up({ free_quotes_for_hivic_leads: v })} /></Field>
-        <Field label="Will you provide free eligibility measure-ups for HI VIC! quote leads?" required hint="HI VIC! completes Gate 1 eligibility checks and gives the owner a preliminary quote before referring the lead, helping screen out unsuitable or uncommitted enquiries."><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.free_measureups_for_hivic_quote_leads ?? null} onChange={(v) => up({ free_measureups_for_hivic_quote_leads: v })} /></Field>
+        <Field label="Do you offer free quotes for pre-qualified Home Insulation Victoria leads?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.free_quotes_for_hivic_leads ?? null} onChange={(v) => up({ free_quotes_for_hivic_leads: v })} /></Field>
+        <Field label="Will you provide free eligibility measure-ups for Home Insulation Victoria quote leads?" required hint="Home Insulation Victoria completes Gate 1 eligibility checks and gives the owner a preliminary quote before referring the lead, helping screen out unsuitable or uncommitted enquiries."><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.free_measureups_for_hivic_quote_leads ?? null} onChange={(v) => up({ free_measureups_for_hivic_quote_leads: v })} /></Field>
       </>;
     case "coverage":
       return <>
@@ -335,13 +346,13 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
     case "capacity":
       return <>
         <Field label="Weekly installations" required><Choice options={CAPACITY_BANDS.map((b) => ({ v: b.v as string, l: b.v }))} value={d.capacity_band} onChange={(v) => up({ capacity_band: v })} /></Field>
-        <Check checked={d.accepting_jobs === true} onChange={(v) => up({ accepting_jobs: v })}>Accepting new HI VIC! work now</Check>
+        <Check checked={d.accepting_jobs === true} onChange={(v) => up({ accepting_jobs: v })}>Accepting new Home Insulation Victoria work now</Check>
       </>;
     case "install_pricing": {
       const unit = d.gst_registered === false ? "total rate" : "inc GST";
       return <>
         <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
-        <div style={infoCard}>{d.gst_registered === false ? "Not GST registered: enter your total rate." : "GST registered: enter rates including GST."} These are proposed supplier rates — HI VIC! reviews them before they apply.</div>
+        <div style={infoCard}>{d.gst_registered === false ? "Not GST registered: enter your total rate." : "GST registered: enter rates including GST."} These are proposed supplier rates — Home Insulation Victoria reviews them before they apply.</div>
         <div style={infoCard}>Installer-referred jobs: the $220 inc GST job fee applies only when your quote is accepted and the job proceeds. There is no fee for an unaccepted quote or a job that does not proceed.</div>
         <Field label={`R5.0 ceiling insulation supply & install (${unit})`} required><Money value={d.r5_rate} onChange={(v) => up({ r5_rate: v })} unit="m²" /></Field>
         <Field label={`Batts removal (${unit})`} required hint="Required — all installer partners remove existing insulation when a job needs it."><Money value={d.batts_removal_rate} onChange={(v) => up({ batts_removal_rate: v })} unit="m²" /></Field>
@@ -358,7 +369,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
     }
     case "bank":
       return <>
-        <div style={infoCard}>These details stay in your private partner application and are used only for approved HI VIC! payments.</div>
+        <div style={infoCard}>These details stay in your private partner application and are used only for approved Home Insulation Victoria payments.</div>
         <Field label="Account name" required><input style={input} autoComplete="off" {...t("bank_account_name")} /></Field>
         <Field label="BSB" required hint="6 digits"><input style={input} inputMode="numeric" autoComplete="off" {...t("bank_bsb")} /></Field>
         <Field label="Account number" required><input style={input} inputMode="numeric" autoComplete="off" {...t("bank_account_number")} /></Field>
@@ -412,7 +423,7 @@ function InsuranceStep({ d, up, token, setError }: { d: RecData; up: (p: Partial
   }
   return <>
     {d.insurance_uploaded
-      ? <div style={{ ...infoCard }}>✓ Certificate uploaded. It's stored privately — only the HI VIC! office can view it. <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label></div>
+      ? <div style={{ ...infoCard }}>✓ Certificate uploaded. It's stored privately — only the Home Insulation Victoria office can view it. <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label></div>
       : <Field label="Certificate of Currency" required hint="PDF, JPG or PNG, up to 20 MB">
           <label style={{ ...btn(false, uploading), display: "inline-flex", alignItems: "center" }}>{checking ? "Checking certificate…" : uploading ? "Uploading…" : "Upload certificate"}<input type="file" hidden disabled={uploading} accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label>
         </Field>}

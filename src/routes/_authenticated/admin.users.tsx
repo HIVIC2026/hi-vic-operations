@@ -9,7 +9,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getAdminUsers } from "@/lib/admin-records.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/users")({
-  head: () => ({ meta: [{ title: "Users – HI VIC Portal" }, { name: "description", content: "Manage portal users and roles." }, { property: "og:title", content: "Users – HI VIC Portal" }, { property: "og:description", content: "Manage portal users and roles." }] }),
+  head: () => ({ meta: [{ title: "Users – Home Insulation Victoria Portal" }, { name: "description", content: "Manage portal users and roles." }, { property: "og:title", content: "Users – Home Insulation Victoria Portal" }, { property: "og:description", content: "Manage portal users and roles." }] }),
   component: Users,
 });
 

@@ -1,5 +1,5 @@
 // PURE rules for installer-supplied (provisional) ceiling measurements and pilot dual verification.
-// An imported installer figure is PROVISIONAL until HI VIC accepts it under an approved AP measurement standard.
+// An imported installer figure is PROVISIONAL until Home Insulation Victoria accepts it under an approved AP measurement standard.
 // Until then it only prefills; an independent onsite trade must measure the relevant ceiling area.
 
 export type MeasureMethod = "laser" | "tape" | "floorplan" | "aerial_remote" | "other";
@@ -34,7 +34,7 @@ export type ProvisionalRow = {
 };
 
 /**
- * Whether HI VIC may accept a measurement as satisfying the ceiling-measurement requirement.
+ * Whether Home Insulation Victoria may accept a measurement as satisfying the ceiling-measurement requirement.
  * Returns blockers (empty = may accept). Remote/aerial never satisfies it alone.
  */
 export function acceptanceBlockers(m: ProvisionalRow, s: StandardState): string[] {
@@ -44,8 +44,8 @@ export function acceptanceBlockers(m: ProvisionalRow, s: StandardState): string[
   if (m.verified_at && Number(m.verified_area_m2) > 0) return []; // independently verified onsite
   const b: string[] = [];
   if (m.measurement_method === "aerial_remote") b.push("An aerial / remote estimate can never satisfy the onsite measurement requirement – onsite measurement needed.");
-  if (!s.standardApproved) b.push("HI VIC's AP measurement standard is not approved yet – an independent onsite measurement is required.");
-  else if (!s.partnerMethodApproved) b.push("This partner's measurement method has not been approved under the HI VIC standard.");
+  if (!s.standardApproved) b.push("Home Insulation Victoria's AP measurement standard is not approved yet – an independent onsite measurement is required.");
+  else if (!s.partnerMethodApproved) b.push("This partner's measurement method has not been approved under the Home Insulation Victoria standard.");
   if (m.measurement_purpose !== "onsite_measured" && m.measurement_purpose !== "final_installed") b.push("Supplied figure is not recorded as an onsite measurement.");
   return b;
 }

@@ -1,6 +1,6 @@
 // Three role-specific Mitti forms (Activity 48, ESC Guide V1.1 + Accreditation Conditions).
 // Required items only. Mitti templates are built in the Mitti UI; this spec is the build sheet
-// AND the validator that must pass before a template ID can be used. Labels are HI VIC checklist
+// AND the validator that must pass before a template ID can be used. Labels are Home Insulation Victoria checklist
 // wording for the Ready Check; PIESA and PIISA follow the official DEECA forms (uploaded 30 Sep 2026).
 export type FormKey = "ready_check" | "piesa" | "piisa";
 export type FieldType = "text" | "number" | "choice" | "yesno" | "media" | "signature" | "datetime";
@@ -47,7 +47,7 @@ export const PIESA_OUTCOMES = [
 
 export const FORMS: Record<FormKey, { title: string; role: "installer" | "electrician"; fields: FormField[] }> = {
   ready_check: {
-    title: "HI VIC | Ready Check – Eligibility & Measure-up (Installer)",
+    title: "Home Insulation Victoria | Ready Check – Eligibility & Measure-up (Installer)",
     role: "installer",
     fields: [
       { label: "Portal Job Number", type: "text", required: true, prefill: true, source: "portal" },
@@ -257,7 +257,7 @@ export function mittiAiPrompt(key: FormKey): string {
     "- Signature fields must capture the signer's name.",
     perArea.length ? `- Put these fields in a repeatable section called "Ceiling area" (one repeat per room/zone): ${perArea.map((x) => `"${x.label}"`).join(", ")}. All other fields are NOT repeated.` : "",
     key === "piesa" ? "- Section C and the rectification electrician fields are completed on the return visit after rectification. Put them in a section called \"Section C – Rectification completion\" shown only when \"B1 Assessment outcome\" is \"Electrical rectification work is required before insulation is installed or upgraded.\"" : "",
-    key === "piesa" || key === "piisa" ? "- If \"Is anyone at this property dependent on life support?\" is Yes, the consent/medical-plan question and attachment are required; if neither was received, the assessment must not proceed (add an instruction saying: STOP – do not start the assessment. Call the HI VIC office.)." : "",
+    key === "piesa" || key === "piisa" ? "- If \"Is anyone at this property dependent on life support?\" is Yes, the consent/medical-plan question and attachment are required; if neither was received, the assessment must not proceed (add an instruction saying: STOP – do not start the assessment. Call the Home Insulation Victoria office.)." : "",
     "- Order the fields exactly as listed.",
     "",
     "FIELDS:",

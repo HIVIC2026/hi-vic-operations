@@ -140,10 +140,10 @@ describe("appointment SLA & reassignment", () => {
 });
 
 describe("partner offers", () => {
-  test("only HI VIC-sourced, unassigned, early jobs can be offered", () => {
+  test("only Home Insulation Victoria-sourced, unassigned, early jobs can be offered", () => {
     const j = { channel: "hivic_sourced", stage: "awaiting_electrician", hasActiveInstaller: false, hasPendingOffer: false };
     expect(offerBlocker(j)).toBeNull();
-    expect(offerBlocker({ ...j, channel: "installer_sourced" })).toContain("HI VIC-sourced");
+    expect(offerBlocker({ ...j, channel: "installer_sourced" })).toContain("Home Insulation Victoria-sourced");
     expect(offerBlocker({ ...j, hasPendingOffer: true })).toContain("pending");
     expect(offerRespondBlocker({ status: "pending", expires_at: "2026-09-01T00:00:00Z" }, now)).toContain("expired");
   });
@@ -151,7 +151,7 @@ describe("partner offers", () => {
     const s = offerSummary({ job_number: "HV-1", stage: "awaiting_electrician", suburb: "Brunswick", postcode: "3056", estimated_area_m2: 100, eligibility_outcome: null });
     expect(Object.keys(s)).not.toEqual(expect.arrayContaining(["owner", "email", "phone", "address_line"]));
   });
-  test("accepting keeps acquisition channel and HI VIC relationship owner", () => {
+  test("accepting keeps acquisition channel and Home Insulation Victoria relationship owner", () => {
     const f = src("src/lib/pilot.functions.ts");
     const block = f.slice(f.indexOf("export const respondToOffer"), f.indexOf("export const setRelationshipOwner"));
     expect(block).not.toMatch(/channel:|customer_relationship_owner:/);

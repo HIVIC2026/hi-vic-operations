@@ -49,7 +49,7 @@ export function JobFileHeader({ jobId, job }: { jobId: string; job: JobRow }) {
         <div className="rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground"><div className="text-xs font-semibold uppercase">Next action</div>{nextStep(job).next}</div>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm md:grid-cols-4">
-        <div><dt className="text-xs text-muted-foreground">Channel</dt><dd>{job.channel === "installer_sourced" ? `Installer-sourced · ${job.originating_business_name ?? "partner"}` : "HI VIC-sourced"}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Channel</dt><dd>{job.channel === "installer_sourced" ? `Installer-sourced · ${job.originating_business_name ?? "partner"}` : "Home Insulation Victoria-sourced"}</dd></div>
         <div><dt className="text-xs text-muted-foreground">Electrician</dt><dd>{job.electrician_name ?? "Unassigned"}</dd></div>
         <div><dt className="text-xs text-muted-foreground">Installer</dt><dd>{job.installer_name ?? "Unassigned"}</dd></div>
         <div><dt className="text-xs text-muted-foreground">Readiness</dt><dd>

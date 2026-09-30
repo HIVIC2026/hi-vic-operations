@@ -12,7 +12,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getAdminBusinesses } from "@/lib/admin-records.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/businesses")({
-  head: () => ({ meta: [{ title: "Partner Businesses – HI VIC Portal" }, { name: "description", content: "Onboard and approve installer and electrician partner businesses." }, { property: "og:title", content: "Partner Businesses – HI VIC Portal" }, { property: "og:description", content: "Onboard and approve installer and electrician partner businesses." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({ meta: [{ title: "Partner Businesses – Home Insulation Victoria Portal" }, { name: "description", content: "Onboard and approve installer and electrician partner businesses." }, { property: "og:title", content: "Partner Businesses – Home Insulation Victoria Portal" }, { property: "og:description", content: "Onboard and approve installer and electrician partner businesses." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: Businesses,
 });
 

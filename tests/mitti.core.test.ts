@@ -69,7 +69,7 @@ describe("create & assign", () => {
     await expect(createOrReuseAudit(fake().api, ctx({ electricianEmail: null }))).rejects.toThrow(/email/);
   });
   test("guards: business unit, stage, missing mandatory template labels", async () => {
-    await expect(createOrReuseAudit(fake().api, ctx({ businessUnit: "dc" }))).rejects.toThrow(/HI VIC/);
+    await expect(createOrReuseAudit(fake().api, ctx({ businessUnit: "dc" }))).rejects.toThrow(/Home Insulation Victoria/);
     await expect(createOrReuseAudit(fake().api, ctx({ stage: "eligibility_review" }))).rejects.toThrow(/Assessment Booking/);
     const { api, calls } = fake({ template: { template_id: MITTI_TEMPLATE_ID, header_items: [{ item_id: "h1", label: "Portal Job Number" }], items: [] } });
     await expect(createOrReuseAudit(api, ctx())).rejects.toThrow(/missing required office fields/);

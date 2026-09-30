@@ -248,7 +248,7 @@ export async function signFinalAssignment(p: { jobId: string; actorId: string; p
   const templates = await loadTemplates();
   const official = activeTemplate(templates, "consumer_declaration");
   const preparedVersion = (a.final_facts as unknown as FinalFacts | null)?.template_version ?? a.consumer_declaration_version;
-  if (!official || official.version !== preparedVersion) throw new WorkflowError("The official assignment form version changed – HI VIC must prepare the assignment again.");
+  if (!official || official.version !== preparedVersion) throw new WorkflowError("The official assignment form version changed – Home Insulation Victoria must prepare the assignment again.");
   const now = new Date().toISOString();
   const sig = { typed_name: p.signatureName, at: now, ip: p.ip, user_agent: p.userAgent, user_id: p.actorId, facts_sha256: a.final_facts_sha256, form_version: official.version };
   const hash = await sha256Hex(stableJson({ party: p.party, sig, facts: a.final_facts }));

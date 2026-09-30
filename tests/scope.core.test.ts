@@ -111,7 +111,7 @@ describe("unchanged guards / permissions", () => {
     const call: MittiCall = async () => ({});
     const base = { businessUnit: "dc", stage: "assessment_booked", jobNumber: "HV-1", existingAuditId: null, electricianEmail: "i@x.test", assigneeRole: "installer" as const, templateId: "template_measure",
       prefill: { jobNumber: "HV-1", address: "a", ownerName: "o", assessorName: "i" } };
-    await expect(createOrReuseAudit(mittiApi(call), base)).rejects.toThrow(/only available for HI VIC/);
+    await expect(createOrReuseAudit(mittiApi(call), base)).rejects.toThrow(/only available for Home Insulation Victoria/);
     await expect(createOrReuseAudit(mittiApi(call), { ...base, businessUnit: "hivic", templateId: "" })).rejects.toThrow(/not configured/);
     expect(() => assertHivicJob({ business_unit: "dc" })).toThrow();
   });

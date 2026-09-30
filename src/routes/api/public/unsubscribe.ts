@@ -11,7 +11,7 @@ export const Route = createFileRoute("/api/public/unsubscribe")({
       GET: async ({ request }) => {
         const t = safe(new URL(request.url).searchParams.get("t"));
         if (!t) return page(`<h1 style="font-size:20px;">Link not recognised</h1><p>Please contact info@homeinsulationvictoria.com.au and we’ll update your preferences.</p>`);
-        return page(`<h1 style="font-size:20px;">Unsubscribe from HI VIC emails?</h1><p style="font-size:14px;">You won’t receive further estimate reminders or updates by email.</p><form method="post" action="/api/public/unsubscribe?t=${t}"><button type="submit" style="margin-top:12px;padding:14px 22px;border:0;border-radius:8px;background:#07BF61;color:#fff;font-weight:800;font-size:15px;cursor:pointer;">Unsubscribe</button></form>`);
+        return page(`<h1 style="font-size:20px;">Unsubscribe from Home Insulation Victoria emails?</h1><p style="font-size:14px;">You won’t receive further estimate reminders or updates by email.</p><form method="post" action="/api/public/unsubscribe?t=${t}"><button type="submit" style="margin-top:12px;padding:14px 22px;border:0;border-radius:8px;background:#07BF61;color:#fff;font-weight:800;font-size:15px;cursor:pointer;">Unsubscribe</button></form>`);
       },
       POST: async ({ request }) => {
         const t = safe(new URL(request.url).searchParams.get("t"));
@@ -21,7 +21,7 @@ export const Route = createFileRoute("/api/public/unsubscribe")({
           try { ok = await recordUnsubscribe(t); } catch (e) { console.error("unsubscribe failed", (e as Error).message); }
         }
         return ok
-          ? page(`<h1 style="font-size:20px;">You’re unsubscribed</h1><p style="font-size:14px;">We won’t send you further HI VIC emails about this enquiry.</p>`)
+          ? page(`<h1 style="font-size:20px;">You’re unsubscribed</h1><p style="font-size:14px;">We won’t send you further Home Insulation Victoria emails about this enquiry.</p>`)
           : page(`<h1 style="font-size:20px;">We couldn’t update your preferences</h1><p style="font-size:14px;">Please contact info@homeinsulationvictoria.com.au and we’ll remove you straight away.</p>`);
       },
     },

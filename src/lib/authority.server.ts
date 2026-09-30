@@ -86,7 +86,7 @@ export async function acceptAuthority(input: {
 }) {
   const { data: a } = await admin.from("owner_authorities").select("*").eq("id", input.authorityId).single();
   if (!a) throw new WorkflowError("Authority not found");
-  if (!["sent", "viewed"].includes(a.status)) throw new WorkflowError("This authority is no longer open. Please ask HI VIC to re-send it.");
+  if (!["sent", "viewed"].includes(a.status)) throw new WorkflowError("This authority is no longer open. Please ask Home Insulation Victoria to re-send it.");
   if (!input.over18 || !input.authorised) throw new WorkflowError("Both confirmations are required to give authority.");
   const { data: s } = await admin.from("workflow_settings").select("authority_validity_months").eq("id", 1).maybeSingle();
   const now = new Date();

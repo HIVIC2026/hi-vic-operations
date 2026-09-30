@@ -14,7 +14,7 @@ import { getVeecRegister, type VeecRow } from "@/lib/veec-register.functions";
 import { OWNER_VEEC_RATE, jobMargin, sellSignal } from "@/lib/profit.core";
 
 export const Route = createFileRoute("/_authenticated/admin/veec")({
-  head: () => ({ meta: [{ title: "VEECs – HI VIC Portal" }, { name: "description", content: "VEECs bought at $70, spot price, and sale value per accepted job." }, { property: "og:title", content: "VEECs – HI VIC Portal" }, { property: "og:description", content: "VEECs bought at $70, spot price, and sale value per accepted job." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({ meta: [{ title: "VEECs – Home Insulation Victoria Portal" }, { name: "description", content: "VEECs bought at $70, spot price, and sale value per accepted job." }, { property: "og:title", content: "VEECs – Home Insulation Victoria Portal" }, { property: "og:description", content: "VEECs bought at $70, spot price, and sale value per accepted job." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: VeecPage,
 });
 
@@ -59,7 +59,7 @@ function VeecPage() {
   return <AppShell wide>
     <p className="text-xs font-bold uppercase text-primary">Admin only – never shown to owners or trades</p>
     <h1 className="mt-1 text-4xl font-bold">VEECs</h1>
-    <p className="mt-2 max-w-3xl text-sm text-muted-foreground">The owner receives ${OWNER_VEEC_RATE} per VEEC as their discount; HI VIC keeps the spot price minus ${OWNER_VEEC_RATE} on every VEEC. VEEC numbers are estimates (VEU discount ÷ ${OWNER_VEEC_RATE}) until a lodged quantity is recorded. Read-only – nothing is lodged or sent from here.</p>
+    <p className="mt-2 max-w-3xl text-sm text-muted-foreground">The owner receives ${OWNER_VEEC_RATE} per VEEC as their discount; Home Insulation Victoria keeps the spot price minus ${OWNER_VEEC_RATE} on every VEEC. VEEC numbers are estimates (VEU discount ÷ ${OWNER_VEEC_RATE}) until a lodged quantity is recorded. Read-only – nothing is lodged or sent from here.</p>
     {error && <p role="alert" className="mt-4 rounded-md border border-danger bg-danger-soft p-3 text-sm font-semibold text-danger">The VEEC register could not be loaded.</p>}
 
     <section className="mt-6 grid gap-3 lg:grid-cols-3">
@@ -76,7 +76,7 @@ function VeecPage() {
         <div className="mt-1 text-sm font-semibold">{confirmed.length} accepted {confirmed.length === 1 ? "job" : "jobs"} · {n(sum(confirmed))} VEECs</div>
         <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
           <div>Bought at ${OWNER_VEEC_RATE} (paid to owners): {money(sum(confirmed) * OWNER_VEEC_RATE)}</div>
-          <div>If sold at spot, HI VIC keeps: <b>{keeps(sum(confirmed))}</b></div>
+          <div>If sold at spot, Home Insulation Victoria keeps: <b>{keeps(sum(confirmed))}</b></div>
         </div>
       </div>
       <div className="rounded-md border bg-card p-4">
@@ -85,7 +85,7 @@ function VeecPage() {
         <div className="mt-1 text-sm font-semibold">{pending.length} {pending.length === 1 ? "job" : "jobs"} awaiting acceptance · {n(sum(pending))} VEECs</div>
         <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
           <div>Not yet accepted – value only if the owner proceeds</div>
-          <div>If accepted and sold at spot, HI VIC keeps: {keeps(sum(pending))}</div>
+          <div>If accepted and sold at spot, Home Insulation Victoria keeps: {keeps(sum(pending))}</div>
         </div>
       </div>
     </section>
@@ -104,7 +104,7 @@ function VeecPage() {
 
     <section className="mt-4 grid gap-5 xl:grid-cols-[1fr_340px]">
       <div className="overflow-x-auto rounded-md border bg-card">
-        <table className="w-full text-sm"><thead className="bg-muted text-left text-xs uppercase"><tr><th className="p-3">Job</th><th className="p-3">Property</th><th className="p-3 text-right">VEECs</th><th className="p-3 text-right">Bought @ $70</th><th className="p-3 text-right">If sold at spot</th><th className="p-3 text-right">HI VIC keeps</th><th className="p-3">Payment</th></tr></thead>
+        <table className="w-full text-sm"><thead className="bg-muted text-left text-xs uppercase"><tr><th className="p-3">Job</th><th className="p-3">Property</th><th className="p-3 text-right">VEECs</th><th className="p-3 text-right">Bought @ $70</th><th className="p-3 text-right">If sold at spot</th><th className="p-3 text-right">Home Insulation Victoria keeps</th><th className="p-3">Payment</th></tr></thead>
           <tbody>{isPending ? <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">Loading…</td></tr> : rows.length === 0 ? <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">No jobs in this view.</td></tr> : rows.map((r) => {
             const v = r.veecs ?? 0;
             return <tr key={r.jobId} className="border-t">
@@ -132,11 +132,11 @@ function VeecPage() {
 
     {profit && <section className="mt-10">
       <h2 className="text-2xl font-bold">Markup by job – accepted jobs</h2>
-      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">What HI VIC charges versus what we pay each trade. Installer work is marked up and carries the Accredited Person fee; electrical work is charged at the agreed electrical rate card. The $220 inc GST referral fee applies only when an installer-sourced job proceeds.</p>
+      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">What Home Insulation Victoria charges versus what we pay each trade. Installer work is marked up and carries the Accredited Person fee; electrical work is charged at the agreed electrical rate card. The $220 inc GST referral fee applies only when an installer-sourced job proceeds.</p>
       {profit.rows.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">No accepted jobs yet — this table fills in as quotes are accepted.</p> : <>
       <div className="mt-3 overflow-x-auto rounded-md border bg-card">
         <table className="w-full text-sm"><thead className="bg-muted text-left text-xs uppercase">
-          <tr><th className="p-3" rowSpan={2}>Job</th><th className="border-b p-3 text-center" colSpan={3}>Installer</th><th className="border-b p-3 text-center" colSpan={3}>Electrician (rectification)</th><th className="border-b p-3 text-center" colSpan={2}>PIESA (AP fee, $349 inc GST)</th><th className="p-3 text-right" rowSpan={2}>Referral fee</th><th className="p-3 text-right" rowSpan={2}>VEEC margin</th><th className="p-3 text-right" rowSpan={2}>HI VIC profit</th></tr>
+          <tr><th className="p-3" rowSpan={2}>Job</th><th className="border-b p-3 text-center" colSpan={3}>Installer</th><th className="border-b p-3 text-center" colSpan={3}>Electrician (rectification)</th><th className="border-b p-3 text-center" colSpan={2}>PIESA (AP fee, $349 inc GST)</th><th className="p-3 text-right" rowSpan={2}>Referral fee</th><th className="p-3 text-right" rowSpan={2}>VEEC margin</th><th className="p-3 text-right" rowSpan={2}>Home Insulation Victoria profit</th></tr>
           <tr><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Charged</th><th className="p-3 text-right">Markup</th><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Charged</th><th className="p-3 text-right">Markup</th><th className="p-3 text-right">Charged (ex GST)</th><th className="p-3 text-right">REC paid</th></tr>
         </thead>
           <tbody>{profit.rows.map((r) => {

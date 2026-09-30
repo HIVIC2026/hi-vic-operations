@@ -65,7 +65,7 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
       cur.electricalCost += internal ? Number(internal.cost_ex_gst) : Number(q.subtotal_inc_gst) / gst;
       cur.electricalChargeEx += Number(q.subtotal_inc_gst) / gst;
     } else if (internal) {
-      // Installer work: charge = rate-card cost + HI VIC markup + AP fee (uplift distributed across lines).
+      // Installer work: charge = rate-card cost + Home Insulation Victoria markup + AP fee (uplift distributed across lines).
       cur.installerCost += Number(internal.cost_ex_gst ?? 0);
       cur.installerMargin += Number(internal.ap_margin_ex_gst ?? 0);
       cur.apFee += Number(internal.ap_fee_ex_gst ?? 0);

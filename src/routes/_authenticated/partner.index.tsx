@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/_authenticated/partner/")({
-  head: () => ({ meta: [{ title: "Partner Dashboard – HI VIC Portal" }, { name: "description", content: "Opportunities, active jobs and actions for HI VIC installation partners." }, { property: "og:title", content: "Partner Dashboard – HI VIC Portal" }, { property: "og:description", content: "Opportunities, active jobs and actions for HI VIC installation partners." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({ meta: [{ title: "Partner Dashboard – Home Insulation Victoria Portal" }, { name: "description", content: "Opportunities, active jobs and actions for Home Insulation Victoria installation partners." }, { property: "og:title", content: "Partner Dashboard – Home Insulation Victoria Portal" }, { property: "og:description", content: "Opportunities, active jobs and actions for Home Insulation Victoria installation partners." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: Dashboard,
 });
 
@@ -22,7 +22,7 @@ function Dashboard() {
   const load = useServerFn(partnerDashboard);
   const { data, refetch } = useQuery({ queryKey: ["partner-dashboard"], queryFn: () => load() });
   if (data === undefined) return <AppShell wide><p className="text-muted-foreground">Loading…</p></AppShell>;
-  if (data === null) return <AppShell><p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">Your account isn't linked to a partner business yet. Ask HI VIC to add you to your business.</p></AppShell>;
+  if (data === null) return <AppShell><p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">Your account isn't linked to a partner business yet. Ask Home Insulation Victoria to add you to your business.</p></AppShell>;
   const attention = data.jobs.filter((j) => j.sla && (j.sla.state === "attention" || j.sla.state === "exception"));
   return (
     <AppShell wide>
@@ -51,7 +51,7 @@ function Dashboard() {
                     <div className="mt-1 flex flex-wrap gap-1">
                       <SlaPill sla={j.sla} />
                       {j.deposit_cleared != null && <span className={`rounded-full px-2 py-0.5 text-xs ${j.deposit_cleared ? "bg-success-soft text-success" : "bg-muted"}`}>{j.deposit_cleared ? "Deposit cleared" : "Deposit not cleared"}</span>}
-                      {j.channel === "hivic_sourced" && <span className="rounded-full bg-info-soft px-2 py-0.5 text-xs text-info">HI VIC customer</span>}
+                      {j.channel === "hivic_sourced" && <span className="rounded-full bg-info-soft px-2 py-0.5 text-xs text-info">Home Insulation Victoria customer</span>}
                     </div>
                     {j.blockers.length > 0 && <div className="mt-1 text-xs text-danger">{j.blockers[0]}</div>}
                   </Link>
@@ -75,7 +75,7 @@ function Offer({ o, onDone }: { o: { id: string; summary: unknown; expires_at: s
       <div className="font-semibold">{s.suburb ?? "Victoria"} {s.postcode}</div>
       <div className="text-muted-foreground">{s.job_number} · {s.area_m2 ? `${s.area_m2} m² (${s.area_basis})` : "Area unknown"} · {s.eligibility?.replace(/_/g, " ") ?? "eligibility pending"}</div>
       {o.expires_at && <div className="text-xs text-muted-foreground">Respond by {new Date(o.expires_at).toLocaleDateString("en-AU")}</div>}
-      <p className="mt-1 text-xs text-muted-foreground">HI VIC customer – HI VIC stays the customer contact.</p>
+      <p className="mt-1 text-xs text-muted-foreground">Home Insulation Victoria customer – Home Insulation Victoria stays the customer contact.</p>
       {declining ? <div className="mt-2 space-y-2"><Input placeholder="Reason (optional)" value={reason} onChange={(e) => setReason(e.target.value)} /><Button size="sm" variant="outline" onClick={async () => { await respond({ offerId: o.id, accept: false, reason: reason || null }, "Declined"); onDone(); }}>Confirm decline</Button></div> :
         <div className="mt-2 grid grid-cols-2 gap-2"><Button size="field" onClick={async () => { await respond({ offerId: o.id, accept: true, reason: null }, "Job accepted"); onDone(); }}>Accept</Button><Button size="field" variant="outline" onClick={() => setDeclining(true)}>Decline</Button></div>}
     </div>

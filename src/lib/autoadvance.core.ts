@@ -5,7 +5,7 @@ import type { Stage } from "./workflow";
 
 export type AdvanceFacts = {
   eligibilityConfirmed: boolean; // admin-set (eligibility_set_by) and not "does not appear eligible"
-  /** HI VIC has explicitly approved (accepted_by set) the current measure-up, e.g. an installer's own – only then is the Ready Check skipped. */
+  /** Home Insulation Victoria has explicitly approved (accepted_by set) the current measure-up, e.g. an installer's own – only then is the Ready Check skipped. */
   measureUpAccepted?: boolean;
   electricianAssigned: boolean;
   assessmentBookingConfirmed: boolean;
@@ -39,12 +39,12 @@ export function planStep(stage: Stage, f: AdvanceFacts, opts: { allowApPromotion
   switch (stage) {
     case "new_enquiry":
     case "eligibility_review":
-      if (!f.eligibilityConfirmed) return stop("HI VIC must confirm Gate 1 eligibility");
+      if (!f.eligibilityConfirmed) return stop("Home Insulation Victoria must confirm Gate 1 eligibility");
       return f.measureUpAccepted ? t("ready_check_complete", "Eligibility confirmed – accepted measure-up already on file, no Ready Check needed") : t("ready_check_ready_to_schedule", "Eligibility confirmed – free installer Ready Check next");
     case "ready_check_ready_to_schedule":
-      return f.measureUpAccepted ? t("ready_check_complete", "Accepted measure-up on file – Ready Check not needed") : stop("HI VIC must assign an installer for the free Ready Check");
+      return f.measureUpAccepted ? t("ready_check_complete", "Accepted measure-up on file – Ready Check not needed") : stop("Home Insulation Victoria must assign an installer for the free Ready Check");
     case "awaiting_electrician":
-      return f.electricianAssigned ? t("assessment_booking", "Electrician assigned – booking PIESA") : stop("HI VIC must assign an electrician for PIESA");
+      return f.electricianAssigned ? t("assessment_booking", "Electrician assigned – booking PIESA") : stop("Home Insulation Victoria must assign an electrician for PIESA");
     case "assessment_booking":
       return f.assessmentBookingConfirmed ? t("assessment_booked", "Assessment booking confirmed") : stop("Assessment booking not confirmed");
     case "assessment_booked":
@@ -80,7 +80,7 @@ export function planStep(stage: Stage, f: AdvanceFacts, opts: { allowApPromotion
       return t("ap_review", "All required evidence uploaded and declarations signed – submitted for AP review");
     case "ap_review":
       // AP judgement is human: only promote when invoked from an admin compliance/AP action.
-      return opts.allowApPromotion ? t("ready_for_veec", "All compliance requirements passed – Ready for VEEC") : stop("AP review by HI VIC");
+      return opts.allowApPromotion ? t("ready_for_veec", "All compliance requirements passed – Ready for VEEC") : stop("AP review by Home Insulation Victoria");
     case "ready_for_veec":
       return f.veecLodged ? t("complete", "VEEC lodged – job complete") : stop("VEEC lodgement not submitted");
     default:

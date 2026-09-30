@@ -116,7 +116,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
       fee = Number(rs.ap_management_inc_gst);
     }
     fee = r2(fee);
-    if (fee > 0) apLine = { code: "AP_FEE", description: "Accredited Provider fee (HI VIC)", quantity: 1, unit: "flat", unit_price_inc_gst: fee, line_total_inc_gst: fee, is_other: false, explanation: null };
+    if (fee > 0) apLine = { code: "AP_FEE", description: "Accredited Provider fee (Home Insulation Victoria)", quantity: 1, unit: "flat", unit_price_inc_gst: fee, line_total_inc_gst: fee, is_other: false, explanation: null };
   }
   const optionCodes = jobRow?.channel === "installer_sourced" ? settings.installer_option_codes.slice(0, 1) : settings.installer_option_codes;
   const created: string[] = [];
