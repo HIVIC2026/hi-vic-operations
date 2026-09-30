@@ -2,6 +2,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { pickTeamElectrician } from "./teaming.core";
+import { rankElectricians, type ElecCandidate, type BusinessLike } from "./pilot.core";
+import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { getStage, logEvent, transition } from "./workflow.server";
 
 type Db = SupabaseClient<Database>;
 
@@ -46,4 +49,43 @@ export async function autoAssignTeamElectrician(
   const { data: m } = await db.from("business_members").select("user_id").eq("business_id", pick.id).eq("active", true).order("created_at").limit(1).maybeSingle();
   if (!m) return null;
   return { businessId: pick.id, userId: m.user_id, via: pick.via };
+}
+
+export async function electricianCandidates(jobId: string) {
+  const { data: j } = await admin.from("jobs").select("originating_installer_business_id, properties(postcode, suburb)").eq("id", jobId).single();
+  const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  const installerBiz = inst?.business_id ?? j?.originating_installer_business_id ?? null;
+  const { data: bizs } = await admin.from("businesses").select("*").or("business_type.eq.rec,capabilities.cs.{electrician}");
+  const ids = (bizs ?? []).map((b) => b.id);
+  const [{ data: creds }, { data: rels }, { data: cards }, { data: load }] = await Promise.all([
+    admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification").in("business_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]),
+    installerBiz ? admin.from("partner_relationships").select("electrician_business_id, preferred").eq("installer_business_id", installerBiz).eq("active", true) : Promise.resolve({ data: [] as { electrician_business_id: string; preferred: boolean }[] }),
+    admin.from("rate_cards").select("business_id").eq("kind", "electrical").eq("is_active", true),
+    admin.from("job_assignments").select("business_id").eq("role", "electrician").eq("active", true),
+  ]);
+  const cands: ElecCandidate[] = (bizs ?? []).map((b) => ({
+    ...(b as unknown as BusinessLike), id: b.id, name: b.trading_name || b.name, weekly_capacity: b.weekly_capacity, lead_time_days: b.lead_time_days,
+    credentials: (creds ?? []).filter((c) => c.business_id === b.id), preferred: !!rels?.some((r) => r.electrician_business_id === b.id && r.preferred),
+    hasRates: !!cards?.some((c) => c.business_id === b.id), activeJobs: (load ?? []).filter((l) => l.business_id === b.id).length,
+  }));
+  const p = j?.properties as { postcode: string | null; suburb: string | null } | null;
+  return { cands, site: { postcode: p?.postcode ?? null, suburb: p?.suburb ?? null }, installerBiz };
+}
+
+
+/** Team-up auto-assignment (DB only, no messaging): installer-sourced job needs an electrician and none is active. */
+export async function tryTeamAssign(jobId: string, actorId: string | null): Promise<boolean> {
+  const stage = await getStage(jobId);
+  if (!["piesa_and_install_window_pending", "awaiting_electrician"].includes(stage)) return false;
+  const { data: active } = await admin.from("job_assignments").select("id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
+  if (active) return false;
+  const { cands, site, installerBiz } = await electricianCandidates(jobId);
+  const pick = await autoAssignTeamElectrician(admin as never, jobId, rankElectricians(cands, site), installerBiz);
+  if (!pick) return false;
+  const name = cands.find((c) => c.id === pick.businessId)?.name ?? "team electrician";
+  await admin.from("jobs").update({ electrician_choice: "preferred" }).eq("id", jobId);
+  await admin.from("job_assignments").insert({ job_id: jobId, user_id: pick.userId, role: "electrician", business_id: pick.businessId, assigned_by: actorId ?? pick.userId });
+  await logEvent(jobId, actorId, "contractor_assigned", `Electrician assigned: ${name} (auto-assigned via team-up, ${pick.via === "primary" ? "Main" : "backup"} electrician)`);
+  if (stage === "awaiting_electrician") await transition(jobId, "assessment_booking", actorId, "Team electrician assigned – coordinate PIESA", { auto: true });
+  return true;
 }

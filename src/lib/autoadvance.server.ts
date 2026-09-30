@@ -53,7 +53,7 @@ export async function autoAdvanceJob(jobId: string, actorId: string | null, _rea
   try {
     const { autoDecideEligibility } = await import("./eligibility.server");
     await autoDecideEligibility(jobId);
-    try { const { tryTeamAssign } = await import("./pilot.functions"); await tryTeamAssign(jobId, actorId); } catch (e) { if (!(e instanceof WorkflowError)) console.error("team-up auto-assign failed", e); }
+    try { const { tryTeamAssign } = await import("./teaming.server"); await tryTeamAssign(jobId, actorId); } catch (e) { if (!(e instanceof WorkflowError)) console.error("team-up auto-assign failed", e); }
     return await runAutoAdvance({
       getStage: () => getStage(jobId),
       facts: () => loadAdvanceFacts(jobId),
