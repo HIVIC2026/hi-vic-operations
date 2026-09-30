@@ -64,7 +64,7 @@ function ProfitPage() {
       <aside className="space-y-4">
         <div className="rounded-md border bg-card p-4">
           <h2 className="font-bold">Record today's spot price</h2>
-          <Button className="mt-3 w-full" variant="secondary" onClick={async () => { await fetchOnline({}, "Online spot price saved"); await refetch(); }}>Update from online (Ecovantage)</Button>
+          <Button className="mt-3 w-full" variant="secondary" onClick={async () => { await fetchOnline(undefined, "Online spot price saved"); await refetch(); }}>Update from online (Ecovantage)</Button>
           <p className="mt-2 text-xs text-muted-foreground">Reads the latest published VEEC market update. If the page can't be read, enter the price by hand below.</p>
           <div className="mt-3 grid gap-2"><div><Label>Price per VEEC ($)</Label><Input inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} /></div><div><Label>Date</Label><Input type="date" value={on} onChange={(e) => setOn(e.target.value)} /></div><div><Label>Source (e.g. broker, Ecovantage)</Label><Input value={source} onChange={(e) => setSource(e.target.value)} /></div>
             <Button disabled={!(Number(price) > 0)} onClick={async () => { await save({ price: Number(price), pricedOn: on, source: source || undefined }, "Spot price saved"); setPrice(""); await refetch(); }}>Save spot price</Button></div>
