@@ -178,7 +178,7 @@ async function computeFinalFacts(jobId: string, fieldValues: Record<string, Fiel
   const { data: reqs } = await admin.from("evidence_requirements").select("label, status").eq("job_id", jobId).eq("required", true);
   const evidenceMissing = (reqs ?? []).filter((r) => !["uploaded", "verified"].includes(r.status)).map((r) => r.label);
   const blockers = finalAssignmentAvailability({ stage: job?.stage ?? "", installationCompleted: !!job?.installation_completed_at, installerDeclared: !!decl, evidenceMissing, agreementSigned: !!agreement, templates });
-  // Pre-correction jobs have no quote-stage conditional assignment; they still sign fully post-install.
+  // Every official assignment is prepared from completed facts; legacy quote-stage records are retired below.
   const official = activeTemplate(templates, "consumer_declaration");
   const defs = parseFormFields(official?.form_fields);
   const { data: inv } = await admin.from("invoices").select("id, xero_invoice_number, xero_reference, amount_paid, status").eq("job_id", jobId).eq("kind", "installation").maybeSingle();

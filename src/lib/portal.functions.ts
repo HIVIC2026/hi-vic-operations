@@ -1090,7 +1090,7 @@ export const updatePartnerEnquiry = createServerFn({ method: "POST" }).middlewar
     return { ok: true };
   });
 
-// ---------- Customer Acceptance & VEEC Assignment ----------
+// ---------- Commercial quote acceptance and post-install VEEC assignment ----------
 export const getAcceptancePackage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ quoteId: uuid }).parse(d))
   .handler(async ({ data, context }) => {

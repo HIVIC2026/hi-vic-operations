@@ -12,25 +12,29 @@ const facts = buildConsentFacts({ scheduledStart: start, scheduledEnd: null, pre
 const valid = { status: "valid", scheduled_start: start, owner_signed_at: "2026-10-02T00:00:00.000Z", ap_signed_at: "2026-10-02T01:00:00.000Z" };
 const input = { signatoryName: "Jo", authorityType: "owner" as const, accept: true, signatureName: "Jo Citizen" };
 
-describe("quote acceptance = commercial agreement + separate conditional VEEC assignment", () => {
+describe("quote acceptance is commercial; VEEC assignment is post-install", () => {
   const src = readFileSync("src/lib/assignment.server.ts", "utf8");
-  const fn = src.slice(src.indexOf("export async function signCustomerAgreement"), src.indexOf("export const CONDITIONAL_NOTE"));
-  const cond = src.slice(src.indexOf("async function signConditionalAssignment"), src.indexOf("// ---------- Installer declaration"));
+  const fn = src.slice(src.indexOf("export async function signCustomerAgreement"), src.indexOf("// ---------- Installer declaration"));
+  const prepare = src.slice(src.indexOf("export async function prepareFinalAssignment"), src.indexOf("export async function signFinalAssignment"));
   const pf = readFileSync("src/lib/portal.functions.ts", "utf8");
   const respond = pf.slice(pf.indexOf("export const respondToQuote"), pf.indexOf("// ---------- Payments"));
-  test("records the commercial agreement and a distinct conditional assignment, never ESC consent", () => {
+  test("records only the commercial agreement at quote acceptance", () => {
     expect(fn).toContain('from("customer_agreements")');
-    expect(fn).toContain("signConditionalAssignment");
-    expect(cond).toContain('signed_stage: "quote_stage_conditional"');
-    expect(cond).toContain('status: "consumer_signed_pending_install"');
-    expect(cond).not.toMatch(/effective_complete|effective_at/);
-    expect(fn + cond).not.toMatch(/owner_esc_consents|esc_consent/);
+    expect(fn).not.toContain("signConditionalAssignment");
+    expect(fn).not.toContain('from("customer_assignments")');
+    expect(fn).not.toMatch(/owner_esc_consents|esc_consent/);
     expect(respond).not.toMatch(/owner_esc_consents|signFinalAssignment|signOwnerConsent/);
+  });
+  test("prepares a new official assignment after installation with final facts", () => {
+    expect(prepare).toContain('status: "awaiting_installer_signature"');
+    expect(prepare).toContain("final_facts");
+    expect(prepare).toContain('signed_stage === "quote_stage_conditional"');
+    expect(prepare).toContain("LEGACY_CONDITIONAL_ASSIGNMENT_RETIRED");
   });
   test("still creates the Xero invoice (existing flow) after signing", () => {
     expect(respond.indexOf("signCustomerAgreement")).toBeLessThan(respond.indexOf("createInvoiceForQuote"));
   });
-  test("non-payment never deletes or reverts the conditional assignment", () => {
+  test("payment code never mutates assignment records", () => {
     const x = readFileSync("src/lib/xero.server.ts", "utf8") + readFileSync("src/lib/invoice.lifecycle.ts", "utf8");
     expect(x).not.toMatch(/customer_assignments/);
   });
