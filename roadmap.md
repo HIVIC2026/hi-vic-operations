@@ -28,8 +28,8 @@
 - [x] Match each new enquiry to approved REC and installer coverage; show gaps and provide a one-click, guarded “no partner in your area” email
 - [x] Add an office coverage view showing serviceable, partial and unserviceable Victorian areas separately for RECs and installers
 - [x] Audit current official Activity 48 homeowner documents and correct VEEC assignment to post-install final-facts signing
-- [ ] Replace repeated Property Intelligence with one numbered Gate 1 checklist
-- [ ] Fix repeated suburb/state/postcode across portal and generated records
-- [ ] Simplify job cards and separate active, review, ineligible, finalised, cancelled and test work
-- [ ] Separate active partners, application review and inactive history without deleting signed records
+- [x] Replace repeated Property Intelligence with one numbered Gate 1 checklist
+- [x] Fix repeated suburb/state/postcode across portal and generated records
+- [x] Simplify job cards and separate active, review, ineligible, finalised, cancelled and test work
+- [x] Separate active partners, application review and inactive history without deleting signed records
 - [ ] Verify the eligibility-first overhaul across tests, desktop and mobile
