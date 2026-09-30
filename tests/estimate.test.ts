@@ -69,7 +69,14 @@ describe("guards", () => {
     const t = e.primary.by_access.standard;
     expect(t.estimated_customer_total).toBeCloseTo(200, 2); expect(t.copayment_capped).toBe(true);
   });
-  test("missing area => no estimate", () => { expect(pickArea({ owner: null })).toBeNull(); expect(pickArea({ owner: 0 })).toBeNull(); });
+  test("missing area => typical-home default estimate", () => {
+    for (const c of [{ owner: null }, { owner: 0 }, {}]) {
+      const a = pickArea(c);
+      expect(a.source).toBe("typical_default");
+      expect(a.m2).toBe(DEFAULT_ESTIMATED_AREA_M2);
+      expect(a.label).toContain("Typical Victorian home");
+    }
+  });
   test("area hierarchy", () => {
     expect(pickArea({ measurement: { id: "m", m2: 120 }, estimate: { id: "e", m2: 140, tier: "B" }, owner: 150 })!.source).toBe("accepted_measurement");
     expect(pickArea({ estimate: { id: "e", m2: 140, tier: "B" }, owner: 150 })!.source).toBe("area_estimate");
