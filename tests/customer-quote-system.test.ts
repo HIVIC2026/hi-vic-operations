@@ -19,6 +19,9 @@ describe("customer quote system", () => {
     expect(CUSTOMER_VISUAL_SYSTEM).toEqual({ quoteRadiusPx: 20, secondaryRadiusPx: 16, secondaryPaddingPx: 20, actionRadiusPx: 16, actionPaddingPx: 16, softBlueBorder: "#D4DAF5", softGreenBorder: "#BEE8CE", paleGreen: "#ECF9F1", footer: "#F1F8F3" });
     expect(CUSTOMER_ASSESSMENT_ACTION.cta).toBe("BOOK MY READY CHECK →");
     expect(CUSTOMER_ASSESSMENT_ACTION.paragraphs[0]).toBe("Your $99 Home Insulation Ready Check is credited toward your project if you proceed.");
+    expect(CUSTOMER_WHAT_COULD_CHANGE.heading).toBe("WHAT COULD CHANGE MY ESTIMATE?");
+    expect(CUSTOMER_WHAT_COULD_CHANGE.items.map(({ lead }) => lead)).toEqual(["Ceiling size", "Existing insulation", "Access", "Electrical rectification"]);
+    expect(CUSTOMER_WHAT_COULD_CHANGE.closing).toBe("If any of these apply, we’ll show you the updated scope and price before you decide whether to proceed. Nothing is simply added without being shown to you first.");
   });
 
   test("customer-facing Step 3 sources consume the shared system and contain no HI VIC shorthand", () => {

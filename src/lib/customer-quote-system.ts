@@ -85,16 +85,16 @@ export const CUSTOMER_READY_CHECK_EMAIL_ACTION = {
 export const CUSTOMER_ASSESSMENT_ACTION = { cta: CUSTOMER_READY_CHECK.cta, paragraphs: CUSTOMER_READY_CHECK.paragraphs } as const;
 
 export const CUSTOMER_WHAT_COULD_CHANGE = {
-  heading: "WHAT COULD CHANGE AFTER YOUR READY CHECK?",
+  heading: "WHAT COULD CHANGE MY ESTIMATE?",
+  intro: "Your preliminary estimate is based on the ceiling size and information we have now. Your measured project estimate may change once we’ve inspected the property.",
   items: [
-    "Final measured eligible ceiling area",
-    "Existing insulation / removal if required",
-    "Access difficulty",
-    "A preliminary electrical allowance based on observable items",
-    "Final VEU / VEEC discount",
-    "Final installation price",
+    { lead: "Ceiling size", copy: "if the measured ceiling area is larger or smaller than the size you entered, your insulation price and VEU / VEEC discount will change accordingly." },
+    { lead: "Existing insulation", copy: "if insulation is already present and needs to be removed before new insulation can be installed, removal will be added to the measured project estimate." },
+    { lead: "Access", copy: "if the ceiling space is more difficult to access than expected, an access adjustment may apply." },
+    { lead: "Electrical rectification", copy: "your later mandatory PIESA is completed by a licensed electrician. If it identifies electrical work that must be completed before insulation can safely proceed, that work will be shown separately." },
   ],
-  closing: "Nothing additional is simply added without being shown to you first. Your measured project estimate is shown to you before you decide whether to proceed.",
+  closing: "If any of these apply, we’ll show you the updated scope and price before you decide whether to proceed. Nothing is simply added without being shown to you first.",
+  gst: "All prices include GST.",
 } as const;
 
 export const CUSTOMER_EXISTING_INSULATION_NOTE = "Existing insulation: removal MAY be required. It is not included unless shown in the quote. Your Ready Check confirms whether removal is required and, if so, the price before you proceed.";

@@ -101,7 +101,7 @@ describe("static separation / UI", () => {
   test("legacy final-quote flat credit is marked", () => { expect(readFileSync("src/lib/quotes.server.ts", "utf8")).toContain("LEGACY: flat per-m² VEEC credit"); });
   const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
   test("customer copy", () => {
-     for (const t of ["GOOD NEWS", "Your home has passed our initial eligibility checks.", "Your home looks likely to qualify.", "LIKELY ELIGIBLE", "LIKELY ELIGIBLE — ONSITE CONFIRMATION NEEDED", "Based on your answers and our initial property checks, your home is on track to qualify for a VEU insulation discount. Your Home Insulation Ready Check confirms the measured area and site details for your project estimate.", "Based on your answers and our initial checks, your property is a strong candidate for the VEU insulation discount. We just need to confirm the remaining items at your Ready Check.", "We just need to confirm:", "customerQuoteRows", "CUSTOMER_QUOTE_LABELS.discount", "Your estimated home upgrade", "CUSTOMER_QUOTE_LABELS.piesa", "CUSTOMER_PAYMENT_COPY.credited", "Transparent Home Insulation Victoria pricing — no installer mark-up surprises.", "One managed pathway. The right qualified people. No chasing trades.", "Access is confirmed onsite"]) expect(ui).toContain(t);
+     for (const t of ["GOOD NEWS", "Your home has passed our initial eligibility checks.", "Your home looks likely to qualify.", "LIKELY ELIGIBLE", "LIKELY ELIGIBLE — ONSITE CONFIRMATION NEEDED", "Based on your answers and our initial property checks, your home is on track to qualify for a VEU insulation discount. Your Home Insulation Ready Check confirms the measured area and site details for your project estimate.", "Based on your answers and our initial checks, your property is a strong candidate for the VEU insulation discount. We just need to confirm the remaining items at your Ready Check.", "We just need to confirm:", "customerQuoteRows", "CUSTOMER_QUOTE_LABELS.discount", "Your estimated home upgrade", "CUSTOMER_QUOTE_LABELS.piesa", "CUSTOMER_PAYMENT_COPY.credited", "Transparent Home Insulation Victoria pricing — no installer mark-up surprises.", "One managed pathway. The right qualified people. No chasing trades.", "CUSTOMER_WHAT_COULD_CHANGE.intro"]) expect(ui).toContain(t);
      expect(ui).not.toMatch(/may be eligible|appears suitable|your home is eligible/i);
      expect(ui).toContain('data.mode === "onsite" && !!data.onsiteDrivers?.length');
      expect(ui).toContain('the type and condition of existing insulation');
@@ -113,7 +113,7 @@ describe("static separation / UI", () => {
     expect(ui).not.toContain("AP management &amp; compliance");
     expect(ui).toContain("Step 3 · Indicative estimate");
     expect(ui.indexOf("<NextStep fee")).toBeLessThan(ui.indexOf("<HouseholdBenefits />"));
-    expect(ui.indexOf("<NextStep fee")).toBeLessThan(ui.indexOf("<EstimateDetails data"));
+     expect(ui.indexOf("<NextStep fee")).toBeLessThan(ui.indexOf("<EstimateDetails />"));
     expect(ui).toContain("CHECK ANOTHER CEILING SIZE");
     expect(ui).toContain("*Victorian Government estimates/averages. Actual savings vary");
     expect(ui).toContain("Up to 20%*");
