@@ -33,7 +33,7 @@ describe("customer outcome email renderers", () => {
     expect(mainQuote).toContain('data-ready-check-inside-quote="true"');
     expect(mainQuote).toContain("BOOK MY READY CHECK →");
     expect(h.split('data-ready-check-inside-quote="true"').length - 1).toBe(1);
-    expect(h.split('bgcolor="#ECF9F1"').length - 1).toBe(1); expect(h).toContain('data-discount-band="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ECF9F1"'); expect(h.indexOf('data-discount-band')).toBeLessThan(h.indexOf('YOUR ESTIMATED COST AFTER DISCOUNT')); expect(h).toContain('−$'); expect(h.split('WHAT COULD CHANGE MY ESTIMATE?').length - 1).toBe(1);
+    expect(h.split('bgcolor="#ECF9F1"').length - 1).toBe(2); expect(h).toContain('data-discount-band="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ECF9F1"'); expect(h.indexOf('data-discount-band')).toBeLessThan(h.indexOf('YOUR ESTIMATED COST AFTER DISCOUNT')); expect(h).toContain('−$'); expect(h.split('WHAT COULD CHANGE MY ESTIMATE?').length - 1).toBe(1);
     expect(h).toContain("border-radius:16px");
     expect(h).toContain("border:1px solid #D4DAF5");
     expect(`${email.html} ${email.plainText}`).toContain("could change your estimated project total, VEU / VEEC discount and estimated cost after discount.");
