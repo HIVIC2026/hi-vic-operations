@@ -74,11 +74,11 @@ The installer agreement is a signed legal document. Any change to it gets a new 
 
 ## Decisions still needed (I won't guess these)
 1. Decided: $349 covers both the safety check and our AP fee. Still to confirm: is it one $349 total, or $349 each? And if the installer uses their own electrician, does the owner pay their electrician's price plus our AP fee?
-2. Installer already agreed a price with the owner: our fees added on top (less VEU discount), or must their price include them?
-3. Referred jobs: installer quotes after the Ready Check, or we price from their rate card?
-4. $220 lead fee: deducted from the installer's payout, or invoiced separately? Inc or ex GST?
-5. When is the installer paid (e.g. within X days of balance clearing)?
-6. Which evidence items may be captured on install day before starting, versus needed before the quote? I'll list each for you to tick.
+2. Decided: if the installer already agreed a price with the owner, our fees go on top (owner sees installer price + our fees, less VEU discount). The FAQ says so plainly, so installers tell owners up front.
+3. Decided: on referred jobs the installer quotes after doing the Ready Check.
+4. Decided: the $220 lead fee is deducted from the installer's payout. (Still to confirm: inc or ex GST.)
+5. Decided: the installer is paid once the owner's invoice is paid in full.
+6. Answered from the regulator's rules (see "What the rules say" below).
 
 ## Technical details
 - Add `step 0` "about you" to `installer-onboarding.tsx` and `electrician-onboarding.tsx`; store in existing onboarding data (`primary_contact_name`, email, mobile); greeting helper uses first name.
@@ -116,4 +116,17 @@ Each item shows who gets it, when, and whether it blocks the next step.
 - **Can be captured on install day, before work starts** (time-stamped, before any insulation goes in): typically "before" ceiling-space photos, access/manhole, product labels, clearances. To be confirmed item by item against the Activity 48 pack.
 - **Must be known before the quote**: anything that decides eligibility or price — existing insulation presence/R-value, ceiling area, removal needed, electrical safety check result. If missing, the installer gets it before quoting (their own visit, or the Ready Check), never on install day. If install-day findings contradict what was quoted (e.g. insulation found), the install stops and the job goes to review.
 
-**Who confirms the list:** I'll check every evidence item against the Activity 48 activity pack and give you a table (item / when it can be captured / pack reference). Nothing switches on until you approve it (decision 6).
+### What the rules say (Essential Services Commission, Activity 48)
+| Item | When it can be captured | Source |
+|---|---|---|
+| Installer safety form (PIISA) | Install day, **before any insulation work starts**: lead installer signs | ESC ceiling insulation activity page |
+| Electrical safety form (PIESA) | Before any work, **no earlier than 30 days** before install. Not on install day by the installer | ESC ceiling insulation activity page |
+| Geotagged photo of cables at the switchboard | Taken by the electrician at the PIESA visit (installs from 21 Aug 2026) | ESC update, 30 Jul 2026 |
+| Pre-installation video/photos of the ceiling space | Before work starts, so install day before starting is OK | ESC update, 30 Jul 2026 (pre- and post-install video) |
+| Upgrade area (diagram/floor plan) | Before quote, because it sets price and VEECs | ESC update, 30 Jul 2026 |
+| Existing insulation / average R-value (must be under R2.0) | **Before quote**, because it decides eligibility | ESC ceiling insulation activity page |
+| Downlights/luminaires affecting eligibility | **Before quote**, because it decides eligibility | ESC ceiling insulation activity page |
+| Install notification to ESC | Our job: 24 hours to 5 days before install | VEU Registry update, 14 Apr 2026 |
+| Post-installation video/photos | Straight after install, same day | ESC update, 30 Jul 2026 |
+
+So yes: before-install photos/video and the installer safety form can be added to the install-day Mitti form, captured before work starts. Anything that decides eligibility or price, plus the electrician's form and switchboard photo, must be done before quoting/booking. Before switching this on, I'll check the exact wording against the full Obligations and Program Guide (record-keeping annexure).
