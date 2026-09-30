@@ -379,6 +379,13 @@
       "when": 1790761241149,
       "tag": "0053_free_installer_ready_check_and_measureup_offer",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1790762178291,
+      "tag": "0054_partner_coverage_verification_and_retire_ready_check_payments",
+      "breakpoints": true
     }
   ]
 }

@@ -86,7 +86,7 @@ function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unkno
     await save({
       id: b.id, name: f["name"] ?? b.name, legal_name: f["legal_name"] || null, trading_name: f["trading_name"] || null, abn: f["abn"] || null, acn: f["acn"] || null, email: f["email"] || null, phone: f["phone"] || null, address: f["address"] || null,
       gst_registered: f["gst"] === "yes" ? true : f["gst"] === "no" ? false : null,
-      service_postcodes: list(f["service_postcodes"] ?? ""), service_regions: list(f["service_regions"] ?? ""),
+      service_postcodes: list(f["service_postcodes"] ?? ""), service_regions: list(f["service_regions"] ?? ""), verify_coverage: isHivicAdmin,
       weekly_capacity: f["weekly_capacity"] ? Number(f["weekly_capacity"]) : null, lead_time_days: f["lead_time_days"] ? Number(f["lead_time_days"]) : null,
       availability_notes: f["availability_notes"] || null, rec_number: f["rec_number"] || null, licence_number: f["licence_number"] || null,
       ...(f["logo_url"] ? { branding: { logo_url: f["logo_url"] } } : {}), default_comms_owner: f["default_comms_owner"] === "hivic" ? "hivic" : "installer",
@@ -100,14 +100,14 @@ function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unkno
         {field("name", "Display name")}{field("legal_name", "Legal name")}{field("trading_name", "Trading name")}{field("abn", "ABN")}{field("acn", "ACN")}
         <label className="text-sm"><span className="text-muted-foreground">GST registered</span><select disabled={!canEdit} className="h-10 w-full rounded border bg-background px-2" value={f["gst"] ?? ""} onChange={(e) => setF({ ...f, gst: e.target.value })}><option value="">—</option><option value="yes">Yes</option><option value="no">No</option></select></label>
         {field("email", "Business email")}{field("phone", "Business phone")}{field("address", "Business address")}
-        {field("service_postcodes", "Service postcodes", "3000, 3121, 31*")}{field("service_regions", "Service suburbs / regions", "Brunswick, Coburg")}
+        {field("service_postcodes", "Verified service postcodes", "3000, 3121, 31*")}{field("service_regions", "Declared suburbs / regions", "Brunswick, Coburg")}
         {field("weekly_capacity", "Weekly capacity (jobs)")}{field("lead_time_days", "Typical lead time (days)")}
         {field("rec_number", "REC number (electricians)")}{field("licence_number", "Licence number")}{field("logo_url", "Logo URL (co-branded quotes)", "https://…")}
         <label className="text-sm"><span className="text-muted-foreground">Routine customer contact on your jobs</span><select disabled={!canEdit} className="h-10 w-full rounded border bg-background px-2" value={f["default_comms_owner"]} onChange={(e) => setF({ ...f, default_comms_owner: e.target.value })}><option value="installer">We handle routine customer contact</option><option value="hivic">HI VIC handles it</option></select></label>
         {isHivicAdmin && field("caps", "Capabilities (installer, electrician)")}
         <label className="text-sm sm:col-span-2"><span className="text-muted-foreground">Availability notes</span><Textarea disabled={!canEdit} value={f["availability_notes"] ?? ""} onChange={(e) => setF({ ...f, availability_notes: e.target.value })} /></label>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">Payment route: full job invoiced by HI VIC (pilot). Split invoicing is not available. Changing legal name, ABN, ACN, licence or REC details on an approved business sends it back to HI VIC for re-approval.</p>
+      <p className="mt-2 text-xs text-muted-foreground">Saving as HI VIC confirms the postcode list after reviewing the partner's declared radius and exclusions. Regions alone never count as verified coverage. Payment route: full job invoiced by HI VIC (pilot). Split invoicing is not available.</p>
       {canEdit && <Button className="mt-2" onClick={onSave}>Save details</Button>}
     </Section>
   );

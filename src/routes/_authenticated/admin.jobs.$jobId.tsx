@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { getAdminAssignments, getAdminJobEligibility } from "@/lib/admin-records.functions";
+import { getJobCoverage, sendNoCoverageEmail } from "@/lib/coverage.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
   head: () => ({ meta: [{ title: "Job – HI VIC Portal" }, { name: "description", content: "Job detail and workflow." }, { property: "og:title", content: "Job – HI VIC Portal" }, { property: "og:description", content: "Job detail and workflow." }] }),
@@ -72,6 +73,7 @@ function JobDetail() {
             </dl>
           </Section>
           <JobSource jobId={jobId} channel={job.channel} model={job.commercial_model} business={job.originating_business_name} />
+          <JobCoverage jobId={jobId} />
           <Assignments jobId={jobId} />
           <AdminPartnerPanel jobId={jobId} />
           <HoldControls jobId={jobId} stage={job.stage!} />
@@ -99,6 +101,17 @@ function JobDetail() {
       </Tabs>
     </AppShell>
   );
+}
+
+function JobCoverage({ jobId }: { jobId: string }) {
+  const load = useServerFn(getJobCoverage);
+  const send = useAction(sendNoCoverageEmail);
+  const { data, error, isPending } = useQuery({ queryKey: ["job-coverage", jobId], queryFn: () => load({ data: { jobId } }), retry: 2 });
+  if (isPending) return <Section title="Trade coverage"><p className="text-sm text-muted-foreground">Checking REC and installer coverage…</p></Section>;
+  if (error || !data) return <Section title="Trade coverage"><p role="alert" className="text-sm text-danger">Coverage could not be checked. Do not offer this job until coverage is confirmed.</p></Section>;
+  const label = (state: string) => ({ serviceable: "Serviceable", partial: "Needs verification", unserviceable: "Not covered", not_configured: "Not configured" }[state] ?? state);
+  const provenUnavailable = [data.rec.state, data.installer.state].includes("unserviceable") && ![data.rec.state, data.installer.state].some((state) => state === "partial" || state === "not_configured");
+  return <Section title="Trade coverage"><div className="grid gap-3 sm:grid-cols-2"><div><div className="text-xs font-bold uppercase text-muted-foreground">REC / electrician</div><div className="font-semibold">{label(data.rec.state)}</div><div className="text-xs text-muted-foreground">{data.rec.matches.map((item) => item.name).join(", ") || "No eligible verified REC"}</div></div><div><div className="text-xs font-bold uppercase text-muted-foreground">Installer</div><div className="font-semibold">{label(data.installer.state)}</div><div className="text-xs text-muted-foreground">{data.installer.matches.map((item) => item.name).join(", ") || "No eligible verified installer"}</div></div></div><div className="mt-3 flex flex-wrap gap-2"><Button asChild variant="outline" size="sm"><Link to="/admin/coverage">Open coverage view</Link></Button>{provenUnavailable && <Button size="sm" variant="outline" onClick={() => send({ jobId }, "Service-area update sent")}>Email service-area update</Button>}</div>{provenUnavailable && <p className="mt-2 text-xs text-muted-foreground">This action still checks the communications lock, owner consent, suppression status and delivery setup before sending.</p>}</Section>;
 }
 
 function EligibilityForm({ jobId }: { jobId: string }) {

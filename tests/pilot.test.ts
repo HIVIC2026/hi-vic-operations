@@ -87,7 +87,7 @@ describe("imported measure-up drives visit scope", () => {
     const partial = deriveScope({ measurement: { ...full, status: "needs_review", access_difficulty: null } as never, electrical: noPiesa });
     expect(partial.scope).toBe("ELECTRICAL_PLUS_MEASUREUP_COMPLETION");
     expect(partial.editableMeasureFields.length).toBeLessThan(6);
-    expect(deriveScope({ measurement: null, electrical: noPiesa }).scope).toBe("COMBINED");
+    expect(deriveScope({ measurement: null, electrical: noPiesa }).scope).toBe("SPLIT");
   });
 });
 

@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { BriefcaseBusiness, Calculator, ClipboardCheck, ExternalLink, LayoutDashboard, LogOut, Menu, Settings, Users, X } from "lucide-react";
+import { BriefcaseBusiness, Calculator, ClipboardCheck, ExternalLink, LayoutDashboard, LogOut, MapPinned, Menu, Settings, Users, X } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMe } from "@/hooks/use-me";
@@ -28,6 +28,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
         <>
           <div className={group}>Work</div>
           <Link to="/admin" className={link} activeProps={active} activeOptions={{ exact: true }} onClick={() => setMobileOpen(false)}><LayoutDashboard className="h-4 w-4" /> Jobs pipeline</Link>
+          <Link to="/admin/coverage" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><MapPinned className="h-4 w-4" /> Service coverage</Link>
           <div className={group}>Partners</div>
           <Link to="/admin/businesses" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><BriefcaseBusiness className="h-4 w-4" /> Approved partners</Link>
           <Link to="/admin/partners" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><ClipboardCheck className="h-4 w-4" /> Applications</Link>
