@@ -24,10 +24,8 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -39,13 +37,9 @@ function AuthPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const res =
-      mode === "in"
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin + "/home", data: { full_name: name } } });
+    const res = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (res.error) { toast.error(res.error.message); return; }
-    if (mode === "up" && !res.data.session) toast.success("Check your email to confirm your account.");
   };
 
   const google = async () => {
@@ -59,18 +53,15 @@ function AuthPage() {
         <div className="mb-6 border-b pb-5 text-center">
           <img src={logo.url} alt="Home Insulation Victoria" className="mx-auto h-14 w-auto" />
           <div className="mt-3 font-display text-lg font-bold">Operating Portal</div>
-          <div className="text-xs text-muted-foreground">{mode === "in" ? "Sign in to continue" : "Create your account"}</div>
+          <div className="text-xs text-muted-foreground">Sign in to continue</div>
         </div>
         <form onSubmit={submit} className="space-y-3">
-          {mode === "up" && <div><Label htmlFor="n">Full name</Label><Input id="n" className="h-12" value={name} onChange={(e) => setName(e.target.value)} required /></div>}
           <div><Label htmlFor="e">Email</Label><Input id="e" type="email" className="h-12" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
           <div><Label htmlFor="p">Password</Label><Input id="p" type="password" className="h-12" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required /></div>
-          <Button type="submit" size="field" className="w-full" disabled={busy}>{mode === "in" ? "Sign in" : "Create account"}</Button>
+          <Button type="submit" size="field" className="w-full" disabled={busy}>Sign in</Button>
         </form>
         <Button variant="outline" size="field" className="mt-3 w-full" onClick={google}>Continue with Google</Button>
-        <Button type="button" variant="link" className="mt-2 w-full" onClick={() => setMode(mode === "in" ? "up" : "in")}>
-          {mode === "in" ? "New here? Create an account" : "Have an account? Sign in"}
-        </Button>
+        <p className="mt-4 text-center text-xs text-muted-foreground">Portal access is provided by HI VIC.</p>
       </div>
     </div>
   );
