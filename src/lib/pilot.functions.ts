@@ -432,7 +432,8 @@ export const recordReadyCheckContact = createServerFn({ method: "POST" }).middle
     const needsFollowUp = data.outcome !== "contacted";
     await logEvent(data.jobId, context.userId, "ready_check_contact_recorded", `Installer Ready Check contact: ${data.outcome.replace("_", " ")}`, { assignment_id: assignment.id, outcome: data.outcome, note: data.note ?? null, follow_up_required: needsFollowUp });
     if (needsFollowUp) {
-      await admin.from("reassignment_requests").insert({ job_id: data.jobId, role: "installer", requested_by: context.userId, reason: `Ready Check contact follow-up required: ${data.outcome.replace("_", " ")}${data.note ? ` — ${data.note}` : ""}` });
+      const { count } = await admin.from("reassignment_requests").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("role", "installer").eq("status", "open");
+      if (!count) await admin.from("reassignment_requests").insert({ job_id: data.jobId, role: "installer", requested_by: context.userId, reason: `Ready Check contact follow-up required: ${data.outcome.replace("_", " ")}${data.note ? ` — ${data.note}` : ""}` });
       await admin.from("jobs").update({ next_action: "Follow up Ready Check contact or reassign installer" }).eq("id", data.jobId);
     }
     return { ok: true, followUpRequired: needsFollowUp };

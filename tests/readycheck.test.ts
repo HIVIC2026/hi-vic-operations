@@ -14,6 +14,7 @@ const server = readFileSync("src/lib/readycheck-payment.server.ts", "utf8");
 const workflow = readFileSync("src/lib/workflow.server.ts", "utf8");
 const booking = readFileSync("src/lib/booking.server.ts", "utf8");
 const pilotFunctions = readFileSync("src/lib/pilot.functions.ts", "utf8");
+const portalFunctions = readFileSync("src/lib/portal.functions.ts", "utf8");
 
 describe("Ready Check payment", () => {
   test("$99 exact, idempotent, credited once", () => {
@@ -72,6 +73,9 @@ describe("workflow", () => {
     expect(booking).toContain('ready_check: [["ready_check_ready_to_schedule", "ready_check_scheduled"], "ready_check_scheduled"]');
     expect(booking).toContain("assignment_id: contractor.id");
     expect(booking).toContain("business_id: contractor.business_id");
+    expect(booking).toContain('kind !== "assessment" && kind !== "ready_check"');
+    expect(booking).toContain("requireApprovedPartner");
+    expect(portalFunctions).toContain("Do not assign an electrician for the Ready Check");
   });
   test("installer-led contact and follow-up are recorded without sending", () => {
     expect(pilotFunctions).toContain("recordReadyCheckContact");

@@ -24,6 +24,8 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     const business = contractor.businesses as { business_type: string; onboarding_status: string; is_active: boolean; capabilities: string[] | null } | null;
     if (!contractor.business_id || !business?.is_active || business.onboarding_status !== "approved" || (business.business_type !== "eec_installer" && !business.capabilities?.includes("installer")))
       throw new WorkflowError("The Ready Check must be assigned to an approved EEC Certified Insulation Installer.");
+    const { requireApprovedPartner } = await import("./pilot.server");
+    await requireApprovedPartner(contractor.business_id);
   }
   if (kind === "installation") {
     const blocked = installationDateBlocker(await piesaStatus(jobId), start);
@@ -32,8 +34,8 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     const lead = bookingLeadBlocker(start, new Date().toISOString());
     if (lead) throw new WorkflowError(lead);
   }
-  if (kind !== "assessment") { const cb = await commercialBlocker(jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
-  if (kind !== "assessment" && !(await depositCleared(jobId))) throw new WorkflowError("Blocked: the 50% deposit has not been paid.");
+  if (kind !== "assessment" && kind !== "ready_check") { const cb = await commercialBlocker(jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
+  if (kind !== "assessment" && kind !== "ready_check" && !(await depositCleared(jobId))) throw new WorkflowError("Blocked: the 50% deposit has not been paid.");
   await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).eq("kind", kind).in("status", ["proposed", "confirmed"]);
   await admin.from("bookings").insert({ job_id: jobId, kind, contractor_id: contractor.user_id, assignment_id: contractor.id, business_id: contractor.business_id, scheduled_start: start, booked_by: actorId, notes: notes ?? null, status: "confirmed" });
   const nowIso = new Date().toISOString();
