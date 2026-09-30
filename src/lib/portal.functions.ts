@@ -55,7 +55,7 @@ export const setEligibility = createServerFn({ method: "POST" }).middleware([req
       stage = "eligibility_review";
     }
     if (data.outcome !== "does_not_appear_eligible" && gate?.rolloutHold && (stage === "new_enquiry" || stage === "eligibility_review")) {
-      if (stage === "new_enquiry") await transition(data.jobId, "eligibility_review", context.userId, "Eligibility set – held until general rollout starts 1 Oct 2026", {}, { nextAction: "Hold until general rollout starts 1 Oct 2026, then assign electrician" });
+      if (stage === "new_enquiry") await transition(data.jobId, "eligibility_review", context.userId, "Eligibility set – held until general rollout starts 1 Oct 2026", {}, { nextAction: "Hold until general rollout starts 1 Oct 2026, then assign installer for the free Ready Check" });
       await logEvent(data.jobId, context.userId, "gate1_rollout_hold", "Assessment dispatch held: general rollout starts 1 Oct 2026", { flags: gate.flags }, { internal: true });
     } else if (data.outcome !== "does_not_appear_eligible" && (stage === "new_enquiry" || stage === "eligibility_review")) {
       await transition(data.jobId, "awaiting_electrician", context.userId, "Eligibility passed – awaiting electrician", {}, { nextAction: data.nextAction });

@@ -186,7 +186,7 @@ export function evaluateGate1(f: Gate1Facts): Gate1Decision {
 
   const onsiteRequirements = [...new Set([...onsite, ...ONSITE_ALWAYS])];
   let outcome: CustomerOutcome | null, nextAction: string;
-  const dispatch = hold ? "Hold until general rollout starts 1 Oct 2026, then assign electrician" : "Assign electrician";
+  const dispatch = hold ? "Hold until general rollout starts 1 Oct 2026, then assign installer for the free Ready Check" : "Assign installer for the free Ready Check";
   if (failed.length) { outcome = "does_not_appear_eligible"; nextAction = "Review automatic ineligibility evidence before closing / override with reason"; }
   else if (review.length) { outcome = null; nextAction = `Review required: ${review[0]}`; }
   else if (onsite.length) { outcome = "needs_onsite_confirmation"; nextAction = `${dispatch} – confirm onsite: ${onsite.join("; ")}`; }
