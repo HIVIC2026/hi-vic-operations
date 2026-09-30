@@ -5300,6 +5300,89 @@ export type Database = {
           },
         ]
       }
+      partner_workers: {
+        Row: {
+          account_status: string
+          business_id: string
+          created_at: string
+          email: string
+          full_legal_name: string
+          id: string
+          licence_number: string | null
+          linked_at: string | null
+          linked_by: string | null
+          mobile: string | null
+          profile_id: string | null
+          qualification: string | null
+          source_application_id: string | null
+          trade_role: Database["public"]["Enums"]["assignment_role"]
+          updated_at: string
+        }
+        Insert: {
+          account_status?: string
+          business_id: string
+          created_at?: string
+          email: string
+          full_legal_name: string
+          id?: string
+          licence_number?: string | null
+          linked_at?: string | null
+          linked_by?: string | null
+          mobile?: string | null
+          profile_id?: string | null
+          qualification?: string | null
+          source_application_id?: string | null
+          trade_role: Database["public"]["Enums"]["assignment_role"]
+          updated_at?: string
+        }
+        Update: {
+          account_status?: string
+          business_id?: string
+          created_at?: string
+          email?: string
+          full_legal_name?: string
+          id?: string
+          licence_number?: string | null
+          linked_at?: string | null
+          linked_by?: string | null
+          mobile?: string | null
+          profile_id?: string | null
+          qualification?: string | null
+          source_application_id?: string | null
+          trade_role?: Database["public"]["Enums"]["assignment_role"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_workers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_workers_linked_by_fkey"
+            columns: ["linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_workers_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_workers_source_application_id_fkey"
+            columns: ["source_application_id"]
+            isOneToOne: false
+            referencedRelation: "rec_onboarding_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_overrides: {
         Row: {
           after_state: Json | null
