@@ -69,6 +69,16 @@ The $349 inc GST covers both the pre-install electrical safety check (PIESA) and
 - When is the $220 lead fee charged, and when isn't it?
 - I have my own electrician / work with another installer — how do we team up?
 
+## 3a. Everyone sees the same job timeline
+- Installers and electricians (and staff) open a job and see the same gate-by-gate strip: Gate 1 Enquiry → Ready Check → Safety check → Quote → Deposit → Install → Evidence → Review → VEEC.
+- Required time gates are shown and tracked per job with a countdown and amber/red warnings:
+  - Safety check (PIESA) is valid for 30 days — install must start within it; jobs past it are blocked and flagged for re-check.
+  - ESC install notification: must be lodged 24 hours to 5 days before install.
+  - Safety-check copy to the owner: at least 24 hours before install.
+  - Rectification quote from the electrician: same day as the visit.
+- The same deadlines appear on each party's To action list with the exact thing to do.
+- Onboarding and the new agreement version spell this out so partners know the gates before their first job.
+
 ## 3. Agreement wording
 The installer agreement is a signed legal document. Any change to it gets a new version number and existing signers are asked to re-sign. Option 1/Option 2 summary goes into the new version only after you approve the wording.
 
