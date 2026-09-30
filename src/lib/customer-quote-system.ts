@@ -106,3 +106,15 @@ export function customerQuoteRows(values: { piesa: number; installation: number;
     { key: "apManagement", label: CUSTOMER_QUOTE_LABELS.apManagement, amount: values.apManagement },
   ] as const;
 }
+/** Canonical deduction display: leading true minus, whole dollars. */
+export function discountAmount(value: number) {
+  return `−$${Math.round(Math.abs(value)).toLocaleString("en-AU")}`;
+}
+
+/** Canonical discount band / final-cost treatment shared by email + React. */
+export const CUSTOMER_DISCOUNT_TREATMENT = {
+  bandBackground: CUSTOMER_VISUAL_SYSTEM.paleGreen,
+  bandBorder: CUSTOMER_VISUAL_SYSTEM.softGreenBorder,
+  amountColor: CUSTOMER_BRAND.colors.green,
+  finalColor: CUSTOMER_BRAND.colors.blue,
+} as const;

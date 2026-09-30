@@ -9,7 +9,7 @@ import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
 import { BENCHMARK_LABEL, CALC_ASSUMPTION_LABEL, CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, FEE_DESCRIPTION, FEE_LABEL, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings, type Scenario } from "@/lib/estimate.core";
 import type { LocationVariables } from "@/lib/activity48.core";
 import { WHATIF_ADDRESS_COPY, locationBasisLine, postcodeFromAddress, resolveWhatIfLocation } from "@/lib/whatif-location";
-import { CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
+import { CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows, discountAmount } from "@/lib/customer-quote-system";
 import { READY_CHECK_BOOKING_SUCCESS, READY_CHECK_FEE, readyCheckRemaining, type ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
 import { Pill } from "./badges";
 
@@ -90,6 +90,21 @@ export function ConfirmQuote({ estimatedPrice, onBack, preview = false, testMode
   </section>;
 }
 
+/** Locked canonical breakdown: 3 service rows → project total → green discount band → large blue final cost. */
+export function QuoteBreakdown({ rows, gross, discount, final, ids }: { rows: ReadonlyArray<{ key: string; label: string; amount: number }>; gross: number; discount: number; final: number; ids: { gross?: string; discount?: string; final: string } }) {
+  return <div data-testid="quote-breakdown">
+    <dl className="text-sm">
+      {rows.map(({ key, label, amount }) => <div key={key} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-estimate-blue-soft py-4"><dt className="min-w-0 font-semibold leading-relaxed">{label}</dt><dd className="font-extrabold text-estimate-blue">{dollars(amount)}</dd></div>)}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-4"><dt className="font-extrabold">{CUSTOMER_QUOTE_LABELS.projectTotal}</dt><dd className="font-extrabold text-estimate-blue" {...(ids.gross ? { "data-testid": ids.gross } : {})}>{dollars(gross)}</dd></div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-xl border border-estimate-green/30 bg-estimate-green-soft px-4 py-4 text-estimate-green" data-testid="quote-discount-band"><dt className="font-extrabold">{CUSTOMER_QUOTE_LABELS.discount}</dt><dd className="text-2xl font-extrabold leading-none" {...(ids.discount ? { "data-testid": ids.discount } : {})}>{discountAmount(discount)}</dd></div>
+    </dl>
+    <div className="mt-5" data-testid="quote-final-cost">
+      <p className="text-xs font-extrabold uppercase tracking-wider text-estimate-navy">{CUSTOMER_QUOTE_LABELS.finalCost}</p>
+      <p className="mt-2 text-5xl font-extrabold leading-none text-estimate-blue" data-testid={ids.final}>{dollars(final)}</p>
+    </div>
+  </div>;
+}
+
 /** Locked in-card close for every eligible/onsite quote: What could change → GST → divider → Ready Check CTA. */
 export function QuoteCardReadyCheckClose({ href, inert = false }: { href?: string; inert?: boolean }) {
   return <div data-testid="quote-card-close">
@@ -117,17 +132,8 @@ function PriceResult({ est, area, fees, assumption = false }: { est: Est; area: 
   const standard = primary.by_access.standard;
   return <section className="estimate-quote-card px-5 py-7 sm:px-8 sm:py-9" aria-label="Your estimated home upgrade">
     <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Your estimated home upgrade</p>
-    <div className="mt-3 flex flex-wrap items-end gap-x-3 gap-y-1"><strong className="text-5xl font-bold leading-none text-estimate-navy sm:text-6xl" data-testid={assumption ? "calculator-total-can_remain" : "total-can_remain"}>{dollars(standard.estimated_customer_total)}</strong><span className="pb-1 text-sm font-medium text-estimate-navy/70">inc GST</span></div>
     <p className="mt-3 text-sm leading-relaxed text-estimate-navy/80">{assumption ? `${CALC_ASSUMPTION_LABEL}: ${area} m². Final area measured onsite.` : `Based on an estimated ${area} m² ceiling area${est.scenarios.some((s) => s.key === "full_removal") ? ", assuming your existing insulation can remain" : ""}.`}</p>
-    <div className="mt-7 border-t border-estimate-blue-soft pt-6">
-      <h3 className="text-base font-semibold text-estimate-navy">Your itemised estimate</h3>
-      <dl className="mt-4 space-y-4 text-sm">
-        {customerQuoteRows({ piesa: fees.piesa, installation: standard.installation, apManagement: fees.ap }).map(({ label, amount }) => <div key={label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4"><dt className="min-w-0 leading-relaxed">{label}</dt><dd className="font-bold">{dollars(amount)}</dd></div>)}
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-t border-estimate-blue-soft pt-4 font-semibold text-estimate-navy"><dt className="min-w-0">{CUSTOMER_QUOTE_LABELS.projectTotal}</dt><dd>{dollars(standard.pre_discount_total)}</dd></div>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-estimate-green-light pb-4 font-semibold text-estimate-navy"><dt className="min-w-0">{CUSTOMER_QUOTE_LABELS.discount}</dt><dd className="text-estimate-green">−{dollars(standard.applied_discount)}</dd></div>
-      </dl>
-      <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 font-bold text-estimate-navy"><span className="text-sm">{CUSTOMER_QUOTE_LABELS.finalCost}</span><span className="text-xl">{dollars(standard.estimated_customer_total)}</span></div>
-    </div>
+    <div className="mt-4"><QuoteBreakdown rows={customerQuoteRows({ piesa: fees.piesa, installation: standard.installation, apManagement: fees.ap })} gross={standard.pre_discount_total} discount={standard.applied_discount} final={standard.estimated_customer_total} ids={{ final: assumption ? "calculator-total-can_remain" : "total-can_remain" }} /></div>
     {standard.copayment_capped && <p className="mt-3 text-sm">The discount is limited so your contribution meets the program minimum.</p>}
     <QuoteCardReadyCheckClose href="#confirm" />
   </section>;
@@ -146,15 +152,7 @@ function CalculatorQuoteResult({ est, area, fees, existingInsulation }: { est: E
           <span className="text-sm font-bold">Estimated ceiling size</span>
           <strong className="text-xl text-estimate-blue" data-testid="calculator-area">{area} m²</strong>
         </div>
-        <dl className="text-sm">
-          {rows.map(({ key, label, amount }) => <div key={key} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-estimate-blue-soft py-4"><dt className="min-w-0 font-semibold leading-relaxed">{label}</dt><dd className="font-extrabold text-estimate-blue">{dollars(amount)}</dd></div>)}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 pt-5"><dt className="font-extrabold">{CUSTOMER_QUOTE_LABELS.projectTotal}</dt><dd className="font-extrabold text-estimate-blue" data-testid="calculator-gross">{dollars(standard.pre_discount_total)}</dd></div>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-3 text-estimate-green"><dt className="font-extrabold">{CUSTOMER_QUOTE_LABELS.discount}</dt><dd className="font-extrabold" data-testid="calculator-discount">−{dollars(standard.applied_discount)}</dd></div>
-        </dl>
-        <div className="mt-2 bg-estimate-blue px-4 py-5 text-estimate-white sm:px-5">
-          <p className="text-xs font-extrabold uppercase text-estimate-green-light">{CUSTOMER_QUOTE_LABELS.finalCost}</p>
-          <p className="mt-2 text-4xl font-extrabold leading-none" data-testid="calculator-total-can_remain">{dollars(standard.estimated_customer_total)}</p>
-        </div>
+        <QuoteBreakdown rows={rows} gross={standard.pre_discount_total} discount={standard.applied_discount} final={standard.estimated_customer_total} ids={{ gross: "calculator-gross", discount: "calculator-discount", final: "calculator-total-can_remain" }} />
         {standard.copayment_capped && <p className="mt-2 text-xs">The discount is limited so your contribution meets the program minimum.</p>}
         <QuoteCardReadyCheckClose inert />
       </div>
