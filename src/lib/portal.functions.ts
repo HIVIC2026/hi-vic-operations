@@ -844,7 +844,7 @@ export const updateVeec = createServerFn({ method: "POST" }).middleware([require
       throw new WorkflowError("VEEC can only be lodged once the job is Ready for VEEC.");
     const { data: prev } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,notes").eq("job_id", jobId).maybeSingle();
     const { veecUpdateBlockers } = await import("./veec.core");
-    const blockers = veecUpdateBlockers(prev, { ...rest, reason }, new Date().toISOString().slice(0, 10));
+    const blockers = veecUpdateBlockers(prev, { ...rest, reason: reason ?? null }, new Date().toISOString().slice(0, 10));
     if (blockers.length) throw new WorkflowError(blockers.join(" "));
     await admin.from("veec_lodgements").update({ ...rest, updated_at: new Date().toISOString() }).eq("job_id", jobId);
     await logEvent(jobId, context.userId, "veec_updated", `VEEC lodgement ${data.status.replace("_", " ")}`, { ...rest, previous: prev, reason: reason ?? null }, { internal: true });
