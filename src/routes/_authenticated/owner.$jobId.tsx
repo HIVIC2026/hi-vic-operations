@@ -45,7 +45,7 @@ function OwnerJob() {
         {s === "awaiting_deposit_payment" && <p className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">Booking opens as soon as your 50% deposit is received.</p>}
         {job.installer_name && !["assessment_booking", "assessment_booked", "awaiting_electrician"].includes(s) && <ChangeTrade jobId={jobId} />}
         <DocumentsPanel jobId={jobId} />
-        <MessagesPanel jobId={jobId} isAdmin={false} />
+        <MessagesPanel jobId={jobId} isAdmin={false} role="owner" />
         <TimelinePanel jobId={jobId} />
       </div>
     </AppShell>
