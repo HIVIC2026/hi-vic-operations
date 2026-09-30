@@ -163,13 +163,13 @@ Backfill (migration 0011): every existing assessment with a measured area produc
 
 Tests: `tests/scope.core.test.ts` (scopes, planning, quote inputs, business-unit, trade view) and `tests/guards.test.ts` (central stage guards on a fake database: measurement gate, PIESA expiry, commercial gate, Owner Authority, deposit).
 
-## Customer Acceptance & VEEC Assignment (replaces Owner Authority gate)
-Workflow: enquiry → eligibility → assessment booking → PIESA + measure-up → quote → **Customer Acceptance & VEEC Assignment** → Xero invoice → 50% deposit → rectification → installation → installer final declaration → AP review → VEEC-ready.
+## Customer quote acceptance and post-install VEEC assignment
+Workflow: enquiry → eligibility → assessment booking → PIESA + measure-up → commercial quote acceptance → Xero invoice → 50% deposit → rectification → installation → installer final declaration → AP prepares completed Activity 48 form → lead installer → AP → customer signatures → VEEC-ready.
 - Assessment booking no longer needs Owner Authority. Old authority records are kept as read-only history.
-- The customer signs once, at installation-quote acceptance (quote snapshot/version, property, consumer, product, area, installer, fees, before-VEU/benefit/final price, consumer info, declarations, typed signature, IP/user agent). A signed copy is stored privately and listed in Documents.
-- Statuses: draft → consumer_signed_pending_install → installer_signed_pending_install / final_details_pending → effective_complete; variation_required when installer/product/area (>5%)/price (>$1)/scope changes – customer reconfirms.
+- Quote acceptance is commercial only. The prescribed Activity 48 assignment is prepared after installation with actual completion, installer, product, area, price and benefit facts, then signed lead installer → AP → customer. A signed copy is stored privately and listed in Documents.
+- Statuses for new assignments: draft → awaiting_installer_signature → awaiting_ap_signature → awaiting_consumer_signature → effective_complete. Legacy quote-stage conditional records remain permanent history and are superseded before a corrected post-install form is prepared.
 - Scheduling needs a signed acceptance; Ready for VEEC needs effective_complete.
-- Official wording is pasted and approved by an admin at /admin/compliance (versioned, immutable). Nothing is signable until approved. Retention: 7 years.
+- Official wording is pasted and approved by an admin at /admin/compliance (versioned, immutable). Nothing is signable until approved. The portal retains records for seven years; the current guide states ESC may inspect them for up to six years after VEEC registration.
 
 ## Pipeline lanes & auto-progression
 Board lanes group detailed stages (`PIPELINE_PHASES`): Enquiries · Site assessment · Quote & approval · Deposit · Rectification · Installation · Evidence/AP/VEEC · Complete; On hold/Cancelled are a separate toggle. Cards keep the exact stage, next action and a "Waiting on" signal.
@@ -185,4 +185,4 @@ What remote checks can and cannot prove: address/Victoria – direct. Planning z
 Area hierarchy: A partner measured → B sourced floor plan → C verified footprint → D listing floor area → E aerial → F owner estimate. Parcel area never used. Weaker never replaces stronger; all estimates kept. Onsite `ceiling_measurements` remain the only quote/VEEC area.
 
 ## ESC pre-install notification (hard gate)
-Owner Reg 23A consent (`esc_consent` template, admin-approved wording only) is signed inside Customer Acceptance. Booking an installation creates/regenerates the ESC notice (due = start − 24h); date/address/owner-contact changes make the old notice STALE. Bookings <24h ahead are rejected. Status `sent` only via a configured adapter (none yet) or an admin-recorded external submission with reference + confirmation. Additional Activity Guide fields: versioned `esc_notification_config` (Compliance page); unconfigured = configuration required. READY TO INSTALL (required before installation can be recorded): consent ≥24h, ESC notice sent ≥24h, signed PIESA copy delivered to owner AND installer ≥24h, PIESA within 30 days.
+Owner Reg 23A consent (`esc_consent` template, admin-approved wording only) is a separate form created after the installation date is booked. Booking an installation creates/regenerates the ESC notice (due = start − 24h); date/address/owner-contact changes make the old notice STALE. Bookings <24h ahead are rejected. Status `sent` only via a configured adapter (none yet) or an admin-recorded external submission with reference + confirmation. Additional Activity Guide fields: versioned `esc_notification_config` (Compliance page); unconfigured = configuration required. READY TO INSTALL (required before installation can be recorded): consent ≥24h, ESC notice sent ≥24h, signed PIESA copy delivered to owner AND installer ≥24h, PIESA within 30 days.

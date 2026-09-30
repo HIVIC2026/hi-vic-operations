@@ -70,15 +70,15 @@ export function buildComplianceTimeline(f: TimelineFacts): Gate[] {
   const pre24 = f.installStart ? iso(t(f.installStart) - LEAD_MS) : null;
   const escEarliest = f.installStart ? iso(t(f.installStart) - EARLIEST_MS) : null;
   const piesaDeadline = f.piesaCompletedAt ? iso(t(f.piesaCompletedAt) + windowDays * DAY_MS) : null;
-  const signed = !!f.acceptanceSignedAt && !!f.assignmentSignedAt;
+  const signed = !!f.acceptanceSignedAt;
   const gates: Gate[] = [];
   const push = (g: Gate) => gates.push(g);
 
   push({ key: "acceptance_signed", label: "Customer Acceptance signed", when: "At quote acceptance", status: f.acceptanceSignedAt ? "done" : "open", dueAt: null, detail: null, blocks: "Invoice, deposit and REC request" });
-  push({ key: "veec_assignment_signed", label: "Conditional VEEC rights assignment signed by owner", when: "At quote acceptance", status: f.assignmentSignedAt ? "done" : "open", dueAt: null, detail: null, blocks: "Invoice, deposit and REC request" });
+  push({ key: "veec_assignment_signed", label: "Completed Activity 48 VEEC assignment signed", when: "After installation and final facts are confirmed", status: f.assignmentSignedAt ? "done" : f.installCompletedAt ? "open" : "not_yet", dueAt: null, detail: null, blocks: "VEEC lodgement" });
   push({ key: "deposit_cleared", label: "50% deposit paid (Xero) or audited override", when: "Before any booking", status: f.depositCleared ? "done" : signed ? "open" : "blocked", dueAt: null, detail: signed ? null : "Waiting for signed acceptance", blocks: "REC and installer scheduling" });
 
-  push({ key: "assignment_copy_to_consumer", label: "Copy of signed VEEC assignment form given to owner", when: "At signing, or within 10 business days if signed electronically", status: deadline(f.assignmentCopyGivenAt ?? null, f.assignmentSignedAt ? addBusinessDays(f.assignmentSignedAt, 10) : null, f.now), dueAt: f.assignmentSignedAt ? addBusinessDays(f.assignmentSignedAt, 10) : null, detail: null, blocks: "Compliance record" });
+  push({ key: "assignment_copy_to_consumer", label: "Copy of signed VEEC assignment form given to owner", when: "At written signing, or within 10 business days if signed electronically", status: deadline(f.assignmentCopyGivenAt ?? null, f.assignmentSignedAt ? addBusinessDays(f.assignmentSignedAt, 10) : null, f.now), dueAt: f.assignmentSignedAt ? addBusinessDays(f.assignmentSignedAt, 10) : null, detail: null, blocks: "VEEC lodgement record" });
   if (f.lifeSupport) push({ key: "life_support_plan", label: "Life support written consent / medical plan", when: "Before PIESA starts", status: f.lifeSupportPlanAt ? "done" : "open", dueAt: null, detail: null, blocks: "PIESA and installation" });
   const piesaStatus: GateStatus = f.piesaCompletedAt ? (f.piesaOutcome === "pass" ? "done" : "blocked") : f.depositCleared ? "open" : "blocked";
   push({ key: "piesa_completed", label: "PIESA completed and passed (licensed electrician/REC)", when: "After deposit, before install", status: piesaStatus, dueAt: null, detail: f.piesaCompletedAt && f.piesaOutcome !== "pass" ? `PIESA outcome: ${f.piesaOutcome ?? "not recorded"} — rectification required` : null, blocks: "Ready to install" });
@@ -101,10 +101,10 @@ export function buildComplianceTimeline(f: TimelineFacts): Gate[] {
 
   const installed = !!f.installCompletedAt;
   push({ key: "co_payment_paid", label: "Minimum $200 inc GST co-payment paid by owner", when: "Before VEEC creation", status: f.coPaymentPaidAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "VEEC creation" });
-  push({ key: "completion_consumer_docs", label: "Owner given tax invoice, assignment copy, dispute info, instructions, contacts, 5-year warranty", when: "On completion", status: f.completionDocsGivenAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "AP review" });
+  push({ key: "completion_consumer_docs", label: "Owner given tax invoice, dispute info, instructions, contacts and 5-year warranty", when: "On completion", status: f.completionDocsGivenAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "AP review" });
   push({ key: "installer_declaration", label: "Installer declaration", when: "After install", status: f.installerDeclarationAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "AP review" });
   push({ key: "evidence_complete", label: "Installation evidence complete", when: "After install", status: f.evidenceComplete ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "AP review" });
-  push({ key: "assignment_effective", label: "VEEC assignment final facts + installer and AP signatures", when: "After install", status: f.assignmentEffective ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "Ready for VEEC" });
+  push({ key: "assignment_effective", label: "VEEC assignment final facts + installer, AP and customer signatures", when: "After install", status: f.assignmentEffective ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "Ready for VEEC" });
   const apReady = !!f.coPaymentPaidAt && !!f.completionDocsGivenAt && f.installerDeclarationAt && f.evidenceComplete && f.assignmentEffective;
   push({ key: "ap_approved", label: "AP final review approved", when: "After evidence", status: f.apApprovedAt ? "done" : apReady ? "open" : "not_yet", dueAt: null, detail: null, blocks: "Ready for VEEC" });
   push({ key: "veec_lodged", label: "VEEC lodgement recorded", when: "After AP approval", status: f.veecLodgedAt ? "done" : f.apApprovedAt ? "open" : "not_yet", dueAt: null, detail: "No Activity 48 lodgement deadline found in ESC guides — confirm with ESC. Keep records 6 years after registration.", blocks: "Complete" });
@@ -125,7 +125,7 @@ export const RECORD_LABELS: Record<RecordKey, string> = {
   installer_safety_assessment: "Installer pre-installation safety assessment",
   pre_install_consumer_docs: "Owner given Consumer Factsheet, Code of Conduct info, PIESA copy (+ CES if rectified)",
   co_payment_paid: "Minimum $200 inc GST co-payment paid by owner",
-  completion_consumer_docs: "Owner given tax invoice, assignment copy, dispute info, instructions, contacts, 5-year warranty",
+  completion_consumer_docs: "Owner given tax invoice, dispute info, instructions, contacts and 5-year warranty",
 };
 export const MIN_CO_PAYMENT_INC_GST = 200;
 

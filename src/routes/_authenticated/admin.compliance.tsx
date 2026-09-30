@@ -21,7 +21,7 @@ const KEYS = [
   ["consumer_rights", "Customer agreement – VEU consumer information & rights (pre-install, at quote acceptance)"],
   ["customer_agreement", "Customer agreement – HI VIC commercial terms (optional, pre-install)"],
   ["esc_consent", "ESC Owner Consent – information sharing (after booking, ≥24h before work)"],
-  ["installer_declaration", "Installer PIISA / declaration (post-install)"],
+  ["installer_declaration", "Installer declaration (post-install)"],
   ["consumer_declaration", "Final Activity 48 VEEC Assignment – official form (post-install)"],
   ["ap_declaration", "AP declaration (if required)"],
   ["partner_agreement", "HI VIC partner participation agreement (partner onboarding)"],

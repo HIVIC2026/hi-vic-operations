@@ -64,7 +64,7 @@ function JobDetail() {
           <div className="lg:col-span-2"><RequirementCards jobId={jobId} isAdmin job={job} /></div>
                     <Section title="Status summary">
             <dl className="grid grid-cols-2 gap-1 text-sm">
-              <dt className="text-muted-foreground">Agreement / consent / VEEC assignment</dt><dd><AssignmentStatusInline jobId={jobId} /></dd>
+              <dt className="text-muted-foreground">Quote agreement / consent / post-install VEEC assignment</dt><dd><AssignmentStatusInline jobId={jobId} /></dd>
               <dt className="text-muted-foreground">Payment</dt><dd><PaymentBadge status={job.payment_status} /> {job.deposit_cleared ? <span className="text-xs text-success">deposit cleared</span> : <span className="text-xs text-danger">deposit not cleared</span>}</dd>
               <dt className="text-muted-foreground">PIESA</dt><dd>{job.piesa_date ? `${fmtDate(job.piesa_date)} → install by ${fmtDate(job.install_deadline)}` : "Not recorded"}</dd>
               <dt className="text-muted-foreground">Electrician</dt><dd>{job.electrician_name ?? "Unassigned"}</dd>

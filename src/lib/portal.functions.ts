@@ -526,7 +526,7 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
     quoteId: uuid, accept: z.boolean(), consent: z.boolean().optional(), reason: z.string().max(1000).optional(),
     signing: z.object({
       signatoryName: z.string().trim().min(2).max(200), authorityType: z.enum(["owner", "authorised_representative"]), over18: z.boolean(),
-      readConsumerInfo: z.boolean(), acceptAgreement: z.boolean(), acceptAssignment: z.boolean(), signatureName: z.string().trim().max(200),
+      readConsumerInfo: z.boolean(), acceptAgreement: z.boolean(), signatureName: z.string().trim().max(200),
       assistance: z.enum(["none", "interpreter", "support_understanding", "both"]),
     }).optional(),
   }).parse(d))
@@ -544,8 +544,7 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
       await logEvent(q.job_id, context.userId, "quote_declined", `${q.option_label} declined`, { reason: data.reason });
       return { ok: true };
     }
-    // Installation acceptance = Customer Agreement / Quote Acceptance (commercial) + a separate binding CONDITIONAL
-    // VEEC assignment record (not effective until the activity is undertaken). NOT the ESC consent.
+    // Installation acceptance is the commercial agreement only. ESC consent and VEEC assignment are later forms.
     if (q.kind === "installation") {
       if (!data.signing) throw new WorkflowError("The customer must review and sign the customer agreement to accept this quote.");
       const { data: isOwner } = await context.supabase.rpc("is_job_owner", { _job: q.job_id, _user: context.userId });
@@ -1091,7 +1090,7 @@ export const updatePartnerEnquiry = createServerFn({ method: "POST" }).middlewar
     return { ok: true };
   });
 
-// ---------- Customer Acceptance & VEEC Assignment ----------
+// ---------- Commercial quote acceptance and post-install VEEC assignment ----------
 export const getAcceptancePackage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ quoteId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
@@ -1100,7 +1099,7 @@ export const getAcceptancePackage = createServerFn({ method: "POST" }).middlewar
     await requireJobRole(context.supabase, q.job_id, ["owner", "admin"]);
     const templates = await loadTemplates();
     const pick = (k: TemplateKey) => templates.find((t) => t.template_key === k && t.approved) ?? null;
-    return { pkg: await buildAcceptancePackage(data.quoteId), consumerRights: pick("consumer_rights"), agreementWording: pick("customer_agreement"), assignmentForm: pick("consumer_declaration"), blockers: templateBlockers(templates, "agreement") };
+    return { pkg: await buildAcceptancePackage(data.quoteId), consumerRights: pick("consumer_rights"), agreementWording: pick("customer_agreement"), blockers: templateBlockers(templates, "agreement") };
   });
 
 /** All four separate signing records for a job, filtered by role. */
