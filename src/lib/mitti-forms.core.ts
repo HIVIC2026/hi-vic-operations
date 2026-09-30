@@ -89,6 +89,15 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
       { label: "360 video of ceiling space before upgrade", type: "media", required: true, perArea: true, source: `${G} Table 4` },
     ],
   },
+  // Form A1 — installer brings the customer: identical evidence questions plus the quoted-price section.
+  ready_check_priced: {
+    title: `${READY_CHECK_TITLE} – with quoted price`,
+    role: "installer",
+    fields: [
+      ...FORMS_READY_CHECK_FIELDS,
+      ...PRICING_FIELDS,
+    ],
+  },
   piesa: {
     title: "VEU Pre-installation electrical safety assessment (Insulation)",
     role: "electrician",
