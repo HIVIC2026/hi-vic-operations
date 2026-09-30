@@ -2,7 +2,7 @@
 - [x] Earlier customer journey, email, calculator and Ready Check fixes
 - [x] Activity 48 compliance timeline rules (all gates, deadlines, 30-day PIESA, 24h/5-day ESC window)
 - [x] Auto-send switches in settings (all off by default)
-- [ ] Verify gate list against official Activity 48 spec / ESC guide (research running)
+- [x] Verify gate list against official ESC Activity 48 guide (added 6 gates; lodgement deadline + spec version need ESC confirmation)
 - [ ] Compliance timeline panel on each job + countdowns in office queues
 - [ ] Auto-build draft measured quote when Ready Check Mitti report syncs
 - [ ] Office queues: Quotes to send / Send to REC / Ready for install / Send to installer / Final sign-off
