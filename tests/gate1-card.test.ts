@@ -6,8 +6,8 @@ import { readFileSync } from "node:fs";
 const src = readFileSync(new URL("../src/components/portal/JobCard.tsx", import.meta.url), "utf8");
 
 describe("JobCard Gate 1 labels (display only)", () => {
-  it("shows REVIEW REQUIRED only when eligibility_review_required is true", () => {
-    expect(src).toContain('job.eligibility_review_required ? <Pill t="warn">Review required</Pill>');
+  it("shows REVIEW REQUIRED only when eligibility_review_required is true, and never doubled with the stage label", () => {
+    expect(src).toContain('job.eligibility_review_required && step.label !== "Review required" ? <Pill t="warn">Review required</Pill>');
   });
 
   it("shows Needs onsite confirmation for needs_onsite_confirmation", () => {

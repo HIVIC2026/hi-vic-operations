@@ -96,8 +96,8 @@ export const AP_WORKLOAD = {
 };
 
 export const WHY_349 = {
-  title: "Why the $349",
-  body: "The $349 inc GST covers both the pre-install electrical safety check (PIESA) and our Accredited Person work: eligibility, owner consent, official forms, 24-hour notices, the quote and invoice, payment chasing, evidence review, VEEC creation and lodgement, six years of records and audits. Each part is legally required before a single VEEC can be created. The owner pays it on the co-branded invoice — not you.",
+  title: "Our fees, plainly",
+  body: "Two separate charges, each $349 inc GST, both paid by the owner on the one co-branded invoice — never by you. (1) The pre-install electrical safety check (PIESA): $349 when done by our electrician, or your own onboarded electrician's agreed price instead. (2) Our Accredited Person fee: $349 on every job, always the same — it covers eligibility, owner consent, official forms, 24-hour notices, the quote and invoice, payment chasing, evidence review, VEEC creation and lodgement, six years of records and audits. Each part is legally required before a single VEEC can be created.",
 };
 
 export const PARTNER_FAQ: Array<{ q: string; a: string }> = [

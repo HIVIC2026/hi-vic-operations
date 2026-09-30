@@ -263,3 +263,29 @@ export function declaredExtras(answers: Record<string, unknown> | null | undefin
   const pick = (keys: string[]) => { for (const k of keys) { const t = answerText(answers?.[k]); if (t) return t; } return null; };
   return { existing_insulation: pick(EXISTING_INSULATION_KEYS), top_floor: pick(TOP_FLOOR_KEYS) };
 }
+
+// Tidy customer-typed text at intake: proper capitals for names and addresses, collapsed spaces.
+const LOWER_WORDS = new Set(["and", "of", "the", "on", "in", "at", "de", "van", "von", "le"]);
+function capWord(w: string, first: boolean): string {
+  if (!w) return w;
+  const lower = w.toLowerCase();
+  if (!first && LOWER_WORDS.has(lower)) return lower;
+  // McX / MacX and O'X patterns
+  if (/^mc[a-z]/.test(lower)) return "Mc" + lower.slice(2, 3).toUpperCase() + lower.slice(3);
+  if (/^mac[a-z]{2,}/.test(lower) && !/^mack/.test(lower)) return "Mac" + lower.slice(3, 4).toUpperCase() + lower.slice(4);
+  return lower.slice(0, 1).toUpperCase() + lower.slice(1);
+}
+function capPart(part: string, first: boolean): string {
+  return part.split(/([-'])/).map((seg, i) => (seg === "-" || seg === "'" ? seg : capWord(seg, first && i === 0))).join("");
+}
+/** Proper-case a person's name: "jOANNAH  lowe" -> "Joannah Lowe"; handles Mc/Mac, hyphens, apostrophes. */
+export function properName(s: string | null | undefined): string {
+  return (s ?? "").trim().replace(/\s+/g, " ").split(" ").map((w, i) => capPart(w, i === 0)).join(" ");
+}
+/** Proper-case an address line or suburb; keeps unit/number tokens and all-caps state codes intact. */
+export function properAddress(s: string | null | undefined): string {
+  return (s ?? "").trim().replace(/\s+/g, " ").split(" ").map((w, i) => {
+    if (/^[0-9]/.test(w) || /^[A-Z]{2,3}$/.test(w)) return w; // numbers, VIC etc.
+    return capPart(w, i === 0);
+  }).join(" ");
+}
