@@ -7005,6 +7005,7 @@ export type Database = {
           id: string
           insurance_certificate_path: string | null
           partner_enquiry_id: string | null
+          partner_type: string
           resume_token_hash: string
           signed_at: string | null
           signed_ip: string | null
@@ -7027,6 +7028,7 @@ export type Database = {
           id?: string
           insurance_certificate_path?: string | null
           partner_enquiry_id?: string | null
+          partner_type?: string
           resume_token_hash: string
           signed_at?: string | null
           signed_ip?: string | null
@@ -7049,6 +7051,7 @@ export type Database = {
           id?: string
           insurance_certificate_path?: string | null
           partner_enquiry_id?: string | null
+          partner_type?: string
           resume_token_hash?: string
           signed_at?: string | null
           signed_ip?: string | null

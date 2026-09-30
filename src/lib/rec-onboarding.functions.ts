@@ -23,7 +23,7 @@ async function admin() {
 }
 async function findApp(token: string) {
   const db = await admin();
-  const { data, error } = await db.from("rec_onboarding_applications").select("*").eq("resume_token_hash", await sha256(token)).maybeSingle();
+  const { data, error } = await db.from("rec_onboarding_applications").select("*").eq("resume_token_hash", await sha256(token)).eq("partner_type", "rec").maybeSingle();
   if (error) throw new Error("Could not load your application.");
   if (!data) throw new Error("This onboarding link is no longer valid. Please start again.");
   return { db, app: data };
