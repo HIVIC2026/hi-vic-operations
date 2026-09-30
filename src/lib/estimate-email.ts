@@ -178,7 +178,7 @@ function renderLikelyEmail(input: EstimateEmailInput): EstimateEmail {
   }
   const onsite = input.outcome === "onsite";
   const subject = onsite ? "Good news — your preliminary Home Insulation Victoria quote is ready" : "Good news — your home looks likely to qualify for a VEU insulation discount";
-  const previewText = `Estimated VEU / VEEC discount ${discountAmount(discount)} · Your estimated cost after discount ${money(customer)}.`;
+  const previewText = `Your estimated cost after discount is ${money(customer)}, including an estimated VEU / VEEC discount of ${money(discount)}.`;
   const name = input.firstName?.trim().replace(/\s+/g, " ").slice(0, 60);
   const address = input.address?.trim().replace(/\s+/g, " ").slice(0, 180);
   const verifiedAp = typeof input.apCount === "number" && Number.isInteger(input.apCount) && input.apCount > 0;
