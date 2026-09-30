@@ -118,8 +118,15 @@ export const partnerFileUrl = createServerFn({ method: "POST" }).middleware([req
 export const setBankDetails = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ businessId: uuid, account_name: z.string().trim().min(2).max(200), bsb: z.string().regex(/^\d{3}-?\d{3}$/), account_number: z.string().regex(/^\d{5,10}$/) }).parse(d))
   .handler(async ({ data, context }) => {
-    if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.businessId, true);
-    await admin.from("business_bank_details").upsert({ business_id: data.businessId, account_name: data.account_name, bsb: data.bsb, account_number: data.account_number, updated_by: context.userId, updated_at: new Date().toISOString() });
+    const adminUser = await isAdmin(context.supabase);
+    if (!adminUser) await requireMember(context.userId, data.businessId, true);
+    const { data: business } = await admin.from("businesses").select("onboarding_status").eq("id", data.businessId).single();
+    if (business?.onboarding_status !== "approved") throw new WorkflowError("Bank details are collected only after HI VIC approves the business.");
+    const now = new Date().toISOString();
+    const { data: existing } = await admin.from("business_bank_details").select("business_id").eq("business_id", data.businessId).maybeSingle();
+    const { error } = await admin.from("business_bank_details").upsert({ business_id: data.businessId, account_name: data.account_name, bsb: data.bsb, account_number: data.account_number, updated_by: context.userId, updated_at: now, supplied_by: context.userId, supplied_at: now, reviewed_by: null, reviewed_at: null, review_status: "pending" });
+    if (error) throw new WorkflowError(error.message);
+    await admin.from("business_bank_detail_events").insert({ business_id: data.businessId, actor_id: context.userId, event_type: existing ? "changed" : "supplied", details: { bsb_last3: data.bsb.replace(/\D/g, "").slice(-3), account_last3: data.account_number.slice(-3) } as Json });
     return { ok: true };
   });
 
@@ -129,7 +136,7 @@ export const getBankDetails = createServerFn({ method: "POST" }).middleware([req
   .handler(async ({ data, context }) => {
     const adminUser = await isAdmin(context.supabase);
     if (!adminUser) await requireMember(context.userId, data.businessId);
-    const { data: b } = await admin.from("business_bank_details").select("account_name,bsb,account_number,updated_at").eq("business_id", data.businessId).maybeSingle();
+    const { data: b } = await admin.from("business_bank_details").select("account_name,bsb,account_number,updated_at,review_status,reviewed_at").eq("business_id", data.businessId).maybeSingle();
     if (!b) return null;
     return adminUser ? b : { account_name: b.account_name, bsb: `***-${b.bsb.slice(-3)}`, account_number: `****${b.account_number.slice(-3)}`, updated_at: b.updated_at };
   });

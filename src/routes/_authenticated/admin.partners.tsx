@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import type { Tables } from "@/integrations/supabase/types";
 import { useServerFn } from "@tanstack/react-start";
 import { getAdminPartnerEnquiries } from "@/lib/admin-records.functions";
+import { activatePartnerApplication } from "@/lib/partner-activation.functions";
 
 type Row = Tables<"partner_enquiries">;
 
@@ -133,6 +134,7 @@ function Detail({ row, onClose }: { row: Row; onClose: () => void }) {
 
 function SignedRecAgreement({ id }: { id: string }) {
   const [open, setOpen] = useState(false);
+  const activate = useAction(activatePartnerApplication);
   const q = useQuery({ queryKey: ["rec-onboarding", id], enabled: open, queryFn: () => getRecOnboardingRecord({ data: { id } }) });
   const r = q.data;
   return (
@@ -146,6 +148,7 @@ function SignedRecAgreement({ id }: { id: string }) {
           <div>Version <b>{r.agreement_version}</b> · signed {r.signed_at ? new Date(r.signed_at).toLocaleString("en-AU") : "—"} by <b>{r.signer_name}</b> ({r.signer_position}, {r.signer_email})</div>
           <div className="break-all text-xs text-muted-foreground">SHA-256 {r.agreement_sha256} · IP {r.signed_ip ?? "—"}</div>
           {r.certificateUrl && <a className="text-primary underline" href={r.certificateUrl} target="_blank" rel="noreferrer">Open Certificate of Currency (link expires in 10 min)</a>}
+          {r.activation ? <p className="rounded bg-success-soft p-2 font-semibold text-success">Activated as an approved partner business on {new Date(r.activation.activated_at).toLocaleDateString("en-AU")}.</p> : <Button onClick={async () => { const reason = r.agreement_version ? undefined : prompt("Office override reason"); await activate({ applicationId: id, ...(reason ? { overrideReason: reason } : {}) }, "Partner activated"); await q.refetch(); }}>Approve and activate partner</Button>}
           <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded bg-muted p-3 text-xs">{r.agreement_text}</pre>
         </div>
       ))}

@@ -39,7 +39,7 @@ export function BusinessProfile({ businessId, isHivicAdmin }: { businessId?: str
       <Electricians businessId={b.id} rels={data.relationships} options={data.electricianBusinesses.filter((e) => e.id !== b.id)} canEdit={canEdit} onDone={refetch} />
       <MeasurementMethods businessId={b.id} methods={data.measurementMethods as MethodRow[]} canEdit={canEdit} isHivicAdmin={isHivicAdmin} onDone={refetch} />
       <Section title="Rate cards">{data.rateCards.length === 0 ? <p className="text-sm text-muted-foreground">No agreed rate card on file yet – HI VIC sets these up.</p> : data.rateCards.map((r) => <div key={r.id} className="text-sm">{r.name} · {r.kind} · v{r.version} · from {r.effective_from} {r.is_active && <Badge variant="outline">Active</Badge>}</div>)}</Section>
-      <Bank businessId={b.id} canEdit={canEdit} />
+      {b.onboarding_status === "approved" && <Bank businessId={b.id} canEdit={canEdit} />}
       <Agreement businessId={b.id} agreements={data.agreements} canSign={data.myRole === "business_admin"} onDone={refetch} />
       <Section title="Xero supplier setup"><p className="text-sm">{String(b["xero_contact_status"]) === "synced" ? "Supplier contact set up in Xero." : String(b["xero_contact_status"]) === "ready" ? "Ready – HI VIC will set up your supplier record." : "Available once your business is approved."}</p></Section>
     </div>
