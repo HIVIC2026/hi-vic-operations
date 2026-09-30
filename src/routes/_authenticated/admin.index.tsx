@@ -85,7 +85,7 @@ function Pipeline() {
     <AppShell wide>
       {pipelineError && (
         <div role="alert" className="mb-4 rounded-lg border-2 border-danger bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
-          <span>Enquiries could not be loaded. Your records have not been deleted.</span>
+          <span>The Pipeline could not be loaded. Your enquiries have not been deleted.</span>
           <Button type="button" variant="outline" size="sm" className="ml-3" onClick={() => void refetchPipeline()}>Try again</Button>
         </div>
       )}
