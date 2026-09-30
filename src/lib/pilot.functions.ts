@@ -408,17 +408,35 @@ export const requestAnotherElectrician = createServerFn({ method: "POST" }).midd
 
 // ---------- Appointment coordination ----------
 export const proposeTime = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["assessment", "rectification", "installation"]).default("assessment"), start: z.string().datetime({ offset: true }), note: txt(500) }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["assessment", "ready_check", "rectification", "installation"]).default("assessment"), start: z.string().datetime({ offset: true }), note: txt(500) }).parse(d))
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "owner", "electrician", "installer"]);
     if (Date.parse(data.start) <= Date.now()) throw new WorkflowError("Propose a time in the future.");
-    const { data: a } = await admin.from("job_assignments").select("id, user_id, first_response_at").eq("job_id", data.jobId).eq("role", data.kind === "installation" ? "installer" : "electrician").eq("active", true).maybeSingle();
+    const { data: a } = await admin.from("job_assignments").select("id, user_id, first_response_at").eq("job_id", data.jobId).eq("role", data.kind === "installation" || data.kind === "ready_check" ? "installer" : "electrician").eq("active", true).maybeSingle();
     if (!a) throw new WorkflowError("No trade is assigned yet.");
+    if (data.kind === "ready_check" && role !== "installer" && role !== "owner") throw new WorkflowError("The assigned installer contacts the homeowner to arrange the Ready Check.");
     await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", data.jobId).eq("kind", data.kind).eq("status", "proposed");
     await admin.from("appointment_proposals").insert({ job_id: data.jobId, kind: data.kind, assignment_id: a.id, proposed_by: context.userId, proposer_role: role, starts_at: data.start, note: data.note ?? null });
     if (a.user_id === context.userId && !a.first_response_at) await admin.from("job_assignments").update({ first_response_at: new Date().toISOString() }).eq("id", a.id);
-    await logEvent(data.jobId, context.userId, "appointment_proposed", `${role} proposed ${new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })} for ${data.kind}`, { note: data.note });
+    await logEvent(data.jobId, context.userId, data.kind === "ready_check" ? "ready_check_contact_recorded" : "appointment_proposed", `${role} proposed ${new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })} for ${data.kind === "ready_check" ? "the Ready Check" : data.kind}`, { note: data.note, assignment_id: a.id });
     return { ok: true };
+  });
+
+/** Installer records Ready Check contact/follow-up; this stores history and sends nothing. */
+export const recordReadyCheckContact = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, outcome: z.enum(["contacted", "no_response", "cannot_reach"]), note: txt(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, data.jobId, ["installer"]);
+    const { data: assignment } = await admin.from("job_assignments").select("id").eq("job_id", data.jobId).eq("role", "installer").eq("user_id", context.userId).eq("active", true).maybeSingle();
+    if (!assignment) throw new WorkflowError("Only the assigned installer can record Ready Check contact.");
+    const needsFollowUp = data.outcome !== "contacted";
+    await logEvent(data.jobId, context.userId, "ready_check_contact_recorded", `Installer Ready Check contact: ${data.outcome.replace("_", " ")}`, { assignment_id: assignment.id, outcome: data.outcome, note: data.note ?? null, follow_up_required: needsFollowUp });
+    if (needsFollowUp) {
+      const { count } = await admin.from("reassignment_requests").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("role", "installer").eq("status", "open");
+      if (!count) await admin.from("reassignment_requests").insert({ job_id: data.jobId, role: "installer", requested_by: context.userId, reason: `Ready Check contact follow-up required: ${data.outcome.replace("_", " ")}${data.note ? ` — ${data.note}` : ""}` });
+      await admin.from("jobs").update({ next_action: "Follow up Ready Check contact or reassign installer" }).eq("id", data.jobId);
+    }
+    return { ok: true, followUpRequired: needsFollowUp };
   });
 
 export const respondToProposal = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

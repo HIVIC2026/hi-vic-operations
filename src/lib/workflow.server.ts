@@ -144,6 +144,15 @@ export async function readyCheckPaymentCleared(jobId: string) {
 async function readyCheckBlockers(jobId: string, to: Stage): Promise<string[]> {
   const out: string[] = [];
   if (to === "ready_check_ready_to_schedule" && !(await readyCheckPaymentCleared(jobId))) out.push("$99 Home Insulation Ready Check payment not received.");
+  if (to === "ready_check_scheduled") {
+    const { data: assignment } = await admin.from("job_assignments").select("id, user_id, business_id, businesses(business_type, onboarding_status, is_active, capabilities)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+    const business = assignment?.businesses as { business_type: string; onboarding_status: string; is_active: boolean; capabilities: string[] | null } | null;
+    const certifiedInstaller = !!assignment?.user_id && !!assignment.business_id && !!business?.is_active && business.onboarding_status === "approved"
+      && (business.business_type === "eec_installer" || business.capabilities?.includes("installer"));
+    if (!certifiedInstaller) out.push("Assign an approved EEC Certified Insulation Installer before scheduling the Ready Check.");
+    const { data: booking } = await admin.from("bookings").select("id, scheduled_start, contractor_id, assignment_id, business_id").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (!booking?.scheduled_start || booking.assignment_id !== assignment?.id || booking.contractor_id !== assignment?.user_id || booking.business_id !== assignment?.business_id) out.push("Record the Ready Check date, time, assigned installer and installer business before scheduling.");
+  }
   if (to === "measured_estimate_ready") {
     const { count } = await admin.from("ready_checks").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "submitted");
     if (!count) out.push("Ready Check not yet submitted by the installer.");

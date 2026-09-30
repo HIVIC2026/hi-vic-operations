@@ -105,9 +105,17 @@ export const assignContractor = createServerFn({ method: "POST" }).middleware([r
   .inputValidator((d) => z.object({ jobId: uuid, userId: uuid, role: z.enum(["electrician", "installer"]) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
+    const stage = await getStage(data.jobId);
+    if (stage === "ready_check_ready_to_schedule" && data.role === "electrician") throw new WorkflowError("Do not assign an electrician for the Ready Check. Assign an EEC Certified Insulation Installer.");
     const { data: hasRole } = await admin.from("user_roles").select("id").eq("user_id", data.userId).eq("role", data.role).maybeSingle();
     if (!hasRole) throw new WorkflowError(`User does not hold the ${data.role} role.`);
     const { data: prof } = await admin.from("profiles").select("full_name, business_id").eq("id", data.userId).single();
+    if (stage === "ready_check_ready_to_schedule" && data.role === "installer") {
+      if (!prof?.business_id) throw new WorkflowError("The installer must belong to an approved EEC installer business.");
+      const { requireApprovedPartner } = await import("./pilot.server");
+      const business = await requireApprovedPartner(prof.business_id);
+      if (business.business_type !== "eec_installer" && !business.capabilities.includes("installer")) throw new WorkflowError("The Ready Check requires an EEC Certified Insulation Installer.");
+    }
     await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: "reassigned" }).eq("job_id", data.jobId).eq("role", data.role).eq("active", true);
     await admin.from("job_assignments").insert({ job_id: data.jobId, user_id: data.userId, role: data.role, business_id: prof?.business_id ?? null, assigned_by: context.userId });
     await admin.from("reassignment_requests").update({ status: "actioned", resolved_by: context.userId, resolved_at: new Date().toISOString() }).eq("job_id", data.jobId).eq("role", data.role).eq("status", "open");
@@ -115,6 +123,7 @@ export const assignContractor = createServerFn({ method: "POST" }).middleware([r
     const { data: src } = await admin.from("jobs").select("channel, originating_installer_user_id").eq("id", data.jobId).single();
     const awayFromOrigin = data.role === "installer" && src?.channel === "installer_sourced" && src.originating_installer_user_id !== data.userId;
     await logEvent(data.jobId, context.userId, "contractor_assigned", `${data.role === "electrician" ? "Electrician" : "Installer"} assigned: ${prof?.full_name ?? "user"}${awayFromOrigin ? " (admin reassignment away from originating installer – attribution unchanged)" : ""}`);
+    if (stage === "ready_check_ready_to_schedule" && data.role === "installer") await admin.from("jobs").update({ next_action: "Assigned EEC Certified Insulation Installer to contact owner and arrange Ready Check" }).eq("id", data.jobId);
     if (data.role === "electrician" && (await getStage(data.jobId)) === "awaiting_electrician")
       await transition(data.jobId, "assessment_booking", context.userId, "Electrician assigned – booking measure-up");
     await autoAdvanceJob(data.jobId, context.userId, "contractor assigned");
@@ -864,7 +873,7 @@ export const requestReassignment = createServerFn({ method: "POST" }).middleware
     await requireJobRole(context.supabase, data.jobId, ["owner", "admin"]);
     const reason = data.cantAgreeTime ? `Can't agree a suitable time: ${data.reason}` : data.reason;
     await admin.from("reassignment_requests").insert({ job_id: data.jobId, role: data.role, requested_by: context.userId, reason });
-    await logEvent(data.jobId, context.userId, data.cantAgreeTime ? "reassignment_review_requested" : "reassignment_requested", data.cantAgreeTime ? "Owner can't agree a time with the electrician – HI VIC to review (electrician stays assigned)" : `Owner requested a different ${data.role}`, { reason });
+    await logEvent(data.jobId, context.userId, data.cantAgreeTime ? "reassignment_review_requested" : "reassignment_requested", data.cantAgreeTime ? `Owner can't agree a time with the ${data.role} – Home Insulation Victoria to review (${data.role} stays assigned)` : `Owner requested a different ${data.role}`, { reason });
     await admin.from("jobs").update({ next_action: `Review ${data.role} reassignment request (owner)` }).eq("id", data.jobId);
     return { ok: true };
   });
