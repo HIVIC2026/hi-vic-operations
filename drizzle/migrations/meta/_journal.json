@@ -330,6 +330,13 @@
       "when": 1790744238309,
       "tag": "0046_workflow_auto_send_switches",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1790746941788,
+      "tag": "0047_job_compliance_records",
+      "breakpoints": true
     }
   ]
 }
