@@ -22,7 +22,7 @@ export const enquirySchema = z.object({
   postcode: z.string().trim().max(10).optional().nullable(),
   occupancy: z.enum(["owner_occupied", "rental"]).optional().nullable(),
   // LOCKED intake invariant: every homeowner/referral enquiry carries a numeric ceiling area estimate.
-  estimated_area_m2: z.number({ error: "estimated_area_m2 is required" }).finite().positive().max(5000),
+  estimated_area_m2: z.number({ required_error: "estimated_area_m2 is required" }).finite().positive().max(5000),
   // Backwards compatibility only: `true` is rejected — there is no "I don't know" path.
   area_unknown: z.literal(false).optional(),
   life_support: z.boolean().optional(),
