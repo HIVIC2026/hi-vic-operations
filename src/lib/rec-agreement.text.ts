@@ -242,7 +242,16 @@ export const REC_AGREEMENT_SECTIONS: { n: number; title: string; paras: string[]
    "The parties must first attempt in good faith to resolve a dispute through their nominated business contacts. This does not prevent urgent court, safety or regulatory action.",
    "Notices may be given through Home Insulation Victoria or to the business email addresses recorded in Home Insulation Victoria. The REC must keep its contact details current.",
    "This agreement is governed by the laws of Victoria, Australia. The parties submit to the courts of Victoria.",
-   "Electronic execution is permitted. The signer agrees that their authenticated account, typed name, position, email, date/time, agreement version, acknowledgement record, device user agent and document hash may be retained as evidence of execution."
-  ]
- }
+    "Electronic execution is permitted. The signer agrees that their authenticated account, typed name, position, email, date/time, agreement version, acknowledgement record, device user agent and document hash may be retained as evidence of execution."
+   ]
+  },
+  {
+   "n": 27,
+   "title": "Portal-only communication and response times",
+   "paras": [
+    "All communication about a Job — with the owner, installers and Home Insulation Victoria — must happen in the Job's messages in the portal, not by phone or outside messaging. Booking dates are proposed and accepted in the portal, and the portal record is the shared audit record. Owner contact details are masked; the portal is the channel.",
+    "The REC must respond to job allocations and owner booking messages in the portal within 24 hours. If there has been no contact after 24 hours, the owner may be offered the choice to keep waiting or to be transferred to a different electrician; on transfer the Job moves with its full history.",
+    "PIESA results and any rectification quote (or confirmation that none is required) must be submitted through the portal on the day of each assessment. Time gates are tracked per Job in the portal, including PIESA validity (30 days — the install must start within it), the regulator install-notification window (24 hours to 5 days before install) and delivery of the PIESA copy to the owner at least 24 hours before install."
+   ]
+  }
 ];
