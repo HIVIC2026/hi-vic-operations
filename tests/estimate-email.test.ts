@@ -30,7 +30,7 @@ describe("customer outcome email renderers", () => {
     expect(h).toContain("border-radius:16px");
     expect(h).toContain("border:1px solid #D4DAF5");
     expect(h).toContain("border:1px solid #BEE8CE");
-    expect(`${email.html} ${email.plainText}`).toContain("VEU / VEEC discount and estimated cost after discount could change.");
+    expect(`${email.html} ${email.plainText}`).toContain("could change your estimated project total, VEU / VEEC discount and estimated cost after discount.");
     expect(`${email.html} ${email.plainText}`).not.toContain("VEU discount and estimated price could change.");
     expect(email.plainText).toContain("BOOK MY READY CHECK →:");
     expect(`${email.html} ${email.plainText}`).not.toContain("PAY $349 & CONTINUE");
