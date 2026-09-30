@@ -13,7 +13,7 @@ export type FormField = {
 const G = "ESC Guide V1.1";
 const F1 = "DEECA PIESA form";
 const F2 = "DEECA PIISA form";
-const yn = (label: string, source: string, when?: string): FormField => ({ label, type: "yesno", required: true, choices: ["Yes", "No"], when, source });
+const yn = (label: string, source: string, when?: string): FormField => ({ label, type: "yesno", required: true, choices: ["Yes", "No"], ...(when ? { when } : {}), source });
 export const B2_ITEMS = [
   "Prohibited luminaires present – replace with IC and/or IC4 rated LED lights",
   "Circuit protection rating needs to be upgraded (derated)",
