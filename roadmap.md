@@ -43,4 +43,5 @@
 - [x] Source VEEC spot price from an online feed instead of manual entry
 - [x] Add per-job markup breakdown (charge vs pay: installer, electrician, AP fee, VEEC margin) on the VEECs page
 - [x] Include $220 installer referral fee confirmed for margin maths
-- [ ] Confirm exact per-VEEC lodgement fee (registry cost) and record it in pricing settings
+- [x] Confirm exact per-VEEC lodgement fee (registry cost) and record it in pricing settings — $4.35 per VEEC, ESC fee from 1 Jan 2026
+- [ ] Record the negotiated REC PIESA rate once agreed (pricing_settings.piesa_rec_cost_ex_gst)
