@@ -14,7 +14,7 @@ const detailed = { ...common, estimatedTotal: 3747, installationPrice: 4023, ass
 describe("customer outcome email renderers", () => {
   test("likely eligible leads with the complete personalised quote", () => {
     const email = withUnsubscribe(renderEstimateEmail({ ...detailed, outcome: "likely" }), unsubscribeUrl);
-    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "YOUR HOME LOOKS LIKELY TO QUALIFY", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$1,325", "$5,072", "$3,747", "$700", "Estimated ceiling size: <strong>134.1 m²", "CHANGE →", "Based on the estimated ceiling size provided in your enquiry. Change it to see a revised estimate.", "NOT SURE YOUR CEILING SIZE IS RIGHT?", "CHECK ANOTHER CEILING SIZE →", "Calculator changes are for comparison only and do not overwrite your enquiry.", "THERE ARE NO OTHER STANDARD FEES TO ADD TO THIS ESTIMATE.", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "For $99, we’ll arrange your onsite Ready Check so we can measure your ceiling and prepare a more accurate project estimate.", "The $99 is credited toward your project if you proceed.", "BOOK MY READY CHECK →", "See exactly what’s included on the next page.", "All prices include GST.", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Refer a friend →", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
+    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "YOUR HOME LOOKS LIKELY TO QUALIFY", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$1,325", "$5,072", "$3,747", "$700", "Estimated ceiling size: <strong>134.1 m²", "CHANGE →", "Based on the estimated ceiling size provided in your enquiry. Change it to see a revised estimate.", "WANT TO CHECK THE NUMBERS FIRST?", "TRY ANOTHER CEILING SIZE", "OPEN THE INTERACTIVE CALCULATOR →", "Calculator changes are for comparison only and do not overwrite your enquiry.", "THERE ARE NO OTHER STANDARD FEES TO ADD TO THIS ESTIMATE.", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "For $99, we’ll arrange your onsite Ready Check so we can measure your ceiling and prepare a more accurate project estimate.", "The $99 is credited toward your project if you proceed.", "BOOK MY READY CHECK →", "See exactly what’s included on the next page.", "All prices include GST.", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Refer a friend →", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
     for (const removed of ["CONFIRM MY QUOTE", "WHAT HAPPENS NEXT"]) expect(email.html).not.toContain(removed);
     expect(email.html).not.toContain("% estimated saving");
     expect(email.plainText).toContain("Estimated ceiling size: 134.1 m² — CHANGE:");
@@ -24,7 +24,7 @@ describe("customer outcome email renderers", () => {
     expect(email.html).not.toContain("background-color:#ECF9F1;border-radius:14px");
     expect(email.html).not.toContain("MORE THAN AN INSULATION QUOTE.");
     const h = email.html;
-    const order = ["YOUR PRELIMINARY QUOTE", "Estimated ceiling size:", "CHANGE →", "R5.0 ceiling insulation — supply &amp; install", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "THERE ARE NO OTHER STANDARD FEES", "NOT SURE YOUR CEILING SIZE IS RIGHT?", "CHECK ANOTHER CEILING SIZE →", "NEXT STEP", "BOOK MY READY CHECK →"].map((t) => h.indexOf(t));
+    const order = ["YOUR PRELIMINARY QUOTE", "Estimated ceiling size:", "CHANGE →", "R5.0 ceiling insulation — supply &amp; install", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "THERE ARE NO OTHER STANDARD FEES", "NEXT STEP", "BOOK MY READY CHECK →", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →"].map((t) => h.indexOf(t));
     expect(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1]!))).toBe(true);
     expect(h.split("BOOK MY READY CHECK →").length - 1).toBe(1);
     expect(h).toContain("border-radius:16px");
@@ -49,6 +49,8 @@ describe("customer outcome email renderers", () => {
     expect(h).not.toContain("CHANGE THE CEILING SIZE FOR A REVISED ESTIMATE");
     expect(h).not.toContain("WE HANDLE THE VEU PROCESS");
     expect(h).toContain(`${estimateUrl}#calculator`);
+    expect(h).toContain(`${estimateUrl}#confirm`);
+    expect(`${email.html} ${email.plainText}`).not.toMatch(/NOT SURE YOUR CEILING SIZE IS RIGHT\?|CHECK ANOTHER CEILING SIZE →/);
     expect(`${h} ${email.plainText}`).not.toMatch(/RESERVED CAPACITY|WHY INSULATE/);
     expect(email.html).not.toContain("YOUR ANSWERS HAVEN'T RULED YOU OUT");
     expect(email.html.split("All prices include GST.").length - 1).toBe(1);
@@ -58,10 +60,15 @@ describe("customer outcome email renderers", () => {
 
   test("onsite confirmation remains positive and renders dynamic reasons", () => {
     const email = renderEstimateEmail({ ...detailed, outcome: "onsite", reasons: ["Existing insulation needs confirmation.", "Roof access must be checked."] });
-    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY — WE JUST NEED TO CONFIRM A FEW THINGS.", "WHAT WE NEED TO CONFIRM", "Existing insulation needs confirmation.", "Roof access must be checked.", "YOUR ANSWERS HAVEN'T RULED YOU OUT.", "$1,325", "$3,747", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "CHECK ANOTHER CEILING SIZE →", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "BOOK MY READY CHECK →", "See exactly what’s included on the next page."]) expect(email.html).toContain(copy);
+    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY — WE JUST NEED TO CONFIRM A FEW THINGS.", "WHAT WE NEED TO CONFIRM", "Existing insulation needs confirmation.", "Roof access must be checked.", "YOUR ANSWERS HAVEN'T RULED YOU OUT.", "$1,325", "$3,747", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "BOOK MY READY CHECK →", "See exactly what’s included on the next page."]) expect(email.html).toContain(copy);
     expect(email.html.indexOf("YOUR PRELIMINARY QUOTE")).toBeLessThan(email.html.indexOf("WHAT WE NEED TO CONFIRM"));
     expect(email.html).toContain(`${estimateUrl}#calculator`);
     expect(email.html.split("BOOK MY READY CHECK →").length - 1).toBe(1);
+    expect(email.html.indexOf("BOOK MY READY CHECK →")).toBeLessThan(email.html.indexOf("WANT TO CHECK THE NUMBERS FIRST?"));
+    expect(email.html.indexOf("OPEN THE INTERACTIVE CALCULATOR →")).toBeLessThan(email.html.indexOf("WHAT WE NEED TO CONFIRM"));
+    expect(email.plainText.indexOf("BOOK MY READY CHECK →")).toBeLessThan(email.plainText.indexOf("WANT TO CHECK THE NUMBERS FIRST?"));
+    expect(email.plainText.indexOf("OPEN THE INTERACTIVE CALCULATOR")).toBeLessThan(email.plainText.indexOf("WHAT WE NEED TO CONFIRM"));
+    expect(`${email.html} ${email.plainText}`).not.toMatch(/NOT SURE YOUR CEILING SIZE IS RIGHT\?|CHECK ANOTHER CEILING SIZE →/);
     const htmlQuote = email.html.slice(email.html.indexOf("YOUR PRELIMINARY QUOTE"), email.html.indexOf("NEXT STEP"));
     const textQuote = email.plainText.slice(email.plainText.indexOf("YOUR PRELIMINARY QUOTE"), email.plainText.indexOf("NEXT STEP"));
     for (const quote of [htmlQuote, textQuote]) expect(quote).not.toMatch(/\$99 Home Insulation Ready Check — payable now|credited toward your project|Estimated remaining project balance after Ready Check/);
