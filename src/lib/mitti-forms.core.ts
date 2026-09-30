@@ -55,7 +55,7 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
       { label: "Owner name", type: "text", required: true, prefill: true, source: "portal" },
       { label: "Assessor", type: "text", required: true, prefill: true, source: "portal – person doing the measure-up" },
       { label: "Installer photo at front of premises with photo ID", type: "media", required: true, source: `${G} Table 4` },
-      { label: "Building class", type: "choice", required: true, choices: ["Class 1", "Class 2 sole-occupancy unit"], source: `${G} eligibility` },
+      { label: "Property type", type: "choice", required: true, prefill: true, choices: ["House", "Townhouse", "Unit or apartment"], source: "portal – prefilled from enquiry; portal derives building class (House/Townhouse = Class 1, Unit = Class 2 sole-occupancy unit)" },
       { label: "Relevant ceiling or roof built in the last 5 years", type: "yesno", required: true, choices: YN, source: `${G} eligibility` },
       { label: "Area name", type: "text", required: true, perArea: true, source: `${G} Table 4 floor plan` },
       { label: "Existing insulation", type: "choice", required: true, perArea: true, choices: ["Uninsulated", "Under-insulated"], source: `${G} eligibility` },
