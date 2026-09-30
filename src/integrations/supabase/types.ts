@@ -2476,6 +2476,84 @@ export type Database = {
           },
         ]
       }
+      electrical_allowance_snapshots: {
+        Row: {
+          allowance_total_inc_gst: number
+          created_at: string
+          id: string
+          job_id: string
+          lines: Json
+          preliminary_only: boolean
+          rate_card_id: string | null
+          rate_card_version: number
+          ready_check_id: string
+          ready_check_version: number
+          unpriceable: Json
+        }
+        Insert: {
+          allowance_total_inc_gst: number
+          created_at?: string
+          id?: string
+          job_id: string
+          lines: Json
+          preliminary_only?: boolean
+          rate_card_id?: string | null
+          rate_card_version: number
+          ready_check_id: string
+          ready_check_version: number
+          unpriceable?: Json
+        }
+        Update: {
+          allowance_total_inc_gst?: number
+          created_at?: string
+          id?: string
+          job_id?: string
+          lines?: Json
+          preliminary_only?: boolean
+          rate_card_id?: string | null
+          rate_card_version?: number
+          ready_check_id?: string
+          ready_check_version?: number
+          unpriceable?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "electrical_allowance_snapshots_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrical_allowance_snapshots_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "electrical_allowance_snapshots_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrical_allowance_snapshots_rate_card_id_fkey"
+            columns: ["rate_card_id"]
+            isOneToOne: false
+            referencedRelation: "rec_rate_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrical_allowance_snapshots_ready_check_id_fkey"
+            columns: ["ready_check_id"]
+            isOneToOne: false
+            referencedRelation: "ready_checks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       electrician_nominations: {
         Row: {
           business_id: string | null
@@ -3724,6 +3802,58 @@ export type Database = {
             foreignKeyName: "job_imports_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_install_windows: {
+        Row: {
+          buffer_max_days: number
+          buffer_min_days: number
+          job_id: string
+          piesa_completed_at: string | null
+          planned_install_date: string | null
+          planned_piesa_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          buffer_max_days?: number
+          buffer_min_days?: number
+          job_id: string
+          piesa_completed_at?: string | null
+          planned_install_date?: string | null
+          planned_piesa_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          buffer_max_days?: number
+          buffer_min_days?: number
+          job_id?: string
+          piesa_completed_at?: string | null
+          planned_install_date?: string | null
+          planned_piesa_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_install_windows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_install_windows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_install_windows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
@@ -5108,6 +5238,86 @@ export type Database = {
           },
         ]
       }
+      piesa_reconciliations: {
+        Row: {
+          actual_items: Json
+          actual_total_inc_gst: number
+          allowance_snapshot_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          job_id: string
+          outcome: string
+          preliminary_total_inc_gst: number
+          priced_lines: Json
+          reason: string
+          requires_customer_approval: boolean
+          unmatched_items: Json
+          variance_inc_gst: number
+        }
+        Insert: {
+          actual_items: Json
+          actual_total_inc_gst: number
+          allowance_snapshot_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          job_id: string
+          outcome: string
+          preliminary_total_inc_gst: number
+          priced_lines: Json
+          reason: string
+          requires_customer_approval: boolean
+          unmatched_items?: Json
+          variance_inc_gst: number
+        }
+        Update: {
+          actual_items?: Json
+          actual_total_inc_gst?: number
+          allowance_snapshot_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          job_id?: string
+          outcome?: string
+          preliminary_total_inc_gst?: number
+          priced_lines?: Json
+          reason?: string
+          requires_customer_approval?: boolean
+          unmatched_items?: Json
+          variance_inc_gst?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "piesa_reconciliations_allowance_snapshot_id_fkey"
+            columns: ["allowance_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "electrical_allowance_snapshots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piesa_reconciliations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piesa_reconciliations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "piesa_reconciliations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       piesa_records: {
         Row: {
           assessment_id: string | null
@@ -6281,6 +6491,352 @@ export type Database = {
           },
         ]
       }
+      ready_check_acceptances: {
+        Row: {
+          accepted_at: string
+          accepted_ip: unknown
+          accepted_user_agent: string | null
+          copy_version: string
+          cost_after_discount_inc_gst: number
+          estimate_id: string
+          estimate_input_signature: string
+          estimate_settings_version: number
+          estimated_discount_inc_gst: number
+          estimated_remaining_balance_inc_gst: number
+          id: string
+          job_id: string
+          ready_check_amount_inc_gst: number
+          snapshot: Json
+        }
+        Insert: {
+          accepted_at?: string
+          accepted_ip?: unknown
+          accepted_user_agent?: string | null
+          copy_version: string
+          cost_after_discount_inc_gst: number
+          estimate_id: string
+          estimate_input_signature: string
+          estimate_settings_version: number
+          estimated_discount_inc_gst: number
+          estimated_remaining_balance_inc_gst: number
+          id?: string
+          job_id: string
+          ready_check_amount_inc_gst: number
+          snapshot: Json
+        }
+        Update: {
+          accepted_at?: string
+          accepted_ip?: unknown
+          accepted_user_agent?: string | null
+          copy_version?: string
+          cost_after_discount_inc_gst?: number
+          estimate_id?: string
+          estimate_input_signature?: string
+          estimate_settings_version?: number
+          estimated_discount_inc_gst?: number
+          estimated_remaining_balance_inc_gst?: number
+          id?: string
+          job_id?: string
+          ready_check_amount_inc_gst?: number
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ready_check_acceptances_estimate_id_fkey"
+            columns: ["estimate_id"]
+            isOneToOne: false
+            referencedRelation: "indicative_estimates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_acceptances_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_acceptances_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "ready_check_acceptances_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ready_check_observations: {
+        Row: {
+          evidence_document_ids: string[]
+          field_key: string
+          id: string
+          job_id: string
+          ready_check_id: string
+          recorded_at: string
+          recorded_by: string | null
+          value: Json | null
+        }
+        Insert: {
+          evidence_document_ids?: string[]
+          field_key: string
+          id?: string
+          job_id: string
+          ready_check_id: string
+          recorded_at?: string
+          recorded_by?: string | null
+          value?: Json | null
+        }
+        Update: {
+          evidence_document_ids?: string[]
+          field_key?: string
+          id?: string
+          job_id?: string
+          ready_check_id?: string
+          recorded_at?: string
+          recorded_by?: string | null
+          value?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ready_check_observations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_observations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "ready_check_observations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_observations_ready_check_id_fkey"
+            columns: ["ready_check_id"]
+            isOneToOne: false
+            referencedRelation: "ready_checks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ready_check_payment_attempts: {
+        Row: {
+          created_at: string
+          id: string
+          idempotency_key: string
+          job_id: string
+          outcome: string
+          payment_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          job_id: string
+          outcome: string
+          payment_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          job_id?: string
+          outcome?: string
+          payment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ready_check_payment_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_payment_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "ready_check_payment_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_payment_attempts_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "ready_check_payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ready_check_payments: {
+        Row: {
+          acceptance_id: string
+          amount_inc_gst: number
+          attempt_count: number
+          created_at: string
+          credit_applied_to_quote_id: string | null
+          failed_at: string | null
+          id: string
+          job_id: string
+          mode: string
+          paid_at: string | null
+          purpose: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          acceptance_id: string
+          amount_inc_gst: number
+          attempt_count?: number
+          created_at?: string
+          credit_applied_to_quote_id?: string | null
+          failed_at?: string | null
+          id?: string
+          job_id: string
+          mode?: string
+          paid_at?: string | null
+          purpose?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          acceptance_id?: string
+          amount_inc_gst?: number
+          attempt_count?: number
+          created_at?: string
+          credit_applied_to_quote_id?: string | null
+          failed_at?: string | null
+          id?: string
+          job_id?: string
+          mode?: string
+          paid_at?: string | null
+          purpose?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ready_check_payments_acceptance_id_fkey"
+            columns: ["acceptance_id"]
+            isOneToOne: true
+            referencedRelation: "ready_check_acceptances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "ready_check_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ready_checks: {
+        Row: {
+          attended_at: string | null
+          created_at: string
+          external_mitti_id: string | null
+          id: string
+          installer_business_id: string | null
+          installer_user_id: string | null
+          job_id: string
+          status: string
+          submitted_at: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          attended_at?: string | null
+          created_at?: string
+          external_mitti_id?: string | null
+          id?: string
+          installer_business_id?: string | null
+          installer_user_id?: string | null
+          job_id: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          attended_at?: string | null
+          created_at?: string
+          external_mitti_id?: string | null
+          id?: string
+          installer_business_id?: string | null
+          installer_user_id?: string | null
+          job_id?: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ready_checks_installer_business_id_fkey"
+            columns: ["installer_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "ready_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reassignment_requests: {
         Row: {
           created_at: string
@@ -6349,6 +6905,141 @@ export type Database = {
             columns: ["resolved_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rec_rate_card_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          details: Json
+          event_type: string
+          id: string
+          rate_card_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type: string
+          id?: string
+          rate_card_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type?: string
+          id?: string
+          rate_card_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rec_rate_card_events_rate_card_id_fkey"
+            columns: ["rate_card_id"]
+            isOneToOne: false
+            referencedRelation: "rec_rate_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rec_rate_card_items: {
+        Row: {
+          code: string
+          conservative_quantity: number | null
+          created_at: string
+          description: string
+          id: string
+          internal_cost_ex_gst: number | null
+          quantity_source: string | null
+          rate_card_id: string
+          rate_inc_gst: number | null
+          rule_kind: string
+          trigger_key: string
+          trigger_value: Json | null
+          unit: string
+        }
+        Insert: {
+          code: string
+          conservative_quantity?: number | null
+          created_at?: string
+          description: string
+          id?: string
+          internal_cost_ex_gst?: number | null
+          quantity_source?: string | null
+          rate_card_id: string
+          rate_inc_gst?: number | null
+          rule_kind: string
+          trigger_key: string
+          trigger_value?: Json | null
+          unit: string
+        }
+        Update: {
+          code?: string
+          conservative_quantity?: number | null
+          created_at?: string
+          description?: string
+          id?: string
+          internal_cost_ex_gst?: number | null
+          quantity_source?: string | null
+          rate_card_id?: string
+          rate_inc_gst?: number | null
+          rule_kind?: string
+          trigger_key?: string
+          trigger_value?: Json | null
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rec_rate_card_items_rate_card_id_fkey"
+            columns: ["rate_card_id"]
+            isOneToOne: false
+            referencedRelation: "rec_rate_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rec_rate_cards: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          id: string
+          notes: string | null
+          provider_business_id: string | null
+          test_only: boolean
+          version: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          id?: string
+          notes?: string | null
+          provider_business_id?: string | null
+          test_only?: boolean
+          version: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          id?: string
+          notes?: string | null
+          provider_business_id?: string | null
+          test_only?: boolean
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rec_rate_cards_provider_business_id_fkey"
+            columns: ["provider_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -7064,7 +7755,42 @@ export type Database = {
           payment_status: string
         }[]
       }
+      accept_ready_check_test: {
+        Args: {
+          _accepted_ip?: unknown
+          _accepted_user_agent?: string
+          _copy_version: string
+          _cost_after_discount: number
+          _estimate_id: string
+          _estimate_input_signature: string
+          _estimate_settings_version: number
+          _estimated_discount: number
+          _estimated_remaining: number
+          _job_id: string
+          _snapshot: Json
+        }
+        Returns: {
+          acceptance_id: string
+          accepted_at: string
+          created: boolean
+          paid_at: string
+          payment_id: string
+          payment_status: string
+        }[]
+      }
       apply_pre_assessment_test_payment: {
+        Args: {
+          _idempotency_key: string
+          _outcome: string
+          _payment_id: string
+        }
+        Returns: {
+          changed: boolean
+          paid_at: string
+          payment_status: string
+        }[]
+      }
+      apply_ready_check_test_payment: {
         Args: {
           _idempotency_key: string
           _outcome: string
@@ -7253,6 +7979,18 @@ export type Database = {
         | "complete"
         | "cancelled"
         | "on_hold"
+        | "preliminary_estimate_ready"
+        | "ready_check_awaiting_acceptance"
+        | "ready_check_awaiting_payment"
+        | "ready_check_ready_to_schedule"
+        | "ready_check_scheduled"
+        | "ready_check_complete"
+        | "measured_estimate_ready"
+        | "measured_quote_accepted"
+        | "piesa_and_install_window_pending"
+        | "piesa_scheduled"
+        | "piesa_complete"
+        | "electrical_variation_pending"
       measurement_source: "electrician" | "installer" | "admin_import"
       measurement_status: "draft" | "needs_review" | "complete" | "rejected"
       occupancy_type: "owner_occupied" | "rental"
@@ -7494,6 +8232,18 @@ export const Constants = {
         "complete",
         "cancelled",
         "on_hold",
+        "preliminary_estimate_ready",
+        "ready_check_awaiting_acceptance",
+        "ready_check_awaiting_payment",
+        "ready_check_ready_to_schedule",
+        "ready_check_scheduled",
+        "ready_check_complete",
+        "measured_estimate_ready",
+        "measured_quote_accepted",
+        "piesa_and_install_window_pending",
+        "piesa_scheduled",
+        "piesa_complete",
+        "electrical_variation_pending",
       ],
       measurement_source: ["electrician", "installer", "admin_import"],
       measurement_status: ["draft", "needs_review", "complete", "rejected"],
