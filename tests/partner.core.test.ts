@@ -1,7 +1,7 @@
 // Partner enquiry intake: signature, validation, idempotency, never a job. Run: bun test ./tests/
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "fs";
-import { handlePartnerEnquiry, type PartnerRow } from "../src/lib/partner.core";
+import { handlePartnerEnquiry, partnerIssues, type PartnerRow } from "../src/lib/partner.core";
 import { planBase44Job } from "../src/lib/enquiry.core";
 
 const b64 = (b: ArrayBuffer) => Buffer.from(b).toString("base64");
