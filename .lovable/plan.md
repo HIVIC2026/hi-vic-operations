@@ -34,6 +34,26 @@ Ready Check Mitti report syncs
 7. **Auto switches.** Admin settings get one switch per step (send quote, send to REC, send to installer, send Mitti forms). All start off, and each change is audited.
 8. **Notifications to the REC and installer.** Each request appears in their portal right away. Email/SMS is sent only when comms are enabled.
 
+## Activity 48 AP compliance timeline (built in as hard gates)
+
+Each gate is a timed requirement the job cannot pass without. It shows on the job page and in the office queues with a countdown and a red warning when it is close or overdue.
+
+| When | Requirement | Gate behaviour |
+|---|---|---|
+| Quote acceptance | Owner signs Customer Acceptance, the conditional VEEC rights assignment to us, and the required consumer declarations | Invoice, deposit and REC request stay locked until all are signed |
+| Before any booking | 50% deposit paid (Xero) or audited override | Blocks REC and installer scheduling |
+| After booking, at least 24h before install | Reg 23A consent from owner | Blocks "Ready to install" |
+| At least 24h before install | ESC notified of the upcoming installation (notice sent and recorded with a reference) | Blocks installation start; bookings under 24h ahead are rejected |
+| At least 24h before install | PIESA copy given to the owner and the installer | Blocks "Ready to install" |
+| Within 30 days of PIESA | Installation completed | After day 30 the job is blocked until the PIESA is redone |
+| After install | Installer declaration, evidence photos/files, final facts on the VEEC assignment, installer then AP sign | Blocks AP review |
+| AP review | All evidence verified, assignment effective | Only then "Ready for VEEC" |
+| Lodgement | VEEC lodgement recorded (quantity, reference, date), within the ESC lodgement window | Tracked with a deadline warning |
+
+- Most of these checks already exist in the portal. This work **connects them to the new flow**, adds countdowns to the office queues, and adds a **Compliance timeline** panel to each job.
+- **Before building, first step:** check this list line by line against the current official Activity 48 specification and ESC guidelines. That covers exact wording, the notification timing and method, lodgement windows, record-keeping periods, and any documents missing from the list. Anything I can't confirm from an official source is marked "needs your confirmation", never guessed.
+- Rules live in one place, and time limits are settings, so they can change without a rebuild.
+
 ## Safety kept
 
 - Existing guards stay in charge: the 50% deposit, the 30-day PIESA window, 24h booking lead time, READY TO INSTALL, and evidence checks.
