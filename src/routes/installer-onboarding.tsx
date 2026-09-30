@@ -205,7 +205,7 @@ function InstallerOnboarding() {
         <div style={{ fontWeight: 700, margin: "18px 0 10px", fontFamily: DISPLAY }}>Have these handy</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 22 }}>
           {["ABN + CII training / certification details", "Public liability insurance (Certificate of Currency)", "Installer names + training details", "Your proposed rates incl. removal & extras"].map((t, i) => (
-            <div key={t} style={{ background: ACCENTS[i % ACCENTS.length].bg, color: ACCENTS[i % ACCENTS.length].fg, borderRadius: 14, padding: "12px 14px", fontSize: 14, fontWeight: 600 }}><span style={{ fontWeight: 800 }}>✓ </span>{t}</div>
+            <div key={t} style={{ background: ACCENTS[i % 4]!.bg, color: ACCENTS[i % 4]!.fg, borderRadius: 14, padding: "12px 14px", fontSize: 14, fontWeight: 600 }}><span style={{ fontWeight: 800 }}>✓ </span>{t}</div>
           ))}
         </div>
         <p style={{ fontSize: 13, color: MUTED }}>Your progress saves as you go on this device.</p>

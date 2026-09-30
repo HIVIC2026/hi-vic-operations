@@ -241,7 +241,7 @@ function RecOnboarding() {
         <div style={{ fontWeight: 700, margin: "18px 0 10px", fontFamily: DISPLAY }}>Have these handy</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 22 }}>
           {["REC + ABN details", "Public liability insurance (Certificate of Currency)", "Electrician details + licence numbers", "Your proposed rates"].map((t, i) => (
-            <div key={t} style={{ background: ACCENTS[i % ACCENTS.length].bg, color: ACCENTS[i % ACCENTS.length].fg, borderRadius: 14, padding: "12px 14px", fontSize: 14, fontWeight: 600 }}><span style={{ fontWeight: 800 }}>✓ </span>{t}</div>
+            <div key={t} style={{ background: ACCENTS[i % 4]!.bg, color: ACCENTS[i % 4]!.fg, borderRadius: 14, padding: "12px 14px", fontSize: 14, fontWeight: 600 }}><span style={{ fontWeight: 800 }}>✓ </span>{t}</div>
           ))}
         </div>
         <p style={{ fontSize: 13, color: MUTED }}>Your progress saves as you go on this device.</p>
