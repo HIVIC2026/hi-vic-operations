@@ -8,14 +8,14 @@ import { getAdminEstimate, getAdminEstimateLink, getAdminEstimateLinkUrl, getOwn
 import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
 import { BENCHMARK_LABEL, CALC_ASSUMPTION_LABEL, CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, FEE_DESCRIPTION, FEE_LABEL, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings, type Scenario } from "@/lib/estimate.core";
 import type { LocationVariables } from "@/lib/activity48.core";
-import { CUSTOMER_ASSESSMENT_ACTION, CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
-import type { AssessmentAcceptanceState } from "@/lib/assessment-payment.core";
+import { CUSTOMER_ASSESSMENT_ACTION, CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
+import { READY_CHECK_FEE, readyCheckRemaining, type ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
 import { Pill } from "./badges";
 
 export const HEADLINE = { likely: "Your home has passed our initial eligibility checks.", onsite: "Your home looks likely to qualify." } as const;
 const ELIGIBILITY_COPY = {
-  likely: { badge: "LIKELY ELIGIBLE", description: "Based on your answers and our initial property checks, your home is on track to qualify for a VEU insulation discount. The onsite assessment confirms the remaining technical requirements and your final price." },
-  onsite: { badge: "LIKELY ELIGIBLE — ONSITE CONFIRMATION NEEDED", description: "Based on your answers and our initial checks, your property is a strong candidate for the VEU insulation discount. We just need to confirm the remaining onsite items before the final quote." },
+  likely: { badge: "LIKELY ELIGIBLE", description: "Based on your answers and our initial property checks, your home is on track to qualify for a VEU insulation discount. Your Home Insulation Ready Check confirms the measured area and site details for your project estimate." },
+  onsite: { badge: "LIKELY ELIGIBLE — ONSITE CONFIRMATION NEEDED", description: "Based on your answers and our initial checks, your property is a strong candidate for the VEU insulation discount. We just need to confirm the remaining items at your Ready Check." },
 } as const;
 function plainOnsiteDriver(driver: string) {
   if (/insulation/i.test(driver)) return "the type and condition of existing insulation";
@@ -32,43 +32,39 @@ export type CustomerData = {
 
 type Est = { scenarios: Scenario[]; access_adjustment: { moderate: number; difficult: number } };
 
-export function ConfirmQuote({ estimatedPrice, assessmentFee, onBack, preview = false, testMode = preview, state = null, busy = false, error = null, onAccept, onTestPayment }: { estimatedPrice: number; assessmentFee: number; onBack: () => void; preview?: boolean; testMode?: boolean; state?: AssessmentAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; onTestPayment?: (outcome: "success" | "failure") => void }) {
-  const remaining = Math.max(0, estimatedPrice - assessmentFee);
+export function ConfirmQuote({ estimatedPrice, onBack, preview = false, testMode = preview, state = null, busy = false, error = null, onAccept, onTestPayment }: { estimatedPrice: number; assessmentFee?: number; onBack: () => void; preview?: boolean; testMode?: boolean; state?: ReadyCheckAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; onTestPayment?: (outcome: "success" | "failure") => void }) {
+  const remaining = readyCheckRemaining(estimatedPrice);
   const paid = state?.paymentStatus === "paid";
   const [acknowledged, setAcknowledged] = useState(false);
   return <section className="estimate-brand estimate-quote-card overflow-hidden text-estimate-navy" aria-labelledby="confirm-quote-title">
     {testMode && <div className="bg-warning-soft px-5 py-3 text-center text-xs font-extrabold uppercase text-warning-foreground">Test mode · no real payment will be taken</div>}
     <div className="bg-estimate-blue px-5 py-7 text-estimate-white sm:px-9 sm:py-9">
       <p className="text-xs font-extrabold uppercase tracking-wider text-estimate-green-light">Your next step</p>
-      <h1 id="confirm-quote-title" className="mt-2 text-3xl font-extrabold leading-tight sm:text-4xl">LET’S CONFIRM YOUR QUOTE</h1>
-      <p className="mt-3 max-w-xl text-sm font-semibold leading-relaxed">The next step is your Mandatory Pre-Installation Electrical Safety Assessment (PIESA) + onsite ceiling measure-up.</p>
+      <h1 id="confirm-quote-title" className="mt-2 text-3xl font-extrabold leading-tight sm:text-4xl">BOOK YOUR {CUSTOMER_READY_CHECK.name.toUpperCase()}</h1>
+      <p className="mt-3 max-w-xl text-sm font-semibold leading-relaxed">{CUSTOMER_READY_CHECK.paragraphs[1]}</p>
     </div>
     <div className="px-5 py-7 sm:px-9 sm:py-9">
       <dl className="space-y-3 border-b border-estimate-blue-soft pb-6 text-sm">
         <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">{CUSTOMER_QUOTE_LABELS.finalCost}</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(estimatedPrice)}</dd></div>
-        <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">{CUSTOMER_QUOTE_LABELS.payableNow}</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(assessmentFee)}</dd></div>
+        <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">{CUSTOMER_QUOTE_LABELS.payableNow}</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(READY_CHECK_FEE)}</dd></div>
         <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">{CUSTOMER_QUOTE_LABELS.remainingBalance}</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(remaining)}</dd></div>
       </dl>
-      <div className="estimate-action-card mt-6 space-y-3 text-sm leading-relaxed">{CUSTOMER_ASSESSMENT_ACTION.paragraphs.map((paragraph, index) => <p key={paragraph} className={index === 0 || index === CUSTOMER_ASSESSMENT_ACTION.paragraphs.length - 1 ? "font-extrabold" : undefined}>{paragraph}</p>)}</div>
+      <div className="estimate-action-card mt-6 space-y-3 text-sm leading-relaxed">{CUSTOMER_READY_CHECK.paragraphs.map((paragraph, index) => <p key={paragraph} className={index === 0 || index === 2 ? "font-extrabold" : undefined}>{paragraph}</p>)}</div>
       <label className="estimate-secondary-card mt-6 flex items-start gap-3 text-sm leading-relaxed">
         <input type="checkbox" checked={!!state || acknowledged} disabled={!!state || busy} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-1 size-4 accent-estimate-blue" />
-        <span>I accept proceeding with the Measure + PIESA assessment. I understand the $349 is included in this estimate, is not paid again if the project proceeds, and final figures may change only for the onsite factors already disclosed.</span>
+        <span>I accept booking the $99 Home Insulation Ready Check. I understand it is a service charge if I do not proceed, it is credited toward my project if I do, and it is not the PIESA.</span>
       </label>
       <div className="mt-7">
-        <h2 className="text-lg font-extrabold text-estimate-blue">What this visit confirms</h2>
+        <h2 className="text-lg font-extrabold text-estimate-blue">What your Ready Check records</h2>
         <ul className="mt-4 space-y-3 text-sm font-semibold">
-          {["Actual eligible ceiling area", "Existing insulation and whether removal is required", "Electrical safety", "The information needed to confirm your final quote"].map((item) => <li key={item} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-estimate-green" /><span>{item}</span></li>)}
+          {["Measured eligible ceiling area", "Existing insulation and whether removal is required", "Access and installation factors", "Observable electrical items for a preliminary allowance"].map((item) => <li key={item} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-estimate-green" /><span>{item}</span></li>)}
         </ul>
       </div>
-      <div className="mt-7 border-t border-estimate-blue-soft pt-6">
-        <h2 className="text-lg font-extrabold text-estimate-blue">NO SURPRISE ADD-ONS.</h2>
-        <p className="mt-2 text-sm font-bold leading-relaxed">{CUSTOMER_PAYMENT_COPY.noSilentAdditions}</p><p className="mt-2 text-sm leading-relaxed">If the onsite assessment identifies insulation removal or electrical rectification that isn’t included in your estimate, we’ll show you exactly what’s required and what it costs before you decide whether to proceed.</p>
-      </div>
       <div className="mt-7 space-y-3">
-        {!state && testMode && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold" disabled={!acknowledged || busy || !onAccept} onClick={onAccept}>{busy ? "RECORDING…" : CUSTOMER_ASSESSMENT_ACTION.cta}</Button>}
-        {state && !paid && testMode && <div className="estimate-secondary-card" data-testid="test-payment-controls"><p className="text-xs font-extrabold uppercase text-estimate-blue">Test payment controls</p><p className="mt-2 text-sm">Current state: <strong>{state.paymentStatus === "failed" ? "Payment failed — retry available" : "Unpaid"}</strong></p><div className="mt-4 grid gap-3 sm:grid-cols-2"><Button type="button" variant="outline" size="field" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("failure")}>SIMULATE FAILURE</Button><Button type="button" size="field" className="bg-estimate-blue text-estimate-white" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("success")}>SIMULATE SUCCESS</Button></div></div>}
-        {!testMode && !paid && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold disabled:opacity-100" disabled>PAYMENT CURRENTLY UNAVAILABLE</Button>}
-        {paid && <div className="estimate-action-card" role="status"><p className="text-lg font-extrabold text-estimate-blue">$349 Measure + PIESA payment received</p><p className="mt-2 text-sm">{CUSTOMER_QUOTE_LABELS.remainingBalance}: <strong>{dollars(state.estimatedRemainingBalanceIncGst)}</strong></p><p className="mt-2 text-sm">Next: Home Insulation Victoria will arrange electrician assignment or Measure + PIESA scheduling.</p></div>}
+        {!state && testMode && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold" disabled={!acknowledged || busy || !onAccept} onClick={onAccept}>{busy ? "RECORDING…" : CUSTOMER_READY_CHECK.cta}</Button>}
+        {state && !paid && testMode && <div className="estimate-secondary-card" data-testid="test-payment-controls"><p className="text-xs font-extrabold uppercase text-estimate-blue">Test mode · payment controls</p><p className="mt-2 text-sm">Current state: <strong>{state.paymentStatus === "failed" ? "Payment failed — retry available" : "Unpaid"}</strong></p><div className="mt-4 grid gap-3 sm:grid-cols-2"><Button type="button" variant="outline" size="field" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("failure")}>SIMULATE FAILURE</Button><Button type="button" size="field" className="bg-estimate-blue text-estimate-white" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("success")}>SIMULATE SUCCESS</Button></div></div>}
+        {!testMode && !paid && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold disabled:opacity-100" disabled>BOOKING CURRENTLY UNAVAILABLE</Button>}
+        {paid && <div className="estimate-action-card" role="status"><p className="text-lg font-extrabold text-estimate-blue">$99 Ready Check payment received</p><p className="mt-2 text-sm">{CUSTOMER_PAYMENT_COPY.credited}</p><p className="mt-2 text-sm">{CUSTOMER_QUOTE_LABELS.remainingBalance}: <strong>{dollars(state.estimatedRemainingBalanceIncGst)}</strong></p><p className="mt-2 text-sm">Next: Home Insulation Victoria will arrange your Ready Check with one of our insulation partners.</p></div>}
         {state?.stale && <p className="border-l-4 border-danger bg-danger-soft px-4 py-3 text-sm font-bold" role="alert">Your estimate changed. Please review and accept the updated estimate before paying.</p>}
         {error && <p className="text-sm font-bold text-danger" role="alert">{error}</p>}
         <Button type="button" variant="ghost" size="field" className="w-full font-bold text-estimate-blue hover:bg-estimate-green-soft hover:text-estimate-blue" onClick={onBack}>← BACK TO MY ESTIMATE</Button>
@@ -93,7 +89,7 @@ function PriceResult({ est, area, fees, assumption = false }: { est: Est; area: 
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-estimate-green-light pb-4 font-semibold text-estimate-navy"><dt className="min-w-0">{CUSTOMER_QUOTE_LABELS.discount}</dt><dd className="text-estimate-green">−{dollars(standard.applied_discount)}</dd></div>
       </dl>
       <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 font-bold text-estimate-navy"><span className="text-sm">{CUSTOMER_QUOTE_LABELS.finalCost}</span><span className="text-xl">{dollars(standard.estimated_customer_total)}</span></div>
-      <div className="estimate-action-card mt-5 text-sm leading-relaxed text-estimate-navy"><p><strong>{CUSTOMER_QUOTE_LABELS.payableNow}</strong></p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.included}</p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.notAgain}</p><p className="mt-2">{CUSTOMER_QUOTE_LABELS.remainingBalance}: <strong>{dollars(Math.max(0, standard.estimated_customer_total - fees.piesa))}</strong></p></div>
+      <div className="estimate-action-card mt-5 text-sm leading-relaxed text-estimate-navy"><p><strong>{CUSTOMER_QUOTE_LABELS.payableNow}</strong></p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.credited}</p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.notPiesa} {CUSTOMER_PAYMENT_COPY.purpose}</p><p className="mt-2">{CUSTOMER_QUOTE_LABELS.remainingBalance}: <strong>{dollars(readyCheckRemaining(standard.estimated_customer_total))}</strong></p></div>
     </div>
     {standard.copayment_capped && <p className="mt-3 text-sm">The discount is limited so your contribution meets the program minimum.</p>}
   </section>;
@@ -103,7 +99,7 @@ function CalculatorQuoteResult({ est, area, fees, existingInsulation }: { est: E
   const primary = est.scenarios.find((scenario) => scenario.key === "can_remain") ?? est.scenarios[0];
   if (!primary) return null;
   const standard = primary.by_access.standard;
-  const remaining = Math.max(0, standard.estimated_customer_total - fees.piesa);
+  const remaining = readyCheckRemaining(standard.estimated_customer_total);
   const rows = customerQuoteRows({ piesa: fees.piesa, installation: standard.installation, apManagement: fees.ap });
   return <div className="space-y-5" data-testid="calculator-result">
     <section className="estimate-quote-card overflow-hidden" aria-label="Revised preliminary estimate">
@@ -124,8 +120,8 @@ function CalculatorQuoteResult({ est, area, fees, existingInsulation }: { est: E
         </div>
         <div className="estimate-action-card mt-5 text-sm leading-relaxed">
           <p><strong>{CUSTOMER_QUOTE_LABELS.payableNow}</strong></p>
-          <p className="mt-1 font-bold">{CUSTOMER_PAYMENT_COPY.included}</p>
-          <p className="mt-1">{CUSTOMER_PAYMENT_COPY.notAgain}</p>
+          <p className="mt-1 font-bold">{CUSTOMER_PAYMENT_COPY.credited}</p>
+          <p className="mt-1">{CUSTOMER_PAYMENT_COPY.notPiesa} {CUSTOMER_PAYMENT_COPY.purpose}</p>
           <p className="mt-3 flex items-baseline justify-between gap-3 border-t border-estimate-green/25 pt-3"><span>{CUSTOMER_QUOTE_LABELS.remainingBalance}</span><strong data-testid="calculator-remaining">{dollars(remaining)}</strong></p>
         </div>
         <p className="mt-4 text-xs font-bold">All prices incl GST.</p>
