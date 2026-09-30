@@ -116,3 +116,27 @@ export function urgentGates(gates: Gate[]): Gate[] {
   const rank: Record<GateStatus, number> = { overdue: 0, blocked: 1, due_soon: 2, open: 3, not_yet: 9, done: 9 };
   return gates.filter((g) => rank[g.status] < 9).sort((a, b) => rank[a.status] - rank[b.status]);
 }
+
+// ---- Enforcement: office-recorded Activity 48 items that gate real stage entry ----
+export type RecordKey = "life_support_plan" | "assignment_copy_to_consumer" | "installer_safety_assessment" | "pre_install_consumer_docs" | "co_payment_paid" | "completion_consumer_docs";
+export const RECORD_LABELS: Record<RecordKey, string> = {
+  life_support_plan: "Life support written consent / medical plan",
+  assignment_copy_to_consumer: "Copy of signed VEEC assignment form given to owner",
+  installer_safety_assessment: "Installer pre-installation safety assessment",
+  pre_install_consumer_docs: "Owner given Consumer Factsheet, Code of Conduct info, PIESA copy (+ CES if rectified)",
+  co_payment_paid: "Minimum $200 inc GST co-payment paid by owner",
+  completion_consumer_docs: "Owner given tax invoice, assignment copy, dispute info, instructions, contacts, 5-year warranty",
+};
+export const MIN_CO_PAYMENT_INC_GST = 200;
+
+/** Which recorded items each stage needs (cumulative). Pure. */
+export function complianceRecordBlockers(to: string, recorded: Set<RecordKey>, f: { lifeSupport: boolean; ownerPaidIncGst: number }): string[] {
+  const need: RecordKey[] = [];
+  if (f.lifeSupport && ["assessment_booked", "assessment_complete", "installation_booked", "evidence_outstanding"].includes(to)) need.push("life_support_plan");
+  if (to === "evidence_outstanding") need.push("pre_install_consumer_docs");
+  if (to === "ap_review" || to === "ready_for_veec") need.push("installer_safety_assessment", "completion_consumer_docs", "co_payment_paid");
+  if (to === "ready_for_veec") need.push("assignment_copy_to_consumer");
+  return need
+    .filter((k) => !(recorded.has(k) || (k === "co_payment_paid" && f.ownerPaidIncGst >= MIN_CO_PAYMENT_INC_GST)))
+    .map((k) => `Activity 48 record missing: ${RECORD_LABELS[k]}`);
+}

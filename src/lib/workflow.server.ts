@@ -200,6 +200,16 @@ export async function measurementBlocker(jobId: string): Promise<string | null> 
 export async function stageEntryBlockers(jobId: string, to: Stage): Promise<string[]> {
   const blockers: string[] = [];
   blockers.push(...(await readyCheckBlockers(jobId, to)));
+  if (["assessment_booked", "assessment_complete", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"].includes(to)) {
+    const { complianceRecordBlockers } = await import("./compliance-timeline.core");
+    const [{ data: recs }, { data: job }, { data: invs }] = await Promise.all([
+      admin.from("job_compliance_records").select("record_key").eq("job_id", jobId),
+      admin.from("jobs").select("life_support").eq("id", jobId).single(),
+      admin.from("invoices").select("deposit_paid_amount").eq("job_id", jobId),
+    ]);
+    const paid = (invs ?? []).reduce((a, i) => a + Number(i.deposit_paid_amount ?? 0), 0);
+    blockers.push(...complianceRecordBlockers(to, new Set((recs ?? []).map((r) => r.record_key as never)), { lifeSupport: !!job?.life_support, ownerPaidIncGst: paid }));
+  }
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {
     const cb = await commercialBlocker(jobId);
     if (cb) blockers.push(cb);
