@@ -18,10 +18,10 @@ export const searchAddresses = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ query: z.string().trim().min(4).max(200) }).parse(d))
   .handler(async ({ data }) => {
     const r = await call({ action: "autocomplete", query: data.query });
-    const list = Array.isArray(r.suggestions) ? r.suggestions : [];
+    const list = Array.isArray(r["suggestions"]) ? r["suggestions"] : [];
     return list.slice(0, 6).flatMap((s) => {
       const o = s as Record<string, unknown>;
-      const id = str(o.id, 600), label = str(o.label);
+      const id = str(o["id"], 600), label = str(o["label"]);
       return id && label ? [{ id, label }] : [];
     });
   });
@@ -30,7 +30,7 @@ export const addressDetails = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ placeId: z.string().min(1).max(600) }).parse(d))
   .handler(async ({ data }) => {
     const r = await call({ action: "details", placeId: data.placeId });
-    const a = (r.address ?? null) as Record<string, unknown> | null;
+    const a = (r["address"] ?? null) as Record<string, unknown> | null;
     if (!a) return null;
-    return { label: str(a.label) ?? "", street: str(a.street), suburb: str(a.suburb), postcode: str(a.postcode, 10), state: str(a.state, 20), latitude: num(a.latitude), longitude: num(a.longitude) };
+    return { label: str(a["label"]) ?? "", street: str(a.street), suburb: str(a["suburb"]), postcode: str(a["postcode"], 10), state: str(a["state"], 20), latitude: num(a["latitude"]), longitude: num(a["longitude"]) };
   });
