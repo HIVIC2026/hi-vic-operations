@@ -175,7 +175,7 @@ describe("follow-up: Base44 limits, consent guard, extra declarations", () => {
   test("owner-targeting delivery paths require both locks; portal and trade-only paths do not need consent", () => {
     const pf = readFileSync("src/lib/portal.functions.ts", "utf8");
     expect(pf).toContain('await assertCustomerDeliveryAllowed(data.jobId, `${data.channel} message`)');
-    expect(pf).toContain('await assertCustomerDeliveryAllowed(data.jobId, "owner authority request")');
+    expect(pf).not.toContain('"owner authority request"'); // legacy request retired entirely
     expect(pf).toMatch(/if \(data\.channel === "email" \|\| data\.channel === "sms"\)/); // portal messages untouched
     expect(readFileSync("src/lib/assignment.server.ts", "utf8")).toContain("customerDeliveryState(jobId)");
     expect(readFileSync("src/lib/consent.server.ts", "utf8")).toContain("customerDeliveryState(p.jobId)");
