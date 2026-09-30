@@ -1,49 +1,74 @@
-# Separate, validated Mitti templates
+# Two Mitti forms: installer Ready Check + PIISA, electrician PIESA (required items only)
 
-## Goal
-Replace the incorrect combined Mitti form with two role-specific forms:
+## Rule
+Each form asks only for what the ESC Activity 48 Guide V1.1, the Accreditation Conditions and the VEEC assignment/creation forms require. The only additions are the few items the portal needs to quote and book the job, and each one is marked "portal" below. Nothing optional or nice-to-have is included.
 
-1. **Installer — Free Ready Check: Eligibility & Measurement**
-2. **Licensed REC electrician — Pre-Installation Electrical Safety Assessment (PIESA)**
+Mitti can't create forms remotely. The portal will produce an exact build sheet for each form, and a form is connected only after its structure passes validation. The current combined draft stays disconnected.
 
-Mitti cannot create or edit templates through its connection, so the portal will provide exact field-by-field build sheets and refuse to connect a template until its structure passes validation. The final IDs are entered only after the two forms are created in Mitti.
+## Form A: Installer Ready Check (free, before PIESA)
+Eligibility and measurement only. It includes no safety sign-off.
+1. Job number and address (prefilled, portal)
+2. Photo of each EEC certified installer at the front of the premises, with photo ID visible (geotagged, timestamped)
+3. Building class: Class 1, or a sole-occupancy unit in Class 2 (top-floor/relevant ceiling)
+4. Relevant ceiling/roof or extension built in the last 5 years? (Yes/No)
+5. For each upgrade area (up to 3), with consistent area names:
+   - uninsulated or under-insulated
+   - if under-insulated: photo with a vertical ruler showing depth, any brand/R-value marking, and estimated existing R-value (eligible only below R2.0)
+   - removal required? Answer against the 3 official criteria (conductive/metallic, unsuitable condition, cannot meet AS3999/manufacturer requirements)
+   - measured area in m²
+6. 360° video of each area before the upgrade, labelled per area, max 250 MB
+7. Diagram/floor plan of the areas, with dimensions and m² (plus elevation photos if there is a balcony, verandah or patio)
+8. Do all luminaires appear to be IC/IC-4? (observation only; the electrician confirms)
+9. Access/extras that affect the quote: tile lift, metal roof, difficult access (portal)
 
-## Build
+## Form B: Electrician PIESA (licensed electrician engaged by a REC)
+1. Job number and address (prefilled)
+2. Electrician name, phone, licence number, company name/address and REC number
+3. Photo of the electrician at the front of the premises with photo ID, before the assessment (geotagged, timestamped)
+4. Life support: if yes, the written consent/medical plan must be attached before the assessment begins
+5. Mains-connected cables in the ceiling space: RCD protected if required, TPS or equivalent, and meet basic protection (each Yes/No)
+6. Switchboard cable photo showing TPS, with no infinity/Olsent, lead-sheathed, TRS, cotton-insulated, timber-trunking or split-metal conduit wiring (taken by the electrician)
+7. Every luminaire classified and marked IC or IC-4 (Yes/No; No means not eligible until rectified)
+8. Can the space above the ceiling be de-energised before works? (Yes/No)
+9. Rectification required? If yes, list the items (standard rate items, or "other" for office pricing)
+10. Conditions for electrical safety, including whether an electrician must be on site at installation start
+11. Downlights replaced before installation? (Yes/No; VEEC creation field)
+12. Certificate of Electrical Safety number and description, only if rectification was done
+13. Signatures: electrician and property owner, both electronic, with the assessment date (no earlier than 30 days before works)
 
-### 1. Installer Ready Check template
-- Prefill the job number, verified address, owner, assigned installer, booking time, declared life-support status and preliminary area.
-- Capture installer identity, attendance time, geotagged attendance evidence and ceiling-space evidence.
-- Capture building/ceiling eligibility observations, gross and excluded areas, one authoritative net eligible area, measurement method and measurement evidence.
-- Capture existing insulation, observed type/depth/R-value, removal requirement and removal area/reason.
-- Capture access and installation factors, plus objective electrical observations only.
-- Explicitly state that installer observations are preliminary and are not PIESA or electrical-compliance findings.
-- Forbid pass/fail, compliant/safe-to-install and certificate conclusions by the installer.
+## Form C: Installer PIISA (install day, lead installer)
+Separate short form, completed on the day after the PIESA copy has been received.
+1. Lead installer name and EEC certification number
+2. Confirm a copy of the signed PIESA is held (the portal blocks this until the PIESA has been sent at least 24h before)
+3. Worksite is safe and PIESA conditions will be followed, including whether an electrician is required on site
+4. Only IC/IC-4 luminaires in the ceiling area
+5. Life support consent/plan held, if applicable
+6. SWMS completed (upload)
+7. If an electrician is required: photo of the electrician at the front with ID on install day
+8. Isolation photo: switchboard tagged and locked out, plus solar and battery isolators off if present
+9. Product packaging photo showing brand, model and R-value
+10. Daily re-check on each extra day (repeatable)
+11. After installation, for each area: 360° video (coverage, no compression, no debris, max 250 MB) and a vertical ruler depth photo
+12. Electronic signature and date (must be within 30 days of the PIESA)
 
-### 2. REC PIESA template
-- Prefill the job, site, owner, assigned licensed electrician and booked assessment time.
-- Capture electrician licence and REC details, assessment date and required geotagged identity/site evidence.
-- Capture explicit checks for cables, RCD/basic protection, luminaires, de-energisation, switchboard, hazards and whether an electrician must attend installation.
-- Capture rectification items using structured standard items plus an unpriced “other” path requiring office review.
-- Use the official four-state PIESA result wording, rather than inferring a pass from “no rectification required.”
-- Capture conditional Certificate of Electrical Safety details where rectification occurred.
-- Keep the completed official form/evidence separate from installer measurement records.
+## Where the other AP evidence lives (not in Mitti)
+These already exist or are tracked in the portal's Compliance section, so the forms won't ask for them again:
+- owner consent to share information
+- ESC installation notice
+- consumer factsheet
+- tax invoice fields
+- $200 co-payment
+- 5-year warranty
+- VEEC assignment form (installer, then AP, then owner)
+- 6-year record retention
 
-### 3. Portal validation and safe sync
-- Add separate configurable IDs for the installer and PIESA templates; remove the hardcoded PIESA dependency.
-- Validate each template’s exact required labels, unique matches, field types and allowed choices before creating an inspection.
-- Route installer results only to Ready Check/measurement records and PIESA results only to electrical assessment records.
-- Preserve the full Mitti snapshot and validation issues.
-- Mitti submission never completes a requirement, decides compliance, advances a job, creates a quote or sends communication.
+## Portal changes
+- Separate settings for the Ready Check, PIESA and PIISA form IDs. The hardcoded PIESA ID is removed.
+- Each form's labels, types and choices are validated before use, and a form fails closed if anything is missing, duplicated or the wrong type.
+- Answers are routed by role: Ready Check to measurements, PIESA to electrical assessment, PIISA to the installer safety record. No role can write another role's findings.
+- Evidence photos/videos are stored against each checklist item in the private job file, and missing items block the matching stage.
+- Syncing never completes a gate, passes compliance, advances a job, quotes or sends anything.
+- Tests cover each form in full, missing fields, duplicates, wrong role, conditional items and timing (PIESA 30 days, 24h copies, PIISA within 30 days).
 
-### 4. Verification
-- Add tests for both complete forms, missing required fields, duplicate labels, wrong template/role, malformed values, conditional fields and explicit PIESA outcomes.
-- Test that the installer cannot record PIESA conclusions and the electrician cannot overwrite the accepted measure-up.
-- Check the signed-in screens after the IDs are configured.
-
-## Required external step
-After the build sheets are ready, the two templates must be created in the Mitti interface because Mitti’s API does not support template creation/editing. Their IDs can then be entered in the portal and validated before use. The current combined draft will remain disconnected.
-
-## Safety
-- External sending and automatic Mitti dispatch remain off.
-- No official wording is invented; exact official forms remain attached/retained where required.
-- The 30-day PIESA window and every existing deposit, ESC, evidence and completion gate remain unchanged.
+## Open item
+The fillable DEECA PIESA/PIISA documents couldn't be downloaded automatically because the site blocks it. The checklist above comes from the ESC Guide/Conditions, which set out what those forms must contain. If you download the two official forms and upload them, I'll match the wording exactly. Until then, the forms will be labelled "HI VIC checklist", not the official form.
