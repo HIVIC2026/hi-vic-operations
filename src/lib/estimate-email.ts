@@ -92,7 +92,7 @@ function shell(content: string, preview: string, pixel: string | null, fixedLayo
 }
 
 const OPEN_SANS = CUSTOMER_BRAND.font;
-function likelyShell(content: string, preview: string, pixel: string | null) {
+export function likelyShell(content: string, preview: string, pixel: string | null) {
   const brandedContent = content.replace(/<(table|td|p|h1|h2|a)([^>]*?)style="/g, `<$1$2style="font-family:${OPEN_SANS};`);
   const responsive = `<style type="text/css">
 body,table,td,p,h1,h2,a,span{font-family:${OPEN_SANS};}
