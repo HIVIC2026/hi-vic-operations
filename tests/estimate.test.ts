@@ -113,7 +113,7 @@ describe("static separation / UI", () => {
     expect(ui).not.toContain("AP management &amp; compliance");
     expect(ui).toContain("Step 3 · Indicative estimate");
     expect(ui.indexOf("<NextStep fee")).toBeLessThan(ui.indexOf("<HouseholdBenefits />"));
-    expect(ui.indexOf("<NextStep fee")).toBeLessThan(ui.indexOf("<EstimateDetails data"));
+     expect(ui.indexOf("<NextStep fee")).toBeLessThan(ui.indexOf("<EstimateDetails />"));
     expect(ui).toContain("CHECK ANOTHER CEILING SIZE");
     expect(ui).toContain("*Victorian Government estimates/averages. Actual savings vary");
     expect(ui).toContain("Up to 20%*");
