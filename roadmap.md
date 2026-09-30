@@ -65,4 +65,4 @@
 - [x] Installer-led jobs with a complete measure-up skip the Ready Check
 - [x] Align To action buttons, colour-code task statuses and add status filtering
 
-- [ ] Rename and restyle the portal login as Home Insulation Victoria Operations
+- [x] Rename and restyle the portal login as Home Insulation Victoria Operations
