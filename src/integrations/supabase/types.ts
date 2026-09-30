@@ -3721,6 +3721,61 @@ export type Database = {
           },
         ]
       }
+      job_compliance_records: {
+        Row: {
+          created_at: string
+          id: string
+          job_id: string
+          notes: string | null
+          occurred_at: string
+          record_key: string
+          recorded_by: string | null
+          reference: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          job_id: string
+          notes?: string | null
+          occurred_at: string
+          record_key: string
+          recorded_by?: string | null
+          reference?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          job_id?: string
+          notes?: string | null
+          occurred_at?: string
+          record_key?: string
+          recorded_by?: string | null
+          reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_compliance_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_compliance_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_compliance_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_imports: {
         Row: {
           business_id: string

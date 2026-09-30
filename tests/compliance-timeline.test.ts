@@ -61,3 +61,16 @@ describe("official ESC additions", () => {
     expect(buildComplianceTimeline({ ...f, coPaymentPaidAt: base.now, completionDocsGivenAt: base.now }).find((x) => x.key === "ap_approved")!.status).toBe("open");
   });
 });
+
+import { complianceRecordBlockers } from "../src/lib/compliance-timeline.core";
+describe("compliance records gate stages", () => {
+  const none = new Set<never>();
+  test("install start needs pre-install docs", () => expect(complianceRecordBlockers("evidence_outstanding", none, { lifeSupport: false, ownerPaidIncGst: 0 })).toHaveLength(1));
+  test("life support adds plan before PIESA booking", () => {
+    expect(complianceRecordBlockers("assessment_booked", none, { lifeSupport: true, ownerPaidIncGst: 0 })).toHaveLength(1);
+    expect(complianceRecordBlockers("assessment_booked", none, { lifeSupport: false, ownerPaidIncGst: 0 })).toHaveLength(0);
+  });
+  test("AP review needs safety, completion docs, co-payment", () => expect(complianceRecordBlockers("ap_review", none, { lifeSupport: false, ownerPaidIncGst: 0 })).toHaveLength(3));
+  test("Xero payment ≥ $200 satisfies co-payment", () => expect(complianceRecordBlockers("ap_review", none, { lifeSupport: false, ownerPaidIncGst: 1858 })).toHaveLength(2));
+  test("ready for VEEC also needs assignment copy", () => expect(complianceRecordBlockers("ready_for_veec", new Set(["installer_safety_assessment", "completion_consumer_docs", "co_payment_paid"] as never[]), { lifeSupport: false, ownerPaidIncGst: 0 })).toEqual(["Activity 48 record missing: Copy of signed VEEC assignment form given to owner"]));
+});

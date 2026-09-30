@@ -1394,3 +1394,24 @@ export const approveEscConfig = createServerFn({ method: "POST" }).middleware([r
     await admin.from("esc_notification_config").update({ approved: true, approved_by: context.userId, approved_at: new Date().toISOString(), is_active: true }).eq("id", data.id);
     return { ok: true };
   });
+
+// ---------- Activity 48 office compliance records (permanent; gate stage entry) ----------
+const RECORD_KEYS = ["life_support_plan", "assignment_copy_to_consumer", "installer_safety_assessment", "pre_install_consumer_docs", "co_payment_paid", "completion_consumer_docs"] as const;
+export const listComplianceRecords = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: rows } = await admin.from("job_compliance_records").select("*").eq("job_id", data.jobId).order("created_at", { ascending: false });
+    return rows ?? [];
+  });
+export const recordComplianceItem = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, key: z.enum(RECORD_KEYS), occurredAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), reference: z.string().trim().max(200).nullable(), notes: z.string().trim().max(1000).nullable() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    if (data.occurredAt > new Date().toISOString().slice(0, 10)) throw new WorkflowError("Date cannot be in the future.");
+    const { error } = await admin.from("job_compliance_records").insert({ job_id: data.jobId, record_key: data.key, occurred_at: `${data.occurredAt}T00:00:00Z`, reference: data.reference, notes: data.notes, recorded_by: context.userId });
+    if (error) throw new Error(error.message);
+    await logEvent(data.jobId, context.userId, "compliance_record", `Recorded: ${data.key.replace(/_/g, " ")}`, data, { internal: true });
+    await autoAdvanceJob(data.jobId, context.userId, "compliance record");
+    return { ok: true };
+  });
