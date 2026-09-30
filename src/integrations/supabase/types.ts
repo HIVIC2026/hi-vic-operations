@@ -380,6 +380,7 @@ export type Database = {
           mitti_synced_at: string | null
           mitti_template_id: string | null
           mitti_validation_issues: Json
+          no_rectification_confirmed: boolean | null
           notes: string | null
           piesa_outcome: Database["public"]["Enums"]["pass_fail"]
           rcds_present: boolean | null
@@ -424,6 +425,7 @@ export type Database = {
           mitti_synced_at?: string | null
           mitti_template_id?: string | null
           mitti_validation_issues?: Json
+          no_rectification_confirmed?: boolean | null
           notes?: string | null
           piesa_outcome?: Database["public"]["Enums"]["pass_fail"]
           rcds_present?: boolean | null
@@ -468,6 +470,7 @@ export type Database = {
           mitti_synced_at?: string | null
           mitti_template_id?: string | null
           mitti_validation_issues?: Json
+          no_rectification_confirmed?: boolean | null
           notes?: string | null
           piesa_outcome?: Database["public"]["Enums"]["pass_fail"]
           rcds_present?: boolean | null
@@ -7968,6 +7971,10 @@ export type Database = {
           auto_send_quote: boolean
           auto_send_rec: boolean
           customer_comms_enabled: boolean
+          due_owner_flag_days: number
+          due_owner_reminder_days: number
+          due_trade_reply_exception_hours: number
+          due_trade_reply_warn_hours: number
           id: number
           measurement_standard_approved: boolean
           measurement_standard_approved_at: string | null
@@ -7991,6 +7998,10 @@ export type Database = {
           auto_send_quote?: boolean
           auto_send_rec?: boolean
           customer_comms_enabled?: boolean
+          due_owner_flag_days?: number
+          due_owner_reminder_days?: number
+          due_trade_reply_exception_hours?: number
+          due_trade_reply_warn_hours?: number
           id?: number
           measurement_standard_approved?: boolean
           measurement_standard_approved_at?: string | null
@@ -8014,6 +8025,10 @@ export type Database = {
           auto_send_quote?: boolean
           auto_send_rec?: boolean
           customer_comms_enabled?: boolean
+          due_owner_flag_days?: number
+          due_owner_reminder_days?: number
+          due_trade_reply_exception_hours?: number
+          due_trade_reply_warn_hours?: number
           id?: number
           measurement_standard_approved?: boolean
           measurement_standard_approved_at?: string | null

@@ -15,6 +15,7 @@ import { EscInstallPanel } from "@/components/portal/intelligence";
 import { Gate1EvidencePanel } from "@/components/portal/gate1";
 import { IntakeSummary } from "@/components/portal/intake";
 import { JobJourney } from "@/components/portal/journey";
+import { ClearTimeline, WhoHasTheBall } from "@/components/portal/waiting";
 import { AllDocuments, Correspondence, ExportJobPack, JobFileHeader, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
 
 const TABS: [string, string][] = [
@@ -46,20 +47,24 @@ export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
 function JobDetail() {
   const { jobId } = Route.useParams();
   const { data: job, error, refetch } = useJob(jobId);
+  const [tab, setTab] = useState("overview");
+  const openTab = (t: string) => { setTab(t); requestAnimationFrame(() => document.getElementById("job-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" })); };
   if (error) return <AppShell wide><div role="alert" className="rounded-md border border-danger bg-danger-soft p-4 text-sm text-danger">This job could not be loaded. Its records have not been deleted.<Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div></AppShell>;
   if (!job) return <AppShell wide><p className="text-muted-foreground">Loading…</p></AppShell>;
   return (
     <AppShell wide>
       <Link to="/admin" className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Enquiries</Link>
       <JobFileHeader jobId={jobId} job={job} />
+      <WhoHasTheBall jobId={jobId} onOpenTab={openTab} />
       <JobJourney input={job} jobId={job.id} isTest={job.source === "qa_test"} />
+      <ClearTimeline jobId={jobId} />
       <div className="mb-3 flex flex-wrap gap-1.5">
         <StageBadge stage={job.stage} /><PaymentBadge status={job.payment_status} /><UrgencyBadge urgency={job.urgency} days={job.days_remaining} /><SourceBadge channel={job.channel} business={job.originating_business_name} />
         {job.life_support && <Pill t="bad"><HeartPulse className="mr-1 h-3 w-3" /> Life support</Pill>}
         {job.eligibility_review_required ? <Pill t="warn">Gate 1 REVIEW REQUIRED</Pill> : job.eligibility_outcome && <Pill t="info">{ELIGIBILITY_LABEL[job.eligibility_outcome]}</Pill>}
       </div>
       <div className="mb-4"><BlockersPanel jobId={jobId} /></div>
-      <Tabs defaultValue="overview">
+      <Tabs value={tab} onValueChange={setTab} id="job-tabs" className="scroll-mt-4">
         <TabsList className="mb-3 flex h-auto flex-wrap justify-start">
           {TABS.map(([v, l]) => <TabsTrigger key={v} value={v}>{l}</TabsTrigger>)}
         </TabsList>

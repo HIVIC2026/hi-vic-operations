@@ -4,6 +4,7 @@ import { AppointmentPanel } from "@/components/portal/partner";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
+import { ClearTimeline, WhoHasTheBall } from "@/components/portal/waiting";
 import { PaymentBadge, StageBadge, UrgencyBadge } from "@/components/portal/badges";
 import { BookingPanel, DocumentsPanel, MessagesPanel, PaymentsPanel, QuotesPanel, Section, TimelinePanel, useJob } from "@/components/portal/panels";
 import { useAction } from "@/hooks/use-me";
@@ -28,6 +29,7 @@ function OwnerJob() {
   const bookKind = s === "rectification_scheduling" || s === "rectification_booked" ? "rectification" : s === "installation_scheduling" || s === "installation_booked" ? "installation" : s === "assessment_booking" || s === "assessment_booked" ? "assessment" : null;
   return (
     <AppShell>
+      <WhoHasTheBall jobId={jobId} />
       <div className="mb-4 rounded-xl border bg-card p-4">
         <div className="text-xs font-bold text-primary">{job.job_number}</div>
         <h1 className="text-xl font-bold">{job.property_address}</h1>
@@ -49,6 +51,7 @@ function OwnerJob() {
         <MessagesPanel jobId={jobId} isAdmin={false} role="owner" />
         <TimelinePanel jobId={jobId} />
       </div>
+      <ClearTimeline jobId={jobId} initial={6} />
     </AppShell>
   );
 }

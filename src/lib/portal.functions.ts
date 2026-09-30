@@ -158,6 +158,7 @@ export const setUserBusiness = createServerFn({ method: "POST" }).middleware([re
 // ---------- Gate 2: two independent requirements ----------
 // (B) Electrical assessment / PIESA lives in `assessments`; (A) ceiling measure-up lives in `ceiling_measurements`.
 const assessmentPatch = z.object({
+  no_rectification_confirmed: z.boolean().nullable(),
   downlights_qty: z.number().int().min(0).max(500).nullable(),
   downlights_type: z.string().max(200).nullable(),
   downlights_upgrade_qty: z.number().int().min(0).max(500).nullable(),
@@ -448,6 +449,10 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     if (evMissing.length) throw new WorkflowError(`Upload evidence first: ${evMissing.join(", ")}`);
     const { data: unpriced } = await admin.from("rectification_items").select("description").eq("job_id", data.jobId).eq("status", "required").eq("needs_office_pricing", true);
     if (unpriced?.length) throw new WorkflowError(`HI VIC must price these items first: ${unpriced.map((u) => u.description).join(", ")}`);
+    // Same-day rule: the PIESA submission must carry the rectification decision – priced items, or an explicit "none required".
+    const { count: rectCount } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("status", "required");
+    if (!rectCount && a.no_rectification_confirmed !== true) throw new WorkflowError("Add the rectification items for today's quote, or tick \"No rectification required\", before completing the PIESA.");
+    if (rectCount && a.no_rectification_confirmed === true) throw new WorkflowError("You ticked \"No rectification required\" but rectification items are listed – untick it or remove the items.");
 
     const stage = await getStage(data.jobId);
     if (stage !== "assessment_booked") throw new WorkflowError(`Assessment can be completed from "Assessment Booked" (current: ${STAGE_LABEL[stage]}).`);

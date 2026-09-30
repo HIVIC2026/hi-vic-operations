@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { Pill, StageBadge, UrgencyBadge } from "@/components/portal/badges";
 import { JobJourney } from "@/components/portal/journey";
+import { ClearTimeline, WhoHasTheBall } from "@/components/portal/waiting";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, Section, useJob } from "@/components/portal/panels";
 import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { MeasurementDetails, MeasurementForm, MeasurementReadOnly, useJobScope, useMeasurements } from "@/components/portal/requirements";
@@ -42,7 +43,9 @@ function FieldJob() {
         <div className="mt-3"><JobJourney input={job} jobId={job.id} compact /></div>
         <p className="mt-2 rounded bg-accent px-2 py-1 text-sm font-medium text-accent-foreground">Next: {nextStep(job).next}</p>
       </div>
+      <WhoHasTheBall jobId={jobId} />
       <div className="mb-4"><BlockersPanel jobId={jobId} /></div>
+      <ClearTimeline jobId={jobId} initial={5} />
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "installer" && <InstallerJourney jobId={jobId} />}
@@ -135,6 +138,13 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
           </Section>
           <EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} />
           <OtherItems jobId={jobId} editable={!locked || stage === "awaiting_owner_rectification_approval"} />
+          <Section title="5 · Rectification quote (required today)">
+            <p className="mb-2 text-xs text-muted-foreground">Submit your rectification quote here on the day of the assessment. If nothing needs fixing, confirm that below.</p>
+            <label className="flex min-h-12 items-center gap-3 rounded-lg border px-3 text-sm font-medium">
+              <input type="checkbox" className="h-5 w-5" checked={f["no_rectification_confirmed"] === true} disabled={locked} onChange={(e) => put("no_rectification_confirmed", e.target.checked)} />
+              No rectification required at this property
+            </label>
+          </Section>
            {!locked && <Button size="field" className="w-full" onClick={() => complete({ jobId }, "PIESA complete")}><Check /> Complete PIESA</Button>}
           </div>
         </details>
