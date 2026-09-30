@@ -25,6 +25,11 @@ The underlying retained records and audit history will stay intact, but obsolete
 - Make mobile and desktop page titles equally clear.
 
 ## 3. Make Enquiries an at-a-glance working list
+- Show one unmistakable eligibility tag on every enquiry card:
+  - **LIKELY ELIGIBLE** — Gate 1 supports progression, but onsite requirements remain;
+  - **ELIGIBLE** — all eligibility criteria have been positively confirmed, including the Ready Check evidence required onsite;
+  - **INELIGIBLE** — a recorded eligibility rule has failed.
+- Keep internal **REVIEW REQUIRED** and **TO BE CONFIRMED** states visibly distinct so the portal never turns uncertainty into “Eligible”. The **ELIGIBLE** tag will be a derived display state backed by completed evidence, not a new shortcut around Gate 1.
 - Show a compact **Service coverage** status on every enquiry card:
   - tick: verified installer and REC coverage;
   - warning: coverage is incomplete or not yet verified;
@@ -32,6 +37,7 @@ The underlying retained records and audit history will stay intact, but obsolete
 - For a verified X state, expose the existing guarded **Send service-area email** action directly from the enquiry workflow.
 - Keep the existing safety checks: the action must still fail closed when communications, owner consent, delivery setup, or verified postcode coverage is missing.
 - Reduce each card to the essentials: job/reference, owner/property, current step, eligibility, service coverage, and next action.
+- Make the next action explicit and executable where permitted: **Send ineligible email**, **Review eligibility**, or **Move to Ready Check**. No card should say only a vague status when an office action is required.
 - Keep inactive, ineligible, cancelled, test, and finalised records in retained views rather than the active list.
 
 ## 4. Strip the job file back to active information
@@ -56,9 +62,23 @@ The underlying retained records and audit history will stay intact, but obsolete
 - Make the web view and email version use the same names, order, facts, and calls to action.
 - Keep previews available only as deliberate test tools; they will not be presented as live templates or normal navigation.
 
-## 7. Verification
+## 7. Make mandatory documents stage-correct and electronic
+- Use **electronic signing across every signing requirement**: customer quote acceptance, ESC owner consent, installer declaration, AP signature, final customer VEEC assignment, partner agreements, and any approved variation or reconfirmation.
+- Do not ask anyone to sign in person. Each electronic signature must retain the approved wording/version, signer, role, timestamp, signature, and immutable audit evidence already required by that form.
+- Build one visible **Documents due now** package for each stage rather than attaching every document to the first email:
+  - quote email/package: quote, VEU consumer information and rights, and commercial acceptance;
+  - booking/pre-install package: ESC consent when the installation date exists;
+  - PIESA/pre-install package: PIESA copy, CES when applicable, Consumer Factsheet, and Code of Conduct information at their required time;
+  - completion package: invoice, dispute information, instructions, contacts, warranty, installer declaration, and the completed VEEC assignment when final facts exist.
+- **Recommendation:** use both the stage email and the portal package. The email contains a secure link to the same current documents and signing task in the portal. This avoids stale attachments, keeps one signed version, and prevents documents from being sent before the facts or legal timing exist.
+- Keep launch behaviour **manual-first**: the office previews and sends each ready package. Automated sending switches remain off until the wording, timing, recipients, and end-to-end rehearsal are approved.
+- Never combine documents whose timing or facts are different merely for convenience; the portal may present them as one stage package only when they are all legally due.
+
+## 8. Verification
 - Add regression checks proving the visible workflow order is Ready Check before PIESA and that no active screen uses obsolete Owner Authority, paid Ready Check, or “Step 3” wording.
 - Test service-coverage tick/warning/X states and confirm the email action only appears for verified out-of-area enquiries.
+- Test every eligibility card state and prove **ELIGIBLE** appears only when all remote and onsite eligibility criteria are confirmed.
+- Test each stage package, electronic signing order, immutable signature evidence, and document timing blockers.
 - Compare active web and email templates for matching brand, labels, price order, and calls to action.
 - Test admin desktop, admin mobile, customer estimate mobile/desktop, REC view, installer view, and both onboarding forms.
 - Run the focused workflow/template tests, full test suite, type check, preview build, and browser checks. Keep communications, payments, Xero, Mitti, and publishing off.
