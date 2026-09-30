@@ -45,9 +45,22 @@ export const PIESA_OUTCOMES = [
   "Electrical rectification work is not possible prior to insulation being installed or upgraded under parts 2 and 3",
 ];
 
+/** Pricing section — installer-sourced jobs only (Form A1). Lines drop straight into the co-branded owner quote. */
+export const PRICING_FIELDS: FormField[] = [
+  { label: "Line description", type: "text", required: true, perPriceLine: true, source: "portal – quote line, e.g. Supply and install ceiling insulation" },
+  { label: "Quantity", type: "number", required: true, perPriceLine: true, source: "portal – quote line" },
+  { label: "Unit", type: "choice", required: true, perPriceLine: true, choices: ["m2", "each", "flat", "hour"], source: "portal – quote line unit" },
+  { label: "Unit price incl GST $", type: "number", required: true, perPriceLine: true, source: "portal – quote line, customer-facing prices are always incl GST" },
+  { label: "Total quoted price incl GST $", type: "number", required: true, source: "portal – must equal the sum of the lines; mismatches go to office review, never guessed" },
+  { label: "What this price includes", type: "text", required: true, source: "portal – e.g. removal, tile lift, travel; nothing priced in gets lost" },
+  { label: "Price already agreed with the owner?", type: "choice", required: true, choices: ["Yes", "No"], source: "portal – if Yes, their price stays and our fees go on top, less the VEU discount" },
+];
+
+const READY_CHECK_TITLE = "Home Insulation Victoria | Ready Check – Eligibility & Measure-up (Installer)";
+
 export const FORMS: Record<FormKey, { title: string; role: "installer" | "electrician"; fields: FormField[] }> = {
   ready_check: {
-    title: "Home Insulation Victoria | Ready Check – Eligibility & Measure-up (Installer)",
+    title: READY_CHECK_TITLE,
     role: "installer",
     fields: [
       { label: "Portal Job Number", type: "text", required: true, prefill: true, source: "portal" },
