@@ -13,6 +13,10 @@ const installerFormSchema = z.object({
   cii_certification_status: z.string().trim().max(100).nullish(),
   cii_certification_details: z.string().trim().max(2000).nullish(),
   estimated_r5_install_rate_per_sqm_inc_gst: z.coerce.number().min(0).max(100000).nullish(),
+  estimated_batts_removal_rate_per_sqm_inc_gst: z.coerce.number().min(0).max(100000).nullish(),
+  estimated_loose_fill_removal_rate_per_sqm_inc_gst: z.coerce.number().min(0).max(100000).nullish(),
+  free_quotes_for_hivic_leads: z.union([z.boolean(), z.enum(["yes", "no"])]).nullish()
+    .transform((v) => (v == null ? null : v === true || v === "yes")),
   booking_lead_time: z.string().trim().max(200).nullish(),
   weekly_capacity: z.string().trim().max(200).nullish(),
   notes: z.string().trim().max(5000).nullish(),
