@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
@@ -9,6 +9,8 @@ import {
 import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
 } from "@/lib/rec-onboarding.functions";
+import { defaultAddressProvider } from "@/lib/address-provider";
+import type { AddressSuggestion } from "@/lib/whatif-location";
 
 // Public REC (electrician) onboarding + partner agreement signing. Progress is saved
 // server-side against an opaque resume token kept in this browser.
@@ -64,6 +66,44 @@ function Money({ value, onChange, unit }: { value: number | null | undefined; on
     </div>
   );
 }
+/** Type-ahead Victorian address lookup (same service as the website form). Selection fills the field; editing keeps free text. */
+function AddressInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [items, setItems] = useState<AddressSuggestion[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const seq = useRef(0);
+  useEffect(() => {
+    const q = value.trim();
+    if (q.length < 4) { setItems([]); setOpen(false); return; }
+    const mine = ++seq.current;
+    const t = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const r = (await defaultAddressProvider.search(q)).slice(0, 6);
+        if (mine !== seq.current) return;
+        setItems(r); setOpen(r.length > 0);
+      } catch { if (mine === seq.current) { setItems([]); setOpen(false); } }
+      finally { if (mine === seq.current) setLoading(false); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [value]);
+  return (
+    <div style={{ position: "relative" }}>
+      <input style={input} autoComplete="off" placeholder="Start typing your address…" value={value}
+        onChange={(e) => onChange(e.target.value)} onBlur={() => setTimeout(() => setOpen(false), 150)} />
+      {loading && <div style={{ position: "absolute", right: 14, top: 14, fontSize: 12, color: MUTED }}>Searching…</div>}
+      {open && (
+        <ul style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #D7DCE8", borderRadius: 12, boxShadow: "0 12px 30px -12px rgba(34,55,107,.35)", overflow: "hidden" }}>
+          {items.map((s) => (
+            <li key={s.id} style={{ padding: "12px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F0F2F8" }}
+              onMouseDown={(e) => { e.preventDefault(); onChange(s.label); setOpen(false); setItems([]); seq.current++; }}>{s.label}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Choice<T extends string | number | boolean>({ options, value, onChange }: { options: { v: T; l: string }[]; value: T | null | undefined; onChange: (v: T) => void }) {
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -166,12 +206,11 @@ function RecOnboarding() {
   if (status === "submitted") return shell(
     <div style={{ ...card, textAlign: "center" }}>
       <div style={{ width: 56, height: 56, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 28, lineHeight: "56px", margin: "0 auto 16px" }}>✓</div>
-      <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, partner — you're all submitted.</h1>
-      <p style={{ color: MUTED, lineHeight: 1.6 }}>Your signed agreement ({REC_AGREEMENT_VERSION}) and application are with the HI VIC! office. We'll now verify:</p>
-      <ul style={{ textAlign: "left", display: "inline-block", lineHeight: 1.9, color: NAVY }}>
-        <li>REC registration and electrician licences</li><li>Public liability insurance</li><li>Partner agreement</li><li>Your proposed supplier rates</li>
-      </ul>
-      <p style={{ color: MUTED, fontSize: 14 }}>You won't receive job offers until verification and rates are approved. We'll be in touch to collect payment details.</p>
+      <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — we've got everything.</h1>
+      <p style={{ color: MUTED, lineHeight: 1.6 }}>Your application and signed agreement are now with the HI VIC! team. We'll review your details, check your REC registration, licences and insurance, and be in touch if we need anything else.</p>
+      <p style={{ color: MUTED, lineHeight: 1.6 }}>Once you're approved and your rates are agreed, you'll start receiving job offers through the portal. We'll also reach out then to collect your payment details.</p>
+      <div style={{ ...infoCard, textAlign: "left", marginTop: 8 }}><strong>What happens next:</strong> review and verification → rates confirmed → welcome aboard. Keep an eye on {d.business_email || "your email"} — that's where we'll contact you.</div>
+      <p style={{ color: MUTED, fontSize: 13 }}>Agreement version {REC_AGREEMENT_VERSION} · A copy of everything you've submitted is kept on your file.</p>
     </div>,
   );
 
@@ -213,7 +252,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       </>;
     case "contact":
       return <>
-        <Field label="Business address" required><input style={input} autoComplete="street-address" {...t("business_address")} /></Field>
+        <Field label="Business address" required hint="Start typing and pick your address from the list"><AddressInput value={d.business_address ?? ""} onChange={(v) => up({ business_address: v })} /></Field>
         <Field label="Contact name" required><input style={input} {...t("primary_contact_name")} /></Field>
         <Field label="Mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
         <Field label="Business email" required><input style={input} type="email" {...t("business_email")} /></Field>
@@ -248,7 +287,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       </>;
     case "coverage":
       return <>
-        <Field label="Service starting location" required><input style={input} {...t("service_origin")} /></Field>
+        <Field label="Service starting location" required><AddressInput value={d.service_origin ?? ""} onChange={(v) => up({ service_origin: v })} /></Field>
         {d.business_address && d.service_origin !== d.business_address && <button type="button" style={{ ...btn(false), marginBottom: 16 }} onClick={() => up({ service_origin: d.business_address ?? "" })}>Use business address</button>}
         <Field label="Travel radius" required><Choice options={RADII.map((r) => ({ v: r.v as number, l: r.l }))} value={d.travel_radius_km ?? null} onChange={(v) => up({ travel_radius_km: v })} /></Field>
         {d.travel_radius_km != null && <div style={infoCard}>You'll be offered jobs {d.travel_radius_km === 9999 ? "anywhere in Victoria" : `within ${d.travel_radius_km} km of your starting location`}.</div>}
@@ -273,7 +312,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       return <>
         <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
         <div style={infoCard}>{d.gst_registered === false ? "Not GST registered: enter your total rate." : "GST registered: enter rates including GST."} These are proposed supplier rates — HI VIC! reviews them before they apply.</div>
-        <Field label={`Assessment visit (${unit})`} required hint="Measure-up + assessment + PIESA"><Money value={d.assessment_rate} onChange={(v) => up({ assessment_rate: v })} unit="visit" /></Field>
+        <Field label={`Pre-Insulation Electrical Safety Assessment (PIESA) visit (${unit})`} required hint="Ceiling measure-up + electrical safety assessment + PIESA, per visit"><Money value={d.assessment_rate} onChange={(v) => up({ assessment_rate: v })} unit="visit" /></Field>
         {d.service_installation_isolation && <Field label={`Installation-day attendance (${unit})`} required><Money value={d.installation_attendance_rate} onChange={(v) => up({ installation_attendance_rate: v })} unit="visit" /></Field>}
       </>;
     }

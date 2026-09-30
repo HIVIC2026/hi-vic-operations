@@ -56,7 +56,7 @@ export const STEPS = [
   { key: "coverage", title: "Where you work" },
   { key: "availability", title: "When you work" },
   { key: "capacity", title: "Weekly capacity" },
-  { key: "assessment_pricing", title: "Assessment pricing" },
+  { key: "assessment_pricing", title: "PIESA & assessment pricing" },
   { key: "rectification_pricing", title: "Rectification pricing" },
   { key: "review", title: "Review agreement" },
   { key: "sign", title: "Sign agreement" },
