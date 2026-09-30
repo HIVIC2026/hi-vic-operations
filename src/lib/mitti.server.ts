@@ -182,7 +182,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string, call: 
   }
 
   if (measureAudit) {
-    const tid = await measureUpTemplateId();
+    const tid = (await templateIds()).readyCheck;
     if (!tid) throw new WorkflowError(MEASUREUP_TEMPLATE_MISSING);
     let plan;
     try {
