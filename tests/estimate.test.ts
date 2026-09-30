@@ -181,7 +181,7 @@ describe("Step 3 v2 refinement", () => {
   test("calculator uses the approved quote hierarchy and payment-safe copy", () => {
     const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
     const calc = ui.slice(ui.indexOf("function CalculatorQuoteResult"), ui.indexOf("export function OwnerEstimateCard"));
-    for (const text of ["CHECK ANOTHER CEILING SIZE", "Estimated ceiling size", "CUSTOMER_QUOTE_LABELS", "CUSTOMER_PAYMENT_COPY", "CUSTOMER_WHAT_COULD_CHANGE", "CUSTOMER_EXISTING_INSULATION_NOTE", "All prices incl GST.", "PAY {dollars(fees.piesa)} &amp; CONTINUE →", "Secure payment is not yet available."]) expect(calc).toContain(text);
+    for (const text of ["CHECK ANOTHER CEILING SIZE", "Estimated ceiling size", "CUSTOMER_QUOTE_LABELS", "CUSTOMER_PAYMENT_COPY", "CUSTOMER_ASSESSMENT_ACTION.cta", "CUSTOMER_ASSESSMENT_ACTION.paragraphs", "CUSTOMER_WHAT_COULD_CHANGE", "CUSTOMER_EXISTING_INSULATION_NOTE", "All prices incl GST.", "Secure payment is not yet available."]) expect(calc).toContain(text);
     expect(calc).toContain('existingInsulation={calc.insulation === "present"}');
     expect(calc).toContain("CUSTOMER_WHAT_COULD_CHANGE.closing");
     expect(calc).toContain("what-if calculator only");
