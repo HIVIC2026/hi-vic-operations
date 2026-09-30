@@ -41,7 +41,7 @@ export function readyCheckCoverage(e: SuppliedEvidence): Coverage {
   need(e.builtLast5Years != null, "Built in the last 5 years?");
   if (e.builtLast5Years === true) hardFail.push("Relevant ceiling built in the last 5 years – not eligible.");
   need(!!e.floorPlan, "Floor plan with dimensions");
-  need(e.icObservation != null, "Luminaire IC/IC-4 observation");
+  need(e.icObservation != null, "Recessed downlights check");
   if (e.areas.length === 0) missing.push("At least one measured area");
   e.areas.forEach((a, i) => {
     const n = a.name?.trim() || `Area ${i + 1}`;
