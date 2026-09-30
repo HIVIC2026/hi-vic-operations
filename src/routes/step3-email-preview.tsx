@@ -39,7 +39,7 @@ const quote = {
   apFee: AP_FEE,
   grossProjectTotal: SAMPLE_GROSS,
   amountPayableNow: READY_CHECK_FEE,
-  estimatedRemainingBalance: SAMPLE_CUSTOMER - PIESA_FEE,
+  estimatedRemainingBalance: Math.round((SAMPLE_CUSTOMER - READY_CHECK_FEE) * 100) / 100,
   savingsPercent: Math.round((SAMPLE_DISCOUNT / SAMPLE_GROSS) * 100),
   firstName: "Alex",
   address: "30 Dash St, Fraser Rise VIC 3336",

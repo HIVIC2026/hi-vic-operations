@@ -1,14 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { acceptPreAssessment, getPublicEstimate, simulatePreAssessmentPayment } from "@/lib/estimate.functions";
+import { acceptReadyCheckFn as acceptPreAssessment, getPublicEstimate, simulateReadyCheckPaymentFn as simulatePreAssessmentPayment } from "@/lib/estimate.functions";
 import { trackCalculatorUse } from "@/lib/engagement.functions";
 import { useCallback, useEffect, useState } from "react";
 import { ConfirmQuote, CustomerEstimate, type CustomerData } from "@/components/portal/estimate";
 import { LINK_UNAVAILABLE } from "@/lib/estimatelink.core";
 import { ReferralShare } from "@/components/portal/ReferralShare";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
-import type { AssessmentAcceptanceState } from "@/lib/assessment-payment.core";
+import type { ReadyCheckAcceptanceState as AssessmentAcceptanceState } from "@/lib/readycheck.core";
 
 // Public no-login Step 3 estimate. The token is the only credential; nothing is fetched during SSR.
 export const Route = createFileRoute("/estimate/$token")({
