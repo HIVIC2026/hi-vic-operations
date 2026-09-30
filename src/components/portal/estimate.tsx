@@ -293,10 +293,12 @@ export function AreaCalculator({ calc, initial, fees, propertyAddress, secondary
           {CALC_QUICK.map((q) => <Button key={q} type="button" size="field" variant="outline" className={`h-11 rounded-lg border border-estimate-blue-soft px-3 font-semibold text-estimate-navy shadow-none hover:bg-estimate-green-soft hover:text-estimate-navy ${!custom && m2 === q ? "bg-estimate-green-soft" : "bg-estimate-white"}`} aria-pressed={!custom && m2 === q} onClick={() => { setCustom(false); setRaw(String(q)); }}>{q} m²</Button>)}
           <Button type="button" size="field" variant="outline" className={`h-11 rounded-lg border border-estimate-blue-soft px-3 font-semibold text-estimate-navy shadow-none hover:bg-estimate-green-soft hover:text-estimate-navy ${custom ? "bg-estimate-green-soft" : "bg-estimate-white"}`} aria-pressed={custom} onClick={() => { setCustom(true); setRaw(""); }}>Other / custom</Button>
         </div>
-        {custom && <div className="mt-3 flex items-center gap-2">
-          <label className="sr-only" htmlFor={id}>Enter another ceiling size (m²)</label>
-          <input id={id} aria-label="Enter another ceiling size (m²)" inputMode="decimal" type="number" min={CALC_MIN_M2} max={CALC_MAX_M2} className="h-11 w-32 rounded-lg border border-estimate-blue bg-estimate-white px-3 text-base text-estimate-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="Area" />
-          <span className="text-sm text-estimate-navy">m²</span>
+        {custom && <div className="mt-3">
+          <label htmlFor={id} className="text-sm font-semibold text-estimate-navy">Enter another ceiling size (m²)</label>
+          <div className="relative mt-2">
+            <input id={id} inputMode="decimal" type="number" min={CALC_MIN_M2} max={CALC_MAX_M2} className="h-12 w-full rounded-lg border border-estimate-blue bg-estimate-white px-3 pr-12 text-base text-estimate-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="e.g. 175" />
+            <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-semibold text-estimate-navy/70">m²</span>
+          </div>
         </div>}
         {raw.trim() !== "" && m2 == null && <p role="alert" className="mt-3 text-sm font-bold text-danger">Enter an area between {CALC_MIN_M2} and {CALC_MAX_M2} m².</p>}
         <p className="estimate-secondary-card mt-5 text-sm font-semibold leading-relaxed">This is a what-if calculator only. It does not change the property details you submitted. Your onsite measure confirms the final eligible area.</p>
