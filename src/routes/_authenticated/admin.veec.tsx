@@ -90,7 +90,7 @@ function VeecPage() {
       </div>
     </section>
 
-    <section className="mt-6 grid gap-3 md:grid-cols-3">{BUCKETS.map(([key, label, hint]) => {
+    <section className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">{BUCKETS.map(([key, label, hint]) => {
       const b = data.filter((r) => r.bucket === key);
       return <button key={key} type="button" onClick={() => setBucket(key)} className={`rounded-md border p-4 text-left transition hover:border-primary ${bucket === key ? "border-workspace-blush-strong bg-workspace-blush shadow-sm" : "bg-card"}`}>
         <div className="text-xs font-bold uppercase text-muted-foreground">{label}</div>
@@ -130,8 +130,4 @@ function VeecPage() {
       </aside>
     </section>
   </AppShell>;
-}
-
-function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return <div className="rounded-md border bg-card p-4"><div className="text-xs font-bold uppercase text-muted-foreground">{label}</div><div className="mt-1 text-3xl font-bold">{value}</div><div className="text-xs text-muted-foreground">{hint}</div></div>;
 }
