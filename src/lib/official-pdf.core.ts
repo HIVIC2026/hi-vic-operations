@@ -4,7 +4,7 @@
 // Nothing is invented: a field with no answer is left blank and reported as missing.
 import { B2_ITEMS, FORMS, PIESA_OUTCOMES, type FormKey } from "./mitti-forms.core";
 
-export type OfficialFormKey = Exclude<FormKey, "ready_check">;
+export type OfficialFormKey = Exclude<FormKey, "ready_check" | "ready_check_priced">;
 export type Answers = Record<string, string | number | boolean | string[] | null | undefined>;
 type M =
   | { kind: "text"; pdf: string; label: string }
