@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
 import { useAction } from "@/hooks/use-me";
 import { updatePartnerEnquiry } from "@/lib/portal.functions";
@@ -19,6 +19,7 @@ import { activatePartnerApplication } from "@/lib/partner-activation.functions";
 type Row = Tables<"partner_enquiries">;
 
 export const Route = createFileRoute("/_authenticated/admin/partners")({
+  validateSearch: (search: Record<string, unknown>) => ({ enquiry: typeof search["enquiry"] === "string" ? search["enquiry"] : undefined }),
   head: () => ({ meta: [{ title: "Partner Enquiries – HI VIC Portal" }, { name: "description", content: "Property manager, installer and electrician partner enquiries." }, { property: "og:title", content: "Partner Enquiries – HI VIC Portal" }, { property: "og:description", content: "Property manager, installer and electrician partner enquiries." }] }),
   component: Partners,
 });
@@ -27,8 +28,10 @@ const money = (n: number | null) => (n == null ? "—" : `$${Number(n).toFixed(2
 const date = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-AU") : "—");
 
 function Partners() {
+  const { enquiry } = Route.useSearch();
   const [open, setOpen] = useState<Row | null>(null);
   const [queue, setQueue] = useState<"review" | "approved" | "history">("review");
+  const [partnerType, setPartnerType] = useState<PartnerType>("property_manager");
   const load = useServerFn(getAdminPartnerEnquiries);
   const { data: rows = [], error, isPending, refetch } = useQuery({
     queryKey: ["partner_enquiries"],
@@ -36,6 +39,14 @@ function Partners() {
   });
   const visible = rows.filter((row) => queue === "review" ? ["new", "contacted", "onboarding"].includes(row.status) : queue === "approved" ? row.status === "approved" : ["declined", "closed"].includes(row.status));
   const of = (t: PartnerType) => visible.filter((r) => r.enquiry_type === t);
+  useEffect(() => {
+    if (!enquiry || open) return;
+    const selected = rows.find((row) => row.id === enquiry);
+    if (!selected) return;
+    setQueue(selected.status === "approved" ? "approved" : ["declined", "closed"].includes(selected.status) ? "history" : "review");
+    setPartnerType(selected.enquiry_type as PartnerType);
+    setOpen(selected);
+  }, [enquiry, open, rows]);
   return (
     <AppShell wide>
       <h1 className="text-2xl font-bold tracking-tight">Partner Enquiries</h1>
@@ -43,7 +54,7 @@ function Partners() {
       <div className="mb-4 flex flex-wrap gap-2">{([['review', 'Review queue'], ['approved', 'Approved applications'], ['history', 'Declined / closed history']] as const).map(([key, label]) => <Button key={key} size="sm" variant={queue === key ? "default" : "outline"} onClick={() => setQueue(key)}>{label} ({rows.filter((row) => key === "review" ? ["new", "contacted", "onboarding"].includes(row.status) : key === "approved" ? row.status === "approved" : ["declined", "closed"].includes(row.status)).length})</Button>)}</div>
       {error && <div role="alert" className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Partner enquiries could not be loaded. Existing applications are safe. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
       {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading partner enquiries…</p>}
-      {!error && !isPending && <Tabs defaultValue="property_manager">
+      {!error && !isPending && <Tabs value={partnerType} onValueChange={(value) => setPartnerType(value as PartnerType)}>
         <TabsList>
           {PARTNER_TYPES.map((t) => (
             <TabsTrigger key={t} value={t}>{PARTNER_TYPE_LABEL[t]} <Badge variant="secondary" className="ml-2">{of(t).length}</Badge>

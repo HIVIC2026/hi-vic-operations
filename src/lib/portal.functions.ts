@@ -31,6 +31,13 @@ export const createEnquiry = createServerFn({ method: "POST" }).middleware([requ
     return upsertEnquiry(data, "portal", context.userId);
   });
 
+export const createTestEnquiry = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => enquirySchema.parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    return upsertEnquiry({ ...data, external_enquiry_id: `qa-${crypto.randomUUID()}` }, "qa_test", context.userId);
+  });
+
 export const setEligibility = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) =>
     z.object({ jobId: uuid, outcome: z.enum(["likely_eligible", "needs_onsite_confirmation", "does_not_appear_eligible"]), reason: z.string().trim().min(3).max(2000), nextAction: z.string().trim().min(2).max(300) }).parse(d),

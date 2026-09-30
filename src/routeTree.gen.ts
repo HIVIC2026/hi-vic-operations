@@ -24,6 +24,7 @@ import { Route as AuthenticatedAdminCommunicationsRouteImport } from './routes/_
 import { Route as AuthenticatedAdminComplianceRouteImport } from './routes/_authenticated/admin.compliance'
 import { Route as AuthenticatedAdminCoverageRouteImport } from './routes/_authenticated/admin.coverage'
 import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authenticated/admin.partners'
+import { Route as AuthenticatedAdminTestCentreRouteImport } from './routes/_authenticated/admin.test-centre'
 import { Route as AuthenticatedAdminTodoRouteImport } from './routes/_authenticated/admin.todo'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminVeecRouteImport } from './routes/_authenticated/admin.veec'
@@ -122,6 +123,12 @@ const AuthenticatedAdminPartnersRoute =
   AuthenticatedAdminPartnersRouteImport.update({
     id: '/admin/partners',
     path: '/admin/partners',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminTestCentreRoute =
+  AuthenticatedAdminTestCentreRouteImport.update({
+    id: '/admin/test-centre',
+    path: '/admin/test-centre',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminTodoRoute = AuthenticatedAdminTodoRouteImport.update({
@@ -247,6 +254,7 @@ export interface FileRoutesByFullPath {
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
+  '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
   '/admin/todo': typeof AuthenticatedAdminTodoRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/veec': typeof AuthenticatedAdminVeecRoute
@@ -283,6 +291,7 @@ export interface FileRoutesByTo {
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
+  '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
   '/admin/todo': typeof AuthenticatedAdminTodoRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/veec': typeof AuthenticatedAdminVeecRoute
@@ -321,6 +330,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/_authenticated/admin/coverage': typeof AuthenticatedAdminCoverageRoute
   '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
+  '/_authenticated/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
   '/_authenticated/admin/todo': typeof AuthenticatedAdminTodoRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/veec': typeof AuthenticatedAdminVeecRoute
@@ -359,6 +369,7 @@ export interface FileRouteTypes {
     | '/admin/compliance'
     | '/admin/coverage'
     | '/admin/partners'
+    | '/admin/test-centre'
     | '/admin/todo'
     | '/admin/users'
     | '/admin/veec'
@@ -395,6 +406,7 @@ export interface FileRouteTypes {
     | '/admin/compliance'
     | '/admin/coverage'
     | '/admin/partners'
+    | '/admin/test-centre'
     | '/admin/todo'
     | '/admin/users'
     | '/admin/veec'
@@ -432,6 +444,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/compliance'
     | '/_authenticated/admin/coverage'
     | '/_authenticated/admin/partners'
+    | '/_authenticated/admin/test-centre'
     | '/_authenticated/admin/todo'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/veec'
@@ -580,6 +593,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/partners'
       fullPath: '/admin/partners'
       preLoaderRoute: typeof AuthenticatedAdminPartnersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/test-centre': {
+      id: '/_authenticated/admin/test-centre'
+      path: '/admin/test-centre'
+      fullPath: '/admin/test-centre'
+      preLoaderRoute: typeof AuthenticatedAdminTestCentreRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/todo': {
@@ -732,6 +752,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminComplianceRoute: typeof AuthenticatedAdminComplianceRoute
   AuthenticatedAdminCoverageRoute: typeof AuthenticatedAdminCoverageRoute
   AuthenticatedAdminPartnersRoute: typeof AuthenticatedAdminPartnersRoute
+  AuthenticatedAdminTestCentreRoute: typeof AuthenticatedAdminTestCentreRoute
   AuthenticatedAdminTodoRoute: typeof AuthenticatedAdminTodoRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminVeecRoute: typeof AuthenticatedAdminVeecRoute
@@ -753,6 +774,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminComplianceRoute: AuthenticatedAdminComplianceRoute,
   AuthenticatedAdminCoverageRoute: AuthenticatedAdminCoverageRoute,
   AuthenticatedAdminPartnersRoute: AuthenticatedAdminPartnersRoute,
+  AuthenticatedAdminTestCentreRoute: AuthenticatedAdminTestCentreRoute,
   AuthenticatedAdminTodoRoute: AuthenticatedAdminTodoRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminVeecRoute: AuthenticatedAdminVeecRoute,
