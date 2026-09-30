@@ -125,3 +125,25 @@ function Detail({ row, onClose }: { row: Row; onClose: () => void }) {
     </Dialog>
   );
 }
+
+function SignedRecAgreement({ id }: { id: string }) {
+  const [open, setOpen] = useState(false);
+  const q = useQuery({ queryKey: ["rec-onboarding", id], enabled: open, queryFn: () => getRecOnboardingRecord({ data: { id } }) });
+  const r = q.data;
+  return (
+    <div className="rounded-lg border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm font-semibold">Signed partner agreement</div>
+        <Button size="sm" variant="outline" onClick={() => setOpen((o) => !o)}>{open ? "Hide" : "View signed agreement"}</Button>
+      </div>
+      {open && (q.isLoading ? <p className="mt-2 text-sm text-muted-foreground">Loading…</p> : q.error ? <p className="mt-2 text-sm text-destructive">{(q.error as Error).message}</p> : r && (
+        <div className="mt-3 space-y-2 text-sm">
+          <div>Version <b>{r.agreement_version}</b> · signed {r.signed_at ? new Date(r.signed_at).toLocaleString("en-AU") : "—"} by <b>{r.signer_name}</b> ({r.signer_position}, {r.signer_email})</div>
+          <div className="break-all text-xs text-muted-foreground">SHA-256 {r.agreement_sha256} · IP {r.signed_ip ?? "—"}</div>
+          {r.certificateUrl && <a className="text-primary underline" href={r.certificateUrl} target="_blank" rel="noreferrer">Open Certificate of Currency (link expires in 10 min)</a>}
+          <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded bg-muted p-3 text-xs">{r.agreement_text}</pre>
+        </div>
+      ))}
+    </div>
+  );
+}
