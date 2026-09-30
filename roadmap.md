@@ -33,3 +33,8 @@
 - [x] Simplify job cards and separate active, review, ineligible, finalised, cancelled and test work
 - [x] Separate active partners, application review and inactive history without deleting signed records
 - [ ] Verify the eligibility-first overhaul across tests, desktop and mobile
+- [x] Restyle the signed-in workspace with the approved pink/yellow palette and Outfit/Figtree while preserving external HI VIC branding
+- [x] Replace the old calculator journey fixture with a standalone local-only calculator
+- [x] Add a personal customer-communication review centre with immutable approved versions and no delivery side effects
+- [x] Add the Activity 48 form register with purpose, signer, timing, blockers, source and retention
+- [ ] Verify the complete portal cleanup across tests, desktop and mobile

@@ -1950,6 +1950,51 @@ export type Database = {
           },
         ]
       }
+      customer_communication_templates: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          body_markdown: string
+          created_at: string
+          created_by: string
+          id: string
+          regulated_copy_locked: boolean
+          source_note: string | null
+          status: string
+          subject: string
+          template_key: string
+          version: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body_markdown: string
+          created_at?: string
+          created_by: string
+          id?: string
+          regulated_copy_locked?: boolean
+          source_note?: string | null
+          status?: string
+          subject: string
+          template_key: string
+          version: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body_markdown?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          regulated_copy_locked?: boolean
+          source_note?: string | null
+          status?: string
+          subject?: string
+          template_key?: string
+          version?: string
+        }
+        Relationships: []
+      }
       customer_delivery_settings: {
         Row: {
           enabled: boolean

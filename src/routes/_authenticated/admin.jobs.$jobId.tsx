@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { PaymentBadge, Pill, SourceBadge, StageBadge, UrgencyBadge } from "@/components/portal/badges";
 import { AdminAssignmentPanel, AssignmentStatusInline } from "@/components/portal/assignment";
-import { AdminAuthorityPanel, BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, PaymentsPanel, QuotesPanel, Section, TimelinePanel, useJob } from "@/components/portal/panels";
+import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, PaymentsPanel, QuotesPanel, Section, TimelinePanel, useJob } from "@/components/portal/panels";
 import { MittiCard, PriceItemForm } from "@/components/portal/mitti";
 import { RequirementCards } from "@/components/portal/requirements";
 import { EscInstallPanel } from "@/components/portal/intelligence";
@@ -17,8 +17,8 @@ import { IntakeSummary } from "@/components/portal/intake";
 import { AllDocuments, Correspondence, ExportJobPack, JobFileHeader, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
 
 const TABS: [string, string][] = [
-  ["overview", "Overview"], ["eligibility", "Eligibility"], ["authority", "Customer & Authorities"], ["piesa", "Electrical / PIESA"], ["assessment", "Measure-up"],
-  ["quotes", "Quotes & Payments"], ["installation", "Installation"], ["evidence", "Evidence"], ["veec", "ESC / VEEC"], ["messages", "Correspondence"], ["history", "Timeline / Audit"], ["documents", "All Documents"],
+  ["overview", "Overview"], ["eligibility", "Eligibility"], ["assessment", "Ready Check"], ["quotes", "Quote & deposit"], ["piesa", "PIESA"],
+  ["installation", "Installation"], ["evidence", "Evidence & AP review"], ["authority", "Electronic signing"], ["veec", "VEEC & finalise"], ["messages", "Correspondence"], ["documents", "Documents"], ["history", "Audit history"],
 ];
 import { useAction } from "@/hooks/use-me";
 import { useServerFn } from "@tanstack/react-start";
@@ -48,7 +48,7 @@ function JobDetail() {
   if (!job) return <AppShell wide><p className="text-muted-foreground">Loading…</p></AppShell>;
   return (
     <AppShell wide>
-      <Link to="/admin" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Pipeline</Link>
+      <Link to="/admin" className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Enquiries</Link>
       <JobFileHeader jobId={jobId} job={job} />
       <div className="mb-3 flex flex-wrap gap-1.5">
         <StageBadge stage={job.stage} /><PaymentBadge status={job.payment_status} /><UrgencyBadge urgency={job.urgency} days={job.days_remaining} /><SourceBadge channel={job.channel} business={job.originating_business_name} />
@@ -81,7 +81,7 @@ function JobDetail() {
           <details className="rounded-xl border p-3 lg:col-span-2"><summary className="cursor-pointer text-sm font-medium">All bookings</summary><div className="mt-3 grid gap-4 lg:grid-cols-3"><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><BookingPanel jobId={jobId} kind="rectification" canBook isAdmin /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /></div></details>
         </TabsContent>
         <TabsContent value="eligibility" className="space-y-4"><Gate1EvidencePanel jobId={jobId} /><AdminEstimateCard jobId={jobId} /><EligibilityForm jobId={jobId} /><details className="rounded-md border bg-card p-4"><summary className="cursor-pointer text-sm font-semibold">Intake and source audit</summary><div className="mt-4 space-y-4"><IntakeSummary jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Property"]} /></div></details></TabsContent>
-        <TabsContent value="authority" className="space-y-4"><AdminAssignmentPanel jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Customer / Consent"]} /><details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Legacy Owner Authority history (no longer a gate)</summary><div className="mt-3"><AdminAuthorityPanel jobId={jobId} /></div></details></TabsContent>
+        <TabsContent value="authority" className="space-y-4"><AdminAssignmentPanel jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Customer / Consent"]} /></TabsContent>
         <TabsContent value="piesa" className="space-y-4">
           <Section title="PIESA 30-day installation window">
             {job.piesa_date ? <p className="text-sm">Current PIESA {fmtDate(job.piesa_date)} → install by <strong>{fmtDate(job.install_deadline)}</strong> ({job.days_remaining} days) <UrgencyBadge urgency={job.urgency} days={job.days_remaining} /></p> : <p className="text-sm text-muted-foreground">No PIESA recorded yet.</p>}

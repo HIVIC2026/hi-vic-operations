@@ -20,6 +20,7 @@ import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/h
 import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminBusinessesRouteImport } from './routes/_authenticated/admin.businesses'
+import { Route as AuthenticatedAdminCommunicationsRouteImport } from './routes/_authenticated/admin.communications'
 import { Route as AuthenticatedAdminComplianceRouteImport } from './routes/_authenticated/admin.compliance'
 import { Route as AuthenticatedAdminCoverageRouteImport } from './routes/_authenticated/admin.coverage'
 import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authenticated/admin.partners'
@@ -95,6 +96,12 @@ const AuthenticatedAdminBusinessesRoute =
   AuthenticatedAdminBusinessesRouteImport.update({
     id: '/admin/businesses',
     path: '/admin/businesses',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminCommunicationsRoute =
+  AuthenticatedAdminCommunicationsRouteImport.update({
+    id: '/admin/communications',
+    path: '/admin/communications',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminComplianceRoute =
@@ -224,6 +231,7 @@ export interface FileRoutesByFullPath {
   '/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
+  '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
@@ -257,6 +265,7 @@ export interface FileRoutesByTo {
   '/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
+  '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
@@ -292,6 +301,7 @@ export interface FileRoutesById {
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/_authenticated/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
+  '/_authenticated/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/_authenticated/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/_authenticated/admin/coverage': typeof AuthenticatedAdminCoverageRoute
   '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
@@ -327,6 +337,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/estimate/$token'
     | '/admin/businesses'
+    | '/admin/communications'
     | '/admin/compliance'
     | '/admin/coverage'
     | '/admin/partners'
@@ -360,6 +371,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/estimate/$token'
     | '/admin/businesses'
+    | '/admin/communications'
     | '/admin/compliance'
     | '/admin/coverage'
     | '/admin/partners'
@@ -394,6 +406,7 @@ export interface FileRouteTypes {
     | '/_authenticated/home'
     | '/estimate/$token'
     | '/_authenticated/admin/businesses'
+    | '/_authenticated/admin/communications'
     | '/_authenticated/admin/compliance'
     | '/_authenticated/admin/coverage'
     | '/_authenticated/admin/partners'
@@ -515,6 +528,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/businesses'
       fullPath: '/admin/businesses'
       preLoaderRoute: typeof AuthenticatedAdminBusinessesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/communications': {
+      id: '/_authenticated/admin/communications'
+      path: '/admin/communications'
+      fullPath: '/admin/communications'
+      preLoaderRoute: typeof AuthenticatedAdminCommunicationsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/compliance': {
@@ -670,6 +690,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedAdminBusinessesRoute: typeof AuthenticatedAdminBusinessesRoute
+  AuthenticatedAdminCommunicationsRoute: typeof AuthenticatedAdminCommunicationsRoute
   AuthenticatedAdminComplianceRoute: typeof AuthenticatedAdminComplianceRoute
   AuthenticatedAdminCoverageRoute: typeof AuthenticatedAdminCoverageRoute
   AuthenticatedAdminPartnersRoute: typeof AuthenticatedAdminPartnersRoute
@@ -688,6 +709,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedAdminBusinessesRoute: AuthenticatedAdminBusinessesRoute,
+  AuthenticatedAdminCommunicationsRoute: AuthenticatedAdminCommunicationsRoute,
   AuthenticatedAdminComplianceRoute: AuthenticatedAdminComplianceRoute,
   AuthenticatedAdminCoverageRoute: AuthenticatedAdminCoverageRoute,
   AuthenticatedAdminPartnersRoute: AuthenticatedAdminPartnersRoute,

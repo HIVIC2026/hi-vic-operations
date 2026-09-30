@@ -14,12 +14,13 @@ import { Label } from "@/components/ui/label";
 import { useAction } from "@/hooks/use-me";
 import { autoAdvancePipeline, createEnquiry, getAdminPipeline, getCommsStatus, getPostIntakeHealth, sweepAuthorities } from "@/lib/portal.functions";
 import { useServerFn } from "@tanstack/react-start";
+import { getAdminCoverage } from "@/lib/coverage.functions";
 
 const ACCEPTANCE_STAGES = ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"];
 type WorkView = "active" | "review" | "ineligible" | "finalised" | "cancelled" | "test";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
-  head: () => ({ meta: [{ title: "Pipeline – HI VIC Portal" }, { name: "description", content: "HI VIC operational job pipeline." }, { property: "og:title", content: "Pipeline – HI VIC Portal" }, { property: "og:description", content: "HI VIC operational job pipeline." }] }),
+  head: () => ({ meta: [{ title: "Enquiries – HI VIC Portal" }, { name: "description", content: "HI VIC active enquiry workspace." }, { property: "og:title", content: "Enquiries – HI VIC Portal" }, { property: "og:description", content: "HI VIC active enquiry workspace." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: Pipeline,
 });
 
@@ -33,6 +34,9 @@ function Pipeline() {
   const commsStatus = useServerFn(getCommsStatus);
   const { data: comms } = useQuery({ queryKey: ["comms_status"], queryFn: () => commsStatus() });
   const postIntakeHealth = useServerFn(getPostIntakeHealth);
+  const loadCoverage = useServerFn(getAdminCoverage);
+  const { data: coverageData } = useQuery({ queryKey: ["admin-coverage"], queryFn: () => loadCoverage(), staleTime: 30_000 });
+  const coverageByJob = useMemo(() => new Map((coverageData?.rows ?? []).map((row) => [row.id, row.overall])), [coverageData]);
   const { data: intakeHealth } = useQuery({ queryKey: ["post_intake_health"], queryFn: () => postIntakeHealth(), refetchInterval: 60_000 });
   const [phase, setPhase] = useState<Phase | "all">("all");
   const { data: allJobs = [], error: pipelineError, isPending: pipelinePending, refetch: refetchPipeline } = useQuery({
@@ -87,13 +91,14 @@ function Pipeline() {
       )}
       <div className="mb-5 flex flex-wrap items-start gap-4 border-b pb-5">
         <div>
-           <h1 className="text-2xl font-bold">Active work</h1>
-           <p className="mt-1 text-sm text-muted-foreground">A clear working list. Ineligible, completed, cancelled and test records stay safely filed in their own views.</p>
+           <p className="text-xs font-bold uppercase text-primary">Home Insulation Victoria</p>
+           <h1 className="mt-1 text-4xl font-bold">ENQUIRIES</h1>
+           <p className="mt-2 text-sm text-muted-foreground">Active enquiries first. Ineligible, finalised, cancelled and test records stay safely filed.</p>
         </div>
-        <div className="ml-auto flex items-center gap-2"><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${comms?.enabled === true ? "border-success/30 bg-success-soft text-success" : "border-warning/40 bg-warning-soft text-foreground"}`}><span className={`h-2 w-2 rounded-full ${comms?.enabled === true ? "bg-success" : "bg-warning"}`} />Customer messages {comms?.enabled === true ? "on" : "off"}</span><NewEnquiry /></div>
+         <div className="ml-auto flex items-center gap-2"><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${comms?.enabled === true ? "border-success/30 bg-success-soft text-success" : "border-workspace-sun-strong/40 bg-workspace-sun text-foreground"}`}><span className={`h-2 w-2 rounded-full ${comms?.enabled === true ? "bg-success" : "bg-warning"}`} />Customer messages {comms?.enabled === true ? "on" : "off"}</span><NewEnquiry /></div>
       </div>
        <section className="mb-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-6" aria-label="Work files">
-         {([{ key: "active", label: "Active", count: activeCount, icon: Workflow }, { key: "review", label: "Needs review", count: groups.review.length, icon: AlertTriangle }, { key: "ineligible", label: "Ineligible / hold", count: groups.ineligible.length, icon: Ban }, { key: "finalised", label: "Finalised", count: groups.finalised.length, icon: CheckCircle2 }, { key: "cancelled", label: "Cancelled", count: groups.cancelled.length, icon: Archive }, { key: "test", label: "Test records", count: groups.test.length, icon: FlaskConical }] as const).map((item) => <button key={item.key} type="button" onClick={() => { setWorkView(item.key); setPhase("all"); }} className={`rounded-md border p-3 text-left transition hover:border-primary ${workView === item.key ? "border-primary bg-secondary" : "bg-card"}`}><div className="flex items-center justify-between"><span className="text-xs font-semibold text-muted-foreground">{item.label}</span><item.icon className="h-4 w-4 text-primary" /></div><div className="mt-1 text-xl font-bold">{item.count}</div></button>)}
+          {([{ key: "active", label: "Active enquiries", count: activeCount, icon: Workflow }, { key: "review", label: "Needs review", count: groups.review.length, icon: AlertTriangle }, { key: "ineligible", label: "Ineligible / hold", count: groups.ineligible.length, icon: Ban }, { key: "finalised", label: "Finalised", count: groups.finalised.length, icon: CheckCircle2 }, { key: "cancelled", label: "Cancelled", count: groups.cancelled.length, icon: Archive }, { key: "test", label: "Test records", count: groups.test.length, icon: FlaskConical }] as const).map((item) => <button key={item.key} type="button" onClick={() => { setWorkView(item.key); setPhase("all"); }} className={`rounded-md border p-3 text-left transition hover:border-primary ${workView === item.key ? "border-workspace-blush-strong bg-workspace-blush shadow-sm" : "bg-card"}`}><div className="flex items-center justify-between"><span className="text-xs font-semibold text-muted-foreground">{item.label}</span><item.icon className="h-4 w-4 text-primary" /></div><div className="mt-1 text-xl font-bold">{item.count}</div></button>)}
       </section>
        {workView === "active" && warnings > 0 && <div className="mb-4 rounded-md border-l-4 border-warning bg-warning-soft px-4 py-3 text-sm"><b>{warnings} active job{warnings === 1 ? "" : "s"} need attention.</b> {[piesaCount && `${piesaCount} PIESA`, paymentCount && `${paymentCount} payment`, acceptanceCount && `${acceptanceCount} agreement`].filter(Boolean).join(" · ")}</div>}
       {comms?.enabled !== true && <p className="mb-3 text-xs text-muted-foreground">Pre-launch safety is active: no email, SMS or notification is sent to customers or trades.</p>}
@@ -110,7 +115,10 @@ function Pipeline() {
       {pipelinePending ? (
         <div role="status" className="rounded-md border bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">Loading enquiries…</div>
       ) : (
-         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase).map((j: JobRow) => <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" />)}{filtered.length === 0 && <div className="col-span-full rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">No records in this view.</div>}</div>
+         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase).map((j: JobRow) => {
+           const coverage = coverageByJob.get(j.id ?? "");
+           return <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" {...(coverage ? { coverage } : {})} />;
+         })}{filtered.length === 0 && <div className="col-span-full rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">No records in this view.</div>}</div>
       )}
     </AppShell>
   );
