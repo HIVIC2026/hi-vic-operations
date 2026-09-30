@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireAdmin } from "./workflow.server";
+import { requireAdmin, requireJobRole } from "./workflow.server";
 
 const uuid = z.string().uuid();
 
@@ -16,6 +16,17 @@ export const getAdminPartnerEnquiries = createServerFn({ method: "POST" }).middl
   if (error) throw new Error(`Partner enquiries could not be loaded: ${error.message}`);
   return data ?? [];
 });
+
+export const getJobOverview = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, data.jobId, ["admin", "owner", "electrician", "installer"]);
+    const admin = await adminClient();
+    const { data: row, error } = await admin.from("job_overview").select("*").eq("id", data.jobId).maybeSingle();
+    if (error) throw new Error(`Job could not be loaded: ${error.message}`);
+    if (!row) throw new Error("Job not found or no longer available.");
+    return row;
+  });
 
 export const getAdminBusinesses = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);

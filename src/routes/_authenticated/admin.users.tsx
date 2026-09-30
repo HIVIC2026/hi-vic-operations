@@ -29,7 +29,7 @@ function Users() {
       <p className="mb-4 text-sm text-muted-foreground">People appear here after they sign up. Owners are linked automatically when their sign-up email matches their enquiry.</p>
       {error && <div role="alert" className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Users could not be loaded. Existing accounts are safe. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
       {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading users…</p>}
-      <div className="overflow-x-auto rounded-xl border bg-card">
+      {!error && !isPending && <div className="overflow-x-auto rounded-xl border bg-card">
         <table className="w-full text-sm">
           <thead className="bg-muted text-left"><tr><th className="p-3">Name</th><th className="p-3">Email</th><th className="p-3">Business</th>{ROLES.map((r) => <th key={r} className="p-3 capitalize">{r}</th>)}</tr></thead>
           <tbody>
@@ -50,7 +50,7 @@ function Users() {
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
     </AppShell>
   );
 }

@@ -39,7 +39,7 @@ function Partners() {
       <p className="mb-4 text-sm text-muted-foreground">Businesses interested in working with HI VIC. These are not customer jobs and never appear in the Pipeline.</p>
       {error && <div role="alert" className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Partner enquiries could not be loaded. Existing applications are safe. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
       {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading partner enquiries…</p>}
-      <Tabs defaultValue="property_manager">
+      {!error && !isPending && <Tabs defaultValue="property_manager">
         <TabsList>
           {PARTNER_TYPES.map((t) => (
             <TabsTrigger key={t} value={t}>{PARTNER_TYPE_LABEL[t]} <Badge variant="secondary" className="ml-2">{of(t).length}</Badge>
@@ -76,7 +76,7 @@ function Partners() {
             )}
           </TabsContent>
         ))}
-      </Tabs>
+      </Tabs>}
       {open && <Detail row={rows.find((r) => r.id === open.id) ?? open} onClose={() => setOpen(null)} />}
     </AppShell>
   );

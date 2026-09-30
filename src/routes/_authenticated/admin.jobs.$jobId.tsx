@@ -42,7 +42,8 @@ export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
 
 function JobDetail() {
   const { jobId } = Route.useParams();
-  const { data: job } = useJob(jobId);
+  const { data: job, error, refetch } = useJob(jobId);
+  if (error) return <AppShell wide><div role="alert" className="rounded-md border border-danger bg-danger-soft p-4 text-sm text-danger">This job could not be loaded. Its records have not been deleted.<Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div></AppShell>;
   if (!job) return <AppShell wide><p className="text-muted-foreground">Loading…</p></AppShell>;
   return (
     <AppShell wide>

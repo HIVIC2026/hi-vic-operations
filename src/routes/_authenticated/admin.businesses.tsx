@@ -32,7 +32,7 @@ function Businesses() {
       </div>
       {error && <div role="alert" className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Partner businesses could not be loaded. Existing records are safe. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
       {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading partner businesses…</p>}
-      <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
+      {!error && !isPending && <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
         <div className="space-y-2">
           <MeasurementStandardCard />
           <div className="rounded-xl border bg-card p-3">
@@ -48,7 +48,7 @@ function Businesses() {
           ))}
         </div>
         <div>{open ? <BusinessProfile key={open} businessId={open} isHivicAdmin /> : <p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">Choose a business to review.</p>}</div>
-      </div>
+      </div>}
     </AppShell>
   );
 }

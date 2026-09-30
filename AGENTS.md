@@ -10,7 +10,7 @@
 <!-- LOVABLE:END -->
 
 ## Architecture rules
-- All writes, plus the full admin Pipeline read, go through authenticated server functions that verify the caller before privileged access; non-admins retain RLS-scoped reads. Why: central gates and reliable admin visibility without weakening job security.
+- All admin reads/writes use authenticated server functions with explicit errors; non-admin reads stay RLS-scoped. Why: no false-empty records or weak access.
 - Stage-entry guards (Owner Authority, PIESA window, 50% deposit, evidence, compliance) live only in `stageEntryBlockers`; authority rules live in `authority.server.ts`. Why: rules change centrally.
 - One combined installation quote (rectification lines folded in) carries the single Xero invoice and 50% deposit. Why: deposit must precede rectification scheduling.
 - PIESA window length lives in `workflow_settings`; deadline/urgency computed by the `job_piesa_deadlines` view. Why: single source for UI and server.
