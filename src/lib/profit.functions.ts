@@ -19,13 +19,16 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
       }
     } catch { /* fall back to stored history / manual entry */ }
   }
-  const [spots, quotes, jobs, channels] = await Promise.all([
+  const [spots, quotes, jobs, channels, pricing] = await Promise.all([
     admin.from("veec_spot_prices").select("id,price,priced_on,source,note,created_at").order("priced_on", { ascending: false }).limit(500),
     admin.from("quotes").select("id,job_id,kind,customer_total_inc_gst,subtotal_inc_gst,veec_discount_inc_gst,accepted_at").eq("status", "accepted"),
     admin.from("job_overview").select("id,job_number,property_address,owner_name,stage,source"),
     admin.from("jobs").select("id,channel"),
+    admin.from("pricing_settings").select("piesa_rec_cost_ex_gst,veec_lodgement_fee_ex_gst").eq("is_active", true).maybeSingle(),
   ]);
-  for (const r of [spots, quotes, jobs, channels]) if (r.error) throw new Error(`Profit register could not be loaded: ${r.error.message}`);
+  for (const r of [spots, quotes, jobs, channels, pricing]) if (r.error) throw new Error(`Profit register could not be loaded: ${r.error.message}`);
+  const piesaRecCost = pricing.data?.piesa_rec_cost_ex_gst != null ? Number(pricing.data.piesa_rec_cost_ex_gst) : null; // negotiated REC PIESA rate; null until agreed
+  const lodgementFeeExGst = pricing.data?.veec_lodgement_fee_ex_gst != null ? Number(pricing.data.veec_lodgement_fee_ex_gst) : null; // ESC fee per VEEC
   const ids = (quotes.data ?? []).map((q) => q.id);
   const [internals, items] = await Promise.all([
     ids.length ? admin.from("quote_internals").select("quote_id,cost_ex_gst,ap_margin_ex_gst,ap_fee_ex_gst").in("quote_id", ids) : Promise.resolve({ data: [], error: null } as const),
@@ -37,6 +40,8 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
     customer: number; discount: number; acceptedAt: string | null;
     installerCost: number; installerMargin: number; apFee: number;
     electricalCost: number; electricalChargeEx: number;
+    piesaCostEx: number | null; piesaCostMissing: boolean;
+    lodgementFeeExGst: number | null;
     costMissing: boolean; installerSourced: boolean;
   }>();
   const gst = 1.1;
@@ -44,6 +49,8 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
     customer: 0, discount: 0, acceptedAt: null,
     installerCost: 0, installerMargin: 0, apFee: 0,
     electricalCost: 0, electricalChargeEx: 0,
+    piesaCostEx: piesaRecCost, piesaCostMissing: piesaRecCost == null,
+    lodgementFeeExGst,
     costMissing: false, installerSourced: false,
   };
   for (const q of quotes.data ?? []) {
