@@ -19,9 +19,9 @@ describe("customer quote system", () => {
     expect(CUSTOMER_VISUAL_SYSTEM).toEqual({ quoteRadiusPx: 20, secondaryRadiusPx: 16, secondaryPaddingPx: 20, actionRadiusPx: 16, actionPaddingPx: 16, softBlueBorder: "#D4DAF5", softGreenBorder: "#BEE8CE", paleGreen: "#ECF9F1", footer: "#F1F8F3" });
     expect(CUSTOMER_ASSESSMENT_ACTION.cta).toBe("BOOK MY READY CHECK →");
     expect(CUSTOMER_ASSESSMENT_ACTION.paragraphs[0]).toBe("Your $99 Home Insulation Ready Check is credited toward your project if you proceed.");
-    expect(CUSTOMER_WHAT_COULD_CHANGE.heading).toBe("WHAT COULD CHANGE MY ESTIMATE?");
-    expect(CUSTOMER_WHAT_COULD_CHANGE.items.map(({ lead }) => lead)).toEqual(["Ceiling size", "Existing insulation", "Access", "Electrical rectification"]);
-    expect(CUSTOMER_WHAT_COULD_CHANGE.closing).toBe("If any of these apply, we’ll show you exactly what is required and the updated price before you decide whether to proceed. We will never proceed with additional work or additional costs without first showing you the scope and price and getting your approval.");
+    expect(CUSTOMER_WHAT_COULD_CHANGE.heading).toBe("ABOUT YOUR PRELIMINARY ESTIMATE");
+    expect(CUSTOMER_WHAT_COULD_CHANGE.items).toEqual([]); expect(CUSTOMER_WHAT_COULD_CHANGE.intro).toContain("measured ceiling size, existing insulation and any required removal, ceiling access conditions, and any electrical rectification");
+    expect(CUSTOMER_WHAT_COULD_CHANGE.closing).toBe("Home Insulation Victoria will never proceed with additional work or additional costs without first showing you the required scope and price and receiving your approval.");
   });
 
   test("customer-facing Step 3 sources consume the shared system and contain no HI VIC shorthand", () => {
