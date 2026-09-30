@@ -96,7 +96,7 @@ export function QuoteCardReadyCheckClose({ href, inert = false }: { href?: strin
     <div className="mt-6" data-testid="quote-what-could-change">
       <h4 className="text-lg font-extrabold text-estimate-blue">{CUSTOMER_WHAT_COULD_CHANGE.heading}</h4>
       <p className="mt-3 text-sm leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.intro}</p>
-      <ul className="mt-4 space-y-3 text-sm leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.items.map(({ lead, copy }) => <li key={lead} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" /><span><strong>{lead} —</strong> {copy}</span></li>)}</ul>
+      {CUSTOMER_WHAT_COULD_CHANGE.items.length > 0 && <ul className="mt-4 space-y-3 text-sm leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.items.map(({ lead, copy }) => <li key={lead} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" /><span><strong>{lead} —</strong> {copy}</span></li>)}</ul>}
       <p className="mt-5 text-sm font-extrabold leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.closing}</p>
       <p className="mt-3 text-xs font-bold">{CUSTOMER_WHAT_COULD_CHANGE.gst}</p>
     </div>
