@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Check, HeartPulse, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
-import { AuthorityBadge, Pill, StageBadge, UrgencyBadge } from "@/components/portal/badges";
+import { Pill, StageBadge, UrgencyBadge } from "@/components/portal/badges";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, Section, useJob } from "@/components/portal/panels";
 import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { MeasurementDetails, MeasurementForm, MeasurementReadOnly, useJobScope, useMeasurements } from "@/components/portal/requirements";

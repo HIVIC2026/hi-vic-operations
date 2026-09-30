@@ -17,7 +17,7 @@ import { assertAgreementCanSign, assignmentEffective, buildAcceptancePackage, cu
 import { ASSIGNMENT_EVENTS, parseFormFields, prefillRows, setupStatus, templateBlockers, type TemplateKey } from "./assignment.core";
 import { consentValidityBlockers } from "./consent.core";
 import { autoAdvanceJob, autoAdvanceOpenJobs } from "./autoadvance.server";
-import { acceptAuthority, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
+import { sweepAuthorityExpiry } from "./authority.server";
 
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
 
