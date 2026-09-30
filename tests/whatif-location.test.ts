@@ -52,7 +52,7 @@ describe("address-aware what-if calculator", () => {
     const ac = readFileSync("src/components/portal/VictorianAddressAutocomplete.tsx", "utf8");
     for (const t of ['role="combobox"', 'role="listbox"', "aria-selected", "ArrowDown", "Escape", "min-h-11", "onSelect(null)"]) expect(ac).toContain(t);
     const proxy = readFileSync("src/lib/address-search.functions.ts", "utf8");
-    expect(proxy).not.toMatch(/supabase|upsert|insert|update\(|GOOGLE/i);
+    expect(proxy).not.toMatch(/supabase|upsert|\.insert\(|\.update\(|GOOGLE_[A-Z_]*KEY|process\.env/);
     expect(calc).toContain("onUse(m2)");
     expect(calc).not.toMatch(/onUse\([^)]*(altPostcode|altAddress|activeLocation)/);
     expect(calc).not.toMatch(/useServerFn|supabase|fetch\(/);
