@@ -4,3 +4,5 @@
 - [x] Rebuild referral card: cleaner, less messy
 - [x] Update plain text order to match
 - [x] Update tests, run focused tests + typecheck + build, 390/640 QA
+- [ ] Fix BOOK MY READY CHECK button in test email (link broken/not working)
+- [ ] Clean up calculator page layout (messy on mobile)
