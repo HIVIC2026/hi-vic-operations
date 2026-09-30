@@ -72,6 +72,15 @@ export const CUSTOMER_READY_CHECK = {
   ],
 } as const;
 
+/** Concise email invitation; the secure confirmation page carries the full service explanation. */
+export const CUSTOMER_READY_CHECK_EMAIL_ACTION = {
+  eyebrow: "NEXT STEP",
+  heading: "BOOK YOUR HOME INSULATION READY CHECK",
+  sentence: "For $99, we’ll arrange your onsite Ready Check so we can measure your ceiling and prepare a more accurate project estimate.",
+  credit: "The $99 is credited toward your project if you proceed.",
+  helper: "See exactly what’s included on the next page.",
+} as const;
+
 /** Back-compat alias used by renderers: the only next paid step is the Ready Check. */
 export const CUSTOMER_ASSESSMENT_ACTION = { cta: CUSTOMER_READY_CHECK.cta, paragraphs: CUSTOMER_READY_CHECK.paragraphs } as const;
 

@@ -49,17 +49,31 @@ export function ConfirmQuote({ estimatedPrice, onBack, preview = false, testMode
         <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">{CUSTOMER_QUOTE_LABELS.payableNow}</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(READY_CHECK_FEE)}</dd></div>
         <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">{CUSTOMER_QUOTE_LABELS.remainingBalance}</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(remaining)}</dd></div>
       </dl>
-      <div className="estimate-action-card mt-6 space-y-3 text-sm leading-relaxed">{CUSTOMER_READY_CHECK.paragraphs.map((paragraph, index) => <p key={paragraph} className={index === 0 || index === 2 ? "font-extrabold" : undefined}>{paragraph}</p>)}</div>
+      <div className="estimate-action-card mt-6 space-y-3 text-sm leading-relaxed">
+        <p className="font-extrabold">{CUSTOMER_READY_CHECK.paragraphs[0]}</p>
+        <p>{CUSTOMER_READY_CHECK.paragraphs[1]}</p>
+        <p className="font-extrabold">{CUSTOMER_READY_CHECK.paragraphs[2]}</p>
+      </div>
+      <div className="mt-7">
+        <h2 className="text-lg font-extrabold text-estimate-blue">What happens at your Ready Check</h2>
+        <ul className="mt-4 space-y-3 text-sm font-semibold">
+          {["An insulation installer attends your property", "Your eligible ceiling area is measured", "Existing insulation, removal needs and access conditions are checked", "Preliminary electrical observations and photos are collected — not a compliance assessment"].map((item) => <li key={item} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-estimate-green" /><span>{item}</span></li>)}
+        </ul>
+      </div>
+      <div className="estimate-secondary-card mt-6 space-y-3 text-sm leading-relaxed">
+        <h2 className="text-lg font-extrabold text-estimate-blue">How your measured estimate is prepared</h2>
+        <p>We use the measured site information and observable electrical items to prepare your measured project estimate. Where applicable, it may include a preliminary electrical allowance based on Home Insulation Victoria&apos;s agreed electrician rate card.</p>
+        <p className="font-extrabold">This is not an electrical quote or a statement of electrical compliance. Your mandatory PIESA is completed later by a licensed electrician, close to installation.</p>
+      </div>
+      <div className="estimate-secondary-card mt-6">
+        <h2 className="text-lg font-extrabold text-estimate-blue">{CUSTOMER_WHAT_COULD_CHANGE.heading}</h2>
+        <ul className="mt-4 space-y-3 text-sm leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.items.map((item) => <li key={item} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" /><span>{item}</span></li>)}</ul>
+        <p className="mt-5 text-sm font-extrabold leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.closing}</p>
+      </div>
       <label className="estimate-secondary-card mt-6 flex items-start gap-3 text-sm leading-relaxed">
         <input type="checkbox" checked={!!state || acknowledged} disabled={!!state || busy} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-1 size-4 accent-estimate-blue" />
         <span>I accept booking the $99 Home Insulation Ready Check. I understand it is a service charge if I do not proceed, it is credited toward my project if I do, and it is not the PIESA.</span>
       </label>
-      <div className="mt-7">
-        <h2 className="text-lg font-extrabold text-estimate-blue">What your Ready Check records</h2>
-        <ul className="mt-4 space-y-3 text-sm font-semibold">
-          {["Measured eligible ceiling area", "Existing insulation and whether removal is required", "Access and installation factors", "Observable electrical items for a preliminary allowance"].map((item) => <li key={item} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-estimate-green" /><span>{item}</span></li>)}
-        </ul>
-      </div>
       <div className="mt-7 space-y-3">
         {!state && testMode && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold" disabled={!acknowledged || busy || !onAccept} onClick={onAccept}>{busy ? "RECORDING…" : CUSTOMER_READY_CHECK.cta}</Button>}
         {state && !paid && testMode && <div className="estimate-secondary-card" data-testid="test-payment-controls"><p className="text-xs font-extrabold uppercase text-estimate-blue">Test mode · payment controls</p><p className="mt-2 text-sm">Current state: <strong>{state.paymentStatus === "failed" ? "Payment failed — retry available" : "Unpaid"}</strong></p><div className="mt-4 grid gap-3 sm:grid-cols-2"><Button type="button" variant="outline" size="field" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("failure")}>SIMULATE FAILURE</Button><Button type="button" size="field" className="bg-estimate-blue text-estimate-white" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("success")}>SIMULATE SUCCESS</Button></div></div>}
