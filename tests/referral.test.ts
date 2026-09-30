@@ -73,9 +73,9 @@ describe("customer payload + emails", () => {
     const url = referralShareUrl(newReferralToken());
     const quote = { estimatedTotal: 3396, veuDiscount: 1325, areaM2: 134.1 };
     const withRef = renderEstimateEmail({ estimateUrl, referralUrl: url, ...quote });
-    expect(withRef.html).toContain("Refer a friend");
+    expect(withRef.html).toContain("REFER A FRIEND");
     expect(withRef.html).toContain("KNOW SOMEONE WHO MIGHT QUALIFY?");
-    expect(withRef.plainText).toContain(`Refer a friend: ${url}`);
+    expect(withRef.plainText).toContain(`REFER A FRIEND: ${url}`);
     const none = renderEstimateEmail({ estimateUrl, ...quote });
     expect(none.html.toLowerCase()).not.toContain("refer a friend");
     expect(none.plainText.toLowerCase()).not.toContain("refer a friend");
