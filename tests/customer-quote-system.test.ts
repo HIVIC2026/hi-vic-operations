@@ -8,7 +8,7 @@ describe("customer quote system", () => {
     expect(CUSTOMER_BRAND.logoUrl).toBe("https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png");
     expect(CUSTOMER_BRAND.colors).toEqual({ blue: "#3C51C4", green: "#07BF61", accent: "#52C875", offWhite: "#FBFCFA", navy: "#22376B", white: "#FFFFFF" });
     expect(CUSTOMER_BRAND.font).toBe("'Open Sans',Arial,Helvetica,sans-serif");
-    expect(CUSTOMER_QUOTE_ORDER).toEqual([CUSTOMER_QUOTE_LABELS.piesa, CUSTOMER_QUOTE_LABELS.insulation, CUSTOMER_QUOTE_LABELS.apManagement, CUSTOMER_QUOTE_LABELS.projectTotal, CUSTOMER_QUOTE_LABELS.discount, CUSTOMER_QUOTE_LABELS.finalCost, CUSTOMER_QUOTE_LABELS.payableNow, CUSTOMER_QUOTE_LABELS.remainingBalance]);
+    expect(CUSTOMER_QUOTE_ORDER).toEqual([CUSTOMER_QUOTE_LABELS.piesa, CUSTOMER_QUOTE_LABELS.insulation, CUSTOMER_QUOTE_LABELS.apManagement, CUSTOMER_QUOTE_LABELS.projectTotal, CUSTOMER_QUOTE_LABELS.discount, CUSTOMER_QUOTE_LABELS.finalCost]);
     expect(customerQuoteRows({ piesa: 349, installation: 4500, apManagement: 349 }).map((row) => row.label)).toEqual(CUSTOMER_QUOTE_ORDER.slice(0, 3));
   });
 
@@ -48,7 +48,7 @@ describe("presentation lock", () => {
     const idx = ["rows.map", "CUSTOMER_QUOTE_LABELS.projectTotal", "CUSTOMER_QUOTE_LABELS.discount", "CUSTOMER_QUOTE_LABELS.finalCost"].map((t) => qb.indexOf(t));
     expect(idx.every((v, i) => v > 0 && (i === 0 || v > idx[i - 1]))).toBe(true);
     expect(qb).toContain("bg-estimate-green-soft"); expect(qb).toContain("discountAmount(discount)"); expect(qb).toContain("text-5xl font-extrabold leading-none text-estimate-blue");
-    expect(ui.match(/CUSTOMER_WHAT_COULD_CHANGE\.heading/g)?.length).toBe(2); // in-card close + Ready Check page only
+    expect(ui.match(/CUSTOMER_WHAT_COULD_CHANGE\.heading/g)?.length).toBe(1); // in-card close only; Ready Check page uses its own single card
     expect(ui).not.toMatch(/no other standard fees/i);
   });
   test("email discount band is green with minus, before final cost; disclaimer once", () => {

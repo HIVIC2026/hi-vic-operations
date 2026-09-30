@@ -9,8 +9,8 @@ import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
 import { BENCHMARK_LABEL, CALC_ASSUMPTION_LABEL, CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, FEE_DESCRIPTION, FEE_LABEL, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings, type Scenario } from "@/lib/estimate.core";
 import type { LocationVariables } from "@/lib/activity48.core";
 import { WHATIF_ADDRESS_COPY, locationBasisLine, postcodeFromAddress, resolveWhatIfLocation } from "@/lib/whatif-location";
-import { CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows, discountAmount } from "@/lib/customer-quote-system";
-import { READY_CHECK_BOOKING_SUCCESS, READY_CHECK_FEE, readyCheckRemaining, type ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
+import { CUSTOMER_APPROVAL_REASSURANCE, CUSTOMER_READY_CHECK_PAGE, CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows, discountAmount } from "@/lib/customer-quote-system";
+import { READY_CHECK_BOOKING_SUCCESS, type ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
 import { Pill } from "./badges";
 
 export const HEADLINE = { likely: "Your home has passed our initial eligibility checks.", onsite: "Your home looks likely to qualify." } as const;
@@ -33,61 +33,46 @@ export type CustomerData = {
 
 type Est = { scenarios: Scenario[]; access_adjustment: { moderate: number; difficult: number } };
 
-export function ConfirmQuote({ estimatedPrice, onBack, preview = false, testMode = preview, state = null, busy = false, error = null, onAccept, onTestPayment }: { estimatedPrice: number; assessmentFee?: number; onBack: () => void; preview?: boolean; testMode?: boolean; state?: ReadyCheckAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; onTestPayment?: (outcome: "success" | "failure") => void }) {
-  const remaining = readyCheckRemaining(estimatedPrice);
+export function ConfirmQuote({ onBack, preview = false, testMode = preview, state = null, busy = false, error = null, onAccept, onTestPayment }: { estimatedPrice?: number; assessmentFee?: number; onBack: () => void; preview?: boolean; testMode?: boolean; state?: ReadyCheckAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; onTestPayment?: (outcome: "success" | "failure") => void }) {
   const paid = state?.paymentStatus === "paid";
   const [acknowledged, setAcknowledged] = useState(false);
-  return <section className="estimate-brand estimate-quote-card overflow-hidden text-estimate-navy" aria-labelledby="confirm-quote-title">
+  const P = CUSTOMER_READY_CHECK_PAGE;
+  return <div className="estimate-brand space-y-6 text-estimate-navy">
     {testMode && <div className="bg-warning-soft px-5 py-3 text-center text-xs font-extrabold uppercase text-warning-foreground">Test mode · no real payment will be taken</div>}
-    <div className="bg-estimate-blue px-5 py-7 text-estimate-white sm:px-9 sm:py-9">
-      <p className="text-xs font-extrabold uppercase tracking-wider text-estimate-green-light">Your next step</p>
-      <h1 id="confirm-quote-title" className="mt-2 text-3xl font-extrabold leading-tight sm:text-4xl">BOOK YOUR {CUSTOMER_READY_CHECK.name.toUpperCase()}</h1>
-      <p className="mt-3 max-w-xl text-sm font-semibold leading-relaxed">{CUSTOMER_READY_CHECK.paragraphs[1]}</p>
-    </div>
-    <div className="px-5 py-7 sm:px-9 sm:py-9">
-      <dl className="space-y-3 border-b border-estimate-blue-soft pb-6 text-sm">
-        <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">{CUSTOMER_QUOTE_LABELS.finalCost}</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(estimatedPrice)}</dd></div>
-        <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">{CUSTOMER_QUOTE_LABELS.payableNow}</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(READY_CHECK_FEE)}</dd></div>
-        <div className="flex items-baseline justify-between gap-4"><dt className="font-bold">{CUSTOMER_QUOTE_LABELS.remainingBalance}</dt><dd className="text-xl font-extrabold text-estimate-blue">{dollars(remaining)}</dd></div>
-      </dl>
-      <div className="estimate-action-card mt-6 space-y-3 text-sm leading-relaxed">
-        <p className="font-extrabold">{CUSTOMER_READY_CHECK.paragraphs[0]}</p>
-        <p>{CUSTOMER_READY_CHECK.paragraphs[1]}</p>
-        <p className="font-extrabold">{CUSTOMER_READY_CHECK.paragraphs[2]}</p>
+    <CustomerStageHero eyebrow={P.eyebrow} heading={P.heading} intro={P.intro} id="confirm-quote-title" />
+    <section className="estimate-quote-card px-5 py-7 sm:px-8" aria-labelledby="confirm-quote-title" data-testid="ready-check-card">
+      <p className="text-2xl font-extrabold leading-tight text-estimate-blue">{P.cardTitle}</p>
+      <p className="mt-2 text-sm font-extrabold">{P.credit}</p>
+      <h2 className="mt-6 text-xs font-extrabold uppercase tracking-wider text-estimate-green">{P.whatHappensHeading}</h2>
+      <ul className="mt-3 space-y-3 text-sm font-semibold">{P.whatHappens.map((item) => <li key={item} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-estimate-green" /><span>{item}</span></li>)}</ul>
+      <p className="mt-5 text-sm leading-relaxed">{P.notPiesa}</p>
+      <p className="mt-3 text-sm font-extrabold leading-relaxed" data-testid="approval-reassurance">{CUSTOMER_APPROVAL_REASSURANCE}</p>
+      <div className="mt-6 border-t border-estimate-blue-soft pt-6">
+        {!paid && <label className="flex items-start gap-3 text-sm leading-relaxed">
+          <input type="checkbox" checked={!!state || acknowledged} disabled={!!state || busy} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-1 size-4 accent-estimate-blue" />
+          <span>{P.acceptance}</span>
+        </label>}
+        <div className="mt-5 space-y-3">
+          {!state && testMode && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold" disabled={!acknowledged || busy || !onAccept} onClick={onAccept}>{busy ? "RECORDING…" : CUSTOMER_READY_CHECK.cta}</Button>}
+          {!testMode && !paid && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold disabled:opacity-100" disabled>BOOKING CURRENTLY UNAVAILABLE</Button>}
+          {paid && <div role="status"><p className="text-xs font-extrabold uppercase text-estimate-green">Payment received</p><h2 className="mt-2 text-xl font-extrabold text-estimate-blue">{READY_CHECK_BOOKING_SUCCESS.heading}</h2><p className="mt-3 text-sm font-bold">{READY_CHECK_BOOKING_SUCCESS.received}</p><p className="mt-3 text-sm leading-relaxed">{READY_CHECK_BOOKING_SUCCESS.assignment}</p><p className="mt-3 text-sm leading-relaxed">{READY_CHECK_BOOKING_SUCCESS.visit}</p><p className="mt-3 text-xs font-semibold leading-relaxed">{READY_CHECK_BOOKING_SUCCESS.reassurance}</p></div>}
+          {state?.stale && <p className="border-l-4 border-danger bg-danger-soft px-4 py-3 text-sm font-bold" role="alert">Your estimate changed. Please review and accept the updated estimate before paying.</p>}
+          {error && <p className="text-sm font-bold text-danger" role="alert">{error}</p>}
+        </div>
       </div>
-      <div className="mt-7">
-        <h2 className="text-lg font-extrabold text-estimate-blue">What happens at your Ready Check</h2>
-        <ul className="mt-4 space-y-3 text-sm font-semibold">
-          {["An insulation installer attends your property", "Your eligible ceiling area is measured", "Existing insulation, removal needs and access conditions are checked", "Preliminary electrical observations and photos are collected — not a compliance assessment"].map((item) => <li key={item} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-estimate-green" /><span>{item}</span></li>)}
-        </ul>
-      </div>
-      <div className="estimate-secondary-card mt-6 space-y-3 text-sm leading-relaxed">
-        <h2 className="text-lg font-extrabold text-estimate-blue">How your measured estimate is prepared</h2>
-        <p>We use the measured site information and observable electrical items to prepare your measured project estimate. Where applicable, it may include a preliminary electrical allowance based on Home Insulation Victoria&apos;s agreed electrician rate card.</p>
-        <p className="font-extrabold">This is not an electrical quote or a statement of electrical compliance. Your mandatory PIESA is completed later by a licensed electrician, close to installation.</p>
-      </div>
-      <div className="estimate-secondary-card mt-6">
-        <h2 className="text-lg font-extrabold text-estimate-blue">{CUSTOMER_WHAT_COULD_CHANGE.heading}</h2>
-        <p className="mt-3 text-sm leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.intro}</p>
-        <ul className="mt-4 space-y-3 text-sm leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.items.map(({ lead, copy }) => <li key={lead} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" /><span><strong>{lead} —</strong> {copy}</span></li>)}</ul>
-        <p className="mt-5 text-sm font-extrabold leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.closing}</p>
-        <p className="mt-3 text-xs font-bold">{CUSTOMER_WHAT_COULD_CHANGE.gst}</p>
-      </div>
-      <label className="estimate-secondary-card mt-6 flex items-start gap-3 text-sm leading-relaxed">
-        <input type="checkbox" checked={!!state || acknowledged} disabled={!!state || busy} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-1 size-4 accent-estimate-blue" />
-        <span>I accept booking the $99 Home Insulation Ready Check. I understand it is a service charge if I do not proceed, it is credited toward my project if I do, and it is not the PIESA.</span>
-      </label>
-      <div className="mt-7 space-y-3">
-        {!state && testMode && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold" disabled={!acknowledged || busy || !onAccept} onClick={onAccept}>{busy ? "RECORDING…" : CUSTOMER_READY_CHECK.cta}</Button>}
-        {state && !paid && testMode && <div className="estimate-secondary-card" data-testid="test-payment-controls"><p className="text-xs font-extrabold uppercase text-estimate-blue">Test mode · payment controls</p><p className="mt-2 text-sm">Current state: <strong>{state.paymentStatus === "failed" ? "Payment failed — retry available" : "Unpaid"}</strong></p><div className="mt-4 grid gap-3 sm:grid-cols-2"><Button type="button" variant="outline" size="field" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("failure")}>SIMULATE FAILURE</Button><Button type="button" size="field" className="bg-estimate-blue text-estimate-white" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("success")}>SIMULATE SUCCESS</Button></div></div>}
-        {!testMode && !paid && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold disabled:opacity-100" disabled>BOOKING CURRENTLY UNAVAILABLE</Button>}
-        {paid && <div className="estimate-action-card" role="status"><p className="text-xs font-extrabold uppercase text-estimate-green">Payment received</p><h2 className="mt-2 text-xl font-extrabold text-estimate-blue">{READY_CHECK_BOOKING_SUCCESS.heading}</h2><p className="mt-3 text-sm font-bold">{READY_CHECK_BOOKING_SUCCESS.received}</p><p className="mt-3 text-sm leading-relaxed">{READY_CHECK_BOOKING_SUCCESS.assignment}</p><p className="mt-3 text-sm leading-relaxed">{READY_CHECK_BOOKING_SUCCESS.visit}</p><p className="mt-3 text-xs font-semibold leading-relaxed">{READY_CHECK_BOOKING_SUCCESS.reassurance}</p><p className="mt-3 border-t border-estimate-green/25 pt-3 text-sm">{CUSTOMER_QUOTE_LABELS.remainingBalance}: <strong>{dollars(state.estimatedRemainingBalanceIncGst)}</strong></p></div>}
-        {state?.stale && <p className="border-l-4 border-danger bg-danger-soft px-4 py-3 text-sm font-bold" role="alert">Your estimate changed. Please review and accept the updated estimate before paying.</p>}
-        {error && <p className="text-sm font-bold text-danger" role="alert">{error}</p>}
-        <Button type="button" variant="ghost" size="field" className="w-full font-bold text-estimate-blue hover:bg-estimate-green-soft hover:text-estimate-blue" onClick={onBack}>← BACK TO MY ESTIMATE</Button>
-      </div>
-    </div>
-  </section>;
+    </section>
+    {state && !paid && testMode && <div className="estimate-secondary-card" data-testid="test-payment-controls"><p className="text-xs font-extrabold uppercase text-estimate-blue">Test mode · payment controls</p><p className="mt-2 text-sm">Current state: <strong>{state.paymentStatus === "failed" ? "Payment failed — retry available" : "Unpaid"}</strong></p><div className="mt-4 grid gap-3 sm:grid-cols-2"><Button type="button" variant="outline" size="field" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("failure")}>SIMULATE FAILURE</Button><Button type="button" size="field" className="bg-estimate-blue text-estimate-white" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("success")}>SIMULATE SUCCESS</Button></div></div>}
+    <Button type="button" variant="ghost" size="field" className="w-full font-bold text-estimate-blue hover:bg-estimate-green-soft hover:text-estimate-blue" onClick={onBack}>← BACK TO MY ESTIMATE</Button>
+  </div>;
+}
+
+/** Shared blue stage hero used by Ready Check, measured estimate and PIESA pages. */
+export function CustomerStageHero({ eyebrow, heading, intro, id }: { eyebrow: string; heading: string; intro: string; id?: string }) {
+  return <header className="rounded-[20px] bg-estimate-blue px-5 py-7 text-estimate-white sm:px-8 sm:py-9">
+    <p className="text-xs font-extrabold uppercase tracking-wider text-estimate-green-light">{eyebrow}</p>
+    <h1 id={id} className="mt-2 text-3xl font-extrabold leading-tight sm:text-4xl">{heading}</h1>
+    <p className="mt-3 max-w-xl text-sm font-semibold leading-relaxed">{intro}</p>
+  </header>;
 }
 
 /** Locked canonical breakdown: 3 service rows → project total → green discount band → large blue final cost. */

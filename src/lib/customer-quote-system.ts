@@ -37,7 +37,6 @@ export const CUSTOMER_QUOTE_LABELS = {
   discount: "Estimated VEU / VEEC discount",
   finalCost: "YOUR ESTIMATED COST AFTER DISCOUNT",
   payableNow: "$99 Home Insulation Ready Check — payable now",
-  remainingBalance: "Estimated remaining project balance after Ready Check",
 } as const;
 
 export const CUSTOMER_PIESA_NOTE = "Completed later by a licensed electrician, close to installation.";
@@ -49,8 +48,6 @@ export const CUSTOMER_QUOTE_ORDER = [
   CUSTOMER_QUOTE_LABELS.projectTotal,
   CUSTOMER_QUOTE_LABELS.discount,
   CUSTOMER_QUOTE_LABELS.finalCost,
-  CUSTOMER_QUOTE_LABELS.payableNow,
-  CUSTOMER_QUOTE_LABELS.remainingBalance,
 ] as const;
 
 export const CUSTOMER_PAYMENT_COPY = {
@@ -118,3 +115,77 @@ export const CUSTOMER_DISCOUNT_TREATMENT = {
   amountColor: CUSTOMER_BRAND.colors.green,
   finalColor: CUSTOMER_BRAND.colors.blue,
 } as const;
+
+/** Exact shared approval reassurance (Ready Check, measured estimate, PIESA stage). */
+export const CUSTOMER_APPROVAL_REASSURANCE = "We will never proceed with additional work or additional costs without first showing you the scope and price and getting your approval." as const;
+
+/** Onsite-outcome hero: one heading, one subheading, dynamic reasons. */
+export const CUSTOMER_ONSITE_HERO = {
+  heading: "IT'S LOOKING GOOD SO FAR",
+  subheading: (count: number) => count === 1 ? "WE JUST NEED TO CHECK ONE THING ONSITE:" : "WE JUST NEED TO CHECK A COUPLE OF THINGS ONSITE:",
+} as const;
+
+export const CUSTOMER_READY_CHECK_PAGE = {
+  eyebrow: "NEXT STEP",
+  heading: "BOOK YOUR HOME INSULATION READY CHECK",
+  intro: "For $99, we’ll arrange an onsite Ready Check so we can measure your ceiling and collect the site information needed to prepare your measured project estimate.",
+  cardTitle: "$99 HOME INSULATION READY CHECK",
+  credit: "Credited toward your project if you proceed.",
+  whatHappensHeading: "What happens",
+  whatHappens: [
+    "An insulation installer attends your property",
+    "Your ceiling area is measured",
+    "Existing insulation, removal and access are checked",
+    "Preliminary electrical observations and photos are collected",
+  ],
+  notPiesa: "This is not the mandatory PIESA. Your PIESA is completed later by a licensed electrician, close to installation.",
+  acceptance: "I accept booking the $99 Home Insulation Ready Check. I understand it is credited toward my project if I proceed, and it is not the PIESA.",
+} as const;
+
+export const CUSTOMER_MEASURED_QUOTE = {
+  eyebrow: "YOUR READY CHECK IS COMPLETE",
+  heading: "YOUR MEASURED PROJECT ESTIMATE",
+  subcopy: "Your Ready Check is complete. We’ve used the measured ceiling area and site information to update your project estimate.",
+  labels: {
+    removal: "Existing insulation removal",
+    access: "Access adjustment",
+    allowance: "Preliminary electrical allowance",
+    readyCheckCredit: "Ready Check credit",
+    finalCost: "YOUR ESTIMATED COST AFTER DISCOUNT / CREDIT",
+  },
+  allowanceNote: "Preliminary — confirmed by your licensed electrician at the PIESA.",
+  stillChangeHeading: "WHAT COULD STILL CHANGE?",
+  stillChange: [
+    "Your formal PIESA may confirm electrical rectification that is different from the preliminary electrical allowance.",
+    "If the confirmed PIESA amount is lower, we’ll reduce your project price by the difference.",
+    "If it is higher, we’ll show you the variation for your approval before anything proceeds.",
+  ],
+} as const;
+
+export const CUSTOMER_PIESA_STAGE = {
+  heading: "ELECTRICAL SAFETY CHECK",
+  before: "Your mandatory PIESA is the next step before installation.",
+  after: "Your PIESA is complete.",
+  performedBy: "Your PIESA is completed by a licensed electrician, close to installation.",
+  requiredHeading: "ELECTRICAL WORK REQUIRED BEFORE INSTALLATION",
+  noneHeading: "NO ELECTRICAL RECTIFICATION REQUIRED",
+  noneCopy: "Your PIESA is complete and your installation can proceed to scheduling.",
+  compare: { preliminary: "Preliminary electrical allowance", confirmed: "Confirmed PIESA amount", difference: "Difference" },
+  higher: "The confirmed electrical work is higher than your preliminary allowance. Please review and approve the variation before anything proceeds.",
+  same: "The confirmed electrical work matches your preliminary allowance. No change to your project price and no approval is needed.",
+  lower: "The confirmed electrical work is lower than your preliminary allowance. We’ll reduce your project price by the difference — no approval is needed.",
+  approveCta: "APPROVE ELECTRICAL VARIATION →",
+} as const;
+
+/** Customer display order for the measured estimate (optional lines only when > 0). Display only; math lives in measuredQuote(). */
+export function measuredCustomerRows(v: { piesa: number; installation: number; removal: number; access: number; allowance: number; apManagement: number }) {
+  const L = CUSTOMER_MEASURED_QUOTE.labels;
+  return [
+    { key: "piesa", label: CUSTOMER_QUOTE_LABELS.piesa, amount: v.piesa, note: null as string | null },
+    { key: "insulation", label: CUSTOMER_QUOTE_LABELS.insulation, amount: v.installation, note: null },
+    ...(v.removal > 0 ? [{ key: "removal", label: L.removal, amount: v.removal, note: null }] : []),
+    ...(v.access > 0 ? [{ key: "access", label: L.access, amount: v.access, note: null }] : []),
+    ...(v.allowance > 0 ? [{ key: "allowance", label: L.allowance, amount: v.allowance, note: CUSTOMER_MEASURED_QUOTE.allowanceNote }] : []),
+    { key: "apManagement", label: CUSTOMER_QUOTE_LABELS.apManagement, amount: v.apManagement, note: null },
+  ];
+}
