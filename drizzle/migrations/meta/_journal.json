@@ -351,6 +351,13 @@
       "when": 1790753794027,
       "tag": "0049_onboarding_partner_type",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1790759209652,
+      "tag": "0050_restrict_partner_and_workflow_reads",
+      "breakpoints": true
     }
   ]
 }
