@@ -9,6 +9,7 @@ import {
 import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
 } from "@/lib/rec-onboarding.functions";
+import { loadTeamInvite, respondTeamInvite } from "@/lib/teaming.functions";
 import { defaultAddressProvider } from "@/lib/address-provider";
 import type { AddressSuggestion } from "@/lib/whatif-location";
 
@@ -126,6 +127,26 @@ function RecOnboarding() {
   const [error, setError] = useState<string | null>(null);
   const [showErrors, setShowErrors] = useState(false);
 
+  const [invite, setInvite] = useState<string | null>(null);
+  const [inviteInfo, setInviteInfo] = useState<Awaited<ReturnType<typeof loadTeamInvite>> | null>(null);
+  useEffect(() => {
+    const i = new URLSearchParams(window.location.search).get("invite");
+    if (!i) return;
+    setInvite(i);
+    loadTeamInvite({ data: { invite: i } }).then(setInviteInfo).catch((e) => setError(e instanceof Error ? e.message : "Invitation not found."));
+  }, []);
+  async function answerInvite(accept: boolean) {
+    if (!invite) return;
+    setBusy(true); setError(null);
+    try {
+      let t = token;
+      if (accept && !t) { t = (await startRecOnboarding()).token; localStorage.setItem(TOKEN_KEY, t); setToken(t); }
+      await respondTeamInvite({ data: { invite, accept, recToken: accept ? t ?? undefined : undefined } });
+      if (accept && t) { const r = await loadRecOnboarding({ data: { token: t } }); setD(r.data as RecData); setStatus(r.status as "draft" | "submitted"); setStarted(true); }
+      setInviteInfo((x) => (x ? { ...x, answered: accept ? "accepted" : "declined" } : x));
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not save your answer."); } finally { setBusy(false); }
+  }
+
   useEffect(() => {
     const t = localStorage.getItem(TOKEN_KEY);
     if (!t) { setLoaded(true); return; }
@@ -185,6 +206,22 @@ function RecOnboarding() {
   );
 
   if (!loaded) return shell(<p>Loading…</p>);
+
+  if (invite && inviteInfo && !inviteInfo.answered) return shell(
+    <div style={card}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: GREEN, textTransform: "uppercase", letterSpacing: 0.8 }}>You've been invited</div>
+      <h1 style={{ fontSize: 26, fontWeight: 800, margin: "8px 0 10px", color: BLUE }}>Hi {inviteInfo.firstName || "there"}, {inviteInfo.installer} has chosen you as their preferred electrician</h1>
+      {inviteInfo.usable ? <>
+        <p style={{ fontSize: 15, lineHeight: 1.6, color: MUTED }}>Join Home Insulation Victoria's trade network and you'll be teamed up with {inviteInfo.installer}. Once HI VIC! has checked your licence, REC and insurance, their jobs in your area come straight to you.</p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 18 }}>
+          <button type="button" disabled={busy} onClick={() => answerInvite(true)} style={{ minHeight: 48, padding: "0 22px", borderRadius: 12, border: "none", background: BLUE, color: "#fff", fontWeight: 800, cursor: "pointer" }}>Yes, team me up and sign up</button>
+          <button type="button" disabled={busy} onClick={() => answerInvite(false)} style={{ minHeight: 48, padding: "0 22px", borderRadius: 12, border: "1px solid #D7DCE8", background: "#fff", color: NAVY, fontWeight: 700, cursor: "pointer" }}>No thanks</button>
+        </div>
+      </> : <p style={{ color: "#B3261E" }}>{inviteInfo.reason}</p>}
+      {error && <p style={{ color: "#B3261E" }}>{error}</p>}
+    </div>,
+  );
+  if (invite && inviteInfo?.answered === "declined") return shell(<div style={card}><h1 style={{ color: BLUE }}>Thanks for letting us know</h1><p style={{ color: MUTED }}>We've told HI VIC! you'd rather not team up. You can still join our trade network any time from this page.</p></div>);
 
   if (!started) return shell(
     <div style={card}>
