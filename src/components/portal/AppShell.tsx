@@ -4,6 +4,7 @@ import { LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMe } from "@/hooks/use-me";
 import { Button } from "@/components/ui/button";
+import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 export function AppShell({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
   const { data: me } = useMe();
@@ -23,11 +24,13 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
       {roles.includes("admin") && (
         <>
           <Link to="/admin" className={link} activeProps={active} activeOptions={{ exact: true }}>Pipeline</Link>
-          <Link to="/admin/step3-design" className={link} activeProps={active}>Step 3 Design</Link>
           <Link to="/admin/businesses" className={link} activeProps={active}>Partners</Link>
           <Link to="/admin/partners" className={link} activeProps={active}>Partner Enquiries</Link>
           <Link to="/admin/compliance" className={link} activeProps={active}>Compliance Setup</Link>
           <Link to="/admin/users" className={link} activeProps={active}>Users</Link>
+          <div className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/50">Partner sign-up forms</div>
+          <a href="/electrician-onboarding" target="_blank" rel="noopener" className={link}>Electrician sign-up ↗</a>
+          <a href="/installer-onboarding" target="_blank" rel="noopener" className={link}>Installer sign-up ↗</a>
         </>
       )}
       {(roles.includes("electrician") || roles.includes("installer")) && <Link to="/field" className={link} activeProps={active}>My jobs</Link>}
@@ -37,8 +40,8 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
   );
   const brand = (
     <Link to="/home" className="flex items-center gap-2 font-bold tracking-tight">
-      <span className="grid h-8 w-8 place-items-center rounded-lg bg-sidebar-primary text-sm text-sidebar-primary-foreground">HI</span>
-      <span className="font-display">HI VIC Portal</span>
+      <span className="grid h-9 place-items-center rounded-md bg-card px-1.5"><img src={logo.url} alt="Home Insulation Victoria" className="h-7" /></span>
+      <span className="font-display">Portal</span>
     </Link>
   );
   return (
