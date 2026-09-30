@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { useAction } from "@/hooks/use-me";
 import { fetchOnlineSpotPrice, getProfitRegister, recordSpotPrice } from "@/lib/profit.functions";
 import { getVeecRegister, type VeecRow } from "@/lib/veec-register.functions";
-import { OWNER_VEEC_RATE, sellSignal } from "@/lib/profit.core";
+import { OWNER_VEEC_RATE, jobMargin, sellSignal } from "@/lib/profit.core";
 
 export const Route = createFileRoute("/_authenticated/admin/veec")({
   head: () => ({ meta: [{ title: "VEECs – HI VIC Portal" }, { name: "description", content: "VEECs bought at $70, spot price, and sale value per accepted job." }, { property: "og:title", content: "VEECs – HI VIC Portal" }, { property: "og:description", content: "VEECs bought at $70, spot price, and sale value per accepted job." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -129,5 +129,51 @@ function VeecPage() {
         <div className="rounded-md border bg-card p-4"><h2 className="font-bold">Spot price history</h2>{spots.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">No prices recorded yet.</p> : <ul className="mt-2 max-h-80 space-y-1 overflow-y-auto text-sm">{spots.map((s) => <li key={s.id} className="flex justify-between border-b py-1"><span>{s.priced_on}{s.source ? ` · ${s.source}` : ""}</span><b>${s.price.toFixed(2)}</b></li>)}</ul>}</div>
       </aside>
     </section>
+
+    {profit && profit.rows.length > 0 && <section className="mt-10">
+      <h2 className="text-2xl font-bold">Markup by job – accepted jobs</h2>
+      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">What HI VIC charges versus what we pay each trade. Installer work is marked up and carries the Accredited Person fee; electrical work is charged at the agreed electrical rate card. The $220 inc GST referral fee applies only when an installer-sourced job proceeds.</p>
+      <div className="mt-3 overflow-x-auto rounded-md border bg-card">
+        <table className="w-full text-sm"><thead className="bg-muted text-left text-xs uppercase">
+          <tr><th className="p-3" rowSpan={2}>Job</th><th className="border-b p-3 text-center" colSpan={3}>Installer</th><th className="border-b p-3 text-center" colSpan={3}>Electrician</th><th className="p-3 text-right" rowSpan={2}>AP fee</th><th className="p-3 text-right" rowSpan={2}>Referral fee</th><th className="p-3 text-right" rowSpan={2}>VEEC margin</th><th className="p-3 text-right" rowSpan={2}>HI VIC profit</th></tr>
+          <tr><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Charged</th><th className="p-3 text-right">Markup</th><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Charged</th><th className="p-3 text-right">Markup</th></tr>
+        </thead>
+          <tbody>{profit.rows.map((r) => {
+            const m = jobMargin({ installerCostExGst: r.installerCost, installerMarginExGst: r.installerMargin, apFeeExGst: r.apFee, electricalCostExGst: r.electricalCost, electricalChargeExGst: r.electricalChargeEx, installerSourced: r.installerSourced, veecDiscountIncGst: r.discount }, spot);
+            return <tr key={r.jobId} className="border-t">
+              <td className="p-3 font-bold"><Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="text-primary underline">{r.jobNumber ?? "—"}</Link><div className="text-xs font-normal text-muted-foreground">{r.owner ?? ""}</div></td>
+              <td className="p-3 text-right">{r.costMissing ? "—" : money(r.installerCost)}</td>
+              <td className="p-3 text-right">{r.costMissing ? "—" : money(m.installerChargedEx)}</td>
+              <td className="p-3 text-right font-semibold">{r.costMissing ? "—" : money(m.installerMarkup)}</td>
+              <td className="p-3 text-right">{r.electricalChargeEx > 0 || r.electricalCost > 0 ? money(r.electricalCost) : "—"}</td>
+              <td className="p-3 text-right">{r.electricalChargeEx > 0 || r.electricalCost > 0 ? money(r.electricalChargeEx) : "—"}</td>
+              <td className="p-3 text-right font-semibold">{r.electricalChargeEx > 0 || r.electricalCost > 0 ? money(m.electricalMarkup) : "—"}</td>
+              <td className="p-3 text-right">{r.costMissing ? "—" : money(m.apFee)}</td>
+              <td className="p-3 text-right">{m.referralFeeEx > 0 ? money(m.referralFeeEx) : "—"}</td>
+              <td className="p-3 text-right">{m.veecMargin != null ? money(m.veecMargin) : "—"}</td>
+              <td className={`p-3 text-right font-bold ${m.profit != null && m.profit < 0 ? "text-danger" : "text-success"}`}>{m.profit != null ? money(m.profit) : "—"}</td>
+            </tr>;
+          })}</tbody>
+          {(() => {
+            const tot = profit.rows.reduce((t, r) => {
+              const m = jobMargin({ installerCostExGst: r.installerCost, installerMarginExGst: r.installerMargin, apFeeExGst: r.apFee, electricalCostExGst: r.electricalCost, electricalChargeExGst: r.electricalChargeEx, installerSourced: r.installerSourced, veecDiscountIncGst: r.discount }, spot);
+              return { installerMarkup: t.installerMarkup + m.installerMarkup, apFee: t.apFee + m.apFee, referral: t.referral + m.referralFeeEx, veec: t.veec + (m.veecMargin ?? 0), profit: m.profit != null ? t.profit + m.profit : t.profit, anyNull: t.anyNull || m.profit == null };
+            }, { installerMarkup: 0, apFee: 0, referral: 0, veec: 0, profit: 0, anyNull: false });
+            return <tfoot><tr className="border-t-2 bg-muted font-bold">
+              <td className="p-3">Total – {profit.rows.length} {profit.rows.length === 1 ? "job" : "jobs"}</td>
+              <td className="p-3 text-right" colSpan={2}>{money(profit.rows.reduce((t, r) => t + r.installerCost + r.installerMargin + r.apFee, 0))} charged</td>
+              <td className="p-3 text-right">{money(tot.installerMarkup)}</td>
+              <td className="p-3 text-right" colSpan={2}>{money(profit.rows.reduce((t, r) => t + r.electricalChargeEx, 0))} charged</td>
+              <td className="p-3 text-right">{money(tot.veec > 0 || profit.rows.reduce((t, r) => t + r.electricalChargeEx - r.electricalCost, 0) !== 0 ? money(profit.rows.reduce((t, r) => t + r.electricalChargeEx - r.electricalCost, 0)) : "—")}</td>
+              <td className="p-3 text-right">{money(tot.apFee)}</td>
+              <td className="p-3 text-right">{tot.referral > 0 ? `-${money(tot.referral)}` : "—"}</td>
+              <td className="p-3 text-right">{spot != null ? money(tot.veec) : "—"}</td>
+              <td className={`p-3 text-right ${tot.anyNull ? "" : tot.profit < 0 ? "text-danger" : "text-success"}`}>{tot.anyNull ? "—" : money(tot.profit)}</td>
+            </tr></tfoot>;
+          })()}
+        </table>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">"—" means a figure is not recorded yet (for example the installer's internal cost). VEEC margin shows only once a spot price is known. Jobs flagged "not recorded" are excluded from totals where marked.</p>
+    </section>}
   </AppShell>;
 }
