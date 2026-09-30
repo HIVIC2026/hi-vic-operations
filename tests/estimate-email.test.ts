@@ -47,8 +47,8 @@ describe("customer outcome email renderers", () => {
 
   test("onsite confirmation remains positive and renders dynamic reasons", () => {
     const email = renderEstimateEmail({ ...detailed, outcome: "onsite", reasons: ["Existing insulation needs confirmation.", "Roof access must be checked."] });
-    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY — WE JUST NEED TO CONFIRM A FEW THINGS.", "What we need to confirm", "Existing insulation needs confirmation.", "Roof access must be checked.", "YOUR ANSWERS HAVEN'T RULED YOU OUT.", "$1,325", "$3,747", "$3,398", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "CHECK ANOTHER CEILING SIZE →", "PAY $349 &amp; CONTINUE →", CUSTOMER_PAYMENT_COPY.included, CUSTOMER_PAYMENT_COPY.notAgain]) expect(email.html).toContain(copy);
-    expect(email.html.indexOf("YOUR PRELIMINARY QUOTE")).toBeLessThan(email.html.indexOf("What we need to confirm"));
+    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY — WE JUST NEED TO CONFIRM A FEW THINGS.", "WHAT WE NEED TO CONFIRM", "Existing insulation needs confirmation.", "Roof access must be checked.", "YOUR ANSWERS HAVEN'T RULED YOU OUT.", "$1,325", "$3,747", "$3,398", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "CHECK ANOTHER CEILING SIZE →", "PAY $349 &amp; CONTINUE →", CUSTOMER_PAYMENT_COPY.included, CUSTOMER_PAYMENT_COPY.notAgain]) expect(email.html).toContain(copy);
+    expect(email.html.indexOf("YOUR PRELIMINARY QUOTE")).toBeLessThan(email.html.indexOf("WHAT WE NEED TO CONFIRM"));
     expect(email.html).toContain(`${estimateUrl}#calculator`);
     expect(email.html.split("PAY $349 &amp; CONTINUE →").length - 1).toBe(1);
   });
