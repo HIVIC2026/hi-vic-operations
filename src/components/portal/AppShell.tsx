@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut } from "lucide-react";
+import { Calculator, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMe } from "@/hooks/use-me";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,10 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
           <Link to="/admin/partners" className={link} activeProps={active}>Partner Enquiries</Link>
           <Link to="/admin/compliance" className={link} activeProps={active}>Compliance Setup</Link>
           <Link to="/admin/users" className={link} activeProps={active}>Users</Link>
+           <div className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/50">Customer tools</div>
+           <a href="/test-customer-estimate#calculator" target="_blank" rel="noopener" className={`${link} flex items-center gap-2`}>
+             <Calculator className="h-4 w-4" /> Customer calculator (test) ↗
+           </a>
           <div className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/50">Partner sign-up forms</div>
           <a href="/electrician-onboarding" target="_blank" rel="noopener" className={link}>Electrician sign-up ↗</a>
           <a href="/installer-onboarding" target="_blank" rel="noopener" className={link}>Installer sign-up ↗</a>
