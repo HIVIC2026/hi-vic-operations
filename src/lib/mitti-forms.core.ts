@@ -84,16 +84,20 @@ const READY_CHECK_FIELDS: FormField[] = [
       { label: "What happens to the existing insulation", type: "choice", required: true, perArea: true, choices: ["Must be removed", "Can be topped up", "Not sure – needs office review"], when: "Under-insulated", source: `${G} removal criteria` },
       { label: "Measured area m2", type: "number", required: true, perArea: true, source: "VEEC creation form" },
       { label: "360 video of ceiling space before upgrade", type: "media", required: true, perArea: true, source: `${G} Table 4` },
-    ],
+];
+
+export const FORMS: Record<FormKey, { title: string; role: "installer" | "electrician"; fields: FormField[] }> = {
+  // Form A2 — we bring the customer: evidence only, no pricing (owner is quoted at our set price).
+  ready_check: {
+    title: READY_CHECK_TITLE,
+    role: "installer",
+    fields: READY_CHECK_FIELDS,
   },
   // Form A1 — installer brings the customer: identical evidence questions plus the quoted-price section.
   ready_check_priced: {
     title: `${READY_CHECK_TITLE} – with quoted price`,
     role: "installer",
-    fields: [
-      ...FORMS_READY_CHECK_FIELDS,
-      ...PRICING_FIELDS,
-    ],
+    fields: [...READY_CHECK_FIELDS, ...PRICING_FIELDS],
   },
   piesa: {
     title: "VEU Pre-installation electrical safety assessment (Insulation)",
