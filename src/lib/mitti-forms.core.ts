@@ -2,7 +2,7 @@
 // Required items only. Mitti templates are built in the Mitti UI; this spec is the build sheet
 // AND the validator that must pass before a template ID can be used. Labels are Home Insulation Victoria checklist
 // wording for the Ready Check; PIESA and PIISA follow the official DEECA forms (uploaded 30 Sep 2026).
-export type FormKey = "ready_check" | "piesa" | "piisa";
+export type FormKey = "ready_check" | "ready_check_priced" | "piesa" | "piisa";
 export type FieldType = "text" | "number" | "choice" | "multichoice" | "yesno" | "media" | "signature" | "datetime";
 export type FormField = {
   label: string; type: FieldType; required: boolean; choices?: string[];
