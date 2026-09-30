@@ -66,3 +66,5 @@
 - [x] Align To action buttons, colour-code task statuses and add status filtering
 
 - [x] Rename and restyle the portal login as Home Insulation Victoria Operations
+
+- [ ] Remove DC Construction Solutions wording from portal login screens
