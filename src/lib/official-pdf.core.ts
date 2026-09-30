@@ -28,8 +28,8 @@ const owner = P.filter((l) => l.startsWith("I acknowledge") || l.includes("above
 
 export const PDF_MAP: Record<OfficialFormKey, M[]> = {
   piesa: [
-    { kind: "text", pdf: "Job reference ID", label: "Job Reference ID" },
-    { kind: "text", pdf: "Address", label: "Address including postcode" },
+    { kind: "text", pdf: "Job reference ID", label: "Portal Job Number" },
+    { kind: "text", pdf: "Address", label: "Site address" },
     { kind: "text", pdf: "Date of inspection", label: "Date of inspection" },
     { kind: "yn", pdf: "Life support", label: "Is anyone at this property dependent on life support?" },
     { kind: "tick", pdf: "Radio Button 2", label: at(P, "If yes, has written consent"), match: "Consent" },
@@ -51,8 +51,8 @@ export const PDF_MAP: Record<OfficialFormKey, M[]> = {
     { kind: "text", pdf: "Property owner name", label: "Property owner name" },
   ],
   piisa: [
-    { kind: "text", pdf: "Job reference ID", label: "Job Reference ID" },
-    { kind: "text", pdf: "Address", label: "Address including postcode" },
+    { kind: "text", pdf: "Job reference ID", label: "Portal Job Number" },
+    { kind: "text", pdf: "Address", label: "Site address" },
     { kind: "text", pdf: "Installation start date", label: "Installation start date" },
     { kind: "text", pdf: "Predicted intall date", label: "Predicted installation completion date" },
     { kind: "yn", pdf: "Radio Button 32", label: at(I, "Has the household/tenant") },

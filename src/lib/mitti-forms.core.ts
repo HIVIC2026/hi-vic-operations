@@ -52,6 +52,8 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
     fields: [
       { label: "Portal Job Number", type: "text", required: true, prefill: true, source: "portal" },
       { label: "Site address", type: "text", required: true, prefill: true, source: "portal" },
+      { label: "Owner name", type: "text", required: true, prefill: true, source: "portal" },
+      { label: "Assessor", type: "text", required: true, prefill: true, source: "portal – person doing the measure-up" },
       { label: "Installer photo at front of premises with photo ID", type: "media", required: true, source: `${G} Table 4` },
       { label: "Building class", type: "choice", required: true, choices: ["Class 1", "Class 2 sole-occupancy unit"], source: `${G} eligibility` },
       { label: "Relevant ceiling or roof built in the last 5 years", type: "yesno", required: true, choices: YN, source: `${G} eligibility` },
@@ -62,6 +64,9 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
       { label: "Removal required", type: "yesno", required: true, perArea: true, choices: YN, when: "Under-insulated", source: `${G} removal criteria` },
       { label: "Measured area m2", type: "number", required: true, perArea: true, source: "VEEC creation form" },
       { label: "360 video of ceiling space before upgrade", type: "media", required: true, perArea: true, source: `${G} Table 4` },
+      { label: "Total measured ceiling area m2", type: "number", required: true, source: "VEEC creation form – sum of all areas" },
+      { label: "Any existing insulation present", type: "yesno", required: true, choices: YN, source: "portal – whole-house summary" },
+      { label: "Total removal area m2", type: "number", required: true, when: "Any area Removal required = Yes", source: "portal – quoting" },
       { label: "Floor plan with dimensions", type: "media", required: true, source: `${G} Table 4` },
       { label: "Luminaires appear IC or IC-4 (observation only)", type: "yesno", required: true, choices: YN, source: "portal – electrician confirms" },
       { label: "Quote extras", type: "text", required: false, portalOnly: true, source: "portal – tile lift, metal roof, access" },
@@ -71,7 +76,7 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
     title: "VEU Pre-installation electrical safety assessment (Insulation)",
     role: "electrician",
     fields: [
-      ...[["Job Reference ID", "text", true], ["Address including postcode", "text", true], ["Date of inspection", "datetime", false]].map(([l, t, p]) => ({ label: l as string, type: t as FieldType, required: true, prefill: p as boolean, source: `${F1} Part 1` })),
+      ...[["Portal Job Number", "text", true], ["Site address", "text", true], ["Property owner name", "text", true], ["Date of inspection", "datetime", false]].map(([l, t, p]) => ({ label: l as string, type: t as FieldType, required: true, prefill: p as boolean, source: `${F1} Part 1` })),
       yn("Is anyone at this property dependent on life support?", `${F1} Part 1`),
       { label: "If yes, has written consent or a medical plan been received prior to this assessment commencing?", type: "choice", required: true, choices: ["Yes – received Consent", "Yes – received Medical Plan"], when: "Life support = Yes", source: `${F1} Part 1` },
       { label: "Life support consent or medical plan attachment", type: "media", required: true, when: "Life support = Yes", source: `${F1} Part 1` },
@@ -114,9 +119,9 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
       ...["Licence no (initial assessment)", "Full Name (initial assessment)", "REC Name (initial assessment)", "REC registration no (initial assessment)", "Telephone no (initial assessment)"].map((l) => ({ label: l, type: "text" as FieldType, required: true, prefill: true, source: `${F1} B3` })),
       { label: "B3 Electrician declaration – initial assessment", type: "signature", required: true, source: `${F1} B3` },
       ...["Licence no (rectification)", "Full Name (rectification)", "REC Name (rectification)", "REC registration no (rectification)", "Telephone no (rectification)"].map((l) => ({ label: l, type: "text" as FieldType, required: true, when: "Rectification done", source: `${F1} Section C` })),
-      ...SECTION_C.map((l) => ({ label: l, type: "yesno" as FieldType, required: true, choices: ["Yes"], source: `${F1} Section C` })),
-      { label: "Section C signature", type: "signature", required: true, source: `${F1} Section C` },
-      { label: "Date of completion", type: "datetime", required: true, source: `${F1} Section C` },
+      ...SECTION_C.map((l) => ({ label: l, type: "yesno" as FieldType, required: true, choices: ["Yes"], when: "Rectification done", source: `${F1} Section C` })),
+      { label: "Section C signature", type: "signature", required: true, when: "Rectification done", source: `${F1} Section C` },
+      { label: "Date of completion", type: "datetime", required: true, when: "Rectification done", source: `${F1} Section C` },
       { label: "Certificate of Electrical Safety number", type: "text", required: true, when: "Rectification done", source: `${F1} Section C` },
       { label: "Date of Certification", type: "datetime", required: true, when: "Rectification done", source: `${F1} Section C` },
       ...OWNER_DECL.map((l) => ({ label: l, type: "yesno" as FieldType, required: true, choices: ["Yes"], source: `${F1} Owner declaration` })),
@@ -127,7 +132,7 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
     title: "VEU Pre-installation installer safety assessment (Insulation)",
     role: "installer",
     fields: [
-      ...["Job Reference ID", "Address including postcode", "Installation start date", "Predicted installation completion date"].map((l, i) => ({ label: l, type: (i > 1 ? "datetime" : "text") as FieldType, required: true, prefill: i < 2, source: `${F2} Part 1` })),
+      ...["Portal Job Number", "Site address", "Property owner name", "Installation start date", "Predicted installation completion date"].map((l, i) => ({ label: l, type: (i > 2 ? "datetime" : "text") as FieldType, required: true, prefill: i < 3, source: `${F2} Part 1` })),
       yn("Has the household/tenant been informed that the power will be turned off/isolated for the duration of the installation?", `${F2} Part 1`),
       yn("Is anyone at this property dependent on life support?", `${F2} Part 1`),
       { label: "If yes, has written consent or a medical plan been received prior to this assessment commencing?", type: "choice", required: true, choices: ["Yes – received Consent", "Yes – received Medical Plan"], when: "Life support = Yes", source: `${F2} Part 1` },
@@ -220,4 +225,42 @@ export function flattenDefinition(def: unknown): TemplateItem[] {
   const root = (def as { template?: unknown })?.template ?? def;
   walk((root as { items?: unknown })?.items ?? []);
   return out;
+}
+
+const MITTI_TYPE: Record<FieldType, string> = {
+  text: "Text answer", number: "Number answer", choice: "Multiple choice (single answer)", yesno: "Question (response set)",
+  media: "Media (photo/video, camera allowed)", signature: "Signature", datetime: "Date & time",
+};
+/** Exact brief to paste into Mitti's AI template builder. Labels must be copied verbatim — the portal matches on them. */
+export function mittiAiPrompt(key: FormKey): string {
+  const f = FORMS[key];
+  const fields = f.fields.filter((x) => !x.portalOnly);
+  const perArea = fields.filter((x) => x.perArea);
+  const lines = fields.map((x, i) => {
+    const bits = [MITTI_TYPE[x.type]];
+    if (x.choices) bits.push(`options exactly: ${x.choices.map((c) => `"${c}"`).join(" / ")}`);
+    bits.push(x.required ? (x.when ? `MANDATORY only when: ${x.when} (use logic to show it; hidden otherwise)` : "MANDATORY") : "optional");
+    if (x.perArea) bits.push("inside the repeating 'Ceiling area' section");
+    if (x.prefill) bits.push("header field, prefilled by the portal – keep editable but do not rename");
+    return `${i + 1}. "${x.label}" — ${bits.join("; ")}`;
+  });
+  return [
+    `Build a Mitti inspection template titled exactly: "${f.title}"`,
+    "",
+    "STRICT RULES:",
+    "- Use every field label EXACTLY as written between quotes (same words, capitals and punctuation). Do not rephrase, merge, split, shorten or add numbering to labels. Our system reads answers by label.",
+    "- Do not add any extra questions, scoring, default answers or pre-ticked boxes.",
+    "- Every field marked MANDATORY must be set to required so the inspection cannot be completed without it.",
+    "- Fields marked 'MANDATORY only when' must be built with Mitti logic on the named trigger question: shown and required when the condition is met, hidden and not required otherwise.",
+    "- Yes/No questions use a response set with exactly the listed options, no N/A unless listed.",
+    "- Photo/video fields must allow the camera and multiple files.",
+    "- Signature fields must capture the signer's name.",
+    perArea.length ? `- Put these fields in a repeatable section called "Ceiling area" (one repeat per room/zone): ${perArea.map((x) => `"${x.label}"`).join(", ")}. All other fields are NOT repeated.` : "",
+    key === "piesa" ? "- Section C and the rectification electrician fields are completed on the return visit after rectification. Put them in a section called \"Section C – Rectification completion\" shown only when \"B1 Assessment outcome\" is \"Electrical rectification work is required before insulation is installed or upgraded.\"" : "",
+    key === "piesa" || key === "piisa" ? "- If \"Is anyone at this property dependent on life support?\" is Yes, the consent/medical-plan question and attachment are required; if neither was received, the assessment must not proceed (add an instruction saying: STOP – do not start the assessment. Call the HI VIC office.)." : "",
+    "- Order the fields exactly as listed.",
+    "",
+    "FIELDS:",
+    ...lines,
+  ].filter((l) => l !== "").join("\n");
 }
