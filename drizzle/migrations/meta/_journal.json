@@ -309,6 +309,13 @@
       "when": 1790728731291,
       "tag": "0043_ready_check_workflow",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1790731100280,
+      "tag": "0044_add_ready_check_booking_kind",
+      "breakpoints": true
     }
   ]
 }

@@ -7923,7 +7923,11 @@ export type Database = {
         | "declined"
         | "expired"
         | "revoked"
-      booking_kind: "assessment" | "rectification" | "installation"
+      booking_kind:
+        | "assessment"
+        | "rectification"
+        | "installation"
+        | "ready_check"
       booking_status: "proposed" | "confirmed" | "completed" | "cancelled"
       business_type:
         | "accredited_provider"
@@ -8171,7 +8175,12 @@ export const Constants = {
         "expired",
         "revoked",
       ],
-      booking_kind: ["assessment", "rectification", "installation"],
+      booking_kind: [
+        "assessment",
+        "rectification",
+        "installation",
+        "ready_check",
+      ],
       booking_status: ["proposed", "confirmed", "completed", "cancelled"],
       business_type: [
         "accredited_provider",

@@ -1,0 +1,1 @@
+ALTER TYPE public.booking_kind ADD VALUE IF NOT EXISTS 'ready_check';
