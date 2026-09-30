@@ -44,6 +44,7 @@ const dataSchema = z.object({
   capacity_band: s(10), accepting_jobs: z.boolean().optional(),
   gst_registered: z.boolean().nullable().optional(), r5_rate: n, batts_removal_rate: n, loose_fill_removal_rate: n,
   extra_rates: z.record(z.string().max(40), n).optional(),
+  bank_account_name: s(200), bank_bsb: s(7), bank_account_number: s(10),
   agreement_reviewed: z.boolean().optional(),
 }).strict();
 
@@ -148,7 +149,7 @@ export const signInstallerAgreement = createServerFn({ method: "POST" })
       free_quotes_for_hivic_leads: d.free_quotes_for_hivic_leads ?? null,
       booking_lead_time: d.normal_attendance_speed ?? null, weekly_capacity: d.capacity_band ?? null,
       source_created_at: app.created_at, source_updated_at: signedAt,
-      raw_payload: { rec_onboarding_id: app.id, partner_type: "installer", agreement_version: INSTALLER_AGREEMENT_VERSION, agreement_sha256: hash, signed_at: signedAt, signer: { name: data.signer_name, position: data.signer_position, email: data.signer_email }, application: d } as never,
+      raw_payload: { rec_onboarding_id: app.id, partner_type: "installer", agreement_version: INSTALLER_AGREEMENT_VERSION, agreement_sha256: hash, signed_at: signedAt, signer: { name: data.signer_name, position: data.signer_position, email: data.signer_email } } as never,
     }).select("id").single();
     if (peErr) throw new Error("Could not submit your application. Please try again.");
 

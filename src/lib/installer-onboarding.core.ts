@@ -44,6 +44,7 @@ export type InstData = {
   capacity_band?: string; accepting_jobs?: boolean;
   gst_registered?: boolean | null; r5_rate?: number | null; batts_removal_rate?: number | null; loose_fill_removal_rate?: number | null;
   extra_rates?: Partial<Record<(typeof EXTRA_ITEMS)[number]["key"], number | null>>;
+  bank_account_name?: string; bank_bsb?: string; bank_account_number?: string;
   agreement_reviewed?: boolean;
 };
 
@@ -58,6 +59,7 @@ export const STEPS = [
   { key: "capacity", title: "Weekly capacity" },
   { key: "install_pricing", title: "Installation & removal pricing" },
   { key: "extras_pricing", title: "Access & extras pricing" },
+  { key: "bank", title: "Payment details" },
   { key: "review", title: "Review agreement" },
   { key: "sign", title: "Sign agreement" },
 ] as const;
@@ -123,6 +125,11 @@ export function stepErrors(step: StepKey, d: InstData, now = new Date()): string
       break;
     case "extras_pricing":
       for (const it of EXTRA_ITEMS) if (!optPos(d.extra_rates?.[it.key] ?? null)) e.push(`${it.label}: enter a valid amount or leave it blank.`);
+      break;
+    case "bank":
+      if (!txt(d.bank_account_name)) e.push("Enter the bank account name.");
+      if (!/^\d{3}-?\d{3}$/.test(d.bank_bsb ?? "")) e.push("Enter a valid 6-digit BSB.");
+      if (!/^\d{5,10}$/.test(d.bank_account_number ?? "")) e.push("Enter a valid bank account number.");
       break;
     case "review":
       if (d.agreement_reviewed !== true) e.push("Confirm you've reviewed the agreement and schedules.");
