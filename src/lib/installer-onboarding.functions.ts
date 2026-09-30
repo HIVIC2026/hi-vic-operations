@@ -46,6 +46,9 @@ const dataSchema = z.object({
   extra_rates: z.record(z.string().max(40), n).optional(),
   bank_account_name: s(200), bank_bsb: s(7), bank_account_number: s(10),
   agreement_reviewed: z.boolean().optional(),
+  electrician_choice: z.enum(["have", "match", "later"]).nullable().optional(),
+  preferred_electricians: z.array(z.object({ name: s(200), email: s(320), mobile: s(30), business_name: s(200), licence_number: s(50), rec_number: s(50), is_primary: z.boolean().optional() })).max(5).optional(),
+  electrician_contact_consent: z.boolean().optional(),
 }).strict();
 
 function publicView(app: { status: string; step_key: string | null; data: unknown; insurance_certificate_path: string | null; signed_at: string | null; agreement_version: string | null }) {
@@ -163,6 +166,18 @@ export const signInstallerAgreement = createServerFn({ method: "POST" })
     if (error) {
       await db.from("partner_enquiries").delete().eq("id", pe.id);
       throw new Error("Could not record your signature. Please try again.");
+    }
+    // Preferred electricians become invite drafts (never sent while comms are locked). Idempotent per application+email.
+    if (d.electrician_choice === "have" && d.electrician_contact_consent) {
+      const rows = (d.preferred_electricians ?? []).filter((p) => p.email && p.name).map((p) => ({
+        installer_application_id: app.id, nominated_for: "installer_team", contact_name: p.name!.trim(), email: p.email!.trim().toLowerCase(), phone: p.mobile ?? null,
+        business_name: p.business_name || null, licence_number: p.licence_number || null, rec_number: p.rec_number || null, is_primary: !!p.is_primary,
+        consent_confirmed_at: signedAt, status: "invite_pending_comms",
+      }));
+      for (const r of rows) {
+        const { data: ex } = await db.from("electrician_nominations").select("id").eq("installer_application_id", app.id).is("job_id", null).ilike("email", r.email).maybeSingle();
+        if (!ex) await db.from("electrician_nominations").insert(r);
+      }
     }
     return { ok: true as const, signed_at: signedAt, agreement_sha256: hash };
   });

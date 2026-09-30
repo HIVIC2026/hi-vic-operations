@@ -280,6 +280,35 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
         <button type="button" style={btn(false)} onClick={() => up({ installers: [...list, {}] })}>+ Add installer</button>
       </>;
     }
+    case "electrician": {
+      const list = d.preferred_electricians ?? [];
+      const set = (i: number, p: Partial<NonNullable<RecData["preferred_electricians"]>[number]>) => up({ preferred_electricians: list.map((x, j) => (j === i ? { ...x, ...p } : p.is_primary ? { ...x, is_primary: false } : x)) });
+      return <>
+        <Field label="Do you have a preferred electrician, or one who works with or under you?" required>
+          <Choice options={[{ v: "have", l: "Yes – add them" }, { v: "match", l: "No – match me with an HI VIC! electrician" }, { v: "later", l: "Not sure yet" }]} value={d.electrician_choice ?? null}
+            onChange={(v) => up({ electrician_choice: v as "have" | "match" | "later", preferred_electricians: v === "have" && list.length === 0 ? [{ is_primary: true }] : list })} />
+        </Field>
+        {d.electrician_choice === "have" && <>
+          <div style={infoCard}>We'll invite them to join HI VIC! as your team electrician. Once they accept and we've checked their licence, REC and insurance, your jobs go to them automatically. You can change this any time.</div>
+          {list.map((x, i) => (
+            <div key={i} style={{ border: `1px solid ${x.is_primary ? BLUE : "#E4E8F0"}`, borderRadius: 14, padding: 14, marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><strong>Electrician {i + 1}{x.is_primary ? " · Main" : " · Backup"}</strong>
+                <button type="button" onClick={() => up({ preferred_electricians: list.filter((_, j) => j !== i) })} style={{ border: "none", background: "none", color: "#B3261E", cursor: "pointer", fontWeight: 700 }}>Remove</button></div>
+              <Field label="Name" required><input style={input} value={x.name ?? ""} onChange={(e) => set(i, { name: e.target.value })} /></Field>
+              <Field label="Email" required><input style={input} type="email" value={x.email ?? ""} onChange={(e) => set(i, { email: e.target.value })} /></Field>
+              <Field label="Mobile" required><input style={input} type="tel" value={x.mobile ?? ""} onChange={(e) => set(i, { mobile: e.target.value })} /></Field>
+              <Field label="Business name"><input style={input} value={x.business_name ?? ""} onChange={(e) => set(i, { business_name: e.target.value })} /></Field>
+              <Field label="Licence number (if known)"><input style={input} value={x.licence_number ?? ""} onChange={(e) => set(i, { licence_number: e.target.value })} /></Field>
+              <Field label="REC number (if known)"><input style={input} value={x.rec_number ?? ""} onChange={(e) => set(i, { rec_number: e.target.value })} /></Field>
+              {!x.is_primary && <button type="button" style={btn(false)} onClick={() => set(i, { is_primary: true })}>Make Main electrician</button>}
+            </div>
+          ))}
+          {list.length < 5 && <button type="button" style={{ ...btn(false), marginBottom: 16 }} onClick={() => up({ preferred_electricians: [...list, { is_primary: list.length === 0 }] })}>+ Add another electrician</button>}
+          <Check checked={!!d.electrician_contact_consent} onChange={(v) => up({ electrician_contact_consent: v })}>I confirm {list.length > 1 ? "these electricians have" : "this electrician has"} agreed to be contacted by Home Insulation Victoria.</Check>
+        </>}
+        {d.electrician_choice === "later" && <div style={infoCard}>No problem – you can add your electrician later from your profile. Until then HI VIC! will match each job with an approved local electrician.</div>}
+      </>;
+    }
     case "services":
       return <>
         <div style={infoCard}><strong>Included for all installer partners:</strong> R5.0 ceiling insulation supply & installation, plus removal of existing insulation (batts and loose fill) where a job needs it. Removal is part of every installer's service — you'll set your rate for each removal type on the pricing step.</div>
