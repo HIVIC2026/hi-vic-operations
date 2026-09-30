@@ -20,7 +20,7 @@ The underlying retained records and audit history will stay intact, but obsolete
 
 ## 2. Rebuild the main navigation and page headings
 - Add one shared, prominent page heading pattern and use it on every active office page: **ENQUIRIES**, **SERVICE COVERAGE**, **PARTNER APPLICATIONS**, **APPROVED PARTNERS**, **COMPLIANCE**, and **USERS & ACCESS**.
-- Rename “Jobs pipeline” to **Enquiries & Jobs** and make the selected page unmistakable.
+- Name the working page **ENQUIRIES** while the records are still enquiries. Do not call this page “Jobs pipeline” or “Enquiries & Jobs”. Once work moves beyond enquiry qualification, present it in the appropriate later-work view without changing the retained record.
 - Keep the useful status dropdowns, but remove competing summaries, explanatory clutter, and secondary labels that obscure the page purpose.
 - Make mobile and desktop page titles equally clear.
 
@@ -63,12 +63,14 @@ The underlying retained records and audit history will stay intact, but obsolete
 - Apply one HI VIC system throughout: approved logo, exact blue/green/navy/off-white palette, consistent typography, heading hierarchy, button treatment, spacing, and footer identity.
 - Make the web view and email version use the same names, order, facts, and calls to action.
 - Keep previews available only as deliberate test tools; they will not be presented as live templates or normal navigation.
-- Add an admin **Customer communications** screen listing every customer email and electronic form by the real stage that triggers it.
+- Add an admin **Customer communications** screen listing every customer email and electronic form by the real stage that triggers it. Jo must be able to personally inspect every active template before it can be used.
 - Let the office open a faithful desktop/mobile preview of every email, edit its approved editable copy, save a draft, and preview again before activation. Show which version is active and retain superseded versions for audit.
 - Protect regulated wording and calculated facts: official Activity 48/VEU text, prices, customer/job facts, mandatory disclosures, signatures, and legal timing cannot be casually overwritten in an email editor. Changes to official forms create a new approval-required version; editable email framing and calls to action remain clearly separated.
 - At each manual step, show an exact instruction panel: **What is ready**, **What is blocking it**, **What you must do now**, **What will be sent/signed**, and **What happens next**. The primary action uses the exact command, such as **Preview and send quote package** rather than “Continue”.
 
 ## 7. Make mandatory documents stage-correct and electronic
+- Put every mandatory Activity 48 form under **COMPLIANCE** as the controlled master document library. For each form, show its plain-English purpose, who receives it, who signs it, when it becomes due, what it blocks, its source/version, whether it is approved, and where its completed signed copy is retained.
+- Clearly distinguish: quote-stage information and acceptance; ESC information-sharing consent; PIESA and pre-install documents; installer declaration; AP sign-off; final Activity 48 VEEC assignment; and completion documents. Do not group unlike requirements under vague names.
 - Use **electronic signing across every signing requirement**: customer quote acceptance, ESC owner consent, installer declaration, AP signature, final customer VEEC assignment, partner agreements, and any approved variation or reconfirmation.
 - Do not ask anyone to sign in person. Each electronic signature must retain the approved wording/version, signer, role, timestamp, signature, and immutable audit evidence already required by that form.
 - Build one visible **Documents due now** package for each stage rather than attaching every document to the first email:
