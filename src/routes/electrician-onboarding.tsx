@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
   ACKNOWLEDGEMENTS, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION,
-  stepErrors, firstIncompleteStep, validAbn, visibleSteps, type RecData, type StepKey,
+  firstName, stepErrors, firstIncompleteStep, validAbn, visibleSteps, type RecData, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
@@ -273,7 +273,9 @@ function RecOnboarding() {
 
   return shell(
     <div style={card}>
-      <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 16px", color: BLUE }}>{steps[idx]?.title}</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
+      {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Nice one, {firstName(d)} — {steps[idx]?.title?.toLowerCase()} next.</div>}
+      {!firstName(d) && <div style={{ marginBottom: 12 }} />}
       <StepBody step={step} d={d} up={up} token={token!} setError={setError} />
       {step === "sign" && <SignStep d={d} token={token!} onSigned={() => setStatus("submitted")} />}
       {showErrors && errs.length > 0 && (
