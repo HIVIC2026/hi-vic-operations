@@ -1,3 +1,5 @@
+import { isConnectionTeardown } from "./http-abort";
+
 // Captures the original Error out-of-band so server.ts can recover the stack
 // when h3 has already swallowed the throw into a generic 500 Response.
 
@@ -59,6 +61,10 @@ console.error = (...args: unknown[]) => {
     record(arg);
     return describeError(arg);
   });
+  // A caller that hung up mid-request is not a crash: keep it recorded so the
+  // SSR wrapper can classify the reply, but never write it to the log, where a
+  // routine reload reads as a server failure.
+  if (args.some((arg) => isConnectionTeardown(arg))) return;
   originalConsoleError(...expanded);
 };
 
