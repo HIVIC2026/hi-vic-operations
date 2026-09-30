@@ -17,7 +17,7 @@ describe("JobCard Gate 1 labels (display only)", () => {
   it("adds a green Likely eligible label for likely_eligible", () => {
     expect(src).toContain('job.eligibility_outcome === "likely_eligible" ?');
     expect(src).toContain("Likely eligible");
-    expect(src).toContain("bg-success-soft");
+    expect(src).toContain('<Pill t="good">Likely eligible</Pill>');
   });
 
   it("checks review-required before likely_eligible (no dual label)", () => {

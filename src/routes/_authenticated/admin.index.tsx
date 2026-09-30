@@ -8,6 +8,7 @@ import { JobCard, type JobRow } from "@/components/portal/JobCard";
 import { PIPELINE_PHASES, phaseForStage, type Phase } from "@/lib/workflow";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useAction } from "@/hooks/use-me";
