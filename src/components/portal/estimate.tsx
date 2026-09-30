@@ -8,6 +8,7 @@ import { getAdminEstimate, getAdminEstimateLink, getAdminEstimateLinkUrl, getOwn
 import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
 import { BENCHMARK_LABEL, CALC_ASSUMPTION_LABEL, CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, FEE_DESCRIPTION, FEE_LABEL, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings, type Scenario } from "@/lib/estimate.core";
 import type { LocationVariables } from "@/lib/activity48.core";
+import { WHATIF_ADDRESS_COPY, locationBasisLine, postcodeFromAddress, resolveWhatIfLocation } from "@/lib/whatif-location";
 import { CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
 import { READY_CHECK_BOOKING_SUCCESS, READY_CHECK_FEE, readyCheckRemaining, type ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
 import { Pill } from "./badges";
@@ -266,7 +267,15 @@ export function AreaCalculator({ calc, initial, fees, propertyAddress, secondary
     const t = setTimeout(() => { reported.current = true; onUse(m2); }, 1500);
     return () => clearTimeout(t);
   }, [m2, touched, onUse]);
-  const est = whatIfEstimate(m2, calc.location, calc.insulation as InsulationDeclared, calc.settings);
+  // What-if address: local state only. Never sent via onUse, never saved to the job/property/estimate/enquiry.
+  const [addrOpen, setAddrOpen] = useState(false);
+  const [altAddress, setAltAddress] = useState("");
+  const [altPostcode, setAltPostcode] = useState<string | null>(null);
+  const where = resolveWhatIfLocation(calc.location, altPostcode);
+  const activeLocation = where.status === "original" || where.status === "alternate" ? where.location : null;
+  const est = activeLocation ? whatIfEstimate(m2, activeLocation, calc.insulation as InsulationDeclared, calc.settings) : null;
+  const revert = () => { setAddrOpen(false); setAltAddress(""); setAltPostcode(null); };
+  const onAltAddress = (v: string) => { setAltAddress(v); const pc = postcodeFromAddress(v); if (pc) setAltPostcode(pc); };
   useEffect(() => {
     if (secondary && window.location.hash === "#calculator") setOpen(true);
   }, [secondary]);
@@ -279,9 +288,25 @@ export function AreaCalculator({ calc, initial, fees, propertyAddress, secondary
           <p className="mt-6 text-xs font-extrabold uppercase text-estimate-green-light">Interactive preliminary estimate</p>
           <h3 className="mt-2 text-2xl font-extrabold leading-tight sm:text-3xl">CHECK ANOTHER CEILING SIZE</h3>
           <p className="mt-3 max-w-xl text-sm font-semibold leading-relaxed">{CUSTOMER_CALCULATOR_COPY}</p>
-          {propertyAddress && <div className="mt-5 rounded-2xl border border-estimate-white/30 bg-estimate-white/10 p-5"><p className="text-xs font-extrabold uppercase text-estimate-green-light">Property</p><p className="mt-1 text-sm font-extrabold">{propertyAddress}</p></div>}
+          <div className="mt-5 rounded-2xl border border-estimate-white/30 bg-estimate-white/10 p-5" data-testid="calculator-property">
+            <p className="text-xs font-extrabold uppercase text-estimate-green-light">Property</p>
+            <p className="mt-1 text-sm font-extrabold break-words">{where.status === "original" ? (propertyAddress ?? `Your enquiry property (postcode ${calc.location.postcode})`) : (altAddress.trim() || `What-if property, postcode ${altPostcode}`)}</p>
+            {where.status === "original" && !addrOpen && <button type="button" className="mt-3 min-h-11 text-sm font-extrabold text-estimate-green-light underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" onClick={() => setAddrOpen(true)}>{WHATIF_ADDRESS_COPY.change}</button>}
+          </div>
         </div>
         <div className="px-5 py-6 sm:px-8 sm:py-8">
+        {addrOpen && <div className="estimate-secondary-card mb-6 text-sm" data-testid="whatif-address">
+          <p className="font-extrabold text-estimate-blue">{WHATIF_ADDRESS_COPY.heading}</p>
+          <label className="mt-3 block font-semibold" htmlFor={`${id}-addr`}>Full address</label>
+          <input id={`${id}-addr`} autoComplete="off" maxLength={200} className="mt-1 h-12 w-full rounded-xl border border-estimate-blue bg-estimate-white px-3 text-estimate-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" value={altAddress} onChange={(e) => onAltAddress(e.target.value)} placeholder="e.g. 12 Main St, Ballarat VIC 3350" />
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <div><label className="block font-semibold" htmlFor={`${id}-pc`}>Postcode</label><input id={`${id}-pc`} required inputMode="numeric" maxLength={4} className="mt-1 h-12 w-28 rounded-xl border border-estimate-blue bg-estimate-white px-3 text-estimate-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" value={altPostcode ?? ""} onChange={(e) => setAltPostcode(e.target.value.replace(/\D/g, "").slice(0, 4))} /></div>
+            <div><span className="block font-semibold">State</span><span className="mt-1 grid h-12 w-20 place-items-center rounded-xl border border-estimate-blue-soft bg-estimate-blue-pale font-extrabold" aria-label="State: VIC">VIC</span></div>
+          </div>
+          <p className="mt-3 text-xs font-semibold leading-relaxed">{WHATIF_ADDRESS_COPY.notice}</p>
+          {where.status === "unlisted" && <p role="alert" className="mt-3 font-bold text-danger">{WHATIF_ADDRESS_COPY.unlisted}</p>}
+          <Button type="button" size="field" variant="outline" className="mt-4 rounded-lg border border-estimate-blue bg-estimate-white font-extrabold text-estimate-blue hover:bg-estimate-blue-pale hover:text-estimate-blue" onClick={revert}>{WHATIF_ADDRESS_COPY.revert}</Button>
+        </div>}
         <p className="text-sm font-extrabold text-estimate-blue">Choose an estimated ceiling size</p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <label className="sr-only" htmlFor={id}>Approximate ceiling area (m²)</label>
@@ -294,6 +319,7 @@ export function AreaCalculator({ calc, initial, fees, propertyAddress, secondary
         <p className="estimate-secondary-card mt-5 text-sm font-semibold leading-relaxed">This is a what-if calculator only. It does not change the property details you submitted. Your onsite measure confirms the final eligible area.</p>
         </div>
         </div>
+         {est && activeLocation && <p className="mt-4 text-center text-xs font-bold text-estimate-navy" data-testid="calculator-location-basis">{locationBasisLine(activeLocation)}</p>}
          {est && <div className="mt-6"><CalculatorQuoteResult est={est} area={m2 ?? 0} fees={fees} existingInsulation={calc.insulation === "present"} /></div>}
          {preview && <p className="mt-4 text-center text-xs font-bold text-estimate-blue">Preview only — nothing is saved, sent or paid.</p>}
       </>}
