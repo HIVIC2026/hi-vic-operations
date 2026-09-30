@@ -51,6 +51,7 @@
 - [x] Installer job tracker + what's-missing checklist on the installer job page
 - [ ] Installer-led screens: owner invite, co-branded invoice layout (waits on AP fee)
 - [ ] Build forms A/B/C in Mitti and connect IDs (needs Jo in Mitti)
-- [ ] Set AP fee for installer-led jobs (needs Jo)
+- [x] AP fee for installer-led jobs = standard AP management fee
+- [ ] Per-job AP fee override (admin, reason required, audited)
 - [x] Auto-fill official PIESA/PIISA PDFs (done; e-sign + delivery wiring waits on Mitti forms)
 - [ ] AP evidence register per job: tick/cross for each Industry Pack record, blocking AP review
