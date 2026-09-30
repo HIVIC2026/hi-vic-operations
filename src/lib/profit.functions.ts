@@ -19,26 +19,62 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
       }
     } catch { /* fall back to stored history / manual entry */ }
   }
-  const [spots, quotes, jobs] = await Promise.all([
+  const [spots, quotes, jobs, channels] = await Promise.all([
     admin.from("veec_spot_prices").select("id,price,priced_on,source,note,created_at").order("priced_on", { ascending: false }).limit(500),
-    admin.from("quotes").select("id,job_id,kind,customer_total_inc_gst,veec_discount_inc_gst,accepted_at").eq("status", "accepted"),
+    admin.from("quotes").select("id,job_id,kind,customer_total_inc_gst,subtotal_inc_gst,veec_discount_inc_gst,accepted_at").eq("status", "accepted"),
     admin.from("job_overview").select("id,job_number,property_address,owner_name,stage,source"),
+    admin.from("jobs").select("id,channel"),
   ]);
-  for (const r of [spots, quotes, jobs]) if (r.error) throw new Error(`Profit register could not be loaded: ${r.error.message}`);
+  for (const r of [spots, quotes, jobs, channels]) if (r.error) throw new Error(`Profit register could not be loaded: ${r.error.message}`);
   const ids = (quotes.data ?? []).map((q) => q.id);
-  const { data: internals, error } = ids.length ? await admin.from("quote_internals").select("quote_id,cost_ex_gst").in("quote_id", ids) : { data: [], error: null };
-  if (error) throw new Error(`Trade costs could not be loaded: ${error.message}`);
-  const byJob = new Map<string, { customer: number; discount: number; cost: number; costMissing: boolean; acceptedAt: string | null }>();
+  const [internals, items] = await Promise.all([
+    ids.length ? admin.from("quote_internals").select("quote_id,cost_ex_gst,ap_margin_ex_gst,ap_fee_ex_gst").in("quote_id", ids) : Promise.resolve({ data: [], error: null } as const),
+    ids.length ? admin.from("quote_items").select("quote_id,line_total_inc_gst,description").in("quote_id", ids) : Promise.resolve({ data: [], error: null } as const),
+  ]);
+  if (internals.error) throw new Error(`Trade costs could not be loaded: ${internals.error.message}`);
+  if (items.error) throw new Error(`Quote lines could not be loaded: ${items.error.message}`);
+  const byJob = new Map<string, {
+    customer: number; discount: number; acceptedAt: string | null;
+    installerCost: number; installerMargin: number; apFee: number;
+    electricalCost: number; electricalChargeEx: number;
+    costMissing: boolean; installerSourced: boolean;
+  }>();
+  const gst = 1.1;
+  const ensure = (jobId: string) => byJob.get(jobId) ?? {
+    customer: 0, discount: 0, acceptedAt: null,
+    installerCost: 0, installerMargin: 0, apFee: 0,
+    electricalCost: 0, electricalChargeEx: 0,
+    costMissing: false, installerSourced: false,
+  };
   for (const q of quotes.data ?? []) {
-    const cur = byJob.get(q.job_id) ?? { customer: 0, discount: 0, cost: 0, costMissing: false, acceptedAt: null };
-    const internal = (internals ?? []).find((i) => i.quote_id === q.id);
+    const cur = ensure(q.job_id);
+    const internal = (internals.data ?? []).find((i) => i.quote_id === q.id);
+    if (internal?.cost_ex_gst == null) cur.costMissing = true;
     cur.customer += Number(q.customer_total_inc_gst ?? 0);
     cur.discount += Number(q.veec_discount_inc_gst ?? 0);
-    if (internal?.cost_ex_gst == null) cur.costMissing = true; else cur.cost += Number(internal.cost_ex_gst);
     cur.acceptedAt = q.accepted_at ?? cur.acceptedAt;
+    if (q.kind === "rectification") {
+      // Rectification is charged to the customer and paid to the electrician from the electrical rate card.
+      cur.electricalCost += internal ? Number(internal.cost_ex_gst) : Number(q.subtotal_inc_gst) / gst;
+      cur.electricalChargeEx += Number(q.subtotal_inc_gst) / gst;
+    } else if (internal) {
+      // Installer work: charge = rate-card cost + HI VIC markup + AP fee (uplift distributed across lines).
+      cur.installerCost += Number(internal.cost_ex_gst ?? 0);
+      cur.installerMargin += Number(internal.ap_margin_ex_gst ?? 0);
+      cur.apFee += Number(internal.ap_fee_ex_gst ?? 0);
+    } else {
+      // No internals recorded: installer charge = line totals minus folded electrical lines, ex GST.
+      const rectLineTotal = (items.data ?? []).filter((l) => l.quote_id === q.id && (l.description ?? "").startsWith("Electrical rectification:")).reduce((a, l) => a + Number(l.line_total_inc_gst ?? 0), 0);
+      cur.electricalChargeEx += rectLineTotal / gst;
+      cur.installerCost += (Number(q.subtotal_inc_gst) - rectLineTotal) / gst;
+    }
     byJob.set(q.job_id, cur);
   }
-  const rows = (jobs.data ?? []).filter((j) => j.id && byJob.has(j.id) && j.source !== "qa_test" && j.stage !== "cancelled").map((j) => ({ jobId: j.id!, jobNumber: j.job_number, address: j.property_address, owner: j.owner_name, stage: j.stage, ...byJob.get(j.id!)! }));
+  const channelByJob = new Map((channels.data ?? []).map((c) => [c.id, c.channel]));
+  const rows = (jobs.data ?? []).filter((j) => j.id && byJob.has(j.id) && j.source !== "qa_test" && j.stage !== "cancelled").map((j) => ({
+    jobId: j.id!, jobNumber: j.job_number, address: j.property_address, owner: j.owner_name, stage: j.stage,
+    ...byJob.get(j.id!)!, installerSourced: channelByJob.get(j.id!) === "installer_sourced",
+  }));
   return { spots: (spots.data ?? []).map((s) => ({ ...s, price: Number(s.price) })), rows };
 });
 

@@ -4,8 +4,9 @@ import { requireAdmin } from "./workflow.server";
 
 export type VeecRow = {
   jobId: string; jobNumber: string | null; address: string | null; owner: string | null; stage: string | null;
-  bucket: "lodged" | "outstanding" | "potential"; veecs: number | null; discount: number | null; basis: string;
+  bucket: "lodged" | "outstanding" | "pending_acceptance" | "potential"; veecs: number | null; discount: number | null; basis: string;
   paid: "paid" | "part_paid" | "unpaid" | "no_invoice"; lodgementStatus: string | null;
+  quoteState: "accepted" | "issued" | "none";
 };
 
 const CLOSED = ["cancelled", "on_hold"];
@@ -36,9 +37,10 @@ export const getVeecRegister = createServerFn({ method: "POST" }).middleware([re
     const discount = q ? Number(q.veec_discount_inc_gst) : e ? Number(e.applied_discount) : null;
     const lodgedQty = l && l.status !== "not_submitted" && l.quantity != null ? Number(l.quantity) : null;
     const veecs = lodgedQty ?? (discount != null && value ? Math.round((discount / value) * 100) / 100 : null);
-    const bucket: VeecRow["bucket"] = lodgedQty != null || j.stage === "complete" ? "lodged" : accepted ? "outstanding" : "potential";
+    const quoteState: VeecRow["quoteState"] = accepted ? "accepted" : issued ? "issued" : "none";
+    const bucket: VeecRow["bucket"] = lodgedQty != null || j.stage === "complete" ? "lodged" : accepted ? "outstanding" : issued ? "pending_acceptance" : "potential";
     const paid: VeecRow["paid"] = !i ? "no_invoice" : Number(i.total_paid) >= Number(i.total_inc_gst) && Number(i.total_inc_gst) > 0 ? "paid" : Number(i.total_paid) > 0 ? "part_paid" : "unpaid";
-    rows.push({ jobId: j.id, jobNumber: j.job_number, address: j.property_address, owner: j.owner_name, stage: j.stage, bucket, veecs, discount, basis: lodgedQty != null ? "Lodged quantity" : accepted ? "Accepted quote" : issued ? "Issued quote" : e ? "Preliminary estimate" : "No estimate yet", paid, lodgementStatus: l?.status ?? null });
+    rows.push({ jobId: j.id, jobNumber: j.job_number, address: j.property_address, owner: j.owner_name, stage: j.stage, bucket, veecs, discount, basis: lodgedQty != null ? "Lodged quantity" : accepted ? "Accepted quote" : issued ? "Issued quote" : e ? "Preliminary estimate" : "No estimate yet", paid, lodgementStatus: l?.status ?? null, quoteState });
   }
   return rows;
 });
