@@ -1,4 +1,4 @@
-// DRAFT installer agreement adapted from the REC v1.4 agreement (2026-09-30). Lawyer review required before live use.
+// DRAFT installer agreement v1.2 (2026-09-30). Lawyer review required before live use.
 // Any wording change needs a NEW version string so earlier signatures keep their exact text.
 export const INSTALLER_AGREEMENT_SECTIONS: { n: number; title: string; paras: string[] }[] = [
  {
@@ -32,8 +32,8 @@ export const INSTALLER_AGREEMENT_SECTIONS: { n: number; title: string; paras: st
   "n": 4,
   "title": "Scope of services",
   "paras": [
-   "The Installer will provide the services selected in Schedule 2 and any job-specific scope accepted in HI VIC!. Every approved Installer must be capable of supplying and installing ceiling insulation that meets the current Activity 48 product, R-value and installation requirements.",
-   "Removal of existing batts or loose-fill insulation and property-specific access work are included only where the Installer has opted into those services and the job has been specifically allocated or approved.",
+   "The Installer will provide the services selected in Schedule 2 and any job-specific scope accepted in HI VIC!. Every approved Installer must complete the free Home Insulation Ready Check when allocated, consisting of the eligibility check, ceiling measure-up and required site evidence. The Installer must not complete or represent that it has completed the PIESA or any electrical assessment.",
+   "Every approved Installer must be capable of supplying and installing ceiling insulation that meets the current Activity 48 product, R-value and installation requirements, and of removing existing batts or loose-fill insulation when included in an approved job scope. Property-specific access work is included only where allocated or approved.",
    "The Installer must not perform additional chargeable work for a HI VIC! customer outside the approved job scope without the customer's approval through the HI VIC! workflow or HI VIC!'s written authority."
   ]
  },
@@ -79,8 +79,9 @@ export const INSTALLER_AGREEMENT_SECTIONS: { n: number; title: string; paras: st
   "n": 9,
   "title": "Measurements, quoting and free quotes",
   "paras": [
-   "Measure-up and quoting information supplied by the Installer must be genuine and accurate. HI VIC! may require independent verification of measurements before relying on them for customer pricing or VEEC creation.",
-   "Where the Installer offers free quotes for pre-qualified HI VIC! leads (as recorded in Schedule 2), it must not charge the customer or HI VIC! for quoting those leads."
+   "The Installer alone completes the Ready Check eligibility measure-up. Measure-up and quoting information supplied by the Installer must be genuine and accurate. HI VIC! may require independent verification before relying on it for customer pricing or VEEC creation.",
+   "HI VIC! completes Gate 1 eligibility checks and gives the owner a preliminary quote before referring a HI VIC! quote lead. This is intended to make each lead as qualified as reasonably practicable, but does not guarantee that the owner will proceed.",
+   "Where the Installer offers free quotes or free eligibility measure-ups for pre-qualified HI VIC! leads (as recorded separately in Schedule 2), it must not charge the customer or HI VIC! for the relevant quoted service."
   ]
  },
  {
@@ -159,7 +160,7 @@ export const INSTALLER_AGREEMENT_SECTIONS: { n: number; title: string; paras: st
    "The payment and collection pathway shown for each Job in HI VIC! must be followed. The Installer must not invoice or collect from the customer outside that approved pathway. The Installer acknowledges that its approved rate card is a supplier rate and is not the customer-facing price. HI VIC! may set the customer-facing price independently and may include compliance, administration, coordination and commercial margin, subject to applicable law, VEU requirements and clear disclosure to the customer of the total price, VEU discount and any additional fees. HI VIC! is not required to disclose its internal margin to the Installer except where required by law. Where HI VIC! is the payer, payment is due by the timing shown in HI VIC! or the relevant Job offer, or otherwise within 14 days after HI VIC! receives a valid tax invoice and accepts the completed deliverables. Acceptance will not be unreasonably withheld. The Installer's entitlement to payment for accepted work does not depend on HI VIC! receiving payment from the customer.",
    "The Installer has no right to create, register, claim, transfer or sell VEECs arising from a HI VIC! Job and must not cause the consumer's VEEC rights for a HI VIC! Job to be assigned elsewhere. HI VIC! retains control of VEEC creation and lodgement subject to the consumer's valid assignment and the VEU rules.",
     "Set-off and recovery. HI VIC! may set off against amounts payable to the Installer only the reasonable, documented costs it actually incurs because of the Installer's breach, including re-performing or rectifying non-compliant work, or a VEEC being rejected, surrendered or reduced because of the Installer's false, missing or non-compliant evidence, installer safety assessment or work. Before any set-off HI VIC! must give written notice itemising the amount and reason. The Installer may dispute the amount under clause 26, and the disputed portion is held until resolved.",
-    "Installer-referred jobs. Where the Installer refers a customer or job to HI VIC!, quotes that job through HI VIC! and the customer accepts that quote, a job fee of $220 including GST is payable by the Installer to HI VIC! for that job. The fee is payable only when the customer accepts the Installer's quote — no fee applies to quotes that are not accepted or to jobs the Installer does not win. HI VIC! may deduct the fee from amounts otherwise payable to the Installer for that job, or invoice it separately. The fee may change only by a variation to this agreement or a revised schedule accepted by both parties.",
+    "Installer-referred jobs. Where the Installer refers a customer or job to HI VIC! and quotes that job through HI VIC!, a job fee of $220 including GST is payable by the Installer to HI VIC! only when the customer accepts the Installer's quote and the job proceeds. No fee applies if the quote is not accepted or the job does not proceed. HI VIC! may deduct the fee from amounts otherwise payable to the Installer for that job, or invoice it separately. The fee may change only by a variation to this agreement or a revised schedule accepted by both parties.",
     "Defects. For 12 months after completion of each Job, the Installer must return and correct any defect in its workmanship at its own cost within a reasonable time after notice. This does not limit any guarantee under the Australian Consumer Law."
   ]
  },

@@ -4,7 +4,7 @@ import { ConfirmQuote, CustomerEstimate, type CustomerData } from "@/components/
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
 import { lookupLocation } from "@/lib/activity48.core";
 import { computeEstimate, type RetailSettings } from "@/lib/estimate.core";
-import { READY_CHECK_FEE, type ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
+import type { ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
 
 // TEST / DUMMY customer journey for manual email QA only. Renders the real customer components
 // with a locked fixture. No server calls, no writes, no payments, no Xero, no communications.
@@ -66,7 +66,7 @@ function TestCustomerEstimate() {
   }, [confirming]);
   const standard = data?.estimate?.scenarios[0]?.by_access.standard;
   const total = standard?.estimated_customer_total ?? 0;
-  const localState = (paymentStatus: "unpaid" | "paid" | "failed"): ReadyCheckAcceptanceState => ({ acceptanceId: "test-dummy", estimateId: "test-dummy", acceptedAt: new Date().toISOString(), paymentId: "test-dummy", paymentStatus, amountIncGst: READY_CHECK_FEE, estimatedRemainingBalanceIncGst: Math.round((total - READY_CHECK_FEE) * 100) / 100, paidAt: paymentStatus === "paid" ? new Date().toISOString() : null, stale: false });
+  const localState = (): ReadyCheckAcceptanceState => ({ acceptanceId: "test-dummy", estimateId: "test-dummy", acceptedAt: new Date().toISOString(), paymentId: null, paymentStatus: "accepted", amountIncGst: 0, estimatedRemainingBalanceIncGst: total, paidAt: null, stale: false });
   const openReadyCheck = () => {
     window.history.pushState(null, "", `${window.location.pathname}#confirm`);
     setConfirming(true);
@@ -80,7 +80,7 @@ function TestCustomerEstimate() {
         {!data || !standard ? <p className="text-sm">Estimate unavailable.</p> : <>
           <p className="mb-4 px-1 text-xs font-medium text-estimate-navy/70">{ADDRESS} · {REFERENCE}</p>
           {confirming
-            ? <ConfirmQuote estimatedPrice={total} assessmentFee={349} testMode state={state} onAccept={() => setState(localState("unpaid"))} onTestPayment={(r) => setState(localState(r === "success" ? "paid" : "failed"))} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
+            ? <ConfirmQuote estimatedPrice={total} assessmentFee={349} testMode state={state} onAccept={() => setState(localState())} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
              : <div className="estimate-offset overflow-hidden rounded-2xl border border-estimate-blue-soft bg-estimate-white px-5 py-7 sm:px-10 sm:py-11"><CustomerEstimate data={data} publicPage propertyAddress={ADDRESS} onReadyCheck={openReadyCheck} /></div>}
         </>}
       </main>

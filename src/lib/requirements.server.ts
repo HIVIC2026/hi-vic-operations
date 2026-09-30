@@ -23,7 +23,7 @@ export async function jobScope(jobId: string) {
     currentMeasurement(jobId), electricalState(jobId),
     admin.from("jobs").select("measure_up_responsibility").eq("id", jobId).single(),
   ]);
-  return { ...deriveScope({ measurement: m as MeasurementLike | null, electrical, measureUpBy: (job?.measure_up_responsibility ?? "electrician") as "electrician" }), measurementRow: m };
+  return { ...deriveScope({ measurement: m as MeasurementLike | null, electrical, measureUpBy: "installer" }), measurementRow: m };
 }
 
 /**

@@ -10,12 +10,12 @@ const estimateUrl = `https://quote.homeinsulationvictoria.com.au/estimate/${toke
 const referralUrl = `https://homeinsulationvictoria.com.au/homeowner?ref=${token}`;
 const unsubscribeUrl = `https://quote.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${token}`;
 const common = { estimateUrl, estimatedTotal: 3396, veuDiscount: 1325, areaM2: 134.1, referralUrl, reference: "HV-1001" };
-const detailed = { ...common, estimatedTotal: 3747, installationPrice: 4023, assessmentFee: 349, apFee: 700, grossProjectTotal: 5072, amountPayableNow: 99, estimatedRemainingBalance: 3648 };
+const detailed = { ...common, estimatedTotal: 3747, installationPrice: 4023, assessmentFee: 349, apFee: 700, grossProjectTotal: 5072, amountPayableNow: 0, estimatedRemainingBalance: 3747 };
 
 describe("customer outcome email renderers", () => {
   test("likely eligible leads with the complete personalised quote", () => {
     const email = withUnsubscribe(renderEstimateEmail({ ...detailed, outcome: "likely" }), unsubscribeUrl);
-    for (const copy of ["Home Insulation Victoria", "YOU'RE LIKELY ELIGIBLE", "Your preliminary estimate is below.", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$1,325", "$5,072", "$3,747", "$700", "Estimated ceiling size: <strong>134.1 m²", "CHANGE →", "Based on the estimated ceiling size provided in your enquiry. Change it to see a revised estimate.", "WHAT COULD CHANGE MY ESTIMATE?", "WANT TO CHECK THE NUMBERS FIRST?", "TRY ANOTHER PROPERTY OR CEILING SIZE", "your property address and the 134.1 m² ceiling size", "a different Victorian property address or ceiling size", "OPEN THE INTERACTIVE CALCULATOR →", "Calculator changes are for comparison only and do not overwrite your enquiry.", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "Your $99 Ready Check confirms the property details needed to progress your preliminary estimate. Once the required checks are complete, we can confirm the scope and pricing before any installation work proceeds.", "The $99 is credited toward your project if you proceed.", "BOOK MY READY CHECK →", "See exactly what’s included on the next page.", "All prices include GST.", "KNOW SOMEONE WHO MIGHT QUALIFY?", "REFER A FRIEND →", "They’ll enter their own Victorian property address and details so we can check their eligibility and calculate an estimate using the correct local VEU settings.", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
+    for (const copy of ["Home Insulation Victoria", "YOU'RE LIKELY ELIGIBLE", "Your preliminary estimate is below.", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$1,325", "$5,072", "$3,747", "$700", "Estimated ceiling size: <strong>134.1 m²", "CHANGE →", "Based on the estimated ceiling size provided in your enquiry. Change it to see a revised estimate.", "WHAT COULD CHANGE MY ESTIMATE?", "WANT TO CHECK THE NUMBERS FIRST?", "TRY ANOTHER PROPERTY OR CEILING SIZE", "your property address and the 134.1 m² ceiling size", "a different Victorian property address or ceiling size", "OPEN THE INTERACTIVE CALCULATOR →", "Calculator changes are for comparison only and do not overwrite your enquiry.", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "Your free Ready Check confirms the ceiling measurements and eligibility details needed to progress your preliminary estimate.", "There is no charge for the Ready Check.", "BOOK MY READY CHECK →", "See exactly what’s included on the next page.", "All prices include GST.", "KNOW SOMEONE WHO MIGHT QUALIFY?", "REFER A FRIEND →", "They’ll enter their own Victorian property address and details so we can check their eligibility and calculate an estimate using the correct local VEU settings.", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
     for (const removed of ["CONFIRM MY QUOTE", "WHAT HAPPENS NEXT"]) expect(email.html).not.toContain(removed);
     expect(email.html).not.toContain("% estimated saving");
     expect(email.plainText).toContain("Estimated ceiling size: 134.1 m² — CHANGE:");
@@ -47,7 +47,7 @@ describe("customer outcome email renderers", () => {
       expect(quote).not.toContain(CUSTOMER_PAYMENT_COPY.credited);
       expect(quote).not.toContain("Estimated remaining project balance after Ready Check");
     }
-    for (const copy of ["NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "Your $99 Ready Check confirms the property details needed to progress your preliminary estimate. Once the required checks are complete, we can confirm the scope and pricing before any installation work proceeds.", "The $99 is credited toward your project if you proceed."]) {
+    for (const copy of ["NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "Your free Ready Check confirms the ceiling measurements and eligibility details needed to progress your preliminary estimate.", "There is no charge for the Ready Check."]) {
       expect(h.split(copy).length - 1).toBe(1);
       expect(email.plainText.split(copy).length - 1).toBe(1);
     }
@@ -119,12 +119,12 @@ describe("customer outcome email renderers", () => {
     expect(absent.plainText).not.toContain(CUSTOMER_EXISTING_INSULATION_NOTE);
   });
 
-  test("preview sample keeps AP management dynamic while only assessment/payable-now are $349", () => {
-    const e = renderEstimateEmail({ ...common, estimatedTotal: 3716.24, veuDiscount: 1481.76, areaM2: 150, installationPrice: 4500, assessmentFee: 349, apFee: 349, grossProjectTotal: 5198, amountPayableNow: 99, estimatedRemainingBalance: 3617.24 });
+  test("preview sample keeps AP management dynamic while the Ready Check is free", () => {
+    const e = renderEstimateEmail({ ...common, estimatedTotal: 3716.24, veuDiscount: 1481.76, areaM2: 150, installationPrice: 4500, assessmentFee: 349, apFee: 349, grossProjectTotal: 5198, amountPayableNow: 0, estimatedRemainingBalance: 3716.24 });
     for (const t of ["$4,500", "$349", "$5,198", "$1,482", "$3,716"]) expect(e.html).toContain(t);
     expect(e.html).not.toContain("$2,361");
     const preview = readFileSync("src/routes/step3-email-preview.tsx", "utf8");
-    for (const value of ["AP_FEE = 349", "SAMPLE_INSTALL = 4500", "SAMPLE_DISCOUNT = 1481.76", "SAMPLE_GROSS = SAMPLE_INSTALL + PIESA_FEE + AP_FEE", "SAMPLE_CUSTOMER = SAMPLE_GROSS - SAMPLE_DISCOUNT", "amountPayableNow: READY_CHECK_FEE"]) expect(preview).toContain(value);
+    for (const value of ["AP_FEE = 349", "SAMPLE_INSTALL = 4500", "SAMPLE_DISCOUNT = 1481.76", "SAMPLE_GROSS = SAMPLE_INSTALL + PIESA_FEE + AP_FEE", "SAMPLE_CUSTOMER = SAMPLE_GROSS - SAMPLE_DISCOUNT", "amountPayableNow: 0"]) expect(preview).toContain(value);
     expect(preview).not.toMatch(/bg-background|text-primary/);
   });
 
@@ -178,7 +178,7 @@ describe("customer outcome email renderers", () => {
     expect(renderEstimateEmail(common).html).not.toContain("Accredited Person Management");
     expect(() => renderEstimateEmail({ ...detailed, grossProjectTotal: 5000 })).toThrow();
     expect(() => renderEstimateEmail({ ...detailed, estimatedRemainingBalance: 3000 })).toThrow();
-    expect(() => renderEstimateEmail({ ...detailed, apFee: 850, grossProjectTotal: 5222, estimatedTotal: 3897, estimatedRemainingBalance: 3798 })).not.toThrow();
+    expect(() => renderEstimateEmail({ ...detailed, apFee: 850, grossProjectTotal: 5222, estimatedTotal: 3897, estimatedRemainingBalance: 3897 })).not.toThrow();
     expect(() => renderEstimateEmail({ ...detailed, assessmentFee: 350, grossProjectTotal: 5073, estimatedTotal: 3748, estimatedRemainingBalance: 3399 })).toThrow();
     expect(() => renderEstimateEmail({ ...common, assessmentFee: 349 })).toThrow();
     expect(`${email.html} ${email.plainText}`).not.toContain("Pleased to meet you");

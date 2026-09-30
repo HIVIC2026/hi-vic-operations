@@ -4895,6 +4895,7 @@ export type Database = {
           estimated_return_visit_fee_inc_gst: number | null
           esv_licensed_electricians_confirmed: boolean | null
           external_id: string | null
+          free_measureups_for_hivic_quote_leads: boolean | null
           free_quotes_for_hivic_leads: boolean | null
           id: string
           internal_notes: string | null
@@ -4935,6 +4936,7 @@ export type Database = {
           estimated_return_visit_fee_inc_gst?: number | null
           esv_licensed_electricians_confirmed?: boolean | null
           external_id?: string | null
+          free_measureups_for_hivic_quote_leads?: boolean | null
           free_quotes_for_hivic_leads?: boolean | null
           id?: string
           internal_notes?: string | null
@@ -4975,6 +4977,7 @@ export type Database = {
           estimated_return_visit_fee_inc_gst?: number | null
           esv_licensed_electricians_confirmed?: boolean | null
           external_id?: string | null
+          free_measureups_for_hivic_quote_leads?: boolean | null
           free_quotes_for_hivic_leads?: boolean | null
           id?: string
           internal_notes?: string | null

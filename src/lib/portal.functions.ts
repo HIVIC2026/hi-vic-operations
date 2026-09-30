@@ -177,7 +177,7 @@ const measurementPatch = z.object({
   evidence_notes: z.string().max(2000).nullable(),
 }).partial();
 
-const SITE_STAGES = ["assessment_booking", "assessment_booked"];
+const SITE_STAGES = ["ready_check_scheduled", "assessment_booking", "assessment_booked"];
 const MEASURE_EVIDENCE = ["measurement", "existing_insulation_r_value"];
 
 export const saveAssessment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -204,14 +204,13 @@ export const getJobScope = createServerFn({ method: "POST" }).middleware([requir
 export const saveMeasurement = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, patch: measurementPatch }).parse(d))
   .handler(async ({ data, context }) => {
-    const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer"]);
+    const role = await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
     if (!SITE_STAGES.includes(await getStage(data.jobId))) throw new WorkflowError("Measure-up can only be recorded during assessment booking.");
     const { jobScope } = await import("./requirements.server");
     const { planMeasurementUpdate } = await import("./scope.core");
     const s = await jobScope(data.jobId);
-    if (role === "installer" && !s.installerTasks.includes("measure_up")) throw new WorkflowError("Measure-up is not assigned to the installer on this job.");
-    if (role === "electrician" && !s.electricianTasks.some((t) => t !== "electrical")) throw new WorkflowError("The accepted measure-up is read-only. Use \"Measurement needs review\" if it looks wrong.");
-    const source = role === "admin" ? "admin_import" : role === "installer" ? "installer" : "electrician";
+    if (role === "installer" && !s.installerTasks.includes("measure_up")) throw new WorkflowError("The eligibility measure-up is already complete.");
+    const source = role === "admin" ? "admin_import" : "installer";
     const { evidence_notes, ...vals } = data.patch;
     const plan = planMeasurementUpdate({ scope: s.scope, current: s.measurementRow as never, incoming: vals, source });
     const cur = s.measurementRow;
@@ -239,13 +238,12 @@ async function requireMeasureEvidence(jobId: string) {
 export const completeMeasurement = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, method: z.enum(["laser", "tape", "floorplan", "other"]).optional() }).parse(d))
   .handler(async ({ data, context }) => {
-    const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer"]);
+    const role = await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
     if (!SITE_STAGES.includes(await getStage(data.jobId))) throw new WorkflowError("Measure-up can only be completed during assessment booking.");
     const { jobScope, advanceSiteRequirements } = await import("./requirements.server");
     const { missingMeasureFields, MEASURE_FIELD_LABEL } = await import("./scope.core");
     const s = await jobScope(data.jobId);
-    if (role === "installer" && !s.installerTasks.includes("measure_up")) throw new WorkflowError("Measure-up is not assigned to the installer on this job.");
-    if (role === "electrician" && !s.electricianTasks.some((t) => t !== "electrical")) throw new WorkflowError("Measure-up is not part of your scope on this job.");
+    if (role === "installer" && !s.installerTasks.includes("measure_up")) throw new WorkflowError("The eligibility measure-up is already complete.");
     const m = s.measurementRow;
     if (!m) throw new WorkflowError("Enter the measure-up first.");
     if (m.status === "complete") throw new WorkflowError("Measure-up is already accepted.");
@@ -271,6 +269,11 @@ export const completeMeasurement = createServerFn({ method: "POST" }).middleware
       ...(role === "admin" ? { reviewed_by: context.userId, reviewed_at: new Date().toISOString() } : {}),
     }).eq("id", m.id);
     await logEvent(data.jobId, context.userId, "measurement_completed", `Ceiling measure-up completed (${m.source_role}${own ? "" : `, completed by ${role}`}) – ${Number(m.measured_area_m2)} m²${verification["verified_at"] ? ` · installer-supplied ${m.supplied_area_m2 ?? "—"} m², variance ${verification["variance_m2"] ?? "—"} m² (${verification["variance_pct"] ?? "—"}%)` : ""}`, { measurement_id: m.id, source_role: m.source_role, supplemented_fields: m.supplemented_fields, ...verification });
+    if ((await getStage(data.jobId)) === "ready_check_scheduled") {
+      await transition(data.jobId, "ready_check_complete", context.userId, "Free installer Ready Check completed", { measurement_id: m.id, measured_area_m2: m.measured_area_m2 }, { nextAction: "Prepare measured estimate" });
+      await transition(data.jobId, "measured_estimate_ready", context.userId, "Measured estimate ready after installer eligibility measure-up", { measurement_id: m.id });
+      return { advanced: true, scope: "MEASURE_UP_ONLY" as const };
+    }
     const res = await advanceSiteRequirements(data.jobId, context.userId);
     await autoAdvanceJob(data.jobId, context.userId, "measure-up completed");
     return res;
@@ -345,11 +348,11 @@ export const getMeasurementReview = createServerFn({ method: "POST" }).middlewar
   });
 
 export const setMeasureUpResponsibility = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, by: z.enum(["electrician", "installer"]) }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, by: z.literal("installer") }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    await admin.from("jobs").update({ measure_up_responsibility: data.by }).eq("id", data.jobId);
-    await logEvent(data.jobId, context.userId, "measure_up_responsibility_set", `Measure-up assigned to ${data.by}`);
+    await admin.from("jobs").update({ measure_up_responsibility: "installer" }).eq("id", data.jobId);
+    await logEvent(data.jobId, context.userId, "measure_up_responsibility_set", "Eligibility measure-up assigned to installer");
     return { ok: true };
   });
 
@@ -414,7 +417,7 @@ export const priceRectItem = createServerFn({ method: "POST" }).middleware([requ
     return { ok: true };
   });
 
-/** Complete the ELECTRICAL / PIESA requirement. In combined / completion scopes the electrician's measure-up is completed too. */
+/** Complete the ELECTRICAL / PIESA requirement. The electrician never completes the installer measure-up. */
 export const completeAssessment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
@@ -423,11 +426,8 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     if (!a) throw new WorkflowError("Start the assessment first.");
     if (a.status === "complete") throw new WorkflowError("Electrical assessment is already complete.");
     const { jobScope, advanceSiteRequirements } = await import("./requirements.server");
-    const { missingMeasureFields, MEASURE_FIELD_LABEL } = await import("./scope.core");
     const s = await jobScope(data.jobId);
-    const doMeasure = s.electricianTasks.some((t) => t !== "electrical");
     const missing: string[] = [];
-    if (doMeasure) missing.push(...missingMeasureFields(s.measurementRow as never).map((f) => MEASURE_FIELD_LABEL[f]));
     if (!a.switchboard_condition) missing.push("switchboard condition");
     if (a.rcds_present == null) missing.push("RCDs present");
     if (a.life_support_confirmed == null) missing.push("life support confirmation");
@@ -435,9 +435,8 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     if (!a.assessed_on) missing.push("assessment date");
     if (missing.length) throw new WorkflowError(`Still needed: ${missing.join(", ")}`);
     const { data: ev } = await admin.from("evidence_requirements").select("label,status,gate,category").eq("job_id", data.jobId).eq("required", true);
-    // Measure-up evidence only when this visit completes the measure-up; PIESA sign-off when PIESA passed on this visit.
     const evMissing = (ev ?? [])
-      .filter((e) => (doMeasure && MEASURE_EVIDENCE.includes(e.category)) || (a.piesa_outcome === "pass" && e.category === "piesa_signoff"))
+      .filter((e) => a.piesa_outcome === "pass" && e.category === "piesa_signoff")
       .filter((e) => !["uploaded", "verified"].includes(e.status)).map((e) => e.label);
     if (evMissing.length) throw new WorkflowError(`Upload evidence first: ${evMissing.join(", ")}`);
     const { data: unpriced } = await admin.from("rectification_items").select("description").eq("job_id", data.jobId).eq("status", "required").eq("needs_office_pricing", true);
@@ -450,11 +449,6 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     await admin.from("piesa_records").update({ is_current: false }).eq("job_id", data.jobId).eq("is_current", true);
     await admin.from("piesa_records").insert({ job_id: data.jobId, assessment_id: a.id, kind: "initial", outcome: a.piesa_outcome, completed_date: a.assessed_on!, signed_off_by: context.userId, external_mitti_id: a.external_mitti_id });
     await logEvent(data.jobId, context.userId, "electrical_assessment_complete", `Electrical assessment complete – PIESA ${a.piesa_outcome} (${s.label})`, { scope: s.scope });
-    const m = s.measurementRow;
-    if (doMeasure && m && m.status !== "complete") {
-      await admin.from("ceiling_measurements").update({ status: "complete", review_flags: [], completed_at: now, completed_by: m.completed_by ?? (m.source_role === "electrician" ? context.userId : null) }).eq("id", m.id);
-      await logEvent(data.jobId, context.userId, "measurement_completed", `Ceiling measure-up completed onsite by electrician (${m.source_role} record) – ${Number(m.measured_area_m2)} m²`, { measurement_id: m.id, source_role: m.source_role, supplemented_fields: m.supplemented_fields });
-    }
     const res = await advanceSiteRequirements(data.jobId, context.userId);
     await autoAdvanceJob(data.jobId, context.userId, "assessment completed");
     return res;

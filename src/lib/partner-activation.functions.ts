@@ -62,7 +62,7 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
           source_application_id: app.id,
         }));
     if (!workers.length || workers.some((worker) => !worker.full_legal_name || !worker.email)) throw new WorkflowError("Every nominated worker needs a complete profile before approval.");
-    const { error: workersError } = await admin.from("partner_workers").upsert(workers, { onConflict: "business_id,email" });
+    const { error: workersError } = await admin.from("partner_workers").upsert(workers as never, { onConflict: "business_id,email" });
     if (workersError) throw new WorkflowError(workersError.message);
     const { error: credentialError } = await admin.from("business_credentials").insert({ business_id: business.id, kind: "public_liability_insurance", label: "Public liability insurance", number: application.insurance_policy_number ?? null, issuer: application.insurer ?? null, expires_at: application.public_liability_expiry ?? null, critical: true, document_path: app.insurance_certificate_path, verification: "verified", verified_by: context.userId, verified_at: now, created_by: context.userId });
     if (credentialError) throw new WorkflowError(credentialError.message);

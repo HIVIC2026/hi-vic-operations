@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { acceptReadyCheckFn as acceptPreAssessment, getPublicEstimate, simulateReadyCheckPaymentFn as simulatePreAssessmentPayment } from "@/lib/estimate.functions";
+import { acceptReadyCheckFn as acceptPreAssessment, getPublicEstimate } from "@/lib/estimate.functions";
 import { trackCalculatorUse } from "@/lib/engagement.functions";
 import { useCallback, useEffect, useState } from "react";
 import { ConfirmQuote, CustomerEstimate, type CustomerData } from "@/components/portal/estimate";
@@ -36,7 +36,6 @@ function PublicEstimatePage() {
   const fn = useServerFn(getPublicEstimate);
   const track = useServerFn(trackCalculatorUse);
   const accept = useServerFn(acceptPreAssessment);
-  const simulate = useServerFn(simulatePreAssessmentPayment);
   const onCalculatorUse = useCallback((m2: number) => { track({ data: { token, m2 } }).catch(() => {}); }, [track, token]);
   const { data, isLoading, isError, refetch } = useQuery({ queryKey: ["public_estimate", token], queryFn: () => fn({ data: { token } }) as Promise<Payload>, retry: false, refetchOnWindowFocus: false, staleTime: Infinity });
   const [confirming, setConfirming] = useState(false);
@@ -53,7 +52,6 @@ function PublicEstimatePage() {
   const showConfirm = confirming && standard && typeof fee === "number";
   const run = async (action: () => Promise<unknown>) => { setBusy(true); setActionError(null); try { await action(); await refetch(); } catch (e) { setActionError(e instanceof Error ? e.message : "This action could not be completed."); } finally { setBusy(false); } };
   const acceptCurrent = () => run(() => accept({ data: { token } }));
-  const simulatePayment = (outcome: "success" | "failure") => run(() => simulate({ data: { token, outcome, idempotencyKey: crypto.randomUUID() } }));
   const openReadyCheck = () => {
     window.history.pushState(null, "", `${window.location.pathname}${window.location.search}#confirm`);
     setConfirming(true);
@@ -68,7 +66,7 @@ function PublicEstimatePage() {
           : <>
              {(data.job.address || data.job.job_number) && <p className="mb-4 px-1 text-xs font-medium text-estimate-navy/70">{data.job.address}{data.job.address && data.job.job_number ? " · " : ""}{data.job.job_number}</p>}
              {showConfirm
-               ? <ConfirmQuote estimatedPrice={standard.estimated_customer_total} assessmentFee={fee} state={data.assessment} testMode={data.assessmentTestMode} busy={busy} error={actionError} onAccept={acceptCurrent} onTestPayment={simulatePayment} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
+                ? <ConfirmQuote estimatedPrice={standard.estimated_customer_total} assessmentFee={fee} state={data.assessment} testMode={data.assessmentTestMode} busy={busy} error={actionError} onAccept={acceptCurrent} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
                  : <div className="estimate-offset overflow-hidden rounded-2xl border border-estimate-blue-soft bg-estimate-white px-5 py-7 sm:px-10 sm:py-11"><CustomerEstimate data={data.estimate} publicPage propertyAddress={data.job.address} onCalculatorUse={onCalculatorUse} onReadyCheck={openReadyCheck} /></div>}
              {!showConfirm && data.referralShareUrl && <ReferralShare url={data.referralShareUrl} />}
           </>}

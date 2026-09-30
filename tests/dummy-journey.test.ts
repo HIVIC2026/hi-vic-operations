@@ -5,7 +5,7 @@ import { buildBase44Evidence } from "../src/lib/enquiry.core";
 import { lookupLocation } from "../src/lib/activity48.core";
 import { whatIfEstimate } from "../src/lib/estimate.core";
 import { acceptSelectedAddress, resolveWhatIfLocation } from "../src/lib/whatif-location";
-import { computeElectricalAllowance, measuredQuote, reconcilePiesa, checkPiesaWindow, testPaymentTransition, TEST_REC_RATE_CARD, READY_CHECK_PAID_STAGE } from "../src/lib/readycheck.core";
+import { computeElectricalAllowance, measuredQuote, reconcilePiesa, checkPiesaWindow, TEST_REC_RATE_CARD, READY_CHECK_PAID_STAGE } from "../src/lib/readycheck.core";
 import { measuredCustomerRows } from "../src/lib/customer-quote-system";
 const { enquirySchema } = await import("../src/lib/enquiry.server");
 
@@ -29,19 +29,16 @@ describe("dummy journey 1-17 (fixtures only)", () => {
   test("6 same location baseline", () => { expect(disc(150).applied_discount).toBeCloseTo(1481.76, 2); expect(disc(150).estimated_customer_total).toBeCloseTo(3716.24, 2); });
   test("7 other VIC location changes discount at 150", () => { const a = acceptSelectedAddress({ label: "12 Main Rd, Ballarat East VIC 3350", postcode: "3350", state: "VIC" }); const r = a.ok ? resolveWhatIfLocation(home, a.address) : null; expect(r?.status).toBe("alternate"); if (r?.status === "alternate") expect(disc(150, r.location).applied_discount).not.toBeCloseTo(1481.76, 0); });
   test("8 edit invalidates → back to enquiry location", () => expect(resolveWhatIfLocation(home, null).status).toBe("original"));
-  test("10/11 $99 test payment: failure no progress, retry succeeds, paid terminal", () => {
-    expect(testPaymentTransition("pending" as never, "failure" as never)).toBe("failed");
-    expect(testPaymentTransition("failed" as never, "success" as never)).toBe("paid");
-    expect(testPaymentTransition("paid" as never, "failure" as never)).toBe("paid");
+  test("10/11 free Ready Check proceeds directly to installer scheduling", () => {
     expect(READY_CHECK_PAID_STAGE).toBe("ready_check_ready_to_schedule");
   });
   const obs = { "elec.downlight_type": "halogen", "elec.downlight_count": 8, "elec.rcd_visible": "not_visible" } as never;
   const a = computeElectricalAllowance(obs, TEST_REC_RATE_CARD, 1);
-  test("12 measured 162m² + removal + access + allowance, $99 credited once", () => {
+  test("12 measured 162m² + removal + access + allowance, free Ready Check changes no totals", () => {
     const q = measuredQuote({ insulation: 162 * 30, removal: 162 * 15, access: 250, allowance: a, piesa: 349, ap: 349, discount: 1600, readyCheckPaid: true });
     expect(q.gross).toBe(4860 + 2430 + 250 + a.preliminary_electrical_allowance_total + 698);
-    expect(q.costAfter).toBe(Math.round((q.gross - 1600 - 99) * 100) / 100);
-    expect(q.rows.filter((r) => r.kind === "credit")).toHaveLength(1);
+    expect(q.costAfter).toBe(Math.round((q.gross - 1600) * 100) / 100);
+    expect(q.rows.filter((r) => r.kind === "credit")).toHaveLength(0);
     const rows = measuredCustomerRows({ piesa: 349, installation: 4860, removal: 2430, access: 250, allowance: a.preliminary_electrical_allowance_total, apManagement: 349 }) as unknown as { label: string }[];
     const labels = JSON.stringify(rows);
     const order = ["PIESA", "R5.0", "removal", "Access", "Preliminary electrical", "Accredited Person"].map((k) => labels.indexOf(k));

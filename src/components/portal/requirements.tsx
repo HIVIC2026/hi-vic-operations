@@ -86,7 +86,7 @@ export function RequirementCards({ jobId, isAdmin, job }: { jobId: string; isAdm
         supabase.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "required"),
         supabase.from("jobs").select("measure_up_responsibility").eq("id", jobId).single(),
       ]);
-      return { a, rect: count ?? 0, by: j?.measure_up_responsibility ?? "electrician" };
+      return { a, rect: count ?? 0, by: "installer" };
     },
   });
   const review = useAction(reviewMeasurement);
@@ -109,11 +109,7 @@ export function RequirementCards({ jobId, isAdmin, job }: { jobId: string; isAdm
           {s.measurement.state !== "accepted" && s.measurement.missing.length > 0 && <p className="mt-2 text-xs text-danger">Missing: {s.measurement.missing.map((f) => MEASURE_FIELD_LABEL[f]).join(", ")}</p>}
           {isAdmin && (
             <div className="mt-3 space-y-2 border-t pt-3">
-              <div className="flex items-center gap-2 text-sm"><Label>Measure-up done by</Label>
-                <select className="h-8 rounded-md border bg-background px-2 text-sm" value={el?.by} onChange={(e) => setBy({ jobId, by: e.target.value as "installer" }, "Updated")}>
-                  <option value="electrician">Electrician (combined visit)</option><option value="installer">Installer (separate visit)</option>
-                </select>
-              </div>
+              <div className="flex items-center gap-2 text-sm"><Label>Eligibility measure-up</Label><span className="font-semibold">Installer only</span></div>
               {m && (
                 <>
                   {m.status !== "complete" && !!rv?.blockers.length && <ul className="rounded bg-warning-soft p-2 text-xs text-warning">{rv.blockers.map((b) => <li key={b}>{b}</li>)}</ul>}

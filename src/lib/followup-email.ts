@@ -16,7 +16,7 @@ const COPY: Record<FollowupKind, { subject: string; preview: string; heading: st
   },
   estimate_engaged_no_booking_3d: {
     subject: "Ready to book your Home Insulation Ready Check?",
-    preview: "Your $99 Ready Check turns your estimate into a measured Home Insulation Victoria project estimate.",
+    preview: "Your free Ready Check turns your estimate into a measured Home Insulation Victoria project estimate.",
     heading: "Ready to book your Home Insulation Ready Check?",
     paras: ["Thanks for taking a look at your preliminary estimate.", INCLUDED, "The Ready Check is not the mandatory PIESA. Your PIESA is completed later by a licensed electrician, close to installation."],
     cta: "BOOK MY READY CHECK", hash: "#confirm",

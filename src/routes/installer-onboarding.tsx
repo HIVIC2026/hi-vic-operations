@@ -284,6 +284,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       return <>
         <div style={infoCard}><strong>Included for all installer partners:</strong> R5.0 ceiling insulation supply & installation, plus removal of existing insulation (batts and loose fill) where a job needs it. Removal is part of every installer's service — you'll set your rate for each removal type on the pricing step.</div>
         <Field label="Do you offer free quotes for pre-qualified HI VIC! leads?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.free_quotes_for_hivic_leads ?? null} onChange={(v) => up({ free_quotes_for_hivic_leads: v })} /></Field>
+        <Field label="Will you provide free eligibility measure-ups for HI VIC! quote leads?" required hint="HI VIC! completes Gate 1 eligibility checks and gives the owner a preliminary quote before referring the lead, helping screen out unsuitable or uncommitted enquiries."><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.free_measureups_for_hivic_quote_leads ?? null} onChange={(v) => up({ free_measureups_for_hivic_quote_leads: v })} /></Field>
       </>;
     case "coverage":
       return <>
@@ -312,7 +313,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       return <>
         <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
         <div style={infoCard}>{d.gst_registered === false ? "Not GST registered: enter your total rate." : "GST registered: enter rates including GST."} These are proposed supplier rates — HI VIC! reviews them before they apply.</div>
-        <div style={infoCard}>Jobs you refer to HI VIC!: if you quote a job you referred and the customer accepts your quote, a job fee of $220 inc GST applies to that job. No fee if the quote isn't accepted.</div>
+        <div style={infoCard}>Installer-referred jobs: the $220 inc GST job fee applies only when your quote is accepted and the job proceeds. There is no fee for an unaccepted quote or a job that does not proceed.</div>
         <Field label={`R5.0 ceiling insulation supply & install (${unit})`} required><Money value={d.r5_rate} onChange={(v) => up({ r5_rate: v })} unit="m²" /></Field>
         <Field label={`Batts removal (${unit})`} required hint="Required — all installer partners remove existing insulation when a job needs it."><Money value={d.batts_removal_rate} onChange={(v) => up({ batts_removal_rate: v })} unit="m²" /></Field>
         <Field label={`Loose fill removal (${unit})`} required hint="Required — all installer partners remove existing insulation when a job needs it."><Money value={d.loose_fill_removal_rate} onChange={(v) => up({ loose_fill_removal_rate: v })} unit="m²" /></Field>

@@ -30,6 +30,7 @@ export const partnerSchema = z.object({
   estimated_batts_removal_rate_per_sqm_inc_gst: money,
   estimated_loose_fill_removal_rate_per_sqm_inc_gst: money,
   free_quotes_for_hivic_leads: bool,
+  free_measureups_for_hivic_quote_leads: bool,
   rec_registration_number: str(100), esv_licensed_electricians_confirmed: bool, services: list,
   estimated_piesa_fee_inc_gst: money, estimated_return_visit_fee_inc_gst: money,
   booking_lead_time: str(200), weekly_capacity: str(200),
@@ -48,6 +49,7 @@ export function partnerRow(d: PartnerInput, raw: unknown) {
     estimated_batts_removal_rate_per_sqm_inc_gst: d.estimated_batts_removal_rate_per_sqm_inc_gst ?? null,
     estimated_loose_fill_removal_rate_per_sqm_inc_gst: d.estimated_loose_fill_removal_rate_per_sqm_inc_gst ?? null,
     free_quotes_for_hivic_leads: d.free_quotes_for_hivic_leads ?? null,
+    free_measureups_for_hivic_quote_leads: d.free_measureups_for_hivic_quote_leads ?? null,
     rec_registration_number: d.rec_registration_number, esv_licensed_electricians_confirmed: d.esv_licensed_electricians_confirmed, services: d.services,
     estimated_piesa_fee_inc_gst: d.estimated_piesa_fee_inc_gst ?? null, estimated_return_visit_fee_inc_gst: d.estimated_return_visit_fee_inc_gst ?? null,
     booking_lead_time: d.booking_lead_time, weekly_capacity: d.weekly_capacity, notes: d.notes,
@@ -71,6 +73,7 @@ export function partnerIssues(r: {
   cii_certification_status?: string | null;
   estimated_r5_install_rate_per_sqm_inc_gst?: number | null;
   free_quotes_for_hivic_leads?: boolean | null;
+  free_measureups_for_hivic_quote_leads?: boolean | null;
 }): string[] {
   const issues: string[] = [];
   if (!r.phone) issues.push("No phone number supplied");
@@ -87,6 +90,7 @@ export function partnerIssues(r: {
     else if (!r.cii_certification_status) issues.push("CII certification status not supplied");
     if (r.estimated_r5_install_rate_per_sqm_inc_gst == null) issues.push("No indicative R5.0 install rate");
     if (r.free_quotes_for_hivic_leads === false) issues.push("Charges for quotes on pre-qualified HI VIC leads");
+    if (r.free_measureups_for_hivic_quote_leads === false) issues.push("Does not offer free eligibility measure-ups for pre-qualified HI VIC quote leads");
   }
   return issues;
 }
