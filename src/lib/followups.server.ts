@@ -113,6 +113,7 @@ export async function sendInitialEstimateEmail(jobId: string, actorId: string | 
     grossProjectTotal: standard.pre_discount_total,
     amountPayableNow: settings.piesa_assessment_inc_gst,
     estimatedRemainingBalance: Math.max(0, standard.estimated_customer_total - settings.piesa_assessment_inc_gst),
+    areaIsTypical: e.area.source === "typical_default",
   } : {};
   const r = await deliverTracked({ jobId, linkId: link!.id, linkToken: link!.token, purpose: "step3_estimate", key, adapter: adapter!, to, actorId, render: (u) => renderEstimateEmail({ ...u, ...values, outcome: view.mode === "onsite" ? "onsite" : "likely", reasons: view.onsiteDrivers, reference: owner.reference, existingInsulationPresent: view.insulationDeclared === "present" }) });
   if (!r.sent) return r;
