@@ -81,7 +81,7 @@ function PriceResult({ est, area, fees, assumption = false }: { est: Est; area: 
   const primary = est.scenarios.find((s) => s.key === "can_remain") ?? est.scenarios[0];
   if (!primary) return null;
   const standard = primary.by_access.standard;
-  return <section className="rounded-xl bg-estimate-blue-pale px-5 py-7 sm:px-8 sm:py-9" aria-label="Your estimated home upgrade">
+  return <section className="estimate-quote-card px-5 py-7 sm:px-8 sm:py-9" aria-label="Your estimated home upgrade">
     <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Your estimated home upgrade</p>
     <div className="mt-3 flex flex-wrap items-end gap-x-3 gap-y-1"><strong className="text-5xl font-bold leading-none text-estimate-navy sm:text-6xl" data-testid={assumption ? "calculator-total-can_remain" : "total-can_remain"}>{dollars(standard.estimated_customer_total)}</strong><span className="pb-1 text-sm font-medium text-estimate-navy/70">inc GST</span></div>
     <p className="mt-3 text-sm leading-relaxed text-estimate-navy/80">{assumption ? `${CALC_ASSUMPTION_LABEL}: ${area} m². Final area measured onsite.` : `Based on an estimated ${area} m² ceiling area${est.scenarios.some((s) => s.key === "full_removal") ? ", assuming your existing insulation can remain" : ""}.`}</p>
@@ -93,7 +93,7 @@ function PriceResult({ est, area, fees, assumption = false }: { est: Est; area: 
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-estimate-green-light pb-4 font-semibold text-estimate-navy"><dt className="min-w-0">{CUSTOMER_QUOTE_LABELS.discount}</dt><dd className="text-estimate-green">−{dollars(standard.applied_discount)}</dd></div>
       </dl>
       <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 font-bold text-estimate-navy"><span className="text-sm">{CUSTOMER_QUOTE_LABELS.finalCost}</span><span className="text-xl">{dollars(standard.estimated_customer_total)}</span></div>
-      <div className="mt-5 bg-estimate-green-soft px-4 py-4 text-sm leading-relaxed text-estimate-navy"><p><strong>{CUSTOMER_QUOTE_LABELS.payableNow}</strong></p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.included}</p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.notAgain}</p><p className="mt-2">{CUSTOMER_QUOTE_LABELS.remainingBalance}: <strong>{dollars(Math.max(0, standard.estimated_customer_total - fees.piesa))}</strong></p></div>
+      <div className="estimate-action-card mt-5 text-sm leading-relaxed text-estimate-navy"><p><strong>{CUSTOMER_QUOTE_LABELS.payableNow}</strong></p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.included}</p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.notAgain}</p><p className="mt-2">{CUSTOMER_QUOTE_LABELS.remainingBalance}: <strong>{dollars(Math.max(0, standard.estimated_customer_total - fees.piesa))}</strong></p></div>
     </div>
     {standard.copayment_capped && <p className="mt-3 text-sm">The discount is limited so your contribution meets the program minimum.</p>}
   </section>;
@@ -188,16 +188,16 @@ function PriceProtection({ settings, fees }: { settings: RetailSettings | undefi
 
 function NextStep({ fee, hasPrice }: { fee: number; hasPrice: boolean }) {
   const id = useId();
-  return <section className="rounded-xl bg-estimate-blue px-5 py-8 text-estimate-white sm:px-8 sm:py-10" aria-labelledby={`${id}-next-step`}>
-    <p className="text-xs font-semibold uppercase tracking-wider text-estimate-accent">Your next step</p>
-    <h3 id={`${id}-next-step`} className="mt-2 text-2xl font-bold leading-tight">{CUSTOMER_QUOTE_LABELS.piesa}</h3>
+  return <section className="estimate-action-card px-5 py-8 sm:px-8 sm:py-10" aria-labelledby={`${id}-next-step`}>
+    <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Your next step</p>
+    <h3 id={`${id}-next-step`} className="mt-2 text-2xl font-bold leading-tight text-estimate-blue">{CUSTOMER_QUOTE_LABELS.piesa}</h3>
     <p className="mt-4 text-4xl font-bold">{dollars(fee)} <span className="text-base font-medium">inc GST</span></p>
-    <p className="mt-4 border-l-2 border-estimate-accent bg-estimate-white/10 px-4 py-3 text-sm font-semibold leading-relaxed">{hasPrice ? CUSTOMER_PAYMENT_COPY.included : "Included in your estimated total — not an extra fee."}</p>
+    <p className="estimate-secondary-card mt-4 text-sm font-semibold leading-relaxed">{hasPrice ? CUSTOMER_PAYMENT_COPY.included : "Included in your estimated total — not an extra fee."}</p>
     <p className="mt-5 text-sm leading-relaxed">One visit gives us the verified information needed to finalise your job. Your assessment is completed by a licensed electrician employed by a Registered Electrical Contractor (REC).</p>
     <p className="mt-6 font-bold">What it covers</p>
     <ul className="mt-3 grid gap-x-5 gap-y-3 text-sm sm:grid-cols-2">{["Exact ceiling-area measurement", "Existing insulation/R-value check", "Whether removal is required", "Roof/ceiling access assessment", "PIESA by a licensed electrician employed by a REC", "Wiring, downlights, exhaust fans and electrical-clearance checks", "Identification of any rectification required before install", "Information required to prepare the final insulation quote"].map((item) => <li key={item} className="flex items-start gap-2 leading-relaxed"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green-light" />{item}</li>)}</ul>
-    <div className="mt-7 border-t border-estimate-white/30 pt-5"><p className="font-bold">What happens next?</p><ol className="mt-4 grid gap-4 text-sm sm:grid-cols-3">{["We complete the onsite measure and PIESA", "You receive your final Home Insulation Victoria quote", "Once you approve it, we coordinate the qualified installer and manage the job through installation, evidence and VEEC processing"].map((item, index) => <li key={item} className="flex items-start gap-2 leading-relaxed"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-estimate-green-soft font-bold text-estimate-blue">{index + 1}</span>{item}</li>)}</ol></div>
-    <div className="mt-8 border-t border-estimate-white/25 pt-5 text-sm font-semibold text-estimate-green-light">Online booking &amp; payment — coming in the next step</div>
+    <div className="mt-7 border-t border-estimate-green/25 pt-5"><p className="font-bold text-estimate-blue">What happens next?</p><ol className="mt-4 grid gap-4 text-sm sm:grid-cols-3">{["We complete the onsite measure and PIESA", "You receive your final Home Insulation Victoria quote", "Once you approve it, we coordinate the qualified installer and manage the job through installation, evidence and VEEC processing"].map((item, index) => <li key={item} className="flex items-start gap-2 leading-relaxed"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-estimate-blue font-bold text-estimate-white">{index + 1}</span>{item}</li>)}</ol></div>
+    <div className="mt-8 border-t border-estimate-green/25 pt-5 text-sm font-semibold text-estimate-blue">Online booking &amp; payment — coming in the next step</div>
   </section>;
 }
 
@@ -225,11 +225,11 @@ function ManagedProcess() {
 function RemovalNote({ est, assumption = false }: { est: Est; assumption?: boolean }) {
   const removal = est.scenarios.find((s) => s.key === "full_removal");
   if (!removal) return null;
-  return <p className="border-l-2 border-estimate-accent bg-estimate-accent-soft px-4 py-4 text-sm leading-relaxed">If full removal is required, your estimated total would be around <strong data-testid={assumption ? "calculator-total-full_removal" : "total-full_removal"}>{dollars(removal.by_access.standard.estimated_customer_total)}</strong>. Your onsite assessment confirms whether removal is actually needed.</p>;
+  return <p className="estimate-secondary-card text-sm leading-relaxed">If full removal is required, your estimated total would be around <strong data-testid={assumption ? "calculator-total-full_removal" : "total-full_removal"}>{dollars(removal.by_access.standard.estimated_customer_total)}</strong>. Your onsite assessment confirms whether removal is actually needed.</p>;
 }
 
 function EstimateDetails({ data }: { data: CustomerData }) {
-  return <div className="border-y border-estimate-blue/20 py-5 text-sm"><details className="group"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-bold text-estimate-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">What could change the final price? <ChevronDown aria-hidden="true" className="size-5 shrink-0 transition-transform group-open:rotate-180" /></summary><ul className="space-y-3 pt-5 leading-relaxed"><li>Final measured ceiling area may differ from this estimate.</li><li>Access is confirmed onsite. Standard access is assumed.{data.estimate ? ` Moderate access may add ${dollars(data.estimate.access_adjustment.moderate)}; difficult access may add ${dollars(data.estimate.access_adjustment.difficult)}.` : ""}{data.accessConcern ? " Access needs checking onsite." : ""}</li><li>Existing insulation may need removal after onsite inspection.</li><li>Electrical rectification, if required, is quoted separately before approval.</li></ul></details></div>;
+  return <div className="estimate-secondary-card text-sm"><details className="group"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-bold text-estimate-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">What could change the final price? <ChevronDown aria-hidden="true" className="size-5 shrink-0 transition-transform group-open:rotate-180" /></summary><ul className="space-y-3 pt-5 leading-relaxed"><li>Final measured ceiling area may differ from this estimate.</li><li>Access is confirmed onsite. Standard access is assumed.{data.estimate ? ` Moderate access may add ${dollars(data.estimate.access_adjustment.moderate)}; difficult access may add ${dollars(data.estimate.access_adjustment.difficult)}.` : ""}{data.accessConcern ? " Access needs checking onsite." : ""}</li><li>Existing insulation may need removal after onsite inspection.</li><li>Electrical rectification, if required, is quoted separately before approval.</li></ul></details></div>;
 }
 
 /** Customer-facing estimate. Renders nothing when Gate 1 does not permit display. */
