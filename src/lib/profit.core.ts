@@ -22,7 +22,27 @@ export function jobProfit(i: ProfitInput, spot: number | null) {
   const customerExGst = i.customerTotalIncGst / 1.1;
   const veecs = i.veecDiscountIncGst / OWNER_VEEC_RATE;
   const veecRevenue = spot != null ? veecs * spot : null;
+  // HI VIC keeps spot − $70 per VEEC; the owner's $70 is already given as their discount.
   const veecMargin = spot != null ? veecs * (spot - OWNER_VEEC_RATE) : null;
-  const profit = veecRevenue != null ? customerExGst + veecRevenue - i.tradeCostExGst : null;
+  const profit = veecMargin != null ? customerExGst + veecMargin - i.tradeCostExGst : null;
   return { customerExGst, veecs, veecRevenue, veecMargin, profit };
+}
+
+// Parse the current VEEC spot price from the Ecovantage weekly market update HTML.
+// The VEEC paragraph states the move (e.g. "softened from $86.50 down to $85.80");
+// the current price is the LAST dollar figure in that paragraph. Returns null when
+// the wording changes — fail closed, never guess.
+export function parseVeecSpotFromHtml(html: string): number | null {
+  const text = html.replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&#038;/g, "&").replace(/\s+/g, " ");
+  // Pages mention "VEEC" in menus too; use the first mention followed by a price nearby.
+  for (const m of text.matchAll(/VEEC/gi)) {
+    const window = text.slice(m.index, m.index + 400);
+    if (!window.includes("$")) continue;
+    // A period only ends the sentence when it is not a decimal point.
+    const end = window.search(/\.(?!\d)/);
+    const sentence = end < 0 ? window : window.slice(0, end);
+    const amounts = [...sentence.matchAll(/\$(\d+(?:\.\d{1,2})?)/g)].map((a) => Number(a[1])).filter((n) => n > 0 && n < 1000);
+    if (amounts.length) return amounts[amounts.length - 1]!;
+  }
+  return null;
 }

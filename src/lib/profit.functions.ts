@@ -38,3 +38,24 @@ export const recordSpotPrice = createServerFn({ method: "POST" }).middleware([re
     if (error) throw new Error(`Spot price could not be saved: ${error.message}`);
     return { ok: true };
   });
+
+const SPOT_SOURCE_URL = "https://www.ecovantage.com.au/energy-certificate-market-update/";
+
+// Fetch the current VEEC spot price from the online market update and record it.
+// Fails closed: if the page wording changes and no price can be parsed, nothing is saved.
+export const fetchOnlineSpotPrice = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  await requireAdmin(context.supabase);
+  const res = await fetch(SPOT_SOURCE_URL, { headers: { "user-agent": "Mozilla/5.0" } });
+  if (!res.ok) throw new Error(`The online price page could not be reached (HTTP ${res.status}). You can still enter the price by hand.`);
+  const { parseVeecSpotFromHtml } = await import("./profit.core");
+  const price = parseVeecSpotFromHtml(await res.text());
+  if (price == null) throw new Error("The online price could not be read — the source page wording may have changed. Enter the price by hand instead.");
+  const pricedOn = new Date().toISOString().slice(0, 10);
+  const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+  const { data: existing, error: readError } = await admin.from("veec_spot_prices").select("id").eq("priced_on", pricedOn).eq("price", price).limit(1);
+  if (readError) throw new Error(`Spot price history could not be checked: ${readError.message}`);
+  if (existing?.length) return { ok: true, price, pricedOn, alreadyRecorded: true };
+  const { error } = await admin.from("veec_spot_prices").insert({ price, priced_on: pricedOn, source: "Ecovantage market update (online)", note: SPOT_SOURCE_URL, recorded_by: context.userId });
+  if (error) throw new Error(`Spot price could not be saved: ${error.message}`);
+  return { ok: true, price, pricedOn, alreadyRecorded: false };
+});
