@@ -115,7 +115,10 @@ function Pipeline() {
       {pipelinePending ? (
         <div role="status" className="rounded-md border bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">Loading enquiries…</div>
       ) : (
-         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase).map((j: JobRow) => <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" coverage={coverageByJob.get(j.id ?? "")} />)}{filtered.length === 0 && <div className="col-span-full rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">No records in this view.</div>}</div>
+         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase).map((j: JobRow) => {
+           const coverage = coverageByJob.get(j.id ?? "");
+           return <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" {...(coverage ? { coverage } : {})} />;
+         })}{filtered.length === 0 && <div className="col-span-full rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">No records in this view.</div>}</div>
       )}
     </AppShell>
   );
