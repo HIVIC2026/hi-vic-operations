@@ -46,7 +46,7 @@ describe("Ready Check coverage", () => {
 });
 
 describe("Mitti form validation", () => {
-  const typeFor = (t: string) => ({ text: "textsingle", number: "textsingle", choice: "question", yesno: "question", media: "media", signature: "signature", datetime: "datetime" } as Record<string, string>)[t];
+  const typeFor = (t: string) => ({ text: "textsingle", number: "textsingle", choice: "question", multichoice: "question", yesno: "question", media: "media", signature: "signature", datetime: "datetime" } as Record<string, string>)[t];
   const complete = (k: "ready_check" | "piesa" | "piisa") => FORMS[k].fields.map((f) => ({ label: f.label, type: typeFor(f.type) }));
   for (const k of ["ready_check", "piesa", "piisa"] as const) it(`${k}: full form passes`, () => expect(validateTemplate(k, complete(k))).toEqual({ ok: true, issues: [] }));
   it("missing, duplicate and wrong-type fields fail closed", () => {
