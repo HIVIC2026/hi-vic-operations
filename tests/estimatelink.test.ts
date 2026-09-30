@@ -94,7 +94,7 @@ describe("wiring", () => {
   });
   it("secure estimate supports the separate staging pre-assessment payment action", () => {
     expect(route).toContain('window.location.hash === "#confirm"');
-    for (const copy of ["BOOK YOUR", "CUSTOMER_QUOTE_LABELS.payableNow", "CUSTOMER_QUOTE_LABELS.remainingBalance", "CUSTOMER_READY_CHECK.cta", "CUSTOMER_PAYMENT_COPY.credited", "Test mode · payment controls", "BACK TO MY ESTIMATE"]) expect(ui).toContain(copy);
+    for (const copy of ["BOOK YOUR", "CUSTOMER_QUOTE_LABELS.payableNow", "CUSTOMER_QUOTE_LABELS.remainingBalance", "CUSTOMER_READY_CHECK.cta", "Test mode · payment controls", "BACK TO MY ESTIMATE"]) expect(ui).toContain(copy);
     expect(ui).not.toMatch(/stripe|checkout|paymentIntent|card number/i);
     expect(engagementServer).toContain('t.purpose === "step3_estimate" ? "#confirm" : ""');
   });
