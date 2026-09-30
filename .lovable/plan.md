@@ -63,16 +63,22 @@ The underlying retained records and audit history will stay intact, but obsolete
 - Apply one HI VIC system throughout: approved logo, exact blue/green/navy/off-white palette, consistent typography, heading hierarchy, button treatment, spacing, and footer identity.
 - Make the web view and email version use the same names, order, facts, and calls to action.
 - Keep previews available only as deliberate test tools; they will not be presented as live templates or normal navigation.
+- Add an admin **Customer communications** screen listing every customer email and electronic form by the real stage that triggers it.
+- Let the office open a faithful desktop/mobile preview of every email, edit its approved editable copy, save a draft, and preview again before activation. Show which version is active and retain superseded versions for audit.
+- Protect regulated wording and calculated facts: official Activity 48/VEU text, prices, customer/job facts, mandatory disclosures, signatures, and legal timing cannot be casually overwritten in an email editor. Changes to official forms create a new approval-required version; editable email framing and calls to action remain clearly separated.
+- At each manual step, show an exact instruction panel: **What is ready**, **What is blocking it**, **What you must do now**, **What will be sent/signed**, and **What happens next**. The primary action uses the exact command, such as **Preview and send quote package** rather than “Continue”.
 
 ## 7. Make mandatory documents stage-correct and electronic
 - Use **electronic signing across every signing requirement**: customer quote acceptance, ESC owner consent, installer declaration, AP signature, final customer VEEC assignment, partner agreements, and any approved variation or reconfirmation.
 - Do not ask anyone to sign in person. Each electronic signature must retain the approved wording/version, signer, role, timestamp, signature, and immutable audit evidence already required by that form.
 - Build one visible **Documents due now** package for each stage rather than attaching every document to the first email:
-  - quote email/package: quote, VEU consumer information and rights, and commercial acceptance;
+  - quote email/package: quote, all current VEU consumer information and rights, approved commercial terms, pricing/payment terms, and every other document that can legally be acknowledged at quote acceptance;
   - booking/pre-install package: ESC consent when the installation date exists;
   - PIESA/pre-install package: PIESA copy, CES when applicable, Consumer Factsheet, and Code of Conduct information at their required time;
   - completion package: invoice, dispute information, instructions, contacts, warranty, installer declaration, and the completed VEEC assignment when final facts exist.
 - **Recommendation:** use both the stage email and the portal package. The email contains a secure link to the same current documents and signing task in the portal. This avoids stale attachments, keeps one signed version, and prevents documents from being sent before the facts or legal timing exist.
+- Use one quote-stage electronic signature to acknowledge every document actually presented in that package. After acceptance, show a tick beside each included document only when the signed record proves that exact document version was presented and accepted; never pre-tick based only on sending the email.
+- Keep later forms separate when they depend on later facts or prescribed timing. In particular, the ESC owner consent requires an installation date, and the final Activity 48 VEEC assignment requires completed installation facts plus installer → AP → customer signatures. They cannot be validly bundled into the earlier quote signature.
 - Keep launch behaviour **manual-first**: the office previews and sends each ready package. Automated sending switches remain off until the wording, timing, recipients, and end-to-end rehearsal are approved.
 - Never combine documents whose timing or facts are different merely for convenience; the portal may present them as one stage package only when they are all legally due.
 
