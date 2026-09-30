@@ -26,7 +26,14 @@ export const Route = createFileRoute("/_authenticated/admin/test-centre")({
   component: TestCentre,
 });
 
-const INITIAL = { full_name: "", email: "", phone: "", address_line: "", suburb: "", postcode: "", occupancy: "owner_occupied" as "owner_occupied" | "rental", area: "", life: false };
+const INITIAL = {
+  full_name: "", email: "", phone: "", address_line: "", suburb: "", postcode: "",
+  occupancy: "owner_occupied" as "owner_occupied" | "rental", area: "", life: false,
+  property_type: "house" as "house" | "townhouse" | "unit",
+  over_five_years: "yes" as "yes" | "no" | "unknown",
+  previous_upgrade: "no" as "yes" | "no" | "unknown",
+  existing_insulation: "unknown" as "none" | "some" | "unknown",
+};
 
 function TestCentre() {
   const load = useServerFn(getAdminPipeline);
