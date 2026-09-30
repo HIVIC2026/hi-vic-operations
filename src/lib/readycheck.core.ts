@@ -44,7 +44,15 @@ export function testPaymentTransition(status: ReadyCheckPaymentStatus, outcome: 
 
 /** Single post-payment target. Never PIESA, never an invoice/deposit. */
 export const READY_CHECK_PAID_STAGE = "ready_check_ready_to_schedule" as const;
-export const READY_CHECK_PAID_NEXT_ACTION = "Ready Check scheduling / installer assignment" as const;
+export const READY_CHECK_PAID_NEXT_ACTION = "Assign EEC Certified Insulation Installer and arrange Ready Check" as const;
+
+export const READY_CHECK_BOOKING_SUCCESS = {
+  heading: "YOUR READY CHECK IS BOOKING NEXT",
+  received: "Your $99 Home Insulation Ready Check payment has been received.",
+  assignment: "An EEC Certified Insulation Installer from our partner network will be assigned to your job and will contact you to arrange a suitable time for your onsite Ready Check.",
+  visit: "During the Ready Check they’ll measure your ceiling space and collect the site information we need to prepare your measured project estimate.",
+  reassurance: "Home Insulation Victoria will keep the booking and job progress recorded in your project.",
+} as const;
 
 // ---------------- Stages ----------------
 /** Ordered Ready Check pathway. There is deliberately NO electrician-review stage between ready_check_complete and measured_estimate_ready. */

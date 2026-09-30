@@ -82,7 +82,7 @@ export const DEFAULT_NEXT_ACTION: Record<Stage, string> = {
   preliminary_estimate_ready: "Owner to book Home Insulation Ready Check",
   ready_check_awaiting_acceptance: "Owner to accept the Ready Check",
   ready_check_awaiting_payment: "Owner to pay $99 Ready Check",
-  ready_check_ready_to_schedule: "Ready Check scheduling / installer assignment",
+  ready_check_ready_to_schedule: "Assign EEC Certified Insulation Installer and arrange Ready Check",
   ready_check_scheduled: "Installer to complete Ready Check",
   ready_check_complete: "Measured estimate generates automatically",
   measured_estimate_ready: "Owner to accept measured project quote",

@@ -864,7 +864,7 @@ export const requestReassignment = createServerFn({ method: "POST" }).middleware
     await requireJobRole(context.supabase, data.jobId, ["owner", "admin"]);
     const reason = data.cantAgreeTime ? `Can't agree a suitable time: ${data.reason}` : data.reason;
     await admin.from("reassignment_requests").insert({ job_id: data.jobId, role: data.role, requested_by: context.userId, reason });
-    await logEvent(data.jobId, context.userId, data.cantAgreeTime ? "reassignment_review_requested" : "reassignment_requested", data.cantAgreeTime ? "Owner can't agree a time with the electrician – HI VIC to review (electrician stays assigned)" : `Owner requested a different ${data.role}`, { reason });
+    await logEvent(data.jobId, context.userId, data.cantAgreeTime ? "reassignment_review_requested" : "reassignment_requested", data.cantAgreeTime ? `Owner can't agree a time with the ${data.role} – Home Insulation Victoria to review (${data.role} stays assigned)` : `Owner requested a different ${data.role}`, { reason });
     await admin.from("jobs").update({ next_action: `Review ${data.role} reassignment request (owner)` }).eq("id", data.jobId);
     return { ok: true };
   });

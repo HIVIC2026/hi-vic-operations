@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync, readdirSync, existsSync } from "fs";
 import {
-  READY_CHECK_FEE, READY_CHECK_STAGES, READY_CHECK_PAID_STAGE, TEST_REC_RATE_CARD, UNPRICEABLE_COPY,
+  READY_CHECK_BOOKING_SUCCESS, READY_CHECK_FEE, READY_CHECK_STAGES, READY_CHECK_PAID_NEXT_ACTION, READY_CHECK_PAID_STAGE, TEST_REC_RATE_CARD, UNPRICEABLE_COPY,
   checkPiesaWindow, computeElectricalAllowance, installDeadline, measuredQuote, readyCheckRemaining,
   reconcilePiesa, testPaymentTransition, usableRateCard, validateObservations, MEASURED_QUOTE_LABELS,
 } from "../src/lib/readycheck.core";
@@ -11,6 +11,9 @@ import { TRANSITIONS } from "../src/lib/workflow.server";
 const obs = { "elec.downlight_count": 8, "elec.downlight_type": "halogen", "elec.rcd_visible": "not_visible", "elec.unusual_condition": true } as const;
 const migration = readFileSync("drizzle/migrations/0043_ready_check_workflow.sql", "utf8");
 const server = readFileSync("src/lib/readycheck-payment.server.ts", "utf8");
+const workflow = readFileSync("src/lib/workflow.server.ts", "utf8");
+const booking = readFileSync("src/lib/booking.server.ts", "utf8");
+const pilotFunctions = readFileSync("src/lib/pilot.functions.ts", "utf8");
 
 describe("Ready Check payment", () => {
   test("$99 exact, idempotent, credited once", () => {
@@ -26,6 +29,7 @@ describe("Ready Check payment", () => {
   });
   test("payment advances once to scheduling, never PIESA/Xero/invoice/deposit", () => {
     expect(READY_CHECK_PAID_STAGE).toBe("ready_check_ready_to_schedule");
+    expect(READY_CHECK_PAID_NEXT_ACTION).toBe("Assign EEC Certified Insulation Installer and arrange Ready Check");
     for (const banned of ["xero", "invoice", "deposit", "piesa_scheduled", "quotes"]) expect(server.toLowerCase().includes(`from("${banned}`)).toBe(false);
     expect(server).not.toMatch(/xero\.server|invoice\.lifecycle/);
   });
@@ -59,6 +63,26 @@ describe("workflow", () => {
   });
   test("Ready Check does not start PIESA", () => {
     for (const s of ["ready_check_ready_to_schedule", "ready_check_scheduled", "ready_check_complete", "measured_estimate_ready"] as const) expect(TRANSITIONS[s]?.some((t) => t.startsWith("piesa"))).toBe(false);
+  });
+  test("installer assignment and booking details precede Ready Check scheduled", () => {
+    expect(workflow).toContain('to === "ready_check_scheduled"');
+    expect(workflow).toContain('eq("role", "installer")');
+    expect(workflow).toContain('eq("kind", "ready_check")');
+    expect(workflow).toContain("Record the Ready Check date, time, assigned installer and installer business");
+    expect(booking).toContain('ready_check: [["ready_check_ready_to_schedule", "ready_check_scheduled"], "ready_check_scheduled"]');
+    expect(booking).toContain("assignment_id: contractor.id");
+    expect(booking).toContain("business_id: contractor.business_id");
+  });
+  test("installer-led contact and follow-up are recorded without sending", () => {
+    expect(pilotFunctions).toContain("recordReadyCheckContact");
+    expect(pilotFunctions).toContain("ready_check_contact_recorded");
+    expect(pilotFunctions).toContain("Follow up Ready Check contact or reassign installer");
+    expect(pilotFunctions).not.toContain("sendReadyCheck");
+  });
+  test("payment success copy names the certified installer-led booking step", () => {
+    expect(READY_CHECK_BOOKING_SUCCESS.heading).toBe("YOUR READY CHECK IS BOOKING NEXT");
+    expect(READY_CHECK_BOOKING_SUCCESS.assignment).toContain("EEC Certified Insulation Installer");
+    expect(READY_CHECK_BOOKING_SUCCESS.assignment).toContain("will contact you");
   });
 });
 
