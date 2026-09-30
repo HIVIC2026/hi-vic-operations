@@ -131,3 +131,18 @@ describe("Base44 Gate 1 handoff plan", () => {
     expect(enquirySchema.safeParse({ ...base, life_support_status: "maybe" }).success).toBe(false);
   });
 });
+
+import { properAddress, properName } from "@/lib/enquiry.core";
+describe("intake text tidy-up", () => {
+  test("names get proper capitals", () => {
+    expect(properName("jOANNAH  lowe")).toBe("Joannah Lowe");
+    expect(properName("GREG MCDONALD")).toBe("Greg McDonald");
+    expect(properName("mary-ann o'brien")).toBe("Mary-Ann O'Brien");
+    expect(properName("  ")).toBe("");
+  });
+  test("addresses get proper capitals, numbers and state kept", () => {
+    expect(properAddress("12  smith street")).toBe("12 Smith Street");
+    expect(properAddress("unit 4/7 hightower road, MELTON SOUTH")).toBe("Unit 4/7 Hightower Road, Melton South");
+    expect(properAddress("5 main rd VIC")).toBe("5 Main Rd VIC");
+  });
+});
