@@ -17,3 +17,7 @@
 - [ ] Collect bank details after approval (not built yet)
 - [x] Installer-sourced job fee: $220 inc GST on accepted quotes for installer-referred jobs — added to installer agreement (v1.1, clause 17) and pricing-step notice; browser-verified
 - [x] Removal mandatory for installers (both rates required) — browser-verified
+- [ ] Make all admin lists resilient to session/request failures
+- [ ] Activate approved REC/installer applications into businesses, credentials and versioned rate cards
+- [ ] Add private post-approval bank detail collection and review
+- [ ] Complete role-based launch proof and launch checklist
