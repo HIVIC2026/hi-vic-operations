@@ -6,8 +6,6 @@ import { Pill, StageBadge } from "./badges";
 
 export type JobRow = Database["public"]["Views"]["job_overview"]["Row"] & { stuck_reasons?: string[] };
 
-const CONFIRMED_STAGES = new Set(["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "ready_for_installer_quotes", "awaiting_quote_acceptance", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec", "complete"]);
-
 export function JobCard({ job, to, coverage }: { job: JobRow; to: "/admin/jobs/$jobId" | "/field/$jobId" | "/owner/$jobId"; coverage?: "serviceable" | "unserviceable" | "partial" | "not_configured" }) {
   const stuck = job.stuck_reasons ?? [];
   const eligibility = job.eligibility_review_required
@@ -16,11 +14,9 @@ export function JobCard({ job, to, coverage }: { job: JobRow; to: "/admin/jobs/$
       ? { label: "INELIGIBLE", tone: "bad" as const }
       : job.eligibility_outcome === "needs_onsite_confirmation"
         ? { label: "TO BE CONFIRMED", tone: "info" as const }
-        : job.eligibility_outcome === "likely_eligible" && CONFIRMED_STAGES.has(job.stage ?? "")
-          ? { label: "ELIGIBLE", tone: "good" as const }
-          : job.eligibility_outcome === "likely_eligible"
-            ? { label: "LIKELY ELIGIBLE", tone: "good" as const }
-            : null;
+        : job.eligibility_outcome === "likely_eligible"
+          ? { label: "LIKELY ELIGIBLE", tone: "good" as const }
+          : null;
   const next = job.eligibility_outcome === "does_not_appear_eligible" ? "Send ineligible result, then retain on hold" : job.eligibility_outcome === "likely_eligible" && ["new_enquiry", "eligibility_review", "awaiting_electrician"].includes(job.stage ?? "") ? "Arrange the free installer Ready Check" : job.next_action ?? "Review this enquiry";
   return (
     <Link to={to} params={{ jobId: job.id! }} className={`block rounded-md border bg-card p-4 shadow-sm transition hover:border-primary hover:shadow-md ${stuck.length > 0 ? "border-l-4 border-l-danger" : ""}`}>
