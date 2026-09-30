@@ -421,6 +421,13 @@
       "when": 1790774551275,
       "tag": "0059_installer_led_jobs_and_mitti_form_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1790799448128,
+      "tag": "0060_job_ap_fee_override",
+      "breakpoints": true
     }
   ]
 }
