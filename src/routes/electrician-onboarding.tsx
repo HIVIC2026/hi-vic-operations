@@ -234,7 +234,7 @@ function RecOnboarding() {
           <div key={t} style={{ border: "1px solid #E4E8F0", borderRadius: 14, padding: "12px 14px", fontSize: 14 }}><span style={{ color: GREEN, fontWeight: 800 }}>✓ </span>{t}</div>
         ))}
       </div>
-      <p style={{ fontSize: 13, color: MUTED }}>Your progress saves as you go on this device. Bank details are collected after approval.</p>
+      <p style={{ fontSize: 13, color: MUTED }}>Your progress saves as you go on this device.</p>
       {error && <p style={{ color: "#B3261E" }}>{error}</p>}
       <button style={{ ...btn(true, busy), width: "100%" }} disabled={busy} onClick={begin}>{busy ? "Starting…" : "Get started"}</button>
     </div>,

@@ -80,3 +80,5 @@
 - [ ] Approve applicants and verify their postcodes — no partner is approved yet, so Service coverage shows "Not configured" on all 47 enquiries
 - [ ] Chase service areas from 6 installers who left the field blank: Fletchers Flues, Jassy Best Insulation, Melbourne Insulation Removals, Michelle's Air Solutions, No Gap Insulation, PF insulation
 - [ ] Find a REC for Ballarat & Central Highlands and for the Yarra Valley enquiry (HV-1036)
+- [x] Remove wrong "Bank details are collected after approval" line from installer and electrician onboarding welcome screens
+- [ ] Redesign installer onboarding welcome screen (3 directions shown; awaiting pick)
