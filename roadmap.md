@@ -56,3 +56,7 @@
 - [x] Per-job AP fee override (admin, reason required, audited)
 - [x] Auto-fill official PIESA/PIISA PDFs (done; e-sign + delivery wiring waits on Mitti forms)
 - [ ] AP evidence register per job: tick/cross for each Industry Pack record, blocking AP review
+- [x] TO ACTION tab: live office to-do list derived from records (deposit request, Xero errors, due-date updates, Gate 1 review, office stages, Other items, measure-up review, reassignments, partner enquiries)
+- [x] Lift commercial lock for installer-led jobs (HI VIC invoices owner, co-branded)
+- [ ] Put AP fee (incl. per-job override) as its own line on installer-led quotes so the automatic Xero invoice matches the preview
+- [ ] Extend TO ACTION with remaining office tasks (ESC notice, PIESA copies, compliance records, onboarding review)
