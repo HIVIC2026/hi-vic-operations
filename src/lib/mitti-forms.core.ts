@@ -219,7 +219,7 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
   for (const f of FORMS[key].fields) {
     const hits = byLabel.get(norm(f.label)) ?? [];
     if (hits.length === 0) { if (f.required) issues.push(`Missing: ${f.label}`); continue; }
-    if (hits.length > 1 && !f.perArea) { issues.push(`Duplicate: ${f.label}`); continue; }
+    if (hits.length > 1 && !f.perArea && !f.perPriceLine) { issues.push(`Duplicate: ${f.label}`); continue; }
     if (hits.some((h) => !TYPE_ALIASES[f.type].includes(String(h.type).toLowerCase()))) issues.push(`Wrong type: ${f.label} (expected ${f.type})`);
   }
   // Role guard: installer forms must never contain PIESA conclusions.
@@ -264,11 +264,13 @@ export function mittiAiPrompt(key: FormKey): string {
   const f = FORMS[key];
   const fields = f.fields.filter((x) => !x.portalOnly);
   const perArea = fields.filter((x) => x.perArea);
+  const perPriceLine = fields.filter((x) => x.perPriceLine);
   const lines = fields.map((x, i) => {
     const bits = [MITTI_TYPE[x.type]];
     if (x.choices) bits.push(`options exactly: ${x.choices.map((c) => `"${c}"`).join(" / ")}`);
     bits.push(x.required ? (x.when ? `MANDATORY only when: ${x.when} (use logic to show it; hidden otherwise)` : "MANDATORY") : "optional");
     if (x.perArea) bits.push("inside the repeating 'Ceiling area' section");
+    if (x.perPriceLine) bits.push("inside the repeating 'Quoted price line' section");
     if (x.prefill) bits.push("header field, prefilled by the portal – keep editable but do not rename");
     return `${i + 1}. "${x.label}" — ${bits.join("; ")}`;
   });
