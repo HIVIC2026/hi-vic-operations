@@ -962,9 +962,15 @@ export type Database = {
           capabilities: string[]
           commercial_route: string
           contact_people: Json
+          coverage_verified_at: string | null
+          coverage_verified_by: string | null
           created_at: string
+          declared_excluded_areas: string | null
+          declared_service_origin: string | null
+          declared_travel_radius_km: number | null
           default_comms_owner: string
           email: string | null
+          free_measureups_for_hivic_quote_leads: boolean | null
           gst_registered: boolean | null
           id: string
           installer_certification: Json
@@ -999,9 +1005,15 @@ export type Database = {
           capabilities?: string[]
           commercial_route?: string
           contact_people?: Json
+          coverage_verified_at?: string | null
+          coverage_verified_by?: string | null
           created_at?: string
+          declared_excluded_areas?: string | null
+          declared_service_origin?: string | null
+          declared_travel_radius_km?: number | null
           default_comms_owner?: string
           email?: string | null
+          free_measureups_for_hivic_quote_leads?: boolean | null
           gst_registered?: boolean | null
           id?: string
           installer_certification?: Json
@@ -1036,9 +1048,15 @@ export type Database = {
           capabilities?: string[]
           commercial_route?: string
           contact_people?: Json
+          coverage_verified_at?: string | null
+          coverage_verified_by?: string | null
           created_at?: string
+          declared_excluded_areas?: string | null
+          declared_service_origin?: string | null
+          declared_travel_radius_km?: number | null
           default_comms_owner?: string
           email?: string | null
+          free_measureups_for_hivic_quote_leads?: boolean | null
           gst_registered?: boolean | null
           id?: string
           installer_certification?: Json

@@ -13,6 +13,7 @@ export type BusinessLike = {
   onboarding_status: string; is_active: boolean; business_type: string; capabilities?: string[] | null;
   legal_name?: string | null; abn?: string | null; email?: string | null; phone?: string | null;
   service_postcodes?: string[] | null; service_regions?: string[] | null; rec_number?: string | null;
+  coverage_verified_at?: string | null; free_measureups_for_hivic_quote_leads?: boolean | null;
   commercial_route?: string | null;
 };
 
@@ -262,6 +263,11 @@ export function serviceAreaMatch(b: Pick<BusinessLike, "service_postcodes" | "se
   if (!postcode && !suburb) return false;
   if (postcode && b.service_postcodes?.some((p) => p === postcode || (p.endsWith("*") && postcode.startsWith(p.slice(0, -1))))) return true;
   return !!suburb && !!b.service_regions?.some((r) => r.toLowerCase() === suburb.toLowerCase());
+}
+
+/** Verified postcode coverage is required before the portal may claim a partner services a job. */
+export function verifiedServiceAreaMatch(b: Pick<BusinessLike, "service_postcodes"> & { coverage_verified_at?: string | null }, postcode: string | null): boolean {
+  return !!b.coverage_verified_at && !!postcode && !!b.service_postcodes?.some((entry) => entry === postcode || (entry.endsWith("*") && postcode.startsWith(entry.slice(0, -1))));
 }
 
 /** Ranked suggestions — never auto-selects. Ineligible candidates are returned with the reason. */

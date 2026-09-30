@@ -2,7 +2,7 @@
 import { CUSTOMER_BASE } from "./engagement.core";
 import { escape } from "./estimate-email";
 
-export type EmailPurpose = "step3_estimate" | "followup" | "preliminary_ineligible";
+export type EmailPurpose = "step3_estimate" | "followup" | "preliminary_ineligible" | "area_unavailable";
 
 /** Stages in which an estimate / reminder is still relevant. Any later, closed or paused stage suppresses it. */
 export const ESTIMATE_STAGES = new Set(["new_enquiry", "eligibility_review", "awaiting_electrician", "assessment_booking"]);
@@ -31,7 +31,7 @@ export function emailSuppression(x: SafetyInput): string | null {
   if (x.optedOut) return "unsubscribed";
   if (x.bounced) return "bounced";
   if (x.jobSource === "qa_test" || isTestRecipient(x.recipient)) return "test_or_example_recipient";
-  const stages = x.purpose === "preliminary_ineligible" ? INELIGIBLE_STAGES : ESTIMATE_STAGES;
+  const stages = x.purpose === "preliminary_ineligible" || x.purpose === "area_unavailable" ? INELIGIBLE_STAGES : ESTIMATE_STAGES;
   if (!stages.has(x.stage)) return "job_progressed_or_closed";
   if (!x.jobsCreatedAfter) return "backlog_cutoff_not_set";
   if (Date.parse(x.jobCreatedAt) < Date.parse(x.jobsCreatedAfter)) return "backlog_before_cutoff";

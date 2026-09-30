@@ -21,6 +21,7 @@ import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminBusinessesRouteImport } from './routes/_authenticated/admin.businesses'
 import { Route as AuthenticatedAdminComplianceRouteImport } from './routes/_authenticated/admin.compliance'
+import { Route as AuthenticatedAdminCoverageRouteImport } from './routes/_authenticated/admin.coverage'
 import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authenticated/admin.partners'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedFieldIndexRouteImport } from './routes/_authenticated/field.index'
@@ -100,6 +101,12 @@ const AuthenticatedAdminComplianceRoute =
   AuthenticatedAdminComplianceRouteImport.update({
     id: '/admin/compliance',
     path: '/admin/compliance',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminCoverageRoute =
+  AuthenticatedAdminCoverageRouteImport.update({
+    id: '/admin/coverage',
+    path: '/admin/coverage',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminPartnersRoute =
@@ -218,6 +225,7 @@ export interface FileRoutesByFullPath {
   '/estimate/$token': typeof EstimateTokenRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
+  '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
@@ -250,6 +258,7 @@ export interface FileRoutesByTo {
   '/estimate/$token': typeof EstimateTokenRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
+  '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
@@ -284,6 +293,7 @@ export interface FileRoutesById {
   '/estimate/$token': typeof EstimateTokenRoute
   '/_authenticated/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/_authenticated/admin/compliance': typeof AuthenticatedAdminComplianceRoute
+  '/_authenticated/admin/coverage': typeof AuthenticatedAdminCoverageRoute
   '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/field/$jobId': typeof AuthenticatedFieldJobIdRoute
@@ -318,6 +328,7 @@ export interface FileRouteTypes {
     | '/estimate/$token'
     | '/admin/businesses'
     | '/admin/compliance'
+    | '/admin/coverage'
     | '/admin/partners'
     | '/admin/users'
     | '/field/$jobId'
@@ -350,6 +361,7 @@ export interface FileRouteTypes {
     | '/estimate/$token'
     | '/admin/businesses'
     | '/admin/compliance'
+    | '/admin/coverage'
     | '/admin/partners'
     | '/admin/users'
     | '/field/$jobId'
@@ -383,6 +395,7 @@ export interface FileRouteTypes {
     | '/estimate/$token'
     | '/_authenticated/admin/businesses'
     | '/_authenticated/admin/compliance'
+    | '/_authenticated/admin/coverage'
     | '/_authenticated/admin/partners'
     | '/_authenticated/admin/users'
     | '/_authenticated/field/$jobId'
@@ -509,6 +522,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/compliance'
       fullPath: '/admin/compliance'
       preLoaderRoute: typeof AuthenticatedAdminComplianceRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/coverage': {
+      id: '/_authenticated/admin/coverage'
+      path: '/admin/coverage'
+      fullPath: '/admin/coverage'
+      preLoaderRoute: typeof AuthenticatedAdminCoverageRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/partners': {
@@ -651,6 +671,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedAdminBusinessesRoute: typeof AuthenticatedAdminBusinessesRoute
   AuthenticatedAdminComplianceRoute: typeof AuthenticatedAdminComplianceRoute
+  AuthenticatedAdminCoverageRoute: typeof AuthenticatedAdminCoverageRoute
   AuthenticatedAdminPartnersRoute: typeof AuthenticatedAdminPartnersRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedFieldJobIdRoute: typeof AuthenticatedFieldJobIdRoute
@@ -668,6 +689,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedAdminBusinessesRoute: AuthenticatedAdminBusinessesRoute,
   AuthenticatedAdminComplianceRoute: AuthenticatedAdminComplianceRoute,
+  AuthenticatedAdminCoverageRoute: AuthenticatedAdminCoverageRoute,
   AuthenticatedAdminPartnersRoute: AuthenticatedAdminPartnersRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedFieldJobIdRoute: AuthenticatedFieldJobIdRoute,

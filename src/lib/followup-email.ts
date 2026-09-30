@@ -5,7 +5,7 @@ import { CUSTOMER_BRAND, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_VISUAL_SYST
 
 export type FollowupEmailInput = { kind: FollowupKind; estimateUrl: string; trackingClickUrl?: string | null; trackingPixelUrl?: string | null; referralUrl?: string | null };
 
-const INCLUDED = `${CUSTOMER_READY_CHECK_EMAIL_ACTION.sentence} ${CUSTOMER_READY_CHECK_EMAIL_ACTION.credit}`;
+const INCLUDED = CUSTOMER_READY_CHECK_EMAIL_ACTION.sentence;
 const COPY: Record<FollowupKind, { subject: string; preview: string; heading: string; paras: string[]; bullets?: string[]; cta: string; hash?: string }> = {
   estimate_unopened_3d: {
     subject: "Just checking you received your Home Insulation Victoria estimate",

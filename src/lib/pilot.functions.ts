@@ -10,7 +10,7 @@ import { WorkflowError, getStage, logEvent, requireAdmin, requireJobRole, transi
 import {
   appointmentSla, bucketFor, confirmBlockers, electricianSelectionBlocker, extractFromCsvRow, extractFromText, mergeExtracted, offerBlocker,
   offerRespondBlocker, offerSummary, onboardingChecklist, parseCsv, partnerLineBlockers, planImportedMeasurement, proposalResponse, rankElectricians,
-  relationshipOwnerFor, revisionBlocker, splitInvoicingBlocker, supplierTotal, type BusinessLike, type ConfirmedFacts, type ElecCandidate, type Extracted,
+  relationshipOwnerFor, revisionBlocker, splitInvoicingBlocker, supplierTotal, verifiedServiceAreaMatch, type BusinessLike, type ConfirmedFacts, type ElecCandidate, type Extracted,
 } from "./pilot.core";
 import { loadBusiness, myBusinesses, requireApprovedPartner, requireMember, sha, sweepPartnerExpiry } from "./pilot.server";
 
@@ -25,6 +25,7 @@ const businessInput = z.object({
   business_type: z.enum(["eec_installer", "rec", "other"]).optional(), capabilities: z.array(z.enum(["installer", "electrician"])).max(2).optional(),
   email: txt(320), phone: txt(40), address: txt(300), contact_people: z.array(z.object({ name: z.string().max(200), role: z.string().max(100).optional(), phone: z.string().max(40).optional(), email: z.string().max(320).optional() })).max(20).optional(),
   service_postcodes: z.array(z.string().trim().max(6)).max(500).optional(), service_regions: z.array(z.string().trim().max(100)).max(100).optional(),
+  verify_coverage: z.boolean().optional(),
   weekly_capacity: z.number().int().min(0).max(1000).nullish(), lead_time_days: z.number().int().min(0).max(180).nullish(), availability_notes: txt(2000),
   rec_number: txt(50), licence_number: txt(50), installer_certification: z.record(z.string(), z.string().max(500)).optional(),
   branding: z.object({ logo_url: z.string().url().max(1000).optional(), colour: z.string().max(20).optional() }).optional(),
@@ -38,7 +39,11 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
     const adminUser = await isAdmin(context.supabase);
     const sb = splitInvoicingBlocker(data.commercial_route);
     if (sb) throw new WorkflowError(sb);
-    const { id, ...patch } = data;
+    const { id, verify_coverage, ...patch } = data;
+    if (patch.service_postcodes) {
+      const invalid = patch.service_postcodes.filter((entry) => !/^3\d{3}$/.test(entry) && !/^3\d{0,2}\*$/.test(entry));
+      if (invalid.length) throw new WorkflowError(`Invalid Victorian postcode coverage: ${invalid.join(", ")}`);
+    }
     if (!id) {
       if (!adminUser) throw new WorkflowError("Only HI VIC can create a partner business.");
       const { data: row, error } = await admin.from("businesses").insert({ ...patch, business_type: patch.business_type ?? "eec_installer" } as never).select("id").single();
@@ -53,7 +58,11 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
     if (!before) throw new WorkflowError("Business not found");
     const criticalChanged = CRITICAL_FIELDS.some((k) => k in patch && JSON.stringify((patch as Record<string, unknown>)[k]) !== JSON.stringify((before as Record<string, unknown>)[k]));
     const extra = !adminUser && criticalChanged && before.onboarding_status === "approved" ? { onboarding_status: "submitted", onboarding_notes: "Compliance details changed by partner – HI VIC re-approval required" } : {};
-    const { error } = await admin.from("businesses").update({ ...patch, ...extra, updated_at: new Date().toISOString() } as never).eq("id", id);
+    const coverageChanged = "service_postcodes" in patch && JSON.stringify(patch.service_postcodes ?? []) !== JSON.stringify(before.service_postcodes ?? []);
+    const coverageStamp = adminUser && verify_coverage && (patch.service_postcodes?.length ?? before.service_postcodes?.length ?? 0) > 0
+      ? { coverage_verified_at: new Date().toISOString(), coverage_verified_by: context.userId }
+      : coverageChanged ? { coverage_verified_at: null, coverage_verified_by: null } : {};
+    const { error } = await admin.from("businesses").update({ ...patch, ...extra, ...coverageStamp, updated_at: new Date().toISOString() } as never).eq("id", id);
     if (error) throw new WorkflowError(error.message);
     return { id, reapprovalRequired: !!Object.keys(extra).length };
   });
@@ -505,6 +514,8 @@ export const offerToPartner = createServerFn({ method: "POST" }).middleware([req
     const b = offerBlocker({ channel: j.channel, stage: j.stage, hasActiveInstaller: !!inst, hasPendingOffer: !!pend });
     if (b) throw new WorkflowError(b);
     const p = j.properties as { suburb: string | null; postcode: string | null } | null;
+    if (!verifiedServiceAreaMatch(biz, p?.postcode ?? null)) throw new WorkflowError(`${biz.name} does not have office-verified coverage for postcode ${p?.postcode ?? "unknown"}. Confirm the partner's service postcodes before offering this job.`);
+    if (biz.free_measureups_for_hivic_quote_leads !== true) throw new WorkflowError(`${biz.name} has not agreed to free HI VIC quote-lead measure-ups.`);
     const summary = offerSummary({ job_number: j.job_number, stage: j.stage, suburb: p?.suburb ?? null, postcode: p?.postcode ?? null, estimated_area_m2: j.estimated_area_m2, measured_area_m2: m?.status === "complete" ? m.measured_area_m2 : null, eligibility_outcome: j.eligibility_outcome });
     await admin.from("partner_offers").insert({ job_id: data.jobId, business_id: data.businessId, summary: summary as unknown as Json, offered_by: context.userId, expires_at: new Date(Date.now() + data.expiresInDays * 86_400_000).toISOString() });
     await logEvent(data.jobId, context.userId, "partner_offer_made", `Job offered to ${biz.name} (acquisition channel stays HI VIC-sourced)`);
