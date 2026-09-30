@@ -128,7 +128,7 @@ describe("customer outcome email renderers", () => {
     expect(email.html).not.toContain("THIS PROPERTY DOESN'T CURRENTLY APPEAR ELIGIBLE.");
     for (const copy of ["UNFORTUNATELY, THIS PROPERTY DOESN'T APPEAR TO BE ELIGIBLE AT THIS STAGE.", "Based on the information we have, this is because:", "• The home is five years old or newer.", "• A previous Activity 48 upgrade was confirmed.", "If any of the information above isn't correct, you can review your details and we'll reassess the result.", `REVIEW MY RESULT: ${resultUrl}`]) expect(email.plainText).toContain(copy);
     expect(email.plainText.split("five years old or newer").length - 1).toBe(1);
-    expect(email.plainText).not.toMatch(/quote|payment|\$99|\$349/i);
+    expect(email.plainText).not.toMatch(/preliminary quote|payment|\$99|\$349|READY CHECK/i);
     expect(() => renderIneligibleOutcomeEmail({ referralUrl, resultUrl: `${estimateUrl}#confirm`, reasons: ["No"] })).toThrow();
   });
 
