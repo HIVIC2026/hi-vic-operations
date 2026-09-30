@@ -51,3 +51,5 @@
 - [ ] Installer-led screens: installer "New customer job", owner invite, add-my-electrician, installer what's-missing checklist, co-branded invoice layout
 - [ ] Build forms A/B/C in Mitti and connect IDs (needs Jo in Mitti)
 - [ ] Set AP fee for installer-led jobs (needs Jo)
+- [ ] Auto-fill the official DEECA PIESA/PIISA PDFs from Mitti answers, e-sign, file in the job and deliver the PIESA copy 24h+ before install
+- [ ] AP evidence register per job: tick/cross for each Industry Pack record, blocking AP review

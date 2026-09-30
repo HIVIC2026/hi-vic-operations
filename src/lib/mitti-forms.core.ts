@@ -163,6 +163,7 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
       { label: "Daily re-check completed", type: "yesno", required: true, choices: YN, when: "Multi-day install", source: `${F2} Part 8 d.iii` },
       { label: "360 video of ceiling space after upgrade", type: "media", required: true, perArea: true, source: `${G} Table 4` },
       { label: "New insulation depth photo with vertical ruler", type: "media", required: true, perArea: true, source: `${G} Table 4` },
+      { label: "Final floor plan – installed m² and products per area", type: "media", required: true, source: "Industry Pack records 2 of 2" },
       { label: "Part 8 Installer declaration", type: "signature", required: true, source: `${F2} Part 8` },
       { label: "Installer full name", type: "text", required: true, prefill: true, source: `${F2} Part 8` },
       { label: "Date", type: "datetime", required: true, source: `${F2} Part 8` },
