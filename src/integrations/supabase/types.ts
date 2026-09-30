@@ -5859,7 +5859,9 @@ export type Database = {
           id: string
           installer_option_codes: string[]
           is_active: boolean
+          piesa_rec_cost_ex_gst: number | null
           veec_credit_per_m2_inc_gst: number
+          veec_lodgement_fee_ex_gst: number | null
           version: number
         }
         Insert: {
@@ -5872,7 +5874,9 @@ export type Database = {
           id?: string
           installer_option_codes?: string[]
           is_active?: boolean
+          piesa_rec_cost_ex_gst?: number | null
           veec_credit_per_m2_inc_gst?: number
+          veec_lodgement_fee_ex_gst?: number | null
           version: number
         }
         Update: {
@@ -5885,7 +5889,9 @@ export type Database = {
           id?: string
           installer_option_codes?: string[]
           is_active?: boolean
+          piesa_rec_cost_ex_gst?: number | null
           veec_credit_per_m2_inc_gst?: number
+          veec_lodgement_fee_ex_gst?: number | null
           version?: number
         }
         Relationships: []

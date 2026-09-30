@@ -407,6 +407,13 @@
       "when": 1790769078088,
       "tag": "0057_veec_spot_prices",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1790771123767,
+      "tag": "0058_piesa_pricing_and_rec_cost",
+      "breakpoints": true
     }
   ]
 }
