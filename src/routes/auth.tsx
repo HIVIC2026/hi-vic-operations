@@ -6,6 +6,7 @@ import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -14,6 +15,8 @@ export const Route = createFileRoute("/auth")({
       { name: "description", content: "Sign in to the HI VIC operating portal." },
       { property: "og:title", content: "Sign in – HI VIC Portal" },
       { property: "og:description", content: "Sign in to the HI VIC operating portal." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: AuthPage,
@@ -52,10 +55,11 @@ function AuthPage() {
 
   return (
     <div className="grid min-h-screen place-items-center bg-background px-4">
-      <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-sm">
-        <div className="mb-6 flex items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">HI</span>
-          <div><div className="font-bold">HI VIC Portal</div><div className="text-xs text-muted-foreground">{mode === "in" ? "Sign in" : "Create account"}</div></div>
+      <div className="w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm">
+        <div className="mb-6 border-b pb-5 text-center">
+          <img src={logo.url} alt="Home Insulation Victoria" className="mx-auto h-14 w-auto" />
+          <div className="mt-3 font-display text-lg font-bold">Operating Portal</div>
+          <div className="text-xs text-muted-foreground">{mode === "in" ? "Sign in to continue" : "Create your account"}</div>
         </div>
         <form onSubmit={submit} className="space-y-3">
           {mode === "up" && <div><Label htmlFor="n">Full name</Label><Input id="n" className="h-12" value={name} onChange={(e) => setName(e.target.value)} required /></div>}
@@ -64,9 +68,9 @@ function AuthPage() {
           <Button type="submit" size="field" className="w-full" disabled={busy}>{mode === "in" ? "Sign in" : "Create account"}</Button>
         </form>
         <Button variant="outline" size="field" className="mt-3 w-full" onClick={google}>Continue with Google</Button>
-        <button className="mt-4 w-full text-center text-sm text-primary" onClick={() => setMode(mode === "in" ? "up" : "in")}>
+        <Button type="button" variant="link" className="mt-2 w-full" onClick={() => setMode(mode === "in" ? "up" : "in")}>
           {mode === "in" ? "New here? Create an account" : "Have an account? Sign in"}
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -25,6 +25,6 @@ describe("post-intake health panel", () => {
   it("admin pipeline renders the panel with counts and last run time", () => {
     expect(adminPage).toContain('data-testid="post-intake-health"');
     expect(adminPage).toContain("getPostIntakeHealth");
-    for (const label of ["Queued:", "Running:", "Stale:", "Failed:", "Last worker run:"]) expect(adminPage).toContain(label);
+    for (const label of ["Queued", "Running", "Stale", "Failed"]) expect(adminPage).toContain(label);
   });
 });

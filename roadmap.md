@@ -3,6 +3,10 @@
 - [x] Research Coperniq's operations UX and apply relevant navigation/workflow patterns
 - [x] Remove the obsolete Step 3 design mockup routes and any remaining links/content
 - [x] Verify the redesigned portal across desktop and mobile without changing workflow rules
+- [x] Apply the official HI VIC logo to portal entry, sign-in, navigation, onboarding and error states
+- [x] Restrict partner contact records to HI VIC admins or members of that partner business
+- [x] Restrict operating settings to HI VIC admins
+- [x] Audit full launch readiness and identify the remaining live-launch blockers
 - [x] Audit electrician onboarding flow (Base44 -> portal): fields, validation, storage, admin review
 - [x] Build portal electrician onboarding page (/electrician-onboarding)
 - [x] Auto-flag onboarding issues (ESV no, missing REC/fees) in admin Partner Enquiries
