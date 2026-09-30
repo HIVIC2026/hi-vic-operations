@@ -18,8 +18,8 @@ export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
   new_enquiry: ["eligibility_review", "awaiting_electrician", "preliminary_estimate_ready"],
   eligibility_review: ["awaiting_electrician", "preliminary_estimate_ready"],
   // Ready Check pathway. NO electrician-review stage between ready_check_complete and measured_estimate_ready.
-  preliminary_estimate_ready: ["ready_check_awaiting_acceptance", "ready_check_awaiting_payment", "ready_check_ready_to_schedule"],
-  ready_check_awaiting_acceptance: ["ready_check_awaiting_payment", "ready_check_ready_to_schedule"],
+  preliminary_estimate_ready: ["ready_check_awaiting_acceptance", "ready_check_ready_to_schedule"],
+  ready_check_awaiting_acceptance: ["ready_check_ready_to_schedule"],
   ready_check_awaiting_payment: ["ready_check_ready_to_schedule"],
   ready_check_ready_to_schedule: ["ready_check_scheduled"],
   ready_check_scheduled: ["ready_check_complete", "ready_check_ready_to_schedule"],
@@ -134,16 +134,9 @@ export async function depositCleared(jobId: string) {
   return (count ?? 0) > 0;
 }
 
-/** Separate $99 Ready Check gate. Never reads installation invoices, Xero state, or the 50% deposit. */
-export async function readyCheckPaymentCleared(jobId: string) {
-  const { count } = await admin.from("ready_check_payments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("purpose", "home_insulation_ready_check").eq("status", "paid");
-  return (count ?? 0) > 0;
-}
-
 /** Ready Check pathway guards (pure rules in readycheck.core.ts). */
 async function readyCheckBlockers(jobId: string, to: Stage): Promise<string[]> {
   const out: string[] = [];
-  if (to === "ready_check_ready_to_schedule" && !(await readyCheckPaymentCleared(jobId))) out.push("$99 Home Insulation Ready Check payment not received.");
   if (to === "ready_check_scheduled") {
     const { data: assignment } = await admin.from("job_assignments").select("id, user_id, business_id, businesses(business_type, onboarding_status, is_active, capabilities)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
     const business = assignment?.businesses as { business_type: string; onboarding_status: string; is_active: boolean; capabilities: string[] | null } | null;
@@ -154,8 +147,8 @@ async function readyCheckBlockers(jobId: string, to: Stage): Promise<string[]> {
     if (!booking?.scheduled_start || booking.assignment_id !== assignment?.id || booking.contractor_id !== assignment?.user_id || booking.business_id !== assignment?.business_id) out.push("Record the Ready Check date, time, assigned installer and installer business before scheduling.");
   }
   if (to === "measured_estimate_ready") {
-    const { count } = await admin.from("ready_checks").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "submitted");
-    if (!count) out.push("Ready Check not yet submitted by the installer.");
+    const { count } = await admin.from("ceiling_measurements").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("is_current", true).eq("status", "complete").eq("source_role", "installer");
+    if (!count) out.push("Free Ready Check eligibility measure-up not yet completed by the installer.");
   }
   if (to === "piesa_scheduled") {
     const { checkPiesaWindow } = await import("./readycheck.core");

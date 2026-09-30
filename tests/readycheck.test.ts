@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, existsSync } from "fs";
 import {
   READY_CHECK_BOOKING_SUCCESS, READY_CHECK_FEE, READY_CHECK_STAGES, READY_CHECK_PAID_NEXT_ACTION, READY_CHECK_PAID_STAGE, TEST_REC_RATE_CARD, UNPRICEABLE_COPY,
   checkPiesaWindow, computeElectricalAllowance, installDeadline, measuredQuote, readyCheckRemaining,
-  reconcilePiesa, testPaymentTransition, usableRateCard, validateObservations, MEASURED_QUOTE_LABELS,
+  reconcilePiesa, usableRateCard, validateObservations, MEASURED_QUOTE_LABELS,
 } from "../src/lib/readycheck.core";
 import { CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_QUOTE_ORDER, CUSTOMER_READY_CHECK, customerQuoteRows } from "../src/lib/customer-quote-system";
 import { TRANSITIONS } from "../src/lib/workflow.server";
@@ -16,17 +16,13 @@ const booking = readFileSync("src/lib/booking.server.ts", "utf8");
 const pilotFunctions = readFileSync("src/lib/pilot.functions.ts", "utf8");
 const portalFunctions = readFileSync("src/lib/portal.functions.ts", "utf8");
 
-describe("Ready Check payment", () => {
-  test("$99 exact, idempotent, credited once", () => {
-    expect(READY_CHECK_FEE).toBe(99);
-    expect(migration.match(/= 99\.00\)/g)?.length).toBeGreaterThanOrEqual(2);
+describe("free Ready Check", () => {
+  test("free request is idempotent and legacy $99 records remain auditable", () => {
+    expect(READY_CHECK_FEE).toBe(0);
     expect(migration).toContain("UNIQUE (job_id, estimate_id)");
-    expect(migration).toContain("ON CONFLICT (payment_id, idempotency_key) DO NOTHING");
-    expect(migration).toContain("ready_check_payments_one_paid_per_job");
-    expect(readyCheckRemaining(3716.24)).toBe(3617.24);
-    expect(testPaymentTransition("paid", "failure")).toBe("paid");
-    expect(testPaymentTransition("failed", "success")).toBe("paid");
-    expect(testPaymentTransition("unpaid", "failure")).toBe("failed");
+    expect(readyCheckRemaining(3716.24)).toBe(3716.24);
+    expect(server).toContain("ready_check_amount_inc_gst: 0");
+    expect(server).not.toContain("apply_ready_check_test_payment");
   });
   test("payment advances once to scheduling, never PIESA/Xero/invoice/deposit", () => {
     expect(READY_CHECK_PAID_STAGE).toBe("ready_check_ready_to_schedule");
@@ -52,7 +48,7 @@ describe("customer copy", () => {
     ]);
     expect(customerQuoteRows({ installation: 1, piesa: 2, apManagement: 3 }).map((r) => r.key)).toEqual(["piesa", "insulation", "apManagement"]);
     expect(JSON.stringify(CUSTOMER_QUOTE_LABELS)).not.toMatch(/allowance/i);
-    expect(CUSTOMER_PAYMENT_COPY.credited).toBe("Your $99 Home Insulation Ready Check is credited toward your project if you proceed.");
+    expect(CUSTOMER_PAYMENT_COPY.credited).toBe("Your Home Insulation Ready Check is free.");
     expect(CUSTOMER_READY_CHECK.paragraphs).toContain("The Ready Check is not the mandatory electrical safety assessment. Your PIESA is completed later by a licensed electrician, close to installation.");
   });
 });
@@ -122,14 +118,14 @@ describe("allowance engine", () => {
 });
 
 describe("measured quote", () => {
-  test("canonical order, unpriceable does not block, $99 credit once", () => {
+  test("canonical order, unpriceable does not block, free Ready Check changes no totals", () => {
     const a = computeElectricalAllowance(obs, TEST_REC_RATE_CARD, 1);
     const q = measuredQuote({ insulation: 4500, removal: 2250, access: 0, allowance: a, piesa: 349, ap: 349, discount: 1481.76, readyCheckPaid: true });
     const L = MEASURED_QUOTE_LABELS;
-    expect(q.rows.map((r) => r.label)).toEqual([L.insulation, L.removal, L.allowance, L.piesa, L.apManagement, L.projectTotal, L.discount, L.readyCheckCredit, L.finalCost, L.alreadyPaid, L.remaining]);
+    expect(q.rows.map((r) => r.label)).toEqual([L.insulation, L.removal, L.allowance, L.piesa, L.apManagement, L.projectTotal, L.discount, L.finalCost, L.remaining]);
     expect(q.gross).toBe(8168);
-    expect(q.costAfter).toBe(6587.24);
-    expect(q.remaining).toBe(6587.24);
+    expect(q.costAfter).toBe(6686.24);
+    expect(q.remaining).toBe(6686.24);
     expect(q.unpriceable).toBe(true);
     expect(UNPRICEABLE_COPY).toBe("Additional electrical work may be required — unable to estimate from the preliminary observations.");
   });

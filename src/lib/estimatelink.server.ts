@@ -60,7 +60,7 @@ export async function resolvePublicEstimate(token: unknown, assessmentTestMode =
   const { referralUrlForJob } = await import("./referral.server");
   const referral = await referralUrlForJob(l.job_id).catch(() => null);
   const { readyCheckAcceptanceState } = await import("./readycheck-payment.server");
-  const assessment = assessmentTestMode ? await readyCheckAcceptanceState(token).catch(() => null) : null;
+  const assessment = await readyCheckAcceptanceState(token).catch(() => null);
   return { ...publicPayload({ job_number: j?.job_number ?? null, address: p ? [p.address_line, p.suburb, p.postcode].filter(Boolean).join(", ") : null }, cv, referral, assessment), assessmentTestMode };
 }
 

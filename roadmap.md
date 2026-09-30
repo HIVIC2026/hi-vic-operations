@@ -15,10 +15,12 @@
 - [x] Rebuild full REC onboarding + v1.4 agreement signing in the portal (tested end to end)
 - [x] Office approval → create partner business/rate card from a signed REC or installer application
 - [x] Collect bank details inside both signed onboarding flows and carry them into the approved partner file
-- [x] Installer-sourced job fee: $220 inc GST on accepted quotes for installer-referred jobs — added to installer agreement (v1.1, clause 17) and pricing-step notice; browser-verified
+- [x] Installer-sourced job fee: $220 inc GST only when an installer-referred quote is accepted and the job proceeds — recorded in the installer agreement and pricing-step notice
 - [x] Removal mandatory for installers (both rates required) — browser-verified
 - [ ] Make all admin lists resilient to session/request failures
 - [x] Activate approved REC/installer applications into businesses, credentials and versioned rate cards
 - [x] Set partner access policy: individual logins only, with the business owner adding each worker
 - [x] Store nominated workers as business-linked profiles and match each trade login to the approved onboarding
 - [ ] Complete role-based launch proof and launch checklist
+- [x] Replace the paid Ready Check with a free installer-only eligibility measure-up; keep PIESA electrician-only across onboarding, workflow, screens and safeguards
+- [x] Ask installers separately about free measure-ups for pre-qualified HI VIC leads; record the $220 inc GST job fee only when their quote is accepted and the job proceeds

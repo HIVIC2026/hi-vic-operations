@@ -38,10 +38,10 @@ describe("rec onboarding", () => {
   });
   test("agreement text includes markup clause, schedules and all 7 acknowledgements", () => {
     const t = agreementText(full);
-    expect(t).toContain("HI-VIC-A48-REC-1.4-2026-09-30");
+    expect(t).toContain("HI-VIC-A48-REC-1.5-2026-09-30");
     expect(t).toContain("is not the customer-facing price");
     expect(t).toContain("does not depend on HI VIC! receiving payment from the customer");
-    expect(t).toContain("Assessment visit (measure-up + assessment + PIESA): $300.00 / visit");
+    expect(t).toContain("Pre-insulation electrical safety assessment (PIESA): $300.00 / visit");
     expect(ACKNOWLEDGEMENTS.length).toBe(7);
     for (const a of ACKNOWLEDGEMENTS) expect(t).toContain(a.text);
   });

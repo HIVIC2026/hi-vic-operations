@@ -81,10 +81,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
   );
   const assessing = ["assessment_booking", "assessment_booked"].includes(stage) && !locked;
   const { data: scope } = useJobScope(jobId);
-  const measureTask = scope?.electricianTasks.some((t) => t !== "electrical");
-  const measureBlock = !scope || !assessing ? null : scope.measurement.state === "accepted" ? <MeasurementReadOnly jobId={jobId} canFlag /> : measureTask ? (
-    <MeasurementForm jobId={jobId} editable={scope.editableMeasureFields} showComplete={false} title={scope.scope === "COMBINED" ? "1 · Ceiling measure-up" : "1 · Complete missing measure-up"} />
-  ) : <Section title="Ceiling measure-up"><p className="text-sm text-muted-foreground">Not part of your visit – the installer is doing the measure-up.</p></Section>;
+  const measureBlock = !scope || !assessing ? null : scope.measurement.state === "accepted" ? <MeasurementReadOnly jobId={jobId} canFlag /> : <Section title="Installer eligibility measure-up"><p className="text-sm text-muted-foreground">This is not part of your PIESA visit. The assigned insulation installer completes the measure-up and eligibility evidence.</p></Section>;
 
   return (
     <>
@@ -101,7 +98,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
           {<MittiSyncedFields a={a as unknown as Record<string, unknown>} />}
           {!locked && <EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} />}
           {!locked && <OtherItems jobId={jobId} editable />}
-          {!locked && <Button size="field" className="w-full" onClick={() => complete({ jobId }, "Assessment complete")}><Check /> {measureTask ? "Complete assessment (electrical + measure-up)" : "Complete electrical assessment"}</Button>}
+          {!locked && <Button size="field" className="w-full" onClick={() => complete({ jobId }, "PIESA complete")}><Check /> Complete PIESA</Button>}
         </>
       )}
       {!a?.external_mitti_id && (assessing || locked) && (
@@ -133,7 +130,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
           </Section>
           <EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} />
           <OtherItems jobId={jobId} editable={!locked || stage === "awaiting_owner_rectification_approval"} />
-          {!locked && <Button size="field" className="w-full" onClick={() => complete({ jobId }, "Assessment complete")}><Check /> {measureTask ? "Complete assessment (electrical + measure-up)" : "Complete electrical assessment"}</Button>}
+           {!locked && <Button size="field" className="w-full" onClick={() => complete({ jobId }, "PIESA complete")}><Check /> Complete PIESA</Button>}
           </div>
         </details>
       )}
@@ -190,10 +187,10 @@ function InstallerFlow({ jobId, stage }: { jobId: string; stage: string }) {
   const { data: el } = useQuery({ queryKey: ["assessment-trade", jobId], queryFn: async () => (await supabase.from("assessments").select("hazards, downlights_qty").eq("job_id", jobId).maybeSingle()).data });
   const m = ms?.current;
   const a = m?.status === "complete" ? { ...m, hazards: el?.hazards ?? null, downlights_qty: el?.downlights_qty ?? null } : null;
-  const measuring = ["assessment_booking", "assessment_booked"].includes(stage) && !!scope?.installerTasks.includes("measure_up");
+  const measuring = ["ready_check_scheduled", "assessment_booking", "assessment_booked"].includes(stage) && !!scope?.installerTasks.includes("measure_up");
   return (
     <>
-      {measuring && <MeasurementForm jobId={jobId} editable={["measured_area_m2", "insulation_present", "existing_r_value", "removal_required", "removal_m2", "access_difficulty"]} showComplete title="Your task: ceiling measure-up" />}
+      {measuring && <MeasurementForm jobId={jobId} editable={["measured_area_m2", "insulation_present", "existing_r_value", "removal_required", "removal_m2", "access_difficulty"]} showComplete title="Your task: free Ready Check — eligibility measure-up" />}
       {!measuring && m && m.status !== "complete" && ["assessment_booking", "assessment_booked"].includes(stage) && <Section title="Your measure-up"><MeasurementDetails m={m} /><p className="mt-2 text-sm text-muted-foreground">Status: {m.status.replace("_", " ")} – HI VIC will follow up.</p></Section>}
       {a && (
         <Section title="Site summary">

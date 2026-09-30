@@ -1,26 +1,26 @@
 /**
  * Home Insulation Ready Check — pure rules. No network, no Xero, no invoice/deposit logic.
- * Locked journey: preliminary estimate → $99 Ready Check (insulation installer) → automatic measured
+ * Locked journey: preliminary estimate → free Ready Check (insulation installer) → automatic measured
  * quote with PRELIMINARY electrical allowance (no manual electrician review) → acceptance →
  * paired PIESA + install window → formal PIESA reconciliation against the same REC rate card.
  */
 
-export const READY_CHECK_FEE = 99 as const;
-export const READY_CHECK_COPY_VERSION = "ready-check-v1" as const;
+export const READY_CHECK_FEE = 0 as const;
+export const READY_CHECK_COPY_VERSION = "ready-check-free-v2" as const;
 export const READY_CHECK_NAME = "Home Insulation Ready Check" as const;
 export const READY_CHECK_SHORT = "Ready Check" as const;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 // ---------------- Payment (test mode) ----------------
-export type ReadyCheckPaymentStatus = "unpaid" | "failed" | "paid";
+export type ReadyCheckPaymentStatus = "accepted";
 export type TestPaymentOutcome = "failure" | "success";
 
 export type ReadyCheckAcceptanceState = {
   acceptanceId: string;
   estimateId: string;
   acceptedAt: string;
-  paymentId: string;
+  paymentId: string | null;
   paymentStatus: ReadyCheckPaymentStatus;
   amountIncGst: number;
   estimatedRemainingBalanceIncGst: number;
@@ -28,7 +28,7 @@ export type ReadyCheckAcceptanceState = {
   stale: boolean;
 };
 
-/** Remaining project balance after the $99 Ready Check credit (applied exactly once). */
+/** The Ready Check is free, so the full estimated project amount remains. */
 export function readyCheckRemaining(costAfterDiscountIncGst: number): number {
   return Math.max(0, round2(costAfterDiscountIncGst - READY_CHECK_FEE));
 }
@@ -37,18 +37,13 @@ export function acceptanceIsCurrent(acceptedEstimateId: string, currentEstimateI
   return !!currentEstimateId && acceptedEstimateId === currentEstimateId;
 }
 
-export function testPaymentTransition(status: ReadyCheckPaymentStatus, outcome: TestPaymentOutcome): ReadyCheckPaymentStatus {
-  if (status === "paid") return "paid";
-  return outcome === "success" ? "paid" : "failed";
-}
-
-/** Single post-payment target. Never PIESA, never an invoice/deposit. */
+/** Single post-acceptance target. Never PIESA, never an invoice/deposit. */
 export const READY_CHECK_PAID_STAGE = "ready_check_ready_to_schedule" as const;
 export const READY_CHECK_PAID_NEXT_ACTION = "Assign EEC Certified Insulation Installer and arrange Ready Check" as const;
 
 export const READY_CHECK_BOOKING_SUCCESS = {
   heading: "YOUR READY CHECK IS BOOKING NEXT",
-  received: "Your $99 Home Insulation Ready Check payment has been received.",
+  received: "Your free Home Insulation Ready Check request has been received.",
   assignment: "An EEC Certified Insulation Installer from our partner network will be assigned to your job and will contact you to arrange a suitable time for your onsite Ready Check.",
   visit: "During the Ready Check they’ll measure your ceiling space and collect the site information we need to prepare your measured project estimate.",
   reassurance: "Home Insulation Victoria will keep the booking and job progress recorded in your project.",
@@ -250,19 +245,18 @@ export const MEASURED_QUOTE_LABELS = {
   apManagement: "Home Insulation Victoria — Accredited Person Management",
   projectTotal: "Estimated project total",
   discount: "Estimated VEU / VEEC discount",
-  readyCheckCredit: "$99 Home Insulation Ready Check credit",
-  finalCost: "ESTIMATED COST AFTER DISCOUNT / CREDIT",
-  alreadyPaid: "Amount already paid: $99",
+  readyCheckCredit: "Home Insulation Ready Check — free",
+  finalCost: "ESTIMATED COST AFTER DISCOUNT",
+  alreadyPaid: "Ready Check cost",
   remaining: "Estimated remaining project balance",
 } as const;
 
-/** Canonical 12-line measured order; optional lines omitted when zero. The $99 credit is applied exactly once. */
+/** Canonical measured order. The free Ready Check never changes quote totals. */
 export function measuredQuote(i: MeasuredQuoteInput): { rows: MeasuredQuoteRow[]; gross: number; costAfter: number; remaining: number; unpriceable: boolean } {
   const allowance = i.allowance?.preliminary_electrical_allowance_total ?? 0;
   const L = MEASURED_QUOTE_LABELS;
   const gross = round2(i.insulation + i.removal + i.access + allowance + i.piesa + i.ap);
-  const credit = i.readyCheckPaid ? READY_CHECK_FEE : 0;
-  const costAfter = Math.max(0, round2(gross - i.discount - credit));
+  const costAfter = Math.max(0, round2(gross - i.discount));
   const rows: MeasuredQuoteRow[] = [
     { key: "insulation", label: L.insulation, amount: i.insulation, kind: "line" },
     ...(i.removal > 0 ? [{ key: "removal", label: L.removal, amount: i.removal, kind: "line" as const }] : []),
@@ -272,12 +266,9 @@ export function measuredQuote(i: MeasuredQuoteInput): { rows: MeasuredQuoteRow[]
     { key: "apManagement", label: L.apManagement, amount: i.ap, kind: "line" },
     { key: "projectTotal", label: L.projectTotal, amount: gross, kind: "total" },
     { key: "discount", label: L.discount, amount: i.discount, kind: "discount" },
-    ...(i.readyCheckPaid ? [{ key: "readyCheckCredit", label: L.readyCheckCredit, amount: credit, kind: "credit" as const }] : []),
     { key: "finalCost", label: L.finalCost, amount: costAfter, kind: "final" },
-    ...(i.readyCheckPaid ? [{ key: "alreadyPaid", label: L.alreadyPaid, amount: READY_CHECK_FEE, kind: "paid" as const }] : []),
     { key: "remaining", label: L.remaining, amount: costAfter, kind: "remaining" },
   ];
-  // Credit already reduces cost-after; "amount already paid" is informational, so remaining == costAfter (never deducted twice).
   return { rows, gross, costAfter, remaining: costAfter, unpriceable: (i.allowance?.unpriceable.length ?? 0) > 0 };
 }
 

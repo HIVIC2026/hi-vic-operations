@@ -151,15 +151,14 @@ export async function syncMittiAssessment(jobId: string, actorId: string, call: 
       }
       if (plan.locked) locked = true;
       else {
-        const { measure, electrical } = splitPatch(plan.patch);
+        const { electrical } = splitPatch(plan.patch);
         const now = new Date().toISOString();
         await admin.from("assessments").update({
           ...electrical, mitti_sync_status: plan.syncStatus, mitti_completed: plan.completed, mitti_modified_at: plan.modifiedAt,
           mitti_raw_snapshot: plan.snapshot as unknown as Json, mitti_validation_issues: plan.issues as unknown as Json, mitti_last_error: null,
           ...(plan.completed ? { mitti_synced_at: now } : {}),
         }).eq("id", a.id).neq("status", "complete");
-        const mp = await applyMeasure(jobId, actorId, a.external_mitti_id, "electrician", measure, plan.snapshot);
-        issues = [...plan.issues, ...(mp.action === "skip" && Object.keys(measure).length ? [mp.reason] : [])];
+        issues = [...plan.issues];
         completed = plan.completed;
         for (const o of plan.others) {
           const { data: ex } = await admin.from("rectification_items").select("id,status").eq("job_id", jobId).eq("external_key", o.external_key).maybeSingle();
@@ -172,7 +171,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string, call: 
           }
         }
         await logEvent(jobId, actorId, "mitti_synced", plan.completed ? "Mitti assessment synced (completed in Mitti)" : "Mitti partial data synced (audit not yet completed)",
-          { audit_id: a.external_mitti_id, electrical_fields: Object.keys(electrical), measurement: mp.action, measurement_fields: mp.action === "skip" ? [] : Object.keys(mp.values), issues, other_items: plan.others.length });
+          { audit_id: a.external_mitti_id, electrical_fields: Object.keys(electrical), measurement: "not_imported_from_piesa", measurement_fields: [], issues, other_items: plan.others.length });
       }
     }
   }

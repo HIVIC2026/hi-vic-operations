@@ -2,7 +2,7 @@ import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { dollars } from "@/lib/estimate.core";
 import {
-  ELECTRICAL_OBSERVATION_DISCLAIMER, READY_CHECK_FEE, TEST_REC_RATE_CARD, UNPRICEABLE_COPY,
+  ELECTRICAL_OBSERVATION_DISCLAIMER, TEST_REC_RATE_CARD, UNPRICEABLE_COPY,
   computeElectricalAllowance, measuredQuote, reconcilePiesa, type AllowanceSnapshot, type Observations, type Reconciliation,
 } from "@/lib/readycheck.core";
 import { CUSTOMER_APPROVAL_REASSURANCE, CUSTOMER_MEASURED_QUOTE, CUSTOMER_PIESA_STAGE, CUSTOMER_QUOTE_LABELS, CUSTOMER_WHAT_COULD_CHANGE, discountAmount, measuredCustomerRows } from "@/lib/customer-quote-system";
@@ -28,7 +28,6 @@ export function MeasuredQuoteView({ insulation, removal = 0, access = 0, allowan
         {rows.map((r) => <div key={r.key} className={rowCls}><dt className="min-w-0 font-semibold leading-relaxed">{r.label}{r.note && <span className="mt-1 block text-xs font-normal">{r.note}</span>}</dt><dd className="font-extrabold text-estimate-blue" data-testid={`measured-${r.key}`}>{dollars(r.amount)}</dd></div>)}
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-4"><dt className="font-extrabold">{CUSTOMER_QUOTE_LABELS.projectTotal}</dt><dd className="font-extrabold text-estimate-blue" data-testid="measured-projectTotal">{dollars(q.gross)}</dd></div>
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-xl border border-estimate-green/30 bg-estimate-green-soft px-4 py-4 text-estimate-green" data-testid="quote-discount-band"><dt className="font-extrabold">{CUSTOMER_QUOTE_LABELS.discount}</dt><dd className="text-2xl font-extrabold leading-none" data-testid="measured-discount">{discountAmount(discount)}</dd></div>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-estimate-blue-soft py-4 text-estimate-green"><dt className="font-extrabold">{M.labels.readyCheckCredit}</dt><dd className="font-extrabold" data-testid="measured-readyCheckCredit">{discountAmount(READY_CHECK_FEE)}</dd></div>
       </dl>
       <div className="mt-5" data-testid="quote-final-cost">
         <p className="text-xs font-extrabold uppercase tracking-wider text-estimate-navy">{M.labels.finalCost}</p>

@@ -4,7 +4,7 @@ import { INSTALLER_AGREEMENT_SECTIONS } from "./installer-agreement.text";
 import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, DAYS, LEAD_TIMES, RADII } from "./rec-onboarding.core";
 
 export { DAYS, LEAD_TIMES, RADII, validAbn };
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.1-2026-09-30";
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.3-2026-09-30";
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
@@ -38,7 +38,7 @@ export type InstData = {
   business_address?: string; primary_contact_name?: string; business_phone?: string; business_email?: string; authorised_to_register?: boolean;
   insurer?: string; insurance_policy_number?: string; public_liability_cover_amount?: number | null; public_liability_expiry?: string; insurance_uploaded?: boolean;
   installers?: Installer[];
-  service_batts_removal?: boolean; service_loose_fill_removal?: boolean; free_quotes_for_hivic_leads?: boolean | null;
+  service_batts_removal?: boolean; service_loose_fill_removal?: boolean; free_quotes_for_hivic_leads?: boolean | null; free_measureups_for_hivic_quote_leads?: boolean | null;
   service_origin?: string; travel_radius_km?: number | null; excluded_areas?: string;
   typical_days?: string[]; normal_attendance_speed?: string;
   capacity_band?: string; accepting_jobs?: boolean;
@@ -105,6 +105,7 @@ export function stepErrors(step: StepKey, d: InstData, now = new Date()): string
     }
     case "services":
       if (typeof d.free_quotes_for_hivic_leads !== "boolean") e.push("Tell us if you offer free quotes for pre-qualified HI VIC! leads.");
+      if (typeof d.free_measureups_for_hivic_quote_leads !== "boolean") e.push("Tell us if you will provide free measure-ups for pre-qualified HI VIC! quote leads.");
       break;
     case "coverage":
       if (!txt(d.service_origin)) e.push("Enter your service starting location.");
@@ -148,7 +149,7 @@ export function firstIncompleteStep(d: InstData, now = new Date()): StepKey | nu
 export const MATERIAL_FIELDS = [
   "legal_entity_name", "trading_name", "abn", "cii_status", "cii_details", "business_email", "service_origin", "travel_radius_km",
   "excluded_areas", "typical_days", "normal_attendance_speed", "capacity_band", "service_batts_removal", "service_loose_fill_removal",
-  "free_quotes_for_hivic_leads", "gst_registered", "r5_rate", "batts_removal_rate", "loose_fill_removal_rate", "extra_rates", "installers",
+  "free_quotes_for_hivic_leads", "free_measureups_for_hivic_quote_leads", "gst_registered", "r5_rate", "batts_removal_rate", "loose_fill_removal_rate", "extra_rates", "installers",
 ] as const;
 
 export function applyMaterialReset(prev: InstData, next: InstData): InstData {
@@ -170,9 +171,11 @@ export function scheduleText(d: InstData): string {
   L.push("", "Nominated installers:");
   (d.installers ?? []).forEach((x, i) => L.push(`${i + 1}. ${x.full_legal_name} — ${x.qualification}`));
   L.push("", "SCHEDULE 2 — SERVICES, COVERAGE AND CAPACITY");
+  L.push("Free Home Insulation Ready Check: installer eligibility check, ceiling measure-up and required site evidence; no electrical assessment or PIESA");
   L.push("Ceiling insulation supply & installation: included");
   L.push("Removal of existing insulation (batts and loose fill): included — required of all installer partners",
-    `Free quotes for pre-qualified HI VIC! leads: ${d.free_quotes_for_hivic_leads ? "yes" : "no"}`);
+    `Free quotes for pre-qualified HI VIC! leads: ${d.free_quotes_for_hivic_leads ? "yes" : "no"}`,
+    `Free eligibility measure-ups for HI VIC! pre-qualified quote leads: ${d.free_measureups_for_hivic_quote_leads ? "yes" : "no"}`);
   L.push(`Service origin: ${d.service_origin ?? ""}; radius: ${d.travel_radius_km === 9999 ? "anywhere in Victoria" : `${d.travel_radius_km} km`}${d.excluded_areas ? `; excluded: ${d.excluded_areas}` : ""}`);
   L.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}; weekly installations: ${d.capacity_band ?? ""}`);
   L.push("", `SCHEDULE 3 — PROPOSED SUPPLIER RATES (${gst}; not binding until accepted by HI VIC! under clause 17)`);

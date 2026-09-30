@@ -178,7 +178,7 @@ function renderLikelyEmail(input: EstimateEmailInput): EstimateEmail {
   const rate = input.installationRatePerM2;
   const closeEnough = (a: number, b: number) => Math.abs(Math.round(a * 100) - Math.round(b * 100)) <= 1;
   if (hasBreakdown) {
-    if (!closeEnough(payableNow, READY_CHECK_FEE)) throw new Error("The amount payable now must be the $99 Home Insulation Ready Check incl GST.");
+    if (!closeEnough(payableNow, READY_CHECK_FEE)) throw new Error("The amount payable now must be $0 because the Home Insulation Ready Check is free.");
     if (!closeEnough(installation + assessment + apFee, gross)) throw new Error("Quote line items must reconcile to the gross project total.");
     if (!closeEnough(gross - discount, customer)) throw new Error("Gross project total less VEU discount must equal the estimated customer price.");
     if (!closeEnough(customer - payableNow, remaining)) throw new Error("Estimated customer price less the amount payable now must equal the remaining balance.");

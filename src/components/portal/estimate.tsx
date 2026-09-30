@@ -36,11 +36,11 @@ export type CustomerData = {
 type Est = { scenarios: Scenario[]; access_adjustment: { moderate: number; difficult: number } };
 
 export function ConfirmQuote({ onBack, preview = false, testMode = preview, state = null, busy = false, error = null, onAccept, onTestPayment }: { estimatedPrice?: number; assessmentFee?: number; onBack: () => void; preview?: boolean; testMode?: boolean; state?: ReadyCheckAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; onTestPayment?: (outcome: "success" | "failure") => void }) {
-  const paid = state?.paymentStatus === "paid";
+  const accepted = state?.paymentStatus === "accepted";
   const [acknowledged, setAcknowledged] = useState(false);
   const P = CUSTOMER_READY_CHECK_PAGE;
   return <div className="estimate-brand space-y-6 text-estimate-navy">
-    {testMode && <div className="bg-warning-soft px-5 py-3 text-center text-xs font-extrabold uppercase text-warning-foreground">Test mode · no real payment will be taken</div>}
+    {testMode && <div className="bg-warning-soft px-5 py-3 text-center text-xs font-extrabold uppercase text-warning-foreground">Test mode · no live booking will be created</div>}
     <CustomerStageHero eyebrow={P.eyebrow} heading={P.heading} intro={P.intro} id="confirm-quote-title" />
     <section className="estimate-quote-card px-5 py-7 sm:px-8" aria-labelledby="confirm-quote-title" data-testid="ready-check-card">
       <p className="text-2xl font-extrabold leading-tight text-estimate-blue">{P.cardTitle}</p>
@@ -50,20 +50,18 @@ export function ConfirmQuote({ onBack, preview = false, testMode = preview, stat
       <p className="mt-5 text-sm leading-relaxed">{P.notPiesa}</p>
       <p className="mt-3 text-sm font-extrabold leading-relaxed" data-testid="approval-reassurance">{CUSTOMER_APPROVAL_REASSURANCE}</p>
       <div className="mt-6 border-t border-estimate-blue-soft pt-6">
-        {!paid && <label className="flex items-start gap-3 text-sm leading-relaxed">
+        {!accepted && <label className="flex items-start gap-3 text-sm leading-relaxed">
           <input type="checkbox" checked={!!state || acknowledged} disabled={!!state || busy} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-1 size-4 accent-estimate-blue" />
           <span>{P.acceptance}</span>
         </label>}
         <div className="mt-5 space-y-3">
-          {!state && testMode && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold" disabled={!acknowledged || busy || !onAccept} onClick={onAccept}>{busy ? "RECORDING…" : CUSTOMER_READY_CHECK.cta}</Button>}
-          {!testMode && !paid && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold disabled:opacity-100" disabled>BOOKING CURRENTLY UNAVAILABLE</Button>}
-          {paid && <div role="status"><p className="text-xs font-extrabold uppercase text-estimate-green">Payment received</p><h2 className="mt-2 text-xl font-extrabold text-estimate-blue">{READY_CHECK_BOOKING_SUCCESS.heading}</h2><p className="mt-3 text-sm font-bold">{READY_CHECK_BOOKING_SUCCESS.received}</p><p className="mt-3 text-sm leading-relaxed">{READY_CHECK_BOOKING_SUCCESS.assignment}</p><p className="mt-3 text-sm leading-relaxed">{READY_CHECK_BOOKING_SUCCESS.visit}</p><p className="mt-3 text-xs font-semibold leading-relaxed">{READY_CHECK_BOOKING_SUCCESS.reassurance}</p></div>}
-          {state?.stale && <p className="border-l-4 border-danger bg-danger-soft px-4 py-3 text-sm font-bold" role="alert">Your estimate changed. Please review and accept the updated estimate before paying.</p>}
+          {!state && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold" disabled={!acknowledged || busy || !onAccept} onClick={onAccept}>{busy ? "RECORDING…" : CUSTOMER_READY_CHECK.cta}</Button>}
+          {accepted && <div role="status"><p className="text-xs font-extrabold uppercase text-estimate-green">Request received</p><h2 className="mt-2 text-xl font-extrabold text-estimate-blue">{READY_CHECK_BOOKING_SUCCESS.heading}</h2><p className="mt-3 text-sm font-bold">{READY_CHECK_BOOKING_SUCCESS.received}</p><p className="mt-3 text-sm leading-relaxed">{READY_CHECK_BOOKING_SUCCESS.assignment}</p><p className="mt-3 text-sm leading-relaxed">{READY_CHECK_BOOKING_SUCCESS.visit}</p><p className="mt-3 text-xs font-semibold leading-relaxed">{READY_CHECK_BOOKING_SUCCESS.reassurance}</p></div>}
+          {state?.stale && <p className="border-l-4 border-danger bg-danger-soft px-4 py-3 text-sm font-bold" role="alert">Your estimate changed. Please review and request the Ready Check again.</p>}
           {error && <p className="text-sm font-bold text-danger" role="alert">{error}</p>}
         </div>
       </div>
     </section>
-    {state && !paid && testMode && <div className="estimate-secondary-card" data-testid="test-payment-controls"><p className="text-xs font-extrabold uppercase text-estimate-blue">Test mode · payment controls</p><p className="mt-2 text-sm">Current state: <strong>{state.paymentStatus === "failed" ? "Payment failed — retry available" : "Unpaid"}</strong></p><div className="mt-4 grid gap-3 sm:grid-cols-2"><Button type="button" variant="outline" size="field" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("failure")}>SIMULATE FAILURE</Button><Button type="button" size="field" className="bg-estimate-blue text-estimate-white" disabled={busy || !onTestPayment} onClick={() => onTestPayment?.("success")}>SIMULATE SUCCESS</Button></div></div>}
     <Button type="button" variant="ghost" size="field" className="w-full font-bold text-estimate-blue hover:bg-estimate-green-soft hover:text-estimate-blue" onClick={onBack}>← BACK TO MY ESTIMATE</Button>
   </div>;
 }

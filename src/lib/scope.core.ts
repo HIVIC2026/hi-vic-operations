@@ -10,10 +10,10 @@ export type VisitScope =
   | "COMPLETE";
 
 export const SCOPE_LABEL: Record<VisitScope, string> = {
-  COMBINED: "Combined assessment – electrician measures up and does PIESA",
+  COMBINED: "Separate visits – installer eligibility measure-up, electrician PIESA",
   ELECTRICAL_ONLY: "Electrical assessment only – measure-up already accepted",
   MEASURE_UP_ONLY: "Measure-up only – PIESA already current",
-  ELECTRICAL_PLUS_MEASUREUP_COMPLETION: "Electrical + complete missing measure-up evidence",
+  ELECTRICAL_PLUS_MEASUREUP_COMPLETION: "PIESA by electrician; installer must complete measure-up evidence",
   SPLIT: "Electrical by electrician, measure-up by installer",
   COMPLETE: "Requirements complete",
 };
@@ -99,17 +99,16 @@ export function deriveScope(input: { measurement: MeasurementLike | null; electr
   else if (accepted) scope = "ELECTRICAL_ONLY";
   else if (elecDone) scope = "MEASURE_UP_ONLY";
   else if (partial) scope = "ELECTRICAL_PLUS_MEASUREUP_COMPLETION";
-  else scope = input.measureUpBy === "installer" ? "SPLIT" : "COMBINED";
+  else scope = "SPLIT";
 
   const electricianTasks: ScopeResult["electricianTasks"] =
-    scope === "COMBINED" ? ["electrical", "measure_up"] : scope === "ELECTRICAL_PLUS_MEASUREUP_COMPLETION" ? ["electrical", "measure_up_completion"] : scope === "ELECTRICAL_ONLY" || scope === "SPLIT" ? ["electrical"] : [];
-  const installerTasks: ScopeResult["installerTasks"] = scope === "MEASURE_UP_ONLY" || scope === "SPLIT" ? ["measure_up"] : [];
-  const editableMeasureFields: MeasureField[] =
-    scope === "COMBINED" ? [...MEASURE_FIELDS] : scope === "ELECTRICAL_PLUS_MEASUREUP_COMPLETION" ? completionFields(missing, flagged) : [];
+    scope === "ELECTRICAL_ONLY" || scope === "ELECTRICAL_PLUS_MEASUREUP_COMPLETION" || scope === "SPLIT" ? ["electrical"] : [];
+  const installerTasks: ScopeResult["installerTasks"] = accepted ? [] : ["measure_up"];
+  const editableMeasureFields: MeasureField[] = [];
 
   const need: string[] = [];
   if (!elecDone) need.push(electrical.state === "expired" ? "PIESA reassessment" : "electrical assessment / PIESA");
-  if (!accepted) need.push(measurement.state === "needs_review" ? "measure-up review / missing measure-up evidence" : "ceiling measure-up");
+  if (!accepted) need.push(measurement.state === "needs_review" ? "installer eligibility measure-up review / missing evidence" : "installer eligibility measure-up");
   return { scope, label: SCOPE_LABEL[scope], measurement, electrical, electricianTasks, installerTasks, editableMeasureFields, nextAction: need.length ? `Still required: ${need.join(" and ")}` : null };
 }
 
@@ -135,7 +134,7 @@ export function planMeasurementUpdate(p: {
   if (!Object.keys(vals).length) return { action: "skip", reason: "No measure-up values supplied." };
   if (cur && measurementAccepted(cur)) return { action: "skip", reason: "An accepted measure-up already exists – it is not overwritten." };
   if (p.scope === "ELECTRICAL_ONLY" || p.scope === "COMPLETE") return { action: "skip", reason: "Electrical-only scope – measure-up values ignored." };
-  if (p.scope === "SPLIT" && p.source === "electrician") return { action: "skip", reason: "Measure-up is assigned to the installer on this job." };
+  if (p.source === "electrician") return { action: "skip", reason: "Eligibility measure-up belongs to the installer; electricians record PIESA only." };
   if (!cur) return { action: "create", values: vals, source: p.source };
   if (p.scope === "ELECTRICAL_PLUS_MEASUREUP_COMPLETION" && cur.source_role !== p.source) {
     const allowed = new Set<MeasureField>(completionFields(missingMeasureFields(cur), flaggedFields(cur)));

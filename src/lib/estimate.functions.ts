@@ -32,7 +32,6 @@ export const getPublicEstimate = createServerFn({ method: "POST" }).middleware([
 export const acceptReadyCheckFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token: z.string().max(200) }).parse(d))
   .handler(async ({ data, context }) => {
-    if (!context.assessmentTestMode) throw new Error("Ready Check payments are not live.");
     const { acceptReadyCheck } = await import("./readycheck-payment.server");
     return JSON.parse(JSON.stringify(await acceptReadyCheck(data.token, { ip: context.ip, userAgent: context.userAgent })));
   });

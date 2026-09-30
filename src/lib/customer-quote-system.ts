@@ -36,7 +36,7 @@ export const CUSTOMER_QUOTE_LABELS = {
   projectTotal: "Estimated project total",
   discount: "Estimated VEU / VEEC discount",
   finalCost: "YOUR ESTIMATED COST AFTER DISCOUNT",
-  payableNow: "$99 Home Insulation Ready Check — payable now",
+  payableNow: "Home Insulation Ready Check — free",
 } as const;
 
 export const CUSTOMER_PIESA_NOTE = "Completed later by a licensed electrician, close to installation.";
@@ -51,7 +51,7 @@ export const CUSTOMER_QUOTE_ORDER = [
 ] as const;
 
 export const CUSTOMER_PAYMENT_COPY = {
-  credited: "Your $99 Home Insulation Ready Check is credited toward your project if you proceed.",
+  credited: "Your Home Insulation Ready Check is free.",
   notPiesa: "It is not the PIESA.",
   purpose: "The Ready Check gives us the measured site information needed to prepare a more accurate project estimate before you commit to the full upgrade.",
 } as const;
@@ -59,11 +59,11 @@ export const CUSTOMER_PAYMENT_COPY = {
 export const CUSTOMER_READY_CHECK = {
   name: "Home Insulation Ready Check",
   short: "Ready Check",
-  fee: 99,
+  fee: 0,
   cta: "BOOK MY READY CHECK →",
   paragraphs: [
-    "Your $99 Home Insulation Ready Check is credited toward your project if you proceed.",
-    "One of our insulation partners visits to measure the ceiling space and collect the site information needed to prepare a more accurate project estimate.",
+    "Your Home Insulation Ready Check is free.",
+    "One of our insulation partners visits to measure the ceiling space and collect the eligibility evidence needed to prepare a more accurate project estimate.",
     "The Ready Check is not the mandatory electrical safety assessment. Your PIESA is completed later by a licensed electrician, close to installation.",
     "If the Ready Check identifies something that wasn’t known beforehand — such as existing insulation that needs removal or difficult access — we’ll show you your measured project estimate before you decide whether to proceed.",
   ],
@@ -73,8 +73,8 @@ export const CUSTOMER_READY_CHECK = {
 export const CUSTOMER_READY_CHECK_EMAIL_ACTION = {
   eyebrow: "NEXT STEP",
   heading: "BOOK YOUR HOME INSULATION READY CHECK",
-  sentence: "Your $99 Ready Check confirms the property details needed to progress your preliminary estimate. Once the required checks are complete, we can confirm the scope and pricing before any installation work proceeds.",
-  credit: "The $99 is credited toward your project if you proceed.",
+  sentence: "Your free Ready Check confirms the ceiling measurements and eligibility details needed to progress your preliminary estimate.",
+  credit: "There is no charge for the Ready Check.",
   helper: "See exactly what’s included on the next page.",
 } as const;
 
@@ -139,18 +139,18 @@ export const CUSTOMER_ONSITE_HERO = {
 export const CUSTOMER_READY_CHECK_PAGE = {
   eyebrow: "NEXT STEP",
   heading: "BOOK YOUR HOME INSULATION READY CHECK",
-  intro: "For $99, we’ll arrange an onsite Ready Check so we can measure your ceiling and collect the site information needed to prepare your measured project estimate.",
-  cardTitle: "$99 HOME INSULATION READY CHECK",
-  credit: "Credited toward your project if you proceed.",
+  intro: "We’ll arrange a free onsite Ready Check so an insulation installer can measure your ceiling and collect the eligibility evidence needed for your measured project estimate.",
+  cardTitle: "FREE HOME INSULATION READY CHECK",
+  credit: "No payment is required.",
   whatHappensHeading: "What happens",
   whatHappens: [
     "An insulation installer attends your property",
     "Your ceiling area is measured",
     "Existing insulation, removal and access are checked",
-    "Preliminary electrical observations and photos are collected",
+    "Eligibility evidence and site photos are collected",
   ],
   notPiesa: "This is not the mandatory PIESA. Your PIESA is completed later by a licensed electrician, close to installation.",
-  acceptance: "I accept booking the $99 Home Insulation Ready Check. I understand it is credited toward my project if I proceed, and it is not the PIESA.",
+  acceptance: "I request the free Home Insulation Ready Check. I understand it is an installer measure-up and eligibility check, and it is not the PIESA.",
 } as const;
 
 export const CUSTOMER_MEASURED_QUOTE = {
@@ -161,8 +161,8 @@ export const CUSTOMER_MEASURED_QUOTE = {
     removal: "Existing insulation removal",
     access: "Access adjustment",
     allowance: "Preliminary electrical allowance",
-    readyCheckCredit: "Ready Check credit",
-    finalCost: "YOUR ESTIMATED COST AFTER DISCOUNT / CREDIT",
+    readyCheckCredit: "Ready Check — free",
+    finalCost: "YOUR ESTIMATED COST AFTER DISCOUNT",
   },
   allowanceNote: "Preliminary — confirmed by your licensed electrician at the PIESA.",
   stillChangeHeading: "WHAT COULD STILL CHANGE?",

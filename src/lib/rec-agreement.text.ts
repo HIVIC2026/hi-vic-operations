@@ -1,4 +1,4 @@
-// GENERATED from REC agreement v1.3 (Base44) + v1.4 amendments approved by Jo 2026-09-30. Do not edit wording casually:
+// REC agreement v1.5 draft. Any wording change needs a new version so earlier signatures retain their exact text.
 // any wording change needs a NEW version string so earlier signatures keep their exact text.
 export const REC_AGREEMENT_SECTIONS: { n: number; title: string; paras: string[] }[] = [
  {
@@ -32,7 +32,7 @@ export const REC_AGREEMENT_SECTIONS: { n: number; title: string; paras: string[]
   "n": 4,
   "title": "Scope of services",
   "paras": [
-   "The REC will provide the services selected in Schedule 2 and any job-specific scope accepted in HI VIC!. Every approved REC must be capable of supplying the initial onsite electrical assessment, ceiling measure-up support required by the HI VIC! workflow and a properly completed PIESA.",
+   "The REC will provide the services selected in Schedule 2 and any job-specific scope accepted in HI VIC!. Every approved REC must be capable of completing the formal PIESA and any allocated electrical work. The insulation installer, not the REC, completes the separate eligibility measure-up.",
    "Electrical rectification and installation-day attendance are included only where the REC has opted into those services and the job has been specifically allocated or approved.",
    "The REC must not perform additional chargeable work for a HI VIC! customer outside the approved job scope without the customer's approval through the HI VIC! workflow or HI VIC!'s written authority."
   ]
