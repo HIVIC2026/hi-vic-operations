@@ -128,7 +128,7 @@ function RecOnboarding() {
   const [loaded, setLoaded] = useState(false);
   const [started, setStarted] = useState(false);
   const [d, setD] = useState<RecData>({});
-  const [step, setStep] = useState<StepKey>("business");
+  const [step, setStep] = useState<StepKey>("about");
   const [status, setStatus] = useState<"draft" | "submitted">("draft");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -160,7 +160,7 @@ function RecOnboarding() {
     loadRecOnboarding({ data: { token: t } }).then((r) => {
       setToken(t); setD(r.data as RecData); setStatus(r.status as "draft" | "submitted"); setStarted(true);
       const first = firstIncompleteStep(r.data as RecData);
-      setStep(r.status === "submitted" ? "sign" : ((first ?? r.step_key ?? "business") as StepKey));
+      setStep(r.status === "submitted" ? "sign" : ((first ?? r.step_key ?? "about") as StepKey));
     }).catch(() => localStorage.removeItem(TOKEN_KEY)).finally(() => setLoaded(true));
   }, []);
 
@@ -186,7 +186,7 @@ function RecOnboarding() {
     setError(null);
     if (delta === 1 && errs.length) { setShowErrors(true); return; }
     setShowErrors(false);
-    const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "business";
+    const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "about";
     setBusy(true);
     try { await persist(target); setStep(target); window.scrollTo({ top: 0 }); }
     catch (e) { setError(e instanceof Error ? e.message : "Could not save."); } finally { setBusy(false); }
@@ -290,6 +290,13 @@ function RecOnboarding() {
 function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void }) {
   const t = (k: keyof RecData, upper = false) => ({ value: (d[k] as string) ?? "", onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => up({ [k]: upper ? e.target.value.toUpperCase() : e.target.value } as Partial<RecData>) });
   switch (step) {
+    case "about":
+      return <>
+        <div style={infoCard}>First things first — so we know who we're talking to. We'll use your name throughout.</div>
+        <Field label="Your name" required><input style={input} autoFocus placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
+        <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
+        <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
+      </>;
     case "business":
       return <>
         <Field label="Legal entity / REC registered name" required><input style={input} {...t("legal_entity_name")} /></Field>
@@ -301,9 +308,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
     case "contact":
       return <>
         <Field label="Business address" required hint="Start typing and pick your address from the list"><AddressInput value={d.business_address ?? ""} onChange={(v) => up({ business_address: v })} /></Field>
-        <Field label="Contact name" required><input style={input} {...t("primary_contact_name")} /></Field>
-        <Field label="Mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
-        <Field label="Business email" required><input style={input} type="email" {...t("business_email")} /></Field>
+        <div style={{ ...infoCard, marginBottom: 16 }}>Contact: <strong>{d.primary_contact_name}</strong> · {d.business_phone} · {d.business_email} — if any of these are wrong, go back to "About you".</div>
         <Check checked={d.authorised_to_register === true} onChange={(v) => up({ authorised_to_register: v })}>I'm authorised to set up this REC.</Check>
       </>;
     case "insurance":
