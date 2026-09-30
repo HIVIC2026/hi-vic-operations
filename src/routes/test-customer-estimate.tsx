@@ -62,6 +62,7 @@ function TestCustomerEstimate() {
       const t = setTimeout(() => document.getElementById("calculator")?.scrollIntoView({ block: "start" }), 50);
       return () => clearTimeout(t);
     }
+    return undefined;
   }, [confirming]);
   const standard = data?.estimate?.scenarios[0]?.by_access.standard;
   const total = standard?.estimated_customer_total ?? 0;
