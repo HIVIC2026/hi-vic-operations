@@ -1,6 +1,6 @@
 // Installer-led jobs: the installer brings their own customer; Home Insulation Victoria is the AP and invoices the
 // owner with co-branding. Pure rules only.
-import { FORMS } from "./mitti-forms.core";
+import { FORMS, type QuotedPrice } from "./mitti-forms.core";
 
 export const HIVIC_PIESA_INC_GST = 349;
 export type ElectricianChoice = "installer_own" | "hivic_matched" | "installer_own_hivic_books";
@@ -23,6 +23,18 @@ export function installerLedOwnerPrice(i: OwnerPriceInput) {
   const afterDiscount = Math.round((total - i.veecDiscountIncGst) * 100) / 100;
   if (afterDiscount < 200) blockers.push("Owner co-payment would be below the $200 minimum.");
   return { total, discount: i.veecDiscountIncGst, afterDiscount, referralFee: 0, blockers, ready: blockers.length === 0 };
+}
+
+/**
+ * Builds the owner's co-branded price from the installer's validated quoted price (Form A1 sync).
+ * The quoted price must already have passed validateQuotedPrice — unvalidated or mismatched
+ * figures never reach the owner quote; they go to office review instead.
+ */
+export function ownerPriceFromQuoted(
+  price: QuotedPrice,
+  fees: { piesaIncGst: number | null; rectificationIncGst: number; apFeeIncGst: number | null; veecDiscountIncGst: number },
+) {
+  return installerLedOwnerPrice({ installerQuoteIncGst: price.totalIncGst, ...fees });
 }
 
 export type SuppliedEvidence = {

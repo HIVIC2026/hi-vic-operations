@@ -2,12 +2,12 @@
 // Required items only. Mitti templates are built in the Mitti UI; this spec is the build sheet
 // AND the validator that must pass before a template ID can be used. Labels are Home Insulation Victoria checklist
 // wording for the Ready Check; PIESA and PIISA follow the official DEECA forms (uploaded 30 Sep 2026).
-export type FormKey = "ready_check" | "piesa" | "piisa";
+export type FormKey = "ready_check" | "ready_check_priced" | "piesa" | "piisa";
 export type FieldType = "text" | "number" | "choice" | "multichoice" | "yesno" | "media" | "signature" | "datetime";
 export type FormField = {
   label: string; type: FieldType; required: boolean; choices?: string[];
   when?: string; // human-readable condition; required only when it applies
-  perArea?: boolean; prefill?: boolean; portalOnly?: boolean; source: string;
+  perArea?: boolean; perPriceLine?: boolean; prefill?: boolean; portalOnly?: boolean; source: string;
 };
 
 const G = "ESC Guide V1.1";
@@ -45,11 +45,21 @@ export const PIESA_OUTCOMES = [
   "Electrical rectification work is not possible prior to insulation being installed or upgraded under parts 2 and 3",
 ];
 
-export const FORMS: Record<FormKey, { title: string; role: "installer" | "electrician"; fields: FormField[] }> = {
-  ready_check: {
-    title: "Home Insulation Victoria | Ready Check – Eligibility & Measure-up (Installer)",
-    role: "installer",
-    fields: [
+/** Pricing section — installer-sourced jobs only (Form A1). Lines drop straight into the co-branded owner quote. */
+export const PRICING_FIELDS: FormField[] = [
+  { label: "Line description", type: "text", required: true, perPriceLine: true, source: "portal – quote line, e.g. Supply and install ceiling insulation" },
+  { label: "Quantity", type: "number", required: true, perPriceLine: true, source: "portal – quote line" },
+  { label: "Unit", type: "choice", required: true, perPriceLine: true, choices: ["m2", "each", "flat", "hour"], source: "portal – quote line unit" },
+  { label: "Unit price incl GST $", type: "number", required: true, perPriceLine: true, source: "portal – quote line, customer-facing prices are always incl GST" },
+  { label: "Total quoted price incl GST $", type: "number", required: true, source: "portal – must equal the sum of the lines; mismatches go to office review, never guessed" },
+  { label: "What this price includes", type: "text", required: true, source: "portal – e.g. removal, tile lift, travel; nothing priced in gets lost" },
+  { label: "Price already agreed with the owner?", type: "choice", required: true, choices: ["Yes", "No"], source: "portal – if Yes, their price stays and our fees go on top, less the VEU discount" },
+];
+
+const READY_CHECK_TITLE = "Home Insulation Victoria | Ready Check – Eligibility & Measure-up (Installer)";
+
+/** Shared evidence fields for both Ready Check variants (A1 installer-sourced, A2 HI VIC-sourced). */
+const READY_CHECK_FIELDS: FormField[] = [
       { label: "Portal Job Number", type: "text", required: true, prefill: true, source: "portal" },
       { label: "Site address", type: "text", required: true, prefill: true, source: "portal" },
       { label: "Owner name", type: "text", required: true, prefill: true, source: "portal" },
@@ -74,7 +84,20 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
       { label: "What happens to the existing insulation", type: "choice", required: true, perArea: true, choices: ["Must be removed", "Can be topped up", "Not sure – needs office review"], when: "Under-insulated", source: `${G} removal criteria` },
       { label: "Measured area m2", type: "number", required: true, perArea: true, source: "VEEC creation form" },
       { label: "360 video of ceiling space before upgrade", type: "media", required: true, perArea: true, source: `${G} Table 4` },
-    ],
+];
+
+export const FORMS: Record<FormKey, { title: string; role: "installer" | "electrician"; fields: FormField[] }> = {
+  // Form A2 — we bring the customer: evidence only, no pricing (owner is quoted at our set price).
+  ready_check: {
+    title: READY_CHECK_TITLE,
+    role: "installer",
+    fields: READY_CHECK_FIELDS,
+  },
+  // Form A1 — installer brings the customer: identical evidence questions plus the quoted-price section.
+  ready_check_priced: {
+    title: `${READY_CHECK_TITLE} – with quoted price`,
+    role: "installer",
+    fields: [...READY_CHECK_FIELDS, ...PRICING_FIELDS],
   },
   piesa: {
     title: "VEU Pre-installation electrical safety assessment (Insulation)",
@@ -196,7 +219,7 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
   for (const f of FORMS[key].fields) {
     const hits = byLabel.get(norm(f.label)) ?? [];
     if (hits.length === 0) { if (f.required) issues.push(`Missing: ${f.label}`); continue; }
-    if (hits.length > 1 && !f.perArea) { issues.push(`Duplicate: ${f.label}`); continue; }
+    if (hits.length > 1 && !f.perArea && !f.perPriceLine) { issues.push(`Duplicate: ${f.label}`); continue; }
     if (hits.some((h) => !TYPE_ALIASES[f.type].includes(String(h.type).toLowerCase()))) issues.push(`Wrong type: ${f.label} (expected ${f.type})`);
   }
   // Role guard: installer forms must never contain PIESA conclusions.
@@ -241,11 +264,13 @@ export function mittiAiPrompt(key: FormKey): string {
   const f = FORMS[key];
   const fields = f.fields.filter((x) => !x.portalOnly);
   const perArea = fields.filter((x) => x.perArea);
+  const perPriceLine = fields.filter((x) => x.perPriceLine);
   const lines = fields.map((x, i) => {
     const bits = [MITTI_TYPE[x.type]];
     if (x.choices) bits.push(`options exactly: ${x.choices.map((c) => `"${c}"`).join(" / ")}`);
     bits.push(x.required ? (x.when ? `MANDATORY only when: ${x.when} (use logic to show it; hidden otherwise)` : "MANDATORY") : "optional");
     if (x.perArea) bits.push("inside the repeating 'Ceiling area' section");
+    if (x.perPriceLine) bits.push("inside the repeating 'Quoted price line' section");
     if (x.prefill) bits.push("header field, prefilled by the portal – keep editable but do not rename");
     return `${i + 1}. "${x.label}" — ${bits.join("; ")}`;
   });
@@ -261,6 +286,7 @@ export function mittiAiPrompt(key: FormKey): string {
     "- Photo/video fields must allow the camera and multiple files.",
     "- Signature fields must capture the signer's name.",
     perArea.length ? `- Put these fields in a repeatable section called "Ceiling area" (one repeat per room/zone): ${perArea.map((x) => `"${x.label}"`).join(", ")}. All other fields are NOT repeated.` : "",
+    perPriceLine.length ? `- Put these fields in a repeatable section called "Quoted price line" (one repeat per line item of the installer's quote): ${perPriceLine.map((x) => `"${x.label}"`).join(", ")}. The "Total quoted price incl GST $", "What this price includes" and "Price already agreed with the owner?" fields are NOT repeated.` : "",
     key === "piesa" ? "- Section C and the rectification electrician fields are completed on the return visit after rectification. Put them in a section called \"Section C – Rectification completion\" shown only when \"B1 Assessment outcome\" is \"Electrical rectification work is required before insulation is installed or upgraded.\"" : "",
     key === "piesa" || key === "piisa" ? "- If \"Is anyone at this property dependent on life support?\" is Yes, the consent/medical-plan question and attachment are required; if neither was received, the assessment must not proceed (add an instruction saying: STOP – do not start the assessment. Call the Home Insulation Victoria office.)." : "",
     "- Order the fields exactly as listed.",
@@ -268,4 +294,61 @@ export function mittiAiPrompt(key: FormKey): string {
     "FIELDS:",
     ...lines,
   ].filter((l) => l !== "").join("\n");
+}
+
+// ---- Ready Check variants + quoted-price parsing (pure, tested) ----
+
+/** Which Ready Check variant a job uses. Installer-sourced jobs get the priced form (A1); our leads get evidence-only (A2). */
+export function readyCheckVariant(channel: string | null | undefined): "ready_check" | "ready_check_priced" {
+  return channel === "installer_sourced" ? "ready_check_priced" : "ready_check";
+}
+
+export type QuotedPriceLine = { description: string; quantity: number; unit: string; unitPriceIncGst: number; lineTotalIncGst: number };
+export type QuotedPrice = {
+  lines: QuotedPriceLine[];
+  totalIncGst: number;
+  includes: string;
+  agreedWithOwner: boolean;
+};
+
+const UNITS = ["m2", "each", "flat", "hour"] as const;
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Validates an installer's quoted price from the priced Ready Check. Fails closed:
+ * any problem returns an issue list and the quote goes to office review — a price is never guessed.
+ */
+export function validateQuotedPrice(input: {
+  lines: { description?: string | null; quantity?: number | null; unit?: string | null; unitPriceIncGst?: number | null }[];
+  totalIncGst?: number | null;
+  includes?: string | null;
+  agreedWithOwner?: boolean | null;
+}): { ok: boolean; issues: string[]; price: QuotedPrice | null } {
+  const issues: string[] = [];
+  const lines: QuotedPriceLine[] = [];
+  if (!input.lines.length) issues.push("No quoted price lines — at least one line is required.");
+  input.lines.forEach((l, i) => {
+    const where = `Line ${i + 1}`;
+    const description = (l.description ?? "").trim();
+    if (!description) issues.push(`${where}: description is missing.`);
+    const quantity = Number(l.quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) issues.push(`${where}: quantity must be a number greater than 0.`);
+    const unit = (l.unit ?? "").trim().toLowerCase();
+    if (!(UNITS as readonly string[]).includes(unit)) issues.push(`${where}: unit must be one of ${UNITS.join(", ")}.`);
+    const unitPriceIncGst = Number(l.unitPriceIncGst);
+    if (!Number.isFinite(unitPriceIncGst) || unitPriceIncGst < 0) issues.push(`${where}: unit price must be a number (0 or more).`);
+    if (description && Number.isFinite(quantity) && quantity > 0 && (UNITS as readonly string[]).includes(unit) && Number.isFinite(unitPriceIncGst) && unitPriceIncGst >= 0)
+      lines.push({ description, quantity, unit, unitPriceIncGst: r2(unitPriceIncGst), lineTotalIncGst: r2(quantity * unitPriceIncGst) });
+  });
+  const totalIncGst = Number(input.totalIncGst);
+  if (!Number.isFinite(totalIncGst) || totalIncGst <= 0) issues.push("Total quoted price is missing or not a positive number.");
+  if (!(input.includes ?? "").trim()) issues.push("'What this price includes' is missing.");
+  if (input.agreedWithOwner == null) issues.push("'Price already agreed with the owner?' was not answered.");
+  if (lines.length && Number.isFinite(totalIncGst) && totalIncGst > 0) {
+    const sum = r2(lines.reduce((a, l) => a + l.lineTotalIncGst, 0));
+    if (Math.abs(sum - r2(totalIncGst)) > 0.01)
+      issues.push(`Total quoted price ($${r2(totalIncGst).toFixed(2)}) does not equal the sum of the lines ($${sum.toFixed(2)}) — office must review before quoting the owner.`);
+  }
+  if (issues.length) return { ok: false, issues, price: null };
+  return { ok: true, issues: [], price: { lines, totalIncGst: r2(totalIncGst), includes: (input.includes ?? "").trim(), agreedWithOwner: input.agreedWithOwner === true } };
 }

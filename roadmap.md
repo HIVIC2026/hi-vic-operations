@@ -24,14 +24,15 @@
 ## Still open from before
 - [ ] Electrician team-up worker path (under someone else's REC: skip REC/insurance, collect licence + supervising REC)
 - [ ] Chase service areas from 6 installers; partner/postcode coverage follow-ups
-- [ ] Mitti forms A/B/C IDs from user
+- [ ] Mitti form IDs from user — now FOUR: A1 (installer-sourced, with quoted price), A2 (our leads, no pricing), B (PIESA), C (PIISA); briefs in Mitti_template_briefs_v4.md
 - [ ] Browser-verify owner/electrician/installer job views as those roles
 - [ ] Confirm: $349 one total vs each; $220 inc/ex GST; own-electrician price + AP fee combination
 
 
 
 - [x] Ready Check: replace Class 1/2 jargon with prefilled Property type; portal derives class
-- [ ] Ready Check: add insulation type to remove (batts vs loose fill — different cost) + measurement method provenance
-- [ ] Ready Check: remove duplicated job-level questions (total area, any insulation, total removal) — portal computes from per-area answers
+- [x] Ready Check: insulation type multi-select (batts AND loose fill) + remove/top-up + measurement method provenance
+- [x] Ready Check: removed duplicated job-level totals — portal computes from per-area answers
 - [ ] Ready Check: per-room insulation type multi-select (batts AND loose fill) + remove-vs-top-up choice instead of bare removal yes/no
 - [x] Full audit of Mitti Form A (Ready Check) vs portal/quoting/ESC needs; corrected paste-ready brief v3 delivered
+- [x] Ready Check two variants: A1 installer-sourced with quoted-price section (lines/total/includes/agreed), A2 evidence-only; portal picks by job channel; validateQuotedPrice fails closed on mismatches

@@ -7,6 +7,7 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import { MITTI_BASE_URL, MITTI_TEMPLATE_ID, MittiError, createOrReuseAudit, mittiApi, planSync, splitPatch, type MittiCall } from "./mitti.core";
 import { planMeasurementUpdate, type MeasurementLike } from "./scope.core";
 import { jobScope } from "./requirements.server";
+import { readyCheckVariant } from "./mitti-forms.core";
 import { formatPropertyAddress } from "./address";
 
 export const realMittiCall: MittiCall = async (method, path, body) => {
@@ -42,20 +43,21 @@ export const MEASUREUP_TEMPLATE_MISSING = "Measure-up-only Mitti template is not
 export const PIESA_TEMPLATE_MISSING = "PIESA Mitti form is not configured. An admin must add the validated PIESA form ID in workflow settings before a PIESA audit can be sent.";
 
 async function templateIds() {
-  const { data } = await admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_piesa_template_id").eq("id", 1).maybeSingle();
-  return { readyCheck: data?.mitti_ready_check_template_id?.trim() || null, piesa: data?.mitti_piesa_template_id?.trim() || null };
+  const { data } = await admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_ready_check_priced_template_id,mitti_piesa_template_id").eq("id", 1).maybeSingle();
+  return { readyCheck: data?.mitti_ready_check_template_id?.trim() || null, readyCheckPriced: data?.mitti_ready_check_priced_template_id?.trim() || null, piesa: data?.mitti_piesa_template_id?.trim() || null };
 }
 
 export async function createAssignMittiAudit(jobId: string, actorId: string, call: MittiCall = realMittiCall) {
-  const { data: job } = await admin.from("jobs").select("id,job_number,business_unit,stage,estimated_area_m2,life_support,property_id,owner_id").eq("id", jobId).single();
+  const { data: job } = await admin.from("jobs").select("id,job_number,business_unit,stage,estimated_area_m2,life_support,property_id,owner_id,channel").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
   const scope = await jobScope(jobId);
   if (scope.scope === "COMPLETE") throw new WorkflowError("Both site requirements are already complete – no Mitti audit needed.");
   const measureOnly = scope.scope === "MEASURE_UP_ONLY";
   const role = measureOnly ? "installer" : "electrician";
   // Role-specific forms only; the old combined template is never used for new audits.
+  // Ready Check variant: installer-sourced jobs get the priced form (A1), our leads the evidence-only form (A2).
   const ids = await templateIds();
-  const templateId = measureOnly ? ids.readyCheck : ids.piesa;
+  const templateId = measureOnly ? (readyCheckVariant(job.channel) === "ready_check_priced" ? ids.readyCheckPriced : ids.readyCheck) : ids.piesa;
   if (!templateId) throw new WorkflowError(measureOnly ? MEASUREUP_TEMPLATE_MISSING : PIESA_TEMPLATE_MISSING);
 
   const [{ data: prop }, { data: owner }, { data: asg }, { data: booking }, { data: a }] = await Promise.all([
