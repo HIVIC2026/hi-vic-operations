@@ -8,7 +8,7 @@ import { getAdminEstimate, getAdminEstimateLink, getAdminEstimateLinkUrl, getOwn
 import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
 import { BENCHMARK_LABEL, CALC_ASSUMPTION_LABEL, CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, FEE_DESCRIPTION, FEE_LABEL, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings, type Scenario } from "@/lib/estimate.core";
 import type { LocationVariables } from "@/lib/activity48.core";
-import { CUSTOMER_ASSESSMENT_ACTION, CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
+import { CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
 import { READY_CHECK_BOOKING_SUCCESS, READY_CHECK_FEE, readyCheckRemaining, type ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
 import { Pill } from "./badges";
 
@@ -89,6 +89,27 @@ export function ConfirmQuote({ estimatedPrice, onBack, preview = false, testMode
   </section>;
 }
 
+/** Locked in-card close for every eligible/onsite quote: What could change → GST → divider → Ready Check CTA. */
+export function QuoteCardReadyCheckClose({ href, inert = false }: { href?: string; inert?: boolean }) {
+  return <div data-testid="quote-card-close">
+    <div className="mt-6" data-testid="quote-what-could-change">
+      <h4 className="text-lg font-extrabold text-estimate-blue">{CUSTOMER_WHAT_COULD_CHANGE.heading}</h4>
+      <p className="mt-3 text-sm leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.intro}</p>
+      <ul className="mt-4 space-y-3 text-sm leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.items.map(({ lead, copy }) => <li key={lead} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" /><span><strong>{lead} —</strong> {copy}</span></li>)}</ul>
+      <p className="mt-5 text-sm font-extrabold leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.closing}</p>
+      <p className="mt-3 text-xs font-bold">{CUSTOMER_WHAT_COULD_CHANGE.gst}</p>
+    </div>
+    <div className="mt-6 border-t border-estimate-blue-soft pt-6" data-testid="ready-check-cta">
+      <p className="text-xs font-extrabold uppercase tracking-wider text-estimate-green">{CUSTOMER_READY_CHECK_EMAIL_ACTION.eyebrow}</p>
+      <h4 className="mt-2 text-xl font-extrabold leading-tight text-estimate-blue">{CUSTOMER_READY_CHECK_EMAIL_ACTION.heading}</h4>
+      <p className="mt-3 text-sm leading-relaxed">{CUSTOMER_READY_CHECK_EMAIL_ACTION.sentence}</p>
+      <p className="mt-2 text-sm font-bold">{CUSTOMER_READY_CHECK_EMAIL_ACTION.credit}</p>
+      {href && !inert ? <a href={href} className="estimate-action-button mt-5 flex min-h-12 w-full items-center justify-center rounded-md px-4 py-3 text-center text-sm font-extrabold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{CUSTOMER_READY_CHECK.cta}</a> : <Button type="button" size="field" className="estimate-action-button mt-5 h-auto min-h-12 w-full px-4 py-3 font-extrabold disabled:opacity-100" disabled>{CUSTOMER_READY_CHECK.cta}</Button>}
+      <p className="mt-3 text-center text-xs">{CUSTOMER_READY_CHECK_EMAIL_ACTION.helper}</p>
+    </div>
+  </div>;
+}
+
 function PriceResult({ est, area, fees, assumption = false }: { est: Est; area: number; fees: NonNullable<CustomerData["fees"]>; assumption?: boolean }) {
   const primary = est.scenarios.find((s) => s.key === "can_remain") ?? est.scenarios[0];
   if (!primary) return null;
@@ -105,9 +126,9 @@ function PriceResult({ est, area, fees, assumption = false }: { est: Est; area: 
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-estimate-green-light pb-4 font-semibold text-estimate-navy"><dt className="min-w-0">{CUSTOMER_QUOTE_LABELS.discount}</dt><dd className="text-estimate-green">−{dollars(standard.applied_discount)}</dd></div>
       </dl>
       <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 font-bold text-estimate-navy"><span className="text-sm">{CUSTOMER_QUOTE_LABELS.finalCost}</span><span className="text-xl">{dollars(standard.estimated_customer_total)}</span></div>
-      <div className="estimate-action-card mt-5 text-sm leading-relaxed text-estimate-navy"><p><strong>{CUSTOMER_QUOTE_LABELS.payableNow}</strong></p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.credited}</p><p className="mt-1">{CUSTOMER_PAYMENT_COPY.notPiesa} {CUSTOMER_PAYMENT_COPY.purpose}</p><p className="mt-2">{CUSTOMER_QUOTE_LABELS.remainingBalance}: <strong>{dollars(readyCheckRemaining(standard.estimated_customer_total))}</strong></p></div>
     </div>
     {standard.copayment_capped && <p className="mt-3 text-sm">The discount is limited so your contribution meets the program minimum.</p>}
+    <QuoteCardReadyCheckClose href="#confirm" />
   </section>;
 }
 
@@ -115,7 +136,6 @@ function CalculatorQuoteResult({ est, area, fees, existingInsulation }: { est: E
   const primary = est.scenarios.find((scenario) => scenario.key === "can_remain") ?? est.scenarios[0];
   if (!primary) return null;
   const standard = primary.by_access.standard;
-  const remaining = readyCheckRemaining(standard.estimated_customer_total);
   const rows = customerQuoteRows({ piesa: fees.piesa, installation: standard.installation, apManagement: fees.ap });
   return <div className="space-y-5" data-testid="calculator-result">
     <section className="estimate-quote-card overflow-hidden" aria-label="Revised preliminary estimate">
@@ -134,32 +154,11 @@ function CalculatorQuoteResult({ est, area, fees, existingInsulation }: { est: E
           <p className="text-xs font-extrabold uppercase text-estimate-green-light">{CUSTOMER_QUOTE_LABELS.finalCost}</p>
           <p className="mt-2 text-4xl font-extrabold leading-none" data-testid="calculator-total-can_remain">{dollars(standard.estimated_customer_total)}</p>
         </div>
-        <div className="estimate-action-card mt-5 text-sm leading-relaxed">
-          <p><strong>{CUSTOMER_QUOTE_LABELS.payableNow}</strong></p>
-          <p className="mt-1 font-bold">{CUSTOMER_PAYMENT_COPY.credited}</p>
-          <p className="mt-1">{CUSTOMER_PAYMENT_COPY.notPiesa} {CUSTOMER_PAYMENT_COPY.purpose}</p>
-          <p className="mt-3 flex items-baseline justify-between gap-3 border-t border-estimate-green/25 pt-3"><span>{CUSTOMER_QUOTE_LABELS.remainingBalance}</span><strong data-testid="calculator-remaining">{dollars(remaining)}</strong></p>
-        </div>
-        <p className="mt-4 text-xs font-bold">All prices incl GST.</p>
         {standard.copayment_capped && <p className="mt-2 text-xs">The discount is limited so your contribution meets the program minimum.</p>}
+        <QuoteCardReadyCheckClose inert />
       </div>
     </section>
     {existingInsulation && <p className="estimate-secondary-card text-sm font-semibold leading-relaxed">{CUSTOMER_EXISTING_INSULATION_NOTE}</p>}
-    <section className="estimate-secondary-card">
-      <h4 className="text-lg font-extrabold text-estimate-blue">{CUSTOMER_WHAT_COULD_CHANGE.heading}</h4>
-      <p className="mt-3 text-sm leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.intro}</p>
-      <ul className="mt-4 space-y-3 text-sm leading-relaxed">
-        {CUSTOMER_WHAT_COULD_CHANGE.items.map(({ lead, copy }) => <li key={lead} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" /><span><strong>{lead} —</strong> {copy}</span></li>)}
-      </ul>
-      <p className="mt-5 text-sm font-extrabold leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.closing}</p>
-      <p className="mt-3 text-xs font-bold">{CUSTOMER_WHAT_COULD_CHANGE.gst}</p>
-    </section>
-    <section className="estimate-action-card">
-      <Button type="button" size="field" className="estimate-action-button h-auto min-h-12 w-full px-4 py-3 font-extrabold disabled:opacity-100" disabled>{CUSTOMER_ASSESSMENT_ACTION.cta}</Button>
-      <div className="mt-4 space-y-3 text-sm leading-relaxed">{CUSTOMER_ASSESSMENT_ACTION.paragraphs.map((paragraph, index) => <p key={paragraph} className={index === 0 || index === CUSTOMER_ASSESSMENT_ACTION.paragraphs.length - 1 ? "font-extrabold" : undefined}>{paragraph}</p>)}</div>
-      <p className="mt-3 text-xs leading-relaxed">Home Insulation Victoria manages the VEU pathway from assessment through compliance and VEEC processing.</p>
-      <p className="mt-2 text-center text-xs font-bold text-estimate-blue">Secure payment is not yet available.</p>
-    </section>
   </div>;
 }
 
@@ -200,20 +199,6 @@ function PriceProtection({ settings, fees }: { settings: RetailSettings | undefi
   </section>;
 }
 
-function NextStep({ fee, hasPrice }: { fee: number; hasPrice: boolean }) {
-  const id = useId();
-  return <section className="estimate-action-card px-5 py-8 sm:px-8 sm:py-10" aria-labelledby={`${id}-next-step`}>
-    <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Your next step</p>
-    <h3 id={`${id}-next-step`} className="mt-2 text-2xl font-bold leading-tight text-estimate-blue">{CUSTOMER_QUOTE_LABELS.piesa}</h3>
-    <p className="mt-4 text-4xl font-bold">{dollars(fee)} <span className="text-base font-medium">inc GST</span></p>
-    <div className="estimate-secondary-card mt-4 space-y-3 text-sm leading-relaxed">{CUSTOMER_ASSESSMENT_ACTION.paragraphs.map((paragraph, index) => <p key={paragraph} className={index === 0 || index === CUSTOMER_ASSESSMENT_ACTION.paragraphs.length - 1 ? "font-extrabold" : undefined}>{paragraph}</p>)}</div>
-    <p className="mt-6 font-bold">What it covers</p>
-    <ul className="mt-3 grid gap-x-5 gap-y-3 text-sm sm:grid-cols-2">{["Exact ceiling-area measurement", "Existing insulation/R-value check", "Whether removal is required", "Roof/ceiling access assessment", "PIESA by a licensed electrician employed by a REC", "Wiring, downlights, exhaust fans and electrical-clearance checks", "Identification of any rectification required before install", "Information required to prepare the final insulation quote"].map((item) => <li key={item} className="flex items-start gap-2 leading-relaxed"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green-light" />{item}</li>)}</ul>
-    <div className="mt-7 border-t border-estimate-green/25 pt-5"><p className="font-bold text-estimate-blue">What happens next?</p><ol className="mt-4 grid gap-4 text-sm sm:grid-cols-3">{["We complete the onsite measure and PIESA", "You receive your final Home Insulation Victoria quote", "Once you approve it, we coordinate the qualified installer and manage the job through installation, evidence and VEEC processing"].map((item, index) => <li key={item} className="flex items-start gap-2 leading-relaxed"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-estimate-blue font-bold text-estimate-white">{index + 1}</span>{item}</li>)}</ol></div>
-    <div className="mt-8 border-t border-estimate-green/25 pt-5 text-sm font-semibold text-estimate-blue">Online booking &amp; payment — coming in the next step</div>
-  </section>;
-}
-
 function ManagedProcess() {
   const id = useId();
   const cards = [
@@ -241,10 +226,6 @@ function RemovalNote({ est, assumption = false }: { est: Est; assumption?: boole
   return <p className="estimate-secondary-card text-sm leading-relaxed">If full removal is required, your estimated total would be around <strong data-testid={assumption ? "calculator-total-full_removal" : "total-full_removal"}>{dollars(removal.by_access.standard.estimated_customer_total)}</strong>. Your onsite assessment confirms whether removal is actually needed.</p>;
 }
 
-function EstimateDetails() {
-  return <section className="estimate-secondary-card text-sm" aria-label={CUSTOMER_WHAT_COULD_CHANGE.heading}><h3 className="text-lg font-extrabold text-estimate-blue">{CUSTOMER_WHAT_COULD_CHANGE.heading}</h3><p className="mt-3 leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.intro}</p><ul className="mt-4 space-y-3 leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.items.map(({ lead, copy }) => <li key={lead} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" /><span><strong>{lead} —</strong> {copy}</span></li>)}</ul><p className="mt-5 font-extrabold leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.closing}</p><p className="mt-3 text-xs font-bold">{CUSTOMER_WHAT_COULD_CHANGE.gst}</p></section>;
-}
-
 /** Customer-facing estimate. Renders nothing when Gate 1 does not permit display. */
 export function CustomerEstimate({ data, publicPage = false, propertyAddress, onCalculatorUse }: { data: CustomerData; publicPage?: boolean; propertyAddress?: string | null; onCalculatorUse?: (m2: number) => void }) {
   if (!data.visible || !data.mode) return null;
@@ -262,9 +243,8 @@ export function CustomerEstimate({ data, publicPage = false, propertyAddress, on
       {data.rolloutHold && <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Assessments for private homes open from 1 October 2026. This is a scheduling hold only, not an eligibility result.</p>}
       {!fees ? <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Your estimate is being prepared.</p> : <>
         {data.estimate ? <PriceResult est={data.estimate} area={data.estimate.area.m2} fees={fees} /> : data.calc ? <AreaCalculator calc={data.calc} initial={null} fees={fees} {...(propertyAddress !== undefined ? { propertyAddress } : {})} {...(onCalculatorUse ? { onUse: onCalculatorUse } : {})} /> : <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">{data.postcodeUnlisted ? "We can't calculate a VEU discount for this postcode yet because it isn't in the official VEU location list. We'll confirm your pricing directly." : "Your estimate is being prepared."}</p>}
-         {data.estimate && <><RemovalNote est={data.estimate} /><NextStep fee={fees.piesa} hasPrice /><HouseholdBenefits /><PriceProtection settings={data.calc?.settings} fees={fees} /><ManagedProcess /></>}
+         {data.estimate && <><RemovalNote est={data.estimate} /><HouseholdBenefits /><PriceProtection settings={data.calc?.settings} fees={fees} /><ManagedProcess /></>}
         {data.estimate && data.calc && <AreaCalculator calc={data.calc} initial={data.estimate.area.m2} fees={fees} {...(propertyAddress !== undefined ? { propertyAddress } : {})} secondary {...(onCalculatorUse ? { onUse: onCalculatorUse } : {})} />}
-         <EstimateDetails />
         {data.calc && <details className="group border-b border-estimate-blue/20 pb-5 text-sm"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-bold text-estimate-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">How is the VEU discount estimated? <ChevronDown aria-hidden="true" className="size-5 shrink-0 transition-transform group-open:rotate-180" /></summary><p className="mt-4 leading-relaxed">We use the official Activity 48 postcode/climate calculation and a {dollars(data.calc.settings.indicative_veec_value)} consumer benchmark calibrated to the Victorian Government&apos;s published example. Final certificate values can change. This is not the live VEEC market price.</p>{data.calc.settings.veec_value_source_url?.startsWith("https://") && <a className="mt-2 inline-block font-bold text-estimate-blue underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" href={data.calc.settings.veec_value_source_url} target="_blank" rel="noopener noreferrer">View the published example <span aria-hidden="true">↗</span></a>}</details>}
       </>}
     </div>
