@@ -337,6 +337,13 @@
       "when": 1790746941788,
       "tag": "0047_job_compliance_records",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1790750432014,
+      "tag": "0048_rec_onboarding_applications",
+      "breakpoints": true
     }
   ]
 }
