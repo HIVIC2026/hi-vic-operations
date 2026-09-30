@@ -1,86 +1,29 @@
-## Tasks
-- [x] Stop enquiries appearing to disappear after login by making the pipeline read immediate and resilient
-- [x] Redesign the signed-in portal navigation and page hierarchy for clarity and ease of use
-- [x] Research Coperniq's operations UX and apply relevant navigation/workflow patterns
-- [x] Remove the obsolete Step 3 design mockup routes and any remaining links/content
-- [x] Verify the redesigned portal across desktop and mobile without changing workflow rules
-- [x] Apply the official HI VIC logo to portal entry, sign-in, navigation, onboarding and error states
-- [x] Restrict partner contact records to HI VIC admins or members of that partner business
-- [x] Restrict operating settings to HI VIC admins
-- [x] Audit full launch readiness and identify the remaining live-launch blockers
-- [x] Audit electrician onboarding flow (Base44 -> portal): fields, validation, storage, admin review
-- [x] Build portal electrician onboarding page (/electrician-onboarding)
-- [x] Auto-flag onboarding issues (ESV no, missing REC/fees) in admin Partner Enquiries
-- [x] Verify end-to-end (13 tests, typecheck, browser submission test)
-- [x] Rebuild full REC onboarding + v1.4 agreement signing in the portal (tested end to end)
-- [x] Office approval → create partner business/rate card from a signed REC or installer application
-- [x] Collect bank details inside both signed onboarding flows and carry them into the approved partner file
-- [x] Installer-sourced job fee: $220 inc GST only when an installer-referred quote is accepted and the job proceeds — recorded in the installer agreement and pricing-step notice
-- [x] Removal mandatory for installers (both rates required) — browser-verified
-- [ ] Make all admin lists resilient to session/request failures
-- [x] Activate approved REC/installer applications into businesses, credentials and versioned rate cards
-- [x] Set partner access policy: individual logins only, with the business owner adding each worker
-- [x] Store nominated workers as business-linked profiles and match each trade login to the approved onboarding
-- [ ] Complete role-based launch proof and launch checklist
-- [x] Add an admin Test Centre with isolated dummy journeys and guarded test-record deletion
-- [ ] Add secure test-team invitations and complete separate role-login proof
-- [x] Replace the paid Ready Check with a free installer-only eligibility measure-up; keep PIESA electrician-only across onboarding, workflow, screens and safeguards
-- [x] Ask installers separately about free measure-ups for pre-qualified HI VIC leads; record the $220 inc GST job fee only when their quote is accepted and the job proceeds
-- [x] Audit and reconcile every email, notification, page, workflow, test and guide with the free installer Ready Check, REC-only PIESA and conditional $220 fee
-- [x] Match each new enquiry to approved REC and installer coverage; show gaps and provide a one-click, guarded “no partner in your area” email
-- [x] Add an office coverage view showing serviceable, partial and unserviceable Victorian areas separately for RECs and installers
-- [x] Audit current official Activity 48 homeowner documents and correct VEEC assignment to post-install final-facts signing
-- [x] Replace repeated Property Intelligence with one numbered Gate 1 checklist
-- [x] Fix repeated suburb/state/postcode across portal and generated records
-- [x] Simplify job cards and separate active, review, ineligible, finalised, cancelled and test work
-- [x] Separate active partners, application review and inactive history without deleting signed records
-- [ ] Verify the eligibility-first overhaul across tests, desktop and mobile
-- [x] Restyle the signed-in workspace with the approved pink/yellow palette and Outfit/Figtree while preserving external HI VIC branding
-- [x] Replace the old calculator journey fixture with a standalone local-only calculator
-- [x] Add a personal customer-communication review centre with immutable approved versions and no delivery side effects
-- [x] Add the Activity 48 form register with purpose, signer, timing, blockers, source and retention
-- [ ] Verify the complete portal cleanup across tests, desktop and mobile
-- [x] Side tabs: Active jobs, Pending quote approval, Enquiries (in that order), then Ineligible + VEEC calculator page
-- [x] Profit tab: VEEC income net of owner's $70/VEEC share (we keep spot − 70)
-- [x] Source VEEC spot price from an online feed instead of manual entry
-- [x] Add per-job markup breakdown (charge vs pay: installer, electrician, AP fee, VEEC margin) on the VEECs page
-- [x] Include $220 installer referral fee confirmed for margin maths
-- [x] Confirm exact per-VEEC lodgement fee (registry cost) and record it in pricing settings — $4.35 per VEEC, ESC fee from 1 Jan 2026
-- [ ] Record the negotiated REC PIESA rate once agreed (pricing_settings.piesa_rec_cost_ex_gst)
-- [ ] Build and validate separate Mitti templates: installer Ready Check eligibility/measurement and licensed REC PIESA; configure only verified template IDs
-- [x] Mitti forms A/B/C with official PIESA/PIISA wording, validation and Compliance panel
-- [x] Installer-led pricing, coverage checker, no referral fee (core + tests)
-- [x] Installer job tracker + what's-missing checklist on the installer job page
-- [x] Co-branded invoice preview (Quotes tab)
-- [ ] Owner invite (draft only while comms locked), Add my electrician, AP evidence register
-- [ ] Build forms A/B/C in Mitti and connect IDs (needs Jo in Mitti)
-- [x] AP fee for installer-led jobs = standard AP management fee
-- [x] Per-job AP fee override (admin, reason required, audited)
-- [x] Auto-fill official PIESA/PIISA PDFs (done; e-sign + delivery wiring waits on Mitti forms)
-- [ ] AP evidence register per job: tick/cross for each Industry Pack record, blocking AP review
-- [x] TO ACTION tab: live office to-do list derived from records (deposit request, Xero errors, due-date updates, Gate 1 review, office stages, Other items, measure-up review, reassignments, partner enquiries)
-- [x] Lift commercial lock for installer-led jobs (HI VIC invoices owner, co-branded)
-- [ ] Put AP fee (incl. per-job override) as its own line on installer-led quotes so the automatic Xero invoice matches the preview
-- [ ] Extend TO ACTION with remaining office tasks (ESC notice, PIESA copies, compliance records, onboarding review)
-- [x] To action: ESC notice, PIESA copies, onboarding review exceptions
-- [x] Bulk select jobs on the pipeline: cancel / delete (test only) / put on hold for many at once
-- [x] Installer-led jobs with a complete measure-up skip the Ready Check
-- [x] Align To action buttons, colour-code task statuses and add status filtering
+# Roadmap
 
-- [x] Rename and restyle the portal login as Home Insulation Victoria Operations
+## In progress (approved plan: installer onboarding overhaul)
+- [ ] Name-first step on installer + electrician onboarding; greet by first name throughout; invites prefill invitee name + inviter business
+- [ ] Shared "How we work with you" content module (Option 1 own customer / Option 2 our lead), portal help page, FAQ
+- [ ] "Why the $349" box (covers safety check + AP work; confirm one $349 total vs each)
+- [ ] Saved electrician preference per installer (own / HIV list / ask each job)
+- [ ] Partial evidence: one upload box, AI-suggested requirement matching, staff verify, have/missing list
+- [ ] Install-day "Before you start" checklist auto-built from missing allowed items; feeds Mitti/PIISA
+- [ ] Per-requirement capture-stage settings (before quote / before install start / after install) per ESC table; verify against full Obligations & Program Guide annexure before enabling
+- [ ] Shared gate timeline for staff/installer/electrician with countdowns (PIESA 30-day validity, ESC notification 24h–5d, PIESA copy 24h, same-day rectification quote)
+- [ ] 24-hour rule on our leads: owner offered choice of different installer/electrician after 24h no contact
+- [ ] Installer agreement new version with Option 1/2 + portal-only communication wording; re-sign flag
+- [ ] Referred jobs: owner quoted at our set customer price; installer paid agreed onboarding rate; $220 lead fee deducted from payout only when owner accepts; installer paid once owner invoice fully paid
 
-- [x] Remove DC Construction Solutions wording from portal login screens
+## Decisions locked this session
+- $349 = both safety check + AP fee (confirm one total vs each)
+- Pre-agreed installer price: our fees on top (owner sees less VEU discount)
+- Our leads: set customer price; installer paid agreed rate; margin internal only
+- $220 lead fee: only when owner accepts; deducted from payout; never on ineligible/declined/cancelled
+- Installer paid once owner invoice paid in full
+- Portal-only communication; 24h no-contact rule on our leads
 
-- [x] Fix partner enquiry Open links to select the exact applicant instead of only opening the list.
-
-- [x] Add a colour-coded key at the top of Enquiries showing what each view means with live counts
-
-- [ ] Check pending installer and REC applications for area matches against current coverage
-- [x] Check pending installer and REC applications for area matches against current coverage — 43 of 47 live enquiries have a pending REC and a pending installer in their area; gaps: Ballarat (no REC), Yarra Valley (no applicant), Geelong (one REC only), south-east/east (one installer only)
-- [ ] Approve applicants and verify their postcodes — no partner is approved yet, so Service coverage shows "Not configured" on all 47 enquiries
-- [ ] Chase service areas from 6 installers who left the field blank: Fletchers Flues, Jassy Best Insulation, Melbourne Insulation Removals, Michelle's Air Solutions, No Gap Insulation, PF insulation
-- [ ] Find a REC for Ballarat & Central Highlands and for the Yarra Valley enquiry (HV-1036)
-- [x] Remove wrong "Bank details are collected after approval" line from installer and electrician onboarding welcome screens
-- [x] Restyle installer + electrician onboarding welcomes: portal fonts (Outfit/Figtree), brand gradient bar, pink/blue/green/yellow highlight chips — browser-verified
-- [x] Replaced all user-facing "HI VIC"/"HI VIC!" with "Home Insulation Victoria" (kept Xero reference "HI VIC <job>" and signed agreement version texts); 738 tests pass
-- [ ] Electrician team-up: workers under someone else's REC must not be asked for REC/insurance — head person only
+## Still open from before
+- [ ] Electrician team-up worker path (under someone else's REC: skip REC/insurance, collect licence + supervising REC)
+- [ ] Chase service areas from 6 installers; partner/postcode coverage follow-ups
+- [ ] Mitti forms A/B/C IDs from user
+- [ ] Browser-verify owner/electrician/installer job views as those roles
+- [ ] Confirm: $349 one total vs each; $220 inc/ex GST; own-electrician price + AP fee combination
