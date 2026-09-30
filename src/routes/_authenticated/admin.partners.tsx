@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { useAction } from "@/hooks/use-me";
 import { updatePartnerEnquiry } from "@/lib/portal.functions";
-import { PARTNER_STATUSES, PARTNER_TYPES, PARTNER_TYPE_LABEL, type PartnerType } from "@/lib/partner.core";
+import { PARTNER_STATUSES, PARTNER_TYPES, PARTNER_TYPE_LABEL, partnerIssues, type PartnerType } from "@/lib/partner.core";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,9 +46,16 @@ function Partners() {
           <TabsContent key={t} value={t}>
             {of(t).length === 0 ? <p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">No {PARTNER_TYPE_LABEL[t].toLowerCase()} enquiries yet.</p> : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {of(t).map((r) => (
+                {of(t).map((r) => {
+                  const issues = partnerIssues(r);
+                  return (
                   <button key={r.id} onClick={() => setOpen(r)} className="rounded-xl border bg-card p-4 text-left text-sm hover:border-primary">
                     <div className="flex items-start justify-between gap-2"><div className="font-semibold">{r.company || r.name || "Unnamed"}</div><Badge variant="outline" className="capitalize">{r.status}</Badge></div>
+                    {issues.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {issues.map((i) => <Badge key={i} variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400">{i}</Badge>)}
+                      </div>
+                    )}
                     <div className="text-muted-foreground">{r.name}{r.phone ? ` · ${r.phone}` : ""}</div>
                     <div className="truncate text-muted-foreground">{r.email}</div>
                     <div className="mt-2 space-y-0.5">
