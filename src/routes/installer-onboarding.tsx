@@ -4,8 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
   ACKNOWLEDGEMENTS, CAPACITY_BANDS, CII_STATUSES, DAYS, EXTRA_ITEMS, LEAD_TIMES, RADII, INSTALLER_AGREEMENT_VERSION,
-  stepErrors, firstIncompleteStep, validAbn, visibleSteps, type InstData as RecData, type StepKey,
+  firstName, stepErrors, firstIncompleteStep, validAbn, visibleSteps, type InstData as RecData, type StepKey,
 } from "@/lib/installer-onboarding.core";
+import { HowItWorks } from "@/components/portal/how-it-works";
 import {
   confirmInstallerInsuranceUpload as confirmInsuranceUpload, getInstallerAgreement as getRecAgreement, installerInsuranceUploadUrl as insuranceUploadUrl,
   loadInstallerOnboarding as loadRecOnboarding, saveInstallerOnboarding as saveRecOnboarding, signInstallerAgreement as signRecAgreement, startInstallerOnboarding as startRecOnboarding,
@@ -128,7 +129,7 @@ function InstallerOnboarding() {
   const [loaded, setLoaded] = useState(false);
   const [started, setStarted] = useState(false);
   const [d, setD] = useState<RecData>({});
-  const [step, setStep] = useState<StepKey>("business");
+  const [step, setStep] = useState<StepKey>("about");
   const [status, setStatus] = useState<"draft" | "submitted">("draft");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +141,7 @@ function InstallerOnboarding() {
     loadRecOnboarding({ data: { token: t } }).then((r) => {
       setToken(t); setD(r.data as RecData); setStatus(r.status as "draft" | "submitted"); setStarted(true);
       const first = firstIncompleteStep(r.data as RecData);
-      setStep(r.status === "submitted" ? "sign" : ((first ?? r.step_key ?? "business") as StepKey));
+      setStep(r.status === "submitted" ? "sign" : ((first ?? r.step_key ?? "about") as StepKey));
     }).catch(() => localStorage.removeItem(TOKEN_KEY)).finally(() => setLoaded(true));
   }, []);
 
@@ -166,7 +167,7 @@ function InstallerOnboarding() {
     setError(null);
     if (delta === 1 && errs.length) { setShowErrors(true); return; }
     setShowErrors(false);
-    const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "business";
+    const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "about";
     setBusy(true);
     try { await persist(target); setStep(target); window.scrollTo({ top: 0 }); }
     catch (e) { setError(e instanceof Error ? e.message : "Could not save."); } finally { setBusy(false); }
@@ -237,7 +238,9 @@ function InstallerOnboarding() {
 
   return shell(
     <div style={card}>
-      <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 16px", color: BLUE }}>{steps[idx]?.title}</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
+      {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Nice one, {firstName(d)} — {steps[idx]?.title?.toLowerCase()} next.</div>}
+      {!firstName(d) && <div style={{ marginBottom: 12 }} />}
       <StepBody step={step} d={d} up={up} token={token!} setError={setError} />
       {step === "sign" && <SignStep d={d} token={token!} onSigned={() => setStatus("submitted")} />}
       {showErrors && errs.length > 0 && (
@@ -254,6 +257,20 @@ function InstallerOnboarding() {
 function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void }) {
   const t = (k: keyof RecData, upper = false) => ({ value: (d[k] as string) ?? "", onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => up({ [k]: upper ? e.target.value.toUpperCase() : e.target.value } as Partial<RecData>) });
   switch (step) {
+    case "about":
+      return <>
+        <div style={infoCard}>First things first — so we know who we're talking to. We'll use your name throughout.</div>
+        <Field label="Your name" required><input style={input} autoFocus placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
+        <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
+        <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
+      </>;
+    case "howitworks":
+      return <>
+        <HowItWorks />
+        <div style={{ marginTop: 16 }}>
+          <Check checked={d.how_it_works_acknowledged === true} onChange={(v) => up({ how_it_works_acknowledged: v })}>I've read how the two options work, the fees, the payment terms and the portal-only communication rule.</Check>
+        </div>
+      </>;
     case "business":
       return <>
         <Field label="Legal entity name" required><input style={input} {...t("legal_entity_name")} /></Field>
@@ -266,9 +283,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
     case "contact":
       return <>
         <Field label="Business address" required hint="Start typing and pick your address from the list"><AddressInput value={d.business_address ?? ""} onChange={(v) => up({ business_address: v })} /></Field>
-        <Field label="Contact name" required><input style={input} {...t("primary_contact_name")} /></Field>
-        <Field label="Mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
-        <Field label="Business email" required><input style={input} type="email" {...t("business_email")} /></Field>
+        <div style={{ ...infoCard, marginBottom: 16 }}>Contact: <strong>{d.primary_contact_name}</strong> · {d.business_phone} · {d.business_email} — if any of these are wrong, go back to "About you".</div>
         <Check checked={d.authorised_to_register === true} onChange={(v) => up({ authorised_to_register: v })}>I'm authorised to set up this business.</Check>
       </>;
     case "insurance":

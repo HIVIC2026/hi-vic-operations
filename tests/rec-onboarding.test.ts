@@ -38,9 +38,9 @@ describe("rec onboarding", () => {
   });
   test("agreement text includes markup clause, schedules and all 8 acknowledgements", () => {
     const t = agreementText(full);
-    expect(t).toContain("HI-VIC-A48-REC-1.6-2026-10-01");
+    expect(t).toContain("HI-VIC-A48-REC-1.7-2026-10-01");
     expect(t).toContain("is not the customer-facing price");
-    expect(t).toContain("does not depend on HI VIC! receiving payment from the customer");
+    expect(t).toContain("does not depend on Home Insulation Victoria receiving payment from the customer");
     expect(t).toContain("Pre-insulation electrical safety assessment (PIESA): $300.00 / visit");
     expect(ACKNOWLEDGEMENTS.length).toBe(8);
     for (const a of ACKNOWLEDGEMENTS) expect(t).toContain(a.text);

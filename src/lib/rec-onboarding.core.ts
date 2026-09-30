@@ -2,7 +2,7 @@
 // No I/O. Used by the public form (live validation) and the server (authoritative checks).
 import { REC_AGREEMENT_SECTIONS } from "./rec-agreement.text";
 
-export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-1.6-2026-10-01";
+export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-1.7-2026-10-01";
 export const REC_AGREEMENT_TITLE = "Activity 48 Registered Electrical Contractor Partner Agreement";
 export const AP_ENTITY = "DC Construction Solutions Pty Ltd ABN 44 671 613 979 trading as Home Insulation Victoria";
 export const MIN_PL_COVER = 5_000_000;
@@ -49,7 +49,13 @@ export type RecData = {
   agreement_reviewed?: boolean;
 };
 
+/** First name for greetings throughout onboarding and the portal. */
+export function firstName(d: { primary_contact_name?: string }): string {
+  return (d.primary_contact_name ?? "").trim().split(/\s+/)[0] || "";
+}
+
 export const STEPS = [
+  { key: "about", title: "About you" },
   { key: "business", title: "Business details" },
   { key: "contact", title: "Contact details" },
   { key: "insurance", title: "Public liability insurance" },
@@ -94,6 +100,11 @@ export function melbourneToday(now = new Date()): string {
 export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[] {
   const e: string[] = [];
   switch (step) {
+    case "about":
+      if (!txt(d.primary_contact_name)) e.push("Enter your name.");
+      if (!validPhone(d.business_phone)) e.push("Enter a valid Australian mobile.");
+      if (!validBusinessEmail(d.business_email)) e.push("Enter a real email address.");
+      break;
     case "business":
       if (!txt(d.legal_entity_name)) e.push("Enter the legal entity / REC registered name.");
       if (!validAbn(d.abn)) e.push("Enter a valid 11-digit ABN.");
