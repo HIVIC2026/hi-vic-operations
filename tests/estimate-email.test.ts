@@ -79,7 +79,7 @@ describe("customer outcome email renderers", () => {
     for (const out of [email.html, email.plainText]) {
       expect(out.split("IT'S LOOKING GOOD SO FAR").length - 1).toBe(1);
       for (const gone of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY", "could still qualify"]) expect(out).not.toContain(gone);
-      expect(out.indexOf("IT'S LOOKING GOOD SO FAR")).toBeLessThan(out.indexOf("WE JUST NEED TO CHECK"));
+      expect(out.indexOf("IT'S LOOKING GOOD SO FAR")).toBeLessThan(out.indexOf("WHAT WE NEED TO CHECK ONSITE"));
       expect(out.indexOf("Ceiling area — confirm")).toBeLessThan(out.indexOf("YOUR PRELIMINARY QUOTE"));
     }
     expect(email.plainText.indexOf("Ceiling area — confirm")).toBeLessThan(email.plainText.indexOf("PROPERTY"));
