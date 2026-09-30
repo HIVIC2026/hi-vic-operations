@@ -28,6 +28,35 @@ export function jobProfit(i: ProfitInput, spot: number | null) {
   return { customerExGst, veecs, veecRevenue, veecMargin, profit };
 }
 
+// Installer referral: the installer is paid a referral fee (inc GST) only when an
+// installer-sourced job proceeds with an accepted quote. It is a cost to HI VIC.
+export const INSTALLER_REFERRAL_FEE_INC_GST = 220;
+
+export type MarginInput = {
+  installerCostExGst: number; // what HI VIC pays the installer (rate card)
+  installerMarginExGst: number; // HI VIC markup on the installer work (ap_margin_pct)
+  apFeeExGst: number; // Accredited Person fee charged on top
+  electricalCostExGst: number; // what HI VIC pays the electrician/REC
+  electricalChargeExGst: number; // what the customer is charged for electrical work
+  installerSourced: boolean; // $220 referral fee applies when the job proceeds
+  veecDiscountIncGst: number; // owner's discount → VEEC count at $70 each
+};
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Per-job markup: what we charge vs what we pay, per trade, plus the AP fee, referral fee and VEEC margin. */
+export function jobMargin(i: MarginInput, spot: number | null) {
+  const installerChargedEx = r2(i.installerCostExGst + i.installerMarginExGst + i.apFeeExGst);
+  const installerMarkup = r2(i.installerMarginExGst); // pure markup (AP fee is shown separately)
+  const apFee = r2(i.apFeeExGst);
+  const electricalMarkup = r2(i.electricalChargeExGst - i.electricalCostExGst);
+  const referralFeeEx = i.installerSourced ? r2(INSTALLER_REFERRAL_FEE_INC_GST / 1.1) : 0;
+  const veecs = i.veecDiscountIncGst / OWNER_VEEC_RATE;
+  const veecMargin = spot != null ? r2(veecs * (spot - OWNER_VEEC_RATE)) : null;
+  const tradeMargin = r2(installerMarkup + apFee + electricalMarkup - referralFeeEx);
+  const profit = veecMargin != null ? r2(tradeMargin + veecMargin) : null;
+  return { installerChargedEx, installerMarkup, apFee, electricalMarkup, referralFeeEx, veecs, veecMargin, tradeMargin, profit };
+}
+
 // Parse the current VEEC spot price from the Ecovantage weekly market update HTML.
 // The VEEC paragraph states the move (e.g. "softened from $86.50 down to $85.80");
 // the current price is the LAST dollar figure in that paragraph. Returns null when
