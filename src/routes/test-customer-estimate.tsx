@@ -67,6 +67,11 @@ function TestCustomerEstimate() {
   const standard = data?.estimate?.scenarios[0]?.by_access.standard;
   const total = standard?.estimated_customer_total ?? 0;
   const localState = (paymentStatus: "unpaid" | "paid" | "failed"): ReadyCheckAcceptanceState => ({ acceptanceId: "test-dummy", estimateId: "test-dummy", acceptedAt: new Date().toISOString(), paymentId: "test-dummy", paymentStatus, amountIncGst: READY_CHECK_FEE, estimatedRemainingBalanceIncGst: Math.round((total - READY_CHECK_FEE) * 100) / 100, paidAt: paymentStatus === "paid" ? new Date().toISOString() : null, stale: false });
+  const openReadyCheck = () => {
+    window.history.pushState(null, "", `${window.location.pathname}#confirm`);
+    setConfirming(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas">
       <p data-testid="test-dummy-banner" className="bg-estimate-blue-soft px-4 py-2 text-center text-xs font-bold uppercase tracking-wide text-estimate-navy">TEST / DUMMY CUSTOMER JOURNEY — NO LIVE JOB OR PAYMENT</p>
@@ -76,7 +81,7 @@ function TestCustomerEstimate() {
           <p className="mb-4 px-1 text-xs font-medium text-estimate-navy/70">{ADDRESS} · {REFERENCE}</p>
           {confirming
             ? <ConfirmQuote estimatedPrice={total} assessmentFee={349} testMode state={state} onAccept={() => setState(localState("unpaid"))} onTestPayment={(r) => setState(localState(r === "success" ? "paid" : "failed"))} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
-            : <div className="estimate-offset overflow-hidden rounded-2xl border border-estimate-blue-soft bg-estimate-white px-5 py-7 sm:px-10 sm:py-11"><CustomerEstimate data={data} publicPage propertyAddress={ADDRESS} /></div>}
+             : <div className="estimate-offset overflow-hidden rounded-2xl border border-estimate-blue-soft bg-estimate-white px-5 py-7 sm:px-10 sm:py-11"><CustomerEstimate data={data} publicPage propertyAddress={ADDRESS} onReadyCheck={openReadyCheck} /></div>}
         </>}
       </main>
     </div>
