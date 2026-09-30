@@ -42,6 +42,18 @@ Pitch at the top of both options: our app walks you through every photo and read
 ### Payment terms (both options)
 One co-branded invoice to the owner; 50% deposit before any work is scheduled; balance due on install day. We chase payment. You're paid your quoted price after the balance clears (exact payout timing to confirm).
 
+### How we all talk: through the portal only
+- All contact with owners, electricians and our team happens in the job's messages in the portal: no phone calls, no outside texts. That way everyone can see where the job is up to, and it's our audit record.
+- Booking dates are proposed and accepted in the portal ("Electrician proposed Tue 10am → owner accepted → locked in").
+- Owner contact details stay masked; the portal is the channel.
+- Explained in onboarding and added to the agreement (new version, re-sign).
+
+### 24-hour rule on our leads
+- When we give you a lead, you must message the owner in the portal within 24 hours.
+- At 24 hours with no contact, the owner is offered a choice in their portal: keep waiting, or choose a different installer (or electrician, if the electrician is the one not responding).
+- If the owner switches, the job moves to the new installer with its full history; nothing is re-entered and no lead fee applies to the first installer.
+- Staff see it in To action at the same time. Nothing is sent automatically until communications are switched on for launch.
+
 ### "What we do as your Accredited Person" list
 A plain checklist so they see the workload: eligibility checks, owner consent and permission, safety-check coordination, official forms (PIESA/PIISA) filled and signed, 24-hour notices, quote and invoice, deposit and balance chasing, evidence review, VEEC creation and lodgement, 6-year record keeping, audits.
 
