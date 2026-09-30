@@ -35,26 +35,33 @@ export const INSTALLER_REFERRAL_FEE_INC_GST = 220;
 export type MarginInput = {
   installerCostExGst: number; // what HI VIC pays the installer (rate card)
   installerMarginExGst: number; // HI VIC markup on the installer work (ap_margin_pct)
-  apFeeExGst: number; // Accredited Person fee charged on top
-  electricalCostExGst: number; // what HI VIC pays the electrician/REC
-  electricalChargeExGst: number; // what the customer is charged for electrical work
+  apFeeExGst: number; // PIESA / Accredited Person fee charged to the owner ($349 inc GST → 317.27 ex)
+  electricalCostExGst: number; // what HI VIC pays the electrician/REC for rectification (pass-through)
+  electricalChargeExGst: number; // what the customer is charged for electrical work (pass-through → markup 0)
   installerSourced: boolean; // $220 referral fee applies when the job proceeds
   veecDiscountIncGst: number; // owner's discount → VEEC count at $70 each
+  piesaRecCostExGst: number | null; // negotiated lower set rate paid to the REC for the PIESA; null = not agreed/recorded yet
+  veecLodgementFeeExGst: number | null; // ESC fee per VEEC created/registered; null = not set
 };
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-/** Per-job markup: what we charge vs what we pay, per trade, plus the AP fee, referral fee and VEEC margin. */
+/** Per-job markup: what we charge vs what we pay, per trade, plus the PIESA fee, referral fee, ESC lodgement fee and VEEC margin. */
 export function jobMargin(i: MarginInput, spot: number | null) {
   const installerChargedEx = r2(i.installerCostExGst + i.installerMarginExGst + i.apFeeExGst);
-  const installerMarkup = r2(i.installerMarginExGst); // pure markup (AP fee is shown separately)
-  const apFee = r2(i.apFeeExGst);
-  const electricalMarkup = r2(i.electricalChargeExGst - i.electricalCostExGst);
+  const installerMarkup = r2(i.installerMarginExGst); // pure markup (PIESA fee is shown separately)
+  const piesaChargeEx = r2(i.apFeeExGst);
+  const piesaRecPaidEx = i.piesaRecCostExGst == null ? null : r2(i.piesaRecCostExGst);
+  const piesaMarginEx = piesaRecPaidEx == null ? null : r2(i.apFeeExGst - i.piesaRecCostExGst!);
+  const electricalMarkup = r2(i.electricalChargeExGst - i.electricalCostExGst); // upgrades pass through at the agreed rate card
   const referralFeeEx = i.installerSourced ? r2(INSTALLER_REFERRAL_FEE_INC_GST / 1.1) : 0;
   const veecs = i.veecDiscountIncGst / OWNER_VEEC_RATE;
   const veecMargin = spot != null ? r2(veecs * (spot - OWNER_VEEC_RATE)) : null;
-  const tradeMargin = r2(installerMarkup + apFee + electricalMarkup - referralFeeEx);
+  const lodgementFeeEx = i.veecLodgementFeeExGst == null ? null : r2(veecs * i.veecLodgementFeeExGst);
+  // When the negotiated REC PIESA rate is not recorded yet the PIESA charge is kept whole (optimistic)
+  // and the row is flagged in the UI; the ESC lodgement fee comes off per VEEC once set.
+  const tradeMargin = r2(installerMarkup + (piesaMarginEx ?? i.apFeeExGst) + electricalMarkup - referralFeeEx - (lodgementFeeEx ?? 0));
   const profit = veecMargin != null ? r2(tradeMargin + veecMargin) : null;
-  return { installerChargedEx, installerMarkup, apFee, electricalMarkup, referralFeeEx, veecs, veecMargin, tradeMargin, profit };
+  return { installerChargedEx, installerMarkup, piesaChargeEx, piesaRecPaidEx, piesaMarginEx, electricalMarkup, referralFeeEx, veecs, veecMargin, lodgementFeeEx, tradeMargin, profit };
 }
 
 // Parse the current VEEC spot price from the Ecovantage weekly market update HTML.
