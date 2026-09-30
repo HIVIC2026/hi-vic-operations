@@ -125,7 +125,7 @@ export const assignContractor = createServerFn({ method: "POST" }).middleware([r
     await logEvent(data.jobId, context.userId, "contractor_assigned", `${data.role === "electrician" ? "Electrician" : "Installer"} assigned: ${prof?.full_name ?? "user"}${awayFromOrigin ? " (admin reassignment away from originating installer – attribution unchanged)" : ""}`);
     if (stage === "ready_check_ready_to_schedule" && data.role === "installer") await admin.from("jobs").update({ next_action: "Assigned EEC Certified Insulation Installer to contact owner and arrange Ready Check" }).eq("id", data.jobId);
     if (data.role === "electrician" && (await getStage(data.jobId)) === "awaiting_electrician")
-      await transition(data.jobId, "assessment_booking", context.userId, "Electrician assigned – booking measure-up");
+      await transition(data.jobId, "assessment_booking", context.userId, "Electrician assigned – booking PIESA");
     await autoAdvanceJob(data.jobId, context.userId, "contractor assigned");
     return { ok: true };
   });
@@ -731,8 +731,8 @@ async function requirementWithAccess(sb: Parameters<typeof requireJobRole>[0], r
   const { data: req } = await admin.from("evidence_requirements").select("*").eq("id", requirementId).single();
   if (!req) throw new WorkflowError("Requirement not found");
   const role = await requireJobRole(sb, req.job_id, ["admin", "electrician", "installer"]);
-  // Measure-up evidence belongs to whoever owns the measure-up requirement (electrician or installer).
-  const measureUp = ["measurement", "existing_insulation_r_value"].includes(req.category) && (role === "electrician" || role === "installer");
+  // Current measure-up evidence is installer-only. Historical electrician-attributed files remain readable.
+  const measureUp = ["measurement", "existing_insulation_r_value"].includes(req.category) && role === "installer";
   if (role !== "admin" && !measureUp && req.responsible_role !== role) throw new WorkflowError("This evidence is uploaded by another party.");
   return req;
 }

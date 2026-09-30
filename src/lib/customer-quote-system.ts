@@ -78,7 +78,7 @@ export const CUSTOMER_READY_CHECK_EMAIL_ACTION = {
   helper: "See exactly what’s included on the next page.",
 } as const;
 
-/** Back-compat alias used by renderers: the only next paid step is the Ready Check. */
+/** Back-compat alias used by renderers for the free Ready Check action. */
 export const CUSTOMER_ASSESSMENT_ACTION = { cta: CUSTOMER_READY_CHECK.cta, paragraphs: CUSTOMER_READY_CHECK.paragraphs } as const;
 
 export const CUSTOMER_APPROVAL_REASSURANCE = "We will never proceed with additional work or additional costs without first showing you the scope and price and getting your approval." as const;
