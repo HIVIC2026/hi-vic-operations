@@ -8,7 +8,7 @@ import { getAdminEstimate, getAdminEstimateLink, getAdminEstimateLinkUrl, getOwn
 import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
 import { BENCHMARK_LABEL, CALC_ASSUMPTION_LABEL, CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, FEE_DESCRIPTION, FEE_LABEL, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings, type Scenario } from "@/lib/estimate.core";
 import type { LocationVariables } from "@/lib/activity48.core";
-import { CUSTOMER_ASSESSMENT_ACTION, CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
+import { CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
 import { READY_CHECK_BOOKING_SUCCESS, READY_CHECK_FEE, readyCheckRemaining, type ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
 import { Pill } from "./badges";
 

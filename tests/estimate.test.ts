@@ -101,24 +101,25 @@ describe("static separation / UI", () => {
   test("legacy final-quote flat credit is marked", () => { expect(readFileSync("src/lib/quotes.server.ts", "utf8")).toContain("LEGACY: flat per-m² VEEC credit"); });
   const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
   test("customer copy", () => {
-     for (const t of ["GOOD NEWS", "Your home has passed our initial eligibility checks.", "Your home looks likely to qualify.", "LIKELY ELIGIBLE", "LIKELY ELIGIBLE — ONSITE CONFIRMATION NEEDED", "Based on your answers and our initial property checks, your home is on track to qualify for a VEU insulation discount. Your Home Insulation Ready Check confirms the measured area and site details for your project estimate.", "Based on your answers and our initial checks, your property is a strong candidate for the VEU insulation discount. We just need to confirm the remaining items at your Ready Check.", "We just need to confirm:", "customerQuoteRows", "CUSTOMER_QUOTE_LABELS.discount", "Your estimated home upgrade", "CUSTOMER_QUOTE_LABELS.piesa", "CUSTOMER_PAYMENT_COPY.credited", "Transparent Home Insulation Victoria pricing — no installer mark-up surprises.", "One managed pathway. The right qualified people. No chasing trades.", "CUSTOMER_WHAT_COULD_CHANGE.intro"]) expect(ui).toContain(t);
+     for (const t of ["GOOD NEWS", "Your home has passed our initial eligibility checks.", "Your home looks likely to qualify.", "LIKELY ELIGIBLE", "LIKELY ELIGIBLE — ONSITE CONFIRMATION NEEDED", "Based on your answers and our initial property checks, your home is on track to qualify for a VEU insulation discount. Your Home Insulation Ready Check confirms the measured area and site details for your project estimate.", "Based on your answers and our initial checks, your property is a strong candidate for the VEU insulation discount. We just need to confirm the remaining items at your Ready Check.", "We just need to confirm:", "customerQuoteRows", "CUSTOMER_QUOTE_LABELS.discount", "Your estimated home upgrade", "CUSTOMER_QUOTE_LABELS.piesa", "Transparent Home Insulation Victoria pricing — no installer mark-up surprises.", "One managed pathway. The right qualified people. No chasing trades.", "CUSTOMER_WHAT_COULD_CHANGE.intro"]) expect(ui).toContain(t);
      expect(ui).not.toMatch(/may be eligible|appears suitable|your home is eligible/i);
      expect(ui).toContain('data.mode === "onsite" && !!data.onsiteDrivers?.length');
      expect(ui).toContain('the type and condition of existing insulation');
      expect(ui).toContain('roof space and access');
     expect(ui).not.toMatch(/Pay now|[Pp]ay\(|createBooking|useServerFn\(create/);
-    expect(ui).toContain("Online booking &amp; payment — coming in the next step");
     expect(ui).toContain("If full removal is required");
      expect(ui).toContain("CUSTOMER_QUOTE_LABELS.apManagement");
     expect(ui).not.toContain("AP management &amp; compliance");
     expect(ui).toContain("Step 3 · Indicative estimate");
-    expect(ui.indexOf("<NextStep fee")).toBeLessThan(ui.indexOf("<HouseholdBenefits />"));
-     expect(ui.indexOf("<NextStep fee")).toBeLessThan(ui.indexOf("<EstimateDetails />"));
+    expect(ui).not.toContain("<NextStep"); expect(ui).not.toContain("<EstimateDetails");
+    expect(ui.match(/<QuoteCardReadyCheckClose /g)?.length).toBe(2);
+    expect(ui).toContain('<QuoteCardReadyCheckClose href="#confirm" />');
+    expect(ui.indexOf("<QuoteCardReadyCheckClose inert />")).toBeLessThan(ui.indexOf("</section>", ui.indexOf("<QuoteCardReadyCheckClose inert />")));
     expect(ui).toContain("CHECK ANOTHER CEILING SIZE");
     expect(ui).toContain("*Victorian Government estimates/averages. Actual savings vary");
     expect(ui).toContain("Up to 20%*");
     expect(ui).toContain("$400+ / year*");
-      for (const t of ["From eligibility through to installation and VEEC processing, Home Insulation Victoria coordinates the people, paperwork and compliance for you.", "Licensed electrical safety assessment", "EEC Certified Insulation Installer", "We manage it end-to-end", "an EEC Certified Insulation Installer (CII)", "a licensed electrician employed by a Registered Electrical Contractor (REC)", "which trades meet the program requirements", "CUSTOMER_ASSESSMENT_ACTION.paragraphs"]) expect(ui).toContain(t);
+      for (const t of ["From eligibility through to installation and VEEC processing, Home Insulation Victoria coordinates the people, paperwork and compliance for you.", "Licensed electrical safety assessment", "EEC Certified Insulation Installer", "We manage it end-to-end", "an EEC Certified Insulation Installer (CII)", "a licensed electrician employed by a Registered Electrical Contractor (REC)", "which trades meet the program requirements"]) expect(ui).toContain(t);
     expect(ui).not.toContain("registered with ESV");
   });
   test("owner page shows card; admin tab places it after Gate 1", () => {
@@ -181,7 +182,7 @@ describe("Step 3 v2 refinement", () => {
   test("calculator uses the approved quote hierarchy and payment-safe copy", () => {
     const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
     const calc = ui.slice(ui.indexOf("function CalculatorQuoteResult"), ui.indexOf("export function OwnerEstimateCard"));
-    for (const text of ["CHECK ANOTHER CEILING SIZE", "Estimated ceiling size", "CUSTOMER_QUOTE_LABELS", "CUSTOMER_PAYMENT_COPY", "CUSTOMER_ASSESSMENT_ACTION.cta", "CUSTOMER_ASSESSMENT_ACTION.paragraphs", "CUSTOMER_WHAT_COULD_CHANGE", "CUSTOMER_EXISTING_INSULATION_NOTE", "All prices incl GST.", "Secure payment is not yet available."]) expect(calc).toContain(text);
+    for (const text of ["CHECK ANOTHER CEILING SIZE", "Estimated ceiling size", "CUSTOMER_QUOTE_LABELS", "CUSTOMER_PAYMENT_COPY", "CUSTOMER_ASSESSMENT_ACTION.cta", "CUSTOMER_WHAT_COULD_CHANGE", "CUSTOMER_EXISTING_INSULATION_NOTE", "All prices incl GST.", "Secure payment is not yet available."]) expect(calc).toContain(text);
     expect(calc).toContain('existingInsulation={calc.insulation === "present"}');
     expect(calc).toContain("CUSTOMER_WHAT_COULD_CHANGE.closing");
     expect(calc).toContain("what-if calculator only");
