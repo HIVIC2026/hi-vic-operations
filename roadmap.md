@@ -7,4 +7,4 @@
 - [x] Fix BOOK MY READY CHECK button (dead repeat-click when hash already #confirm)
 - [x] Clean up calculator custom-size input (visible label, full-width, m² inside)
 - [x] Make every customer Ready Check action open the booking screen directly
-- [ ] Assess launch readiness, end-to-end flow, remaining blockers, and next launch plan
+- [x] Assess launch readiness, end-to-end flow, remaining blockers, and next launch plan
