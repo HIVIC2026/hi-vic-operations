@@ -45,3 +45,19 @@ describe("compliance timeline", () => {
     expect(u[0].status).toBe("overdue");
   });
 });
+
+describe("official ESC additions", () => {
+  test("assignment copy due 10 business days after signing", () => {
+    const f = { ...base, assignmentSignedAt: "2026-10-09T00:00:00Z" }; // Friday
+    expect(buildComplianceTimeline(f).find((x) => x.key === "assignment_copy_to_consumer")!.dueAt).toBe("2026-10-23T00:00:00.000Z");
+  });
+  test("life support gate only when flagged", () => {
+    expect(buildComplianceTimeline(base).some((x) => x.key === "life_support_plan")).toBe(false);
+    expect(buildComplianceTimeline({ ...base, lifeSupport: true }).some((x) => x.key === "life_support_plan")).toBe(true);
+  });
+  test("AP review needs co-payment and completion docs", () => {
+    const f = { ...base, installCompletedAt: base.now, installerDeclarationAt: base.now, evidenceComplete: true, assignmentEffective: true };
+    expect(buildComplianceTimeline(f).find((x) => x.key === "ap_approved")!.status).toBe("not_yet");
+    expect(buildComplianceTimeline({ ...f, coPaymentPaidAt: base.now, completionDocsGivenAt: base.now }).find((x) => x.key === "ap_approved")!.status).toBe("open");
+  });
+});
