@@ -107,7 +107,7 @@ export function QuoteCardReadyCheckClose({ href, inert = false }: { href?: strin
       <h4 className="mt-2 text-xl font-extrabold leading-tight text-estimate-blue">{CUSTOMER_READY_CHECK_EMAIL_ACTION.heading}</h4>
       <p className="mt-3 text-sm leading-relaxed">{CUSTOMER_READY_CHECK_EMAIL_ACTION.sentence}</p>
       <p className="mt-2 text-sm font-bold">{CUSTOMER_READY_CHECK_EMAIL_ACTION.credit}</p>
-      {href && !inert ? <a href={href} className="estimate-action-button mt-5 flex min-h-12 w-full items-center justify-center rounded-md px-4 py-3 text-center text-sm font-extrabold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{CUSTOMER_READY_CHECK.cta}</a> : <Button type="button" size="field" className="estimate-action-button mt-5 h-auto min-h-12 w-full px-4 py-3 font-extrabold disabled:opacity-100" disabled>{CUSTOMER_READY_CHECK.cta}</Button>}
+      {href && !inert ? <a href={href} onClick={() => { if (window.location.hash === href) window.dispatchEvent(new HashChangeEvent("hashchange")); }} className="estimate-action-button mt-5 flex min-h-12 w-full items-center justify-center rounded-md px-4 py-3 text-center text-sm font-extrabold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{CUSTOMER_READY_CHECK.cta}</a> : <Button type="button" size="field" className="estimate-action-button mt-5 h-auto min-h-12 w-full px-4 py-3 font-extrabold disabled:opacity-100" disabled>{CUSTOMER_READY_CHECK.cta}</Button>}
       <p className="mt-3 text-center text-xs">{CUSTOMER_READY_CHECK_EMAIL_ACTION.helper}</p>
     </div>
   </div>;
