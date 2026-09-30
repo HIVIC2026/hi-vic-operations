@@ -404,6 +404,22 @@ async function assignElectrician(jobId: string, userId: string, businessId: stri
   await autoAdvanceJob(jobId, actorId, "electrician assigned");
 }
 
+/** Team-up auto-assignment: when an installer-sourced job needs an electrician and none is active, use the teamed Main/backup. */
+export async function tryTeamAssign(jobId: string, actorId: string | null): Promise<boolean> {
+  const stage = await getStage(jobId);
+  if (!["piesa_and_install_window_pending", "awaiting_electrician"].includes(stage)) return false;
+  const { data: active } = await admin.from("job_assignments").select("id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
+  if (active) return false;
+  const { cands, site, installerBiz } = await electricianCandidates(jobId);
+  const { autoAssignTeamElectrician } = await import("./teaming.server");
+  const pick = await autoAssignTeamElectrician(admin as never, jobId, rankElectricians(cands, site), installerBiz);
+  if (!pick) return false;
+  const name = cands.find((c) => c.id === pick.businessId)?.name ?? "team electrician";
+  await admin.from("jobs").update({ electrician_choice: "preferred" }).eq("id", jobId);
+  await assignElectrician(jobId, pick.userId, pick.businessId, actorId ?? pick.userId, `${name} (auto-assigned via team-up, ${pick.via === "primary" ? "Main" : "backup"} electrician)`);
+  return true;
+}
+
 export const markCannotAttend = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, reason: z.string().trim().min(3).max(1000) }).parse(d))
   .handler(async ({ data, context }) => {
