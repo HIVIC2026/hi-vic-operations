@@ -46,11 +46,11 @@ describe("Ready Check payment", () => {
 describe("customer copy", () => {
   test("preliminary order, no electrical allowance", () => {
     expect(CUSTOMER_QUOTE_ORDER).toEqual([
-      "R5.0 ceiling insulation — supply & install", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)",
+      "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply & install",
       "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount",
       "YOUR ESTIMATED COST AFTER DISCOUNT", "$99 Home Insulation Ready Check — payable now", "Estimated remaining project balance after Ready Check",
     ]);
-    expect(customerQuoteRows({ installation: 1, piesa: 2, apManagement: 3 }).map((r) => r.key)).toEqual(["insulation", "piesa", "apManagement"]);
+    expect(customerQuoteRows({ installation: 1, piesa: 2, apManagement: 3 }).map((r) => r.key)).toEqual(["piesa", "insulation", "apManagement"]);
     expect(JSON.stringify(CUSTOMER_QUOTE_LABELS)).not.toMatch(/allowance/i);
     expect(CUSTOMER_PAYMENT_COPY.credited).toBe("Your $99 Home Insulation Ready Check is credited toward your project if you proceed.");
     expect(CUSTOMER_READY_CHECK.paragraphs).toContain("The Ready Check is not the mandatory electrical safety assessment. Your PIESA is completed later by a licensed electrician, close to installation.");
