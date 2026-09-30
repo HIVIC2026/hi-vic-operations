@@ -226,3 +226,41 @@ export function flattenDefinition(def: unknown): TemplateItem[] {
   walk((root as { items?: unknown })?.items ?? []);
   return out;
 }
+
+const MITTI_TYPE: Record<FieldType, string> = {
+  text: "Text answer", number: "Number answer", choice: "Multiple choice (single answer)", yesno: "Question (response set)",
+  media: "Media (photo/video, camera allowed)", signature: "Signature", datetime: "Date & time",
+};
+/** Exact brief to paste into Mitti's AI template builder. Labels must be copied verbatim — the portal matches on them. */
+export function mittiAiPrompt(key: FormKey): string {
+  const f = FORMS[key];
+  const fields = f.fields.filter((x) => !x.portalOnly);
+  const perArea = fields.filter((x) => x.perArea);
+  const lines = fields.map((x, i) => {
+    const bits = [MITTI_TYPE[x.type]];
+    if (x.choices) bits.push(`options exactly: ${x.choices.map((c) => `"${c}"`).join(" / ")}`);
+    bits.push(x.required ? (x.when ? `MANDATORY only when: ${x.when} (use logic to show it; hidden otherwise)` : "MANDATORY") : "optional");
+    if (x.perArea) bits.push("inside the repeating 'Ceiling area' section");
+    if (x.prefill) bits.push("header field, prefilled by the portal – keep editable but do not rename");
+    return `${i + 1}. "${x.label}" — ${bits.join("; ")}`;
+  });
+  return [
+    `Build a Mitti inspection template titled exactly: "${f.title}"`,
+    "",
+    "STRICT RULES:",
+    "- Use every field label EXACTLY as written between quotes (same words, capitals and punctuation). Do not rephrase, merge, split, shorten or add numbering to labels. Our system reads answers by label.",
+    "- Do not add any extra questions, scoring, default answers or pre-ticked boxes.",
+    "- Every field marked MANDATORY must be set to required so the inspection cannot be completed without it.",
+    "- Fields marked 'MANDATORY only when' must be built with Mitti logic on the named trigger question: shown and required when the condition is met, hidden and not required otherwise.",
+    "- Yes/No questions use a response set with exactly the listed options, no N/A unless listed.",
+    "- Photo/video fields must allow the camera and multiple files.",
+    "- Signature fields must capture the signer's name.",
+    perArea.length ? `- Put these fields in a repeatable section called "Ceiling area" (one repeat per room/zone): ${perArea.map((x) => `"${x.label}"`).join(", ")}. All other fields are NOT repeated.` : "",
+    key === "piesa" ? "- Section C and the rectification electrician fields are completed on the return visit after rectification. Put them in a section called \"Section C – Rectification completion\" shown only when \"B1 Assessment outcome\" is \"Electrical rectification work is required before insulation is installed or upgraded.\"" : "",
+    key === "piesa" || key === "piisa" ? "- If \"Is anyone at this property dependent on life support?\" is Yes, the consent/medical-plan question and attachment are required; if neither was received, the assessment must not proceed (add an instruction saying: STOP – do not start the assessment. Call the HI VIC office.)." : "",
+    "- Order the fields exactly as listed.",
+    "",
+    "FIELDS:",
+    ...lines,
+  ].filter((l) => l !== "").join("\n");
+}
