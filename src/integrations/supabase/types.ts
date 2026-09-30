@@ -6993,6 +6993,83 @@ export type Database = {
           },
         ]
       }
+      rec_onboarding_applications: {
+        Row: {
+          acknowledgements: Json | null
+          agreement_sha256: string | null
+          agreement_text: string | null
+          agreement_title: string | null
+          agreement_version: string | null
+          created_at: string
+          data: Json
+          id: string
+          insurance_certificate_path: string | null
+          partner_enquiry_id: string | null
+          resume_token_hash: string
+          signed_at: string | null
+          signed_ip: string | null
+          signed_user_agent: string | null
+          signer_email: string | null
+          signer_name: string | null
+          signer_position: string | null
+          status: string
+          step_key: string | null
+          updated_at: string
+        }
+        Insert: {
+          acknowledgements?: Json | null
+          agreement_sha256?: string | null
+          agreement_text?: string | null
+          agreement_title?: string | null
+          agreement_version?: string | null
+          created_at?: string
+          data?: Json
+          id?: string
+          insurance_certificate_path?: string | null
+          partner_enquiry_id?: string | null
+          resume_token_hash: string
+          signed_at?: string | null
+          signed_ip?: string | null
+          signed_user_agent?: string | null
+          signer_email?: string | null
+          signer_name?: string | null
+          signer_position?: string | null
+          status?: string
+          step_key?: string | null
+          updated_at?: string
+        }
+        Update: {
+          acknowledgements?: Json | null
+          agreement_sha256?: string | null
+          agreement_text?: string | null
+          agreement_title?: string | null
+          agreement_version?: string | null
+          created_at?: string
+          data?: Json
+          id?: string
+          insurance_certificate_path?: string | null
+          partner_enquiry_id?: string | null
+          resume_token_hash?: string
+          signed_at?: string | null
+          signed_ip?: string | null
+          signed_user_agent?: string | null
+          signer_email?: string | null
+          signer_name?: string | null
+          signer_position?: string | null
+          status?: string
+          step_key?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rec_onboarding_applications_partner_enquiry_id_fkey"
+            columns: ["partner_enquiry_id"]
+            isOneToOne: false
+            referencedRelation: "partner_enquiries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rec_rate_card_events: {
         Row: {
           actor_id: string | null
