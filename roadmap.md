@@ -20,4 +20,5 @@
 - [ ] Make all admin lists resilient to session/request failures
 - [x] Activate approved REC/installer applications into businesses, credentials and versioned rate cards
 - [x] Set partner access policy: individual logins only, with the business owner adding each worker
+- [x] Store nominated workers as business-linked profiles and match each trade login to the approved onboarding
 - [ ] Complete role-based launch proof and launch checklist
