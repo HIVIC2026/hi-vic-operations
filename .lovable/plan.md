@@ -24,6 +24,12 @@ The underlying retained records and audit history will stay intact, but obsolete
 - Keep the useful status dropdowns, but remove competing summaries, explanatory clutter, and secondary labels that obscure the page purpose.
 - Make mobile and desktop page titles equally clear.
 
+### Chosen visual direction
+- Use a **focused sidebar**: compact permanent navigation on desktop, a simple mobile drawer, and one spacious task-led work area.
+- Change typography to **Outfit for headings** and **Figtree for body/UI text**.
+- Keep the exact approved HI VIC palette, but make it feel prettier through bright off-white working surfaces, a composed navy frame, crisp HI VIC blue hierarchy, and restrained green for successful states and primary progress actions.
+- Use disciplined spacing, fine borders, shallow shadows, square-to-soft 6–8px corners, clear section rhythm, and very limited animation. Avoid nested cards, excessive pills, colour clutter, gradients, and decorative effects.
+
 ## 3. Make Enquiries an at-a-glance working list
 - Show one unmistakable eligibility tag on every enquiry card:
   - **LIKELY ELIGIBLE** — Gate 1 supports progression, but onsite requirements remain;
