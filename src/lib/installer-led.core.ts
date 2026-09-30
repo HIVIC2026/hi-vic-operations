@@ -78,3 +78,45 @@ export function installerNextAction(s: { eligible: boolean | null; coverage: Cov
 }
 
 export const READY_CHECK_FIELD_COUNT = FORMS.ready_check.fields.length;
+
+/** Where an installer-led job sits on the journey, from its pipeline stage. */
+export function journeyStepFor(stage: string | null): JourneyStep {
+  const s = stage ?? "new_enquiry";
+  if (["new_enquiry", "eligibility_review", "preliminary_estimate_ready"].includes(s)) return "eligibility";
+  if (s.startsWith("ready_check") || s === "measured_estimate_ready") return "measure_up";
+  if (s === "awaiting_electrician") return "electrician";
+  if (["assessment_booking", "assessment_booked", "piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete", "rectification_required", "electrical_variation_pending"].includes(s)) return "piesa";
+  if (["assessment_complete", "ready_for_installer_quotes", "awaiting_quote_acceptance", "measured_quote_accepted", "awaiting_owner_rectification_approval", "awaiting_deposit_payment"].includes(s)) return "quote";
+  if (["rectification_scheduling", "rectification_booked", "installation_scheduling"].includes(s)) return "pre_install";
+  if (s === "installation_booked") return "install";
+  if (["evidence_outstanding", "ap_review"].includes(s)) return "completion";
+  if (["ready_for_veec", "complete"].includes(s)) return "veecs";
+  return "submit";
+}
+
+export type MeasurementRecord = {
+  measured_area_m2: number | null; supplied_area_m2: number | null; insulation_present: boolean | null;
+  existing_r_value: number | null; removal_required: boolean | null; raw_snapshot: Record<string, unknown> | null;
+} | null;
+
+/** Builds SuppliedEvidence from stored records only. Anything not recorded counts as missing — never assumed. */
+export function evidenceFromRecords(m: MeasurementRecord, evidenceCategories: string[], builtLast5Years: boolean | null): SuppliedEvidence {
+  const snap = m?.raw_snapshot ?? {};
+  const has = (c: string) => evidenceCategories.includes(c);
+  const str = (k: string) => (typeof snap[k] === "string" && (snap[k] as string).trim()) || null;
+  const bool = (k: string) => (typeof snap[k] === "boolean" ? (snap[k] as boolean) : null);
+  const m2 = m?.measured_area_m2 ?? m?.supplied_area_m2 ?? null;
+  return {
+    installerIdPhoto: bool("installer_id_photo") === true,
+    buildingClass: str("building_class"),
+    builtLast5Years,
+    floorPlan: bool("floor_plan") === true,
+    icObservation: bool("ic_observation"),
+    areas: m ? [{
+      name: str("area_name") ?? "Main ceiling",
+      state: m.insulation_present == null ? null : m.insulation_present ? "Under-insulated" : "Uninsulated",
+      m2, rValue: m.existing_r_value, removal: m.removal_required,
+      depthPhoto: has("existing_insulation_r_value"), beforeVideo: has("before_ceiling_space"),
+    }] : [],
+  };
+}
