@@ -4,7 +4,7 @@ import { INSTALLER_AGREEMENT_SECTIONS } from "./installer-agreement.text";
 import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, DAYS, LEAD_TIMES, RADII } from "./rec-onboarding.core";
 
 export { DAYS, LEAD_TIMES, RADII, validAbn };
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.0-2026-09-30";
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.1-2026-09-30";
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
@@ -118,8 +118,8 @@ export function stepErrors(step: StepKey, d: InstData, now = new Date()): string
     case "install_pricing":
       if (typeof d.gst_registered !== "boolean") e.push("Tell us if you're GST registered.");
       if (!pos(d.r5_rate)) e.push("Enter your R5.0 supply & install rate per m².");
-      if (d.service_batts_removal && !pos(d.batts_removal_rate)) e.push("Enter your batts removal rate per m².");
-      if (d.service_loose_fill_removal && !pos(d.loose_fill_removal_rate)) e.push("Enter your loose fill removal rate per m².");
+      if (!pos(d.batts_removal_rate)) e.push("Enter your batts removal rate per m² — removal is required for all installer partners.");
+      if (!pos(d.loose_fill_removal_rate)) e.push("Enter your loose fill removal rate per m² — removal is required for all installer partners.");
       break;
     case "extras_pricing":
       for (const it of EXTRA_ITEMS) if (!optPos(d.extra_rates?.[it.key] ?? null)) e.push(`${it.label}: enter a valid amount or leave it blank.`);
@@ -164,14 +164,14 @@ export function scheduleText(d: InstData): string {
   (d.installers ?? []).forEach((x, i) => L.push(`${i + 1}. ${x.full_legal_name} — ${x.qualification}`));
   L.push("", "SCHEDULE 2 — SERVICES, COVERAGE AND CAPACITY");
   L.push("Ceiling insulation supply & installation: included");
-  L.push(`Batts removal: ${d.service_batts_removal ? "yes" : "no"}`, `Loose fill removal: ${d.service_loose_fill_removal ? "yes" : "no"}`,
+  L.push("Removal of existing insulation (batts and loose fill): included — required of all installer partners",
     `Free quotes for pre-qualified HI VIC! leads: ${d.free_quotes_for_hivic_leads ? "yes" : "no"}`);
   L.push(`Service origin: ${d.service_origin ?? ""}; radius: ${d.travel_radius_km === 9999 ? "anywhere in Victoria" : `${d.travel_radius_km} km`}${d.excluded_areas ? `; excluded: ${d.excluded_areas}` : ""}`);
   L.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}; weekly installations: ${d.capacity_band ?? ""}`);
   L.push("", `SCHEDULE 3 — PROPOSED SUPPLIER RATES (${gst}; not binding until accepted by HI VIC! under clause 17)`);
   L.push(`R5.0 ceiling insulation supply & install: ${money(d.r5_rate)} / m²`);
-  if (d.service_batts_removal) L.push(`Batts removal: ${money(d.batts_removal_rate)} / m²`);
-  if (d.service_loose_fill_removal) L.push(`Loose fill removal: ${money(d.loose_fill_removal_rate)} / m²`);
+  L.push(`Batts removal: ${money(d.batts_removal_rate)} / m²`);
+  L.push(`Loose fill removal: ${money(d.loose_fill_removal_rate)} / m²`);
   for (const it of EXTRA_ITEMS) { const v = d.extra_rates?.[it.key]; if (typeof v === "number") L.push(`${it.label}: ${money(v)} / ${it.unit}`); }
   L.push("Any other extras are quoted separately on the specific job before owner approval.");
   return L.join("\n");

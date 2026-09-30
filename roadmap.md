@@ -6,3 +6,5 @@
 - [x] Rebuild full REC onboarding + v1.4 agreement signing in the portal (tested end to end)
 - [ ] Office approval → create partner business/rate card from a signed REC application (not built yet)
 - [ ] Collect bank details after approval (not built yet)
+- [x] Installer-sourced job fee: $220 inc GST on accepted quotes for installer-referred jobs — added to installer agreement (v1.1, clause 17) and pricing-step notice; browser-verified
+- [x] Removal mandatory for installers (both rates required) — browser-verified
