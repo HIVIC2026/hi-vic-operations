@@ -49,7 +49,7 @@ describe("24/48h responsiveness", () => {
     const s = appointmentSla({ assigned_at: at(25) }, now);
     expect(s.state).toBe("attention");
     expect(s.canRequestAnother).toBe(false);
-    expect(s.message).toBe("No response for 24 hours — HI VIC is monitoring this");
+    expect(s.message).toBe("No response for 24 hours — Home Insulation Victoria is monitoring this");
   });
   test("48h without booking = exception, reassignment allowed", () => {
     const s = appointmentSla({ assigned_at: at(49), first_response_at: at(40) }, now);

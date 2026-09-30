@@ -27,13 +27,13 @@ describe("waitingOn", () => {
     expect(w.sentence).toContain("waiting on the owner");
     expect(w.status).toBe("ok");
   });
-  test("deposit: HI VIC until request raised, then owner", () => {
-    expect(waitingOn({ stage: "awaiting_deposit_payment" }, f()).parties).toEqual(["HI VIC"]);
+  test("deposit: Home Insulation Victoria until request raised, then owner", () => {
+    expect(waitingOn({ stage: "awaiting_deposit_payment" }, f()).parties).toEqual(["Home Insulation Victoria"]);
     expect(waitingOn({ stage: "awaiting_deposit_payment" }, f({ depositRequestRaised: true })).parties).toEqual(["Owner"]);
   });
-  test("review required is HI VIC on eligibility tab", () => {
+  test("review required is Home Insulation Victoria on eligibility tab", () => {
     const w = waitingOn({ stage: "new_enquiry", eligibility_review_required: true }, f());
-    expect(w.parties).toEqual(["HI VIC"]);
+    expect(w.parties).toEqual(["Home Insulation Victoria"]);
     expect(w.action.tab).toBe("eligibility");
   });
   test("end of Melbourne day", () => {
