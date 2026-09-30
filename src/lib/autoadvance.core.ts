@@ -5,7 +5,7 @@ import type { Stage } from "./workflow";
 
 export type AdvanceFacts = {
   eligibilityConfirmed: boolean; // admin-set (eligibility_set_by) and not "does not appear eligible"
-  /** A current ceiling measure-up has been accepted (e.g. an installer's own complete measure-up) – the Ready Check isn't needed. */
+  /** HI VIC has explicitly approved (accepted_by set) the current measure-up, e.g. an installer's own – only then is the Ready Check skipped. */
   measureUpAccepted?: boolean;
   electricianAssigned: boolean;
   assessmentBookingConfirmed: boolean;
