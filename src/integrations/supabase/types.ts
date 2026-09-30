@@ -4742,11 +4742,14 @@ export type Database = {
           declined_at: string | null
           email: string | null
           enquiry_type: string
+          estimated_batts_removal_rate_per_sqm_inc_gst: number | null
+          estimated_loose_fill_removal_rate_per_sqm_inc_gst: number | null
           estimated_piesa_fee_inc_gst: number | null
           estimated_r5_install_rate_per_sqm_inc_gst: number | null
           estimated_return_visit_fee_inc_gst: number | null
           esv_licensed_electricians_confirmed: boolean | null
           external_id: string | null
+          free_quotes_for_hivic_leads: boolean | null
           id: string
           internal_notes: string | null
           name: string | null
@@ -4779,11 +4782,14 @@ export type Database = {
           declined_at?: string | null
           email?: string | null
           enquiry_type: string
+          estimated_batts_removal_rate_per_sqm_inc_gst?: number | null
+          estimated_loose_fill_removal_rate_per_sqm_inc_gst?: number | null
           estimated_piesa_fee_inc_gst?: number | null
           estimated_r5_install_rate_per_sqm_inc_gst?: number | null
           estimated_return_visit_fee_inc_gst?: number | null
           esv_licensed_electricians_confirmed?: boolean | null
           external_id?: string | null
+          free_quotes_for_hivic_leads?: boolean | null
           id?: string
           internal_notes?: string | null
           name?: string | null
@@ -4816,11 +4822,14 @@ export type Database = {
           declined_at?: string | null
           email?: string | null
           enquiry_type?: string
+          estimated_batts_removal_rate_per_sqm_inc_gst?: number | null
+          estimated_loose_fill_removal_rate_per_sqm_inc_gst?: number | null
           estimated_piesa_fee_inc_gst?: number | null
           estimated_r5_install_rate_per_sqm_inc_gst?: number | null
           estimated_return_visit_fee_inc_gst?: number | null
           esv_licensed_electricians_confirmed?: boolean | null
           external_id?: string | null
+          free_quotes_for_hivic_leads?: boolean | null
           id?: string
           internal_notes?: string | null
           name?: string | null
