@@ -7414,6 +7414,10 @@ export type Database = {
       workflow_settings: {
         Row: {
           authority_validity_months: number
+          auto_send_installer: boolean
+          auto_send_mitti: boolean
+          auto_send_quote: boolean
+          auto_send_rec: boolean
           customer_comms_enabled: boolean
           id: number
           measurement_standard_approved: boolean
@@ -7430,6 +7434,10 @@ export type Database = {
         }
         Insert: {
           authority_validity_months?: number
+          auto_send_installer?: boolean
+          auto_send_mitti?: boolean
+          auto_send_quote?: boolean
+          auto_send_rec?: boolean
           customer_comms_enabled?: boolean
           id?: number
           measurement_standard_approved?: boolean
@@ -7446,6 +7454,10 @@ export type Database = {
         }
         Update: {
           authority_validity_months?: number
+          auto_send_installer?: boolean
+          auto_send_mitti?: boolean
+          auto_send_quote?: boolean
+          auto_send_rec?: boolean
           customer_comms_enabled?: boolean
           id?: number
           measurement_standard_approved?: boolean
