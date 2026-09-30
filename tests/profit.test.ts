@@ -26,3 +26,32 @@ describe("online spot price parser", () => {
     expect(parseVeecSpotFromHtml("<p>VEEC market update coming soon.</p>")).toBeNull();
   });
 });
+
+describe("job markup breakdown", () => {
+  const base = { installerCostExGst: 2500, installerMarginExGst: 300, apFeeExGst: 317, electricalCostExGst: 250, electricalChargeExGst: 349, installerSourced: true, veecDiscountIncGst: 1400 };
+  test("installer charged = cost + markup + AP fee", () => {
+    const m = jobMargin(base, 90);
+    expect(m.installerChargedEx).toBe(3117);
+    expect(m.installerMarkup).toBe(300);
+    expect(m.electricalMarkup).toBe(99);
+    expect(m.referralFeeEx).toBeCloseTo(200);
+    expect(m.veecs).toBe(20);
+    expect(m.veecMargin).toBe(400);
+    expect(m.profit).toBeCloseTo(300 + 317 + 99 + 400 - 200);
+  });
+  test("HI VIC-sourced job pays no referral fee", () => {
+    const m = jobMargin({ ...base, installerSourced: false }, 90);
+    expect(m.referralFeeEx).toBe(0);
+    expect(m.profit).toBeCloseTo(300 + 317 + 99 + 400);
+  });
+  test("no spot price = no profit guess", () => {
+    const m = jobMargin(base, null);
+    expect(m.veecMargin).toBeNull();
+    expect(m.profit).toBeNull();
+    expect(m.tradeMargin).toBeCloseTo(300 + 317 + 99 - 200);
+  });
+  test("zero electrical work shows no sparky line", () => {
+    const m = jobMargin({ ...base, electricalCostExGst: 0, electricalChargeExGst: 0 }, 90);
+    expect(m.electricalMarkup).toBe(0);
+  });
+});
