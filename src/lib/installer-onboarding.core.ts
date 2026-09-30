@@ -49,9 +49,17 @@ export type InstData = {
   bank_account_name?: string; bank_bsb?: string; bank_account_number?: string;
   agreement_reviewed?: boolean;
   electrician_choice?: ElectricianChoice | null; preferred_electricians?: PreferredElectrician[]; electrician_contact_consent?: boolean;
+  how_it_works_acknowledged?: boolean;
 };
 
+/** First name for greetings throughout onboarding and the portal. */
+export function firstName(d: { primary_contact_name?: string }): string {
+  return (d.primary_contact_name ?? "").trim().split(/\s+/)[0] || "";
+}
+
 export const STEPS = [
+  { key: "about", title: "About you" },
+  { key: "howitworks", title: "How we work together" },
   { key: "business", title: "Business details" },
   { key: "contact", title: "Contact details" },
   { key: "insurance", title: "Public liability insurance" },
@@ -77,6 +85,14 @@ const optPos = (n?: number | null) => n == null || pos(n);
 export function stepErrors(step: StepKey, d: InstData, now = new Date()): string[] {
   const e: string[] = [];
   switch (step) {
+    case "about":
+      if (!txt(d.primary_contact_name)) e.push("Enter your name.");
+      if (!validPhone(d.business_phone)) e.push("Enter a valid Australian mobile.");
+      if (!validBusinessEmail(d.business_email)) e.push("Enter a real email address.");
+      break;
+    case "howitworks":
+      if (d.how_it_works_acknowledged !== true) e.push("Confirm you've read how the two options work.");
+      break;
     case "business":
       if (!txt(d.legal_entity_name)) e.push("Enter the legal entity name.");
       if (!validAbn(d.abn)) e.push("Enter a valid 11-digit ABN.");
