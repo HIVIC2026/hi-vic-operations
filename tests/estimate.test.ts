@@ -118,7 +118,7 @@ describe("static separation / UI", () => {
     expect(ui).toContain("*Victorian Government estimates/averages. Actual savings vary");
     expect(ui).toContain("Up to 20%*");
     expect(ui).toContain("$400+ / year*");
-     for (const t of ["From eligibility through to installation and VEEC processing, Home Insulation Victoria coordinates the people, paperwork and compliance for you.", "Licensed electrical safety assessment", "EEC Certified Insulation Installer", "We manage it end-to-end", "an EEC Certified Insulation Installer (CII)", "a licensed electrician employed by a Registered Electrical Contractor (REC)", "which trades meet the program requirements", "Your assessment is completed by a licensed electrician employed by a Registered Electrical Contractor (REC)."]) expect(ui).toContain(t);
+      for (const t of ["From eligibility through to installation and VEEC processing, Home Insulation Victoria coordinates the people, paperwork and compliance for you.", "Licensed electrical safety assessment", "EEC Certified Insulation Installer", "We manage it end-to-end", "an EEC Certified Insulation Installer (CII)", "a licensed electrician employed by a Registered Electrical Contractor (REC)", "which trades meet the program requirements", "CUSTOMER_ASSESSMENT_ACTION.paragraphs"]) expect(ui).toContain(t);
     expect(ui).not.toContain("registered with ESV");
   });
   test("owner page shows card; admin tab places it after Gate 1", () => {
