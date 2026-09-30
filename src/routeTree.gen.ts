@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ElectricianOnboardingRouteImport } from './routes/electrician-onboarding'
 import { Route as InstallerOnboardingRouteImport } from './routes/installer-onboarding'
 import { Route as Step3DesignPreviewRouteImport } from './routes/step3-design-preview'
 import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
@@ -54,6 +55,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ElectricianOnboardingRoute = ElectricianOnboardingRouteImport.update({
+  id: '/electrician-onboarding',
+  path: '/electrician-onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InstallerOnboardingRoute = InstallerOnboardingRouteImport.update({
@@ -217,6 +223,7 @@ const ApiPublicReferralsTrackClickRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-design-preview': typeof Step3DesignPreviewRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
@@ -250,6 +257,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-design-preview': typeof Step3DesignPreviewRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
@@ -285,6 +293,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-design-preview': typeof Step3DesignPreviewRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
@@ -320,6 +329,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/electrician-onboarding'
     | '/installer-onboarding'
     | '/step3-design-preview'
     | '/step3-email-preview'
@@ -353,6 +363,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/electrician-onboarding'
     | '/installer-onboarding'
     | '/step3-design-preview'
     | '/step3-email-preview'
@@ -387,6 +398,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/electrician-onboarding'
     | '/installer-onboarding'
     | '/step3-design-preview'
     | '/step3-email-preview'
@@ -422,6 +434,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ElectricianOnboardingRoute: typeof ElectricianOnboardingRoute
   InstallerOnboardingRoute: typeof InstallerOnboardingRoute
   Step3DesignPreviewRoute: typeof Step3DesignPreviewRoute
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
@@ -459,6 +472,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/electrician-onboarding': {
+      id: '/electrician-onboarding'
+      path: '/electrician-onboarding'
+      fullPath: '/electrician-onboarding'
+      preLoaderRoute: typeof ElectricianOnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/installer-onboarding': {
@@ -710,6 +730,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ElectricianOnboardingRoute: ElectricianOnboardingRoute,
   InstallerOnboardingRoute: InstallerOnboardingRoute,
   Step3DesignPreviewRoute: Step3DesignPreviewRoute,
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
