@@ -22,7 +22,7 @@ export function JobCard({ job, to, coverage }: { job: JobRow; to: "/admin/jobs/$
         {job.life_support && <HeartPulse className="h-5 w-5 shrink-0 text-danger" aria-label="Life support" />}
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5"><Pill t={step.tone}>{step.label}</Pill>
-        {job.eligibility_review_required ? <Pill t="warn">Review required</Pill>
+        {job.eligibility_review_required && step.label !== "Review required" ? <Pill t="warn">Review required</Pill>
           : job.eligibility_outcome === "does_not_appear_eligible" ? <Pill t="bad">Ineligible</Pill>
             : job.eligibility_outcome === "needs_onsite_confirmation" ? <Pill t="info">Needs onsite confirmation</Pill>
               : job.eligibility_outcome === "likely_eligible" ? <Pill t="good">Likely eligible</Pill>
