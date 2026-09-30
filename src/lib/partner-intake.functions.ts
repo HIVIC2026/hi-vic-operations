@@ -1,8 +1,26 @@
-// Public installer onboarding form intake. Writes ONLY partner_enquiries — never a job.
-// Mirrors the Base44 electrician handoff: same table, same validation, admin-only review.
+// Public partner onboarding form intake (installer + electrician/REC). Writes ONLY
+// partner_enquiries — never a job. Mirrors the Base44 handoff: same table, same
+// validation, admin-only review.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { partnerSchema, partnerRow } from "./partner.core";
+
+async function savePartnerApplication(data: Record<string, unknown>, enquiryType: "installer" | "electrician_rec", source: string) {
+  // Reuse the exact Base44 partner validation/row shape so admin review is identical.
+  const parsed = partnerSchema.parse({
+    ...data,
+    enquiry_type: enquiryType,
+    submission_id: `portal-${enquiryType}-${crypto.randomUUID()}`,
+    source,
+    source_created_at: new Date().toISOString(),
+    source_updated_at: new Date().toISOString(),
+  });
+  const row = { ...partnerRow(parsed, data), source_system: "portal_form" };
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { error } = await supabaseAdmin.from("partner_enquiries").insert(row);
+  if (error) throw new Error("Could not save your application. Please try again.");
+  return { ok: true as const };
+}
 
 const installerFormSchema = z.object({
   name: z.string().trim().min(1).max(200),
