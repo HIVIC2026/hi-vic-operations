@@ -34,8 +34,12 @@ export function jobProfit(i: ProfitInput, spot: number | null) {
 // the wording changes — fail closed, never guess.
 export function parseVeecSpotFromHtml(html: string): number | null {
   const text = html.replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&#038;/g, "&").replace(/\s+/g, " ");
-  const m = text.match(/VEEC[^.]{0,400}\./i);
-  if (!m) return null;
-  const amounts = [...m[0].matchAll(/\$(\d+(?:\.\d{1,2})?)/g)].map((a) => Number(a[1])).filter((n) => n > 0 && n < 1000);
+  const start = text.search(/VEEC/i);
+  if (start < 0) return null;
+  // Take the sentence after "VEEC"; a period only ends it when not a decimal point.
+  const window = text.slice(start, start + 400);
+  const end = window.search(/\.(?!\d)/);
+  const sentence = end < 0 ? window : window.slice(0, end);
+  const amounts = [...sentence.matchAll(/\$(\d+(?:\.\d{1,2})?)/g)].map((a) => Number(a[1])).filter((n) => n > 0 && n < 1000);
   return amounts.length ? amounts[amounts.length - 1]! : null;
 }
