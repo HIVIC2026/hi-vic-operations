@@ -34,3 +34,4 @@
 - [ ] Ready Check: add insulation type to remove (batts vs loose fill — different cost) + measurement method provenance
 - [ ] Ready Check: remove duplicated job-level questions (total area, any insulation, total removal) — portal computes from per-area answers
 - [ ] Ready Check: per-room insulation type multi-select (batts AND loose fill) + remove-vs-top-up choice instead of bare removal yes/no
+- [ ] Full audit of Mitti Form A (Ready Check) vs portal/quoting/ESC needs; deliver corrected paste-ready brief v3
