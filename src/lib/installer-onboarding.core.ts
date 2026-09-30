@@ -4,7 +4,7 @@ import { INSTALLER_AGREEMENT_SECTIONS } from "./installer-agreement.text";
 import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, DAYS, LEAD_TIMES, RADII } from "./rec-onboarding.core";
 
 export { DAYS, LEAD_TIMES, RADII, validAbn };
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.0-2026-09-30";
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.1-2026-09-30";
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
