@@ -4,6 +4,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { logEvent, WorkflowError } from "./workflow.server";
 import { activeTemplate, sha256Hex, stableJson } from "./assignment.core";
 import { apConsentBlockers, buildConsentFacts, consentStaleReasons, ownerConsentBlockers, type ConsentFacts, type ConsentSignInput } from "./consent.core";
+import { formatPropertyAddress } from "./address";
 
 async function templates() {
   const { data } = await admin.from("compliance_templates").select("template_key, version, body, approved, is_active, required, form_fields").eq("is_active", true);
@@ -20,7 +21,7 @@ async function currentFacts(jobId: string): Promise<{ facts: ConsentFacts | null
   const { data: j } = await admin.from("jobs").select("owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single();
   const o = j?.owners as { full_name: string | null; email: string | null; phone: string | null } | null;
   const p = j?.properties as { address_line: string; suburb: string | null; state: string; postcode: string | null } | null;
-  const facts = buildConsentFacts({ scheduledStart: b?.scheduled_start ?? null, scheduledEnd: b?.scheduled_end ?? null, premisesAddress: [p?.address_line, p?.suburb, p?.state, p?.postcode].filter(Boolean).join(" "), owner: { name: o?.full_name ?? null, email: o?.email ?? null, phone: o?.phone ?? null } });
+  const facts = buildConsentFacts({ scheduledStart: b?.scheduled_start ?? null, scheduledEnd: b?.scheduled_end ?? null, premisesAddress: formatPropertyAddress(p), owner: { name: o?.full_name ?? null, email: o?.email ?? null, phone: o?.phone ?? null } });
   return { facts, bookingId: b?.id ?? null };
 }
 

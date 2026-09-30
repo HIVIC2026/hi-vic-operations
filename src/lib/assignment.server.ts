@@ -12,6 +12,7 @@ import {
   type AgreementSignInput, type FieldValue, type FinalFacts, type Party, type Snapshot, type Template,
 } from "./assignment.core";
 import { WorkflowError, logEvent } from "./workflow.server";
+import { formatPropertyAddress } from "./address";
 
 export async function loadTemplates(): Promise<Template[]> {
   const { data } = await admin.from("compliance_templates").select("template_key, version, body, approved, is_active, required, form_fields, requires_final_consumer_signature").eq("is_active", true);
@@ -64,7 +65,7 @@ export async function buildAcceptancePackage(quoteId: string) {
     quote: { id: q.id, version: q.version, option_label: q.option_label, option_code: q.option_code, status: q.status, kind: q.kind, items },
     job_id: q.job_id, job_number: job?.job_number ?? "",
     consumer: { name: o?.full_name ?? "", email: o?.email ?? null, phone: o?.phone ?? null },
-    property_address: p ? [p.address_line, p.suburb, `${p.state} ${p.postcode ?? ""}`.trim()].filter(Boolean).join(", ") : "",
+    property_address: formatPropertyAddress(p),
     installer: { user_id: inst.installer_user_id, business_id: inst.installer_business_id, name: inst.name, business: inst.business, abn: inst.abn, licence: inst.licence },
     quoted_product: product, quoted_area_m2: m?.measured_area_m2 != null ? Number(m.measured_area_m2) : null,
     price_before_benefit_inc_gst: Number(q.subtotal_inc_gst), veu_benefit_inc_gst: Number(q.veec_discount_inc_gst), final_customer_price_inc_gst: total,
