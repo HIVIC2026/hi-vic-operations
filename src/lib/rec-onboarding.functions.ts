@@ -44,6 +44,7 @@ const dataSchema = z.object({
   gst_registered: z.boolean().nullable().optional(), assessment_rate: n, installation_attendance_rate: n,
   rectification_rates: z.record(z.string().max(40), n).optional(),
   coes_fee_choice: z.enum(["included", "separate", ""]).optional(), coes_fee: n,
+  bank_account_name: s(200), bank_bsb: s(7), bank_account_number: s(10),
   agreement_reviewed: z.boolean().optional(),
 }).strict();
 
@@ -144,7 +145,7 @@ export const signRecAgreement = createServerFn({ method: "POST" })
       rec_registration_number: (d.rec_registration_number ?? "").toUpperCase(), esv_licensed_electricians_confirmed: (d.electricians ?? []).length > 0,
       services, estimated_piesa_fee_inc_gst: d.assessment_rate ?? null, booking_lead_time: d.normal_attendance_speed ?? null, weekly_capacity: d.capacity_band ?? null,
       source_created_at: app.created_at, source_updated_at: signedAt,
-      raw_payload: { rec_onboarding_id: app.id, agreement_version: REC_AGREEMENT_VERSION, agreement_sha256: hash, signed_at: signedAt, signer: { name: data.signer_name, position: data.signer_position, email: data.signer_email }, application: d } as never,
+      raw_payload: { rec_onboarding_id: app.id, agreement_version: REC_AGREEMENT_VERSION, agreement_sha256: hash, signed_at: signedAt, signer: { name: data.signer_name, position: data.signer_position, email: data.signer_email } } as never,
     }).select("id").single();
     if (peErr) throw new Error("Could not submit your application. Please try again.");
 

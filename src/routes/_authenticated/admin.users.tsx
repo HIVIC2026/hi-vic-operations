@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { useAction, type AppRole } from "@/hooks/use-me";
 import { setUserBusiness, setUserRole } from "@/lib/portal.functions";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { useServerFn } from "@tanstack/react-start";
+import { getAdminUsers } from "@/lib/admin-records.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/users")({
   head: () => ({ meta: [{ title: "Users – HI VIC Portal" }, { name: "description", content: "Manage portal users and roles." }, { property: "og:title", content: "Users – HI VIC Portal" }, { property: "og:description", content: "Manage portal users and roles." }] }),
@@ -16,22 +18,18 @@ const ROLES: AppRole[] = ["admin", "electrician", "installer", "owner"];
 function Users() {
   const setRole = useAction(setUserRole);
   const setBiz = useAction(setUserBusiness);
-  const { data } = useQuery({
+  const load = useServerFn(getAdminUsers);
+  const { data, error, isPending, refetch } = useQuery({
     queryKey: ["users"],
-    queryFn: async () => {
-      const [{ data: p }, { data: r }, { data: b }] = await Promise.all([
-        supabase.from("profiles").select("*").order("created_at"),
-        supabase.from("user_roles").select("*"),
-        supabase.from("businesses").select("id,name,business_type").order("name"),
-      ]);
-      return { profiles: p ?? [], roles: r ?? [], businesses: b ?? [] };
-    },
+    queryFn: () => load(), retry: 3, staleTime: 30_000,
   });
   return (
     <AppShell wide>
       <h1 className="mb-1 text-2xl font-bold">Users & roles</h1>
       <p className="mb-4 text-sm text-muted-foreground">People appear here after they sign up. Owners are linked automatically when their sign-up email matches their enquiry.</p>
-      <div className="overflow-x-auto rounded-xl border bg-card">
+      {error && <div role="alert" className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Users could not be loaded. Existing accounts are safe. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
+      {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading users…</p>}
+      {!error && !isPending && <div className="overflow-x-auto rounded-xl border bg-card">
         <table className="w-full text-sm">
           <thead className="bg-muted text-left"><tr><th className="p-3">Name</th><th className="p-3">Email</th><th className="p-3">Business</th>{ROLES.map((r) => <th key={r} className="p-3 capitalize">{r}</th>)}</tr></thead>
           <tbody>
@@ -52,7 +50,7 @@ function Users() {
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
     </AppShell>
   );
 }

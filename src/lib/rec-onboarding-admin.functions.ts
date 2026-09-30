@@ -18,6 +18,7 @@ export const getRecOnboardingRecord = createServerFn({ method: "POST" }).middlew
       const { data: s } = await supabaseAdmin.storage.from("partner-files").createSignedUrl(r.insurance_certificate_path, 600);
       certificateUrl = s?.signedUrl ?? null;
     }
+    const { data: activation } = await supabaseAdmin.from("partner_activations").select("business_id,rate_card_id,activated_at,override_reason").eq("application_id", r.id).maybeSingle();
     const { insurance_certificate_path: _p, ...rest } = r;
-    return { ...rest, certificateUrl };
+    return { ...rest, certificateUrl, activation };
   });

@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, FileUp, Lock, Paperclip, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { CUSTOMER_INVOICE_COLUMNS } from "@/lib/invoice.lifecycle";
+import { getJobOverview } from "@/lib/admin-records.functions";
 
 type CustomerInvoice = { id: string; job_id: string; kind: string; xero_invoice_number: string | null; xero_online_url: string | null; total_inc_gst: number; deposit_amount: number; deposit_paid_at: string | null; balance_amount: number; balance_due_date: string | null; balance_paid_at: string | null; total_paid: number; deposit_cleared: boolean; effective_status: string; created_at: string };
 import { useAction } from "@/hooks/use-me";
@@ -35,13 +36,12 @@ export function Section({ title, children, action }: { title: string; children: 
 }
 
 export function useJob(jobId: string) {
+  const load = useServerFn(getJobOverview);
   return useQuery({
     queryKey: ["job", jobId],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("job_overview").select("*").eq("id", jobId).maybeSingle();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => load({ data: { jobId } }),
+    retry: 3,
+    staleTime: 30_000,
   });
 }
 

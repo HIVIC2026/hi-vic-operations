@@ -44,6 +44,7 @@ export type RecData = {
   gst_registered?: boolean | null; assessment_rate?: number | null; installation_attendance_rate?: number | null;
   rectification_rates?: Partial<Record<(typeof RECT_ITEMS)[number]["key"], number | null>>;
   coes_fee_choice?: "included" | "separate" | ""; coes_fee?: number | null;
+  bank_account_name?: string; bank_bsb?: string; bank_account_number?: string;
   agreement_reviewed?: boolean;
 };
 
@@ -58,6 +59,7 @@ export const STEPS = [
   { key: "capacity", title: "Weekly capacity" },
   { key: "assessment_pricing", title: "PIESA & assessment pricing" },
   { key: "rectification_pricing", title: "Rectification pricing" },
+  { key: "bank", title: "Payment details" },
   { key: "review", title: "Review agreement" },
   { key: "sign", title: "Sign agreement" },
 ] as const;
@@ -145,6 +147,11 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       for (const it of RECT_ITEMS) if (!pos(d.rectification_rates?.[it.key] ?? null)) e.push(`Enter a rate for ${it.label}.`);
       if (d.coes_fee_choice !== "included" && d.coes_fee_choice !== "separate") e.push("Choose how the Certificate of Electrical Safety is charged.");
       if (d.coes_fee_choice === "separate" && !pos(d.coes_fee)) e.push("Enter the Certificate of Electrical Safety fee.");
+      break;
+    case "bank":
+      if (!txt(d.bank_account_name)) e.push("Enter the bank account name.");
+      if (!/^\d{3}-?\d{3}$/.test(d.bank_bsb ?? "")) e.push("Enter a valid 6-digit BSB.");
+      if (!/^\d{5,10}$/.test(d.bank_account_number ?? "")) e.push("Enter a valid bank account number.");
       break;
     case "review":
       if (d.agreement_reviewed !== true) e.push("Confirm you've reviewed the agreement and schedules.");

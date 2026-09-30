@@ -13,7 +13,11 @@
 - [x] Auto-flag onboarding issues (ESV no, missing REC/fees) in admin Partner Enquiries
 - [x] Verify end-to-end (13 tests, typecheck, browser submission test)
 - [x] Rebuild full REC onboarding + v1.4 agreement signing in the portal (tested end to end)
-- [ ] Office approval → create partner business/rate card from a signed REC application (not built yet)
-- [ ] Collect bank details after approval (not built yet)
+- [x] Office approval → create partner business/rate card from a signed REC or installer application
+- [x] Collect bank details inside both signed onboarding flows and carry them into the approved partner file
 - [x] Installer-sourced job fee: $220 inc GST on accepted quotes for installer-referred jobs — added to installer agreement (v1.1, clause 17) and pricing-step notice; browser-verified
 - [x] Removal mandatory for installers (both rates required) — browser-verified
+- [ ] Make all admin lists resilient to session/request failures
+- [x] Activate approved REC/installer applications into businesses, credentials and versioned rate cards
+- [x] Set partner access policy: individual logins only, with the business owner adding each worker
+- [ ] Complete role-based launch proof and launch checklist

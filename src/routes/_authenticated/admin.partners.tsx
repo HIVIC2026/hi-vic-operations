@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { useAction } from "@/hooks/use-me";
 import { updatePartnerEnquiry } from "@/lib/portal.functions";
@@ -13,6 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Tables } from "@/integrations/supabase/types";
+import { useServerFn } from "@tanstack/react-start";
+import { getAdminPartnerEnquiries } from "@/lib/admin-records.functions";
+import { activatePartnerApplication } from "@/lib/partner-activation.functions";
 
 type Row = Tables<"partner_enquiries">;
 
@@ -26,16 +28,19 @@ const date = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-AU") 
 
 function Partners() {
   const [open, setOpen] = useState<Row | null>(null);
-  const { data: rows = [] } = useQuery({
+  const load = useServerFn(getAdminPartnerEnquiries);
+  const { data: rows = [], error, isPending, refetch } = useQuery({
     queryKey: ["partner_enquiries"],
-    queryFn: async () => (await supabase.from("partner_enquiries").select("*").order("created_at", { ascending: false })).data ?? [],
+    queryFn: () => load(), retry: 3, staleTime: 30_000,
   });
   const of = (t: PartnerType) => rows.filter((r) => r.enquiry_type === t);
   return (
     <AppShell wide>
       <h1 className="text-2xl font-bold tracking-tight">Partner Enquiries</h1>
       <p className="mb-4 text-sm text-muted-foreground">Businesses interested in working with HI VIC. These are not customer jobs and never appear in the Pipeline.</p>
-      <Tabs defaultValue="property_manager">
+      {error && <div role="alert" className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Partner enquiries could not be loaded. Existing applications are safe. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
+      {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading partner enquiries…</p>}
+      {!error && !isPending && <Tabs defaultValue="property_manager">
         <TabsList>
           {PARTNER_TYPES.map((t) => (
             <TabsTrigger key={t} value={t}>{PARTNER_TYPE_LABEL[t]} <Badge variant="secondary" className="ml-2">{of(t).length}</Badge>
@@ -72,7 +77,7 @@ function Partners() {
             )}
           </TabsContent>
         ))}
-      </Tabs>
+      </Tabs>}
       {open && <Detail row={rows.find((r) => r.id === open.id) ?? open} onClose={() => setOpen(null)} />}
     </AppShell>
   );
@@ -129,6 +134,7 @@ function Detail({ row, onClose }: { row: Row; onClose: () => void }) {
 
 function SignedRecAgreement({ id }: { id: string }) {
   const [open, setOpen] = useState(false);
+  const activate = useAction(activatePartnerApplication);
   const q = useQuery({ queryKey: ["rec-onboarding", id], enabled: open, queryFn: () => getRecOnboardingRecord({ data: { id } }) });
   const r = q.data;
   return (
@@ -142,6 +148,7 @@ function SignedRecAgreement({ id }: { id: string }) {
           <div>Version <b>{r.agreement_version}</b> · signed {r.signed_at ? new Date(r.signed_at).toLocaleString("en-AU") : "—"} by <b>{r.signer_name}</b> ({r.signer_position}, {r.signer_email})</div>
           <div className="break-all text-xs text-muted-foreground">SHA-256 {r.agreement_sha256} · IP {r.signed_ip ?? "—"}</div>
           {r.certificateUrl && <a className="text-primary underline" href={r.certificateUrl} target="_blank" rel="noreferrer">Open Certificate of Currency (link expires in 10 min)</a>}
+          {r.activation ? <p className="rounded bg-success-soft p-2 font-semibold text-success">Activated as an approved partner business on {new Date(r.activation.activated_at).toLocaleDateString("en-AU")}.</p> : <div className="space-y-2"><p className="text-xs text-muted-foreground">Approval accepts the proposed supplier rates shown in the signed agreement and creates the partner file. It does not create worker logins.</p><Button onClick={async () => { await activate({ applicationId: id }, "Partner activated"); await q.refetch(); }}>Accept rates and activate partner</Button></div>}
           <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded bg-muted p-3 text-xs">{r.agreement_text}</pre>
         </div>
       ))}

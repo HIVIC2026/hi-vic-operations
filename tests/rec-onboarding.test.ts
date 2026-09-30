@@ -8,6 +8,7 @@ const full: RecData = {
   electricians: [{ full_legal_name: "Sam Smith", licence_number: "A123", mobile: "0412345678", email: "sam@spark.com.au" }],
   service_origin: "Melton", travel_radius_km: 50, typical_days: ["Mon"], normal_attendance_speed: "1-2 weeks", capacity_band: "6-10",
   gst_registered: true, assessment_rate: 300, agreement_reviewed: true,
+  bank_account_name: "Spark Pty Ltd", bank_bsb: "123-456", bank_account_number: "12345678",
 };
 
 describe("rec onboarding", () => {
@@ -29,6 +30,11 @@ describe("rec onboarding", () => {
   test("material change resets review", () => {
     expect(applyMaterialReset(full, { ...full, assessment_rate: 350 }).agreement_reviewed).toBe(false);
     expect(applyMaterialReset(full, { ...full, primary_contact_name: "Other" }).agreement_reviewed).toBe(true);
+  });
+  test("bank details are required and excluded from the agreement text", () => {
+    expect(stepErrors("bank", { ...full, bank_bsb: "123" })).toContain("Enter a valid 6-digit BSB.");
+    expect(agreementText(full)).not.toContain("Account number:");
+    expect(agreementText(full)).not.toContain("BSB:");
   });
   test("agreement text includes markup clause, schedules and all 7 acknowledgements", () => {
     const t = agreementText(full);

@@ -326,6 +326,13 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
         <p style={{ fontSize: 13, color: MUTED }}>Anything outside these standard items is quoted separately on the specific job before owner approval.</p>
       </>;
     }
+    case "bank":
+      return <>
+        <div style={infoCard}>These details stay in your private partner application and are used only for approved HI VIC! payments.</div>
+        <Field label="Account name" required><input style={input} autoComplete="off" {...t("bank_account_name")} /></Field>
+        <Field label="BSB" required hint="6 digits"><input style={input} inputMode="numeric" autoComplete="off" {...t("bank_bsb")} /></Field>
+        <Field label="Account number" required><input style={input} inputMode="numeric" autoComplete="off" {...t("bank_account_number")} /></Field>
+      </>;
     case "review":
       return <ReviewStep d={d} up={up} token={token} />;
     default:
