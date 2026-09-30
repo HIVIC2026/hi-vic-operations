@@ -11,7 +11,7 @@ const GATE_COLOUR: Record<GateKey, { soft: string; text: string; solid: string; 
   quote: { soft: "bg-task-pricing", text: "text-task-pricing-foreground", solid: "bg-task-pricing-foreground", ring: "border-task-pricing-foreground/40" },
   deposit: { soft: "bg-task-payments", text: "text-task-payments-foreground", solid: "bg-task-payments-foreground", ring: "border-task-payments-foreground/40" },
   piesa: { soft: "bg-task-scheduling", text: "text-task-scheduling-foreground", solid: "bg-task-scheduling-foreground", ring: "border-task-scheduling-foreground/40" },
-  rectification: { soft: "bg-warning-soft", text: "text-warning-foreground", solid: "bg-warning", ring: "border-warning/50" },
+  rectification: { soft: "bg-warning-soft", text: "text-foreground", solid: "bg-warning", ring: "border-warning/50" },
   install: { soft: "bg-task-scheduling", text: "text-task-scheduling-foreground", solid: "bg-task-scheduling-foreground", ring: "border-task-scheduling-foreground/40" },
   evidence: { soft: "bg-task-compliance", text: "text-task-compliance-foreground", solid: "bg-task-compliance-foreground", ring: "border-task-compliance-foreground/40" },
   veec: { soft: "bg-task-partners", text: "text-task-partners-foreground", solid: "bg-task-partners-foreground", ring: "border-task-partners-foreground/40" },
@@ -27,7 +27,7 @@ function GateIcon({ s }: { s: JourneyGate["status"] }) {
 }
 
 /** Stage-entry dates from the permanent audit trail (RLS-scoped). */
-function useStageDates(jobId?: string) {
+function useStageDates(jobId?: string | null) {
   return useQuery({
     queryKey: ["journey-dates", jobId], enabled: !!jobId, staleTime: 30_000,
     queryFn: async () => {
@@ -41,7 +41,7 @@ function useStageDates(jobId?: string) {
 }
 
 /** The job's full route, in order: done (with dates), YOU ARE HERE, and exactly what comes next. */
-export function JobJourney({ input, isTest, compact, jobId }: { input: JourneyInput; isTest?: boolean; compact?: boolean; jobId?: string }) {
+export function JobJourney({ input, isTest, compact, jobId }: { input: JourneyInput; isTest?: boolean; compact?: boolean; jobId?: string | null }) {
   const j = buildJourney(input);
   const here = j.gates.find((g) => g.status === "current" || g.status === "blocked")?.key ?? null;
   const [open, setOpen] = useState<GateKey | null>(compact ? null : here);
