@@ -28,16 +28,19 @@ const date = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-AU") 
 
 function Partners() {
   const [open, setOpen] = useState<Row | null>(null);
+  const [queue, setQueue] = useState<"review" | "approved" | "history">("review");
   const load = useServerFn(getAdminPartnerEnquiries);
   const { data: rows = [], error, isPending, refetch } = useQuery({
     queryKey: ["partner_enquiries"],
     queryFn: () => load(), retry: 3, staleTime: 30_000,
   });
-  const of = (t: PartnerType) => rows.filter((r) => r.enquiry_type === t);
+  const visible = rows.filter((row) => queue === "review" ? ["new", "contacted", "onboarding"].includes(row.status) : queue === "approved" ? row.status === "approved" : ["declined", "closed"].includes(row.status));
+  const of = (t: PartnerType) => visible.filter((r) => r.enquiry_type === t);
   return (
     <AppShell wide>
       <h1 className="text-2xl font-bold tracking-tight">Partner Enquiries</h1>
       <p className="mb-4 text-sm text-muted-foreground">Businesses interested in working with HI VIC. These are not customer jobs and never appear in the Pipeline.</p>
+      <div className="mb-4 flex flex-wrap gap-2">{([['review', 'Review queue'], ['approved', 'Approved applications'], ['history', 'Declined / closed history']] as const).map(([key, label]) => <Button key={key} size="sm" variant={queue === key ? "default" : "outline"} onClick={() => setQueue(key)}>{label} ({rows.filter((row) => key === "review" ? ["new", "contacted", "onboarding"].includes(row.status) : key === "approved" ? row.status === "approved" : ["declined", "closed"].includes(row.status)).length})</Button>)}</div>
       {error && <div role="alert" className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Partner enquiries could not be loaded. Existing applications are safe. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
       {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading partner enquiries…</p>}
       {!error && !isPending && <Tabs defaultValue="property_manager">

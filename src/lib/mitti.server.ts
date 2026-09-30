@@ -7,6 +7,7 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import { MITTI_BASE_URL, MITTI_TEMPLATE_ID, MittiError, createOrReuseAudit, mittiApi, planSync, splitPatch, type MittiCall } from "./mitti.core";
 import { planMeasurementUpdate, type MeasurementLike } from "./scope.core";
 import { jobScope } from "./requirements.server";
+import { formatPropertyAddress } from "./address";
 
 export const realMittiCall: MittiCall = async (method, path, body) => {
   const token = process.env["MITTI_API_TOKEN"];
@@ -54,7 +55,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string, cal
   if (!templateId) throw new WorkflowError(MEASUREUP_TEMPLATE_MISSING);
 
   const [{ data: prop }, { data: owner }, { data: asg }, { data: booking }, { data: a }] = await Promise.all([
-    admin.from("properties").select("address_line,suburb,postcode,occupancy").eq("id", job.property_id).single(),
+    admin.from("properties").select("address_line,suburb,state,postcode,occupancy").eq("id", job.property_id).single(),
     admin.from("owners").select("full_name,email,phone").eq("id", job.owner_id).single(),
     admin.from("job_assignments").select("user_id, profiles:user_id(full_name,email)").eq("job_id", jobId).eq("role", role).eq("active", true).maybeSingle(),
     admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "assessment").neq("status", "cancelled").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
@@ -65,7 +66,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string, cal
   const m = scope.measurementRow;
   const existingAuditId = measureOnly ? (m?.external_source === "mitti" && m.status !== "complete" ? m.external_id : null) : a?.external_mitti_id ?? null;
   const prof = (asg as unknown as { profiles: { full_name: string | null; email: string | null } | null }).profiles;
-  const address = [prop?.address_line, prop?.suburb, prop?.postcode].filter(Boolean).join(", ");
+  const address = formatPropertyAddress(prop);
   let r;
   try {
     r = await createOrReuseAudit(mittiApi(call), {

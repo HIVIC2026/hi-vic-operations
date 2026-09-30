@@ -4,6 +4,7 @@ import { customerView, refreshIndicativeEstimate } from "./estimate.server";
 import { logEvent } from "./workflow.server";
 import { customerCommsEnabled, hasCurrentOwnerContactConsent } from "./comms.server";
 import { LINK_PURPOSE, deliveryState, expiryFrom, isWellFormedToken, linkAllowed, linkUsable, newToken, planLink, publicPayload } from "./estimatelink.core";
+import { formatPropertyAddress } from "./address";
 
 async function activeLink(jobId: string) {
   const { data } = await admin.from("customer_estimate_links").select("id, status, expires_at, current_estimate_id").eq("job_id", jobId).eq("purpose", LINK_PURPOSE).eq("status", "active").maybeSingle();
@@ -55,13 +56,13 @@ export async function resolvePublicEstimate(token: unknown, assessmentTestMode =
   await admin.from("customer_estimate_links").update({ view_count: (l.view_count ?? 0) + 1, last_viewed_at: new Date().toISOString() }).eq("id", l.id);
   const { recordEstimateView } = await import("./engagement.server");
   await recordEstimateView(l.job_id, l.id).catch(() => {});
-  const { data: j } = await admin.from("jobs").select("job_number, properties(address_line, suburb, postcode)").eq("id", l.job_id).single();
-  const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
+  const { data: j } = await admin.from("jobs").select("job_number, properties(address_line, suburb, state, postcode)").eq("id", l.job_id).single();
+  const p = j?.properties as { address_line: string | null; suburb: string | null; state: string | null; postcode: string | null } | null;
   const { referralUrlForJob } = await import("./referral.server");
   const referral = await referralUrlForJob(l.job_id).catch(() => null);
   const { readyCheckAcceptanceState } = await import("./readycheck-payment.server");
   const assessment = await readyCheckAcceptanceState(token).catch(() => null);
-  return { ...publicPayload({ job_number: j?.job_number ?? null, address: p ? [p.address_line, p.suburb, p.postcode].filter(Boolean).join(", ") : null }, cv, referral, assessment), assessmentTestMode };
+  return { ...publicPayload({ job_number: j?.job_number ?? null, address: formatPropertyAddress(p) || null }, cv, referral, assessment), assessmentTestMode };
 }
 
 export async function estimateDeliveryReady(jobId: string) {

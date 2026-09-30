@@ -1,21 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, List, Plus, Search, SlidersHorizontal, Workflow } from "lucide-react";
+import { AlertTriangle, Archive, Ban, CheckCircle2, FlaskConical, Plus, Search, Workflow } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { JobCard, type JobRow } from "@/components/portal/JobCard";
-import { EXCEPTION_PHASE, PIPELINE_PHASES, phaseForStage, type Phase } from "@/lib/workflow";
+import { PIPELINE_PHASES, phaseForStage, type Phase } from "@/lib/workflow";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useAction } from "@/hooks/use-me";
 import { autoAdvancePipeline, createEnquiry, getAdminPipeline, getCommsStatus, getPostIntakeHealth, sweepAuthorities } from "@/lib/portal.functions";
 import { useServerFn } from "@tanstack/react-start";
 
 const ACCEPTANCE_STAGES = ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"];
+type WorkView = "active" | "review" | "ineligible" | "finalised" | "cancelled" | "test";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({ meta: [{ title: "Pipeline – HI VIC Portal" }, { name: "description", content: "HI VIC operational job pipeline." }, { property: "og:title", content: "Pipeline – HI VIC Portal" }, { property: "og:description", content: "HI VIC operational job pipeline." }] }),
@@ -24,13 +25,11 @@ export const Route = createFileRoute("/_authenticated/admin/")({
 
 function Pipeline() {
   const [q, setQ] = useState("");
-  const [view, setView] = useState<"board" | "list">("board");
   const [source, setSource] = useState<"all" | "hivic_sourced" | "installer_sourced">("all");
-  const [showTest, setShowTest] = useState(false);
+  const [workView, setWorkView] = useState<WorkView>("active");
   const sweep = useServerFn(sweepAuthorities);
   const advance = useServerFn(autoAdvancePipeline);
   const loadPipeline = useServerFn(getAdminPipeline);
-  const [showExceptions, setShowExceptions] = useState(false);
   const commsStatus = useServerFn(getCommsStatus);
   const { data: comms } = useQuery({ queryKey: ["comms_status"], queryFn: () => commsStatus() });
   const postIntakeHealth = useServerFn(getPostIntakeHealth);
@@ -51,14 +50,21 @@ function Pipeline() {
     });
     return () => { active = false; };
   }, [advance, refetchPipeline, sweep]);
-  const jobs = useMemo(() => allJobs.filter((j) => showTest || j.source !== "qa_test"), [allJobs, showTest]);
-  const hiddenTest = allJobs.length - jobs.length;
+  const groups = useMemo(() => ({
+    test: allJobs.filter((job) => job.source === "qa_test"),
+    finalised: allJobs.filter((job) => job.source !== "qa_test" && job.stage === "complete"),
+    cancelled: allJobs.filter((job) => job.source !== "qa_test" && job.stage === "cancelled"),
+    ineligible: allJobs.filter((job) => job.source !== "qa_test" && (job.eligibility_outcome === "does_not_appear_eligible" || job.stage === "on_hold") && job.stage !== "cancelled"),
+    review: allJobs.filter((job) => job.source !== "qa_test" && job.eligibility_review_required && !["complete", "cancelled", "on_hold"].includes(job.stage ?? "")),
+    active: allJobs.filter((job) => job.source !== "qa_test" && !job.eligibility_review_required && job.eligibility_outcome !== "does_not_appear_eligible" && !["complete", "cancelled", "on_hold"].includes(job.stage ?? "")),
+  }), [allJobs]);
+  const jobs = groups[workView];
   const filtered = useMemo(() => {
     const s = q.toLowerCase();
     return jobs.filter((j) => source === "all" || j.channel === source).filter((j) => !s || [j.job_number, j.property_address, j.owner_name, j.electrician_name, j.installer_name].some((v) => v?.toLowerCase().includes(s)));
   }, [jobs, q, source]);
   const byPhase = (p: Phase) => filtered.filter((j) => phaseForStage(j.stage) === p);
-  const lanes = PIPELINE_PHASES.filter((p) => phase === "all" || p.key === phase);
+  const lanes = PIPELINE_PHASES.filter((p) => p.key !== "complete" && p.key !== "exceptions" && (phase === "all" || p.key === phase));
   const { data: signedJobs } = useQuery({
     queryKey: ["pipeline_assignments"],
     queryFn: async () => new Set(((await supabase.from("customer_agreements").select("job_id, status")).data ?? []).filter((a) => a.status === "signed").map((a) => a.job_id)),
@@ -69,7 +75,7 @@ function Pipeline() {
   const paymentIssue = (j: JobRow) => j.payment_status === "overdue" || j.payment_status === "xero_sync_error";
   const piesaCount = jobs.filter(piesaIssue).length, paymentCount = jobs.filter(paymentIssue).length, acceptanceCount = jobs.filter(needsAcceptance).length;
   const warnings = jobs.filter((j) => piesaIssue(j) || paymentIssue(j) || needsAcceptance(j)).length;
-  const activeCount = jobs.filter((j) => !["complete", "cancelled"].includes(j.stage ?? "")).length;
+  const activeCount = groups.active.length;
 
   return (
     <AppShell wide>
@@ -81,16 +87,15 @@ function Pipeline() {
       )}
       <div className="mb-5 flex flex-wrap items-start gap-4 border-b pb-5">
         <div>
-          <h1 className="text-2xl font-bold">Operations pipeline</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Every job from enquiry to VEEC completion, with blockers shown before work moves.</p>
+           <h1 className="text-2xl font-bold">Active work</h1>
+           <p className="mt-1 text-sm text-muted-foreground">A clear working list. Ineligible, completed, cancelled and test records stay safely filed in their own views.</p>
         </div>
         <div className="ml-auto flex items-center gap-2"><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${comms?.enabled === true ? "border-success/30 bg-success-soft text-success" : "border-warning/40 bg-warning-soft text-foreground"}`}><span className={`h-2 w-2 rounded-full ${comms?.enabled === true ? "bg-success" : "bg-warning"}`} />Customer messages {comms?.enabled === true ? "on" : "off"}</span><NewEnquiry /></div>
       </div>
-      <section className="mb-5 grid gap-3 sm:grid-cols-3" aria-label="Pipeline summary">
-        <button type="button" onClick={() => { setPhase("all"); setShowExceptions(false); }} className="rounded-md border bg-card p-4 text-left shadow-sm transition hover:border-primary"><div className="flex items-center justify-between"><span className="text-sm font-semibold text-muted-foreground">Active jobs</span><Workflow className="h-4 w-4 text-primary" /></div><div className="mt-1 text-2xl font-bold">{activeCount}</div><div className="text-xs text-muted-foreground">Across the full workflow</div></button>
-        <button type="button" onClick={() => setShowExceptions(false)} className={`rounded-md border bg-card p-4 text-left shadow-sm transition hover:border-warning ${warnings > 0 ? "border-l-4 border-l-warning" : ""}`}><div className="flex items-center justify-between"><span className="text-sm font-semibold text-muted-foreground">Needs attention</span><AlertTriangle className="h-4 w-4 text-warning" /></div><div className="mt-1 text-2xl font-bold">{warnings}</div><div className="text-xs text-muted-foreground">{warnings > 0 ? [piesaCount && `${piesaCount} PIESA`, paymentCount && `${paymentCount} payment`, acceptanceCount && `${acceptanceCount} agreement`].filter(Boolean).join(" · ") : "No active blockers"}</div></button>
-        <button type="button" onClick={() => { setPhase("complete"); setShowExceptions(false); }} className="rounded-md border bg-card p-4 text-left shadow-sm transition hover:border-success"><div className="flex items-center justify-between"><span className="text-sm font-semibold text-muted-foreground">Completed</span><CheckCircle2 className="h-4 w-4 text-success" /></div><div className="mt-1 text-2xl font-bold">{byPhase("complete").length}</div><div className="text-xs text-muted-foreground">Ready and closed records</div></button>
+       <section className="mb-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-6" aria-label="Work files">
+         {([{ key: "active", label: "Active", count: activeCount, icon: Workflow }, { key: "review", label: "Needs review", count: groups.review.length, icon: AlertTriangle }, { key: "ineligible", label: "Ineligible / hold", count: groups.ineligible.length, icon: Ban }, { key: "finalised", label: "Finalised", count: groups.finalised.length, icon: CheckCircle2 }, { key: "cancelled", label: "Cancelled", count: groups.cancelled.length, icon: Archive }, { key: "test", label: "Test records", count: groups.test.length, icon: FlaskConical }] as const).map((item) => <button key={item.key} type="button" onClick={() => { setWorkView(item.key); setPhase("all"); }} className={`rounded-md border p-3 text-left transition hover:border-primary ${workView === item.key ? "border-primary bg-secondary" : "bg-card"}`}><div className="flex items-center justify-between"><span className="text-xs font-semibold text-muted-foreground">{item.label}</span><item.icon className="h-4 w-4 text-primary" /></div><div className="mt-1 text-xl font-bold">{item.count}</div></button>)}
       </section>
+       {workView === "active" && warnings > 0 && <div className="mb-4 rounded-md border-l-4 border-warning bg-warning-soft px-4 py-3 text-sm"><b>{warnings} active job{warnings === 1 ? "" : "s"} need attention.</b> {[piesaCount && `${piesaCount} PIESA`, paymentCount && `${paymentCount} payment`, acceptanceCount && `${acceptanceCount} agreement`].filter(Boolean).join(" · ")}</div>}
       {comms?.enabled !== true && <p className="mb-3 text-xs text-muted-foreground">Pre-launch safety is active: no email, SMS or notification is sent to customers or trades.</p>}
       {intakeHealth && <div data-testid="post-intake-health" className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-card px-4 py-2 text-xs text-muted-foreground"><span className="font-semibold text-foreground">Enquiry intake</span><span>Queued <b className="text-foreground">{intakeHealth.counts.queued}</b></span><span>Running <b className="text-foreground">{intakeHealth.counts.running}</b></span><span className={intakeHealth.counts.stale > 0 ? "font-semibold text-warning" : ""}>Stale <b>{intakeHealth.counts.stale}</b></span><span className={intakeHealth.counts.failed > 0 ? "font-semibold text-danger" : ""}>Failed <b>{intakeHealth.counts.failed}</b></span></div>}
       <div className="mb-5 flex flex-wrap items-center gap-2 rounded-md border bg-card p-3 shadow-sm">
@@ -98,34 +103,14 @@ function Pipeline() {
           <select aria-label="Job source" className="h-9 rounded-md border bg-background px-2 text-sm" value={source} onChange={(e) => setSource(e.target.value as typeof source)}>
             <option value="all">All sources</option><option value="hivic_sourced">HI VIC-sourced</option><option value="installer_sourced">Installer-sourced</option>
           </select>
-          <select aria-label="Phase" className="h-9 rounded-md border bg-background px-2 text-sm" value={phase} onChange={(e) => setPhase(e.target.value as typeof phase)}>
-            <option value="all">All phases</option>{PIPELINE_PHASES.map((p) => <option key={p.key} value={p.key}>{p.label} ({byPhase(p.key).length})</option>)}
+           <select aria-label="Phase" className="h-9 rounded-md border bg-background px-2 text-sm" value={phase} onChange={(e) => setPhase(e.target.value as typeof phase)} disabled={workView !== "active"}>
+             <option value="all">All phases</option>{lanes.map((p) => <option key={p.key} value={p.key}>{p.label} ({byPhase(p.key).length})</option>)}
           </select>
-          <Button variant={showExceptions ? "secondary" : "outline"} onClick={() => setShowExceptions(!showExceptions)}><AlertTriangle /> Exceptions ({byPhase("exceptions").length})</Button>
-          <label className="flex items-center gap-2 px-1 text-sm"><Checkbox checked={showTest} onCheckedChange={(v) => setShowTest(!!v)} /> Test jobs{hiddenTest > 0 && ` (${hiddenTest})`}</label>
-          <Button variant="outline" onClick={() => setView(view === "board" ? "list" : "board")}>{view === "board" ? <List /> : <SlidersHorizontal />}{view === "board" ? "List" : "Board"}</Button>
       </div>
-      {showExceptions && (
-        <section className="mb-4 rounded-xl border bg-muted/40 p-3">
-          <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">{EXCEPTION_PHASE.label}</h2>
-          {byPhase("exceptions").length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{byPhase("exceptions").map((j) => <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" />)}</div> : <p className="text-sm text-muted-foreground">None.</p>}
-        </section>
-      )}
       {pipelinePending ? (
         <div role="status" className="rounded-md border bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">Loading enquiries…</div>
-      ) : view === "board" ? (
-        <div className="flex gap-5 overflow-x-auto pb-5">
-          {lanes.map((p) => (
-            <div key={p.key} className="w-[19rem] shrink-0">
-              <div className="mb-3 flex items-center justify-between border-b px-1 pb-2 text-sm font-bold text-foreground">
-                <span>{p.label}</span><span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{byPhase(p.key).length}</span>
-              </div>
-              <div className="space-y-3">{byPhase(p.key).map((j) => <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" />)}{byPhase(p.key).length === 0 && <div className="rounded-md border border-dashed p-6 text-center text-xs text-muted-foreground">No jobs in this phase</div>}</div>
-            </div>
-          ))}
-        </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase).filter((j) => showExceptions || phaseForStage(j.stage) !== "exceptions").map((j: JobRow) => <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" />)}</div>
+         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase).map((j: JobRow) => <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" />)}{filtered.length === 0 && <div className="col-span-full rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">No records in this view.</div>}</div>
       )}
     </AppShell>
   );

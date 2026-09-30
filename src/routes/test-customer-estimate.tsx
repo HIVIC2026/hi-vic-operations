@@ -78,7 +78,7 @@ function TestCustomerEstimate() {
       <EstimateHeader />
       <main className="mx-auto max-w-[760px] px-4 pb-14 sm:px-8">
         {!data || !standard ? <p className="text-sm">Estimate unavailable.</p> : <>
-          <p className="mb-4 px-1 text-xs font-medium text-estimate-navy/70">{ADDRESS} · {REFERENCE}</p>
+          <p className="mb-4 px-1 text-xs font-medium text-estimate-navy/70">Reference {REFERENCE}</p>
           {confirming
             ? <ConfirmQuote estimatedPrice={total} assessmentFee={349} testMode state={state} onAccept={() => setState(localState())} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
              : <div className="estimate-offset overflow-hidden rounded-2xl border border-estimate-blue-soft bg-estimate-white px-5 py-7 sm:px-10 sm:py-11"><CustomerEstimate data={data} publicPage propertyAddress={ADDRESS} onReadyCheck={openReadyCheck} /></div>}

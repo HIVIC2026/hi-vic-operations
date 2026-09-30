@@ -2,6 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { AP_LEGAL_ENTITY, AUTHORITY_SCOPE, AUTHORITY_WORDING_VERSION, authorityWording } from "./authority";
 import { WorkflowError, logEvent } from "./workflow.server";
+import { formatPropertyAddress } from "./address";
 
 
 async function linkEvent(authorityId: string, jobId: string) {
@@ -44,7 +45,7 @@ export async function requestAuthority(jobId: string, actorId: string | null, re
   const months = s?.authority_validity_months ?? 3;
   const o = job.owners as unknown as { full_name: string; email: string | null; phone: string | null };
   const p = job.properties as unknown as { address_line: string; suburb: string | null; state: string; postcode: string | null };
-  const address = [p.address_line, p.suburb, `${p.state} ${p.postcode ?? ""}`.trim()].filter(Boolean).join(", ");
+  const address = formatPropertyAddress(p);
   // Close any open (unaccepted) request so only one is actionable.
   if (cur && ["sent", "viewed"].includes(cur.status))
     await admin.from("owner_authorities").update({ status: "revoked", revoked_at: new Date().toISOString(), revoked_by: actorId, revocation_reason: `Superseded by ${reason}` }).eq("id", cur.id);

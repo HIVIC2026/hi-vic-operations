@@ -4,6 +4,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { logEvent, piesaStatus, WorkflowError } from "./workflow.server";
 import { buildEscPayload, escDueBy, escEarliest, readyToInstall, staleReasons, submissionBlockers, submissionPatch, type EscConfig, type EscField, type EscFacts } from "./esc.core";
 import { consentValidityBlockers } from "./consent.core";
+import { formatPropertyAddress } from "./address";
 
 /** Submission adapter slot. No ESC endpoint is configured – adapter always reports not configured. */
 export interface EscAdapter { submit(payload: Record<string, unknown>): Promise<{ reference: string; response: unknown }> }
@@ -18,7 +19,7 @@ async function snapshot(jobId: string) {
   const { data: j } = await admin.from("jobs").select("job_number, owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single();
   const o = j?.owners as { full_name: string | null; email: string | null; phone: string | null } | null;
   const p = j?.properties as { address_line: string; suburb: string | null; state: string; postcode: string | null } | null;
-  return { jobNumber: j?.job_number ?? "", address: [p?.address_line, p?.suburb, p?.state, p?.postcode].filter(Boolean).join(" "), owner: { name: o?.full_name ?? null, email: o?.email ?? null, phone: o?.phone ?? null } };
+  return { jobNumber: j?.job_number ?? "", address: formatPropertyAddress(p), owner: { name: o?.full_name ?? null, email: o?.email ?? null, phone: o?.phone ?? null } };
 }
 
 async function person(jobId: string, role: "installer" | "electrician") {
