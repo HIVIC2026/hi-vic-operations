@@ -14,11 +14,12 @@ describe("imported installer measurement is provisional", () => {
     expect(m).toMatchObject({ provenance: "installer_supplied_provisional", supplied_area_m2: 120, supplied_removal_m2: 40, measured_area_m2: null, measurement_method: "laser", measurement_purpose: "onsite_measured", measured_by_business_id: "b1", measured_on: "2026-09-20", status: "needs_review" });
     expect((m.review_flags as { field: string }[]).map((f) => f.field)).toEqual(["measured_area_m2", "removal_m2"]);
   });
-  test("does NOT make the visit electrical-only; routes to complete-missing-fields", () => {
+  test("keeps the installer measure-up incomplete while the electrician remains PIESA-only", () => {
     const s = deriveScope({ measurement: { ...m, access_difficulty: "easy", insulation_present: true } as never, electrical: noPiesa });
     expect(s.scope).toBe("ELECTRICAL_PLUS_MEASUREUP_COMPLETION");
-    expect(s.editableMeasureFields).toContain("measured_area_m2");
-    expect(s.editableMeasureFields).toContain("removal_m2");
+    expect(s.electricianTasks).toEqual(["electrical"]);
+    expect(s.installerTasks).toEqual(["measure_up"]);
+    expect(s.editableMeasureFields).toEqual([]);
   });
   test("aerial / Google map figures are recorded as sales estimates", () => {
     const a = planImportedMeasurement({ measured_area_m2: 90, measurement_method: "Google map" }, "imp-2")!;

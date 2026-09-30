@@ -92,9 +92,9 @@ describe("wiring", () => {
   it("route: no-store, no-referrer and noindex", () => {
     for (const s of ["no-store", "no-referrer", "noindex, nofollow", "ssr: false"]) expect(route).toContain(s);
   });
-  it("secure estimate supports the separate staging pre-assessment payment action", () => {
+  it("secure estimate supports the separate free Ready Check request", () => {
     expect(route).toContain('window.location.hash === "#confirm"');
-    for (const copy of ["P.heading", "CUSTOMER_READY_CHECK_PAGE", "CUSTOMER_READY_CHECK.cta", "Test mode · payment controls", "BACK TO MY ESTIMATE"]) expect(ui).toContain(copy);
+    for (const copy of ["P.heading", "CUSTOMER_READY_CHECK_PAGE", "CUSTOMER_READY_CHECK.cta", "Test mode · no live booking will be created", "BACK TO MY ESTIMATE"]) expect(ui).toContain(copy);
     expect(ui).not.toMatch(/stripe|checkout|paymentIntent|card number/i);
     expect(engagementServer).toContain('t.purpose === "step3_estimate" ? "#confirm" : ""');
   });
