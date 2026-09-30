@@ -32,7 +32,8 @@ describe("Outlook compatibility", () => {
       expect(slot).toBeGreaterThan(html.indexOf("max-width:640px"));
       expect(slot).toBeLessThan(html.indexOf("hiv-logo\""));
       expect(html).not.toMatch(/<script|\son[a-z]+=/i);
-      expect((html.match(/<!--/g) ?? []).length).toBe((html.match(/-->/g) ?? []).length);
+      const plain = html.replaceAll("<!--[if !mso]><!-->", "").replaceAll("<!--<![endif]-->", "").replace(/<!--\[if mso\]>[\s\S]*?<!\[endif\]-->/g, "");
+      expect((plain.match(/<!--/g) ?? []).length).toBe((plain.match(/-->/g) ?? []).length);
     });
   }
 });
