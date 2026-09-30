@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { useAction } from "@/hooks/use-me";
 import { updatePartnerEnquiry } from "@/lib/portal.functions";
+import { getRecOnboardingRecord } from "@/lib/rec-onboarding-admin.functions";
 import { PARTNER_STATUSES, PARTNER_TYPES, PARTNER_TYPE_LABEL, partnerIssues, type PartnerType } from "@/lib/partner.core";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
