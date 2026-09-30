@@ -24,3 +24,4 @@
 - [ ] Complete role-based launch proof and launch checklist
 - [x] Replace the paid Ready Check with a free installer-only eligibility measure-up; keep PIESA electrician-only across onboarding, workflow, screens and safeguards
 - [x] Ask installers separately about free measure-ups for pre-qualified HI VIC leads; record the $220 inc GST job fee only when their quote is accepted and the job proceeds
+- [ ] Audit and reconcile every email, notification, page, workflow, test and guide with the free installer Ready Check, REC-only PIESA and conditional $220 fee
