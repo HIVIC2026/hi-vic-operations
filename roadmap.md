@@ -43,3 +43,4 @@
 - [x] Source VEEC spot price from an online feed instead of manual entry
 - [x] Add per-job markup breakdown (charge vs pay: installer, electrician, AP fee, VEEC margin) on the VEECs page
 - [x] Include $220 installer referral fee confirmed for margin maths
+- [ ] Confirm exact per-VEEC lodgement fee (registry cost) and record it in pricing settings
