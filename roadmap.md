@@ -41,3 +41,4 @@
 - [x] Side tabs: Active jobs, Pending quote approval, Enquiries (in that order), then Ineligible + VEEC calculator page
 - [x] Profit tab: VEEC income net of owner's $70/VEEC share (we keep spot − 70)
 - [x] Source VEEC spot price from an online feed instead of manual entry
+- [ ] Add per-job markup breakdown (charge vs pay: installer, electrician, AP fee $349, VEEC margin) in profit/VEEC view
