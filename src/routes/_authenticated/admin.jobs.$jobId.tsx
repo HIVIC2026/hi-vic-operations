@@ -35,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { getAdminAssignments, getAdminJobEligibility } from "@/lib/admin-records.functions";
 import { getJobCoverage, sendNoCoverageEmail } from "@/lib/coverage.functions";
+import { InstallerLedInvoicePanel } from "@/components/portal/installer-invoice";
 
 export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
   head: () => ({ meta: [{ title: "Job – HI VIC Portal" }, { name: "description", content: "Job detail and workflow." }, { property: "og:title", content: "Job – HI VIC Portal" }, { property: "og:description", content: "Job detail and workflow." }] }),
@@ -91,7 +92,7 @@ function JobDetail() {
           <SectionDocuments jobId={jobId} categories={["Electrical / PIESA"]} />
         </TabsContent>
         <TabsContent value="assessment" className="space-y-4"><RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} /></TabsContent>
-        <TabsContent value="quotes" className="space-y-4"><AdminQuotes jobId={jobId} /><PaymentsPanel jobId={jobId} isAdmin /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} /></TabsContent>
+        <TabsContent value="quotes" className="space-y-4"><AdminQuotes jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><PaymentsPanel jobId={jobId} isAdmin /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} /></TabsContent>
         <TabsContent value="installation" className="space-y-4"><EscInstallPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /><SectionDocuments jobId={jobId} categories={["Installation"]} /></TabsContent>
         <TabsContent value="evidence" className="space-y-4"><EvidencePanel jobId={jobId} role="admin" /><SectionDocuments jobId={jobId} categories={["Evidence"]} /></TabsContent>
         <TabsContent value="veec" className="space-y-4"><ComplianceRecords jobId={jobId} /><Compliance jobId={jobId} /><Veec jobId={jobId} /><SectionDocuments jobId={jobId} categories={["ESC / VEEC"]} /></TabsContent>
