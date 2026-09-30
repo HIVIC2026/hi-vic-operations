@@ -117,7 +117,7 @@ export function evidenceFromRecords(m: MeasurementRecord, evidenceCategories: st
   const m2 = m?.measured_area_m2 ?? m?.supplied_area_m2 ?? null;
   return {
     installerIdPhoto: bool("installer_id_photo") === true,
-    buildingClass: str("building_class"),
+    buildingClass: str("building_class") ?? classFromPropertyType(str("property_type")),
     builtLast5Years,
     floorPlan: bool("floor_plan") === true,
     icObservation: bool("ic_observation"),
