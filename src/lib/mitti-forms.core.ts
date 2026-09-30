@@ -295,3 +295,60 @@ export function mittiAiPrompt(key: FormKey): string {
     ...lines,
   ].filter((l) => l !== "").join("\n");
 }
+
+// ---- Ready Check variants + quoted-price parsing (pure, tested) ----
+
+/** Which Ready Check variant a job uses. Installer-sourced jobs get the priced form (A1); our leads get evidence-only (A2). */
+export function readyCheckVariant(channel: string | null | undefined): "ready_check" | "ready_check_priced" {
+  return channel === "installer_sourced" ? "ready_check_priced" : "ready_check";
+}
+
+export type QuotedPriceLine = { description: string; quantity: number; unit: string; unitPriceIncGst: number; lineTotalIncGst: number };
+export type QuotedPrice = {
+  lines: QuotedPriceLine[];
+  totalIncGst: number;
+  includes: string;
+  agreedWithOwner: boolean;
+};
+
+const UNITS = ["m2", "each", "flat", "hour"] as const;
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Validates an installer's quoted price from the priced Ready Check. Fails closed:
+ * any problem returns an issue list and the quote goes to office review — a price is never guessed.
+ */
+export function validateQuotedPrice(input: {
+  lines: { description?: string | null; quantity?: number | null; unit?: string | null; unitPriceIncGst?: number | null }[];
+  totalIncGst?: number | null;
+  includes?: string | null;
+  agreedWithOwner?: boolean | null;
+}): { ok: boolean; issues: string[]; price: QuotedPrice | null } {
+  const issues: string[] = [];
+  const lines: QuotedPriceLine[] = [];
+  if (!input.lines.length) issues.push("No quoted price lines — at least one line is required.");
+  input.lines.forEach((l, i) => {
+    const where = `Line ${i + 1}`;
+    const description = (l.description ?? "").trim();
+    if (!description) issues.push(`${where}: description is missing.`);
+    const quantity = Number(l.quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) issues.push(`${where}: quantity must be a number greater than 0.`);
+    const unit = (l.unit ?? "").trim().toLowerCase();
+    if (!(UNITS as readonly string[]).includes(unit)) issues.push(`${where}: unit must be one of ${UNITS.join(", ")}.`);
+    const unitPriceIncGst = Number(l.unitPriceIncGst);
+    if (!Number.isFinite(unitPriceIncGst) || unitPriceIncGst < 0) issues.push(`${where}: unit price must be a number (0 or more).`);
+    if (description && Number.isFinite(quantity) && quantity > 0 && (UNITS as readonly string[]).includes(unit) && Number.isFinite(unitPriceIncGst) && unitPriceIncGst >= 0)
+      lines.push({ description, quantity, unit, unitPriceIncGst: r2(unitPriceIncGst), lineTotalIncGst: r2(quantity * unitPriceIncGst) });
+  });
+  const totalIncGst = Number(input.totalIncGst);
+  if (!Number.isFinite(totalIncGst) || totalIncGst <= 0) issues.push("Total quoted price is missing or not a positive number.");
+  if (!(input.includes ?? "").trim()) issues.push("'What this price includes' is missing.");
+  if (input.agreedWithOwner == null) issues.push("'Price already agreed with the owner?' was not answered.");
+  if (lines.length && Number.isFinite(totalIncGst) && totalIncGst > 0) {
+    const sum = r2(lines.reduce((a, l) => a + l.lineTotalIncGst, 0));
+    if (Math.abs(sum - r2(totalIncGst)) > 0.01)
+      issues.push(`Total quoted price ($${r2(totalIncGst).toFixed(2)}) does not equal the sum of the lines ($${sum.toFixed(2)}) — office must review before quoting the owner.`);
+  }
+  if (issues.length) return { ok: false, issues, price: null };
+  return { ok: true, issues: [], price: { lines, totalIncGst: r2(totalIncGst), includes: (input.includes ?? "").trim(), agreedWithOwner: input.agreedWithOwner === true } };
+}
