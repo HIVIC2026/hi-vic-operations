@@ -24,7 +24,7 @@ describe("customer outcome email renderers", () => {
     expect(email.html).not.toContain("background-color:#ECF9F1;border-radius:14px");
     expect(email.html).not.toContain("MORE THAN AN INSULATION QUOTE.");
     const h = email.html;
-    const order = ["YOUR PRELIMINARY QUOTE", "Estimated ceiling size:", "CHANGE →", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$99 Home Insulation Ready Check — payable now", "Estimated remaining balance", "THERE ARE NO OTHER STANDARD FEES", "NOT SURE YOUR CEILING SIZE IS RIGHT?", "CHECK ANOTHER CEILING SIZE →", "BOOK MY READY CHECK →"].map((t) => h.indexOf(t));
+    const order = ["YOUR PRELIMINARY QUOTE", "Estimated ceiling size:", "CHANGE →", "R5.0 ceiling insulation — supply &amp; install", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$99 Home Insulation Ready Check — payable now", "Estimated remaining balance", "THERE ARE NO OTHER STANDARD FEES", "NOT SURE YOUR CEILING SIZE IS RIGHT?", "CHECK ANOTHER CEILING SIZE →", "BOOK MY READY CHECK →"].map((t) => h.indexOf(t));
     expect(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1]!))).toBe(true);
     expect(h.split("BOOK MY READY CHECK →").length - 1).toBe(1);
     expect(h).toContain("border-radius:16px");
