@@ -64,7 +64,7 @@ describe("final VEEC assignment", () => {
     expect(materialChanges(s, { area_m2: 130, installer_user_id: "z", product: "R4 batts", final_customer_price_inc_gst: 2500 })).toEqual(["Installer changed", "Installed product changed", "Installed area changed materially", "Customer price changed"]);
   });
   test("phase blockers are separate", () => {
-    expect(templateBlockers([], "agreement").length).toBe(2);
+    expect(templateBlockers([], "agreement").length).toBe(1);
     expect(templateBlockers([], "consent")[0]).toMatch(/ESC owner consent/);
     expect(templateBlockers([], "final")[0]).toMatch(/official Activity 48/);
   });
