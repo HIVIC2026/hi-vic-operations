@@ -12,7 +12,7 @@ const COPY: Record<FollowupKind, { subject: string; preview: string; heading: st
     subject: "Just checking you received your Home Insulation Victoria estimate",
     preview: "Your personalised Home Insulation Victoria insulation estimate is ready whenever you are.",
     heading: "Just checking you received your Home Insulation Victoria estimate",
-    paras: ["We prepared a personalised indicative estimate for your home a few days ago, including your estimated VEU discount and what's included.", INCLUDED],
+    paras: ["We prepared a personalised indicative estimate for your home a few days ago, including your estimated VEU / VEEC discount and what's included.", INCLUDED],
     cta: "VIEW MY ESTIMATE",
   },
   estimate_engaged_no_booking_3d: {
