@@ -82,3 +82,5 @@
 - [ ] Find a REC for Ballarat & Central Highlands and for the Yarra Valley enquiry (HV-1036)
 - [x] Remove wrong "Bank details are collected after approval" line from installer and electrician onboarding welcome screens
 - [ ] Redesign installer onboarding welcome screen (3 directions shown; awaiting pick)
+- [ ] Replace all user-facing "HI VIC"/"HI VIC!" wording with "Home Insulation Victoria" (keep internal codes/version IDs)
+- [ ] Electrician team-up: workers under someone else's REC must not be asked for REC/insurance — head person only
