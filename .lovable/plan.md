@@ -23,12 +23,24 @@ Step by step, in plain words:
 8. You get paid your quoted price. No referral fee on your own customers.
 - Your routine sales contact with the owner (follow-ups, scope, reviews) stays with you; we handle the formal compliance contact and tell you when we've been in touch.
 
-### Option 2 — We refer the customer to you
-1. The enquiry comes through our website; we do eligibility and the Ready Check.
-2. You get a job offer in your portal; you accept or decline.
-3. We handle the owner, the check, the quote, invoicing and payment chasing.
-4. You install and submit evidence; we review and lodge.
-5. Referral fee applies (amount and rules below).
+### Option 2 — We bring the customer to you
+1. We pre-qualify every lead through our website and Gate 1 eligibility checks, so you don't get time-wasters.
+2. You get the job offer in your portal; accept or decline.
+3. You do the free Ready Check (measure-up and photos) using our app.
+4. We handle the owner, the safety check, the quote, invoicing and payment chasing.
+5. **$220 lead fee — only if the owner accepts the quote.** If the owner doesn't accept, you pay nothing. No fee on ineligible or cancelled leads.
+6. You install and submit evidence on the day; we review and lodge.
+
+### Our app: get it right on the day
+Pitch at the top of both options: our app walks you through every photo and reading needed, in order, so each job is complete on the day — no revisits, no lost VEECs.
+
+### Flexible on electricians — saved preferences
+- Bring your own electrician (once they're onboarded), or use ours.
+- Your preference is saved on your account: "Always use my electrician (name)", "Always use the Home Insulation Victoria electrician list", or "Ask me each job". Jobs follow it automatically; staff can change it.
+- Price: your electrician at their agreed onboarding price, or ours at $349 inc GST.
+
+### Payment terms (both options)
+One co-branded invoice to the owner; 50% deposit before any work is scheduled; balance due on install day. We chase payment. You're paid your quoted price after the balance clears (exact payout timing to confirm).
 
 ### "What we do as your Accredited Person" list
 A plain checklist so they see the workload: eligibility checks, owner consent and permission, safety-check coordination, official forms (PIESA/PIISA) filled and signed, 24-hour notices, quote and invoice, deposit and balance chasing, evidence review, VEEC creation and lodgement, 6-year record keeping, audits.
@@ -42,19 +54,19 @@ Explains exactly what the $349 electrical check covers and why it's required bef
 - Who talks to the owner, and when?
 - Who sends the quote? Who chases payment?
 - The owner turns out ineligible — what happens to my time/fees?
-- When does a referral fee not apply?
+- When is the $220 lead fee charged, and when isn't it?
 - I have my own electrician / work with another installer — how do we team up?
 
 ## 3. Agreement wording
 The installer agreement is a signed legal document. Any change to it gets a new version number and existing signers are asked to re-sign. Option 1/Option 2 summary goes into the new version only after you approve the wording.
 
-## Decisions I need from you before building (I won't guess these)
-1. Referral fee: who pays whom, and how much? (Saved notes say $220 — please confirm it's the installer paying us on referred jobs.)
-2. When doesn't it apply? (e.g. ineligible, owner declines, cancelled, owner was already the installer's customer.)
-3. The $349 — is it only the electrical safety check, or also the AP fee? What is the AP fee amount installers should see?
-4. Installer already agreed a price with the owner: do we add our fees on top (owner sees a higher total, less the VEU discount) or must the installer's price already include them?
-5. Referred jobs: does the installer quote, or do we price from their rate card?
-6. Which evidence items may be captured on install day before starting, versus needed before the quote? I'll list each item for you to tick.
+## Decisions still needed (I won't guess these)
+1. The $349 — only the electrical safety check, or also the AP fee? What AP fee amount do installers see?
+2. Installer already agreed a price with the owner: our fees added on top (less VEU discount), or must their price include them?
+3. Referred jobs: installer quotes after the Ready Check, or we price from their rate card?
+4. $220 lead fee: deducted from the installer's payout, or invoiced separately? Inc or ex GST?
+5. When is the installer paid (e.g. within X days of balance clearing)?
+6. Which evidence items may be captured on install day before starting, versus needed before the quote? I'll list each for you to tick.
 
 ## Technical details
 - Add `step 0` "about you" to `installer-onboarding.tsx` and `electrician-onboarding.tsx`; store in existing onboarding data (`primary_contact_name`, email, mobile); greeting helper uses first name.
