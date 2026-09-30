@@ -18,7 +18,7 @@
 - [x] Step 3 design review: admin-only static known-area and unknown-area examples
 - [x] Public sample-only Step 3 design preview, independent of admin login
 - [x] Sample-only Step 3 customer estimate email renderer, preview and screenshots; no sending
-- [ ] Step 4: booking + payment for Onsite Measure + PIESA
+- [x] Step 4 staging: immutable Measure + PIESA acceptance and idempotent $349 test-payment gate (live payments remain off)
 - [x] Step 3 engagement tracking + follow-ups (sending waits on Base44 delivery endpoint + comms switch)
 - [x] Redesign Step 3 estimate in HI VIC brand voice with a clear cover, reading flow and next step
 - [ ] Blocked on Base44: homeowner preliminary result, save/navigation guards, and sync fallback changes (A–D)

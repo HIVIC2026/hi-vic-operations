@@ -281,6 +281,27 @@
       "when": 1790671396767,
       "tag": "0039_customer_email_safety",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790725953190,
+      "tag": "0040_pre_assessment_acceptance_test_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790726154096,
+      "tag": "0041_atomic_pre_assessment_test_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1790726301011,
+      "tag": "0042_correct_pre_assessment_attempt_row_count",
+      "breakpoints": true
     }
   ]
 }

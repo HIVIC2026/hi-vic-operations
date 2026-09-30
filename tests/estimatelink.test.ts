@@ -83,20 +83,19 @@ describe("wiring", () => {
     expect(sel).toContain("customerView(view)");
   });
   it("public fn needs no login; admin link fns require admin; status never selects token", () => {
-    expect(fns).toMatch(/getPublicEstimate = createServerFn\(\{ method: "POST" \}\)\s*\.inputValidator/);
+    expect(fns).toMatch(/getPublicEstimate = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[withRequestMeta\]\)\s*\.inputValidator/);
     expect(fns.slice(fns.indexOf("getPublicEstimate"), fns.indexOf("getAdminEstimateLink ="))).not.toContain("requireSupabaseAuth");
     expect(fns).toMatch(/getAdminEstimateLinkUrl[\s\S]*requireAdmin/);
     const st = server.slice(server.indexOf("export async function adminLinkStatus"), server.indexOf("export async function adminLinkPath"));
     expect(st.split("\n").filter((l) => l.includes(".select(")).join("")).not.toContain("token");
   });
-  it("route: no-store, no-referrer, noindex, no pay/book button", () => {
+  it("route: no-store, no-referrer and noindex", () => {
     for (const s of ["no-store", "no-referrer", "noindex, nofollow", "ssr: false"]) expect(route).toContain(s);
-    expect(/pay now|book now|<button/i.test(route)).toBe(false);
   });
-  it("secure estimate supports the confirm state without inventing a payment action", () => {
+  it("secure estimate supports the separate staging pre-assessment payment action", () => {
     expect(route).toContain('window.location.hash === "#confirm"');
-    for (const copy of ["LET’S CONFIRM YOUR QUOTE", "CUSTOMER_QUOTE_LABELS.payableNow", "CUSTOMER_QUOTE_LABELS.remainingBalance", "NO SURPRISE ADD-ONS.", "CUSTOMER_PAYMENT_COPY.noSilentAdditions", "PAYMENT CURRENTLY UNAVAILABLE", "BACK TO MY ESTIMATE"]) expect(ui).toContain(copy);
-    expect(ui).not.toMatch(/stripe|checkout|paymentIntent/i);
+    for (const copy of ["LET’S CONFIRM YOUR QUOTE", "CUSTOMER_QUOTE_LABELS.payableNow", "CUSTOMER_QUOTE_LABELS.remainingBalance", "NO SURPRISE ADD-ONS.", "CUSTOMER_PAYMENT_COPY.noSilentAdditions", "Test payment controls", "BACK TO MY ESTIMATE"]) expect(ui).toContain(copy);
+    expect(ui).not.toMatch(/stripe|checkout|paymentIntent|card number/i);
     expect(engagementServer).toContain('t.purpose === "step3_estimate" ? "#confirm" : ""');
   });
   it("calculator stays client-only (no server call on input)", () => {

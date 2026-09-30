@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { withRequestMeta } from "./request-meta";
 
 export const getAdminEstimate = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
@@ -21,11 +22,27 @@ export const getOwnerEstimate = createServerFn({ method: "POST" }).middleware([r
   });
 
 /** Public, no-login: the token is the only credential. Generic null on any failure. */
-export const getPublicEstimate = createServerFn({ method: "POST" })
+export const getPublicEstimate = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token: z.string().max(200) }).parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { resolvePublicEstimate } = await import("./estimatelink.server");
-    return JSON.parse(JSON.stringify(await resolvePublicEstimate(data.token)));
+    return JSON.parse(JSON.stringify(await resolvePublicEstimate(data.token, context.assessmentTestMode)));
+  });
+
+export const acceptPreAssessment = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token: z.string().max(200) }).parse(d))
+  .handler(async ({ data, context }) => {
+    if (!context.assessmentTestMode) throw new Error("Pre-assessment payments are not live.");
+    const { acceptAssessment } = await import("./assessment-payment.server");
+    return JSON.parse(JSON.stringify(await acceptAssessment(data.token, { ip: context.ip, userAgent: context.userAgent })));
+  });
+
+export const simulatePreAssessmentPayment = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token: z.string().max(200), outcome: z.enum(["success", "failure"]), idempotencyKey: z.string().min(8).max(120) }).parse(d))
+  .handler(async ({ data, context }) => {
+    if (!context.assessmentTestMode) throw new Error("Test payments are unavailable.");
+    const { simulateAssessmentPayment } = await import("./assessment-payment.server");
+    return JSON.parse(JSON.stringify(await simulateAssessmentPayment(data.token, data.outcome, data.idempotencyKey)));
   });
 
 export const getAdminEstimateLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getPublicEstimate } from "@/lib/estimate.functions";
+import { acceptPreAssessment, getPublicEstimate, simulatePreAssessmentPayment } from "@/lib/estimate.functions";
 import { trackCalculatorUse } from "@/lib/engagement.functions";
 import { useCallback, useEffect, useState } from "react";
 import { ConfirmQuote, CustomerEstimate, type CustomerData } from "@/components/portal/estimate";
 import { LINK_UNAVAILABLE } from "@/lib/estimatelink.core";
 import { ReferralShare } from "@/components/portal/ReferralShare";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
+import type { AssessmentAcceptanceState } from "@/lib/assessment-payment.core";
 
 // Public no-login Step 3 estimate. The token is the only credential; nothing is fetched during SSR.
 export const Route = createFileRoute("/estimate/$token")({
@@ -28,15 +29,19 @@ export const Route = createFileRoute("/estimate/$token")({
   component: PublicEstimatePage,
 });
 
-type Payload = { job: { job_number: string | null; address: string | null }; estimate: CustomerData; referralShareUrl: string | null } | null;
+type Payload = { job: { job_number: string | null; address: string | null }; estimate: CustomerData; referralShareUrl: string | null; assessment: AssessmentAcceptanceState | null; assessmentTestMode: boolean } | null;
 
 function PublicEstimatePage() {
   const { token } = Route.useParams();
   const fn = useServerFn(getPublicEstimate);
   const track = useServerFn(trackCalculatorUse);
+  const accept = useServerFn(acceptPreAssessment);
+  const simulate = useServerFn(simulatePreAssessmentPayment);
   const onCalculatorUse = useCallback((m2: number) => { track({ data: { token, m2 } }).catch(() => {}); }, [track, token]);
-  const { data, isLoading, isError } = useQuery({ queryKey: ["public_estimate", token], queryFn: () => fn({ data: { token } }) as Promise<Payload>, retry: false, refetchOnWindowFocus: false, staleTime: Infinity });
+  const { data, isLoading, isError, refetch } = useQuery({ queryKey: ["public_estimate", token], queryFn: () => fn({ data: { token } }) as Promise<Payload>, retry: false, refetchOnWindowFocus: false, staleTime: Infinity });
   const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   useEffect(() => {
     const sync = () => setConfirming(window.location.hash === "#confirm");
     sync();
@@ -46,6 +51,9 @@ function PublicEstimatePage() {
   const standard = data?.estimate?.estimate?.scenarios.find((scenario) => scenario.key === "can_remain")?.by_access.standard ?? data?.estimate?.estimate?.scenarios[0]?.by_access.standard;
   const fee = data?.estimate?.fees?.piesa;
   const showConfirm = confirming && standard && typeof fee === "number";
+  const run = async (action: () => Promise<unknown>) => { setBusy(true); setActionError(null); try { await action(); await refetch(); } catch (e) { setActionError(e instanceof Error ? e.message : "This action could not be completed."); } finally { setBusy(false); } };
+  const acceptCurrent = () => run(() => accept({ data: { token } }));
+  const simulatePayment = (outcome: "success" | "failure") => run(() => simulate({ data: { token, outcome, idempotencyKey: crypto.randomUUID() } }));
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas">
        <EstimateHeader />
@@ -55,7 +63,7 @@ function PublicEstimatePage() {
           : <>
              {(data.job.address || data.job.job_number) && <p className="mb-4 px-1 text-xs font-medium text-estimate-navy/70">{data.job.address}{data.job.address && data.job.job_number ? " · " : ""}{data.job.job_number}</p>}
              {showConfirm
-               ? <ConfirmQuote estimatedPrice={standard.estimated_customer_total} assessmentFee={fee} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
+               ? <ConfirmQuote estimatedPrice={standard.estimated_customer_total} assessmentFee={fee} state={data.assessment} testMode={data.assessmentTestMode} busy={busy} error={actionError} onAccept={acceptCurrent} onTestPayment={simulatePayment} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
                 : <div className="estimate-offset overflow-hidden rounded-2xl border border-estimate-blue-soft bg-estimate-white px-5 py-7 sm:px-10 sm:py-11"><CustomerEstimate data={data.estimate} publicPage propertyAddress={data.job.address} onCalculatorUse={onCalculatorUse} /></div>}
              {!showConfirm && data.referralShareUrl && <ReferralShare url={data.referralShareUrl} />}
           </>}

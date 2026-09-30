@@ -44,7 +44,7 @@ export async function syncStep3(jobId: string, actorId: string | null = null) {
 }
 
 /** Public, no-login resolver. Generic failure for anything invalid. Re-evaluates current Gate 1 on every view. */
-export async function resolvePublicEstimate(token: unknown) {
+export async function resolvePublicEstimate(token: unknown, assessmentTestMode = false) {
   if (!isWellFormedToken(token)) return null;
   const { data: l } = await admin.from("customer_estimate_links").select("id, job_id, status, expires_at, view_count").eq("token", token).eq("purpose", LINK_PURPOSE).maybeSingle();
   if (!l || !linkUsable(l)) return null;
@@ -59,7 +59,9 @@ export async function resolvePublicEstimate(token: unknown) {
   const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const { referralUrlForJob } = await import("./referral.server");
   const referral = await referralUrlForJob(l.job_id).catch(() => null);
-  return publicPayload({ job_number: j?.job_number ?? null, address: p ? [p.address_line, p.suburb, p.postcode].filter(Boolean).join(", ") : null }, cv, referral);
+  const { assessmentAcceptanceState } = await import("./assessment-payment.server");
+  const assessment = assessmentTestMode ? await assessmentAcceptanceState(token).catch(() => null) : null;
+  return { ...publicPayload({ job_number: j?.job_number ?? null, address: p ? [p.address_line, p.suburb, p.postcode].filter(Boolean).join(", ") : null }, cv, referral, assessment), assessmentTestMode };
 }
 
 export async function estimateDeliveryReady(jobId: string) {

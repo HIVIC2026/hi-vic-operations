@@ -57,6 +57,7 @@ export function deliveryState(x: { activeLink: boolean; consent: boolean; commsE
 }
 
 /** Public payload whitelist — anything else is dropped. */
-export function publicPayload(job: { job_number: string | null; address: string | null }, view: Record<string, unknown>, referralShareUrl: string | null = null) {
-  return { job: { job_number: job.job_number, address: job.address }, estimate: view, referralShareUrl };
+export function publicPayload(job: { job_number: string | null; address: string | null }, view: Record<string, unknown>, referralShareUrl: string | null = null, assessment?: Record<string, unknown> | null) {
+  const base = { job: { job_number: job.job_number, address: job.address }, estimate: view, referralShareUrl };
+  return assessment === undefined ? base : { ...base, assessment };
 }
