@@ -14,11 +14,11 @@ const detailed = { ...common, estimatedTotal: 3747, installationPrice: 4023, ass
 describe("customer outcome email renderers", () => {
   test("likely eligible leads with the complete personalised quote", () => {
     const email = withUnsubscribe(renderEstimateEmail({ ...detailed, outcome: "likely" }), unsubscribeUrl);
-    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "YOUR HOME LOOKS LIKELY TO QUALIFY", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$1,325", "$5,072", "$3,747", "$700", "Estimated ceiling size: <strong>134.1 m²", "CHANGE →", "Based on the estimated ceiling size provided in your enquiry. Change it to see a revised estimate.", "NOT SURE YOUR CEILING SIZE IS RIGHT?", "CHECK ANOTHER CEILING SIZE →", "Calculator changes are for comparison only and do not overwrite your enquiry.", "THERE ARE NO OTHER STANDARD FEES TO ADD TO THIS ESTIMATE.", "It is not the PIESA.", "BOOK MY READY CHECK →", "Your $99 Home Insulation Ready Check is credited toward your project if you proceed.", "The Ready Check is not the mandatory electrical safety assessment.", "Home Insulation Victoria manages the VEU pathway", "All prices include GST.", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Refer a friend →", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
+    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "YOUR HOME LOOKS LIKELY TO QUALIFY", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$1,325", "$5,072", "$3,747", "$700", "Estimated ceiling size: <strong>134.1 m²", "CHANGE →", "Based on the estimated ceiling size provided in your enquiry. Change it to see a revised estimate.", "NOT SURE YOUR CEILING SIZE IS RIGHT?", "CHECK ANOTHER CEILING SIZE →", "Calculator changes are for comparison only and do not overwrite your enquiry.", "THERE ARE NO OTHER STANDARD FEES TO ADD TO THIS ESTIMATE.", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "For $99, we’ll arrange your onsite Ready Check so we can measure your ceiling and prepare a more accurate project estimate.", "The $99 is credited toward your project if you proceed.", "BOOK MY READY CHECK →", "Your $99 Home Insulation Ready Check is credited toward your project if you proceed.", "See exactly what’s included on the next page.", "All prices include GST.", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Refer a friend →", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
     for (const removed of ["CONFIRM MY QUOTE", "WHAT HAPPENS NEXT"]) expect(email.html).not.toContain(removed);
     expect(email.html).not.toContain("% estimated saving");
     expect(email.plainText).toContain("Estimated ceiling size: 134.1 m² — CHANGE:");
-    expect(email.plainText).toContain("It is not the PIESA.");
+    for (const removed of ["One of our insulation partners visits", "The Ready Check is not the mandatory electrical safety assessment", "If the Ready Check identifies something", CUSTOMER_PAYMENT_COPY.notPiesa, CUSTOMER_PAYMENT_COPY.purpose, CUSTOMER_WHAT_COULD_CHANGE.closing]) expect(`${email.html} ${email.plainText}`).not.toContain(removed);
     expect(`${email.html} ${email.plainText}`).not.toMatch(/multiple providers|estimated saving|reserved capacity/i);
     expect(email.html).not.toContain("is shown to you before anything is added");
     expect(email.html).not.toContain("background-color:#ECF9F1;border-radius:14px");
@@ -48,17 +48,17 @@ describe("customer outcome email renderers", () => {
 
   test("onsite confirmation remains positive and renders dynamic reasons", () => {
     const email = renderEstimateEmail({ ...detailed, outcome: "onsite", reasons: ["Existing insulation needs confirmation.", "Roof access must be checked."] });
-    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY — WE JUST NEED TO CONFIRM A FEW THINGS.", "WHAT WE NEED TO CONFIRM", "Existing insulation needs confirmation.", "Roof access must be checked.", "YOUR ANSWERS HAVEN'T RULED YOU OUT.", "$1,325", "$3,747", "$3,648", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "CHECK ANOTHER CEILING SIZE →", "BOOK MY READY CHECK →", "The Ready Check is not the mandatory electrical safety assessment."]) expect(email.html).toContain(copy);
+    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY — WE JUST NEED TO CONFIRM A FEW THINGS.", "WHAT WE NEED TO CONFIRM", "Existing insulation needs confirmation.", "Roof access must be checked.", "YOUR ANSWERS HAVEN'T RULED YOU OUT.", "$1,325", "$3,747", "$3,648", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "CHECK ANOTHER CEILING SIZE →", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "BOOK MY READY CHECK →", "See exactly what’s included on the next page."]) expect(email.html).toContain(copy);
     expect(email.html.indexOf("YOUR PRELIMINARY QUOTE")).toBeLessThan(email.html.indexOf("WHAT WE NEED TO CONFIRM"));
     expect(email.html).toContain(`${estimateUrl}#calculator`);
     expect(email.html.split("BOOK MY READY CHECK →").length - 1).toBe(1);
   });
 
-  test("shows the removal note only for a declared existing-insulation answer", () => {
+  test("keeps detailed removal guidance off both emails", () => {
     const present = renderEstimateEmail({ ...detailed, outcome: "onsite", existingInsulationPresent: true });
     const absent = renderEstimateEmail({ ...detailed, outcome: "likely", existingInsulationPresent: false });
-    expect(present.html).toContain(CUSTOMER_EXISTING_INSULATION_NOTE);
-    expect(present.plainText).toContain(CUSTOMER_EXISTING_INSULATION_NOTE);
+    expect(present.html).not.toContain(CUSTOMER_EXISTING_INSULATION_NOTE);
+    expect(present.plainText).not.toContain(CUSTOMER_EXISTING_INSULATION_NOTE);
     expect(absent.html).not.toContain(CUSTOMER_EXISTING_INSULATION_NOTE);
     expect(absent.plainText).not.toContain(CUSTOMER_EXISTING_INSULATION_NOTE);
   });
