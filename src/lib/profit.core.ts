@@ -34,12 +34,15 @@ export function jobProfit(i: ProfitInput, spot: number | null) {
 // the wording changes — fail closed, never guess.
 export function parseVeecSpotFromHtml(html: string): number | null {
   const text = html.replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&#038;/g, "&").replace(/\s+/g, " ");
-  const start = text.search(/VEEC/i);
-  if (start < 0) return null;
-  // Take the sentence after "VEEC"; a period only ends it when not a decimal point.
-  const window = text.slice(start, start + 400);
-  const end = window.search(/\.(?!\d)/);
-  const sentence = end < 0 ? window : window.slice(0, end);
-  const amounts = [...sentence.matchAll(/\$(\d+(?:\.\d{1,2})?)/g)].map((a) => Number(a[1])).filter((n) => n > 0 && n < 1000);
-  return amounts.length ? amounts[amounts.length - 1]! : null;
+  // Pages mention "VEEC" in menus too; use the first mention followed by a price nearby.
+  for (const m of text.matchAll(/VEEC/gi)) {
+    const window = text.slice(m.index, m.index + 400);
+    if (!window.includes("$")) continue;
+    // A period only ends the sentence when it is not a decimal point.
+    const end = window.search(/\.(?!\d)/);
+    const sentence = end < 0 ? window : window.slice(0, end);
+    const amounts = [...sentence.matchAll(/\$(\d+(?:\.\d{1,2})?)/g)].map((a) => Number(a[1])).filter((n) => n > 0 && n < 1000);
+    if (amounts.length) return amounts[amounts.length - 1]!;
+  }
+  return null;
 }
