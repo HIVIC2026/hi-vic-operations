@@ -202,7 +202,7 @@ describe("customer outcome email renderers", () => {
     expect(likely).toContain("@media only screen and (max-width:480px)");
     expect(source + preview).not.toMatch(/sendTemplateEmail|sendLovableEmail|createServerFn|supabase|fetch\(|\.insert\(|\.update\(/);
     expect(preview).toContain("Likely eligible");
-    expect(preview).toContain("Test CHECK ANOTHER CEILING SIZE →");
+    expect(preview).toContain("Test OPEN THE INTERACTIVE CALCULATOR →");
     expect(preview).toContain("Test REVIEW MY RESULT →");
     expect(preview).toContain("640 desktop");
     expect(preview).toContain("390 mobile");
