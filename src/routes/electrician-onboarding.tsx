@@ -118,7 +118,7 @@ function RecOnboarding() {
     setError(null);
     if (delta === 1 && errs.length) { setShowErrors(true); return; }
     setShowErrors(false);
-    const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))].key;
+    const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "business";
     setBusy(true);
     try { await persist(target); setStep(target); window.scrollTo({ top: 0 }); }
     catch (e) { setError(e instanceof Error ? e.message : "Could not save."); } finally { setBusy(false); }
@@ -186,7 +186,7 @@ function RecOnboarding() {
 
   return shell(
     <div style={card}>
-      <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 16px", color: BLUE }}>{steps[idx].title}</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 16px", color: BLUE }}>{steps[idx]?.title}</h1>
       <StepBody step={step} d={d} up={up} token={token!} setError={setError} />
       {step === "sign" && <SignStep d={d} token={token!} onSigned={() => setStatus("submitted")} />}
       {showErrors && errs.length > 0 && (
@@ -249,7 +249,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
     case "coverage":
       return <>
         <Field label="Service starting location" required><input style={input} {...t("service_origin")} /></Field>
-        {d.business_address && d.service_origin !== d.business_address && <button type="button" style={{ ...btn(false), marginBottom: 16 }} onClick={() => up({ service_origin: d.business_address })}>Use business address</button>}
+        {d.business_address && d.service_origin !== d.business_address && <button type="button" style={{ ...btn(false), marginBottom: 16 }} onClick={() => up({ service_origin: d.business_address ?? "" })}>Use business address</button>}
         <Field label="Travel radius" required><Choice options={RADII.map((r) => ({ v: r.v as number, l: r.l }))} value={d.travel_radius_km ?? null} onChange={(v) => up({ travel_radius_km: v })} /></Field>
         {d.travel_radius_km != null && <div style={infoCard}>You'll be offered jobs {d.travel_radius_km === 9999 ? "anywhere in Victoria" : `within ${d.travel_radius_km} km of your starting location`}.</div>}
         <Field label="Need to exclude a particular area?"><textarea style={{ ...input, minHeight: 70 }} {...t("excluded_areas")} /></Field>

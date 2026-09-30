@@ -72,8 +72,8 @@ export function validAbn(abn: string | undefined): boolean {
   if (!/^\d{11}$/.test(digits)) return false;
   const w = [10, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19];
   const n = digits.split("").map(Number);
-  n[0] -= 1;
-  return n.reduce((s, d, i) => s + d * w[i], 0) % 89 === 0;
+  n[0] = (n[0] ?? 0) - 1;
+  return n.reduce((s, d, i) => s + d * (w[i] ?? 0), 0) % 89 === 0;
 }
 export const validPhone = (p?: string) => /^(?:\+61|0)[2-478]\d{8}$/.test((p ?? "").replace(/[\s()-]/g, ""));
 export function validBusinessEmail(e?: string) {
