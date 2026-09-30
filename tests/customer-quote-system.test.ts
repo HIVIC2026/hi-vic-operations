@@ -8,7 +8,7 @@ describe("customer quote system", () => {
     expect(CUSTOMER_BRAND.logoUrl).toBe("https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png");
     expect(CUSTOMER_BRAND.colors).toEqual({ blue: "#3C51C4", green: "#07BF61", accent: "#52C875", offWhite: "#FBFCFA", navy: "#22376B", white: "#FFFFFF" });
     expect(CUSTOMER_BRAND.font).toBe("'Open Sans',Arial,Helvetica,sans-serif");
-    expect(CUSTOMER_QUOTE_ORDER).toEqual([CUSTOMER_QUOTE_LABELS.piesa, CUSTOMER_QUOTE_LABELS.insulation, CUSTOMER_QUOTE_LABELS.apManagement, CUSTOMER_QUOTE_LABELS.projectTotal, CUSTOMER_QUOTE_LABELS.discount, CUSTOMER_QUOTE_LABELS.finalCost, CUSTOMER_QUOTE_LABELS.payableNow, CUSTOMER_QUOTE_LABELS.remainingBalance]);
+    expect(CUSTOMER_QUOTE_ORDER).toEqual([CUSTOMER_QUOTE_LABELS.piesa, CUSTOMER_QUOTE_LABELS.insulation, CUSTOMER_QUOTE_LABELS.apManagement, CUSTOMER_QUOTE_LABELS.projectTotal, CUSTOMER_QUOTE_LABELS.discount, CUSTOMER_QUOTE_LABELS.finalCost]);
     expect(customerQuoteRows({ piesa: 349, installation: 4500, apManagement: 349 }).map((row) => row.label)).toEqual(CUSTOMER_QUOTE_ORDER.slice(0, 3));
   });
 
