@@ -46,3 +46,4 @@
 - [x] Confirm exact per-VEEC lodgement fee (registry cost) and record it in pricing settings — $4.35 per VEEC, ESC fee from 1 Jan 2026
 - [ ] Record the negotiated REC PIESA rate once agreed (pricing_settings.piesa_rec_cost_ex_gst)
 - [ ] Build and validate separate Mitti templates: installer Ready Check eligibility/measurement and licensed REC PIESA; configure only verified template IDs
+- [ ] Expand both Mitti template specs to the full official PIESA + Pre-Installation Installer Safety Assessment (PIISA) content and complete AP evidence list
