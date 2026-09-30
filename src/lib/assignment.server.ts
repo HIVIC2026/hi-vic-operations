@@ -207,9 +207,6 @@ export async function prepareFinalAssignment(jobId: string, actorId: string, fie
   if (!r.facts || !r.agreement || !r.decl || !r.official) throw new WorkflowError(`Final VEEC assignment not available: ${r.blockers.join(" • ")}`);
   const sha = await sha256Hex(stableJson(r.facts));
   let prev = await currentAssignment(jobId);
-  const base = r.agreement.snapshot as unknown as { snapshot: Snapshot };
-  const current = { installer_user_id: r.decl.installer_user_id, installer_business_id: r.decl.installer_business_id, product: r.decl.installed_product, area_m2: Number(r.decl.installed_area_m2) };
-  const changes = materialChanges(base.snapshot, current);
   if (prev) {
     if (prev.status === "effective_complete") throw new WorkflowError("The final VEEC assignment is already effective – record a variation instead.");
     if (prev.final_facts_sha256 === sha) return prev.id;
@@ -235,7 +232,6 @@ export async function prepareFinalAssignment(jobId: string, actorId: string, fie
   }).select("id").single();
   if (error || !row) throw new Error(error?.message);
   await logEvent(jobId, actorId, EV.FINAL_ASSIGNMENT_PREPARED, `Final Activity 48 VEEC assignment prepared (${r.official.version}) – signing order: lead installer → AP representative → customer`, { assignment_id: row.id, sha256: sha });
-  if (changes.length) await raiseVariation(jobId, actorId, changes, { ...base.snapshot, ...current });
   await evaluateAndApply(jobId, actorId);
   return row.id;
 }
