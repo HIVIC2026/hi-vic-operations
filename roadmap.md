@@ -27,3 +27,4 @@
 - [x] Audit and reconcile every email, notification, page, workflow, test and guide with the free installer Ready Check, REC-only PIESA and conditional $220 fee
 - [x] Match each new enquiry to approved REC and installer coverage; show gaps and provide a one-click, guarded “no partner in your area” email
 - [x] Add an office coverage view showing serviceable, partial and unserviceable Victorian areas separately for RECs and installers
+- [x] Audit current official Activity 48 homeowner documents and correct VEEC assignment to post-install final-facts signing
