@@ -21,10 +21,17 @@ describe("admin pipeline visibility", () => {
 
   it("uses the admin-only read instead of silently turning a browser RLS error into zero jobs", () => {
     expect(pipeline).toContain("useServerFn(getAdminPipeline)");
-    expect(pipeline).toContain("return loadPipeline()");
+    expect(pipeline).toContain("queryFn: () => loadPipeline()");
     expect(pipeline).not.toContain('supabase.from("job_overview").select("*")');
     expect(pipeline).toContain("error: pipelineError");
     expect(pipeline).toContain("The Pipeline could not be loaded");
+  });
+
+  it("never delays the enquiry read behind maintenance work", () => {
+    expect(pipeline).toContain("Promise.allSettled([sweep(), advance()])");
+    expect(pipeline).not.toMatch(/queryFn:\s*async[\s\S]*await sweep\(\)[\s\S]*return loadPipeline\(\)/);
+    expect(pipeline).toContain("Loading enquiries…");
+    expect(pipeline).toContain("Your enquiries have not been deleted.");
   });
 
   it("keeps unrelated jobs hidden from non-admins at the RLS boundary", () => {

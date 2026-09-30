@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, List, Plus, Search, SlidersHorizontal, Workflow } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
@@ -36,14 +36,21 @@ function Pipeline() {
   const postIntakeHealth = useServerFn(getPostIntakeHealth);
   const { data: intakeHealth } = useQuery({ queryKey: ["post_intake_health"], queryFn: () => postIntakeHealth(), refetchInterval: 60_000 });
   const [phase, setPhase] = useState<Phase | "all">("all");
-  const { data: allJobs = [], error: pipelineError } = useQuery({
+  const { data: allJobs = [], error: pipelineError, isPending: pipelinePending, refetch: refetchPipeline } = useQuery({
     queryKey: ["pipeline"],
-    queryFn: async () => {
-      await sweep().catch(() => null);
-      await advance().catch(() => null);
-      return loadPipeline();
-    },
+    queryFn: () => loadPipeline(),
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 8_000),
+    staleTime: 30_000,
   });
+  useEffect(() => {
+    let active = true;
+    void Promise.allSettled([sweep(), advance()]).then((results) => {
+      if (!active || !results.some((result) => result.status === "fulfilled")) return;
+      void refetchPipeline();
+    });
+    return () => { active = false; };
+  }, [advance, refetchPipeline, sweep]);
   const jobs = useMemo(() => allJobs.filter((j) => showTest || j.source !== "qa_test"), [allJobs, showTest]);
   const hiddenTest = allJobs.length - jobs.length;
   const filtered = useMemo(() => {
@@ -68,7 +75,8 @@ function Pipeline() {
     <AppShell wide>
       {pipelineError && (
         <div role="alert" className="mb-4 rounded-lg border-2 border-danger bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
-          The Pipeline could not be loaded. Refresh the page or sign in again.
+          <span>The Pipeline could not be loaded. Your enquiries have not been deleted.</span>
+          <Button type="button" variant="outline" size="sm" className="ml-3" onClick={() => void refetchPipeline()}>Try again</Button>
         </div>
       )}
       <div className="mb-5 flex flex-wrap items-start gap-4 border-b pb-5">
@@ -103,7 +111,9 @@ function Pipeline() {
           {byPhase("exceptions").length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{byPhase("exceptions").map((j) => <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" />)}</div> : <p className="text-sm text-muted-foreground">None.</p>}
         </section>
       )}
-      {view === "board" ? (
+      {pipelinePending ? (
+        <div role="status" className="rounded-md border bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">Loading enquiries…</div>
+      ) : view === "board" ? (
         <div className="flex gap-5 overflow-x-auto pb-5">
           {lanes.map((p) => (
             <div key={p.key} className="w-[19rem] shrink-0">
