@@ -10,11 +10,12 @@ const piesa = { hasCurrentPiesa: true, piesaExpired: false };
 const inst = (over: Partial<MeasurementLike> = {}): MeasurementLike => ({ id: "m1", status: "complete", source_role: "installer", ...full, ...over });
 
 describe("visit-scope derivation", () => {
-  test("1 nothing done → COMBINED; electrician does both", () => {
+  test("1 nothing done → SPLIT; installer measures and electrician completes PIESA", () => {
     const s = deriveScope({ measurement: null, electrical: noPiesa });
-    expect(s.scope).toBe("COMBINED");
-    expect(s.electricianTasks).toEqual(["electrical", "measure_up"]);
-    expect(s.editableMeasureFields.length).toBe(6);
+    expect(s.scope).toBe("SPLIT");
+    expect(s.electricianTasks).toEqual(["electrical"]);
+    expect(s.installerTasks).toEqual(["measure_up"]);
+    expect(s.editableMeasureFields).toEqual([]);
   });
   test("1b combined visit completes both → COMPLETE", () => {
     expect(deriveScope({ measurement: { ...inst(), source_role: "electrician" }, electrical: piesa }).scope).toBe("COMPLETE");
@@ -25,11 +26,13 @@ describe("visit-scope derivation", () => {
     expect(s.electricianTasks).toEqual(["electrical"]);
     expect(s.editableMeasureFields).toEqual([]);
   });
-  test("3 installer measurement needs review → ELECTRICAL_PLUS_MEASUREUP_COMPLETION, only missing/flagged fields editable", () => {
+  test("3 installer measurement needs review → installer completes evidence; electrician remains PIESA-only", () => {
     const s = deriveScope({ measurement: inst({ status: "needs_review", access_difficulty: null, review_flags: [{ field: "existing_r_value" }] }), electrical: noPiesa });
     expect(s.scope).toBe("ELECTRICAL_PLUS_MEASUREUP_COMPLETION");
-    expect(s.editableMeasureFields.sort()).toEqual(["access_difficulty", "existing_r_value"]);
-    expect(s.nextAction).toMatch(/measure-up review/);
+    expect(s.electricianTasks).toEqual(["electrical"]);
+    expect(s.installerTasks).toEqual(["measure_up"]);
+    expect(s.editableMeasureFields).toEqual([]);
+    expect(s.nextAction).toMatch(/installer eligibility measure-up review/);
   });
   test("4 PIESA first → MEASURE_UP_ONLY for installer", () => {
     const s = deriveScope({ measurement: null, electrical: piesa });
@@ -44,7 +47,7 @@ describe("visit-scope derivation", () => {
     expect(s.installerTasks).toEqual(["measure_up"]);
   });
   test("rejected measurement is ignored; expired PIESA is not current", () => {
-    expect(deriveScope({ measurement: inst({ status: "rejected" }), electrical: noPiesa }).scope).toBe("COMBINED");
+    expect(deriveScope({ measurement: inst({ status: "rejected" }), electrical: noPiesa }).scope).toBe("SPLIT");
     const s = deriveScope({ measurement: inst(), electrical: { hasCurrentPiesa: true, piesaExpired: true } });
     expect(s.scope).toBe("ELECTRICAL_ONLY");
     expect(s.electrical.state).toBe("expired");
@@ -53,9 +56,9 @@ describe("visit-scope derivation", () => {
 
 describe("measurement update planning", () => {
   test("5 repeated sync with same audit updates the same draft row, never duplicates", () => {
-    const first = planMeasurementUpdate({ scope: "COMBINED", current: null, incoming: { measured_area_m2: 100 }, source: "electrician", external: { source: "mitti", id: "a1" } });
+    const first = planMeasurementUpdate({ scope: "SPLIT", current: null, incoming: { measured_area_m2: 100 }, source: "installer", external: { source: "mitti", id: "a1" } });
     expect(first.action).toBe("create");
-    const again = planMeasurementUpdate({ scope: "COMBINED", current: { id: "m9", status: "draft", source_role: "electrician", measured_area_m2: 100, external_source: "mitti", external_id: "a1" }, incoming: { measured_area_m2: 101 }, source: "electrician" });
+    const again = planMeasurementUpdate({ scope: "SPLIT", current: { id: "m9", status: "draft", source_role: "installer", measured_area_m2: 100, external_source: "mitti", external_id: "a1" }, incoming: { measured_area_m2: 101 }, source: "installer" });
     expect(again).toMatchObject({ action: "update", id: "m9" });
     const accepted = planMeasurementUpdate({ scope: "COMPLETE", current: inst({ source_role: "electrician" }), incoming: { measured_area_m2: 90 }, source: "electrician" });
     expect(accepted.action).toBe("skip");
@@ -76,12 +79,12 @@ describe("measurement update planning", () => {
     expect(electrical).toMatchObject({ rcds_present: true });
     expect(electrical.piesa_outcome).toBeUndefined(); // imported B1 no-work stays pending
     expect("measured_area_m2" in electrical).toBe(false);
-    const p = planMeasurementUpdate({ scope: "COMBINED", current: null, incoming: measure, source: "electrician", external: { source: "mitti", id: "a1" } });
-    expect(p).toMatchObject({ action: "create", values: { measured_area_m2: 88.5, insulation_present: false } });
+    const p = planMeasurementUpdate({ scope: "SPLIT", current: null, incoming: measure, source: "electrician", external: { source: "mitti", id: "a1" } });
+    expect(p).toMatchObject({ action: "skip", reason: expect.stringContaining("belongs to the installer") });
   });
-  test("3b completion only fills missing/flagged fields and keeps installer provenance", () => {
+  test("3b electrician cannot complete installer measure-up fields", () => {
     const p = planMeasurementUpdate({ scope: "ELECTRICAL_PLUS_MEASUREUP_COMPLETION", current: inst({ status: "needs_review", access_difficulty: null }), incoming: { measured_area_m2: 999, access_difficulty: "moderate" }, source: "electrician" });
-    expect(p).toEqual({ action: "update", id: "m1", values: { access_difficulty: "moderate" }, supplemented: ["access_difficulty"] });
+    expect(p).toMatchObject({ action: "skip", reason: expect.stringContaining("belongs to the installer") });
   });
   test("SPLIT: electrician input never writes the installer's measure-up", () => {
     expect(planMeasurementUpdate({ scope: "SPLIT", current: null, incoming: { measured_area_m2: 10 }, source: "electrician" }).action).toBe("skip");
