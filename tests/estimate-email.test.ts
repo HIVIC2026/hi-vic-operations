@@ -27,7 +27,11 @@ describe("customer outcome email renderers", () => {
     const order = ["YOUR PRELIMINARY QUOTE", "Estimated ceiling size:", "CHANGE →", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$349 payable now for the Measure + PIESA", "Estimated remaining balance", "THERE ARE NO OTHER STANDARD FEES", "NOT SURE YOUR CEILING SIZE IS RIGHT?", "CHECK ANOTHER CEILING SIZE →", "PAY $349 &amp; CONTINUE →"].map((t) => h.indexOf(t));
     expect(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1]!))).toBe(true);
     expect(h.split("PAY $349 &amp; CONTINUE →").length - 1).toBe(1);
-    expect(h).toContain("border-left:4px solid #07BF61");
+    expect(h).toContain("border-radius:16px");
+    expect(h).toContain("border:1px solid #D4DAF5");
+    expect(h).toContain("border:1px solid #BEE8CE");
+    expect(`${email.html} ${email.plainText}`).toContain("VEU / VEEC discount and estimated cost after discount could change.");
+    expect(`${email.html} ${email.plainText}`).not.toContain("VEU discount and estimated price could change.");
     expect(email.plainText).toContain("PAY $349 & CONTINUE:");
     expect(email.plainText).toContain(CUSTOMER_PAYMENT_COPY.included);
     expect(h).not.toContain("CONTINUE WITH HOME INSULATION VICTORIA");
@@ -43,8 +47,8 @@ describe("customer outcome email renderers", () => {
 
   test("onsite confirmation remains positive and renders dynamic reasons", () => {
     const email = renderEstimateEmail({ ...detailed, outcome: "onsite", reasons: ["Existing insulation needs confirmation.", "Roof access must be checked."] });
-    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY — WE JUST NEED TO CONFIRM A FEW THINGS.", "What we need to confirm", "Existing insulation needs confirmation.", "Roof access must be checked.", "YOUR ANSWERS HAVEN'T RULED YOU OUT.", "$1,325", "$3,747", "$3,398", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "CHECK ANOTHER CEILING SIZE →", "PAY $349 &amp; CONTINUE →", CUSTOMER_PAYMENT_COPY.included, CUSTOMER_PAYMENT_COPY.notAgain]) expect(email.html).toContain(copy);
-    expect(email.html.indexOf("YOUR PRELIMINARY QUOTE")).toBeLessThan(email.html.indexOf("What we need to confirm"));
+    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY — WE JUST NEED TO CONFIRM A FEW THINGS.", "WHAT WE NEED TO CONFIRM", "Existing insulation needs confirmation.", "Roof access must be checked.", "YOUR ANSWERS HAVEN'T RULED YOU OUT.", "$1,325", "$3,747", "$3,398", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "CHECK ANOTHER CEILING SIZE →", "PAY $349 &amp; CONTINUE →", CUSTOMER_PAYMENT_COPY.included, CUSTOMER_PAYMENT_COPY.notAgain]) expect(email.html).toContain(copy);
+    expect(email.html.indexOf("YOUR PRELIMINARY QUOTE")).toBeLessThan(email.html.indexOf("WHAT WE NEED TO CONFIRM"));
     expect(email.html).toContain(`${estimateUrl}#calculator`);
     expect(email.html.split("PAY $349 &amp; CONTINUE →").length - 1).toBe(1);
   });

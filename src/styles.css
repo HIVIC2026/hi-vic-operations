@@ -96,6 +96,8 @@
   --estimate-green-light: oklch(0.97024 0.01728 159.124);
   --estimate-accent: #52c875;
   --estimate-accent-soft: oklch(0.97024 0.01728 159.124);
+  --estimate-secondary-border: oklch(0.884 0.037 278.5);
+  --estimate-action-border: oklch(0.89 0.072 157);
   --estimate-white: oklch(1 0 0);
   --background: var(--estimate-canvas);
   --foreground: var(--estimate-navy);
@@ -108,6 +110,34 @@
   font-family: "Open Sans", Arial, Helvetica, sans-serif;
   color: var(--estimate-navy);
   background: var(--estimate-canvas);
+}
+
+.estimate-quote-card {
+  border: 2px solid var(--estimate-blue);
+  border-radius: 20px;
+  background: var(--estimate-white);
+  box-shadow: 5px 5px 0 var(--estimate-accent);
+}
+
+.estimate-secondary-card {
+  border: 1px solid var(--estimate-secondary-border);
+  border-radius: 16px;
+  background: var(--estimate-canvas);
+  padding: 1.25rem;
+}
+
+.estimate-action-card {
+  border: 1px solid var(--estimate-action-border);
+  border-radius: 16px;
+  background: var(--estimate-green-soft);
+  padding: 1rem;
+}
+
+.estimate-action-button {
+  border-radius: 12px;
+  background: var(--estimate-blue);
+  color: var(--estimate-white);
+  box-shadow: 4px 4px 0 var(--estimate-green);
 }
 
 .estimate-offset {
