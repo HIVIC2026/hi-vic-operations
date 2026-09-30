@@ -73,7 +73,7 @@ export const CUSTOMER_READY_CHECK = {
 export const CUSTOMER_READY_CHECK_EMAIL_ACTION = {
   eyebrow: "NEXT STEP",
   heading: "BOOK YOUR HOME INSULATION READY CHECK",
-  sentence: "For $99, we’ll arrange your onsite Ready Check so we can measure your ceiling and prepare a more accurate project estimate.",
+  sentence: "Your $99 Ready Check confirms the property details needed to progress your preliminary estimate. Once the required checks are complete, we can confirm the scope and pricing before any installation work proceeds.",
   credit: "The $99 is credited toward your project if you proceed.",
   helper: "See exactly what’s included on the next page.",
 } as const;
@@ -81,18 +81,13 @@ export const CUSTOMER_READY_CHECK_EMAIL_ACTION = {
 /** Back-compat alias used by renderers: the only next paid step is the Ready Check. */
 export const CUSTOMER_ASSESSMENT_ACTION = { cta: CUSTOMER_READY_CHECK.cta, paragraphs: CUSTOMER_READY_CHECK.paragraphs } as const;
 
-export const CUSTOMER_WHAT_COULD_CHANGE = {
-  heading: "WHAT COULD CHANGE MY ESTIMATE?",
-  intro: "Your preliminary estimate is based on the ceiling size and information we have now. Your measured project estimate may change once we’ve inspected the property.",
-  items: [
-    { lead: "Ceiling size", copy: "if the measured ceiling area is larger or smaller than the size you entered, your insulation price and VEU / VEEC discount will change accordingly." },
-    { lead: "Existing insulation", copy: "if insulation is already present and needs to be removed before new insulation can be installed, removal will be added to the measured project estimate." },
-    { lead: "Access", copy: "if the ceiling space is more difficult to access than expected, an access adjustment may apply." },
-    { lead: "Electrical rectification", copy: "your later mandatory PIESA is completed by a licensed electrician. If it identifies electrical work that must be completed before insulation can safely proceed, that work will be shown separately." },
-  ],
-  closing: "If any of these apply, we’ll show you exactly what is required and the updated price before you decide whether to proceed. We will never proceed with additional work or additional costs without first showing you the scope and price and getting your approval.",
+export const CUSTOMER_WHAT_COULD_CHANGE: { heading: string; intro: string; items: readonly { lead: string; copy: string }[]; closing: string; gst: string } = {
+  heading: "ABOUT YOUR PRELIMINARY ESTIMATE",
+  intro: "This estimate is based on the information currently available. The final scope and price may change after we confirm the measured ceiling size, existing insulation and any required removal, ceiling access conditions, and any electrical rectification identified through the mandatory Pre-Installation Electrical Safety Assessment (PIESA).",
+  items: [],
+  closing: "Home Insulation Victoria will never proceed with additional work or additional costs without first showing you the required scope and price and receiving your approval.",
   gst: "All prices include GST.",
-} as const;
+};
 
 export const CUSTOMER_EXISTING_INSULATION_NOTE = "Existing insulation: removal MAY be required. It is not included unless shown in the quote. Your Ready Check confirms whether removal is required and, if so, the price before you proceed.";
 
@@ -117,12 +112,29 @@ export const CUSTOMER_DISCOUNT_TREATMENT = {
 } as const;
 
 /** Exact shared approval reassurance (Ready Check, measured estimate, PIESA stage). */
+export const CUSTOMER_LIKELY_HERO = {
+  heading: "YOU'RE LIKELY ELIGIBLE",
+  intro: "Based on the information provided, your property appears likely to qualify for a VEU / VEEC discount on eligible ceiling insulation work.",
+  next: "Your preliminary estimate is below. The next step is to book your Home Insulation Ready Check so we can confirm the property details required to progress your quote.",
+} as const;
+
+export const CUSTOMER_INELIGIBLE_COPY = {
+  heading: "UNFORTUNATELY, THIS PROPERTY DOESN'T APPEAR TO BE ELIGIBLE AT THIS STAGE",
+  intro: "Based on the information provided, the property does not currently appear to meet the eligibility requirements.",
+  reasonsHeading: "WHY IT MAY NOT BE ELIGIBLE",
+  reviewHeading: "IS SOMETHING NOT RIGHT?",
+  review: "If any of the information you entered was incorrect, you can review and update your answers. We will reassess the result using the corrected information.",
+  cta: "REVIEW MY ANSWERS →",
+} as const;
+
 export const CUSTOMER_APPROVAL_REASSURANCE = "We will never proceed with additional work or additional costs without first showing you the scope and price and getting your approval." as const;
 
 /** Onsite-outcome hero: one heading, one subheading, dynamic reasons. */
 export const CUSTOMER_ONSITE_HERO = {
   heading: "IT'S LOOKING GOOD SO FAR",
-  subheading: (count: number) => count === 1 ? "WE JUST NEED TO CHECK ONE THING ONSITE:" : "WE JUST NEED TO CHECK A COUPLE OF THINGS ONSITE:",
+  intro: "Based on the information provided, your property may be eligible. We just need to confirm a few details onsite before eligibility and final pricing can be confirmed.",
+  subheading: (_count: number) => "WHAT WE NEED TO CHECK ONSITE",
+  transition: "While these items still need to be checked, the preliminary estimate below shows what the project may cost based on the information currently available.",
 } as const;
 
 export const CUSTOMER_READY_CHECK_PAGE = {
