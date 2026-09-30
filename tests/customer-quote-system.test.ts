@@ -21,7 +21,7 @@ describe("customer quote system", () => {
     expect(CUSTOMER_ASSESSMENT_ACTION.paragraphs[0]).toBe("Your $99 Home Insulation Ready Check is credited toward your project if you proceed.");
     expect(CUSTOMER_WHAT_COULD_CHANGE.heading).toBe("WHAT COULD CHANGE MY ESTIMATE?");
     expect(CUSTOMER_WHAT_COULD_CHANGE.items.map(({ lead }) => lead)).toEqual(["Ceiling size", "Existing insulation", "Access", "Electrical rectification"]);
-    expect(CUSTOMER_WHAT_COULD_CHANGE.closing).toBe("If any of these apply, we’ll show you the updated scope and price before you decide whether to proceed. Nothing is simply added without being shown to you first.");
+    expect(CUSTOMER_WHAT_COULD_CHANGE.closing).toBe("If any of these apply, we’ll show you exactly what is required and the updated price before you decide whether to proceed. We will never proceed with additional work or additional costs without first showing you the scope and price and getting your approval.");
   });
 
   test("customer-facing Step 3 sources consume the shared system and contain no HI VIC shorthand", () => {
@@ -60,5 +60,22 @@ describe("presentation lock", () => {
     }
     expect(readFileSync("src/lib/estimate-email.ts", "utf8")).not.toMatch(/ESTIMATED VEU DISCOUNT|no other standard fees/i);
     void renderEstimateEmail; void renderIneligibleEmail;
+  });
+});
+
+describe("closing reassurance lock", () => {
+  const { readFileSync } = require("node:fs");
+  const { renderEstimateEmail } = require("../src/lib/estimate-email");
+  const exact = "We will never proceed with additional work or additional costs without first showing you the scope and price and getting your approval.";
+  test("old line absent from all customer sources; renderers consume the shared closing", () => {
+    for (const f of ["src/lib/customer-quote-system.ts", "src/lib/estimate-email.ts", "src/lib/followup-email.ts", "src/components/portal/estimate.tsx", "src/routes/step3-email-preview.tsx"]) {
+      const s = readFileSync(f, "utf8");
+      expect(s).not.toContain("Nothing is simply added");
+      expect(s).not.toContain("show you the updated scope and price");
+    }
+    expect(readFileSync("src/lib/customer-quote-system.ts", "utf8")).toContain(exact);
+    expect(readFileSync("src/lib/estimate-email.ts", "utf8")).toContain("CUSTOMER_WHAT_COULD_CHANGE.closing");
+    expect(readFileSync("src/components/portal/estimate.tsx", "utf8")).toContain("CUSTOMER_WHAT_COULD_CHANGE.closing");
+    void renderEstimateEmail;
   });
 });

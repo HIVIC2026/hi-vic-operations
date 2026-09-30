@@ -93,7 +93,7 @@ export const CUSTOMER_WHAT_COULD_CHANGE = {
     { lead: "Access", copy: "if the ceiling space is more difficult to access than expected, an access adjustment may apply." },
     { lead: "Electrical rectification", copy: "your later mandatory PIESA is completed by a licensed electrician. If it identifies electrical work that must be completed before insulation can safely proceed, that work will be shown separately." },
   ],
-  closing: "If any of these apply, we’ll show you the updated scope and price before you decide whether to proceed. Nothing is simply added without being shown to you first.",
+  closing: "If any of these apply, we’ll show you exactly what is required and the updated price before you decide whether to proceed. We will never proceed with additional work or additional costs without first showing you the scope and price and getting your approval.",
   gst: "All prices include GST.",
 } as const;
 
