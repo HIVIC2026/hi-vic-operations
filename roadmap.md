@@ -60,5 +60,5 @@
 - [x] Lift commercial lock for installer-led jobs (HI VIC invoices owner, co-branded)
 - [ ] Put AP fee (incl. per-job override) as its own line on installer-led quotes so the automatic Xero invoice matches the preview
 - [ ] Extend TO ACTION with remaining office tasks (ESC notice, PIESA copies, compliance records, onboarding review)
-- [ ] To action: ESC notice, PIESA copies, onboarding review exceptions
-- [ ] Bulk select jobs on the pipeline: cancel / delete (test only) / put on hold for many at once
+- [x] To action: ESC notice, PIESA copies, onboarding review exceptions
+- [x] Bulk select jobs on the pipeline: cancel / delete (test only) / put on hold for many at once
