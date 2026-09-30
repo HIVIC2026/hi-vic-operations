@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { BusinessProfile, MeasurementStandardCard } from "@/components/portal/business";
 import { useAction } from "@/hooks/use-me";
@@ -9,6 +8,8 @@ import { runPartnerExpirySweep, saveBusiness } from "@/lib/pilot.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useServerFn } from "@tanstack/react-start";
+import { getAdminBusinesses } from "@/lib/admin-records.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/businesses")({
   head: () => ({ meta: [{ title: "Partner Businesses – HI VIC Portal" }, { name: "description", content: "Onboard and approve installer and electrician partner businesses." }, { property: "og:title", content: "Partner Businesses – HI VIC Portal" }, { property: "og:description", content: "Onboard and approve installer and electrician partner businesses." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -21,13 +22,16 @@ function Businesses() {
   const [type, setType] = useState<"eec_installer" | "rec">("eec_installer");
   const create = useAction(saveBusiness);
   const sweep = useAction(runPartnerExpirySweep);
-  const { data: rows = [], refetch } = useQuery({ queryKey: ["businesses-admin"], queryFn: async () => (await supabase.from("businesses").select("id, name, business_type, capabilities, onboarding_status, xero_contact_status, updated_at").order("name")).data ?? [] });
+  const load = useServerFn(getAdminBusinesses);
+  const { data: rows = [], error, isPending, refetch } = useQuery({ queryKey: ["businesses-admin"], queryFn: () => load(), retry: 3, staleTime: 30_000 });
   return (
     <AppShell wide>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div><h1 className="text-2xl font-bold">Partner businesses</h1><p className="text-sm text-muted-foreground">Installer and electrician partners. Only approved partners with current documents can take compliance work.</p></div>
         <Button variant="outline" onClick={() => sweep(undefined as never, "Expiry check complete")}>Check expiries</Button>
       </div>
+      {error && <div role="alert" className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Partner businesses could not be loaded. Existing records are safe. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
+      {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading partner businesses…</p>}
       <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
         <div className="space-y-2">
           <MeasurementStandardCard />

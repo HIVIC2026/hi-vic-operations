@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { getAdminAssignments, getAdminJobEligibility } from "@/lib/admin-records.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
   head: () => ({ meta: [{ title: "Job – HI VIC Portal" }, { name: "description", content: "Job detail and workflow." }, { property: "og:title", content: "Job – HI VIC Portal" }, { property: "og:description", content: "Job detail and workflow." }] }),
@@ -101,11 +102,13 @@ function JobDetail() {
 
 function EligibilityForm({ jobId }: { jobId: string }) {
   const save = useAction(setEligibility);
-  const { data } = useQuery({ queryKey: ["jobraw", jobId], queryFn: async () => (await supabase.from("jobs").select("*, properties(*)").eq("id", jobId).single()).data });
+  const load = useServerFn(getAdminJobEligibility);
+  const { data, error, refetch } = useQuery({ queryKey: ["jobraw", jobId], queryFn: () => load({ data: { jobId } }), retry: 3, staleTime: 30_000 });
   const [outcome, setOutcome] = useState<EligibilityOutcome | "">("");
   const [reason, setReason] = useState("");
   const [next, setNext] = useState("");
-  if (!data) return null;
+  if (error) return <Section title="Gate 1 · Eligibility"><p className="text-sm text-danger">Eligibility details could not be loaded.</p><Button size="sm" variant="outline" className="mt-2" onClick={() => void refetch()}>Try again</Button></Section>;
+  if (!data) return <Section title="Gate 1 · Eligibility"><p className="text-sm text-muted-foreground">Loading eligibility details…</p></Section>;
   const p = data.properties as { occupancy: string | null; year_built: number | null; is_residential: boolean | null } | null;
   return (
     <Section title="Gate 1 · Eligibility">
@@ -164,19 +167,14 @@ function JobSource({ jobId, channel, model, business }: { jobId: string; channel
 
 function Assignments({ jobId }: { jobId: string }) {
   const assign = useAction(assignContractor);
-  const { data } = useQuery({
+  const load = useServerFn(getAdminAssignments);
+  const { data, error, refetch } = useQuery({
     queryKey: ["assign", jobId],
-    queryFn: async () => {
-      const [{ data: a }, { data: roles }, { data: rr }] = await Promise.all([
-        supabase.from("job_assignments").select("*, profiles!job_assignments_user_id_fkey(full_name)").eq("job_id", jobId).order("assigned_at", { ascending: false }),
-        supabase.from("user_roles").select("user_id, role, profiles(full_name)").in("role", ["electrician", "installer"]),
-        supabase.from("reassignment_requests").select("*").eq("job_id", jobId).eq("status", "open"),
-      ]);
-      return { a: a ?? [], roles: roles ?? [], rr: rr ?? [] };
-    },
+    queryFn: () => load({ data: { jobId } }), retry: 3, staleTime: 30_000,
   });
   return (
     <Section title="Assigned trades">
+      {error && <div role="alert" className="mb-2 text-sm text-danger">Assignments could not be loaded. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
       {data?.rr.map((r) => <p key={r.id} className="mb-2 rounded bg-warning-soft p-2 text-sm">Owner requested a different {r.role}: {r.reason}</p>)}
       {(["electrician", "installer"] as const).map((role) => {
         const cur = data?.a.find((x) => x.role === role && x.active);

@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { useAction } from "@/hooks/use-me";
 import { updatePartnerEnquiry } from "@/lib/portal.functions";
@@ -13,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Tables } from "@/integrations/supabase/types";
+import { useServerFn } from "@tanstack/react-start";
+import { getAdminPartnerEnquiries } from "@/lib/admin-records.functions";
 
 type Row = Tables<"partner_enquiries">;
 
@@ -26,15 +27,18 @@ const date = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-AU") 
 
 function Partners() {
   const [open, setOpen] = useState<Row | null>(null);
-  const { data: rows = [] } = useQuery({
+  const load = useServerFn(getAdminPartnerEnquiries);
+  const { data: rows = [], error, isPending, refetch } = useQuery({
     queryKey: ["partner_enquiries"],
-    queryFn: async () => (await supabase.from("partner_enquiries").select("*").order("created_at", { ascending: false })).data ?? [],
+    queryFn: () => load(), retry: 3, staleTime: 30_000,
   });
   const of = (t: PartnerType) => rows.filter((r) => r.enquiry_type === t);
   return (
     <AppShell wide>
       <h1 className="text-2xl font-bold tracking-tight">Partner Enquiries</h1>
       <p className="mb-4 text-sm text-muted-foreground">Businesses interested in working with HI VIC. These are not customer jobs and never appear in the Pipeline.</p>
+      {error && <div role="alert" className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Partner enquiries could not be loaded. Existing applications are safe. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
+      {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading partner enquiries…</p>}
       <Tabs defaultValue="property_manager">
         <TabsList>
           {PARTNER_TYPES.map((t) => (
