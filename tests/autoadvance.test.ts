@@ -143,6 +143,6 @@ describe("Gate 1 auto-decision", () => {
   });
   test("auto-pass leaves Enquiries automatically", async () => {
     const x = fake("new_enquiry", { eligibilityConfirmed: true, electricianAssigned: false });
-    expect((await runAutoAdvance(x.deps)).to).toBe("awaiting_electrician");
+    expect((await runAutoAdvance(x.deps)).to).toBe("ready_check_ready_to_schedule");
   });
 });

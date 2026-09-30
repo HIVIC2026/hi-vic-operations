@@ -16,13 +16,13 @@ type Sb = SupabaseClient<Database>;
  */
 export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
   // Eligible jobs go to the free installer Ready Check first; the electrician PIESA comes later (piesa_and_install_window_pending).
-  new_enquiry: ["eligibility_review", "ready_check_ready_to_schedule", "preliminary_estimate_ready", "awaiting_electrician"],
-  eligibility_review: ["ready_check_ready_to_schedule", "preliminary_estimate_ready", "awaiting_electrician"],
+  new_enquiry: ["eligibility_review", "ready_check_ready_to_schedule", "ready_check_complete", "preliminary_estimate_ready", "awaiting_electrician"],
+  eligibility_review: ["ready_check_ready_to_schedule", "ready_check_complete", "preliminary_estimate_ready", "awaiting_electrician"],
   // Ready Check pathway. NO electrician-review stage between ready_check_complete and measured_estimate_ready.
   preliminary_estimate_ready: ["ready_check_awaiting_acceptance", "ready_check_ready_to_schedule"],
   ready_check_awaiting_acceptance: ["ready_check_ready_to_schedule"],
   ready_check_awaiting_payment: ["ready_check_ready_to_schedule"],
-  ready_check_ready_to_schedule: ["ready_check_scheduled", "eligibility_review"],
+  ready_check_ready_to_schedule: ["ready_check_scheduled", "eligibility_review", "ready_check_complete"],
   ready_check_scheduled: ["ready_check_complete", "ready_check_ready_to_schedule"],
   ready_check_complete: ["measured_estimate_ready"],
   measured_estimate_ready: ["measured_quote_accepted"],
@@ -32,7 +32,7 @@ export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
   piesa_scheduled: ["piesa_complete", "piesa_and_install_window_pending"],
   piesa_complete: ["electrical_variation_pending", "rectification_scheduling", "installation_scheduling", "awaiting_deposit_payment"],
   electrical_variation_pending: ["rectification_scheduling", "installation_scheduling", "awaiting_deposit_payment"],
-  awaiting_electrician: ["assessment_booking", "eligibility_review", "ready_check_ready_to_schedule"], // back-step only for admin eligibility correction
+  awaiting_electrician: ["assessment_booking", "eligibility_review", "ready_check_ready_to_schedule", "ready_check_complete"], // back-step only for admin eligibility correction
   assessment_booking: ["assessment_booked"],
   assessment_booked: ["assessment_complete", "assessment_booking"],
   assessment_complete: ["rectification_required", "ready_for_installer_quotes"],

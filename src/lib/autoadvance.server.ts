@@ -18,6 +18,7 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
   const declared = (await count(admin.from("installer_declarations").select("id", head).eq("job_id", jobId).eq("status", "signed"))) > 0;
   const q = (kind: "installation" | "rectification", status: "issued" | "accepted") => count(admin.from("quotes").select("id", head).eq("job_id", jobId).eq("kind", kind).eq("status", status));
   const booking = (kind: "assessment" | "rectification" | "installation") => count(admin.from("bookings").select("id", head).eq("job_id", jobId).eq("kind", kind).eq("status", "confirmed"));
+  const measAccepted = await count(admin.from("ceiling_measurements").select("id", head).eq("job_id", jobId).eq("is_current", true).eq("status", "complete"));
   const [elec, rect, rqi, rqa, iqi, iqa, inv, ab, rb, ib, veec] = await Promise.all([
     count(admin.from("job_assignments").select("id", head).eq("job_id", jobId).eq("role", "electrician").eq("active", true)),
     count(admin.from("rectification_items").select("id", head).eq("job_id", jobId).eq("status", "required")),
@@ -28,6 +29,7 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
   ]);
   return {
     eligibilityConfirmed: !!job && eligibilityConfirmedFor(job, todayMelbourne()),
+    measureUpAccepted: measAccepted > 0,
     electricianAssigned: elec > 0,
     assessmentBookingConfirmed: ab > 0,
     openRectItems: rect,
