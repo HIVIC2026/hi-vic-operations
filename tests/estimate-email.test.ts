@@ -14,17 +14,17 @@ const detailed = { ...common, estimatedTotal: 3747, installationPrice: 4023, ass
 describe("customer outcome email renderers", () => {
   test("likely eligible leads with the complete personalised quote", () => {
     const email = withUnsubscribe(renderEstimateEmail({ ...detailed, outcome: "likely" }), unsubscribeUrl);
-    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "YOUR HOME LOOKS LIKELY TO QUALIFY", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$1,325", "$5,072", "$3,747", "$700", "Estimated ceiling size: <strong>134.1 m²", "CHANGE →", "Based on the estimated ceiling size provided in your enquiry. Change it to see a revised estimate.", "WANT TO CHECK THE NUMBERS FIRST?", "TRY ANOTHER CEILING SIZE", "OPEN THE INTERACTIVE CALCULATOR →", "Calculator changes are for comparison only and do not overwrite your enquiry.", "THERE ARE NO OTHER STANDARD FEES TO ADD TO THIS ESTIMATE.", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "For $99, we’ll arrange your onsite Ready Check so we can measure your ceiling and prepare a more accurate project estimate.", "The $99 is credited toward your project if you proceed.", "BOOK MY READY CHECK →", "See exactly what’s included on the next page.", "All prices include GST.", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Refer a friend →", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
+    for (const copy of ["Home Insulation Victoria", "GOOD NEWS", "YOUR HOME LOOKS LIKELY TO QUALIFY", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$1,325", "$5,072", "$3,747", "$700", "Estimated ceiling size: <strong>134.1 m²", "CHANGE →", "Based on the estimated ceiling size provided in your enquiry. Change it to see a revised estimate.", "WHAT COULD CHANGE MY ESTIMATE?", "WANT TO CHECK THE NUMBERS FIRST?", "TRY ANOTHER CEILING SIZE", "OPEN THE INTERACTIVE CALCULATOR →", "Calculator changes are for comparison only and do not overwrite your enquiry.", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "For $99, we’ll arrange your onsite Ready Check so we can measure your ceiling and prepare a more accurate project estimate.", "The $99 is credited toward your project if you proceed.", "BOOK MY READY CHECK →", "See exactly what’s included on the next page.", "All prices include GST.", "KNOW SOMEONE WHO MIGHT QUALIFY?", "Refer a friend →", "Reference: HV-1001", "Unsubscribe"]) expect(email.html).toContain(copy);
     for (const removed of ["CONFIRM MY QUOTE", "WHAT HAPPENS NEXT"]) expect(email.html).not.toContain(removed);
     expect(email.html).not.toContain("% estimated saving");
     expect(email.plainText).toContain("Estimated ceiling size: 134.1 m² — CHANGE:");
-    for (const removed of ["One of our insulation partners visits", "The Ready Check is not the mandatory electrical safety assessment", "If the Ready Check identifies something", CUSTOMER_PAYMENT_COPY.notPiesa, CUSTOMER_PAYMENT_COPY.purpose, CUSTOMER_WHAT_COULD_CHANGE.closing]) expect(`${email.html} ${email.plainText}`).not.toContain(removed);
+    for (const removed of ["One of our insulation partners visits", "The Ready Check is not the mandatory electrical safety assessment", "If the Ready Check identifies something", CUSTOMER_PAYMENT_COPY.notPiesa, CUSTOMER_PAYMENT_COPY.purpose]) expect(`${email.html} ${email.plainText}`).not.toContain(removed);
     expect(`${email.html} ${email.plainText}`).not.toMatch(/multiple providers|estimated saving|reserved capacity/i);
     expect(email.html).not.toContain("is shown to you before anything is added");
     expect(email.html).not.toContain("background-color:#ECF9F1;border-radius:14px");
     expect(email.html).not.toContain("MORE THAN AN INSULATION QUOTE.");
     const h = email.html;
-    const order = ["YOUR PRELIMINARY QUOTE", "Estimated ceiling size:", "CHANGE →", "R5.0 ceiling insulation — supply &amp; install", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "THERE ARE NO OTHER STANDARD FEES", "NEXT STEP", "BOOK MY READY CHECK →", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →"].map((t) => h.indexOf(t));
+    const order = ["YOUR PRELIMINARY QUOTE", "Estimated ceiling size:", "CHANGE →", "R5.0 ceiling insulation — supply &amp; install", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "WHAT COULD CHANGE MY ESTIMATE?", "NEXT STEP", "BOOK MY READY CHECK →", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →"].map((t) => h.indexOf(t));
     expect(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1]!))).toBe(true);
     expect(h.split("BOOK MY READY CHECK →").length - 1).toBe(1);
     expect(h).toContain("border-radius:16px");
@@ -56,6 +56,15 @@ describe("customer outcome email renderers", () => {
     expect(email.html.split("All prices include GST.").length - 1).toBe(1);
     expect(email.html).not.toContain("AUD incl. GST");
     expect(email.html).not.toMatch(/>HI VIC</);
+    for (const output of [email.html, email.plainText]) {
+      expect(output).not.toContain("THERE ARE NO OTHER STANDARD FEES TO ADD TO THIS ESTIMATE.");
+      expect(output).not.toContain("Final eligibility, eligible area, VEU discount and price are confirmed after");
+      expect(output).toContain(CUSTOMER_WHAT_COULD_CHANGE.heading);
+      expect(output).toContain(CUSTOMER_WHAT_COULD_CHANGE.intro);
+      expect(output).toContain(CUSTOMER_WHAT_COULD_CHANGE.closing);
+      const points = CUSTOMER_WHAT_COULD_CHANGE.items.map(({ lead }) => output.indexOf(lead));
+      expect(points.every((index, position) => index >= 0 && (position === 0 || index > points[position - 1]!))).toBe(true);
+    }
   });
 
   test("onsite confirmation remains positive and renders dynamic reasons", () => {
