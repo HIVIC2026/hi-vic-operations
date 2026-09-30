@@ -33,6 +33,7 @@ export function InstallerLedInvoicePanel({ jobId }: { jobId: string }) {
       await qc.invalidateQueries({ queryKey: ["installer-invoice", jobId] });
       toast.success(clear ? "AP fee reset to standard" : "AP fee updated");
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+    return undefined;
   };
 
   const rows: [string, number | null][] = [
