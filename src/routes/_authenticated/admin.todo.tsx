@@ -89,7 +89,12 @@ function TodoPage() {
                 {t.jobId ? (
                   <Button asChild size="sm"><Link to="/admin/jobs/$jobId" params={{ jobId: t.jobId }}>Open job</Link></Button>
                 ) : (
-                  <Button asChild size="sm" variant="outline"><Link to="/admin/partners">Open</Link></Button>
+                  <Button asChild size="sm" variant="outline">
+                    <Link
+                      to="/admin/partners"
+                      search={t.key.startsWith("penq:") ? { enquiry: t.key.slice(5) } : {}}
+                    >Open</Link>
+                  </Button>
                 )}
               </div>
             </li>
