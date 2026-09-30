@@ -58,7 +58,7 @@ describe("customer outcome email renderers", () => {
     expect(h).toContain(`${estimateUrl}#confirm`);
     expect(`${email.html} ${email.plainText}`).not.toMatch(/NOT SURE YOUR CEILING SIZE IS RIGHT\?|CHECK ANOTHER CEILING SIZE →/);
     expect(`${h} ${email.plainText}`).not.toMatch(/RESERVED CAPACITY|WHY INSULATE/);
-    expect(email.html).not.toContain("YOUR ANSWERS HAVEN'T RULED YOU OUT");
+    expect(email.html).not.toContain("IT'S LOOKING GOOD SO FAR");
     expect(email.html.split("All prices include GST.").length - 1).toBe(1);
     expect(email.html).not.toContain("AUD incl. GST");
     expect(email.html).not.toMatch(/>HI VIC</);
@@ -75,9 +75,11 @@ describe("customer outcome email renderers", () => {
 
   test("onsite confirmation remains positive and renders dynamic reasons", () => {
     const email = renderEstimateEmail({ ...detailed, outcome: "onsite", reasons: ["existing_insulation_unknown", "Existing insulation needs confirmation.", "roof_access_review", "eligible_ceiling_area_unverified"] });
-    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY — WE JUST NEED TO CONFIRM A FEW THINGS.", "WHAT WE NEED TO CHECK", "Your property could still qualify. We just need to confirm the following onsite:", "Existing insulation — confirm what is currently installed and whether removal is required.", "Ceiling access — confirm access conditions and whether any access adjustment applies.", "Ceiling area — confirm the measured eligible ceiling area.", "YOUR ANSWERS HAVEN'T RULED YOU OUT.", "$1,325", "$3,747", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "BOOK MY READY CHECK →", "See exactly what’s included on the next page."]) expect(email.html).toContain(copy);
+    for (const copy of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY — WE JUST NEED TO CONFIRM A FEW THINGS.", "WHAT WE NEED TO CHECK", "Your property could still qualify. We just need to confirm the following onsite:", "Existing insulation — confirm what is currently installed and whether removal is required.", "Ceiling access — confirm access conditions and whether any access adjustment applies.", "Ceiling area — confirm the measured eligible ceiling area.", "IT'S LOOKING GOOD SO FAR.", "$1,325", "$3,747", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "BOOK MY READY CHECK →", "See exactly what’s included on the next page."]) expect(email.html).toContain(copy);
     expect(email.html.indexOf("WHAT WE NEED TO CHECK")).toBeLessThan(email.html.indexOf("YOUR PRELIMINARY QUOTE"));
     expect(email.plainText.indexOf("WHAT WE NEED TO CHECK")).toBeLessThan(email.plainText.indexOf("YOUR PRELIMINARY QUOTE"));
+    expect(email.html).toContain("IT'S LOOKING GOOD SO FAR.");
+    expect(email.plainText).toContain("IT'S LOOKING GOOD SO FAR.");
     for (const safeReason of ["Existing insulation — confirm what is currently installed and whether removal is required.", "Ceiling access — confirm access conditions and whether any access adjustment applies.", "Ceiling area — confirm the measured eligible ceiling area."]) {
       expect(email.html.split(safeReason).length - 1).toBe(1);
       expect(email.plainText.split(safeReason).length - 1).toBe(1);
