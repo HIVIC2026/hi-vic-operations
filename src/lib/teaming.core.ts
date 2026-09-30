@@ -85,7 +85,7 @@ export function installerTeamLine(name: string, s: TeamStatus): string {
     case "sent": return `Waiting for ${first} to sign up`;
     case "invite_drafted": return `Invite to ${first} being prepared by HI VIC`;
     case "declined": return `${first} declined – add another electrician or let HI VIC match you`;
-    case "expired": return `Invite to ${first} expired – HI VIC will resend`;
+    case "expired": return `Invite to ${first} expired – HI VIC will send a new one`;
     case "ended": return `Team-up with ${name} ended`;
   }
 }
