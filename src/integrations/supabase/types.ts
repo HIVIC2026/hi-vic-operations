@@ -608,7 +608,9 @@ export type Database = {
       }
       bookings: {
         Row: {
+          assignment_id: string | null
           booked_by: string | null
+          business_id: string | null
           contractor_id: string | null
           created_at: string
           id: string
@@ -620,7 +622,9 @@ export type Database = {
           status: Database["public"]["Enums"]["booking_status"]
         }
         Insert: {
+          assignment_id?: string | null
           booked_by?: string | null
+          business_id?: string | null
           contractor_id?: string | null
           created_at?: string
           id?: string
@@ -632,7 +636,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["booking_status"]
         }
         Update: {
+          assignment_id?: string | null
           booked_by?: string | null
+          business_id?: string | null
           contractor_id?: string | null
           created_at?: string
           id?: string
@@ -645,10 +651,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "bookings_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "job_assignments"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bookings_booked_by_fkey"
             columns: ["booked_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
           {
