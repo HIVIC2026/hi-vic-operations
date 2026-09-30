@@ -7,7 +7,7 @@ const src = readFileSync(new URL("../src/components/portal/JobCard.tsx", import.
 
 describe("JobCard Gate 1 labels (display only)", () => {
   it("shows REVIEW REQUIRED only when eligibility_review_required is true", () => {
-    expect(src).toContain("job.eligibility_review_required\n        ? <div className=\"mt-2 rounded-md bg-warning-soft");
+    expect(src).toContain('job.eligibility_review_required ? <Pill t="warn">Review required</Pill>');
   });
 
   it("shows Needs onsite confirmation for needs_onsite_confirmation", () => {
@@ -16,7 +16,7 @@ describe("JobCard Gate 1 labels (display only)", () => {
 
   it("adds a green Likely eligible label for likely_eligible", () => {
     expect(src).toContain('job.eligibility_outcome === "likely_eligible" ?');
-    expect(src).toContain("Gate 1: Likely eligible");
+    expect(src).toContain("Likely eligible");
     expect(src).toContain("bg-success-soft");
   });
 
@@ -27,7 +27,7 @@ describe("JobCard Gate 1 labels (display only)", () => {
     expect(likelyIdx).toBeGreaterThan(reviewIdx);
   });
 
-  it("adds no does_not_appear_eligible label on the card", () => {
-    expect(src).not.toContain("does_not_appear_eligible");
+  it("shows ineligible state in retained views", () => {
+    expect(src).toContain("does_not_appear_eligible");
   });
 });
