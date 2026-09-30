@@ -256,8 +256,10 @@ export function parseAudit(audit: Any) {
     const m2 = physical(m2e?.value ?? null, m2e?.label ?? "Measured area m2");
     if (m2.issue) issues.push(m2.issue);
     const state = norm(val(kids, ["Existing insulation"]));
-    const removal = yesNo(val(kids, ["Removal required"]));
-    const removalType = val(kids, ["Insulation type to remove"]);
+    const action = norm(val(kids, ["What happens to the existing insulation"]));
+    const removal = /must be removed/.test(action) ? true : /can be topped up/.test(action) ? false : yesNo(val(kids, ["Removal required"]));
+    if (/not sure/.test(action)) issues.push("A room's existing insulation is marked 'Not sure – needs office review'.");
+    const removalType = val(kids, ["Existing insulation type", "Insulation type to remove"]);
     return { m2: m2.value, state, removal, removalType };
   });
   if (rooms.length > 0) {
