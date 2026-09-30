@@ -27,7 +27,8 @@ The underlying retained records and audit history will stay intact, but obsolete
 ### Chosen visual direction
 - Use a **focused sidebar**: compact permanent navigation on desktop, a simple mobile drawer, and one spacious task-led work area.
 - Change typography to **Outfit for headings** and **Figtree for body/UI text**.
-- Keep the exact approved HI VIC palette, but make it feel prettier through bright off-white working surfaces, a composed navy frame, crisp HI VIC blue hierarchy, and restrained green for successful states and primary progress actions.
+- Give the **signed-in internal portal only** a light, pretty working palette: bright white/off-white foundations, soft blush pink for gentle grouping and attention, warm pale yellow for pending/manual work, and enough navy/charcoal for highly legible text. HI VIC blue and green remain present for identity, success, and important actions rather than dominating every surface.
+- Keep **all external surfaces** in the exact approved HI VIC branding: logo, blue `#3C51C4`, green `#07BF61` / `#52C875`, navy `#22376B`, and off-white `#FBFCFA`. This includes customer emails, secure estimate and signing pages, REC onboarding, installer onboarding, and customer/partner completion screens.
 - Use disciplined spacing, fine borders, shallow shadows, square-to-soft 6–8px corners, clear section rhythm, and very limited animation. Avoid nested cards, excessive pills, colour clutter, gradients, and decorative effects.
 
 ## 3. Make Enquiries an at-a-glance working list
