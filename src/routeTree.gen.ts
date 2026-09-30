@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as InstallerOnboardingRouteImport } from './routes/installer-onboarding'
 import { Route as Step3DesignPreviewRouteImport } from './routes/step3-design-preview'
 import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
 import { Route as TestCustomerEstimateRouteImport } from './routes/test-customer-estimate'
@@ -53,6 +54,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InstallerOnboardingRoute = InstallerOnboardingRouteImport.update({
+  id: '/installer-onboarding',
+  path: '/installer-onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Step3DesignPreviewRoute = Step3DesignPreviewRouteImport.update({
@@ -211,6 +217,7 @@ const ApiPublicReferralsTrackClickRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-design-preview': typeof Step3DesignPreviewRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/test-customer-estimate': typeof TestCustomerEstimateRoute
@@ -243,6 +250,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-design-preview': typeof Step3DesignPreviewRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/test-customer-estimate': typeof TestCustomerEstimateRoute
@@ -277,6 +285,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-design-preview': typeof Step3DesignPreviewRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/test-customer-estimate': typeof TestCustomerEstimateRoute
@@ -311,6 +320,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/installer-onboarding'
     | '/step3-design-preview'
     | '/step3-email-preview'
     | '/test-customer-estimate'
@@ -343,6 +353,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/installer-onboarding'
     | '/step3-design-preview'
     | '/step3-email-preview'
     | '/test-customer-estimate'
@@ -376,6 +387,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/installer-onboarding'
     | '/step3-design-preview'
     | '/step3-email-preview'
     | '/test-customer-estimate'
@@ -410,6 +422,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  InstallerOnboardingRoute: typeof InstallerOnboardingRoute
   Step3DesignPreviewRoute: typeof Step3DesignPreviewRoute
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
   TestCustomerEstimateRoute: typeof TestCustomerEstimateRoute
@@ -446,6 +459,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/installer-onboarding': {
+      id: '/installer-onboarding'
+      path: '/installer-onboarding'
+      fullPath: '/installer-onboarding'
+      preLoaderRoute: typeof InstallerOnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/step3-design-preview': {
@@ -690,6 +710,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  InstallerOnboardingRoute: InstallerOnboardingRoute,
   Step3DesignPreviewRoute: Step3DesignPreviewRoute,
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
   TestCustomerEstimateRoute: TestCustomerEstimateRoute,
