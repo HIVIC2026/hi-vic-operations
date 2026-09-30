@@ -206,12 +206,11 @@ function RecOnboarding() {
   if (status === "submitted") return shell(
     <div style={{ ...card, textAlign: "center" }}>
       <div style={{ width: 56, height: 56, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 28, lineHeight: "56px", margin: "0 auto 16px" }}>✓</div>
-      <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, partner — you're all submitted.</h1>
-      <p style={{ color: MUTED, lineHeight: 1.6 }}>Your signed agreement ({REC_AGREEMENT_VERSION}) and application are with the HI VIC! office. We'll now verify:</p>
-      <ul style={{ textAlign: "left", display: "inline-block", lineHeight: 1.9, color: NAVY }}>
-        <li>REC registration and electrician licences</li><li>Public liability insurance</li><li>Partner agreement</li><li>Your proposed supplier rates</li>
-      </ul>
-      <p style={{ color: MUTED, fontSize: 14 }}>You won't receive job offers until verification and rates are approved. We'll be in touch to collect payment details.</p>
+      <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — we've got everything.</h1>
+      <p style={{ color: MUTED, lineHeight: 1.6 }}>Your application and signed agreement are now with the HI VIC! team. We'll review your details, check your REC registration, licences and insurance, and be in touch if we need anything else.</p>
+      <p style={{ color: MUTED, lineHeight: 1.6 }}>Once you're approved and your rates are agreed, you'll start receiving job offers through the portal. We'll also reach out then to collect your payment details.</p>
+      <div style={{ ...infoCard, textAlign: "left", marginTop: 8 }}><strong>What happens next:</strong> review and verification → rates confirmed → welcome aboard. Keep an eye on {d.business_email || "your email"} — that's where we'll contact you.</div>
+      <p style={{ color: MUTED, fontSize: 13 }}>Agreement version {REC_AGREEMENT_VERSION} · A copy of everything you've submitted is kept on your file.</p>
     </div>,
   );
 
