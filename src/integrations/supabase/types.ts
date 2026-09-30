@@ -7985,6 +7985,7 @@ export type Database = {
           mitti_measureup_template_id: string | null
           mitti_piesa_template_id: string | null
           mitti_piisa_template_id: string | null
+          mitti_ready_check_priced_template_id: string | null
           mitti_ready_check_template_id: string | null
           piesa_install_window_days: number
           updated_at: string
@@ -8012,6 +8013,7 @@ export type Database = {
           mitti_measureup_template_id?: string | null
           mitti_piesa_template_id?: string | null
           mitti_piisa_template_id?: string | null
+          mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
           piesa_install_window_days?: number
           updated_at?: string
@@ -8039,6 +8041,7 @@ export type Database = {
           mitti_measureup_template_id?: string | null
           mitti_piesa_template_id?: string | null
           mitti_piisa_template_id?: string | null
+          mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
           piesa_install_window_days?: number
           updated_at?: string

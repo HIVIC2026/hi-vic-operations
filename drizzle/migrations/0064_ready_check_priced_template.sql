@@ -1,0 +1,1 @@
+ALTER TABLE public.workflow_settings ADD COLUMN IF NOT EXISTS mitti_ready_check_priced_template_id text; COMMENT ON COLUMN public.workflow_settings.mitti_ready_check_priced_template_id IS 'Mitti template ID for the installer-sourced Ready Check (Form A1) — same evidence questions plus the quoted-price section that feeds the co-branded owner quote.';
