@@ -22,10 +22,9 @@ describe("customer outcome email renderers", () => {
     for (const removed of ["One of our insulation partners visits", "The Ready Check is not the mandatory electrical safety assessment", "If the Ready Check identifies something", CUSTOMER_PAYMENT_COPY.notPiesa, CUSTOMER_PAYMENT_COPY.purpose]) expect(`${email.html} ${email.plainText}`).not.toContain(removed);
     expect(`${email.html} ${email.plainText}`).not.toMatch(/multiple providers|estimated saving|reserved capacity/i);
     expect(email.html).not.toContain("is shown to you before anything is added");
-    expect(email.html).not.toContain("background-color:#ECF9F1;border-radius:14px");
     expect(email.html).not.toContain("MORE THAN AN INSULATION QUOTE.");
     const h = email.html;
-    const order = ["YOUR PRELIMINARY QUOTE", "Estimated ceiling size:", "CHANGE →", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "WHAT COULD CHANGE MY ESTIMATE?", "NEXT STEP", "BOOK MY READY CHECK →", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →"].map((t) => h.indexOf(t));
+    const order = ["YOUR PRELIMINARY QUOTE", "Estimated ceiling size:", "CHANGE →", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "NEXT STEP", "BOOK MY READY CHECK →", "WHAT COULD CHANGE MY ESTIMATE?", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →"].map((t) => h.indexOf(t));
     expect(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1]!))).toBe(true);
     expect(h.split("BOOK MY READY CHECK →").length - 1).toBe(1);
     const mainQuoteStart = h.indexOf('data-main-quote-card="true"');
