@@ -39,9 +39,11 @@ const wrap = (e: unknown) => (e instanceof MittiError ? new WorkflowError(e.mess
 
 export const MEASUREUP_TEMPLATE_MISSING = "Measure-up-only Mitti template is not configured. An admin must add the measure-up template ID in workflow settings before a measure-up-only Mitti audit can be sent.";
 
-async function measureUpTemplateId() {
-  const { data } = await admin.from("workflow_settings").select("mitti_measureup_template_id").eq("id", 1).maybeSingle();
-  return data?.mitti_measureup_template_id?.trim() || null;
+export const PIESA_TEMPLATE_MISSING = "PIESA Mitti form is not configured. An admin must add the validated PIESA form ID in workflow settings before a PIESA audit can be sent.";
+
+async function templateIds() {
+  const { data } = await admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_piesa_template_id").eq("id", 1).maybeSingle();
+  return { readyCheck: data?.mitti_ready_check_template_id?.trim() || null, piesa: data?.mitti_piesa_template_id?.trim() || null };
 }
 
 export async function createAssignMittiAudit(jobId: string, actorId: string, call: MittiCall = realMittiCall) {
@@ -51,8 +53,10 @@ export async function createAssignMittiAudit(jobId: string, actorId: string, cal
   if (scope.scope === "COMPLETE") throw new WorkflowError("Both site requirements are already complete – no Mitti audit needed.");
   const measureOnly = scope.scope === "MEASURE_UP_ONLY";
   const role = measureOnly ? "installer" : "electrician";
-  const templateId = measureOnly ? await measureUpTemplateId() : MITTI_TEMPLATE_ID;
-  if (!templateId) throw new WorkflowError(MEASUREUP_TEMPLATE_MISSING);
+  // Role-specific forms only; the old combined template is never used for new audits.
+  const ids = await templateIds();
+  const templateId = measureOnly ? ids.readyCheck : ids.piesa;
+  if (!templateId) throw new WorkflowError(measureOnly ? MEASUREUP_TEMPLATE_MISSING : PIESA_TEMPLATE_MISSING);
 
   const [{ data: prop }, { data: owner }, { data: asg }, { data: booking }, { data: a }] = await Promise.all([
     admin.from("properties").select("address_line,suburb,state,postcode,occupancy").eq("id", job.property_id).single(),
@@ -178,7 +182,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string, call: 
   }
 
   if (measureAudit) {
-    const tid = await measureUpTemplateId();
+    const tid = (await templateIds()).readyCheck;
     if (!tid) throw new WorkflowError(MEASUREUP_TEMPLATE_MISSING);
     let plan;
     try {

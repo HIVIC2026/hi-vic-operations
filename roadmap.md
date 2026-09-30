@@ -46,4 +46,10 @@
 - [x] Confirm exact per-VEEC lodgement fee (registry cost) and record it in pricing settings — $4.35 per VEEC, ESC fee from 1 Jan 2026
 - [ ] Record the negotiated REC PIESA rate once agreed (pricing_settings.piesa_rec_cost_ex_gst)
 - [ ] Build and validate separate Mitti templates: installer Ready Check eligibility/measurement and licensed REC PIESA; configure only verified template IDs
-- [ ] Expand both Mitti template specs to the full official PIESA + Pre-Installation Installer Safety Assessment (PIISA) content and complete AP evidence list
+- [x] Mitti forms A/B/C with official PIESA/PIISA wording, validation and Compliance panel
+- [x] Installer-led pricing, coverage checker, no referral fee (core + tests)
+- [ ] Installer-led screens: installer "New customer job", owner invite, add-my-electrician, installer what's-missing checklist, co-branded invoice layout
+- [ ] Build forms A/B/C in Mitti and connect IDs (needs Jo in Mitti)
+- [ ] Set AP fee for installer-led jobs (needs Jo)
+- [ ] Auto-fill the official DEECA PIESA/PIISA PDFs from Mitti answers, e-sign, file in the job and deliver the PIESA copy 24h+ before install
+- [ ] AP evidence register per job: tick/cross for each Industry Pack record, blocking AP review

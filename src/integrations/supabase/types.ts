@@ -4096,6 +4096,7 @@ export type Database = {
           hold_reason: string | null
           id: string
           installation_completed_at: string | null
+          installer_led: boolean
           job_number: string
           last_activity_at: string
           life_support: boolean
@@ -4139,6 +4140,7 @@ export type Database = {
           hold_reason?: string | null
           id?: string
           installation_completed_at?: string | null
+          installer_led?: boolean
           job_number?: string
           last_activity_at?: string
           life_support?: boolean
@@ -4182,6 +4184,7 @@ export type Database = {
           hold_reason?: string | null
           id?: string
           installation_completed_at?: string | null
+          installer_led?: boolean
           job_number?: string
           last_activity_at?: string
           life_support?: boolean
@@ -7902,6 +7905,9 @@ export type Database = {
           measurement_variance_tolerance_pct: number | null
           min_building_age_years: number
           mitti_measureup_template_id: string | null
+          mitti_piesa_template_id: string | null
+          mitti_piisa_template_id: string | null
+          mitti_ready_check_template_id: string | null
           piesa_install_window_days: number
           updated_at: string
           urgency_amber_days: number
@@ -7922,6 +7928,9 @@ export type Database = {
           measurement_variance_tolerance_pct?: number | null
           min_building_age_years?: number
           mitti_measureup_template_id?: string | null
+          mitti_piesa_template_id?: string | null
+          mitti_piisa_template_id?: string | null
+          mitti_ready_check_template_id?: string | null
           piesa_install_window_days?: number
           updated_at?: string
           urgency_amber_days?: number
@@ -7942,6 +7951,9 @@ export type Database = {
           measurement_variance_tolerance_pct?: number | null
           min_building_age_years?: number
           mitti_measureup_template_id?: string | null
+          mitti_piesa_template_id?: string | null
+          mitti_piisa_template_id?: string | null
+          mitti_ready_check_template_id?: string | null
           piesa_install_window_days?: number
           updated_at?: string
           urgency_amber_days?: number
