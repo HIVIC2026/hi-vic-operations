@@ -1,6 +1,6 @@
 import { READY_CHECK_FEE } from "./readycheck.core";
 /** Pure customer outcome email renderers: no data access, delivery, or side effects. */
-import { CUSTOMER_ASSESSMENT_ACTION, CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_VISUAL_SYSTEM, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows, CUSTOMER_DISCOUNT_TREATMENT, discountAmount } from "./customer-quote-system";
+import { CUSTOMER_ASSESSMENT_ACTION, CUSTOMER_ONSITE_HERO, CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_VISUAL_SYSTEM, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows, CUSTOMER_DISCOUNT_TREATMENT, discountAmount } from "./customer-quote-system";
 
 export type CustomerOutcome = "likely" | "onsite" | "ineligible";
 export type EstimateEmailInput = {

@@ -67,7 +67,7 @@ export async function suppressFollowups(jobId: string, reason: string) {
   return (data ?? []).length;
 }
 
-/** STEP 4 INTEGRATION POINT: call when the owner starts the online Measure + PIESA booking. */
+/** STEP 4 INTEGRATION POINT: call when the owner starts the online Ready Check booking. */
 export async function recordBookingStarted(jobId: string, source = "portal") {
   await recordEngagement({ jobId, type: "booking_started", source, dedupeKey: dedupe.bookingStarted(jobId) });
 }
