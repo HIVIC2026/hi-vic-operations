@@ -54,6 +54,7 @@ The installer agreement is a signed legal document. Any change to it gets a new 
 3. The $349 — is it only the electrical safety check, or also the AP fee? What is the AP fee amount installers should see?
 4. Installer already agreed a price with the owner: do we add our fees on top (owner sees a higher total, less the VEU discount) or must the installer's price already include them?
 5. Referred jobs: does the installer quote, or do we price from their rate card?
+6. Which evidence items may be captured on install day before starting, versus needed before the quote? I'll list each item for you to tick.
 
 ## Technical details
 - Add `step 0` "about you" to `installer-onboarding.tsx` and `electrician-onboarding.tsx`; store in existing onboarding data (`primary_contact_name`, email, mobile); greeting helper uses first name.
