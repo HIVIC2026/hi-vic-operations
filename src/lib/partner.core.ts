@@ -56,6 +56,41 @@ export function partnerRow(d: PartnerInput, raw: unknown) {
 }
 export type PartnerRow = ReturnType<typeof partnerRow>;
 
+/**
+ * Review-time issue flags for a partner application. Pure: same row in, same flags out.
+ * These are warnings for the office, never automatic declines.
+ */
+export function partnerIssues(r: {
+  enquiry_type: string;
+  phone?: string | null;
+  service_areas?: string[] | null;
+  rec_registration_number?: string | null;
+  esv_licensed_electricians_confirmed?: boolean | null;
+  estimated_piesa_fee_inc_gst?: number | null;
+  estimated_return_visit_fee_inc_gst?: number | null;
+  cii_certification_status?: string | null;
+  estimated_r5_install_rate_per_sqm_inc_gst?: number | null;
+  free_quotes_for_hivic_leads?: boolean | null;
+}): string[] {
+  const issues: string[] = [];
+  if (!r.phone) issues.push("No phone number supplied");
+  if (!r.service_areas || r.service_areas.length === 0) issues.push("No service areas listed");
+  if (r.enquiry_type === "electrician_rec") {
+    if (r.esv_licensed_electricians_confirmed === false) issues.push("Confirmed NO ESV-licensed electricians — PIESA compliance risk");
+    else if (r.esv_licensed_electricians_confirmed == null) issues.push("ESV-licensed electricians not confirmed");
+    if (!r.rec_registration_number) issues.push("No REC registration number");
+    if (r.estimated_piesa_fee_inc_gst == null) issues.push("No indicative PIESA fee");
+    if (r.estimated_return_visit_fee_inc_gst == null) issues.push("No indicative return visit fee");
+  }
+  if (r.enquiry_type === "installer") {
+    if (r.cii_certification_status === "not_certified") issues.push("Not CII certified");
+    else if (!r.cii_certification_status) issues.push("CII certification status not supplied");
+    if (r.estimated_r5_install_rate_per_sqm_inc_gst == null) issues.push("No indicative R5.0 install rate");
+    if (r.free_quotes_for_hivic_leads === false) issues.push("Charges for quotes on pre-qualified HI VIC leads");
+  }
+  return issues;
+}
+
 /** The only side effect the endpoint may have: upsert one partner_enquiries row. */
 export type PartnerDeps = { upsert: (row: PartnerRow) => Promise<{ id: string; created: boolean }>; publicKey?: string };
 
