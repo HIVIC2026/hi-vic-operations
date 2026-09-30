@@ -5,7 +5,7 @@ const base = {
   estimateUrl: "https://quote.homeinsulationvictoria.com.au/estimate/abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG",
   firstName: "Jo", address: "30 Dash St, Fraser Rise VIC 3336", areaM2: 150, installationPrice: 4500, installationRatePerM2: 30,
   assessmentFee: 349, apFee: 349, grossProjectTotal: 5198, veuDiscount: 1481.76, estimatedTotal: 3716.24,
-  amountPayableNow: 99, estimatedRemainingBalance: 3617.24, reference: "REF-1",
+  amountPayableNow: 0, estimatedRemainingBalance: 3716.24, reference: "REF-1",
 };
 const emails = {
   likely: renderEstimateEmail({ ...base, outcome: "likely" } as never).html,
