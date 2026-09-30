@@ -286,6 +286,7 @@ export function mittiAiPrompt(key: FormKey): string {
     "- Photo/video fields must allow the camera and multiple files.",
     "- Signature fields must capture the signer's name.",
     perArea.length ? `- Put these fields in a repeatable section called "Ceiling area" (one repeat per room/zone): ${perArea.map((x) => `"${x.label}"`).join(", ")}. All other fields are NOT repeated.` : "",
+    perPriceLine.length ? `- Put these fields in a repeatable section called "Quoted price line" (one repeat per line item of the installer's quote): ${perPriceLine.map((x) => `"${x.label}"`).join(", ")}. The "Total quoted price incl GST $", "What this price includes" and "Price already agreed with the owner?" fields are NOT repeated.` : "",
     key === "piesa" ? "- Section C and the rectification electrician fields are completed on the return visit after rectification. Put them in a section called \"Section C – Rectification completion\" shown only when \"B1 Assessment outcome\" is \"Electrical rectification work is required before insulation is installed or upgraded.\"" : "",
     key === "piesa" || key === "piisa" ? "- If \"Is anyone at this property dependent on life support?\" is Yes, the consent/medical-plan question and attachment are required; if neither was received, the assessment must not proceed (add an instruction saying: STOP – do not start the assessment. Call the Home Insulation Victoria office.)." : "",
     "- Order the fields exactly as listed.",
