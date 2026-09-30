@@ -15,6 +15,8 @@ import { useAction } from "@/hooks/use-me";
 import { autoAdvancePipeline, createEnquiry, getAdminPipeline, getCommsStatus, getPostIntakeHealth, sweepAuthorities } from "@/lib/portal.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { getAdminCoverage } from "@/lib/coverage.functions";
+import { bulkJobAction } from "@/lib/bulk.functions";
+import { toast } from "sonner";
 
 const ACCEPTANCE_STAGES = ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"];
 type WorkView = "active" | "review" | "ineligible" | "finalised" | "cancelled" | "test";
@@ -47,6 +49,13 @@ function Pipeline() {
   const coverageByJob = useMemo(() => new Map((coverageData?.rows ?? []).map((row) => [row.id, row.overall])), [coverageData]);
   const { data: intakeHealth } = useQuery({ queryKey: ["post_intake_health"], queryFn: () => postIntakeHealth(), refetchInterval: 60_000 });
   const [phase, setPhase] = useState<Phase | "all">("all");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulk, setBulk] = useState<null | "cancel" | "hold" | "mark_test" | "delete">(null);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const runBulk = useServerFn(bulkJobAction);
+  useEffect(() => { setSelected(new Set()); }, [workView, tab]);
+  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const { data: allJobs = [], error: pipelineError, isPending: pipelinePending, refetch: refetchPipeline } = useQuery({
     queryKey: ["pipeline"],
     queryFn: () => loadPipeline(),
@@ -120,12 +129,44 @@ function Pipeline() {
              <option value="all">All phases</option>{lanes.map((p) => <option key={p.key} value={p.key}>{p.label} ({byPhase(p.key).length})</option>)}
           </select>
       </div>
+      {(() => {
+        const visible = filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase);
+        const all = visible.length > 0 && visible.every((j) => selected.has(j.id!));
+        return <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 font-medium"><Checkbox checked={all} onCheckedChange={() => setSelected(all ? new Set() : new Set(visible.map((j) => j.id!)))} aria-label="Select all shown" />Select all shown</label>
+          {selected.size > 0 && <>
+            <span className="font-bold">{selected.size} selected</span>
+            <Button size="sm" variant="outline" onClick={() => setBulk("hold")}>Put on hold</Button>
+            <Button size="sm" variant="outline" onClick={() => setBulk("cancel")}>Cancel</Button>
+            <Button size="sm" variant="outline" onClick={() => setBulk("mark_test")}>Mark as test</Button>
+            <Button size="sm" variant="destructive" onClick={() => setBulk("delete")}>Delete</Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
+          </>}
+        </div>;
+      })()}
+      <Dialog open={!!bulk} onOpenChange={(o) => { if (!o) setBulk(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{bulk === "delete" ? "Delete" : bulk === "cancel" ? "Cancel" : bulk === "hold" ? "Put on hold" : "Mark as test"} {selected.size} job{selected.size === 1 ? "" : "s"}?</DialogTitle></DialogHeader>
+          {bulk === "delete" && <p className="text-sm text-muted-foreground">Only test records can be deleted, and it can't be undone. Real jobs will be skipped — cancel them instead so their history is kept.</p>}
+          <Label htmlFor="bulk-reason">Reason (saved in each job's history)</Label>
+          <Input id="bulk-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Dummy jobs from testing" />
+          <Button disabled={busy || reason.trim().length < 3} variant={bulk === "delete" ? "destructive" : "default"} onClick={async () => {
+            if (!bulk) return; setBusy(true);
+            try {
+              const r = await runBulk({ data: { jobIds: [...selected], action: bulk, reason } });
+              if (r.done) toast.success(`${r.done} job${r.done === 1 ? "" : "s"} updated`);
+              if (r.failed.length) toast.error(`${r.failed.length} skipped: ${r.failed[0]!.error}`);
+              setSelected(new Set(r.failed.map((f) => f.jobId))); setBulk(null); setReason(""); void refetchPipeline();
+            } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); } finally { setBusy(false); }
+          }}>Confirm</Button>
+        </DialogContent>
+      </Dialog>
       {pipelinePending ? (
         <div role="status" className="rounded-md border bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">Loading enquiries…</div>
       ) : (
          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase).map((j: JobRow) => {
            const coverage = coverageByJob.get(j.id ?? "");
-           return <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" {...(coverage ? { coverage } : {})} />;
+           return <div key={j.id} className={`relative rounded-lg ${selected.has(j.id!) ? "ring-2 ring-primary" : ""}`}><div className="absolute right-2 top-2 z-10 rounded bg-card p-1 shadow-sm"><Checkbox checked={selected.has(j.id!)} onCheckedChange={() => toggle(j.id!)} aria-label={`Select job ${j.job_number ?? ""}`} /></div><JobCard job={j} to="/admin/jobs/$jobId" {...(coverage ? { coverage } : {})} /></div>;
          })}{filtered.length === 0 && <div className="col-span-full rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">No records in this view.</div>}</div>
       )}
     </AppShell>

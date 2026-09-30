@@ -16,6 +16,10 @@ export type TodoInput = {
   measureReview: { id: string; job_id: string; created_at: string | null }[];
   reassignments: { id: string; job_id: string; role: string; reason: string | null; created_at: string | null }[];
   partnerEnquiries: { id: string; name: string | null; kind: string | null; created_at: string | null }[];
+  escNotices?: { id: string; job_id: string; status: string; due_by: string | null; sent_at: string | null; last_error: string | null; created_at: string | null }[];
+  installBookings?: { id: string; job_id: string; scheduled_start: string | null }[];
+  piesaDeliveries?: { job_id: string; recipient: string }[];
+  onboarding?: { id: string; signer_name: string | null; partner_type: string | null; updated_at: string | null }[];
   now: number;
 };
 
@@ -65,6 +69,21 @@ export function buildTodos(i: TodoInput): TodoItem[] {
   for (const m of i.measureReview) push(m.job_id, { key: `meas:${m.id}`, category: "Measure-up", title: "Review the measure-up", action: "Open the Assessment tab, check the measure-up and evidence, then accept or reject it.", tab: "assessment", since: m.created_at, urgent: false });
   for (const r of i.reassignments) push(r.job_id, { key: `reassign:${r.id}`, category: "Scheduling", title: `Decide ${r.role} reassignment`, action: `Reason given: "${r.reason ?? "none"}". Approve or decline on the Overview tab.`, tab: "overview", since: r.created_at, urgent: older(r.created_at, 1, i.now) });
   for (const p of i.partnerEnquiries) push(null, { key: `penq:${p.id}`, category: "Partners", title: `Contact new partner enquiry${p.name ? ` – ${p.name}` : ""}`, action: `${p.kind ?? "Partner"} enquiry. Contact them, then set the status on Partner applications.`, tab: null, since: p.created_at, urgent: older(p.created_at, 2, i.now) });
+
+  for (const e of i.escNotices ?? []) {
+    if (e.sent_at) continue;
+    const late = !!e.due_by && new Date(e.due_by).getTime() < i.now;
+    if (e.last_error || late) push(e.job_id, { key: `esc:${e.id}`, category: "Compliance", title: e.last_error ? "ESC notice failed to send" : "ESC notice overdue", action: e.last_error ? `Error: "${e.last_error}". Fix it and resend the ESC notice from the Compliance tab.` : "The ESC notice must reach the ESC at least 24h before install. Send it now from the Compliance tab or move the install date.", tab: "compliance", since: e.due_by ?? e.created_at, urgent: true });
+  }
+  const delivered = new Set((i.piesaDeliveries ?? []).map((d) => `${d.job_id}:${d.recipient}`));
+  for (const b of i.installBookings ?? []) {
+    if (!b.scheduled_start) continue;
+    const hrs = (new Date(b.scheduled_start).getTime() - i.now) / 3_600_000;
+    if (hrs < 0 || hrs > 72) continue; // only warn inside the final 3 days
+    const missing = ["owner", "installer"].filter((r) => !delivered.has(`${b.job_id}:${r}`));
+    if (missing.length) push(b.job_id, { key: `piesa-copy:${b.id}`, category: "Compliance", title: "PIESA copy not delivered", action: `Send the signed PIESA to the ${missing.join(" and ")} and record delivery on the PIESA tab — it must be at least 24h before install.`, tab: "piesa", since: b.scheduled_start, urgent: hrs < 30 });
+  }
+  for (const o of i.onboarding ?? []) push(null, { key: `onb:${o.id}`, category: "Partners", title: `Review onboarding application${o.signer_name ? ` – ${o.signer_name}` : ""}`, action: `${o.partner_type ?? "Partner"} application submitted. Check licence, insurance and rates, then approve or decline on Partner applications.`, tab: null, since: o.updated_at, urgent: older(o.updated_at, 2, i.now) });
 
   return out.sort((a, b) => Number(b.urgent) - Number(a.urgent) || (a.since ?? "").localeCompare(b.since ?? ""));
 }

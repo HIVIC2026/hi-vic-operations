@@ -12,7 +12,7 @@ export const getTodos = createServerFn({ method: "GET" }).middleware([requireSup
       if (r.error) throw new Error(`Could not load ${what}: ${r.error.message}`);
       return (r.data ?? []) as T;
     };
-    const [jobs, invoices, invStatus, rect, meas, reas, penq] = await Promise.all([
+    const [jobs, invoices, invStatus, rect, meas, reas, penq, esc, books, pdel, onb] = await Promise.all([
       admin.from("job_overview").select("id, job_number, property_address, stage, source, eligibility_review_required").not("stage", "in", "(complete,cancelled)"),
       admin.from("invoices").select("id, job_id, xero_invoice_id, xero_invoice_number, deposit_request_raised_at, deposit_amount, status, last_sync_error, xero_update_pending, created_at"),
       admin.from("invoice_status").select("id, deposit_cleared, effective_status"),
@@ -20,6 +20,10 @@ export const getTodos = createServerFn({ method: "GET" }).middleware([requireSup
       admin.from("ceiling_measurements").select("id, job_id, created_at").eq("is_current", true).eq("status", "needs_review"),
       admin.from("reassignment_requests").select("id, job_id, role, reason, created_at").is("resolved_at", null),
       admin.from("partner_enquiries").select("id, name, enquiry_type, created_at").eq("status", "new"),
+      admin.from("esc_notifications").select("id, job_id, status, due_by, sent_at, last_error, created_at").is("sent_at", null),
+      admin.from("bookings").select("id, job_id, scheduled_start").eq("kind", "installation").in("status", ["proposed", "confirmed"]),
+      admin.from("piesa_deliveries").select("job_id, recipient"),
+      admin.from("rec_onboarding_applications").select("id, signer_name, partner_type, updated_at").eq("status", "submitted"),
     ]);
     const jobRows = ok(jobs, "jobs").filter((j) => j.source !== "qa_test");
     const cleared = new Map(ok(invStatus, "payment status").map((s) => [s.id, s]));
@@ -31,6 +35,10 @@ export const getTodos = createServerFn({ method: "GET" }).middleware([requireSup
       measureReview: ok(meas, "measure-ups"),
       reassignments: ok(reas, "reassignment requests").map((r) => ({ ...r, role: String(r.role) })),
       partnerEnquiries: ok(penq, "partner enquiries").map((p) => ({ id: p.id, name: p.name, kind: p.enquiry_type, created_at: p.created_at })),
+      escNotices: ok(esc, "ESC notices"),
+      installBookings: ok(books, "install bookings"),
+      piesaDeliveries: ok(pdel, "PIESA deliveries"),
+      onboarding: ok(onb, "onboarding applications"),
     });
     return { items, checkedAt: new Date().toISOString() };
   });
