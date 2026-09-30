@@ -7,7 +7,7 @@ export type FieldType = "text" | "number" | "choice" | "multichoice" | "yesno" |
 export type FormField = {
   label: string; type: FieldType; required: boolean; choices?: string[];
   when?: string; // human-readable condition; required only when it applies
-  perArea?: boolean; prefill?: boolean; portalOnly?: boolean; source: string;
+  perArea?: boolean; perPriceLine?: boolean; prefill?: boolean; portalOnly?: boolean; source: string;
 };
 
 const G = "ESC Guide V1.1";
