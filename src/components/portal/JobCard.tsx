@@ -19,7 +19,7 @@ export function JobCard({ job, to, coverage }: { job: JobRow; to: "/admin/jobs/$
         </div>
         {job.life_support && <HeartPulse className="h-5 w-5 shrink-0 text-danger" aria-label="Life support" />}
       </div>
-      <div className="mt-3 flex flex-wrap gap-1.5"><StageBadge stage={job.stage} />
+      <div className="mt-3 flex flex-wrap gap-1.5">{needsReadyCheckFirst(job.stage, job.eligibility_outcome, job.eligibility_review_required) ? <Pill t="brand">Ready Check needed</Pill> : <StageBadge stage={job.stage} />}
         {job.eligibility_review_required ? <Pill t="warn">Review required</Pill>
           : job.eligibility_outcome === "does_not_appear_eligible" ? <Pill t="bad">Ineligible</Pill>
             : job.eligibility_outcome === "needs_onsite_confirmation" ? <Pill t="info">Needs onsite confirmation</Pill>
