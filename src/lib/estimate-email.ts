@@ -41,23 +41,16 @@ const customerSafeOnsiteReasons = (reasons: string[] | null | undefined) => {
   const seen = new Set<string>();
   return cleanReasons(reasons).flatMap((reason) => {
     const normalized = reason.toLowerCase().replace(/[_-]+/g, " ").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
-    let key = normalized;
-    let copy = reason;
-    if (/insulat/.test(normalized)) {
-      key = "existing-insulation";
-      copy = "Existing insulation — confirm what is currently installed and whether removal is required.";
-    } else if (/access|roof space|ceiling space/.test(normalized)) {
-      key = "ceiling-access";
-      copy = "Ceiling access — confirm access conditions and whether any access adjustment applies.";
-    } else if (/area|ceiling size|measure/.test(normalized)) {
-      key = "ceiling-area";
-      copy = "Ceiling area — confirm the measured eligible ceiling area.";
-    } else if (/^[a-z0-9]+(?:[_-][a-z0-9]+)+$/i.test(reason.trim())) {
-      copy = reason.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-    }
-    if (!key || seen.has(key)) return [];
-    seen.add(key);
-    return [copy];
+    const matches: Array<[string, string]> = [];
+    if (/insulat/.test(normalized)) matches.push(["existing-insulation", "Existing insulation — confirm what is currently installed and whether removal is required."]);
+    if (/access|roof space|ceiling space/.test(normalized)) matches.push(["ceiling-access", "Ceiling access — confirm access conditions and whether any access adjustment applies."]);
+    if (/area|ceiling size|measure/.test(normalized)) matches.push(["ceiling-area", "Ceiling area — confirm the measured eligible ceiling area."]);
+    if (!matches.length) matches.push([normalized, /^[a-z0-9]+(?:[_-][a-z0-9]+)+$/i.test(reason.trim()) ? reason.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()) : reason]);
+    return matches.flatMap(([key, copy]) => {
+      if (!key || seen.has(key)) return [];
+      seen.add(key);
+      return [copy];
+    });
   });
 };
 const body = (text: string, color: string = INK) => `<p style="margin:0;color:${color};font-size:15px;line-height:1.55;font-weight:400;">${text}</p>`;
