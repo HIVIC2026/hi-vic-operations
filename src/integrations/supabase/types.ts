@@ -7746,6 +7746,36 @@ export type Database = {
           },
         ]
       }
+      veec_spot_prices: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          price: number
+          priced_on: string
+          recorded_by: string | null
+          source: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          price: number
+          priced_on?: string
+          recorded_by?: string | null
+          source?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          price?: number
+          priced_on?: string
+          recorded_by?: string | null
+          source?: string | null
+        }
+        Relationships: []
+      }
       veu_location_variables: {
         Row: {
           climate_region: string

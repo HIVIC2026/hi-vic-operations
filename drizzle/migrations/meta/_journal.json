@@ -400,6 +400,13 @@
       "when": 1790766928175,
       "tag": "0056_customer_communication_template_reviews",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1790769078088,
+      "tag": "0057_veec_spot_prices",
+      "breakpoints": true
     }
   ]
 }
