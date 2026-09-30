@@ -43,8 +43,8 @@ export const CUSTOMER_QUOTE_LABELS = {
 export const CUSTOMER_PIESA_NOTE = "Completed later by a licensed electrician, close to installation.";
 
 export const CUSTOMER_QUOTE_ORDER = [
-  CUSTOMER_QUOTE_LABELS.insulation,
   CUSTOMER_QUOTE_LABELS.piesa,
+  CUSTOMER_QUOTE_LABELS.insulation,
   CUSTOMER_QUOTE_LABELS.apManagement,
   CUSTOMER_QUOTE_LABELS.projectTotal,
   CUSTOMER_QUOTE_LABELS.discount,
@@ -101,8 +101,8 @@ export const CUSTOMER_EXISTING_INSULATION_NOTE = "Existing insulation: removal M
 
 export function customerQuoteRows(values: { piesa: number; installation: number; apManagement: number }) {
   return [
-    { key: "insulation", label: CUSTOMER_QUOTE_LABELS.insulation, amount: values.installation },
     { key: "piesa", label: CUSTOMER_QUOTE_LABELS.piesa, amount: values.piesa },
+    { key: "insulation", label: CUSTOMER_QUOTE_LABELS.insulation, amount: values.installation },
     { key: "apManagement", label: CUSTOMER_QUOTE_LABELS.apManagement, amount: values.apManagement },
   ] as const;
 }
