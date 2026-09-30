@@ -182,7 +182,6 @@ function renderLikelyEmail(input: EstimateEmailInput): EstimateEmail {
   const name = input.firstName?.trim().replace(/\s+/g, " ").slice(0, 60);
   const address = input.address?.trim().replace(/\s+/g, " ").slice(0, 180);
   const verifiedAp = typeof input.apCount === "number" && Number.isInteger(input.apCount) && input.apCount > 0;
-  const reasons = cleanReasons(input.reasons);
   const onsiteReasons = customerSafeOnsiteReasons(input.reasons);
   const ctaText = escape(CUSTOMER_ASSESSMENT_ACTION.cta);
   const ctaPlain = CUSTOMER_ASSESSMENT_ACTION.cta;
