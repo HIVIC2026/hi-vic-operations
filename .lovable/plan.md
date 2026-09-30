@@ -107,6 +107,13 @@ Example: ceiling-space photos but none of the existing insulation.
 - Missing: Ceiling area confirmed — how we'll get it: Ready Check, or the electrician at the PIESA visit
 Each item shows who gets it, when, and whether it blocks the next step.
 
-**"Before you start" on install day:** allowed items appear as a phone checklist; the install can't be marked started until each is uploaded (time-stamped camera). Anything that could change eligibility, quote or price is marked "Needed before quote" and never left to install day.
+**Missing items go onto the install-day Mitti form automatically:**
+- For each job, the system works out what's still missing and adds exactly those questions/photos to that job's install-day Mitti form, marked mandatory ("Before you start: photo of existing insulation with tape measure showing depth").
+- The installer can't submit the "before" section, or start the install, until they're done. Answers sync back, fill the requirement, and feed the official PIISA automatically.
+- The installer sees one plain list on the job: "Already have ✓ / You'll capture on install day / Needed before we can quote".
 
-**Which items can wait:** a setting per requirement, set by you from the Activity 48 pack — nothing is marked "can wait" until you approve it (added as decision 6).
+**Is capturing it on install day allowed? Two groups:**
+- **Can be captured on install day, before work starts** (time-stamped, before any insulation goes in): typically "before" ceiling-space photos, access/manhole, product labels, clearances. To be confirmed item by item against the Activity 48 pack.
+- **Must be known before the quote**: anything that decides eligibility or price — existing insulation presence/R-value, ceiling area, removal needed, electrical safety check result. If missing, the installer gets it before quoting (their own visit, or the Ready Check), never on install day. If install-day findings contradict what was quoted (e.g. insulation found), the install stops and the job goes to review.
+
+**Who confirms the list:** I'll check every evidence item against the Activity 48 activity pack and give you a table (item / when it can be captured / pack reference). Nothing switches on until you approve it (decision 6).
