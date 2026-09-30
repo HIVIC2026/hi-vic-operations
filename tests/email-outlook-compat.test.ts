@@ -10,7 +10,7 @@ const base = {
 const emails = {
   likely: renderEstimateEmail({ ...base, outcome: "likely" } as never).html,
   onsite: renderEstimateEmail({ ...base, outcome: "onsite", reasons: ["Roof access needs to be checked."] } as never).html,
-  ineligible: renderIneligibleOutcomeEmail({ reasons: ["The property is not in Victoria."], reference: "REF-1" } as never).html,
+  ineligible: renderIneligibleOutcomeEmail({ referralUrl: `https://homeinsulationvictoria.com.au/homeowner?ref=${"R".repeat(43)}`, reasons: ["The property is not in Victoria."], reference: "REF-1" } as never).html,
 };
 
 describe("Outlook compatibility", () => {
