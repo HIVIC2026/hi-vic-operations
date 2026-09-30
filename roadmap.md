@@ -39,5 +39,5 @@
 - [x] Add the Activity 48 form register with purpose, signer, timing, blockers, source and retention
 - [ ] Verify the complete portal cleanup across tests, desktop and mobile
 - [x] Side tabs: Active jobs, Pending quote approval, Enquiries (in that order), then Ineligible + VEEC calculator page
-- [ ] Profit tab: VEEC income net of owner's $70/VEEC share (we keep spot − 70)
-- [ ] Source VEEC spot price from an online feed instead of manual entry
+- [x] Profit tab: VEEC income net of owner's $70/VEEC share (we keep spot − 70)
+- [x] Source VEEC spot price from an online feed instead of manual entry
