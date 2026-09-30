@@ -1,5 +1,6 @@
 ## Tasks
 - [ ] Redesign the signed-in portal navigation and page hierarchy for clarity and ease of use
+- [ ] Research Coperniq's operations UX and apply relevant navigation/workflow patterns
 - [ ] Remove the obsolete Step 3 design mockup routes and any remaining links/content
 - [ ] Verify the redesigned portal across desktop and mobile without changing workflow rules
 - [x] Audit electrician onboarding flow (Base44 -> portal): fields, validation, storage, admin review
