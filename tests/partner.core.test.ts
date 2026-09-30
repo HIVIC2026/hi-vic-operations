@@ -1,7 +1,7 @@
 // Partner enquiry intake: signature, validation, idempotency, never a job. Run: bun test ./tests/
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "fs";
-import { handlePartnerEnquiry, type PartnerRow } from "../src/lib/partner.core";
+import { handlePartnerEnquiry, partnerIssues, type PartnerRow } from "../src/lib/partner.core";
 import { planBase44Job } from "../src/lib/enquiry.core";
 
 const b64 = (b: ArrayBuffer) => Buffer.from(b).toString("base64");
@@ -86,5 +86,30 @@ describe("partner enquiry endpoint", () => {
   test("homeowner handoff unaffected: new Base44 job still new_enquiry, no stage move", () => {
     const p = planBase44Job({ external_enquiry_id: "HIV-1", full_name: "A", email: "a@b.co", address_line: "1 St", preliminary_outcome: "likely_eligible" }, null);
     expect(p.moveTo).toBeNull(); expect(p.patch.next_action).toBe("Review website screening and Gate 1");
+  });
+});
+
+describe("partnerIssues", () => {
+  const base = { enquiry_type: "electrician_rec", phone: "0400000000", service_areas: ["Melton"], rec_registration_number: "37596", esv_licensed_electricians_confirmed: true, estimated_piesa_fee_inc_gst: 275, estimated_return_visit_fee_inc_gst: 150 };
+  test("flags nothing for a complete electrician application", () => {
+    expect(partnerIssues(base)).toEqual([]);
+  });
+  test("flags ESV no, missing REC and missing fees", () => {
+    const issues = partnerIssues({ ...base, esv_licensed_electricians_confirmed: false, rec_registration_number: null, estimated_piesa_fee_inc_gst: null, estimated_return_visit_fee_inc_gst: null });
+    expect(issues.some((i) => i.includes("NO ESV-licensed"))).toBe(true);
+    expect(issues.some((i) => i.includes("REC registration"))).toBe(true);
+    expect(issues.some((i) => i.includes("PIESA fee"))).toBe(true);
+    expect(issues.some((i) => i.includes("return visit fee"))).toBe(true);
+  });
+  test("flags missing phone and service areas", () => {
+    const issues = partnerIssues({ ...base, phone: null, service_areas: null });
+    expect(issues.some((i) => i.includes("phone"))).toBe(true);
+    expect(issues.some((i) => i.includes("service areas"))).toBe(true);
+  });
+  test("flags installer CII not certified, missing R5 rate and paid quotes", () => {
+    const issues = partnerIssues({ enquiry_type: "installer", phone: "1", service_areas: ["X"], cii_certification_status: "not_certified", estimated_r5_install_rate_per_sqm_inc_gst: null, free_quotes_for_hivic_leads: false });
+    expect(issues.some((i) => i.includes("Not CII certified"))).toBe(true);
+    expect(issues.some((i) => i.includes("R5.0"))).toBe(true);
+    expect(issues.some((i) => i.includes("Charges for quotes"))).toBe(true);
   });
 });
