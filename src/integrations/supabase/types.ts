@@ -4070,6 +4070,10 @@ export type Database = {
       }
       jobs: {
         Row: {
+          ap_fee_override_at: string | null
+          ap_fee_override_by: string | null
+          ap_fee_override_inc_gst: number | null
+          ap_fee_override_reason: string | null
           business_unit: string
           cancelled_reason: string | null
           channel: Database["public"]["Enums"]["job_channel"]
@@ -4114,6 +4118,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ap_fee_override_at?: string | null
+          ap_fee_override_by?: string | null
+          ap_fee_override_inc_gst?: number | null
+          ap_fee_override_reason?: string | null
           business_unit: string
           cancelled_reason?: string | null
           channel?: Database["public"]["Enums"]["job_channel"]
@@ -4158,6 +4166,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ap_fee_override_at?: string | null
+          ap_fee_override_by?: string | null
+          ap_fee_override_inc_gst?: number | null
+          ap_fee_override_reason?: string | null
           business_unit?: string
           cancelled_reason?: string | null
           channel?: Database["public"]["Enums"]["job_channel"]
