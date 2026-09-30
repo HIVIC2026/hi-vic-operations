@@ -97,7 +97,9 @@ export const confirmInsuranceUpload = createServerFn({ method: "POST" })
     const { data: list } = await db.storage.from("partner-files").list(prefix.slice(0, -1), { search: name });
     if (!list?.some((f) => f.name === name)) throw new Error("Upload not found. Please try again.");
     await db.from("rec_onboarding_applications").update({ insurance_certificate_path: data.path }).eq("id", app.id);
-    return { ok: true };
+    const { extractInsurance } = await import("./insurance-extract.server");
+    const extracted = await extractInsurance(db as never, data.path);
+    return { ok: true, extracted };
   });
 
 export const getRecAgreement = createServerFn({ method: "POST" })
