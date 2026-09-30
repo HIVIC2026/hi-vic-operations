@@ -3,7 +3,7 @@
 // AND the validator that must pass before a template ID can be used. Labels are Home Insulation Victoria checklist
 // wording for the Ready Check; PIESA and PIISA follow the official DEECA forms (uploaded 30 Sep 2026).
 export type FormKey = "ready_check" | "piesa" | "piisa";
-export type FieldType = "text" | "number" | "choice" | "yesno" | "media" | "signature" | "datetime";
+export type FieldType = "text" | "number" | "choice" | "multichoice" | "yesno" | "media" | "signature" | "datetime";
 export type FormField = {
   label: string; type: FieldType; required: boolean; choices?: string[];
   when?: string; // human-readable condition; required only when it applies
@@ -61,8 +61,8 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
       { label: "Existing insulation", type: "choice", required: true, perArea: true, choices: ["Uninsulated", "Under-insulated"], source: `${G} eligibility` },
       { label: "Existing insulation depth photo with vertical ruler", type: "media", required: true, perArea: true, when: "Under-insulated", source: `${G} Table 4` },
       { label: "Estimated existing R-value", type: "number", required: true, perArea: true, when: "Under-insulated", source: "Assignment form" },
-      { label: "Removal required", type: "yesno", required: true, perArea: true, choices: YN, when: "Under-insulated", source: `${G} removal criteria` },
-      { label: "Insulation type to remove", type: "choice", required: true, perArea: true, choices: ["Batts or blankets", "Loose fill", "Mixed (batts and loose fill)", "Not sure"], when: "Removal required = Yes", source: "portal – quoting: loose fill and batts price differently" },
+      { label: "Existing insulation type", type: "multichoice", required: true, perArea: true, choices: ["Batts or blankets", "Loose fill", "Not sure"], when: "Under-insulated", source: "portal – quoting: loose fill and batts price differently; choose all that apply" },
+      { label: "What happens to the existing insulation", type: "choice", required: true, perArea: true, choices: ["Must be removed", "Can be topped up", "Not sure – needs office review"], when: "Under-insulated", source: `${G} removal criteria` },
       { label: "Measured area m2", type: "number", required: true, perArea: true, source: "VEEC creation form" },
       { label: "360 video of ceiling space before upgrade", type: "media", required: true, perArea: true, source: `${G} Table 4` },
       { label: "How the ceiling was measured", type: "choice", required: true, choices: ["Laser measure in the ceiling space", "Tape measure in the ceiling space", "Scaled from the floor plan", "Other (explain in notes)"], source: "portal – measurement provenance; aerial/online estimates never accepted" },
