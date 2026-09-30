@@ -65,7 +65,8 @@ function Partners() {
                     </div>
                     <div className="mt-2 text-xs text-muted-foreground">Submitted {date(r.source_created_at ?? r.created_at)}</div>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </TabsContent>
@@ -97,6 +98,14 @@ function Detail({ row, onClose }: { row: Row; onClose: () => void }) {
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{row.company || row.name}</DialogTitle></DialogHeader>
+        {(() => { const issues = partnerIssues(row); return issues.length > 0 && (
+          <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3">
+            <div className="mb-1 text-sm font-semibold text-amber-700 dark:text-amber-400">Review flags</div>
+            <ul className="list-inside list-disc text-sm text-amber-700 dark:text-amber-400">
+              {issues.map((i) => <li key={i}>{i}</li>)}
+            </ul>
+          </div>
+        ); })()}
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
           {f.map(([k, v]) => <Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd className="whitespace-pre-wrap">{v ?? "—"}</dd></Fragment>)}
         </dl>
