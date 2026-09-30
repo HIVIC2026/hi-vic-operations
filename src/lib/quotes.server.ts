@@ -105,7 +105,19 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   const gstMul = 1 + Number(settings.gst_rate);
 
   // Installer-sourced jobs skip the multi-installer option marketplace: one quote from the assigned installer's card.
-  const { data: jobRow } = await admin.from("jobs").select("channel").eq("id", jobId).single();
+  const { data: jobRow } = await admin.from("jobs").select("channel, installer_led, ap_fee_override_inc_gst").eq("id", jobId).single();
+  // Installer-led: the AP fee is its own line (standard fee or audited per-job override) so the Xero invoice matches the co-branded preview.
+  let apLine: { code: string; description: string; quantity: number; unit: string; unit_price_inc_gst: number; line_total_inc_gst: number; is_other: boolean; explanation: string | null } | null = null;
+  if (jobRow?.installer_led) {
+    let fee = jobRow.ap_fee_override_inc_gst != null ? Number(jobRow.ap_fee_override_inc_gst) : null;
+    if (fee == null) {
+      const { data: rs } = await admin.from("retail_estimator_settings").select("ap_management_inc_gst").eq("is_current", true).maybeSingle();
+      if (!rs) throw new WorkflowError("Standard AP fee is not set – cannot quote an installer-led job.");
+      fee = Number(rs.ap_management_inc_gst);
+    }
+    fee = r2(fee);
+    if (fee > 0) apLine = { code: "AP_FEE", description: "Accredited Provider fee (HI VIC)", quantity: 1, unit: "flat", unit_price_inc_gst: fee, line_total_inc_gst: fee, is_other: false, explanation: null };
+  }
   const optionCodes = jobRow?.channel === "installer_sourced" ? settings.installer_option_codes.slice(0, 1) : settings.installer_option_codes;
   const created: string[] = [];
   for (const code of optionCodes) {
@@ -120,7 +132,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
       travel: byCode("TRAVEL") ?? null,
       settings: { ...settings, access_loadings: settings.access_loadings as Record<string, number> },
     });
-    const subtotal = r2(calc.subtotal_inc_gst + rectTotal);
+    const subtotal = r2(calc.subtotal_inc_gst + rectTotal + (apLine?.line_total_inc_gst ?? 0));
     const { data: q, error } = await admin
       .from("quotes")
       .insert({
@@ -135,6 +147,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
     await admin.from("quote_items").insert([
       ...calc.items.map((i) => ({ ...i, quote_id: q.id })),
       ...rectLines.map((l, i) => ({ ...l, quote_id: q.id, sort: 100 + i })),
+      ...(apLine ? [{ ...apLine, quote_id: q.id, sort: 200 }] : []),
     ]);
     const { loading, ...internals } = calc.internals;
     await admin.from("quote_internals").insert({ quote_id: q.id, ...internals, calc_snapshot: { loading, measurement_id: qi.measurementId, area_m2: qi.areaM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access } });

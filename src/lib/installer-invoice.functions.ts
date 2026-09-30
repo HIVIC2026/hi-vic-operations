@@ -16,7 +16,7 @@ export const getInstallerLedInvoice = createServerFn({ method: "POST" }).middlew
     if (error) throw new Error(error.message);
     const [{ data: s, error: se }, { data: quote, error: qe }] = await Promise.all([
       admin.from("retail_estimator_settings").select("ap_management_inc_gst").eq("is_current", true).maybeSingle(),
-      admin.from("quotes").select("id, option_label, status, subtotal_inc_gst, veec_discount_inc_gst")
+      admin.from("quotes").select("id, option_label, status, subtotal_inc_gst, veec_discount_inc_gst, quote_items(code, line_total_inc_gst)")
         .eq("job_id", data.jobId).eq("kind", "installation").neq("status", "superseded")
         .order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
@@ -27,7 +27,8 @@ export const getInstallerLedInvoice = createServerFn({ method: "POST" }).middlew
     const apFee = override ?? standardApFee;
     const piesa = piesaChargeIncGst((job.electrician_choice as ElectricianChoice | null) ?? null, null);
     const price = installerLedOwnerPrice({
-      installerQuoteIncGst: quote ? Number(quote.subtotal_inc_gst) : 0,
+      // The quote already carries an AP_FEE line; strip it so the installer's price isn't counted twice.
+      installerQuoteIncGst: quote ? Number(quote.subtotal_inc_gst) - (quote.quote_items ?? []).filter((i) => i.code === "AP_FEE").reduce((a, i) => a + Number(i.line_total_inc_gst), 0) : 0,
       piesaIncGst: piesa, rectificationIncGst: 0, apFeeIncGst: apFee,
       veecDiscountIncGst: quote ? Number(quote.veec_discount_inc_gst) : 0,
     });
