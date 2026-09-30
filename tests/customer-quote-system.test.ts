@@ -15,7 +15,7 @@ describe("customer quote system", () => {
   test("defines exact shared payment, change, and insulation copy", () => {
     expect(CUSTOMER_PAYMENT_COPY.notPiesa).toBe("It is not the PIESA.");
     expect(CUSTOMER_EXISTING_INSULATION_NOTE).toBe("Existing insulation: removal MAY be required. It is not included unless shown in the quote. Your Ready Check confirms whether removal is required and, if so, the price before you proceed.");
-    expect(CUSTOMER_CALCULATOR_COPY).toBe("Try another ceiling size and instantly see how your preliminary project total, VEU / VEEC discount and estimated cost after discount could change.");
+    expect(CUSTOMER_CALCULATOR_COPY).toBe("Use this calculator to compare how a different Victorian property address or ceiling size could change your estimated project total, VEU / VEEC discount and estimated cost after discount.");
     expect(CUSTOMER_VISUAL_SYSTEM).toEqual({ quoteRadiusPx: 20, secondaryRadiusPx: 16, secondaryPaddingPx: 20, actionRadiusPx: 16, actionPaddingPx: 16, softBlueBorder: "#D4DAF5", softGreenBorder: "#BEE8CE", paleGreen: "#ECF9F1", footer: "#F1F8F3" });
     expect(CUSTOMER_ASSESSMENT_ACTION.cta).toBe("BOOK MY READY CHECK →");
     expect(CUSTOMER_ASSESSMENT_ACTION.paragraphs[0]).toBe("Your $99 Home Insulation Ready Check is credited toward your project if you proceed.");

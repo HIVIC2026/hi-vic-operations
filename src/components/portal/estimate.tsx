@@ -242,6 +242,7 @@ export function AreaCalculator({ calc, initial, fees, propertyAddress, secondary
   const id = useId();
   const [open, setOpen] = useState(!secondary);
   const [raw, setRawState] = useState(initial == null ? "" : String(initial));
+  const [custom, setCustom] = useState(initial != null && !CALC_QUICK.includes(initial as never));
   const [touched, setTouched] = useState(false);
   const setRaw = (v: string) => { setTouched(true); setRawState(v); };
   const m2 = parseAssumption(raw);
@@ -266,15 +267,17 @@ export function AreaCalculator({ calc, initial, fees, propertyAddress, secondary
     <section id={secondary ? "calculator" : undefined} className="scroll-mt-6" data-testid="area-calculator" aria-label="Ceiling area calculator">
       {secondary && !open ? <Button variant="ghost" size="field" className="h-auto min-h-12 max-w-full justify-start whitespace-normal px-0 text-left font-bold text-estimate-blue underline underline-offset-4 hover:bg-transparent hover:text-estimate-blue" onClick={() => setOpen(true)}>Want to test a different ceiling area? <ChevronDown aria-hidden="true" /></Button> : <>
         <div className="estimate-quote-card overflow-hidden">
-        <div className="bg-estimate-blue px-5 py-6 text-estimate-white sm:px-8 sm:py-8">
-          <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-auto w-40 max-w-full rounded-sm bg-estimate-white p-2" />
-          <p className="mt-6 text-xs font-extrabold uppercase text-estimate-green-light">Interactive preliminary estimate</p>
-          <h3 className="mt-2 text-2xl font-extrabold leading-tight sm:text-3xl">TRY ANOTHER PROPERTY OR CEILING SIZE</h3>
-          <p className="mt-3 max-w-xl text-sm font-semibold leading-relaxed">{CUSTOMER_CALCULATOR_COPY}</p>
-          <div className="mt-5 rounded-2xl border border-estimate-white/30 bg-estimate-white/10 p-5" data-testid="calculator-property">
-            <p className="text-xs font-extrabold uppercase text-estimate-green-light">Property</p>
-            <p className="mt-1 text-sm font-extrabold break-words">{where.status === "original" ? (propertyAddress ?? `Your enquiry property (postcode ${calc.location.postcode})`) : (altSelected?.label ?? "Select a Victorian property address")}</p>
-            {where.status === "original" && !addrOpen && <button type="button" className="mt-3 min-h-11 text-sm font-extrabold text-estimate-green-light underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" onClick={() => setAddrOpen(true)}>{WHATIF_ADDRESS_COPY.change}</button>}
+        <div className="bg-estimate-blue px-5 py-5 text-estimate-white sm:px-7 sm:py-6">
+          <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-auto w-36 max-w-full rounded-sm bg-estimate-white p-2" />
+          <p className="mt-4 text-xs font-extrabold uppercase text-estimate-green-light">Interactive preliminary estimate</p>
+          <h3 className="mt-1.5 text-xl font-extrabold leading-tight sm:text-2xl">TRY ANOTHER PROPERTY OR CEILING SIZE</h3>
+          <p className="mt-2 max-w-xl text-sm font-semibold leading-relaxed">{CUSTOMER_CALCULATOR_COPY}</p>
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-estimate-white/30 bg-estimate-white/10 px-4 py-3" data-testid="calculator-property">
+            <div className="min-w-0">
+              <p className="text-xs font-extrabold uppercase text-estimate-green-light">Property</p>
+              <p className="mt-0.5 text-sm font-extrabold break-words">{where.status === "original" ? (propertyAddress ?? `Your enquiry property (postcode ${calc.location.postcode})`) : (altSelected?.label ?? "Select a Victorian property address")}</p>
+            </div>
+            {where.status === "original" && !addrOpen && <button type="button" className="shrink-0 text-sm font-extrabold text-estimate-green-light underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" onClick={() => setAddrOpen(true)}>{WHATIF_ADDRESS_COPY.change}</button>}
           </div>
         </div>
         <div className="px-5 py-6 sm:px-8 sm:py-8">
@@ -286,13 +289,15 @@ export function AreaCalculator({ calc, initial, fees, propertyAddress, secondary
           <Button type="button" size="field" variant="outline" className="mt-4 rounded-lg border border-estimate-blue bg-estimate-white font-extrabold text-estimate-blue hover:bg-estimate-blue-pale hover:text-estimate-blue" onClick={revert}>{WHATIF_ADDRESS_COPY.revert}</Button>
         </div>}
         <p className="text-sm font-extrabold text-estimate-blue">Choose an estimated ceiling size</p>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <label className="sr-only" htmlFor={id}>Approximate ceiling area (m²)</label>
-          <input id={id} aria-label="Approximate ceiling area (m²)" inputMode="decimal" type="number" min={CALC_MIN_M2} max={CALC_MAX_M2} className="h-14 w-28 rounded-xl border border-estimate-blue bg-estimate-white px-3 text-lg text-estimate-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="Area" />
-          <span className="mr-2 text-sm text-estimate-navy">m²</span>
-          {CALC_QUICK.map((q) => <Button key={q} type="button" size="field" variant="outline" className={`rounded-lg border border-estimate-blue-soft px-3 font-semibold text-estimate-navy hover:bg-estimate-green-soft hover:text-estimate-navy ${m2 === q ? "bg-estimate-green-soft" : "bg-estimate-white"}`} aria-pressed={m2 === q} onClick={() => setRaw(String(q))}>{q} m²</Button>)}
-          <Button type="button" size="field" variant="outline" className={`rounded-lg border border-estimate-blue-soft px-3 font-semibold text-estimate-navy hover:bg-estimate-green-soft hover:text-estimate-navy ${m2 != null && !CALC_QUICK.includes(m2 as never) ? "bg-estimate-green-soft" : "bg-estimate-white"}`} aria-pressed={m2 != null && !CALC_QUICK.includes(m2 as never)} onClick={() => setRaw("")}>Other / custom</Button>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+          {CALC_QUICK.map((q) => <Button key={q} type="button" size="field" variant="outline" className={`h-11 rounded-lg border border-estimate-blue-soft px-3 font-semibold text-estimate-navy shadow-none hover:bg-estimate-green-soft hover:text-estimate-navy ${!custom && m2 === q ? "bg-estimate-green-soft" : "bg-estimate-white"}`} aria-pressed={!custom && m2 === q} onClick={() => { setCustom(false); setRaw(String(q)); }}>{q} m²</Button>)}
+          <Button type="button" size="field" variant="outline" className={`h-11 rounded-lg border border-estimate-blue-soft px-3 font-semibold text-estimate-navy shadow-none hover:bg-estimate-green-soft hover:text-estimate-navy ${custom ? "bg-estimate-green-soft" : "bg-estimate-white"}`} aria-pressed={custom} onClick={() => { setCustom(true); setRaw(""); }}>Other / custom</Button>
         </div>
+        {custom && <div className="mt-3 flex items-center gap-2">
+          <label className="sr-only" htmlFor={id}>Enter another ceiling size (m²)</label>
+          <input id={id} aria-label="Enter another ceiling size (m²)" inputMode="decimal" type="number" min={CALC_MIN_M2} max={CALC_MAX_M2} className="h-11 w-32 rounded-lg border border-estimate-blue bg-estimate-white px-3 text-base text-estimate-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="Area" />
+          <span className="text-sm text-estimate-navy">m²</span>
+        </div>}
         {raw.trim() !== "" && m2 == null && <p role="alert" className="mt-3 text-sm font-bold text-danger">Enter an area between {CALC_MIN_M2} and {CALC_MAX_M2} m².</p>}
         <p className="estimate-secondary-card mt-5 text-sm font-semibold leading-relaxed">This is a what-if calculator only. It does not change the property details you submitted. Your onsite measure confirms the final eligible area.</p>
         </div>

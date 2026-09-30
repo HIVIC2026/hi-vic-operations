@@ -26,7 +26,7 @@ export const CUSTOMER_VISUAL_SYSTEM = {
   footer: "#F1F8F3",
 } as const;
 
-export const CUSTOMER_CALCULATOR_COPY = "Try another ceiling size and instantly see how your preliminary project total, VEU / VEEC discount and estimated cost after discount could change.";
+export const CUSTOMER_CALCULATOR_COPY = "Use this calculator to compare how a different Victorian property address or ceiling size could change your estimated project total, VEU / VEEC discount and estimated cost after discount.";
 
 /** Pre-Ready-Check preliminary estimate labels. No electrical allowance appears before the Ready Check. */
 export const CUSTOMER_QUOTE_LABELS = {
