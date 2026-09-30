@@ -393,6 +393,13 @@
       "when": 1790764339096,
       "tag": "0055_canonical_property_address",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1790766928175,
+      "tag": "0056_customer_communication_template_reviews",
+      "breakpoints": true
     }
   ]
 }

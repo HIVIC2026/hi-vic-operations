@@ -1,13 +1,27 @@
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, HeartPulse } from "lucide-react";
+import { AlertTriangle, CheckCircle2, HeartPulse, XCircle } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import { fmtDateTime, waitingOn } from "@/lib/workflow";
 import { Pill, StageBadge } from "./badges";
 
 export type JobRow = Database["public"]["Views"]["job_overview"]["Row"] & { stuck_reasons?: string[] };
 
-export function JobCard({ job, to }: { job: JobRow; to: "/admin/jobs/$jobId" | "/field/$jobId" | "/owner/$jobId" }) {
+const CONFIRMED_STAGES = new Set(["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "ready_for_installer_quotes", "awaiting_quote_acceptance", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec", "complete"]);
+
+export function JobCard({ job, to, coverage }: { job: JobRow; to: "/admin/jobs/$jobId" | "/field/$jobId" | "/owner/$jobId"; coverage?: "serviceable" | "unserviceable" | "partial" | "not_configured" }) {
   const stuck = job.stuck_reasons ?? [];
+  const eligibility = job.eligibility_review_required
+    ? { label: "TO BE CONFIRMED", tone: "warn" as const }
+    : job.eligibility_outcome === "does_not_appear_eligible"
+      ? { label: "INELIGIBLE", tone: "bad" as const }
+      : job.eligibility_outcome === "needs_onsite_confirmation"
+        ? { label: "TO BE CONFIRMED", tone: "info" as const }
+        : job.eligibility_outcome === "likely_eligible" && CONFIRMED_STAGES.has(job.stage ?? "")
+          ? { label: "ELIGIBLE", tone: "good" as const }
+          : job.eligibility_outcome === "likely_eligible"
+            ? { label: "LIKELY ELIGIBLE", tone: "good" as const }
+            : null;
+  const next = job.eligibility_outcome === "does_not_appear_eligible" ? "Send ineligible result, then retain on hold" : job.eligibility_outcome === "likely_eligible" && ["new_enquiry", "eligibility_review", "awaiting_electrician"].includes(job.stage ?? "") ? "Arrange the free installer Ready Check" : job.next_action ?? "Review this enquiry";
   return (
     <Link to={to} params={{ jobId: job.id! }} className={`block rounded-md border bg-card p-4 shadow-sm transition hover:border-primary hover:shadow-md ${stuck.length > 0 ? "border-l-4 border-l-danger" : ""}`}>
       <div className="flex items-start justify-between gap-2">
@@ -18,7 +32,7 @@ export function JobCard({ job, to }: { job: JobRow; to: "/admin/jobs/$jobId" | "
         </div>
         {job.life_support && <HeartPulse className="h-5 w-5 shrink-0 text-danger" aria-label="Life support" />}
       </div>
-      <div className="mt-3 flex flex-wrap gap-1.5"><StageBadge stage={job.stage} />{job.eligibility_review_required ? <Pill t="warn">Review required</Pill> : job.eligibility_outcome === "does_not_appear_eligible" ? <Pill t="bad">Does not appear eligible</Pill> : job.eligibility_outcome === "needs_onsite_confirmation" ? <Pill t="info">Needs onsite confirmation</Pill> : job.eligibility_outcome === "likely_eligible" ? <Pill t="good">Likely eligible</Pill> : null}</div>
+      <div className="mt-3 flex flex-wrap gap-1.5"><StageBadge stage={job.stage} />{eligibility && <Pill t={eligibility.tone}>{eligibility.label}</Pill>}{coverage && <Pill t={coverage === "serviceable" ? "good" : coverage === "unserviceable" ? "bad" : "warn"}>{coverage === "serviceable" ? <><CheckCircle2 className="mr-1 h-3 w-3" /> SERVICE COVERAGE</> : coverage === "unserviceable" ? <><XCircle className="mr-1 h-3 w-3" /> NO SERVICE COVERAGE</> : "COVERAGE TO CONFIRM"}</Pill>}</div>
       {stuck.length > 0 && (
         <div className="mt-2 rounded-md border border-danger/40 bg-danger-soft px-2 py-1.5 text-xs text-danger" role="alert">
           <div className="font-bold uppercase tracking-wide">Needs attention</div>
@@ -26,8 +40,8 @@ export function JobCard({ job, to }: { job: JobRow; to: "/admin/jobs/$jobId" | "
         </div>
       )}
       <div className="mt-3 border-t pt-3 text-xs">
-        <div className="mb-1 font-bold uppercase text-muted-foreground">Next</div>
-        <div className="flex items-start gap-1.5 font-semibold text-foreground">{stuck.length > 0 && <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />}{job.next_action ?? "—"}</div>
+         <div className="mb-1 font-bold uppercase text-muted-foreground">NEXT STEP</div>
+         <div className="flex items-start gap-1.5 font-semibold text-foreground">{stuck.length > 0 && <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />}{next}</div>
       </div>
       {waitingOn(job.stage, job.next_action) && (
         <div className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Waiting on: <span className="text-foreground">{waitingOn(job.stage, job.next_action)}</span></div>

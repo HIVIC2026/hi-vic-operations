@@ -80,6 +80,10 @@
   --color-estimate-white: var(--estimate-white);
   --color-estimate-accent: var(--estimate-accent);
   --color-estimate-accent-soft: var(--estimate-accent-soft);
+  --color-workspace-blush: var(--workspace-blush);
+  --color-workspace-blush-strong: var(--workspace-blush-strong);
+  --color-workspace-sun: var(--workspace-sun);
+  --color-workspace-sun-strong: var(--workspace-sun-strong);
   --font-sans: var(--app-font);
   --font-display: var(--app-font-display);
 }
@@ -146,7 +150,7 @@
 }
 
 :root {
-  --radius: 0.6rem;
+  --radius: 0.5rem;
   /* Home Insulation Victoria brand palette: blue #3C51C4, green #07BF61/#52C875, navy #22376B, off-white #FBFCFA */
   --background: #fbfcfa;
   --foreground: #22376b;
@@ -182,6 +186,10 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
+  --workspace-blush: oklch(0.956 0.041 344);
+  --workspace-blush-strong: oklch(0.86 0.08 345);
+  --workspace-sun: oklch(0.955 0.075 92);
+  --workspace-sun-strong: oklch(0.82 0.13 86);
   --sidebar: #22376b;
   --sidebar-foreground: oklch(0.96 0.01 278.5);
   --sidebar-primary: #52c875;
@@ -192,6 +200,25 @@
   --sidebar-ring: #52c875;
   --app-font: "Epilogue", ui-sans-serif, system-ui, sans-serif;
   --app-font-display: "Urbanist", "Epilogue", ui-sans-serif, system-ui, sans-serif;
+}
+
+.portal-theme {
+  --background: oklch(0.985 0.008 345);
+  --secondary: oklch(0.965 0.025 345);
+  --muted: oklch(0.972 0.02 88);
+  --accent: oklch(0.956 0.041 344);
+  --border: oklch(0.91 0.02 340);
+  --sidebar: oklch(0.992 0.008 345);
+  --sidebar-foreground: #22376b;
+  --sidebar-primary: #3c51c4;
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.956 0.041 344);
+  --sidebar-accent-foreground: #22376b;
+  --sidebar-border: oklch(0.91 0.02 340);
+  --sidebar-ring: #3c51c4;
+  --app-font: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --app-font-display: "Outfit", "Figtree", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--app-font);
 }
 
 .dark {

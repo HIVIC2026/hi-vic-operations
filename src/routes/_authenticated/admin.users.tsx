@@ -25,7 +25,8 @@ function Users() {
   });
   return (
     <AppShell wide>
-      <h1 className="mb-1 text-2xl font-bold">Users & roles</h1>
+      <p className="text-xs font-bold uppercase text-primary">Access control</p>
+      <h1 className="mb-1 mt-1 text-4xl font-bold">USERS & ACCESS</h1>
       <p className="mb-4 text-sm text-muted-foreground">People appear here after they sign up. Owners are linked automatically when their sign-up email matches their enquiry.</p>
       {error && <div role="alert" className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Users could not be loaded. Existing accounts are safe. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
       {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading users…</p>}
