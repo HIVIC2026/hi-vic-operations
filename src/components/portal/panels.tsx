@@ -8,9 +8,9 @@ import { CUSTOMER_INVOICE_COLUMNS } from "@/lib/invoice.lifecycle";
 type CustomerInvoice = { id: string; job_id: string; kind: string; xero_invoice_number: string | null; xero_online_url: string | null; total_inc_gst: number; deposit_amount: number; deposit_paid_at: string | null; balance_amount: number; balance_due_date: string | null; balance_paid_at: string | null; total_paid: number; deposit_cleared: boolean; effective_status: string; created_at: string };
 import { useAction } from "@/hooks/use-me";
 import {
-  acceptOwnerAuthority, confirmEvidenceUpload, createBooking, declineOwnerAuthority, getAuthorityDocUrl, getEvidenceUrl, getInvoiceInternals,
-  getJobBlockers, overrideDepositGate, requestEvidenceUpload, requestOwnerAuthority, respondToQuote, revokeOwnerAuthority,
-  sendMessage, cancelBooking, markDepositRequestRaised, syncInvoice, verifyEvidence, viewOwnerAuthority,
+  confirmEvidenceUpload, createBooking, getAuthorityDocUrl, getEvidenceUrl, getInvoiceInternals,
+  getJobBlockers, overrideDepositGate, requestEvidenceUpload, respondToQuote, 
+  sendMessage, cancelBooking, markDepositRequestRaised, syncInvoice, verifyEvidence,
 } from "@/lib/portal.functions";
 import { EVIDENCE_STATUS_LABEL, STAGE_LABEL, aud, fmtDate, fmtDateTime } from "@/lib/workflow";
 import { ASSISTANCE_LABEL } from "@/lib/authority";
@@ -361,15 +361,13 @@ export function useAuthorities(jobId: string) {
 
 export function AdminAuthorityPanel({ jobId }: { jobId: string }) {
   const { data = [] } = useAuthorities(jobId);
-  const request = useAction(requestOwnerAuthority);
-  const revoke = useAction(revokeOwnerAuthority);
   const doc = useServerFn(getAuthorityDocUrl);
   const cur = data[0];
   const eff = cur && cur.status === "accepted" && cur.expires_at && new Date(cur.expires_at) < new Date() ? "expired" : cur?.status ?? "not_requested";
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Section title="Owner Authority" action={<AuthorityBadge status={eff} />}>
-        {eff !== "accepted" && <p className="mb-3 flex items-center gap-2 rounded bg-danger-soft p-2 text-sm font-semibold text-danger"><ShieldAlert className="h-4 w-4" /> Valid Owner Authority required before assessment booking, rectification, installation and VEEC.</p>}
+        <p className="mb-3 rounded bg-muted p-2 text-sm text-muted-foreground">Retired – kept as history only. Consent is now signed at quote acceptance (Customer Acceptance &amp; VEEC Assignment).</p>
         {cur ? (
           <dl className="grid grid-cols-2 gap-1 text-sm">
             <dt className="text-muted-foreground">Version</dt><dd>v{cur.version} · wording {cur.wording_version}</dd>
@@ -387,12 +385,8 @@ export function AdminAuthorityPanel({ jobId }: { jobId: string }) {
             {cur.revocation_reason && <><dt className="text-muted-foreground">Revoked</dt><dd>{fmtDate(cur.revoked_at)}: {cur.revocation_reason}</dd></>}
             {cur.decline_reason && <><dt className="text-muted-foreground">Declined</dt><dd>{cur.decline_reason}</dd></>}
           </dl>
-        ) : <p className="text-sm text-muted-foreground">Not requested yet. It's requested automatically when eligibility is set to proceed.</p>}
+        ) : <p className="text-sm text-muted-foreground">No legacy record for this job.</p>}
         <div className="mt-3 flex flex-wrap gap-2">
-          {!cur && <Button onClick={() => request({ jobId, reason: "initial" }, "Authority requested")}>Request authority</Button>}
-          {cur && ["sent", "viewed"].includes(cur.status) && <Button variant="outline" onClick={() => request({ jobId, reason: "resend" }, "Authority re-sent")}>Resend</Button>}
-          {cur && ["accepted", "expired", "revoked", "declined"].includes(eff) && <Button variant="outline" onClick={() => request({ jobId, reason: "renewal" }, "Renewal requested")}>Renew (new version)</Button>}
-          {cur && ["sent", "viewed", "accepted"].includes(eff) && <Button variant="destructive" onClick={() => { const r = prompt("Reason for revoking (audited)"); if (r) revoke({ authorityId: cur.id, reason: r }, "Authority revoked"); }}>Revoke</Button>}
           {cur?.document_path && <Button variant="ghost" onClick={async () => window.open((await doc({ data: { authorityId: cur.id } })).url, "_blank")}><Paperclip /> Locked record</Button>}
         </div>
       </Section>
@@ -409,56 +403,6 @@ export function AdminAuthorityPanel({ jobId }: { jobId: string }) {
   );
 }
 
-export function OwnerAuthorityAction({ jobId }: { jobId: string }) {
-  const { data = [] } = useAuthorities(jobId);
-  const view = useAction(viewOwnerAuthority);
-  const accept = useAction(acceptOwnerAuthority);
-  const decline = useAction(declineOwnerAuthority);
-  const [open, setOpen] = useState(false);
-  const [c18, setC18] = useState(false);
-  const [cAuth, setCAuth] = useState(false);
-  const [assist, setAssist] = useState<keyof typeof ASSISTANCE_LABEL>("none");
-  const [sig, setSig] = useState("");
-  const cur = data[0];
-  if (!cur) return null;
-  const expired = cur.status === "accepted" && cur.expires_at && new Date(cur.expires_at) < new Date();
-  if (cur.status === "accepted" && !expired)
-    return <div className="flex items-center gap-2 rounded-xl border border-success/30 bg-success-soft p-3 text-sm font-medium text-success"><CheckCircle2 className="h-4 w-4" /> Owner Authority given {fmtDate(cur.accepted_at)} · valid until {fmtDate(cur.expires_at)}</div>;
-  if (!["sent", "viewed"].includes(cur.status))
-    return <div className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">Your authority is {expired ? "expired" : cur.status}. HI VIC will send you a new one to continue.</div>;
-  return (
-    <section className="rounded-xl border-2 border-primary bg-card p-4 shadow-sm">
-      <h2 className="text-lg font-bold">Action needed: give Owner Authority</h2>
-      <p className="mt-1 text-sm text-muted-foreground">We need your authority before an electrician can book your site visit. It takes about a minute — your details are already filled in.</p>
-      {!open ? (
-        <Button size="field" className="mt-3 w-full" onClick={async () => { setOpen(true); setSig(cur.owner_full_name); await view({ authorityId: cur.id }); }}>Read and accept authority</Button>
-      ) : (
-        <div className="mt-3 space-y-3">
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded bg-muted p-3 text-sm">
-            <dt className="text-muted-foreground">Name</dt><dd>{cur.owner_full_name}</dd>
-            <dt className="text-muted-foreground">Contact</dt><dd>{[cur.owner_email, cur.owner_phone].filter(Boolean).join(" · ")}</dd>
-            <dt className="text-muted-foreground">Property</dt><dd>{cur.property_address}</dd>
-            <dt className="text-muted-foreground">Given to</dt><dd>{cur.ap_legal_entity}</dd>
-          </dl>
-          <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded border p-3 text-sm leading-relaxed">{cur.wording_snapshot}</pre>
-          <label className="flex items-start gap-3 text-sm"><Checkbox className="mt-0.5 h-5 w-5" checked={c18} onCheckedChange={(v) => setC18(!!v)} /> I am 18 years of age or older.</label>
-          <label className="flex items-start gap-3 text-sm"><Checkbox className="mt-0.5 h-5 w-5" checked={cAuth} onCheckedChange={(v) => setCAuth(!!v)} /> I am the owner of this property, or I am otherwise legally authorised to give this authority.</label>
-          <div>
-            <div className="mb-1 text-sm font-medium">Do you need any assistance?</div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {(Object.keys(ASSISTANCE_LABEL) as (keyof typeof ASSISTANCE_LABEL)[]).map((k) => (
-                <Button key={k} type="button" size="field" variant={assist === k ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal" onClick={() => setAssist(k)}>{ASSISTANCE_LABEL[k]}</Button>
-              ))}
-            </div>
-          </div>
-          <div><div className="mb-1 text-sm font-medium">Type your full name to sign</div><Input className="h-12" value={sig} onChange={(e) => setSig(e.target.value)} /></div>
-          <Button size="field" className="w-full" disabled={!c18 || !cAuth || sig.trim().length < 2} onClick={() => accept({ authorityId: cur.id, over18: true, authorised: true, assistance: assist, signatureName: sig }, "Thank you – authority recorded")}>I accept and give authority</Button>
-          <Button size="field" variant="ghost" className="w-full" onClick={() => { const r = prompt("Tell us why you don't want to proceed"); if (r) decline({ authorityId: cur.id, reason: r }, "Declined"); }}>I don't want to give authority</Button>
-        </div>
-      )}
-    </section>
-  );
-}
 
 // ---------------- Documents ----------------
 export function DocumentsPanel({ jobId }: { jobId: string }) {

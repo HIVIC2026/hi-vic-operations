@@ -52,7 +52,7 @@ function SubmitJob() {
       <DialogTrigger asChild><Button className="mb-4 h-12 w-full sm:w-auto"><Plus /> Submit a job to HI VIC</Button></DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Submit your customer's job</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">HI VIC handles eligibility, Owner Authority, the electrician/PIESA visit, evidence review and VEEC. You stay the installer on this job.</p>
+        <p className="text-sm text-muted-foreground">HI VIC handles eligibility, customer acceptance, the electrician/PIESA visit, evidence review and VEEC. You stay the installer on this job.</p>
         <form className="grid gap-3" onSubmit={async (e) => {
           e.preventDefault();
           const r = await submit({ full_name: f.full_name, email: f.email, phone: f.phone || null, address_line: f.address_line, suburb: f.suburb || null, postcode: f.postcode || null, occupancy: f.occupancy, estimated_area_m2: f.area ? Number(f.area) : null, area_unknown: !f.area, life_support: f.life }, "Job submitted to HI VIC");

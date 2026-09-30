@@ -17,7 +17,7 @@ import { assertAgreementCanSign, assignmentEffective, buildAcceptancePackage, cu
 import { ASSIGNMENT_EVENTS, parseFormFields, prefillRows, setupStatus, templateBlockers, type TemplateKey } from "./assignment.core";
 import { consentValidityBlockers } from "./consent.core";
 import { autoAdvanceJob, autoAdvanceOpenJobs } from "./autoadvance.server";
-import { acceptAuthority, declineAuthority, markViewed, requestAuthority, revokeAuthority, sweepAuthorityExpiry } from "./authority.server";
+import { sweepAuthorityExpiry } from "./authority.server";
 
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
 
@@ -918,50 +918,40 @@ async function authorityJob(id: string) {
   return data.job_id;
 }
 
+/** Retired legacy Owner Authority action – history is read-only; consent is signed at quote acceptance. */
 export const requestOwnerAuthority = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, reason: z.enum(["initial", "renewal", "resend"]) }).parse(d))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
-    // Legacy authority requests mark a customer-facing request as "sent" – blocked entirely while locked.
-    const { assertCustomerDeliveryAllowed } = await import("./comms.server");
-    await assertCustomerDeliveryAllowed(data.jobId, "owner authority request");
-    await requestAuthority(data.jobId, context.userId, data.reason);
-    return { ok: true };
+  .handler(async () => {
+    throw new WorkflowError("Owner Authority has been retired. Consent is signed at quote acceptance.");
   });
 
+
+/** Retired legacy Owner Authority action – history is read-only; consent is signed at quote acceptance. */
 export const revokeOwnerAuthority = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ authorityId: uuid, reason: z.string().trim().min(5).max(1000) }).parse(d))
-  .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["admin", "owner"]);
-    await revokeAuthority(data.authorityId, context.userId, data.reason);
-    return { ok: true };
+  .handler(async () => {
+    throw new WorkflowError("Owner Authority has been retired. Consent is signed at quote acceptance.");
   });
 
+
+/** Retired legacy Owner Authority action – history is read-only; consent is signed at quote acceptance. */
 export const viewOwnerAuthority = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ authorityId: uuid }).parse(d))
-  .handler(async ({ data, context }) => {
-    const role = await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["owner", "admin"]);
-    if (role === "owner") await markViewed(data.authorityId, context.userId);
-    return { ok: true };
+  .handler(async () => {
+    throw new WorkflowError("Owner Authority has been retired. Consent is signed at quote acceptance.");
   });
 
-export const acceptOwnerAuthority = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
-  .inputValidator((d) => z.object({ authorityId: uuid, over18: z.literal(true), authorised: z.literal(true), assistance: z.enum(["none", "interpreter", "support_understanding", "both"]), signatureName: z.string().trim().min(2).max(200) }).parse(d))
-  .handler(async ({ data, context }) => {
-    // Only the owner themself may give authority.
-    await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["owner"]);
-    const { ip, userAgent } = context;
-    await acceptAuthority({ authorityId: data.authorityId, actorId: context.userId, over18: data.over18, authorised: data.authorised, assistance: data.assistance, signatureName: data.signatureName, ip, userAgent });
-    return { ok: true };
+
+/** Retired legacy Owner Authority action – history is read-only; consent is signed at quote acceptance. */
+export const acceptOwnerAuthority = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async () => {
+    throw new WorkflowError("Owner Authority has been retired. Consent is signed at quote acceptance.");
   });
 
+
+/** Retired legacy Owner Authority action – history is read-only; consent is signed at quote acceptance. */
 export const declineOwnerAuthority = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ authorityId: uuid, reason: z.string().trim().min(2).max(1000) }).parse(d))
-  .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, await authorityJob(data.authorityId), ["owner"]);
-    await declineAuthority(data.authorityId, context.userId, data.reason);
-    return { ok: true };
+  .handler(async () => {
+    throw new WorkflowError("Owner Authority has been retired. Consent is signed at quote acceptance.");
   });
+
 
 export const getAuthorityDocUrl = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ authorityId: uuid }).parse(d))

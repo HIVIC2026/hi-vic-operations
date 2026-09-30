@@ -16,6 +16,6 @@
 - [x] Full end-to-end flow audit: Base44 enquiry → completion; assess handoff design, find mess/gaps, recommend improvements
 - [x] Audit fix 1: harden VEEC lodgement (required ref/qty/date, status order, approved final, reason for edits)
 - [x] Audit fix 2: stuck-job alerts on pipeline
-- [ ] Audit fix 3: archive dead Owner Authority flow
+- [x] Audit fix 3: archive dead Owner Authority flow
 - [ ] Audit fix 4: wire compliance timeline into real gates
 - [ ] Audit fix 5: failure alert when error log grows
