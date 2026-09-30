@@ -62,7 +62,8 @@ export const INSTALLER_AGREEMENT_SECTIONS: { n: number; title: string; paras: st
   "paras": [
    "Installation must not start until HI VIC! confirms the job is ready to install, including a completed PIESA for the property, any required electrical rectification or electrician attendance, owner consent and ESC notification timing.",
    "The Installer must obtain and review the PIESA copy provided through HI VIC! before starting and must follow its findings. If the PIESA is missing, more than 30 days old at the installation date (the HI VIC! workflow window), or does not match site conditions, the Installer must not start and must notify HI VIC!.",
-   "On the installation day, before roof-space work starts, the Installer must complete the installer safety assessment required by current Activity 48 requirements and record it in HI VIC!. Where life-support requirements apply, the required plan or consent must be in place before work proceeds."
+   "On the installation day, before roof-space work starts, the Installer must complete the installer safety assessment required by current Activity 48 requirements and record it in HI VIC!. Where life-support requirements apply, the required plan or consent must be in place before work proceeds.",
+   "Same-day submission: the installer safety assessment (PIISA), completed-installation evidence and any other install-day records required by HI VIC! must be submitted through the HI VIC! portal on the day of the installation. Late submissions are flagged to HI VIC! and may delay AP review, VEEC creation and payment."
   ]
  },
  {

@@ -5,7 +5,7 @@ import { electricianStepErrors, type ElectricianChoice, type PreferredElectricia
 import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, DAYS, LEAD_TIMES, RADII } from "./rec-onboarding.core";
 
 export { DAYS, LEAD_TIMES, RADII, validAbn };
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.3-2026-09-30";
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.4-2026-10-01";
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
@@ -15,6 +15,7 @@ export const ACKNOWLEDGEMENTS = [
   { key: "records", text: "I confirm the Installer will provide truthful measurements, records and evidence and cooperate with HI VIC!, ESC and regulator compliance checks." },
   { key: "no_bypass", text: "I understand that removal, access, extras and other work identified through a HI VIC! Activity 48 job must be quoted, approved, scheduled and completed through the HI VIC! workflow and must not be taken off-platform or dealt with directly." },
   { key: "pricing", text: "I understand our approved rates are supplier rates, HI VIC! sets the customer price independently and may include its own margin, and HI VIC! does not have to disclose that margin to us. I will not share our rates with customers." },
+  { key: "same_day", text: "I understand the PIISA and install-day evidence must be submitted through the HI VIC! portal on the day of each installation." },
   { key: "electronic_signature", text: "I agree to electronic execution and to the signed agreement, exact wording, version and audit record being stored by HI VIC!." },
 ] as const;
 

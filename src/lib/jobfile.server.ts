@@ -10,9 +10,9 @@ import { logEvent } from "./workflow.server";
 
 const BUCKET = "job-files";
 
-export async function loadSources(jobId: string): Promise<JobSources & { events: Record<string, unknown>[]; messages: Record<string, unknown>[]; comms: Record<string, unknown>[]; bookings: Record<string, unknown>[] }> {
+export async function loadSources(jobId: string): Promise<JobSources & { events: Record<string, unknown>[]; messages: Record<string, unknown>[]; comms: Record<string, unknown>[]; bookings: Record<string, unknown>[]; proposals: Record<string, unknown>[] }> {
   const q = <T,>(p: PromiseLike<{ data: T[] | null }>) => Promise.resolve(p).then((r) => (r.data ?? []) as never as Record<string, unknown>[]);
-  const [documents, ev, reqs, piesaRecords, piesaDeliveries, measurements, quotes, invoices, assignments, authorities, escNotifications, veec, propertyFacts, declarations, events, messages, comms, bookings] = await Promise.all([
+  const [documents, ev, reqs, piesaRecords, piesaDeliveries, measurements, quotes, invoices, assignments, authorities, escNotifications, veec, propertyFacts, declarations, events, messages, comms, bookings, proposals] = await Promise.all([
     q(admin.from("documents").select("*").eq("job_id", jobId)),
     q(admin.from("evidence_files").select("*").eq("job_id", jobId)),
     q(admin.from("evidence_requirements").select("*").eq("job_id", jobId)),
@@ -31,15 +31,16 @@ export async function loadSources(jobId: string): Promise<JobSources & { events:
     q(admin.from("messages").select("*").eq("job_id", jobId)),
     q(admin.from("job_communications").select("*").eq("job_id", jobId)),
     q(admin.from("bookings").select("id, kind, status, scheduled_start, booked_by, created_at").eq("job_id", jobId)),
+    q(admin.from("appointment_proposals").select("id, kind, status, starts_at, ends_at, note, proposed_by, proposer_role, created_at, responded_at, responded_by, response_note").eq("job_id", jobId)),
   ]);
   const byReq = new Map(reqs.map((r) => [r["id"], r]));
-  return { documents, evidenceFiles: ev.map((f) => ({ ...f, requirement: byReq.get(f["requirement_id"]) ?? null })), piesaRecords, piesaDeliveries, measurements, quotes, invoices, assignments, authorities, escNotifications, veec, propertyFacts, declarations, events, messages, comms, bookings };
+  return { documents, evidenceFiles: ev.map((f) => ({ ...f, requirement: byReq.get(f["requirement_id"]) ?? null })), piesaRecords, piesaDeliveries, measurements, quotes, invoices, assignments, authorities, escNotifications, veec, propertyFacts, declarations, events, messages, comms, bookings, proposals };
 }
 
 export async function buildJobFile(jobId: string, role: Role) {
   const src = await loadSources(jobId);
   const docs = buildDocumentIndex(src);
-  const ids = [...new Set([...src.messages.map((m) => m["sender_id"]), ...src.events.map((e) => e["actor_id"]), ...docs.map((d) => d.actor)].filter(Boolean) as string[])];
+  const ids = [...new Set([...src.messages.map((m) => m["sender_id"]), ...src.events.map((e) => e["actor_id"]), ...src.proposals.flatMap((p) => [p["proposed_by"], p["responded_by"]]), ...src.bookings.map((b) => b["booked_by"]), ...docs.map((d) => d.actor)].filter(Boolean) as string[])];
   const [{ data: profiles }, { data: roles }] = await Promise.all([
     ids.length ? admin.from("profiles").select("id, full_name").in("id", ids) : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
     ids.length ? admin.from("user_roles").select("user_id, role").in("user_id", ids) : Promise.resolve({ data: [] as { user_id: string; role: string }[] }),
@@ -47,7 +48,18 @@ export async function buildJobFile(jobId: string, role: Role) {
   const name = new Map((profiles ?? []).map((p) => [p.id, p.full_name ?? "User"]));
   const isAdminUser = new Set((roles ?? []).filter((r) => r.role === "admin").map((r) => r.user_id));
   const correspondence = buildCorrespondence(src.messages, src.comms, (id) => (id && isAdminUser.has(id) ? "admin" : null));
-  const timeline = buildTimeline({ events: src.events, correspondence, bookings: src.bookings, evidence: docs });
+  const timeline = buildTimeline({ events: src.events, correspondence, bookings: src.bookings, evidence: docs, proposals: src.proposals });
+  const { data: jobRoles } = ids.length ? await admin.from("job_assignments").select("user_id, role").eq("job_id", jobId).in("user_id", ids) : { data: [] as { user_id: string; role: string }[] };
+  const { data: ownerRow } = await admin.from("jobs").select("owners(user_id)").eq("id", jobId).maybeSingle();
+  const ownerUser = (ownerRow?.owners as { user_id: string | null } | null)?.user_id ?? null;
+  const ROLE_NAME: Record<string, string> = { electrician: "Electrician", installer: "Installer", property_manager: "Property manager" };
+  const roleOf = (id: string | null): string => {
+    if (!id) return "System";
+    if (isAdminUser.has(id)) return "HI VIC";
+    if (id === ownerUser) return "Owner";
+    const r = (jobRoles ?? []).find((x) => x.user_id === id)?.role;
+    return r ? ROLE_NAME[r] ?? r : "Portal user";
+  };
   const label = (id: string | null) => (id ? name.get(id) ?? (role === "admin" ? id.slice(0, 8) : "Portal user") : "System");
   const { data: job } = await admin.from("jobs").select("created_at, stage, updated_at").eq("id", jobId).single();
   const a = src.assignments.find((x) => x["status"] !== "cancelled");
@@ -56,7 +68,7 @@ export async function buildJobFile(jobId: string, role: Role) {
     role,
     documents: visibleTo(docs, role).map((d) => ({ ...d, actor: label(d.actor), verifiedBy: d.verifiedBy ? label(d.verifiedBy) : null, ...(role === "admin" ? {} : { storagePath: d.storagePath ? "private" : null }) })),
     correspondence: visibleTo(correspondence, role).map((c) => ({ ...c, from: c.source === "portal_message" ? label(c.from) : c.from })),
-    timeline: visibleTo(timeline, role).map((t) => ({ ...t, actor: label(t.actor), detail: role === "admin" ? (JSON.parse(JSON.stringify(t.detail ?? null)) as Record<string, string | number | boolean | null> | null) : null })),
+    timeline: visibleTo(timeline, role).map((t) => ({ ...t, actorRole: t.actorRole ?? roleOf(t.actor), actor: label(t.actor), detail: role === "admin" ? (JSON.parse(JSON.stringify(t.detail ?? null)) as Record<string, string | number | boolean | null> | null) : null })),
     retention: role === "admin" ? retention : null,
   };
 }
@@ -72,7 +84,7 @@ export async function exportJobPack(jobId: string, actorId: string, opts: { incl
   const paths = linkMode ? new Map<string, string>() : packPaths(items);
   const manifest = buildManifest(items, paths);
   const correspondence = buildCorrespondence(src.messages, src.comms, () => null);
-  const timeline = buildTimeline({ events: src.events, correspondence, bookings: src.bookings, evidence: all }).filter((t) => opts.includeInternal || !t.internal);
+  const timeline = buildTimeline({ events: src.events, correspondence, bookings: src.bookings, evidence: all, proposals: src.proposals }).filter((t) => opts.includeInternal || !t.internal);
   const stamp = new Date().toISOString();
   const header = { Job: job?.job_number, Property: job?.property_address, Owner: job?.owner_name, Stage: job?.stage, Generated: stamp, Mode: linkMode ? "manifest + signed links (pack too large for one ZIP)" : "complete ZIP",
     "Superseded included": opts.includeSuperseded, "Internal included": opts.includeInternal };

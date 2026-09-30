@@ -135,6 +135,13 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
           </Section>
           <EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} />
           <OtherItems jobId={jobId} editable={!locked || stage === "awaiting_owner_rectification_approval"} />
+          <Section title="5 · Rectification quote (required today)">
+            <p className="mb-2 text-xs text-muted-foreground">Submit your rectification quote here on the day of the assessment. If nothing needs fixing, confirm that below.</p>
+            <label className="flex min-h-12 items-center gap-3 rounded-lg border px-3 text-sm font-medium">
+              <input type="checkbox" className="h-5 w-5" checked={f["no_rectification_confirmed"] === true} disabled={locked} onChange={(e) => put("no_rectification_confirmed", e.target.checked)} />
+              No rectification required at this property
+            </label>
+          </Section>
            {!locked && <Button size="field" className="w-full" onClick={() => complete({ jobId }, "PIESA complete")}><Check /> Complete PIESA</Button>}
           </div>
         </details>

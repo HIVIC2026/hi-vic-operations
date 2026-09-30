@@ -180,7 +180,7 @@ export function buildCorrespondence(messages: Row[], comms: Row[], senderRole: (
 
 // ---------- Timeline ----------
 export type TimelineFilter = "all" | "customer" | "trades" | "money" | "compliance" | "documents" | "internal";
-export type TimelineItem = { id: string; at: string; actor: string | null; source: string; summary: string; detail: unknown; tags: Exclude<TimelineFilter, "all">[]; audience: Audience[]; internal: boolean };
+export type TimelineItem = { id: string; at: string; actor: string | null; source: string; summary: string; detail: unknown; tags: Exclude<TimelineFilter, "all">[]; audience: Audience[]; internal: boolean; actorRole?: string | null };
 
 export function tagEvent(type: string): Exclude<TimelineFilter, "all" | "internal">[] {
   const t = type.toLowerCase(); const tags: Exclude<TimelineFilter, "all" | "internal">[] = [];
@@ -192,8 +192,24 @@ export function tagEvent(type: string): Exclude<TimelineFilter, "all" | "interna
   return tags;
 }
 
-export function buildTimeline(p: { events: Row[]; correspondence: Correspondence[]; bookings: Row[]; evidence: DocItem[] }): TimelineItem[] {
+const KIND_LABEL: Record<string, string> = { assessment: "PIESA", rectification: "rectification", installation: "installation", ready_check: "Ready Check" };
+const when = (iso: unknown) => (iso ? new Date(String(iso)).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Australia/Melbourne" }) : "");
+const partyName = (r: unknown) => (r === "owner" ? "Owner" : r === "electrician" ? "Electrician" : r === "installer" ? "Installer" : r === "admin" ? "HI VIC" : "Trade");
+
+export function buildTimeline(p: { events: Row[]; correspondence: Correspondence[]; bookings: Row[]; evidence: DocItem[]; proposals?: Row[] }): TimelineItem[] {
   const out: TimelineItem[] = [];
+  for (const a of p.proposals ?? []) {
+    const k = KIND_LABEL[String(a["kind"])] ?? String(a["kind"]);
+    const aud: Audience[] = a["kind"] === "installation" ? ["owner", "installer"] : ["owner", "electrician"];
+    out.push({ id: `proposal:${a["id"]}`, at: String(a["created_at"]), actor: s(a["proposed_by"]), actorRole: partyName(a["proposer_role"]), source: "booking",
+      summary: `Proposed ${k} date: ${when(a["starts_at"])}`, detail: a["note"] ? { note: a["note"] } : null, tags: ["trades", "customer"], internal: false, audience: aud });
+    if (a["responded_at"]) {
+      const st = String(a["status"]);
+      const verb = st === "accepted" ? "Accepted" : st === "declined" ? "Declined" : st === "superseded" ? "Superseded" : st === "cancelled" ? "Cancelled" : `Replied (${st})`;
+      out.push({ id: `proposal-reply:${a["id"]}`, at: String(a["responded_at"]), actor: s(a["responded_by"]), actorRole: null, source: "booking",
+        summary: `${verb} ${k} date ${when(a["starts_at"])}${st === "accepted" ? " – locked in" : ""}`, detail: a["response_note"] ? { note: a["response_note"] } : null, tags: ["trades", "customer"], internal: false, audience: aud });
+    }
+  }
   for (const e of p.events) {
     const internal = e["internal"] === true;
     out.push({ id: `workflow_events:${e["id"]}`, at: String(e["created_at"]), actor: s(e["actor_id"]), source: "workflow", summary: String(e["summary"] ?? e["event_type"]),
