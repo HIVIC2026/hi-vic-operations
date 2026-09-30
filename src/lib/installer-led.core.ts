@@ -99,6 +99,15 @@ export type MeasurementRecord = {
   existing_r_value: number | null; removal_required: boolean | null; raw_snapshot: Record<string, unknown> | null;
 } | null;
 
+/** Maps the plain property type to the NCC building class. Installers are never asked for "Class 1/Class 2" jargon. */
+export function classFromPropertyType(t: string | null): string | null {
+  const v = t?.trim().toLowerCase();
+  if (!v) return null;
+  if (v === "house" || v === "townhouse") return "Class 1";
+  if (v.startsWith("unit")) return "Class 2 sole-occupancy unit";
+  return null;
+}
+
 /** Builds SuppliedEvidence from stored records only. Anything not recorded counts as missing — never assumed. */
 export function evidenceFromRecords(m: MeasurementRecord, evidenceCategories: string[], builtLast5Years: boolean | null): SuppliedEvidence {
   const snap = m?.raw_snapshot ?? {};
