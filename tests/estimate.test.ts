@@ -120,8 +120,8 @@ describe("static separation / UI", () => {
     expect(ui).toContain("Step 3 · Indicative estimate");
     expect(ui).not.toContain("<NextStep"); expect(ui).not.toContain("<EstimateDetails");
     expect(ui.match(/<QuoteCardReadyCheckClose /g)?.length).toBe(2);
-    expect(ui).toContain('<QuoteCardReadyCheckClose href="#confirm" />');
-    expect(ui.indexOf("<QuoteCardReadyCheckClose inert />")).toBeLessThan(ui.indexOf("</section>", ui.indexOf("<QuoteCardReadyCheckClose inert />")));
+    expect(ui.match(/<QuoteCardReadyCheckClose href="#confirm" \{\.\.\.\(onReadyCheck \? \{ onSelect: onReadyCheck \} : \{\}\)\} \/>/g)?.length).toBe(2);
+    expect(ui).not.toContain("<QuoteCardReadyCheckClose inert />");
     expect(ui).toContain("TRY ANOTHER PROPERTY OR CEILING SIZE");
     expect(ui).toContain("*Victorian Government estimates/averages. Actual savings vary");
     expect(ui).toContain("Up to 20%*");
@@ -189,7 +189,7 @@ describe("Step 3 v2 refinement", () => {
   test("calculator uses the approved quote hierarchy and payment-safe copy", () => {
     const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
     const calc = ui.slice(ui.indexOf("function CalculatorQuoteResult"), ui.indexOf("export function OwnerEstimateCard"));
-    for (const text of ["TRY ANOTHER PROPERTY OR CEILING SIZE", "Estimated ceiling size", "CUSTOMER_QUOTE_LABELS", "<QuoteCardReadyCheckClose inert />", "CUSTOMER_EXISTING_INSULATION_NOTE"]) expect(calc).toContain(text);
+    for (const text of ["TRY ANOTHER PROPERTY OR CEILING SIZE", "Estimated ceiling size", "CUSTOMER_QUOTE_LABELS", '<QuoteCardReadyCheckClose href="#confirm" {...(onReadyCheck ? { onSelect: onReadyCheck } : {})} />', "CUSTOMER_EXISTING_INSULATION_NOTE"]) expect(calc).toContain(text);
     expect(calc).toContain('existingInsulation={calc.insulation === "present"}');
     expect(ui).toContain("CUSTOMER_WHAT_COULD_CHANGE.closing");
     expect(ui.indexOf("CUSTOMER_WHAT_COULD_CHANGE.gst", ui.indexOf("function QuoteCardReadyCheckClose"))).toBeLessThan(ui.indexOf("CUSTOMER_READY_CHECK.cta", ui.indexOf("function QuoteCardReadyCheckClose")));

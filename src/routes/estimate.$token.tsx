@@ -54,6 +54,11 @@ function PublicEstimatePage() {
   const run = async (action: () => Promise<unknown>) => { setBusy(true); setActionError(null); try { await action(); await refetch(); } catch (e) { setActionError(e instanceof Error ? e.message : "This action could not be completed."); } finally { setBusy(false); } };
   const acceptCurrent = () => run(() => accept({ data: { token } }));
   const simulatePayment = (outcome: "success" | "failure") => run(() => simulate({ data: { token, outcome, idempotencyKey: crypto.randomUUID() } }));
+  const openReadyCheck = () => {
+    window.history.pushState(null, "", `${window.location.pathname}${window.location.search}#confirm`);
+    setConfirming(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas">
        <EstimateHeader />
@@ -64,7 +69,7 @@ function PublicEstimatePage() {
              {(data.job.address || data.job.job_number) && <p className="mb-4 px-1 text-xs font-medium text-estimate-navy/70">{data.job.address}{data.job.address && data.job.job_number ? " · " : ""}{data.job.job_number}</p>}
              {showConfirm
                ? <ConfirmQuote estimatedPrice={standard.estimated_customer_total} assessmentFee={fee} state={data.assessment} testMode={data.assessmentTestMode} busy={busy} error={actionError} onAccept={acceptCurrent} onTestPayment={simulatePayment} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
-                : <div className="estimate-offset overflow-hidden rounded-2xl border border-estimate-blue-soft bg-estimate-white px-5 py-7 sm:px-10 sm:py-11"><CustomerEstimate data={data.estimate} publicPage propertyAddress={data.job.address} onCalculatorUse={onCalculatorUse} /></div>}
+                 : <div className="estimate-offset overflow-hidden rounded-2xl border border-estimate-blue-soft bg-estimate-white px-5 py-7 sm:px-10 sm:py-11"><CustomerEstimate data={data.estimate} publicPage propertyAddress={data.job.address} onCalculatorUse={onCalculatorUse} onReadyCheck={openReadyCheck} /></div>}
              {!showConfirm && data.referralShareUrl && <ReferralShare url={data.referralShareUrl} />}
           </>}
       </main>
