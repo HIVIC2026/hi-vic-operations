@@ -1,14 +1,14 @@
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, CheckCircle2, HeartPulse, XCircle } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
-import { fmtDateTime, waitingOn } from "@/lib/workflow";
+import { fmtDateTime, needsReadyCheckFirst, READY_CHECK_NEXT, waitingOn } from "@/lib/workflow";
 import { Pill, StageBadge } from "./badges";
 
 export type JobRow = Database["public"]["Views"]["job_overview"]["Row"] & { stuck_reasons?: string[]; comms_status?: { label: string; tone: "good" | "warn" | "bad" | "neutral" } | null };
 
 export function JobCard({ job, to, coverage }: { job: JobRow; to: "/admin/jobs/$jobId" | "/field/$jobId" | "/owner/$jobId"; coverage?: "serviceable" | "unserviceable" | "partial" | "not_configured" }) {
   const stuck = job.stuck_reasons ?? [];
-  const next = job.eligibility_outcome === "does_not_appear_eligible" ? "Send ineligible result, then retain on hold" : ["likely_eligible"].includes(job.eligibility_outcome ?? "") && ["new_enquiry", "eligibility_review", "awaiting_electrician"].includes(job.stage ?? "") ? "Arrange the free installer Ready Check" : job.next_action ?? "Review this enquiry";
+  const next = job.eligibility_outcome === "does_not_appear_eligible" ? "Send ineligible result, then retain on hold" : needsReadyCheckFirst(job.stage, job.eligibility_outcome, job.eligibility_review_required) ? READY_CHECK_NEXT : job.next_action ?? "Review this enquiry";
   return (
     <Link to={to} params={{ jobId: job.id! }} className={`block rounded-md border bg-card p-4 shadow-sm transition hover:border-primary hover:shadow-md ${stuck.length > 0 ? "border-l-4 border-l-danger" : ""}`}>
       <div className="flex items-start justify-between gap-2">
@@ -38,8 +38,8 @@ export function JobCard({ job, to, coverage }: { job: JobRow; to: "/admin/jobs/$
          <div className="mb-1 font-bold uppercase text-muted-foreground">NEXT STEP</div>
          <div className="flex items-start gap-1.5 font-semibold text-foreground">{stuck.length > 0 && <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />}{next}</div>
       </div>
-      {waitingOn(job.stage, job.next_action) && (
-        <div className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Waiting on: <span className="text-foreground">{waitingOn(job.stage, job.next_action)}</span></div>
+      {waitingOn(job.stage, next) && (
+        <div className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Waiting on: <span className="text-foreground">{waitingOn(job.stage, next)}</span></div>
       )}
       <div className="mt-1 text-[11px] text-muted-foreground">Last activity {fmtDateTime(job.last_activity_at)}</div>
     </Link>

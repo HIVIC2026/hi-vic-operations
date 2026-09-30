@@ -189,9 +189,15 @@ const WAITING: Partial<Record<Stage, WaitingOn>> = {
   evidence_outstanding: "Installer", ap_review: "AP", ready_for_veec: "AP", on_hold: "HI VIC",
 };
 /** Who/what the job waits on – derived from stage, refined by next_action text. */
+/** Early-stage jobs that passed or need onsite confirmation go to the free installer Ready Check before any electrician. */
+export const READY_CHECK_NEXT = "Arrange the free installer Ready Check";
+export function needsReadyCheckFirst(stage: string | null | undefined, outcome: string | null | undefined, reviewRequired?: boolean | null) {
+  return !reviewRequired && ["likely_eligible", "needs_onsite_confirmation"].includes(outcome ?? "") && ["new_enquiry", "eligibility_review", "awaiting_electrician"].includes(stage ?? "");
+}
 export function waitingOn(stage: Stage | null | undefined, nextAction?: string | null): WaitingOn {
   if (!stage || stage === "complete" || stage === "cancelled") return null;
   const n = (nextAction ?? "").toLowerCase();
+  if (nextAction === READY_CHECK_NEXT) return "HI VIC" as WaitingOn;
   if (/deposit|xero|payment/.test(n)) return "Payment / Xero";
   if (/\bowner\b|customer/.test(n) && stage !== "new_enquiry") return "Owner";
   if (/measure-up/.test(n) && /installer/.test(n)) return "Installer";
