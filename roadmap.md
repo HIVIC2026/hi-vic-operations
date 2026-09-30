@@ -4,3 +4,5 @@
 - [x] Rebuild referral card: cleaner, less messy
 - [x] Update plain text order to match
 - [x] Update tests, run focused tests + typecheck + build, 390/640 QA
+- [x] Fix BOOK MY READY CHECK button (dead repeat-click when hash already #confirm)
+- [x] Clean up calculator custom-size input (visible label, full-width, m² inside)

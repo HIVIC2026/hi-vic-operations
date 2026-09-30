@@ -107,7 +107,7 @@ export function QuoteCardReadyCheckClose({ href, inert = false }: { href?: strin
       <h4 className="mt-2 text-xl font-extrabold leading-tight text-estimate-blue">{CUSTOMER_READY_CHECK_EMAIL_ACTION.heading}</h4>
       <p className="mt-3 text-sm leading-relaxed">{CUSTOMER_READY_CHECK_EMAIL_ACTION.sentence}</p>
       <p className="mt-2 text-sm font-bold">{CUSTOMER_READY_CHECK_EMAIL_ACTION.credit}</p>
-      {href && !inert ? <a href={href} className="estimate-action-button mt-5 flex min-h-12 w-full items-center justify-center rounded-md px-4 py-3 text-center text-sm font-extrabold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{CUSTOMER_READY_CHECK.cta}</a> : <Button type="button" size="field" className="estimate-action-button mt-5 h-auto min-h-12 w-full px-4 py-3 font-extrabold disabled:opacity-100" disabled>{CUSTOMER_READY_CHECK.cta}</Button>}
+      {href && !inert ? <a href={href} onClick={() => { if (window.location.hash === href) window.dispatchEvent(new HashChangeEvent("hashchange")); }} className="estimate-action-button mt-5 flex min-h-12 w-full items-center justify-center rounded-md px-4 py-3 text-center text-sm font-extrabold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{CUSTOMER_READY_CHECK.cta}</a> : <Button type="button" size="field" className="estimate-action-button mt-5 h-auto min-h-12 w-full px-4 py-3 font-extrabold disabled:opacity-100" disabled>{CUSTOMER_READY_CHECK.cta}</Button>}
       <p className="mt-3 text-center text-xs">{CUSTOMER_READY_CHECK_EMAIL_ACTION.helper}</p>
     </div>
   </div>;
@@ -293,10 +293,12 @@ export function AreaCalculator({ calc, initial, fees, propertyAddress, secondary
           {CALC_QUICK.map((q) => <Button key={q} type="button" size="field" variant="outline" className={`h-11 rounded-lg border border-estimate-blue-soft px-3 font-semibold text-estimate-navy shadow-none hover:bg-estimate-green-soft hover:text-estimate-navy ${!custom && m2 === q ? "bg-estimate-green-soft" : "bg-estimate-white"}`} aria-pressed={!custom && m2 === q} onClick={() => { setCustom(false); setRaw(String(q)); }}>{q} m²</Button>)}
           <Button type="button" size="field" variant="outline" className={`h-11 rounded-lg border border-estimate-blue-soft px-3 font-semibold text-estimate-navy shadow-none hover:bg-estimate-green-soft hover:text-estimate-navy ${custom ? "bg-estimate-green-soft" : "bg-estimate-white"}`} aria-pressed={custom} onClick={() => { setCustom(true); setRaw(""); }}>Other / custom</Button>
         </div>
-        {custom && <div className="mt-3 flex items-center gap-2">
-          <label className="sr-only" htmlFor={id}>Enter another ceiling size (m²)</label>
-          <input id={id} aria-label="Enter another ceiling size (m²)" inputMode="decimal" type="number" min={CALC_MIN_M2} max={CALC_MAX_M2} className="h-11 w-32 rounded-lg border border-estimate-blue bg-estimate-white px-3 text-base text-estimate-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="Area" />
-          <span className="text-sm text-estimate-navy">m²</span>
+        {custom && <div className="mt-3">
+          <label htmlFor={id} className="text-sm font-semibold text-estimate-navy">Enter another ceiling size (m²)</label>
+          <div className="relative mt-2">
+            <input id={id} inputMode="decimal" type="number" min={CALC_MIN_M2} max={CALC_MAX_M2} className="h-12 w-full rounded-lg border border-estimate-blue bg-estimate-white px-3 pr-12 text-base text-estimate-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="e.g. 175" />
+            <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-semibold text-estimate-navy/70">m²</span>
+          </div>
         </div>}
         {raw.trim() !== "" && m2 == null && <p role="alert" className="mt-3 text-sm font-bold text-danger">Enter an area between {CALC_MIN_M2} and {CALC_MAX_M2} m².</p>}
         <p className="estimate-secondary-card mt-5 text-sm font-semibold leading-relaxed">This is a what-if calculator only. It does not change the property details you submitted. Your onsite measure confirms the final eligible area.</p>
