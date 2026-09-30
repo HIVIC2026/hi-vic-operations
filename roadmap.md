@@ -72,3 +72,5 @@
 - [x] Remove DC Construction Solutions wording from portal login screens
 
 - [x] Fix partner enquiry Open links to select the exact applicant instead of only opening the list.
+
+- [x] Add a colour-coded key at the top of Enquiries showing what each view means with live counts
