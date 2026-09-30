@@ -8,7 +8,7 @@ export type JobRow = Database["public"]["Views"]["job_overview"]["Row"] & { stuc
 
 export function JobCard({ job, to, coverage }: { job: JobRow; to: "/admin/jobs/$jobId" | "/field/$jobId" | "/owner/$jobId"; coverage?: "serviceable" | "unserviceable" | "partial" | "not_configured" }) {
   const stuck = job.stuck_reasons ?? [];
-  const next = job.eligibility_outcome === "does_not_appear_eligible" ? "Send ineligible result, then retain on hold" : job.eligibility_outcome === "likely_eligible" && ["new_enquiry", "eligibility_review", "awaiting_electrician"].includes(job.stage ?? "") ? "Arrange the free installer Ready Check" : job.next_action ?? "Review this enquiry";
+  const next = job.eligibility_outcome === "does_not_appear_eligible" ? "Send ineligible result, then retain on hold" : ["likely_eligible"].includes(job.eligibility_outcome ?? "") && ["new_enquiry", "eligibility_review", "awaiting_electrician"].includes(job.stage ?? "") ? "Arrange the free installer Ready Check" : job.next_action ?? "Review this enquiry";
   return (
     <Link to={to} params={{ jobId: job.id! }} className={`block rounded-md border bg-card p-4 shadow-sm transition hover:border-primary hover:shadow-md ${stuck.length > 0 ? "border-l-4 border-l-danger" : ""}`}>
       <div className="flex items-start justify-between gap-2">
