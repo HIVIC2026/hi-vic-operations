@@ -19,7 +19,7 @@ import { bulkJobAction } from "@/lib/bulk.functions";
 import { toast } from "sonner";
 
 const ACCEPTANCE_STAGES = ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"];
-type WorkView = "active" | "review" | "ineligible" | "finalised" | "cancelled" | "test";
+type WorkView = "all" | "active" | "review" | "ineligible" | "finalised" | "cancelled" | "test";
 type Tab = "jobs" | "quotes" | "enquiries" | "ineligible";
 const QUOTE_STAGES = ["awaiting_quote_acceptance", "measured_estimate_ready"];
 const JOB_STAGES = [...ACCEPTANCE_STAGES, "measured_quote_accepted", "piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete", "electrical_variation_pending", "awaiting_owner_rectification_approval"];
@@ -73,6 +73,7 @@ function Pipeline() {
   }, [advance, refetchPipeline, sweep]);
   const groups = useMemo(() => ({
     test: allJobs.filter((job) => job.source === "qa_test"),
+    all: allJobs.filter((job) => job.source !== "qa_test"),
     finalised: allJobs.filter((job) => job.source !== "qa_test" && job.stage === "complete"),
     cancelled: allJobs.filter((job) => job.source !== "qa_test" && job.stage === "cancelled"),
     ineligible: allJobs.filter((job) => job.source !== "qa_test" && (job.eligibility_outcome === "does_not_appear_eligible" || job.stage === "on_hold") && job.stage !== "cancelled"),
@@ -97,6 +98,10 @@ function Pipeline() {
   const piesaCount = jobs.filter(piesaIssue).length, paymentCount = jobs.filter(paymentIssue).length, acceptanceCount = jobs.filter(needsAcceptance).length;
   const warnings = jobs.filter((j) => piesaIssue(j) || paymentIssue(j) || needsAcceptance(j)).length;
   const activeCount = groups.active.length;
+  const uncounted = useMemo(() => {
+    const seen = new Set([...groups.active, ...groups.review, ...groups.ineligible, ...groups.finalised, ...groups.cancelled].map((j) => j.id));
+    return groups.all.filter((j) => !seen.has(j.id)).length;
+  }, [groups]);
 
   return (
     <AppShell wide>
@@ -114,9 +119,11 @@ function Pipeline() {
         </div>
          <div className="ml-auto flex items-center gap-2"><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${comms?.enabled === true ? "border-success/30 bg-success-soft text-success" : "border-workspace-sun-strong/40 bg-workspace-sun text-foreground"}`}><span className={`h-2 w-2 rounded-full ${comms?.enabled === true ? "bg-success" : "bg-warning"}`} />Customer messages {comms?.enabled === true ? "on" : "off"}</span><NewEnquiry /></div>
       </div>
-       <section className="mb-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-6" aria-label="Work files">
-          {([{ key: "active", label: "Active enquiries", count: activeCount, icon: Workflow }, { key: "review", label: "Needs review", count: groups.review.length, icon: AlertTriangle }, { key: "ineligible", label: "Ineligible / hold", count: groups.ineligible.length, icon: Ban }, { key: "finalised", label: "Finalised", count: groups.finalised.length, icon: CheckCircle2 }, { key: "cancelled", label: "Cancelled", count: groups.cancelled.length, icon: Archive }, { key: "test", label: "Test records", count: groups.test.length, icon: FlaskConical }] as const).map((item) => <button key={item.key} type="button" onClick={() => { setWorkView(item.key); setPhase("all"); }} className={`rounded-md border p-3 text-left transition hover:border-primary ${workView === item.key ? "border-workspace-blush-strong bg-workspace-blush shadow-sm" : "bg-card"}`}><div className="flex items-center justify-between"><span className="text-xs font-semibold text-muted-foreground">{item.label}</span><item.icon className="h-4 w-4 text-primary" /></div><div className="mt-1 text-xl font-bold">{item.count}</div></button>)}
+       <section className="mb-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-7" aria-label="Work files">
+          {([{ key: "all", label: "All live enquiries", count: groups.all.length, icon: Workflow }, { key: "active", label: "In progress", count: activeCount, icon: Workflow }, { key: "review", label: "Needs review", count: groups.review.length, icon: AlertTriangle }, { key: "ineligible", label: "Ineligible / hold", count: groups.ineligible.length, icon: Ban }, { key: "finalised", label: "Finalised", count: groups.finalised.length, icon: CheckCircle2 }, { key: "cancelled", label: "Cancelled", count: groups.cancelled.length, icon: Archive }, { key: "test", label: "Test records", count: groups.test.length, icon: FlaskConical }] as const).map((item) => <button key={item.key} type="button" onClick={() => { setWorkView(item.key); setPhase("all"); }} className={`rounded-md border p-3 text-left transition hover:border-primary ${workView === item.key ? "border-workspace-blush-strong bg-workspace-blush shadow-sm" : "bg-card"}`}><div className="flex items-center justify-between"><span className="text-xs font-semibold text-muted-foreground">{item.label}</span><item.icon className="h-4 w-4 text-primary" /></div><div className="mt-1 text-xl font-bold">{item.count}</div></button>)}
       </section>
+      <p className="mb-4 text-xs text-muted-foreground">{groups.all.length} live = {activeCount} in progress + {groups.review.length} needs review + {groups.ineligible.length} ineligible/hold + {groups.finalised.length} finalised + {groups.cancelled.length} cancelled ({groups.test.length} test records filed separately)</p>
+      {uncounted > 0 && <div role="alert" className="mb-4 rounded-md border-l-4 border-destructive bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">{uncounted} live enquir{uncounted === 1 ? "y is" : "ies are"} not in any group. Open "All live enquiries" to find {uncounted === 1 ? "it" : "them"}.</div>}
        {workView === "active" && warnings > 0 && <div className="mb-4 rounded-md border-l-4 border-warning bg-warning-soft px-4 py-3 text-sm"><b>{warnings} active job{warnings === 1 ? "" : "s"} need attention.</b> {[piesaCount && `${piesaCount} PIESA`, paymentCount && `${paymentCount} payment`, acceptanceCount && `${acceptanceCount} agreement`].filter(Boolean).join(" · ")}</div>}
       {comms?.enabled !== true && <p className="mb-3 text-xs text-muted-foreground">Pre-launch safety is active: no email, SMS or notification is sent to customers or trades.</p>}
       {intakeHealth && <div data-testid="post-intake-health" className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-card px-4 py-2 text-xs text-muted-foreground"><span className="font-semibold text-foreground">Enquiry intake</span><span>Queued <b className="text-foreground">{intakeHealth.counts.queued}</b></span><span>Running <b className="text-foreground">{intakeHealth.counts.running}</b></span><span className={intakeHealth.counts.stale > 0 ? "font-semibold text-warning" : ""}>Stale <b>{intakeHealth.counts.stale}</b></span><span className={intakeHealth.counts.failed > 0 ? "font-semibold text-danger" : ""}>Failed <b>{intakeHealth.counts.failed}</b></span></div>}
