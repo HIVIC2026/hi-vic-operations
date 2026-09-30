@@ -21,9 +21,11 @@ const TABS: [string, string][] = [
   ["quotes", "Quotes & Payments"], ["installation", "Installation"], ["evidence", "Evidence"], ["veec", "ESC / VEEC"], ["messages", "Correspondence"], ["history", "Timeline / Audit"], ["documents", "All Documents"],
 ];
 import { useAction } from "@/hooks/use-me";
+import { useServerFn } from "@tanstack/react-start";
+import { RECORD_LABELS, type RecordKey } from "@/lib/compliance-timeline.core";
 import {
   adjustQuote, assignContractor, generateInstallerQuotes, markReadyForVeec, regenerateRectificationQuote, runComplianceReview,
-  setCommercialModel, setComplianceCheck, setEligibility, setHold, updateVeec,
+  setCommercialModel, setComplianceCheck, setEligibility, setHold, updateVeec, listComplianceRecords, recordComplianceItem,
 } from "@/lib/portal.functions";
 import { ELIGIBILITY_LABEL, aud, fmtDate, type EligibilityOutcome } from "@/lib/workflow";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -88,7 +90,7 @@ function JobDetail() {
         <TabsContent value="quotes" className="space-y-4"><AdminQuotes jobId={jobId} /><PaymentsPanel jobId={jobId} isAdmin /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} /></TabsContent>
         <TabsContent value="installation" className="space-y-4"><EscInstallPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /><SectionDocuments jobId={jobId} categories={["Installation"]} /></TabsContent>
         <TabsContent value="evidence" className="space-y-4"><EvidencePanel jobId={jobId} role="admin" /><SectionDocuments jobId={jobId} categories={["Evidence"]} /></TabsContent>
-        <TabsContent value="veec" className="space-y-4"><Compliance jobId={jobId} /><Veec jobId={jobId} /><SectionDocuments jobId={jobId} categories={["ESC / VEEC"]} /></TabsContent>
+        <TabsContent value="veec" className="space-y-4"><ComplianceRecords jobId={jobId} /><Compliance jobId={jobId} /><Veec jobId={jobId} /><SectionDocuments jobId={jobId} categories={["ESC / VEEC"]} /></TabsContent>
         <TabsContent value="messages" className="space-y-4"><MessagesPanel jobId={jobId} isAdmin /><Correspondence jobId={jobId} /></TabsContent>
         <TabsContent value="history" className="space-y-4"><JobTimeline jobId={jobId} /><details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Raw workflow history</summary><div className="mt-3"><TimelinePanel jobId={jobId} /></div></details></TabsContent>
         <TabsContent value="documents" className="space-y-4"><AllDocuments jobId={jobId} /><ExportJobPack jobId={jobId} /></TabsContent>
@@ -352,6 +354,45 @@ function Veec({ jobId }: { jobId: string }) {
         {["submitted", "approved"].includes(data.status) && <Input name="reason" placeholder="Reason for changing lodged details" />}
         <Button type="submit">Save lodgement</Button>
       </form>
+    </Section>
+  );
+}
+
+function ComplianceRecords({ jobId }: { jobId: string }) {
+  const list = useServerFn(listComplianceRecords);
+  const record = useAction(recordComplianceItem);
+  const { data = [] } = useQuery({ queryKey: ["compliance-records", jobId], queryFn: () => list({ data: { jobId } }) });
+  const [open, setOpen] = useState<RecordKey | null>(null);
+  const today = new Date().toISOString().slice(0, 10);
+  return (
+    <Section title="Activity 48 records">
+      <p className="mb-2 text-xs text-muted-foreground">Permanent once saved. Missing items block the stage shown: life support plan (PIESA booking), pre-install documents (install start), safety assessment, completion documents and $200 co-payment (AP review — co-payment also clears when Xero shows ≥ $200 paid), assignment copy (Ready for VEEC).</p>
+      <ul className="divide-y text-sm">
+        {(Object.keys(RECORD_LABELS) as RecordKey[]).map((k) => {
+          const r = data.find((x) => x.record_key === k);
+          return (
+            <li key={k} className="py-2">
+              <div className="flex items-start justify-between gap-2">
+                <span>{RECORD_LABELS[k]}</span>
+                {r ? <Pill t="good">Recorded {fmtDate(r.occurred_at)}</Pill> : <Button size="sm" variant="outline" onClick={() => setOpen(open === k ? null : k)}>Record</Button>}
+              </div>
+              {r?.reference && <div className="text-xs text-muted-foreground">Ref: {r.reference}</div>}
+              {!r && open === k && (
+                <form className="mt-2 grid gap-2 sm:grid-cols-3" onSubmit={(e) => {
+                  e.preventDefault(); const f = new FormData(e.currentTarget);
+                  record({ jobId, key: k, occurredAt: f.get("date") as string, reference: (f.get("ref") as string) || null, notes: (f.get("notes") as string) || null }, "Recorded");
+                  setOpen(null);
+                }}>
+                  <Input name="date" type="date" required max={today} defaultValue={today} />
+                  <Input name="ref" placeholder="Reference / document" />
+                  <Input name="notes" placeholder="Notes" />
+                  <Button type="submit" className="sm:col-span-3">Save permanently</Button>
+                </form>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </Section>
   );
 }
