@@ -27,3 +27,4 @@
 - [ ] Mitti forms A/B/C IDs from user
 - [ ] Browser-verify owner/electrician/installer job views as those roles
 - [ ] Confirm: $349 one total vs each; $220 inc/ex GST; own-electrician price + AP fee combination
+- [ ] Enquiry intake: normalise text (proper capitalisation of owner names, street, suburb) when enquiries arrive
