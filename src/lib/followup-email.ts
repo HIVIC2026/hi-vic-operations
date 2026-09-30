@@ -5,7 +5,7 @@ import { CUSTOMER_BRAND, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS } from "./
 
 export type FollowupEmailInput = { kind: FollowupKind; estimateUrl: string; trackingClickUrl?: string | null; trackingPixelUrl?: string | null; referralUrl?: string | null };
 
-const INCLUDED = `${CUSTOMER_QUOTE_LABELS.payableNow}. ${CUSTOMER_PAYMENT_COPY.included} ${CUSTOMER_PAYMENT_COPY.notAgain}`;
+const INCLUDED = `${CUSTOMER_QUOTE_LABELS.payableNow}. ${CUSTOMER_PAYMENT_COPY.credited} ${CUSTOMER_PAYMENT_COPY.notPiesa}`;
 const FOOTNOTE = "*Victorian Government estimates/averages. Actual savings vary with home, climate, energy use, energy prices and heating/cooling habits.";
 const COPY: Record<FollowupKind, { subject: string; preview: string; heading: string; paras: string[]; bullets?: string[]; cta: string }> = {
   estimate_unopened_3d: {
