@@ -10,7 +10,7 @@ export const Route = createFileRoute("/_authenticated/home")({
 function Home() {
   const { data: me, isLoading } = useMe();
   if (isLoading || !me) return null;
-  if (me.roles.includes("admin")) return <Navigate to="/admin" />;
+  if (me.roles.includes("admin")) return <Navigate to="/admin" search={{ tab: "enquiries" }} />;
   if (me.roles.includes("electrician") || me.roles.includes("installer")) return <Navigate to="/field" />;
   if (me.roles.includes("owner")) return <Navigate to="/owner" />;
   return (
