@@ -26,7 +26,7 @@ export function JobJourney({ input, isTest, compact }: { input: JourneyInput; is
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Job journey</div>
-          <div className="font-heading text-lg font-bold">{j.headline}</div>
+          <div className="text-lg font-bold">{j.headline}</div>
         </div>
         {isTest && <span className="rounded-full bg-task-partners/15 px-2 py-0.5 text-xs font-bold text-task-partners">TEST JOB</span>}
       </div>
