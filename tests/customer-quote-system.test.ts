@@ -13,12 +13,12 @@ describe("customer quote system", () => {
   });
 
   test("defines exact shared payment, change, and insulation copy", () => {
-    expect(CUSTOMER_PAYMENT_COPY).toEqual({ included: "Already included in your estimated total — not an extra fee.", notAgain: "If you proceed, you do not pay the $349 again.", noSilentAdditions: "Nothing additional is simply added without being shown to you first." });
+    expect(CUSTOMER_PAYMENT_COPY).toEqual({ included: "Already included in your estimated total — not an extra fee.", notAgain: "If you proceed, you do not pay the $349 again.", noSilentAdditions: "It is not the PIESA." });
     expect(CUSTOMER_WHAT_COULD_CHANGE.items).toEqual(["Final measured eligible ceiling area", "Existing insulation / removal if required", "Access difficulty", "Electrical rectification if required, including downlights, RCDs or switchboard work", "Final VEU / VEEC discount", "Final installation price"]);
     expect(CUSTOMER_EXISTING_INSULATION_NOTE).toBe("Existing insulation: removal MAY be required. It is not included unless shown in the quote. The onsite assessment confirms whether removal is required and, if so, the price before you proceed.");
     expect(CUSTOMER_CALCULATOR_COPY).toBe("Try another ceiling size and instantly see how your preliminary project total, VEU / VEEC discount and estimated cost after discount could change.");
     expect(CUSTOMER_VISUAL_SYSTEM).toEqual({ quoteRadiusPx: 20, secondaryRadiusPx: 16, secondaryPaddingPx: 20, actionRadiusPx: 16, actionPaddingPx: 16, softBlueBorder: "#D4DAF5", softGreenBorder: "#BEE8CE", paleGreen: "#ECF9F1", footer: "#F1F8F3" });
-    expect(CUSTOMER_ASSESSMENT_ACTION.cta).toBe("LET’S GET STARTED →");
+    expect(CUSTOMER_ASSESSMENT_ACTION.cta).toBe("BOOK MY READY CHECK →");
     expect(CUSTOMER_ASSESSMENT_ACTION.paragraphs).toContain("To keep the process simple and cost-effective, we combine your onsite ceiling measure-up and mandatory Pre-Installation Electrical Safety Assessment (PIESA) into one visit, helping minimise the cost, time and inconvenience of arranging multiple appointments.");
   });
 
