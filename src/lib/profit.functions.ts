@@ -73,8 +73,7 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
   const channelByJob = new Map((channels.data ?? []).map((c) => [c.id, c.channel]));
   const rows = (jobs.data ?? []).filter((j) => j.id && byJob.has(j.id) && j.source !== "qa_test" && j.stage !== "cancelled").map((j) => ({
     jobId: j.id!, jobNumber: j.job_number, address: j.property_address, owner: j.owner_name, stage: j.stage,
-    installerSourced: channelByJob.get(j.id!) === "installer_sourced",
-    ...byJob.get(j.id!)!,
+    ...byJob.get(j.id!)!, installerSourced: channelByJob.get(j.id!) === "installer_sourced",
   }));
   return { spots: (spots.data ?? []).map((s) => ({ ...s, price: Number(s.price) })), rows };
 });

@@ -164,7 +164,7 @@ function VeecPage() {
               <td className="p-3 text-right" colSpan={2}>{money(profit.rows.reduce((t, r) => t + r.installerCost + r.installerMargin + r.apFee, 0))} charged</td>
               <td className="p-3 text-right">{money(tot.installerMarkup)}</td>
               <td className="p-3 text-right" colSpan={2}>{money(profit.rows.reduce((t, r) => t + r.electricalChargeEx, 0))} charged</td>
-              <td className="p-3 text-right">{money(tot.veec > 0 || profit.rows.reduce((t, r) => t + r.electricalChargeEx - r.electricalCost, 0) !== 0 ? money(profit.rows.reduce((t, r) => t + r.electricalChargeEx - r.electricalCost, 0)) : "—")}</td>
+              <td className="p-3 text-right">{profit.rows.reduce((t, r) => t + r.electricalChargeEx - r.electricalCost, 0) !== 0 ? money(profit.rows.reduce((t, r) => t + r.electricalChargeEx - r.electricalCost, 0)) : "—"}</td>
               <td className="p-3 text-right">{money(tot.apFee)}</td>
               <td className="p-3 text-right">{tot.referral > 0 ? `-${money(tot.referral)}` : "—"}</td>
               <td className="p-3 text-right">{spot != null ? money(tot.veec) : "—"}</td>
