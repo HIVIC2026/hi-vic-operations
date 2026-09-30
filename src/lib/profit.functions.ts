@@ -6,6 +6,19 @@ import { requireAdmin } from "./workflow.server";
 export const getProfitRegister = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
   const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+  // Daily online refresh: if no price recorded today, pull it from the online source (best-effort, never blocks the page).
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: todays } = await admin.from("veec_spot_prices").select("id").eq("priced_on", today).limit(1);
+  if (!todays?.length) {
+    try {
+      const res = await fetch("https://www.ecovantage.com.au/energy-certificate-market-update/", { headers: { "user-agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) });
+      if (res.ok) {
+        const { parseVeecSpotFromHtml } = await import("./profit.core");
+        const price = parseVeecSpotFromHtml(await res.text());
+        if (price != null) await admin.from("veec_spot_prices").insert({ price, priced_on: today, source: "Ecovantage market update (online)", note: "https://www.ecovantage.com.au/energy-certificate-market-update/", recorded_by: context.userId });
+      }
+    } catch { /* fall back to stored history / manual entry */ }
+  }
   const [spots, quotes, jobs] = await Promise.all([
     admin.from("veec_spot_prices").select("id,price,priced_on,source,note,created_at").order("priced_on", { ascending: false }).limit(500),
     admin.from("quotes").select("id,job_id,kind,customer_total_inc_gst,veec_discount_inc_gst,accepted_at").eq("status", "accepted"),
