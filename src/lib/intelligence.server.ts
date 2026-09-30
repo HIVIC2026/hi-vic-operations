@@ -76,7 +76,9 @@ export async function runPropertyIntelligence(jobId: string, actorId: string | n
     const sum = runSummary(rec);
     const failedSources = g.checks.filter((c) => c.status === "error" || c.status === "timeout");
     const status = failedSources.length ? "partial" : "complete";
-    await admin.from("property_intelligence_runs").update({ status, ...sum, completeness_pct: completeness(facts), completed_at: new Date().toISOString(), error_summary: failedSources.map((c) => `${c.source_key}: ${c.error}`).join("; ") || null }).eq("id", run.id);
+    const { error: finishErr } = await admin.from("property_intelligence_runs").update({ status, ...sum, completeness_pct: completeness(facts), completed_at: new Date().toISOString(), error_summary: failedSources.map((c) => `${c.source_key}: ${c.error}`).join("; ") || null }).eq("id", run.id);
+    // A silently failed finish left runs "running" forever, which the stale-run recovery re-queued endlessly.
+    if (finishErr) throw new Error(`Could not record run result: ${finishErr.message}`);
     await logEvent(jobId, actorId, "property_intelligence_run", `Property intelligence (${status}): evidence gathered – Gate 1 now ${String(sum.result ?? "unknown").replace(/_/g, " ")} (single Gate 1 engine)`, { run_id: run.id, trigger, ruleset: RULESET.version, reference_date: ref.date, reasons: sum.result_reason, sources: g.checks }, { internal: true });
     // Feed the single deterministic Gate 1 decider (it only uses trusted direct evidence; anything else stays review).
     try { await autoDecideEligibility(jobId); } catch { /* never fail the run */ }

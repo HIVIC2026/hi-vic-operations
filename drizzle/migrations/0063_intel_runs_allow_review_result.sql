@@ -1,0 +1,2 @@
+ALTER TABLE public.property_intelligence_runs DROP CONSTRAINT IF EXISTS property_intelligence_runs_result_check;
+ALTER TABLE public.property_intelligence_runs ADD CONSTRAINT property_intelligence_runs_result_check CHECK (result IS NULL OR result = ANY (ARRAY['likely_eligible','needs_onsite_confirmation','does_not_appear_eligible','review_required']));
