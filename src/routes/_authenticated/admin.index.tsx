@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { Calculator, Plus, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { JobCard, type JobRow } from "@/components/portal/JobCard";
@@ -103,6 +103,9 @@ function Pipeline() {
           <p className="text-sm text-muted-foreground">{jobs.length} jobs · {warnings} need attention{warnings > 0 && <span className="font-semibold text-danger"> ({[piesaCount && `${piesaCount} PIESA deadline`, paymentCount && `${paymentCount} payment/Xero sync`, acceptanceCount && `${acceptanceCount} unsigned Customer Agreement`].filter(Boolean).join(" · ")})</span>}{hiddenTest > 0 && <> · {hiddenTest} test jobs hidden</>}</p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+           <Button asChild variant="outline">
+             <a href="/test-customer-estimate#calculator" target="_blank" rel="noopener"><Calculator /> Customer calculator (test)</a>
+           </Button>
           <div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search job, address, person" className="w-64 pl-8" /></div>
           <select aria-label="Job source" className="h-9 rounded-md border bg-background px-2 text-sm" value={source} onChange={(e) => setSource(e.target.value as typeof source)}>
             <option value="all">All sources</option><option value="hivic_sourced">HI VIC-sourced</option><option value="installer_sourced">Installer-sourced</option>
