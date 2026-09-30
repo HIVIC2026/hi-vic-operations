@@ -81,6 +81,6 @@
 - [ ] Chase service areas from 6 installers who left the field blank: Fletchers Flues, Jassy Best Insulation, Melbourne Insulation Removals, Michelle's Air Solutions, No Gap Insulation, PF insulation
 - [ ] Find a REC for Ballarat & Central Highlands and for the Yarra Valley enquiry (HV-1036)
 - [x] Remove wrong "Bank details are collected after approval" line from installer and electrician onboarding welcome screens
-- [ ] Redesign installer onboarding welcome screen (3 directions shown; awaiting pick)
-- [ ] Replace all user-facing "HI VIC"/"HI VIC!" wording with "Home Insulation Victoria" (keep internal codes/version IDs)
+- [x] Restyle installer + electrician onboarding welcomes: portal fonts (Outfit/Figtree), brand gradient bar, pink/blue/green/yellow highlight chips — browser-verified
+- [x] Replaced all user-facing "HI VIC"/"HI VIC!" with "Home Insulation Victoria" (kept Xero reference "HI VIC <job>" and signed agreement version texts); 738 tests pass
 - [ ] Electrician team-up: workers under someone else's REC must not be asked for REC/insurance — head person only
