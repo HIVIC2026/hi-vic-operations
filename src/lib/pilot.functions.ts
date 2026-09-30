@@ -275,11 +275,13 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
     const c = data.facts as ConfirmedFacts;
     const blockers = confirmBlockers(c);
     if (blockers.length) throw new WorkflowError(blockers.join(" • "));
+    const area = Number(c.measured_area_m2);
+    if (!Number.isFinite(area) || area <= 0 || area > 5000) throw new WorkflowError("Enter the ceiling area (m²) before confirming — every job needs an area estimate.");
     const { upsertEnquiry } = await import("./enquiry.server");
     const s = (k: keyof ConfirmedFacts) => (c[k] == null || c[k] === "" ? null : String(c[k]));
     const res = await upsertEnquiry({
       full_name: s("full_name")!, email: s("email")!, phone: s("phone"), address_line: s("address_line")!, suburb: s("suburb"), postcode: s("postcode"),
-      estimated_area_m2: c.measured_area_m2 ? Number(c.measured_area_m2) : null, area_unknown: !c.measured_area_m2,
+      estimated_area_m2: area,
     }, "installer_import", context.userId, { channel: "installer_sourced", businessId: imp.business_id, userId: context.userId });
     const refs = { ...(imp.external_refs as Record<string, unknown>), ...(s("external_reference") ? { reference: s("external_reference") } : {}), ...(imp.source_url ? { source_url: imp.source_url } : {}), import_id: imp.id };
     const rel = relationshipOwnerFor("installer_sourced", biz.default_comms_owner);

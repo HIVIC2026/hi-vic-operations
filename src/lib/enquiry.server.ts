@@ -21,8 +21,10 @@ export const enquirySchema = z.object({
   suburb: z.string().trim().max(100).optional().nullable(),
   postcode: z.string().trim().max(10).optional().nullable(),
   occupancy: z.enum(["owner_occupied", "rental"]).optional().nullable(),
-  estimated_area_m2: z.number().positive().max(5000).optional().nullable(),
-  area_unknown: z.boolean().optional(),
+  // LOCKED intake invariant: every homeowner/referral enquiry carries a numeric ceiling area estimate.
+  estimated_area_m2: z.number({ error: "estimated_area_m2 is required" }).finite().positive().max(5000),
+  // Backwards compatibility only: `true` is rejected — there is no "I don't know" path.
+  area_unknown: z.literal(false).optional(),
   life_support: z.boolean().optional(),
   // Base44 preliminary eligibility (website result only; admin still confirms)
   eligibility_outcome: z.enum(["likely_eligible", "needs_onsite_confirmation", "does_not_appear_eligible"]).optional().nullable(),
@@ -97,8 +99,8 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
 
   const propFields = { owner_id: owner!.id, address_line: input.address_line, suburb: input.suburb ?? null, postcode: input.postcode ?? null, occupancy: input.occupancy ?? null, ...(normaliseState(input.state) ? { state: normaliseState(input.state)! } : {}) };
   const jobFields = {
-    estimated_area_m2: input.area_unknown ? null : input.estimated_area_m2 ?? null,
-    estimated_area_unknown: input.area_unknown ?? input.estimated_area_m2 == null,
+    estimated_area_m2: input.estimated_area_m2,
+    estimated_area_unknown: false,
     life_support: input.life_support ?? false,
     life_support_status: input.life_support_status ?? (input.life_support === true ? "yes" : null),
   };
