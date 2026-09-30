@@ -29,6 +29,6 @@ export const connectMittiForm = createServerFn({ method: "POST" }).middleware([r
     if (!result.ok) return result;
     const { error } = await admin.from("workflow_settings").update({ [COL[data.key]]: data.templateId }).eq("id", 1);
     if (error) throw new Error(`Could not save the form: ${error.message}`);
-    await admin.from("admin_config_events").insert({ actor_id: context.userId, setting: COL[data.key], new_value: data.templateId, reason: "Mitti form passed structure validation" } as never);
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "mitti_form_connected", summary: `${data.key} Mitti form connected after validation`, details: { column: COL[data.key], template_id: data.templateId } });
     return result;
   });
