@@ -58,7 +58,7 @@ One co-branded invoice to the owner; 50% deposit before any work is scheduled; b
 A plain checklist so they see the workload: eligibility checks, owner consent and permission, safety-check coordination, official forms (PIESA/PIISA) filled and signed, 24-hour notices, quote and invoice, deposit and balance chasing, evidence review, VEEC creation and lodgement, 6-year record keeping, audits.
 
 ### "Why the $349" box
-Explains exactly what the $349 electrical check covers and why it's required before install.
+The $349 inc GST covers both the pre-install electrical safety check (PIESA) and our Accredited Person work: eligibility, owner consent, official forms, 24-hour notices, quote and invoice, payment chasing, evidence review, VEEC creation and lodgement, 6-year records and audits. The box explains why each is legally required and that the owner pays it on the co-branded invoice, not the installer. (If the installer brings their own electrician, how their price and our fee combine is shown in decision 1.)
 
 ### Common questions (FAQ)
 - I already agreed a price with the owner — what happens?
@@ -73,7 +73,7 @@ Explains exactly what the $349 electrical check covers and why it's required bef
 The installer agreement is a signed legal document. Any change to it gets a new version number and existing signers are asked to re-sign. Option 1/Option 2 summary goes into the new version only after you approve the wording.
 
 ## Decisions still needed (I won't guess these)
-1. The $349 — only the electrical safety check, or also the AP fee? What AP fee amount do installers see?
+1. Decided: $349 covers both the safety check and our AP fee. Still to confirm: is it one $349 total, or $349 each? And if the installer uses their own electrician, does the owner pay their electrician's price plus our AP fee?
 2. Installer already agreed a price with the owner: our fees added on top (less VEU discount), or must their price include them?
 3. Referred jobs: installer quotes after the Ready Check, or we price from their rate card?
 4. $220 lead fee: deducted from the installer's payout, or invoiced separately? Inc or ex GST?
