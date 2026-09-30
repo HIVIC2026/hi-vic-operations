@@ -194,7 +194,9 @@ describe("email renderers", () => {
     }
     expect(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: link }).subject).toContain("Just checking you received your Home Insulation Victoria estimate");
     expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).html).toContain("Ready to book your Home Insulation Ready Check?");
-    expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).plainText).toContain("$99 Home Insulation Ready Check — payable now. Your $99 Home Insulation Ready Check is credited toward your project if you proceed.");
+    expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).plainText).toContain("The $99 is credited toward your project if you proceed.");
+    expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).html).toContain("#confirm\">BOOK MY READY CHECK →");
+    expect(renderFollowupEmail({ kind: "estimate_second_reminder_7d", estimateUrl: link }).plainText).not.toMatch(/\$400|indicative/);
     const seven = renderFollowupEmail({ kind: "estimate_second_reminder_7d", estimateUrl: link }).plainText;
     expect(seven).toContain("Warmer in winter");
     expect(seven).toContain("Transparent Home Insulation Victoria pricing");

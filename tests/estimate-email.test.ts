@@ -78,7 +78,7 @@ describe("customer outcome email renderers", () => {
     for (const copy of ["IT'S LOOKING GOOD SO FAR.", "WHAT WE NEED TO CHECK ONSITE", "Existing insulation — confirm what is currently installed and whether removal is required.", "Ceiling access — confirm access conditions and whether any access adjustment applies.", "Ceiling area — confirm the measured eligible ceiling area.", "$1,325", "$3,747", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "BOOK MY READY CHECK →", "See exactly what’s included on the next page."]) expect(email.html).toContain(copy);
     for (const out of [email.html, email.plainText]) {
       expect(out.split("IT'S LOOKING GOOD SO FAR").length - 1).toBe(1);
-      for (const gone of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY", "could still qualify", "WHAT WE NEED TO CHECK"]) expect(out).not.toContain(gone);
+      for (const gone of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY", "could still qualify"]) expect(out).not.toContain(gone);
       expect(out.indexOf("IT'S LOOKING GOOD SO FAR")).toBeLessThan(out.indexOf("WE JUST NEED TO CHECK"));
       expect(out.indexOf("Ceiling area — confirm")).toBeLessThan(out.indexOf("YOUR PRELIMINARY QUOTE"));
     }
