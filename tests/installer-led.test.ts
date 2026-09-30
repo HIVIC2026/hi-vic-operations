@@ -53,7 +53,7 @@ describe("Mitti form validation", () => {
     const items = complete("piesa");
     expect(validateTemplate("piesa", items.slice(1)).ok).toBe(false);
     expect(validateTemplate("piesa", [...items, items[5]]).issues.some((i) => i.startsWith("Duplicate"))).toBe(true);
-    expect(validateTemplate("piesa", items.map((i, n) => n === 5 ? { ...i, type: "media" } : i)).issues[0]).toContain("Wrong type");
+    expect(validateTemplate("piesa", items.map((i, n) => n === 3 ? { ...i, type: "media" } : i)).issues[0]).toContain("Wrong type");
   });
   it("installer forms cannot carry PIESA outcome", () => {
     expect(validateTemplate("ready_check", [...complete("ready_check"), { label: "B1 Assessment outcome", type: "question" }]).ok).toBe(false);
