@@ -81,6 +81,7 @@
   --color-estimate-accent: var(--estimate-accent);
   --color-estimate-accent-soft: var(--estimate-accent-soft);
   --font-sans: var(--app-font);
+  --font-display: var(--app-font-display);
 }
 
 /* Home Insulation Victoria customer-estimate identity, scoped so the operating portal is unchanged. */
@@ -146,50 +147,51 @@
 
 :root {
   --radius: 0.6rem;
-  /* HI VIC operational palette: eucalyptus teal + warm amber, calm neutrals */
-  --background: oklch(0.985 0.004 180);
-  --foreground: oklch(0.22 0.03 200);
+  /* Home Insulation Victoria brand palette: blue #3C51C4, green #07BF61/#52C875, navy #22376B, off-white #FBFCFA */
+  --background: #fbfcfa;
+  --foreground: #22376b;
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.22 0.03 200);
+  --card-foreground: #22376b;
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.22 0.03 200);
-  --primary: oklch(0.45 0.09 190);
-  --primary-foreground: oklch(0.99 0.005 180);
-  --secondary: oklch(0.95 0.015 185);
-  --secondary-foreground: oklch(0.3 0.06 195);
-  --muted: oklch(0.955 0.008 185);
-  --muted-foreground: oklch(0.5 0.025 200);
-  --accent: oklch(0.93 0.05 75);
-  --accent-foreground: oklch(0.35 0.08 60);
+  --popover-foreground: #22376b;
+  --primary: #3c51c4;
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.9571 0.0162 278.507);
+  --secondary-foreground: #22376b;
+  --muted: oklch(0.965 0.01 278.5);
+  --muted-foreground: oklch(0.48 0.045 270);
+  --accent: oklch(0.97024 0.01728 159.124);
+  --accent-foreground: #22376b;
   --destructive: oklch(0.58 0.21 27);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.9 0.012 190);
-  --input: oklch(0.88 0.015 190);
-  --ring: oklch(0.55 0.09 190);
-  --success: oklch(0.6 0.14 150);
-  --success-soft: oklch(0.94 0.05 150);
+  --border: oklch(0.92 0.015 278.5);
+  --input: oklch(0.884 0.037 278.5);
+  --ring: #3c51c4;
+  --success: #07bf61;
+  --success-soft: oklch(0.97024 0.01728 159.124);
   --warning: oklch(0.72 0.15 70);
-  --warning-soft: oklch(0.95 0.06 80);
+  --warning-soft: oklch(0.96 0.06 85);
   --danger: oklch(0.58 0.21 27);
   --danger-soft: oklch(0.95 0.04 25);
-  --info-soft: oklch(0.94 0.03 230);
-  --info: oklch(0.5 0.12 240);
-  --brand-dark: oklch(0.28 0.05 200);
-  --brand-dark-foreground: oklch(0.97 0.01 180);
+  --info-soft: oklch(0.9571 0.0162 278.507);
+  --info: #3c51c4;
+  --brand-dark: #22376b;
+  --brand-dark-foreground: #fbfcfa;
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.28 0.05 200);
-  --sidebar-foreground: oklch(0.95 0.01 180);
-  --sidebar-primary: oklch(0.8 0.12 75);
-  --sidebar-primary-foreground: oklch(0.25 0.05 60);
-  --sidebar-accent: oklch(0.34 0.05 200);
-  --sidebar-accent-foreground: oklch(0.98 0.01 180);
-  --sidebar-border: oklch(0.36 0.04 200);
-  --sidebar-ring: oklch(0.7 0.1 190);
-  --app-font: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --sidebar: #22376b;
+  --sidebar-foreground: oklch(0.96 0.01 278.5);
+  --sidebar-primary: #52c875;
+  --sidebar-primary-foreground: #22376b;
+  --sidebar-accent: #3c51c4;
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: #52c875;
+  --app-font: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --app-font-display: "Space Grotesk", "DM Sans", ui-sans-serif, system-ui, sans-serif;
 }
 
 .dark {
@@ -235,5 +237,12 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
   }
 }
