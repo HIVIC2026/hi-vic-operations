@@ -27,7 +27,11 @@ describe("customer outcome email renderers", () => {
     const order = ["YOUR PRELIMINARY QUOTE", "Estimated ceiling size:", "CHANGE →", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "$349 payable now for the Measure + PIESA", "Estimated remaining balance", "THERE ARE NO OTHER STANDARD FEES", "NOT SURE YOUR CEILING SIZE IS RIGHT?", "CHECK ANOTHER CEILING SIZE →", "PAY $349 &amp; CONTINUE →"].map((t) => h.indexOf(t));
     expect(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1]!))).toBe(true);
     expect(h.split("PAY $349 &amp; CONTINUE →").length - 1).toBe(1);
-    expect(h).toContain("border-left:4px solid #07BF61");
+    expect(h).toContain("border-radius:16px");
+    expect(h).toContain("border:1px solid #D4DAF5");
+    expect(h).toContain("border:1px solid #BEE8CE");
+    expect(`${email.html} ${email.plainText}`).toContain("VEU / VEEC discount and estimated cost after discount could change.");
+    expect(`${email.html} ${email.plainText}`).not.toContain("VEU discount and estimated price could change.");
     expect(email.plainText).toContain("PAY $349 & CONTINUE:");
     expect(email.plainText).toContain(CUSTOMER_PAYMENT_COPY.included);
     expect(h).not.toContain("CONTINUE WITH HOME INSULATION VICTORIA");

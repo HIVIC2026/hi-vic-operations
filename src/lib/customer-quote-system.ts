@@ -13,6 +13,21 @@ export const CUSTOMER_BRAND = {
   font: "'Open Sans',Arial,Helvetica,sans-serif",
 } as const;
 
+/** Shared visual measurements for every customer-facing estimate surface. */
+export const CUSTOMER_VISUAL_SYSTEM = {
+  quoteRadiusPx: 20,
+  secondaryRadiusPx: 16,
+  secondaryPaddingPx: 20,
+  actionRadiusPx: 16,
+  actionPaddingPx: 16,
+  softBlueBorder: "#D4DAF5",
+  softGreenBorder: "#BEE8CE",
+  paleGreen: "#ECF9F1",
+  footer: "#F1F8F3",
+} as const;
+
+export const CUSTOMER_CALCULATOR_COPY = "Try another ceiling size and instantly see how your preliminary project total, VEU / VEEC discount and estimated cost after discount could change.";
+
 export const CUSTOMER_QUOTE_LABELS = {
   piesa: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA) + onsite ceiling measure-up",
   insulation: "R5.0 ceiling insulation — supply & install",
