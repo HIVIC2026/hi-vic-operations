@@ -12,14 +12,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAction } from "@/hooks/use-me";
 import { approveCustomerCommunicationDraft, listCustomerCommunicationTemplates, saveCustomerCommunicationDraft } from "@/lib/customer-communications.functions";
 
+// [key, label, purpose, when it is sent, mandatory forms attached, preview available]
 const CATALOG = [
-  ["likely_estimate", "Likely eligible estimate", "After the official Gate 1 result; includes estimate and free Ready Check action."],
-  ["onsite_estimate", "Needs onsite confirmation estimate", "Explains what the installer must confirm during the free Ready Check."],
-  ["ineligible_result", "Ineligible result", "No quote or Ready Check action; offers result review only."],
-  ["estimate_unopened_3d", "Estimate not opened reminder", "Manual-first follow-up after three days."],
-  ["estimate_engaged_no_booking_3d", "Ready Check reminder", "Manual-first follow-up when the estimate was viewed but no Ready Check was requested."],
-  ["estimate_second_reminder_7d", "Final estimate reminder", "Manual-first final reminder after seven days."],
-  ["area_unavailable", "No partner in service area", "Used only after both REC and installer coverage are conclusively checked."],
+  ["likely_estimate", "Likely eligible estimate", "After the official Gate 1 result; includes estimate and free Ready Check action.", "1 · Enquiry", "None – preliminary estimate only", true],
+  ["onsite_estimate", "Needs onsite confirmation estimate", "Explains what the installer must confirm during the free Ready Check.", "1 · Enquiry", "None – preliminary estimate only", true],
+  ["ineligible_result", "Ineligible result", "No quote or Ready Check action; offers result review only.", "1 · Enquiry", "None", true],
+  ["estimate_unopened_3d", "Estimate not opened reminder", "Manual-first follow-up after three days.", "1 · Enquiry", "None", false],
+  ["estimate_engaged_no_booking_3d", "Ready Check reminder", "Manual-first follow-up when the estimate was viewed but no Ready Check was requested.", "1 · Enquiry", "None", false],
+  ["estimate_second_reminder_7d", "Final estimate reminder", "Manual-first final reminder after seven days.", "1 · Enquiry", "None", false],
+  ["area_unavailable", "No partner in service area", "Used only after both REC and installer coverage are conclusively checked.", "1 · Enquiry", "None", false],
+  ["measured_quote", "Measured quote (after Ready Check)", "Sends the measured quote for one electronic acceptance.", "2 · Quote", "Customer Acceptance · VEU Consumer Factsheet · Consumer rights & HI VIC terms · Code of Conduct / dispute information", true],
+  ["booking_consent", "Booking confirmation + ESC consent", "Confirms the install date and requests electronic Reg 23A consent.", "3 · Booked", "ESC Owner Consent (Reg 23A) – signed ≥24h before work", false],
+  ["pre_install_pack", "Pre-installation pack", "Delivers PIESA copy and consumer documents before work.", "4 · Before install", "PIESA copy (≥24h before) · Certificate of Electrical Safety if rectified · Life-support plan if applicable", false],
+  ["assignment_signing", "Final VEEC assignment signing", "Electronic signature after installer and AP have signed verified final facts.", "5 · After install", "Final Activity 48 VEEC Assignment (installer → AP → homeowner)", false],
+  ["completion_pack", "Completion email + certificate pack", "Final email after installation and sign-off.", "6 · Complete", "Tax invoice & $200+ co-payment receipt · Certificate of installation / Installer Declaration · Signed assignment copy · Warranties & product info · Dispute and contact information", false],
 ] as const;
 type Key = (typeof CATALOG)[number][0];
 
