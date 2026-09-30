@@ -14,6 +14,7 @@ import {
 } from "@/lib/portal.functions";
 import { EVIDENCE_STATUS_LABEL, STAGE_LABEL, aud, fmtDate, fmtDateTime } from "@/lib/workflow";
 import { ASSISTANCE_LABEL } from "@/lib/authority";
+import { QUICK_ACTIONS } from "@/lib/messaging.core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -144,26 +145,48 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
 }
 
 // ---------------- Messages / history ----------------
-export function MessagesPanel({ jobId, isAdmin }: { jobId: string; isAdmin: boolean }) {
+export function MessagesPanel({ jobId, isAdmin, role }: { jobId: string; isAdmin: boolean; role?: "owner" | "electrician" | "installer" }) {
   const [body, setBody] = useState("");
   const [internal, setInternal] = useState(false);
   const send = useAction(sendMessage);
-  const { data } = useQuery({
+  const { data: me } = useQuery({ queryKey: ["me-id"], queryFn: async () => (await supabase.auth.getUser()).data.user?.id ?? null });
+  const { data, refetch } = useQuery({
     queryKey: ["messages", jobId],
+    refetchInterval: 15000,
     queryFn: async () => (await supabase.from("messages").select("*, profiles(full_name)").eq("job_id", jobId).order("created_at")).data ?? [],
   });
+  const quick = role ? QUICK_ACTIONS[role] : [];
+  const submit = async (text: string) => {
+    if (!text.trim()) return;
+    await send({ jobId, body: text, internal });
+    setBody("");
+    refetch();
+  };
   return (
     <Section title="Messages">
-      <div className="max-h-80 space-y-2 overflow-y-auto">
-        {(data ?? []).map((m) => (
-          <div key={m.id} className={`rounded-lg p-2 text-sm ${m.internal ? "bg-warning-soft" : "bg-muted"}`}>
-            <div className="text-xs text-muted-foreground">{(m.profiles as { full_name: string | null } | null)?.full_name ?? "System"} · {fmtDateTime(m.created_at)}{m.internal && " · internal"}</div>
-            {m.body}
-          </div>
-        ))}
+      <p className="mb-2 text-xs text-muted-foreground">All contact happens here in the portal — no phone numbers or emails are shared. Home Insulation Victoria can see this conversation.</p>
+      <div className="max-h-96 space-y-2 overflow-y-auto">
+        {(data ?? []).map((m) => {
+          const mine = me && m.sender_id === me;
+          return (
+            <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${m.internal ? "bg-warning-soft" : mine ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                <div className={`text-[11px] ${mine && !m.internal ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{mine ? "You" : (m.profiles as { full_name: string | null } | null)?.full_name ?? "System"} · {fmtDateTime(m.created_at)}{m.internal && " · internal"}</div>
+                <div className="whitespace-pre-wrap">{m.body}</div>
+              </div>
+            </div>
+          );
+        })}
         {!data?.length && <p className="text-sm text-muted-foreground">No messages yet.</p>}
       </div>
-      <form className="mt-3 space-y-2" onSubmit={async (e) => { e.preventDefault(); if (!body.trim()) return; await send({ jobId, body, internal }); setBody(""); }}>
+      {quick.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {quick.map((q) => (
+            <Button key={q} type="button" variant="outline" size="sm" className="h-auto min-h-10 whitespace-normal text-left" onClick={() => submit(q)}>{q}</Button>
+          ))}
+        </div>
+      )}
+      <form className="mt-3 space-y-2" onSubmit={async (e) => { e.preventDefault(); await submit(body); }}>
         <Textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Write a message…" rows={2} />
         <div className="flex items-center justify-between">
           {isAdmin ? <label className="flex items-center gap-2 text-sm"><Checkbox checked={internal} onCheckedChange={(v) => setInternal(!!v)} /> Internal note</label> : <span />}
