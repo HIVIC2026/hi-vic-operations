@@ -339,15 +339,17 @@ function Veec({ jobId }: { jobId: string }) {
       <form key={data.updated_at} className="space-y-2" onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
-        save({ jobId, quantity: f.get("quantity") ? Number(f.get("quantity")) : null, status: f.get("status") as "not_submitted", submission_reference: (f.get("ref") as string) || null, submitted_date: (f.get("date") as string) || null, notes: (f.get("notes") as string) || null }, "VEEC saved");
+        save({ jobId, quantity: f.get("quantity") ? Number(f.get("quantity")) : null, status: f.get("status") as "not_submitted", submission_reference: (f.get("ref") as string) || null, submitted_date: (f.get("date") as string) || null, notes: (f.get("notes") as string) || null, reason: (f.get("reason") as string) || null }, "VEEC saved");
       }}>
+        <p className="text-xs text-muted-foreground">Submitted or approved needs quantity, ESC reference and submitted date. Approved is final. Changing lodged details needs a reason.</p>
         <div className="grid grid-cols-2 gap-2">
-          <div><Label>Quantity</Label><Input name="quantity" type="number" step="0.01" defaultValue={data.quantity ?? ""} /></div>
+          <div><Label>Quantity</Label><Input name="quantity" type="number" step="0.01" min="0" defaultValue={data.quantity ?? ""} /></div>
           <div><Label>Status</Label><select name="status" defaultValue={data.status} className="h-9 w-full rounded-md border bg-background px-2 text-sm">{["not_submitted", "submitted", "approved", "rejected"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select></div>
-          <div><Label>Submission ref</Label><Input name="ref" defaultValue={data.submission_reference ?? ""} /></div>
-          <div><Label>Submitted date</Label><Input name="date" type="date" defaultValue={data.submitted_date ?? ""} /></div>
+          <div><Label>ESC submission ref</Label><Input name="ref" defaultValue={data.submission_reference ?? ""} /></div>
+          <div><Label>Submitted date</Label><Input name="date" type="date" max={new Date().toISOString().slice(0, 10)} defaultValue={data.submitted_date ?? ""} /></div>
         </div>
-        <Textarea name="notes" placeholder="Notes" defaultValue={data.notes ?? ""} />
+        <Textarea name="notes" placeholder="Notes (required if rejected)" defaultValue={data.notes ?? ""} />
+        {["submitted", "approved"].includes(data.status) && <Input name="reason" placeholder="Reason for changing lodged details" />}
         <Button type="submit">Save lodgement</Button>
       </form>
     </Section>

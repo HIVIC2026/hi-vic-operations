@@ -836,14 +836,18 @@ export const markReadyForVeec = createServerFn({ method: "POST" }).middleware([r
   });
 
 export const updateVeec = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, quantity: z.number().min(0).nullable(), status: z.enum(["not_submitted", "submitted", "approved", "rejected"]), submission_reference: z.string().max(100).nullable(), submitted_date: z.string().nullable(), notes: z.string().max(2000).nullable() }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, quantity: z.number().min(0).nullable(), status: z.enum(["not_submitted", "submitted", "approved", "rejected"]), submission_reference: z.string().trim().max(100).nullable(), submitted_date: z.string().nullable(), notes: z.string().max(2000).nullable(), reason: z.string().max(500).nullable().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { jobId, ...rest } = data;
+    const { jobId, reason, ...rest } = data;
     if (["submitted", "approved"].includes(data.status) && !["ready_for_veec", "complete"].includes(await getStage(jobId)))
       throw new WorkflowError("VEEC can only be lodged once the job is Ready for VEEC.");
+    const { data: prev } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,notes").eq("job_id", jobId).maybeSingle();
+    const { veecUpdateBlockers } = await import("./veec.core");
+    const blockers = veecUpdateBlockers(prev, { ...rest, reason: reason ?? null }, new Date().toISOString().slice(0, 10));
+    if (blockers.length) throw new WorkflowError(blockers.join(" "));
     await admin.from("veec_lodgements").update({ ...rest, updated_at: new Date().toISOString() }).eq("job_id", jobId);
-    await logEvent(jobId, context.userId, "veec_updated", `VEEC lodgement ${data.status.replace("_", " ")}`, rest, { internal: true });
+    await logEvent(jobId, context.userId, "veec_updated", `VEEC lodgement ${data.status.replace("_", " ")}`, { ...rest, previous: prev, reason: reason ?? null }, { internal: true });
     if (["submitted", "approved"].includes(data.status) && (await getStage(jobId)) === "ready_for_veec")
       await transition(jobId, "complete", context.userId, "VEEC lodged – job complete");
     await autoAdvanceJob(jobId, context.userId, "VEEC updated");
