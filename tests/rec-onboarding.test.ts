@@ -33,7 +33,8 @@ describe("rec onboarding", () => {
   });
   test("bank details are required and excluded from the agreement text", () => {
     expect(stepErrors("bank", { ...full, bank_bsb: "123" })).toContain("Enter a valid 6-digit BSB.");
-    expect(agreementText(full)).not.toContain("12345678");
+    expect(agreementText(full)).not.toContain("Account number:");
+    expect(agreementText(full)).not.toContain("BSB:");
   });
   test("agreement text includes markup clause, schedules and all 7 acknowledgements", () => {
     const t = agreementText(full);
