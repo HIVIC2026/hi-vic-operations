@@ -27,7 +27,11 @@ export const connectMittiForm = createServerFn({ method: "POST" }).middleware([r
     catch (e) { return { ok: false, issues: [e instanceof Error ? e.message : "Mitti could not be reached."] }; }
     const result = validateTemplate(data.key, flattenDefinition(def));
     if (!result.ok) return result;
-    const { error } = await admin.from("workflow_settings").update({ [COL[data.key]]: data.templateId } as Record<string, string>).eq("id", 1);
+    const patch = data.key === "ready_check" ? { mitti_ready_check_template_id: data.templateId }
+      : data.key === "ready_check_priced" ? { mitti_ready_check_priced_template_id: data.templateId }
+      : data.key === "piesa" ? { mitti_piesa_template_id: data.templateId }
+      : { mitti_piisa_template_id: data.templateId };
+    const { error } = await admin.from("workflow_settings").update(patch).eq("id", 1);
     if (error) throw new Error(`Could not save the form: ${error.message}`);
     await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "mitti_form_connected", summary: `${data.key} Mitti form connected after validation`, details: { column: COL[data.key], template_id: data.templateId } });
     return result;
