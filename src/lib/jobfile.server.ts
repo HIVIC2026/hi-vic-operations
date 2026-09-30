@@ -55,7 +55,7 @@ export async function buildJobFile(jobId: string, role: Role) {
   const ROLE_NAME: Record<string, string> = { electrician: "Electrician", installer: "Installer", property_manager: "Property manager" };
   const roleOf = (id: string | null): string => {
     if (!id) return "System";
-    if (isAdminUser.has(id)) return "HI VIC";
+    if (isAdminUser.has(id)) return "Home Insulation Victoria";
     if (id === ownerUser) return "Owner";
     const r = (jobRoles ?? []).find((x) => x.user_id === id)?.role;
     return r ? ROLE_NAME[r] ?? r : "Portal user";

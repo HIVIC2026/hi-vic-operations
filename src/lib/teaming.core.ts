@@ -1,5 +1,5 @@
 // Preferred-electrician team-ups. Pure rules only (persistence in teaming.functions.ts).
-// A team-up is live only when: installer nominated + electrician accepted + HI VIC approved BOTH businesses.
+// A team-up is live only when: installer nominated + electrician accepted + Home Insulation Victoria approved BOTH businesses.
 export const INVITE_DAYS = 14;
 
 export type PreferredElectrician = { name?: string; email?: string; mobile?: string; business_name?: string; licence_number?: string; rec_number?: string; is_primary?: boolean };
@@ -35,7 +35,7 @@ export type NominationRow = {
 };
 export type TeamStatus = "invite_drafted" | "sent" | "opened" | "signed_up" | "awaiting_approval" | "teamed" | "declined" | "expired" | "ended";
 export const TEAM_STATUS_LABEL: Record<TeamStatus, string> = {
-  invite_drafted: "Invite drafted", sent: "Sent", opened: "Opened", signed_up: "Signed up – finishing onboarding", awaiting_approval: "Awaiting HI VIC approval",
+  invite_drafted: "Invite drafted", sent: "Sent", opened: "Opened", signed_up: "Signed up – finishing onboarding", awaiting_approval: "Awaiting Home Insulation Victoria approval",
   teamed: "Teamed up", declined: "Declined", expired: "Invite expired", ended: "Team-up ended",
 };
 
@@ -55,7 +55,7 @@ export function teamStatus(n: NominationRow, electricianSubmitted = false, now =
 export function inviteUsable(n: NominationRow, now = new Date()): { ok: boolean; reason?: string } {
   if (n.ended_at) return { ok: false, reason: "This team-up has ended." };
   if (n.declined_at) return { ok: false, reason: "This invitation was declined." };
-  if (n.invite_expires_at && Date.parse(n.invite_expires_at) < now.getTime() && !n.accepted_at) return { ok: false, reason: "This invitation has expired. Ask the installer or HI VIC to send a new one." };
+  if (n.invite_expires_at && Date.parse(n.invite_expires_at) < now.getTime() && !n.accepted_at) return { ok: false, reason: "This invitation has expired. Ask the installer or Home Insulation Victoria to send a new one." };
   return { ok: true };
 }
 
@@ -63,7 +63,7 @@ export type TeamRel = { electrician_business_id: string; is_primary: boolean; pr
 export type RankedElec = { id: string; eligible: boolean; inArea: boolean };
 /**
  * Which electrician a new installer-sourced job goes to: Main if approved + in area, else a backup that is,
- * else null (HI VIC matching). Never returns an ineligible or out-of-area electrician.
+ * else null (Home Insulation Victoria matching). Never returns an ineligible or out-of-area electrician.
  */
 export function pickTeamElectrician(rels: TeamRel[], ranked: RankedElec[]): { id: string; via: "primary" | "backup" } | null {
   const ok = (id: string) => ranked.find((r) => r.id === id && r.eligible && r.inArea);
@@ -79,13 +79,13 @@ export function installerTeamLine(name: string, s: TeamStatus): string {
   const first = name.trim().split(/\s+/)[0] || "your electrician";
   switch (s) {
     case "teamed": return `Teamed up with ${name}`;
-    case "awaiting_approval": return `${first} has signed up – HI VIC is checking their details`;
+    case "awaiting_approval": return `${first} has signed up – Home Insulation Victoria is checking their details`;
     case "signed_up": return `${first} accepted – finishing their onboarding`;
     case "opened": return `${first} has opened the invite`;
     case "sent": return `Waiting for ${first} to sign up`;
-    case "invite_drafted": return `Invite to ${first} being prepared by HI VIC`;
-    case "declined": return `${first} declined – add another electrician or let HI VIC match you`;
-    case "expired": return `Invite to ${first} expired – HI VIC will send a new one`;
+    case "invite_drafted": return `Invite to ${first} being prepared by Home Insulation Victoria`;
+    case "declined": return `${first} declined – add another electrician or let Home Insulation Victoria match you`;
+    case "expired": return `Invite to ${first} expired – Home Insulation Victoria will send a new one`;
     case "ended": return `Team-up with ${name} ended`;
   }
 }

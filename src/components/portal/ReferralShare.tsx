@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Share2, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-/** Customer referral share. Uses the device share sheet or copies the link — HI VIC never emails the friend. */
+/** Customer referral share. Uses the device share sheet or copies the link — Home Insulation Victoria never emails the friend. */
 export function ReferralShare({ url }: { url: string }) {
   const [canShare, setCanShare] = useState(false);
   const [copied, setCopied] = useState(false);

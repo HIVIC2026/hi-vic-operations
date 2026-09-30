@@ -40,7 +40,7 @@ import { getJobCoverage, sendNoCoverageEmail } from "@/lib/coverage.functions";
 import { InstallerLedInvoicePanel } from "@/components/portal/installer-invoice";
 
 export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
-  head: () => ({ meta: [{ title: "Job – HI VIC Portal" }, { name: "description", content: "Job detail and workflow." }, { property: "og:title", content: "Job – HI VIC Portal" }, { property: "og:description", content: "Job detail and workflow." }] }),
+  head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Portal" }, { name: "description", content: "Job detail and workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Portal" }, { property: "og:description", content: "Job detail and workflow." }] }),
   component: JobDetail,
 });
 
@@ -157,8 +157,8 @@ function EligibilityForm({ jobId }: { jobId: string }) {
 }
 
 const MODEL_LABEL: Record<string, string> = {
-  hivic_invoices_owner: "HI VIC invoices the owner (Xero)",
-  installer_invoices_owner: "Installer invoices the owner; HI VIC charges installer an AP fee",
+  hivic_invoices_owner: "Home Insulation Victoria invoices the owner (Xero)",
+  installer_invoices_owner: "Installer invoices the owner; Home Insulation Victoria charges installer an AP fee",
   not_configured: "Commercial setup required",
 };
 

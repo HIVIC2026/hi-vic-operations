@@ -89,8 +89,8 @@ export function partnerIssues(r: {
     if (r.cii_certification_status === "not_certified") issues.push("Not CII certified");
     else if (!r.cii_certification_status) issues.push("CII certification status not supplied");
     if (r.estimated_r5_install_rate_per_sqm_inc_gst == null) issues.push("No indicative R5.0 install rate");
-    if (r.free_quotes_for_hivic_leads === false) issues.push("Charges for quotes on pre-qualified HI VIC leads");
-    if (r.free_measureups_for_hivic_quote_leads === false) issues.push("Does not offer free eligibility measure-ups for pre-qualified HI VIC quote leads");
+    if (r.free_quotes_for_hivic_leads === false) issues.push("Charges for quotes on pre-qualified Home Insulation Victoria leads");
+    if (r.free_measureups_for_hivic_quote_leads === false) issues.push("Does not offer free eligibility measure-ups for pre-qualified Home Insulation Victoria quote leads");
   }
   return issues;
 }

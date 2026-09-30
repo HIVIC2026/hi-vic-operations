@@ -62,7 +62,7 @@ export function AcceptanceFlow({ quoteId, jobId, onClose }: { quoteId: string; j
   if (data.blockers.length > 0) return (
     <section className="rounded-xl border bg-card p-4 text-sm">
       <div className="mb-2 flex items-center justify-between"><h2 className="text-lg font-bold">Accept your quote</h2><Button variant="ghost" size="sm" onClick={onClose}>Close</Button></div>
-      <p>We're just finalising your acceptance paperwork. HI VIC will let you know as soon as you can accept online – there's nothing you need to do right now.</p>
+      <p>We're just finalising your acceptance paperwork. Home Insulation Victoria will let you know as soon as you can accept online – there's nothing you need to do right now.</p>
     </section>
   );
   const signatory = authorityType === "owner" ? pkg.consumer.name : repName.trim();
@@ -100,13 +100,13 @@ export function AcceptanceFlow({ quoteId, jobId, onClose }: { quoteId: string; j
               <dt className="text-muted-foreground">Property</dt><dd>{pkg.property_address}</dd>
               <dt className="text-muted-foreground">Product</dt><dd>{pkg.quoted_product}</dd>
               <dt className="text-muted-foreground">Area</dt><dd>{pkg.quoted_area_m2 != null ? `${pkg.quoted_area_m2} m²` : "Confirmed at installation"}</dd>
-              <dt className="text-muted-foreground">Installer</dt><dd>{pkg.installer.business ?? pkg.installer.name ?? "Assigned by HI VIC"}</dd>
+              <dt className="text-muted-foreground">Installer</dt><dd>{pkg.installer.business ?? pkg.installer.name ?? "Assigned by Home Insulation Victoria"}</dd>
               <dt className="text-muted-foreground">Your price</dt><dd>{aud(pkg.final_customer_price_inc_gst)} inc GST</dd>
             </dl>
             {jobId && (!changeOpen
-              ? <Button variant="link" className="h-auto px-0" onClick={() => setChangeOpen(true)}>Something wrong? Ask HI VIC to correct it</Button>
+              ? <Button variant="link" className="h-auto px-0" onClick={() => setChangeOpen(true)}>Something wrong? Ask Home Insulation Victoria to correct it</Button>
               : <div className="mt-2 space-y-2"><Textarea placeholder="Tell us what needs correcting" value={change} onChange={(e) => setChange(e.target.value)} />
-                  <Button size="field" variant="outline" className="w-full" disabled={change.trim().length < 3} onClick={async () => { await message({ jobId, body: `Customer requested a correction before signing: ${change}`, channel: "portal" }, "Sent – HI VIC will update your details"); setChange(""); setChangeOpen(false); }}>Send correction request</Button></div>)}
+                  <Button size="field" variant="outline" className="w-full" disabled={change.trim().length < 3} onClick={async () => { await message({ jobId, body: `Customer requested a correction before signing: ${change}`, channel: "portal" }, "Sent – Home Insulation Victoria will update your details"); setChange(""); setChangeOpen(false); }}>Send correction request</Button></div>)}
           </div>
           <div className="grid grid-cols-2 gap-2">{(["owner", "authorised_representative"] as const).map((k) => <Button key={k} size="field" variant={authorityType === k ? "default" : "outline"} onClick={() => setAuthorityType(k)}>{k === "owner" ? "I am the owner" : "I'm signing for the owner"}</Button>)}</div>
           {authorityType === "authorised_representative" && <Input className="h-12" placeholder="Your full name (authorised representative)" value={repName} onChange={(e) => setRepName(e.target.value)} />}
@@ -167,7 +167,7 @@ export function OwnerAssignmentCard({ jobId }: { jobId: string }) {
               <Input className="h-12" placeholder="Type your full name to sign" value={cSig} onChange={(e) => setCSig(e.target.value)} />
               <Button size="field" className="w-full" disabled={!cOk || cSig.trim().length < 2} onClick={() => signConsent({ jobId, signatoryName: cSig, authorityType: "owner", accept: cOk, signatureName: cSig }, "Consent signed")}>Sign consent</Button>
             </>}
-            {c.status === "awaiting_ap" && <p>Signed – HI VIC will countersign.</p>}
+            {c.status === "awaiting_ap" && <p>Signed – Home Insulation Victoria will countersign.</p>}
             {c.status === "valid" && <p className="text-success">Complete. {c.delivery_status === "pending_comms_lock" ? "Your copy is stored and will be sent to you shortly." : ""}</p>}
           </div>
         )}
@@ -288,7 +288,7 @@ export function InstallerFinalDeclaration({ jobId }: { jobId: string }) {
   );
   if (data.declaration) return <p className="flex items-center gap-2 text-sm text-success"><CheckCircle2 className="h-4 w-4" /> Declaration signed – {data.declaration.installed_product}, {data.declaration.installed_area_m2} m²{a ? ` · assignment: ${ASSIGNMENT_LABEL[a.status as AssignmentStatus] ?? a.status}` : ""}</p>;
   if (!data.installationCompleted) return <p className="text-sm text-muted-foreground">Your declaration opens once the installation is marked complete.</p>;
-  if (data.installerBlockers.length) return <p className="text-sm text-muted-foreground">Final sign-off isn't open yet – HI VIC is finishing setup.</p>;
+  if (data.installerBlockers.length) return <p className="text-sm text-muted-foreground">Final sign-off isn't open yet – Home Insulation Victoria is finishing setup.</p>;
   const quotedRow = data.prefill.find((r) => r.label === "Product quoted")?.value;
   const quoted = quotedRow && quotedRow !== "—" ? quotedRow : null;
   const quotedArea = data.prefill.find((r) => r.label === "Area quoted (m²)")?.value;

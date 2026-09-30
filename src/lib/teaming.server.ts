@@ -8,7 +8,7 @@ import { getStage, logEvent, transition } from "./workflow.server";
 
 type Db = SupabaseClient<Database>;
 
-/** Links every accepted nomination whose installer AND electrician businesses are both HI VIC-approved. Idempotent. */
+/** Links every accepted nomination whose installer AND electrician businesses are both Home Insulation Victoria-approved. Idempotent. */
 export async function syncTeamUps(db: Db, actorId: string | null): Promise<number> {
   const { data: noms } = await db.from("electrician_nominations").select("id, installer_application_id, electrician_application_id, is_primary")
     .is("job_id", null).not("accepted_at", "is", null).is("teamed_at", null).is("ended_at", null).is("declined_at", null)
@@ -35,7 +35,7 @@ export async function syncTeamUps(db: Db, actorId: string | null): Promise<numbe
 
 /**
  * Installer-sourced job needs an electrician: assign the teamed Main (or backup) when approved + in area.
- * Returns the chosen business id or null (HI VIC matching continues). Never touches QA test jobs.
+ * Returns the chosen business id or null (Home Insulation Victoria matching continues). Never touches QA test jobs.
  */
 export async function autoAssignTeamElectrician(
   db: Db, jobId: string, ranked: { id: string; eligible: boolean; inArea: boolean }[], installerBiz: string | null,

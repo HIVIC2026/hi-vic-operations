@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 
 export const Route = createFileRoute("/_authenticated/owner/$jobId")({
-  head: () => ({ meta: [{ title: "My job – HI VIC" }, { name: "description", content: "Approve quotes, pay deposits and book dates." }, { property: "og:title", content: "My job – HI VIC" }, { property: "og:description", content: "Approve quotes, pay deposits and book dates." }] }),
+  head: () => ({ meta: [{ title: "My job – Home Insulation Victoria" }, { name: "description", content: "Approve quotes, pay deposits and book dates." }, { property: "og:title", content: "My job – Home Insulation Victoria" }, { property: "og:description", content: "Approve quotes, pay deposits and book dates." }] }),
   component: OwnerJob,
 });
 
@@ -63,7 +63,7 @@ function ChangeTrade({ jobId }: { jobId: string }) {
   return (
     <Section title="Can't reach your installer?">
       <Textarea placeholder="Tell us what happened" value={reason} onChange={(e) => setReason(e.target.value)} />
-      <Button className="mt-2 w-full" size="field" variant="outline" disabled={reason.trim().length < 5} onClick={async () => { await req({ jobId, role: "installer", reason }, "Request sent to HI VIC"); setReason(""); }}>Ask HI VIC about a different installer</Button>
+      <Button className="mt-2 w-full" size="field" variant="outline" disabled={reason.trim().length < 5} onClick={async () => { await req({ jobId, role: "installer", reason }, "Request sent to Home Insulation Victoria"); setReason(""); }}>Ask Home Insulation Victoria about a different installer</Button>
     </Section>
   );
 }

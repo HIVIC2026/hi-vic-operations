@@ -12,7 +12,7 @@ export const PARTY_STYLE: Record<string, string> = {
   Owner: "bg-task-eligibility text-task-eligibility-foreground",
   Electrician: "bg-task-scheduling text-task-scheduling-foreground",
   Installer: "bg-task-measure text-task-measure-foreground",
-  "HI VIC": "bg-task-payments text-task-payments-foreground",
+  "Home Insulation Victoria": "bg-task-payments text-task-payments-foreground",
   System: "bg-muted text-muted-foreground",
 };
 const chip = (r: string | null | undefined) => PARTY_STYLE[r ?? "System"] ?? "bg-task-partners text-task-partners-foreground";
@@ -44,7 +44,7 @@ export function WhoHasTheBall({ jobId, onOpenTab }: { jobId: string; onOpenTab?:
       {isAdmin && !w.terminal && onOpenTab && (
         <div className="mt-3 flex flex-wrap gap-2">
           <Button onClick={() => onOpenTab(w.action.tab)}>{w.action.label} <ArrowRight className="ml-1 h-4 w-4" /></Button>
-          {w.parties[0] !== "HI VIC" && w.action.label !== "Draft a nudge" && <Button variant="outline" onClick={() => onOpenTab("messages")}><MessageSquare className="mr-1 h-4 w-4" />Draft a nudge</Button>}
+          {w.parties[0] !== "Home Insulation Victoria" && w.action.label !== "Draft a nudge" && <Button variant="outline" onClick={() => onOpenTab("messages")}><MessageSquare className="mr-1 h-4 w-4" />Draft a nudge</Button>}
         </div>
       )}
     </section>

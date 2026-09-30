@@ -13,7 +13,7 @@ export function authorityWording(p: { ownerName: string; propertyAddress: string
     AUTHORITY_SCOPE,
     "This includes entering the property at agreed times, accessing the ceiling space, taking photographs, videos and measurements as evidence, completing and submitting compliance records, and creating VEECs for the activity. I assign the right to create VEECs for this activity to the Accredited Person.",
     "I confirm that I am 18 years of age or older, and that I am the owner of the property or am otherwise legally authorised to give this authority.",
-    `This authority starts when I accept it and remains valid for ${p.validityMonths} months unless I revoke it earlier by contacting HI VIC. Revoking it stops any further work under this authority.`,
+    `This authority starts when I accept it and remains valid for ${p.validityMonths} months unless I revoke it earlier by contacting Home Insulation Victoria. Revoking it stops any further work under this authority.`,
     "I understand the information I provide will be used for the VEU program and may be audited by the Essential Services Commission.",
   ].join("\n\n");
 }

@@ -35,15 +35,15 @@ export function ElectricianChoicePanel({ jobId }: { jobId: string }) {
   if (!data) return <Section title="Electrician"><p className="text-sm text-muted-foreground">Loading options…</p></Section>;
   const list = data.ranked.filter((r) => (mode === "preferred" ? r.preferred : mode === "approved_other" ? !r.preferred : false));
   const submit = async () => {
-    if (mode === "nominated") await choose({ jobId, choice: mode, nomination: { ...nom, nominated_for: "installer", business_name: nom.business_name || null, email: nom.email || null, phone: nom.phone || null, licence_number: nom.licence_number || null } }, "Electrician nominated – HI VIC will onboard them");
-    else if (mode === "hivic_organise") await choose({ jobId, choice: mode }, "HI VIC will organise an electrician");
+    if (mode === "nominated") await choose({ jobId, choice: mode, nomination: { ...nom, nominated_for: "installer", business_name: nom.business_name || null, email: nom.email || null, phone: nom.phone || null, licence_number: nom.licence_number || null } }, "Electrician nominated – Home Insulation Victoria will onboard them");
+    else if (mode === "hivic_organise") await choose({ jobId, choice: mode }, "Home Insulation Victoria will organise an electrician");
     else if (pick) await choose({ jobId, choice: mode, businessId: pick.biz, ...(pick.user ? { userId: pick.user } : {}) }, "Electrician assigned");
     refetch();
   };
   return (
     <Section title="Choose the electrician">
       <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {([["preferred", "My preferred electrician"], ["approved_other", "Another HI VIC electrician"], ["nominated", "Nominate an electrician"], ["hivic_organise", "HI VIC organise one"]] as const).map(([k, l]) => (
+        {([["preferred", "My preferred electrician"], ["approved_other", "Another Home Insulation Victoria electrician"], ["nominated", "Nominate an electrician"], ["hivic_organise", "Home Insulation Victoria organise one"]] as const).map(([k, l]) => (
           <Button key={k} size="field" variant={mode === k ? "default" : "outline"} className="h-auto whitespace-normal py-2 text-sm" onClick={() => { setMode(k); setPick(null); }}>{l}</Button>
         ))}
       </div>
@@ -71,10 +71,10 @@ export function ElectricianChoicePanel({ jobId }: { jobId: string }) {
           <Input placeholder="Email" value={nom.email} onChange={(e) => setNom({ ...nom, email: e.target.value })} />
           <Input placeholder="Phone" value={nom.phone} onChange={(e) => setNom({ ...nom, phone: e.target.value })} />
           <Input placeholder="Licence number" value={nom.licence_number} onChange={(e) => setNom({ ...nom, licence_number: e.target.value })} />
-          <p className="text-xs text-muted-foreground sm:col-span-2">They must complete HI VIC onboarding before doing any compliance work. No invitation is sent while customer communications are switched off.</p>
+          <p className="text-xs text-muted-foreground sm:col-span-2">They must complete Home Insulation Victoria onboarding before doing any compliance work. No invitation is sent while customer communications are switched off.</p>
         </div>
       )}
-      {mode === "hivic_organise" && <p className="text-sm text-muted-foreground">HI VIC will match an approved electrician for this area.</p>}
+      {mode === "hivic_organise" && <p className="text-sm text-muted-foreground">Home Insulation Victoria will match an approved electrician for this area.</p>}
       <Button className="mt-3 w-full" size="field" disabled={(mode === "preferred" || mode === "approved_other") ? !pick?.user : mode === "nominated" ? nom.contact_name.trim().length < 2 : false} onClick={submit}>Confirm</Button>
       {data.nominations.length > 0 && <div className="mt-3 text-sm">{data.nominations.map((n) => <div key={n.id}>Nominated: {n.contact_name}{n.business_name ? ` (${n.business_name})` : ""} – <span className="text-muted-foreground">{n.status.replace(/_/g, " ")}</span></div>)}</div>}
     </Section>
@@ -107,11 +107,11 @@ export function AppointmentPanel({ jobId, kind = "assessment" }: { jobId: string
   const statusLine = booked ? null : isOwner && sla?.state === "attention" ? sla.message : sla && sla.state !== "ok" ? sla.message : null;
   return (
     <Section title="Arrange the visit" action={<SlaPill sla={booked ? { state: "booked", message: "Confirmed" } : sla} />}>
-      {!data.electrician && kind === "assessment" ? <p className="text-sm text-muted-foreground">Waiting for electrician – HI VIC is arranging one.</p> : <>
+      {!data.electrician && kind === "assessment" ? <p className="text-sm text-muted-foreground">Waiting for electrician – Home Insulation Victoria is arranging one.</p> : <>
         {data.electrician && <p className="mb-2 text-sm">Electrician: <span className="font-medium">{data.electrician.name}</span></p>}
         {booked && <p className="mb-2 rounded-lg bg-success-soft p-3 text-sm font-medium text-success">Confirmed: {when(booked.scheduled_start)}</p>}
         {statusLine && <p className={`mb-2 rounded-lg p-3 text-sm font-medium ${sla?.state === "exception" ? "bg-danger-soft text-danger" : "bg-warning-soft text-warning"}`}>{statusLine}</p>}
-        {data.openRequests.length > 0 && <p className="mb-2 rounded-lg bg-muted p-3 text-sm">HI VIC is reviewing a request to change electrician. {data.role === "admin" ? `Reason: ${data.openRequests.map((r) => r.reason).join("; ")}` : "Your electrician stays booked in until HI VIC decides."}</p>}
+        {data.openRequests.length > 0 && <p className="mb-2 rounded-lg bg-muted p-3 text-sm">Home Insulation Victoria is reviewing a request to change electrician. {data.role === "admin" ? `Reason: ${data.openRequests.map((r) => r.reason).join("; ")}` : "Your electrician stays booked in until Home Insulation Victoria decides."}</p>}
         {open.map((p) => (
           <div key={p.id} className="mb-2 rounded-lg border p-3">
             <div className="font-medium">{when(p.starts_at)}</div>
@@ -131,8 +131,8 @@ export function AppointmentPanel({ jobId, kind = "assessment" }: { jobId: string
         {hist.length > 0 && <details className="mt-2 text-sm" open={data.role === "admin"}><summary className="cursor-pointer text-muted-foreground">{data.role === "admin" ? "Coordination history" : "Earlier times"}</summary>{hist.map((p) => <div key={p.id}>{when(p.starts_at)} – {p.status} ({p.proposer_role}){p.response_note ? ` – ${p.response_note}` : ""}</div>)}</details>}
         {data.role === "electrician" && kind === "assessment" && !booked && (
           <div className="mt-3 border-t pt-3">
-            <Textarea placeholder="Can't attend in time? Tell HI VIC why" value={reason} onChange={(e) => setReason(e.target.value)} />
-            <Button className="mt-2 w-full" variant="outline" size="field" disabled={reason.trim().length < 3} onClick={async () => { await cannot({ jobId, reason }, "HI VIC notified"); setReason(""); refetch(); }}>I can't attend in time</Button>
+            <Textarea placeholder="Can't attend in time? Tell Home Insulation Victoria why" value={reason} onChange={(e) => setReason(e.target.value)} />
+            <Button className="mt-2 w-full" variant="outline" size="field" disabled={reason.trim().length < 3} onClick={async () => { await cannot({ jobId, reason }, "Home Insulation Victoria notified"); setReason(""); refetch(); }}>I can't attend in time</Button>
           </div>
         )}
         {releaseAllowed && (
@@ -144,9 +144,9 @@ export function AppointmentPanel({ jobId, kind = "assessment" }: { jobId: string
         {isOwner && kind === "assessment" && data.electrician && !releaseAllowed && !booked && data.openRequests.length === 0 && (
           <div className="mt-3 border-t pt-3">
             {!showCantAgree ? <Button variant="ghost" className="w-full" onClick={() => setShowCantAgree(true)}>We can't agree on a suitable time</Button> : <>
-              <Textarea placeholder="Tell HI VIC what's happening" value={reason} onChange={(e) => setReason(e.target.value)} />
-              <Button className="mt-2 w-full" variant="outline" size="field" disabled={reason.trim().length < 5} onClick={async () => { await review({ jobId, role: "electrician", reason, cantAgreeTime: true }, "Sent to HI VIC for review"); setReason(""); setShowCantAgree(false); refetch(); }}>Ask HI VIC to review</Button>
-              <p className="mt-1 text-xs text-muted-foreground">Your electrician stays assigned while HI VIC reviews this.</p>
+              <Textarea placeholder="Tell Home Insulation Victoria what's happening" value={reason} onChange={(e) => setReason(e.target.value)} />
+              <Button className="mt-2 w-full" variant="outline" size="field" disabled={reason.trim().length < 5} onClick={async () => { await review({ jobId, role: "electrician", reason, cantAgreeTime: true }, "Sent to Home Insulation Victoria for review"); setReason(""); setShowCantAgree(false); refetch(); }}>Ask Home Insulation Victoria to review</Button>
+              <p className="mt-1 text-xs text-muted-foreground">Your electrician stays assigned while Home Insulation Victoria reviews this.</p>
             </>}
           </div>
         )}
@@ -173,7 +173,7 @@ export function AdminBookingOverride({ jobId }: { jobId: string }) {
   );
 }
 
-/** Admin: offer a HI VIC job to an approved partner installer; set relationship owner. */
+/** Admin: offer a Home Insulation Victoria job to an approved partner installer; set relationship owner. */
 export function AdminPartnerPanel({ jobId }: { jobId: string }) {
   const offer = useAction(offerToPartner);
   const withdraw = useAction(withdrawOffer);
@@ -197,14 +197,14 @@ export function AdminPartnerPanel({ jobId }: { jobId: string }) {
   return (
     <Section title="Partner & relationship">
       <dl className="grid grid-cols-2 gap-1 text-sm">
-        <dt className="text-muted-foreground">Acquisition channel</dt><dd>{data.j.channel === "installer_sourced" ? "Installer-sourced" : "HI VIC-sourced"}</dd>
-        <dt className="text-muted-foreground">Customer relationship</dt><dd>{data.j.customer_relationship_owner === "installer" ? "Installer partner" : "HI VIC"}</dd>
+        <dt className="text-muted-foreground">Acquisition channel</dt><dd>{data.j.channel === "installer_sourced" ? "Installer-sourced" : "Home Insulation Victoria-sourced"}</dd>
+        <dt className="text-muted-foreground">Customer relationship</dt><dd>{data.j.customer_relationship_owner === "installer" ? "Installer partner" : "Home Insulation Victoria"}</dd>
         {data.j.source_system && <><dt className="text-muted-foreground">Imported from</dt><dd>{data.j.source_system}</dd></>}
         {data.j.electrician_choice && <><dt className="text-muted-foreground">Electrician route</dt><dd>{data.j.electrician_choice.replace(/_/g, " ")}</dd></>}
       </dl>
       <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
         <Input placeholder="Reason to change relationship owner" value={reason} onChange={(e) => setReason(e.target.value)} />
-        <Button variant="outline" disabled={reason.trim().length < 5} onClick={async () => { await setOwner({ jobId, owner: data.j!.customer_relationship_owner === "installer" ? "hivic" : "installer", reason }, "Relationship owner changed"); setReason(""); refetch(); }}>Switch to {data.j.customer_relationship_owner === "installer" ? "HI VIC" : "installer"}</Button>
+        <Button variant="outline" disabled={reason.trim().length < 5} onClick={async () => { await setOwner({ jobId, owner: data.j!.customer_relationship_owner === "installer" ? "hivic" : "installer", reason }, "Relationship owner changed"); setReason(""); refetch(); }}>Switch to {data.j.customer_relationship_owner === "installer" ? "Home Insulation Victoria" : "installer"}</Button>
       </div>
       {data.j.channel === "hivic_sourced" && (
         <div className="mt-3 border-t pt-3">
@@ -238,7 +238,7 @@ export function PartnerProposalForm({ jobId }: { jobId: string }) {
   const set = (i: number, p: Partial<PartnerLine>) => setLines(lines.map((l, j) => (j === i ? { ...l, ...p } : l)));
   return (
     <Section title="Your proposed scope & price">
-      <p className="mb-2 text-xs text-muted-foreground">Your supplier price (ex GST). HI VIC prepares the customer quote; the customer never sees these figures.</p>
+      <p className="mb-2 text-xs text-muted-foreground">Your supplier price (ex GST). Home Insulation Victoria prepares the customer quote; the customer never sees these figures.</p>
       {prev && <p className="mb-2 text-sm">Current: v{prev.version} · ${Number(prev.supplier_total_ex_gst).toFixed(2)} ex GST</p>}
       {lines.map((l, i) => (
         <div key={i} className="mb-2 grid gap-2 rounded-lg border p-2 sm:grid-cols-6">
@@ -252,7 +252,7 @@ export function PartnerProposalForm({ jobId }: { jobId: string }) {
       ))}
       <div className="flex items-center justify-between"><Button variant="outline" size="sm" onClick={() => setLines([...lines, blank])}>Add line</Button><span className="text-sm font-medium">Total ${supplierTotal(lines).toFixed(2)} ex GST</span></div>
       {prev && <Input className="mt-2" placeholder="Reason for the change (required)" value={reason} onChange={(e) => setReason(e.target.value)} />}
-      <Button className="mt-2 w-full" size="field" onClick={async () => { const r = await submit({ jobId, lines: lines.map((l) => ({ ...l, code: l.code ?? null, justification: l.justification || null })), notes: null, reason: reason || null }, "Proposal sent to HI VIC"); if (r) { setReason(""); refetch(); } }}>Send to HI VIC</Button>
+      <Button className="mt-2 w-full" size="field" onClick={async () => { const r = await submit({ jobId, lines: lines.map((l) => ({ ...l, code: l.code ?? null, justification: l.justification || null })), notes: null, reason: reason || null }, "Proposal sent to Home Insulation Victoria"); if (r) { setReason(""); refetch(); } }}>Send to Home Insulation Victoria</Button>
     </Section>
   );
 }

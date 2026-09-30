@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 export const Route = createFileRoute("/_authenticated/partner/import")({
-  head: () => ({ meta: [{ title: "Import Existing Job – HI VIC Partner Portal" }, { name: "description", content: "Bring an existing customer job into HI VIC without retyping it." }, { property: "og:title", content: "Import Existing Job – HI VIC Partner Portal" }, { property: "og:description", content: "Bring an existing customer job into HI VIC without retyping it." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({ meta: [{ title: "Import Existing Job – Home Insulation Victoria Partner Portal" }, { name: "description", content: "Bring an existing customer job into Home Insulation Victoria without retyping it." }, { property: "og:title", content: "Import Existing Job – Home Insulation Victoria Partner Portal" }, { property: "og:description", content: "Bring an existing customer job into Home Insulation Victoria without retyping it." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: ImportPage,
 });
 
@@ -114,8 +114,8 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
       <Section title="Check or fill in"><div className="grid gap-2 sm:grid-cols-2">{check.map(row)}</div></Section>
       <details className="rounded-xl border bg-card p-4"><summary className="cursor-pointer text-sm font-medium">Other optional details</summary><div className="mt-3 grid gap-2 sm:grid-cols-2">{rest.map(row)}</div></details>
       {draft.extracted.quote_lines?.length ? <Section title="Existing quote lines (kept as source context)">{draft.extracted.quote_lines.map((l, i) => <div key={i} className="text-sm">{l.description} – ${l.amount}</div>)}</Section> : null}
-      <p className="text-xs text-muted-foreground">A measured area you enter becomes your measure-up for HI VIC to review. If it's accepted, the electrician only does the electrical check.</p>
-      <Button size="field" className="w-full" onClick={async () => { const r = await confirm({ importId: draft.id, facts: out() }, "HI VIC job created"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Confirm & create HI VIC job</Button>
+      <p className="text-xs text-muted-foreground">A measured area you enter becomes your measure-up for Home Insulation Victoria to review. If it's accepted, the electrician only does the electrical check.</p>
+      <Button size="field" className="w-full" onClick={async () => { const r = await confirm({ importId: draft.id, facts: out() }, "Home Insulation Victoria job created"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Confirm & create Home Insulation Victoria job</Button>
       <div className="grid grid-cols-2 gap-2"><Button variant="outline" onClick={onBack}>Back</Button><Button variant="ghost" onClick={async () => { await discard({ importId: draft.id }, "Draft discarded"); onBack(); }}>Discard draft</Button></div>
     </div>
   );

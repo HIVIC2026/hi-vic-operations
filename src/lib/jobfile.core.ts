@@ -194,7 +194,7 @@ export function tagEvent(type: string): Exclude<TimelineFilter, "all" | "interna
 
 const KIND_LABEL: Record<string, string> = { assessment: "PIESA", rectification: "rectification", installation: "installation", ready_check: "Ready Check" };
 const when = (iso: unknown) => (iso ? new Date(String(iso)).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Australia/Melbourne" }) : "");
-const partyName = (r: unknown) => (r === "owner" ? "Owner" : r === "electrician" ? "Electrician" : r === "installer" ? "Installer" : r === "admin" ? "HI VIC" : "Trade");
+const partyName = (r: unknown) => (r === "owner" ? "Owner" : r === "electrician" ? "Electrician" : r === "installer" ? "Installer" : r === "admin" ? "Home Insulation Victoria" : "Trade");
 
 export function buildTimeline(p: { events: Row[]; correspondence: Correspondence[]; bookings: Row[]; evidence: DocItem[]; proposals?: Row[] }): TimelineItem[] {
   const out: TimelineItem[] = [];

@@ -21,13 +21,13 @@ export type FormField = { key: string; label: string; type: "text" | "number" | 
 
 /** Plain-English "not ready" messages shown to admin (customers and trades never see a broken form). */
 export const NOT_READY: Record<TemplateKey, string> = {
-  customer_agreement: "Customer agreement is not ready: approve the current HI VIC commercial agreement wording.",
+  customer_agreement: "Customer agreement is not ready: approve the current Home Insulation Victoria commercial agreement wording.",
   consumer_rights: "Customer agreement is not ready: add the current VEU consumer information and consumer rights.",
   esc_consent: "ESC owner consent is not ready: add the current ESC information-sharing consent form.",
   installer_declaration: "Installer declaration is not ready: add the current Activity 48 installer declaration.",
   consumer_declaration: "VEEC assignment is not ready: add the current official Activity 48 VEEC assignment form.",
   ap_declaration: "AP sign-off is not ready: approve the current Accredited Person declaration.",
-  partner_agreement: "Partner onboarding is not ready: approve the current HI VIC partner participation agreement.",
+  partner_agreement: "Partner onboarding is not ready: approve the current Home Insulation Victoria partner participation agreement.",
 };
 
 export const ASSIGNMENT_LABEL: Record<AssignmentStatus, string> = {
@@ -50,7 +50,7 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   installer_declaration: "Installer declaration (post-install)",
   consumer_declaration: "Activity 48 VEEC assignment – official form (post-install)",
   ap_declaration: "Accredited Person declaration (if required)",
-  partner_agreement: "HI VIC partner participation agreement (installer / electrician onboarding)",
+  partner_agreement: "Home Insulation Victoria partner participation agreement (installer / electrician onboarding)",
 };
 
 export const ASSIGNMENT_EVENTS = {
@@ -281,7 +281,7 @@ export function setupStatus(templates: Template[], escConfigReady: boolean): Set
   };
   const apActive = templates.find((t) => t.template_key === "ap_declaration" && t.is_active);
   return [
-    card("agreement", "Customer agreement / consumer rights (pre-install)", "agreement", activeTemplate(templates, "customer_agreement") ? "Customers can accept quotes electronically (commercial agreement only)." : "Customers can accept quotes electronically. Optional HI VIC commercial agreement wording not configured."),
+    card("agreement", "Customer agreement / consumer rights (pre-install)", "agreement", activeTemplate(templates, "customer_agreement") ? "Customers can accept quotes electronically (commercial agreement only)." : "Customers can accept quotes electronically. Optional Home Insulation Victoria commercial agreement wording not configured."),
     card("esc_consent", "ESC owner consent (after booking)", "consent", "Owner consent is generated once an exact installation date is booked."),
     card("installer", "Installer declaration (post-install)", "installer", "Installers can sign their declaration electronically after installation."),
     card("final_assignment", "Final Activity 48 VEEC assignment (post-install)", "final", "Final assignment can be prepared in AP review and signed installer → AP → customer."),

@@ -17,15 +17,15 @@ export function nextStep(j: NextStepInput): NextStep {
   const stage = (j.stage ?? "new_enquiry") as Stage;
   if (stage === "complete") return { label: STAGE_LABEL.complete, next: "No action", waitingOn: null, tone: "good" };
   if (stage === "cancelled") return { label: STAGE_LABEL.cancelled, next: "No action", waitingOn: null, tone: "bad" };
-  if (stage === "on_hold") return { label: STAGE_LABEL.on_hold, next: j.hold_reason ? `Resolve hold: ${j.hold_reason}` : "Resolve hold", waitingOn: "HI VIC", tone: "bad" };
+  if (stage === "on_hold") return { label: STAGE_LABEL.on_hold, next: j.hold_reason ? `Resolve hold: ${j.hold_reason}` : "Resolve hold", waitingOn: "Home Insulation Victoria", tone: "bad" };
   if (j.eligibility_review_required) {
     const reason = j.next_action?.startsWith("Review required") ? j.next_action : "Review required: resolve the flagged Gate 1 checks";
-    return { label: "Review required", next: reason, waitingOn: "HI VIC", tone: "warn" };
+    return { label: "Review required", next: reason, waitingOn: "Home Insulation Victoria", tone: "warn" };
   }
-  if (j.eligibility_outcome === "does_not_appear_eligible") return { label: "Ineligible", next: "Send ineligible result, then retain on hold", waitingOn: "HI VIC", tone: "bad" };
+  if (j.eligibility_outcome === "does_not_appear_eligible") return { label: "Ineligible", next: "Send ineligible result, then retain on hold", waitingOn: "Home Insulation Victoria", tone: "bad" };
   const eligible = ["likely_eligible", "needs_onsite_confirmation"].includes(j.eligibility_outcome ?? "");
-  if (eligible && EARLY.includes(stage)) return { label: "Ready Check needed", next: "Arrange the free installer Ready Check (or approve the installer's measure-up)", waitingOn: "HI VIC", tone: "brand" };
-  if (EARLY.includes(stage)) return { label: STAGE_LABEL[stage], next: DEFAULT_NEXT_ACTION[stage], waitingOn: "HI VIC", tone: "brand" };
+  if (eligible && EARLY.includes(stage)) return { label: "Ready Check needed", next: "Arrange the free installer Ready Check (or approve the installer's measure-up)", waitingOn: "Home Insulation Victoria", tone: "brand" };
+  if (EARLY.includes(stage)) return { label: STAGE_LABEL[stage], next: DEFAULT_NEXT_ACTION[stage], waitingOn: "Home Insulation Victoria", tone: "brand" };
   return { label: STAGE_LABEL[stage] ?? stage, next: DEFAULT_NEXT_ACTION[stage] ?? "Review this job", waitingOn: waitingOn(stage, null), tone: stage === "awaiting_deposit_payment" ? "warn" : "brand" };
 }
 

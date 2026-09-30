@@ -65,7 +65,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
   const brand = (
     <Link to="/home" className="flex min-w-0 items-center gap-2 font-bold">
       <span className="grid h-9 shrink-0 place-items-center rounded-md bg-card px-1.5 shadow-sm ring-1 ring-sidebar-border"><img src={logo.url} alt="Home Insulation Victoria" className="h-7" /></span>
-      <span className="min-w-0"><span className="block truncate font-display text-sm">HI VIC Operations</span><span className="block text-[10px] font-medium text-sidebar-foreground/50">Activity 48 portal</span></span>
+      <span className="min-w-0"><span className="block truncate font-display text-sm">Home Insulation Victoria Operations</span><span className="block text-[10px] font-medium text-sidebar-foreground/50">Activity 48 portal</span></span>
     </Link>
   );
   return (

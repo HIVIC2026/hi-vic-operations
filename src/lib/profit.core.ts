@@ -1,4 +1,4 @@
-// Pure HI VIC profit + VEEC spot-price rules. Admin-only; never shown to owners or trades.
+// Pure Home Insulation Victoria profit + VEEC spot-price rules. Admin-only; never shown to owners or trades.
 export const OWNER_VEEC_RATE = 70; // $ per VEEC passed to the owner as the VEU discount
 
 export type SpotPoint = { price: number; priced_on: string };
@@ -22,21 +22,21 @@ export function jobProfit(i: ProfitInput, spot: number | null) {
   const customerExGst = i.customerTotalIncGst / 1.1;
   const veecs = i.veecDiscountIncGst / OWNER_VEEC_RATE;
   const veecRevenue = spot != null ? veecs * spot : null;
-  // HI VIC keeps spot − $70 per VEEC; the owner's $70 is already given as their discount.
+  // Home Insulation Victoria keeps spot − $70 per VEEC; the owner's $70 is already given as their discount.
   const veecMargin = spot != null ? veecs * (spot - OWNER_VEEC_RATE) : null;
   const profit = veecMargin != null ? customerExGst + veecMargin - i.tradeCostExGst : null;
   return { customerExGst, veecs, veecRevenue, veecMargin, profit };
 }
 
 // Installer referral: the installer is paid a referral fee (inc GST) only when an
-// installer-sourced job proceeds with an accepted quote. It is a cost to HI VIC.
+// installer-sourced job proceeds with an accepted quote. It is a cost to Home Insulation Victoria.
 export const INSTALLER_REFERRAL_FEE_INC_GST = 220;
 
 export type MarginInput = {
-  installerCostExGst: number; // what HI VIC pays the installer (rate card)
-  installerMarginExGst: number; // HI VIC markup on the installer work (ap_margin_pct)
+  installerCostExGst: number; // what Home Insulation Victoria pays the installer (rate card)
+  installerMarginExGst: number; // Home Insulation Victoria markup on the installer work (ap_margin_pct)
   apFeeExGst: number; // PIESA / Accredited Person fee charged to the owner ($349 inc GST → 317.27 ex)
-  electricalCostExGst: number; // what HI VIC pays the electrician/REC for rectification (pass-through)
+  electricalCostExGst: number; // what Home Insulation Victoria pays the electrician/REC for rectification (pass-through)
   electricalChargeExGst: number; // what the customer is charged for electrical work (pass-through → markup 0)
   installerSourced: boolean; // $220 referral fee applies when the job proceeds
   installerLed?: boolean; // installer brought their own customer: never a referral fee

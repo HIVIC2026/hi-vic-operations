@@ -105,7 +105,7 @@ export const DEFAULT_NEXT_ACTION: Record<Stage, string> = {
   installation_scheduling: "Owner & installer to book installation",
   installation_booked: "Installer to complete installation",
   evidence_outstanding: "Installer to upload required evidence",
-  ap_review: "HI VIC compliance review",
+  ap_review: "Home Insulation Victoria compliance review",
   ready_for_veec: "Lodge VEEC",
   complete: "No action",
   cancelled: "No action",
@@ -175,18 +175,18 @@ export function phaseForStage(stage: Stage | null | undefined): Phase {
   return PIPELINE_PHASES.find((p) => p.stages.includes(stage))?.key ?? "exceptions";
 }
 
-export type WaitingOn = "HI VIC" | "Owner" | "Electrician" | "Installer" | "Payment / Xero" | "AP" | null;
+export type WaitingOn = "Home Insulation Victoria" | "Owner" | "Electrician" | "Installer" | "Payment / Xero" | "AP" | null;
 const WAITING: Partial<Record<Stage, WaitingOn>> = {
-  new_enquiry: "HI VIC", eligibility_review: "HI VIC", awaiting_electrician: "HI VIC",
+  new_enquiry: "Home Insulation Victoria", eligibility_review: "Home Insulation Victoria", awaiting_electrician: "Home Insulation Victoria",
   preliminary_estimate_ready: "Owner", ready_check_awaiting_acceptance: "Owner", ready_check_awaiting_payment: "Owner",
-  ready_check_ready_to_schedule: "HI VIC", ready_check_scheduled: "Installer", ready_check_complete: "HI VIC",
-  measured_estimate_ready: "Owner", measured_quote_accepted: "HI VIC", piesa_and_install_window_pending: "HI VIC",
-  piesa_scheduled: "Electrician", piesa_complete: "HI VIC", electrical_variation_pending: "Owner",
-  assessment_booking: "Electrician", assessment_booked: "Electrician", assessment_complete: "HI VIC",
-  rectification_required: "HI VIC", awaiting_owner_rectification_approval: "Owner", ready_for_installer_quotes: "HI VIC",
+  ready_check_ready_to_schedule: "Home Insulation Victoria", ready_check_scheduled: "Installer", ready_check_complete: "Home Insulation Victoria",
+  measured_estimate_ready: "Owner", measured_quote_accepted: "Home Insulation Victoria", piesa_and_install_window_pending: "Home Insulation Victoria",
+  piesa_scheduled: "Electrician", piesa_complete: "Home Insulation Victoria", electrical_variation_pending: "Owner",
+  assessment_booking: "Electrician", assessment_booked: "Electrician", assessment_complete: "Home Insulation Victoria",
+  rectification_required: "Home Insulation Victoria", awaiting_owner_rectification_approval: "Owner", ready_for_installer_quotes: "Home Insulation Victoria",
   awaiting_quote_acceptance: "Owner", awaiting_deposit_payment: "Payment / Xero", rectification_scheduling: "Electrician",
   rectification_booked: "Electrician", installation_scheduling: "Installer", installation_booked: "Installer",
-  evidence_outstanding: "Installer", ap_review: "AP", ready_for_veec: "AP", on_hold: "HI VIC",
+  evidence_outstanding: "Installer", ap_review: "AP", ready_for_veec: "AP", on_hold: "Home Insulation Victoria",
 };
 /** Who/what the job waits on – derived from stage, refined by next_action text. */
 /** Early-stage jobs that passed or need onsite confirmation go to the free installer Ready Check before any electrician. */
@@ -197,7 +197,7 @@ export function needsReadyCheckFirst(stage: string | null | undefined, outcome: 
 export function waitingOn(stage: Stage | null | undefined, nextAction?: string | null): WaitingOn {
   if (!stage || stage === "complete" || stage === "cancelled") return null;
   const n = (nextAction ?? "").toLowerCase();
-  if (nextAction === READY_CHECK_NEXT) return "HI VIC";
+  if (nextAction === READY_CHECK_NEXT) return "Home Insulation Victoria";
   if (/deposit|xero|payment/.test(n)) return "Payment / Xero";
   if (/\bowner\b|customer/.test(n) && stage !== "new_enquiry") return "Owner";
   if (/measure-up/.test(n) && /installer/.test(n)) return "Installer";

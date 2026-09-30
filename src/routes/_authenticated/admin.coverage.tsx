@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { getAdminCoverage } from "@/lib/coverage.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/coverage")({
-  head: () => ({ meta: [{ title: "Service Coverage – HI VIC Portal" }, { name: "description", content: "REC and installer service coverage for active HI VIC enquiries." }, { property: "og:title", content: "Service Coverage – HI VIC Portal" }, { property: "og:description", content: "REC and installer service coverage for active HI VIC enquiries." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({ meta: [{ title: "Service Coverage – Home Insulation Victoria Portal" }, { name: "description", content: "REC and installer service coverage for active Home Insulation Victoria enquiries." }, { property: "og:title", content: "Service Coverage – Home Insulation Victoria Portal" }, { property: "og:description", content: "REC and installer service coverage for active Home Insulation Victoria enquiries." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: CoveragePage,
 });
 

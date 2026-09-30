@@ -26,7 +26,7 @@ export type TodoInput = {
   now: number;
 };
 
-/** Stages where the next move sits with HI VIC office staff. */
+/** Stages where the next move sits with Home Insulation Victoria office staff. */
 export const OFFICE_STAGE_ACTIONS: Record<string, { category: TodoItem["category"]; title: string; action: string; tab: string }> = {
   eligibility_review: { category: "Eligibility", title: "Decide eligibility", action: "Open the Eligibility tab, check the numbered checklist and record the decision.", tab: "eligibility" },
   awaiting_electrician: { category: "Scheduling", title: "Assign an electrician", action: "Open the Overview tab and assign an approved electrician for the PIESA.", tab: "overview" },

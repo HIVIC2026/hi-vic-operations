@@ -16,15 +16,15 @@ function newToken() {
 }
 async function db() { return (await import("@/integrations/supabase/client.server")).supabaseAdmin; }
 async function installerName(d: Awaited<ReturnType<typeof db>>, appId: string | null) {
-  if (!appId) return "An HI VIC! installer";
+  if (!appId) return "An Home Insulation Victoria installer";
   const { data } = await d.from("rec_onboarding_applications").select("data").eq("id", appId).maybeSingle();
   const x = (data?.data ?? {}) as { trading_name?: string; legal_entity_name?: string };
-  return x.trading_name || x.legal_entity_name || "An HI VIC! installer";
+  return x.trading_name || x.legal_entity_name || "An Home Insulation Victoria installer";
 }
 async function byInvite(t: string) {
   const d = await db();
   const { data: n } = await d.from("electrician_nominations").select("*").eq("invite_token_hash", await sha256(t)).is("job_id", null).maybeSingle();
-  if (!n) throw new Error("This invitation link isn't valid. Ask the installer or HI VIC to send a new one.");
+  if (!n) throw new Error("This invitation link isn't valid. Ask the installer or Home Insulation Victoria to send a new one.");
   return { d, n };
 }
 

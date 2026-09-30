@@ -42,6 +42,6 @@ export function AuthorityBadge({ status }: { status: string | null | undefined }
 
 export function SourceBadge({ channel, business }: { channel: string | null | undefined; business?: string | null }) {
   if (channel === "installer_sourced") return <Pill t="info">Installer-sourced{business ? ` · ${business}` : ""}</Pill>;
-  if (channel === "hivic_sourced") return <Pill t="neutral">HI VIC-sourced</Pill>;
+  if (channel === "hivic_sourced") return <Pill t="neutral">Home Insulation Victoria-sourced</Pill>;
   return null;
 }

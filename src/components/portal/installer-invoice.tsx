@@ -39,7 +39,7 @@ export function InstallerLedInvoicePanel({ jobId }: { jobId: string }) {
   const rows: [string, number | null][] = [
     ["Installer's quote", d.quote ? Number(d.quote.subtotal_inc_gst) : null],
     ["PIESA (electrical safety assessment)", d.piesa],
-    ["HI VIC Accredited Person fee", d.apFee],
+    ["Home Insulation Victoria Accredited Person fee", d.apFee],
     ["Project total", d.price.total],
     ["VEU discount", -d.price.discount],
   ];
@@ -47,7 +47,7 @@ export function InstallerLedInvoicePanel({ jobId }: { jobId: string }) {
     <section className="rounded-xl border bg-card p-4 space-y-4">
       <div>
         <h3 className="font-semibold">Co-branded owner invoice (preview)</h3>
-        <p className="text-xs text-muted-foreground">Installer branding with HI VIC as the Accredited Person. All prices inc GST. No referral fee. Preview only — the Xero invoice is still raised by hand.</p>
+        <p className="text-xs text-muted-foreground">Installer branding with Home Insulation Victoria as the Accredited Person. All prices inc GST. No referral fee. Preview only — the Xero invoice is still raised by hand.</p>
       </div>
       <dl className="divide-y text-sm">
         {rows.map(([l, v]) => (<div key={l} className="flex justify-between py-1.5"><dt>{l}</dt><dd className="tabular-nums">{money(v)}</dd></div>))}

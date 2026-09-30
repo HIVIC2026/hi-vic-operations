@@ -4,18 +4,18 @@ import { REC_AGREEMENT_SECTIONS } from "./rec-agreement.text";
 
 export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-1.6-2026-10-01";
 export const REC_AGREEMENT_TITLE = "Activity 48 Registered Electrical Contractor Partner Agreement";
-export const AP_ENTITY = "DC Construction Solutions Pty Ltd ABN 44 671 613 979 trading as Home Insulation Victoria (HI VIC!)";
+export const AP_ENTITY = "DC Construction Solutions Pty Ltd ABN 44 671 613 979 trading as Home Insulation Victoria (Home Insulation Victoria)";
 export const MIN_PL_COVER = 5_000_000;
 
 export const ACKNOWLEDGEMENTS = [
   { key: "authority", text: "I am authorised to bind the REC to this agreement." },
-  { key: "personnel", text: "The REC will ensure every nominated electrician and worker on HI VIC! jobs complies with the obligations that apply to them." },
-  { key: "compliance", text: "I understand the REC and its personnel must comply with current VEU, Code of Conduct, PIESA, electrical-safety and HI VIC! requirements." },
-  { key: "records", text: "I confirm the REC will provide truthful records and evidence and cooperate with HI VIC!, ESC and ESV compliance checks." },
-  { key: "no_bypass", text: "I understand that rectification, electrical upgrades, attendance and other work identified through or required for a HI VIC! Activity 48 job must be quoted, approved, scheduled and completed through the HI VIC! workflow and must not be taken off-platform or dealt with directly." },
-  { key: "same_day", text: "I understand PIESA results and any rectification quote (or confirmation that none is required) must be submitted through the HI VIC! portal on the day of each assessment." },
-  { key: "pricing", text: "I understand our approved rates are supplier rates, HI VIC! sets the customer price independently and may include its own margin, and HI VIC! does not have to disclose that margin to us. I will not share our rates with customers." },
-  { key: "electronic_signature", text: "I agree to electronic execution and to the signed agreement, exact wording, version and audit record being stored by HI VIC!." },
+  { key: "personnel", text: "The REC will ensure every nominated electrician and worker on Home Insulation Victoria jobs complies with the obligations that apply to them." },
+  { key: "compliance", text: "I understand the REC and its personnel must comply with current VEU, Code of Conduct, PIESA, electrical-safety and Home Insulation Victoria requirements." },
+  { key: "records", text: "I confirm the REC will provide truthful records and evidence and cooperate with Home Insulation Victoria, ESC and ESV compliance checks." },
+  { key: "no_bypass", text: "I understand that rectification, electrical upgrades, attendance and other work identified through or required for a Home Insulation Victoria Activity 48 job must be quoted, approved, scheduled and completed through the Home Insulation Victoria workflow and must not be taken off-platform or dealt with directly." },
+  { key: "same_day", text: "I understand PIESA results and any rectification quote (or confirmation that none is required) must be submitted through the Home Insulation Victoria portal on the day of each assessment." },
+  { key: "pricing", text: "I understand our approved rates are supplier rates, Home Insulation Victoria sets the customer price independently and may include its own margin, and Home Insulation Victoria does not have to disclose that margin to us. I will not share our rates with customers." },
+  { key: "electronic_signature", text: "I agree to electronic execution and to the signed agreement, exact wording, version and audit record being stored by Home Insulation Victoria." },
 ] as const;
 export type AckKey = (typeof ACKNOWLEDGEMENTS)[number]["key"];
 
@@ -54,7 +54,7 @@ export const STEPS = [
   { key: "contact", title: "Contact details" },
   { key: "insurance", title: "Public liability insurance" },
   { key: "electricians", title: "Licensed electricians" },
-  { key: "services", title: "HI VIC! work" },
+  { key: "services", title: "Home Insulation Victoria work" },
   { key: "coverage", title: "Where you work" },
   { key: "availability", title: "When you work" },
   { key: "capacity", title: "Weekly capacity" },
@@ -198,7 +198,7 @@ export function scheduleText(d: RecData): string {
   lines.push(`Electrical rectification: ${d.service_rectification ? "yes" : "no"}`, `Installation-day electrical attendance: ${d.service_installation_isolation ? "yes" : "no"}`);
   lines.push(`Service origin: ${d.service_origin ?? ""}; radius: ${d.travel_radius_km === 9999 ? "anywhere in Victoria" : `${d.travel_radius_km} km`}${d.excluded_areas ? `; excluded: ${d.excluded_areas}` : ""}`);
   lines.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}; weekly assessments: ${d.capacity_band ?? ""}`);
-  lines.push("", `SCHEDULE 3 — PROPOSED SUPPLIER RATES (${gst}; not binding until accepted by HI VIC! under clause 17)`);
+  lines.push("", `SCHEDULE 3 — PROPOSED SUPPLIER RATES (${gst}; not binding until accepted by Home Insulation Victoria under clause 17)`);
   lines.push(`Pre-insulation electrical safety assessment (PIESA): ${money(d.assessment_rate)} / visit`);
   if (d.service_installation_isolation) lines.push(`Installation-day attendance: ${money(d.installation_attendance_rate)} / visit`);
   if (d.service_rectification) {

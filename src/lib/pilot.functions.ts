@@ -46,19 +46,19 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
       if (invalid.length) throw new WorkflowError(`Invalid Victorian postcode coverage: ${invalid.join(", ")}`);
     }
     if (!id) {
-      if (!adminUser) throw new WorkflowError("Only HI VIC can create a partner business.");
+      if (!adminUser) throw new WorkflowError("Only Home Insulation Victoria can create a partner business.");
       const { data: row, error } = await admin.from("businesses").insert({ ...patch, business_type: patch.business_type ?? "eec_installer" } as never).select("id").single();
       if (error) throw new WorkflowError(error.message);
       return { id: row.id };
     }
     if (!adminUser) {
       await requireMember(context.userId, id, true);
-      delete (patch as Record<string, unknown>)["commercial_route"]; // commercial route is HI VIC-controlled
+      delete (patch as Record<string, unknown>)["commercial_route"]; // commercial route is Home Insulation Victoria-controlled
     }
     const { data: before } = await admin.from("businesses").select("*").eq("id", id).single();
     if (!before) throw new WorkflowError("Business not found");
     const criticalChanged = CRITICAL_FIELDS.some((k) => k in patch && JSON.stringify((patch as Record<string, unknown>)[k]) !== JSON.stringify((before as Record<string, unknown>)[k]));
-    const extra = !adminUser && criticalChanged && before.onboarding_status === "approved" ? { onboarding_status: "submitted", onboarding_notes: "Compliance details changed by partner – HI VIC re-approval required" } : {};
+    const extra = !adminUser && criticalChanged && before.onboarding_status === "approved" ? { onboarding_status: "submitted", onboarding_notes: "Compliance details changed by partner – Home Insulation Victoria re-approval required" } : {};
     const coverageChanged = "service_postcodes" in patch && JSON.stringify(patch.service_postcodes ?? []) !== JSON.stringify(before.service_postcodes ?? []);
     const coverageStamp = adminUser && verify_coverage && (patch.service_postcodes?.length ?? before.service_postcodes?.length ?? 0) > 0
       ? { coverage_verified_at: new Date().toISOString(), coverage_verified_by: context.userId }
@@ -131,7 +131,7 @@ export const setBankDetails = createServerFn({ method: "POST" }).middleware([req
     const adminUser = await isAdmin(context.supabase);
     if (!adminUser) await requireMember(context.userId, data.businessId, true);
     const { data: business } = await admin.from("businesses").select("onboarding_status").eq("id", data.businessId).single();
-    if (business?.onboarding_status !== "approved") throw new WorkflowError("Bank details are collected only after HI VIC approves the business.");
+    if (business?.onboarding_status !== "approved") throw new WorkflowError("Bank details are collected only after Home Insulation Victoria approves the business.");
     const now = new Date().toISOString();
     const { data: existing } = await admin.from("business_bank_details").select("business_id").eq("business_id", data.businessId).maybeSingle();
     const { error } = await admin.from("business_bank_details").upsert({ business_id: data.businessId, account_name: data.account_name, bsb: data.bsb, account_number: data.account_number, updated_by: context.userId, updated_at: now, supplied_by: context.userId, supplied_at: now, reviewed_by: null, reviewed_at: null, review_status: "pending" });
@@ -140,7 +140,7 @@ export const setBankDetails = createServerFn({ method: "POST" }).middleware([req
     return { ok: true };
   });
 
-/** Masked for partners; full only to HI VIC admin. */
+/** Masked for partners; full only to Home Insulation Victoria admin. */
 export const getBankDetails = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ businessId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
@@ -162,7 +162,7 @@ export const signPartnerAgreement = createServerFn({ method: "POST" }).middlewar
   .handler(async ({ data, context }) => {
     await requireMember(context.userId, data.businessId, true);
     const { data: t } = await admin.from("compliance_templates").select("version, body").eq("template_key", "partner_agreement").eq("is_active", true).eq("approved", true).maybeSingle();
-    if (!t) throw new WorkflowError("HI VIC has not approved the partner participation agreement yet.");
+    if (!t) throw new WorkflowError("Home Insulation Victoria has not approved the partner participation agreement yet.");
     const { data: b } = await admin.from("businesses").select("name, legal_name, abn").eq("id", data.businessId).single();
     const signedAt = new Date().toISOString();
     const snapshot = { business: b, template_version: t.version, body: t.body, signer_id: context.userId, signer_name: data.signerName, signed_at: signedAt };
@@ -195,10 +195,10 @@ export const addTeamMember = createServerFn({ method: "POST" }).middleware([requ
     const { data: worker } = data.tradeRole === "none"
       ? { data: null }
       : await admin.from("partner_workers").select("id, full_legal_name, licence_number, trade_role, account_status").eq("business_id", data.businessId).ilike("email", normalizedEmail).eq("trade_role", data.tradeRole).maybeSingle();
-    if (data.tradeRole !== "none" && !worker) throw new WorkflowError("That worker is not listed in this business's approved onboarding. HI VIC must review additions first.");
+    if (data.tradeRole !== "none" && !worker) throw new WorkflowError("That worker is not listed in this business's approved onboarding. Home Insulation Victoria must review additions first.");
     await admin.from("business_members").upsert({ business_id: data.businessId, user_id: p.id, member_role: data.memberRole, active: true, added_by: context.userId }, { onConflict: "business_id,user_id" });
     if (!p.business_id) await admin.from("profiles").update({ business_id: data.businessId, ...(worker?.full_legal_name ? { full_name: worker.full_legal_name } : {}), ...(worker?.licence_number ? { licence_number: worker.licence_number } : {}) }).eq("id", p.id);
-    // Trade roles give job access only through assignments. Partners may grant their own staff a trade role; HI VIC approval still gates the business.
+    // Trade roles give job access only through assignments. Partners may grant their own staff a trade role; Home Insulation Victoria approval still gates the business.
     if (data.tradeRole !== "none") await admin.from("user_roles").upsert({ user_id: p.id, role: data.tradeRole }, { onConflict: "user_id,role" });
     if (worker) await admin.from("partner_workers").update({ profile_id: p.id, account_status: "linked", linked_by: context.userId, linked_at: new Date().toISOString() }).eq("id", worker.id);
     return { ok: true };
@@ -323,7 +323,7 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
     }
     await admin.from("job_imports").update({ status: "confirmed", confirmed_facts: c as Json, confirmed_by: context.userId, confirmed_at: new Date().toISOString(), job_id: res.job_id, updated_at: new Date().toISOString() }).eq("id", imp.id);
     await logEvent(res.job_id, context.userId, "job_imported", `Imported from ${imp.source_system} by originating installer (confirmed by user)`, { import_id: imp.id, source_system: imp.source_system, external_refs: refs, relationship_owner: rel, measurement_imported: !!m, files: imp.files });
-    if (pilotInvoice) await logEvent(res.job_id, context.userId, "commercial_model_set", "Pilot commercial route: full job invoiced by HI VIC (split invoicing disabled)", { route: "hivic_full_invoice" });
+    if (pilotInvoice) await logEvent(res.job_id, context.userId, "commercial_model_set", "Pilot commercial route: full job invoiced by Home Insulation Victoria (split invoicing disabled)", { route: "hivic_full_invoice" });
     return { jobId: res.job_id, jobNumber: res.job_number };
   });
 
@@ -352,13 +352,13 @@ export const chooseElectrician = createServerFn({ method: "POST" }).middleware([
     const blocker = electricianSelectionBlocker(data.choice, cand);
     if (blocker) throw new WorkflowError(blocker);
     await admin.from("jobs").update({ electrician_choice: data.choice }).eq("id", data.jobId);
-    if (data.choice === "hivic_organise") { await logEvent(data.jobId, context.userId, "electrician_choice", "HI VIC asked to organise an electrician"); return { ok: true, assigned: false }; }
+    if (data.choice === "hivic_organise") { await logEvent(data.jobId, context.userId, "electrician_choice", "Home Insulation Victoria asked to organise an electrician"); return { ok: true, assigned: false }; }
     if (data.choice === "nominated") {
       if (!data.nomination) throw new WorkflowError("Enter the electrician's details.");
       const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", data.jobId).eq("role", "installer").eq("active", true).maybeSingle();
       // Internal record only: no invitation is sent while customer communications are locked.
       await admin.from("electrician_nominations").insert({ contact_name: data.nomination.contact_name, business_name: data.nomination.business_name ?? null, email: data.nomination.email ?? null, phone: data.nomination.phone ?? null, licence_number: data.nomination.licence_number ?? null, rec_number: data.nomination.rec_number ?? null, nominated_for: data.nomination.nominated_for, job_id: data.jobId, nominated_by: context.userId, nominating_business_id: inst?.business_id ?? null, status: "invite_pending_comms" });
-      await logEvent(data.jobId, context.userId, "electrician_nominated", `Electrician nominated: ${data.nomination.contact_name} – waiting for HI VIC onboarding (not yet approved)`);
+      await logEvent(data.jobId, context.userId, "electrician_nominated", `Electrician nominated: ${data.nomination.contact_name} – waiting for Home Insulation Victoria onboarding (not yet approved)`);
       await admin.from("jobs").update({ next_action: "Waiting for nominated electrician onboarding" }).eq("id", data.jobId);
       return { ok: true, assigned: false };
     }
@@ -478,7 +478,7 @@ export const coordinationState = createServerFn({ method: "POST" }).middleware([
     return { role, electrician: a ? { name: (a.profiles as { full_name: string | null } | null)?.full_name ?? "Electrician", sla: appointmentSla(a) } : null, proposals: props ?? [], confirmed: bk ?? [], openRequests: rr ?? [] };
   });
 
-// ---------- Offers of HI VIC jobs to partners ----------
+// ---------- Offers of Home Insulation Victoria jobs to partners ----------
 export const offerToPartner = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, businessId: uuid, expiresInDays: z.number().int().min(1).max(30).default(3) }).parse(d))
   .handler(async ({ data, context }) => {
@@ -495,10 +495,10 @@ export const offerToPartner = createServerFn({ method: "POST" }).middleware([req
     if (b) throw new WorkflowError(b);
     const p = j.properties as { suburb: string | null; postcode: string | null } | null;
     if (!verifiedServiceAreaMatch(biz, p?.postcode ?? null)) throw new WorkflowError(`${biz.name} does not have office-verified coverage for postcode ${p?.postcode ?? "unknown"}. Confirm the partner's service postcodes before offering this job.`);
-    if (biz.free_measureups_for_hivic_quote_leads !== true) throw new WorkflowError(`${biz.name} has not agreed to free HI VIC quote-lead measure-ups.`);
+    if (biz.free_measureups_for_hivic_quote_leads !== true) throw new WorkflowError(`${biz.name} has not agreed to free Home Insulation Victoria quote-lead measure-ups.`);
     const summary = offerSummary({ job_number: j.job_number, stage: j.stage, suburb: p?.suburb ?? null, postcode: p?.postcode ?? null, estimated_area_m2: j.estimated_area_m2, measured_area_m2: m?.status === "complete" ? m.measured_area_m2 : null, eligibility_outcome: j.eligibility_outcome });
     await admin.from("partner_offers").insert({ job_id: data.jobId, business_id: data.businessId, summary: summary as unknown as Json, offered_by: context.userId, expires_at: new Date(Date.now() + data.expiresInDays * 86_400_000).toISOString() });
-    await logEvent(data.jobId, context.userId, "partner_offer_made", `Job offered to ${biz.name} (acquisition channel stays HI VIC-sourced)`);
+    await logEvent(data.jobId, context.userId, "partner_offer_made", `Job offered to ${biz.name} (acquisition channel stays Home Insulation Victoria-sourced)`);
     return { ok: true };
   });
 
@@ -530,8 +530,8 @@ export const respondToOffer = createServerFn({ method: "POST" }).middleware([req
     if (!isInstaller) throw new WorkflowError("Only an installer team member can accept a job.");
     await admin.from("partner_offers").update({ status: "accepted", responded_by: context.userId, responded_at: now }).eq("id", o.id);
     await admin.from("job_assignments").insert({ job_id: o.job_id, user_id: context.userId, role: "installer", business_id: o.business_id, assigned_by: context.userId, first_response_at: now });
-    // Channel and relationship owner are NOT changed: HI VIC acquired this customer.
-    await logEvent(o.job_id, context.userId, "partner_offer_accepted", "Partner accepted the job – installer assigned (still HI VIC-sourced, HI VIC relationship owner)");
+    // Channel and relationship owner are NOT changed: Home Insulation Victoria acquired this customer.
+    await logEvent(o.job_id, context.userId, "partner_offer_accepted", "Partner accepted the job – installer assigned (still Home Insulation Victoria-sourced, Home Insulation Victoria relationship owner)");
     return { ok: true };
   });
 
@@ -618,7 +618,7 @@ export const listDraftImports = createServerFn({ method: "GET" }).middleware([re
   });
 
 // ---------- Measurement standard + partner measurement methods ----------
-/** Partner documents its measurement process (draft). Only HI VIC admin can approve it. */
+/** Partner documents its measurement process (draft). Only Home Insulation Victoria admin can approve it. */
 export const savePartnerMethod = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     businessId: uuid, version: z.string().trim().min(1).max(40), method: z.enum(["laser", "tape", "floorplan", "other"]),

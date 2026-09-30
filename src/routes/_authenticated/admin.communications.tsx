@@ -21,7 +21,7 @@ const CATALOG = [
   ["estimate_engaged_no_booking_3d", "Ready Check reminder", "Manual-first follow-up when the estimate was viewed but no Ready Check was requested.", "1 · Enquiry", "None", false],
   ["estimate_second_reminder_7d", "Final estimate reminder", "Manual-first final reminder after seven days.", "1 · Enquiry", "None", false],
   ["area_unavailable", "No partner in service area", "Used only after both REC and installer coverage are conclusively checked.", "1 · Enquiry", "None", false],
-  ["measured_quote", "Measured quote (after Ready Check)", "Sends the measured quote for one electronic acceptance.", "2 · Quote", "Customer Acceptance · VEU Consumer Factsheet · Consumer rights & HI VIC terms · Code of Conduct / dispute information", true],
+  ["measured_quote", "Measured quote (after Ready Check)", "Sends the measured quote for one electronic acceptance.", "2 · Quote", "Customer Acceptance · VEU Consumer Factsheet · Consumer rights & Home Insulation Victoria terms · Code of Conduct / dispute information", true],
   ["booking_consent", "Booking confirmation + ESC consent", "Confirms the install date and requests electronic Reg 23A consent.", "3 · Booked", "ESC Owner Consent (Reg 23A) – signed ≥24h before work", false],
   ["pre_install_pack", "Pre-installation pack", "Delivers PIESA copy and consumer documents before work.", "4 · Before install", "PIESA copy (≥24h before) · Certificate of Electrical Safety if rectified · Life-support plan if applicable", false],
   ["assignment_signing", "Final VEEC assignment signing", "Electronic signature after installer and AP have signed verified final facts.", "5 · After install", "Final Activity 48 VEEC Assignment (installer → AP → homeowner)", false],
@@ -30,7 +30,7 @@ const CATALOG = [
 type Key = (typeof CATALOG)[number][0];
 
 export const Route = createFileRoute("/_authenticated/admin/communications")({
-  head: () => ({ meta: [{ title: "Customer Communications – HI VIC Portal" }, { name: "description", content: "Review every customer email and controlled communication draft." }, { property: "og:title", content: "Customer Communications – HI VIC Portal" }, { property: "og:description", content: "Review every customer email and controlled communication draft." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({ meta: [{ title: "Customer Communications – Home Insulation Victoria Portal" }, { name: "description", content: "Review every customer email and controlled communication draft." }, { property: "og:title", content: "Customer Communications – Home Insulation Victoria Portal" }, { property: "og:description", content: "Review every customer email and controlled communication draft." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: CustomerCommunications,
 });
 

@@ -23,7 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
-  head: () => ({ meta: [{ title: "Job – HI VIC Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – HI VIC Field" }, { property: "og:description", content: "Onsite job workflow." }] }),
+  head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }] }),
   component: FieldJob,
 });
 
@@ -206,7 +206,7 @@ function InstallerFlow({ jobId, stage }: { jobId: string; stage: string }) {
   return (
     <>
       {measuring && <MeasurementForm jobId={jobId} editable={["measured_area_m2", "insulation_present", "existing_r_value", "removal_required", "removal_m2", "access_difficulty"]} showComplete title="Your task: free Ready Check — eligibility measure-up" />}
-      {!measuring && m && m.status !== "complete" && ["assessment_booking", "assessment_booked"].includes(stage) && <Section title="Your measure-up"><MeasurementDetails m={m} /><p className="mt-2 text-sm text-muted-foreground">Status: {m.status.replace("_", " ")} – HI VIC will follow up.</p></Section>}
+      {!measuring && m && m.status !== "complete" && ["assessment_booking", "assessment_booked"].includes(stage) && <Section title="Your measure-up"><MeasurementDetails m={m} /><p className="mt-2 text-sm text-muted-foreground">Status: {m.status.replace("_", " ")} – Home Insulation Victoria will follow up.</p></Section>}
       {a && (
         <Section title="Site summary">
           <dl className="grid grid-cols-2 gap-1 text-sm">
@@ -227,7 +227,7 @@ function InstallerFlow({ jobId, stage }: { jobId: string; stage: string }) {
       {stage === "evidence_outstanding" && (
         <Section title="Declaration & submit">
           <div className="mb-3"><InstallerFinalDeclaration jobId={jobId} /></div>
-          <Button size="field" className="w-full" onClick={() => submit({ jobId }, "Submitted for review")}>Submit for HI VIC review</Button>
+          <Button size="field" className="w-full" onClick={() => submit({ jobId }, "Submitted for review")}>Submit for Home Insulation Victoria review</Button>
         </Section>
       )}
     </>

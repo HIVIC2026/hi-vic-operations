@@ -177,7 +177,7 @@ export const COMMERCIAL_BLOCKER = "Commercial setup required – invoice route n
 /** Installer-sourced jobs stay payment-gated until an admin configures a supported invoice route. */
 export async function commercialBlocker(jobId: string): Promise<string | null> {
   const { data } = await admin.from("jobs").select("channel, commercial_model, installer_led").eq("id", jobId).single();
-  // Installer-led jobs: HI VIC invoices the owner, co-branded (confirmed by Jo 2026-10-01).
+  // Installer-led jobs: Home Insulation Victoria invoices the owner, co-branded (confirmed by Jo 2026-10-01).
   if (data?.channel === "installer_sourced" && !data.installer_led && data.commercial_model !== "hivic_invoices_owner") return COMMERCIAL_BLOCKER;
   return null;
 }

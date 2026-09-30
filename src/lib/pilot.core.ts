@@ -47,7 +47,7 @@ export function onboardingChecklist(b: BusinessLike, creds: Credential[], hasAgr
       return { key: `cred:${kind}`, label: `${kind.replace(/_/g, " ")} (verified, current)`, done: ok };
     }),
     ...(isElectricianBiz(b) ? [{ key: "rec", label: "REC number", done: !!b.rec_number }] : []),
-    { key: "agreement", label: "Signed HI VIC participation agreement", done: hasAgreement },
+    { key: "agreement", label: "Signed Home Insulation Victoria participation agreement", done: hasAgreement },
   ];
   return items;
 }
@@ -56,7 +56,7 @@ export function onboardingChecklist(b: BusinessLike, creds: Credential[], hasAgr
 export function partnerWorkBlocker(b: BusinessLike | null, creds: Credential[], now = new Date()): string | null {
   if (!b) return "No partner business linked.";
   if (!b.is_active) return "Partner business is inactive.";
-  if (b.onboarding_status !== "approved") return `Partner onboarding is ${b.onboarding_status.replace(/_/g, " ")} – HI VIC approval required.`;
+  if (b.onboarding_status !== "approved") return `Partner onboarding is ${b.onboarding_status.replace(/_/g, " ")} – Home Insulation Victoria approval required.`;
   const expired = creds.filter((c) => c.critical && credentialState(c, now) === "expired");
   if (expired.length) return `Expired: ${expired.map((c) => c.label).join(", ")}. Upload a current document.`;
   return null;
@@ -301,7 +301,7 @@ export function appointmentSla(a: SlaInput, now = new Date()) {
   const responded = !!a.first_response_at;
   if (a.cannot_attend_at) return { state: "exception" as const, hours: since, canRequestAnother: true, message: "Electrician can't attend in time — request another electrician" };
   if (since >= SLA_BREACH_H) return { state: "exception" as const, hours: since, canRequestAnother: true, message: responded ? "No booking agreed after 48 hours — request another electrician" : "No response after 48 hours — request another electrician" };
-  if (since >= SLA_WARN_H && !responded) return { state: "attention" as const, hours: since, canRequestAnother: false, message: "No response for 24 hours — HI VIC is monitoring this" };
+  if (since >= SLA_WARN_H && !responded) return { state: "attention" as const, hours: since, canRequestAnother: false, message: "No response for 24 hours — Home Insulation Victoria is monitoring this" };
   return { state: "ok" as const, hours: since, canRequestAnother: false, message: responded ? "Agreeing a time" : "Waiting for electrician" };
 }
 
@@ -319,7 +319,7 @@ export function directBookingBlocker(kind: "assessment" | "rectification" | "ins
 
 /**
  * Owner/installer electrician reassignment route. `release` removes the electrician immediately
- * (only after 48h without a booking or when they said they can't attend); otherwise the request goes to HI VIC review
+ * (only after 48h without a booking or when they said they can't attend); otherwise the request goes to Home Insulation Victoria review
  * and the electrician stays assigned.
  */
 export function electricianReassignmentRoute(role: string, sla: { canRequestAnother: boolean }): "release" | "review" {
@@ -339,7 +339,7 @@ export function proposalResponse(p: Proposal, responderRole: string, action: "ac
 // ---------- Partner offers ----------
 export type OfferStatus = "pending" | "accepted" | "declined" | "expired" | "withdrawn";
 export function offerBlocker(job: { channel: string; stage: string; hasActiveInstaller: boolean; hasPendingOffer: boolean }): string | null {
-  if (job.channel !== "hivic_sourced") return "Only HI VIC-sourced jobs can be offered to a partner.";
+  if (job.channel !== "hivic_sourced") return "Only Home Insulation Victoria-sourced jobs can be offered to a partner.";
   if (["complete", "cancelled", "ready_for_veec", "ap_review", "evidence_outstanding", "installation_booked"].includes(job.stage)) return "Job is too far through the workflow to offer.";
   if (job.hasActiveInstaller) return "Job already has an installer.";
   if (job.hasPendingOffer) return "Job already has a pending offer.";

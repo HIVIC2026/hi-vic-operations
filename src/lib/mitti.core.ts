@@ -187,7 +187,7 @@ function pickUser(res: Any, email: string): Any | null {
 }
 
 export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise<CreateResult> {
-  if (ctx.businessUnit !== "hivic") throw new MittiError("Mitti automation is only available for HI VIC jobs.");
+  if (ctx.businessUnit !== "hivic") throw new MittiError("Mitti automation is only available for Home Insulation Victoria jobs.");
   if (!(MITTI_ASSIGN_STAGES as readonly string[]).includes(ctx.stage)) throw new MittiError("Mitti assessments can only be created while the job is in Assessment Booking or Assessment Booked.");
   const who = ctx.assigneeRole ?? "electrician";
   const templateId = ctx.templateId ?? MITTI_TEMPLATE_ID;
@@ -342,7 +342,7 @@ export function planSync(audit: Any, ctx: { storedAuditId: string; jobNumber: st
   if (ctx.assessmentStatus === "complete") return { locked: true as const };
   const p = parseAudit(audit);
   if (p.auditId && p.auditId !== ctx.storedAuditId) throw new MittiError("Mitti returned a different audit than the one stored for this job.");
-  if (p.templateId !== (ctx.templateId ?? MITTI_TEMPLATE_ID)) throw new MittiError("This Mitti audit does not use the expected HI VIC assessment template.");
+  if (p.templateId !== (ctx.templateId ?? MITTI_TEMPLATE_ID)) throw new MittiError("This Mitti audit does not use the expected Home Insulation Victoria assessment template.");
   if (!p.jobNumber || p.jobNumber.trim().toUpperCase() !== ctx.jobNumber.trim().toUpperCase())
     throw new MittiError(`Mitti Portal Job Number (${p.jobNumber ?? "missing"}) does not match ${ctx.jobNumber}.`);
   return {

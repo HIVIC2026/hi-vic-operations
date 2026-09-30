@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authenticated/field/")({
-  head: () => ({ meta: [{ title: "My jobs – HI VIC Portal" }, { name: "description", content: "Your assigned HI VIC jobs." }, { property: "og:title", content: "My jobs – HI VIC Portal" }, { property: "og:description", content: "Your assigned HI VIC jobs." }] }),
+  head: () => ({ meta: [{ title: "My jobs – Home Insulation Victoria Portal" }, { name: "description", content: "Your assigned Home Insulation Victoria jobs." }, { property: "og:title", content: "My jobs – Home Insulation Victoria Portal" }, { property: "og:description", content: "Your assigned Home Insulation Victoria jobs." }] }),
   component: FieldJobs,
 });
 
@@ -49,13 +49,13 @@ function SubmitJob() {
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button className="mb-4 h-12 w-full sm:w-auto"><Plus /> Submit a job to HI VIC</Button></DialogTrigger>
+      <DialogTrigger asChild><Button className="mb-4 h-12 w-full sm:w-auto"><Plus /> Submit a job to Home Insulation Victoria</Button></DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Submit your customer's job</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">HI VIC handles eligibility, customer acceptance, the electrician/PIESA visit, evidence review and VEEC. You stay the installer on this job.</p>
+        <p className="text-sm text-muted-foreground">Home Insulation Victoria handles eligibility, customer acceptance, the electrician/PIESA visit, evidence review and VEEC. You stay the installer on this job.</p>
         <form className="grid gap-3" onSubmit={async (e) => {
           e.preventDefault();
-          const r = await submit({ full_name: f.full_name, email: f.email, phone: f.phone || null, address_line: f.address_line, suburb: f.suburb || null, postcode: f.postcode || null, occupancy: f.occupancy, estimated_area_m2: f.area ? Number(f.area) : null, area_unknown: !f.area, life_support: f.life }, "Job submitted to HI VIC");
+          const r = await submit({ full_name: f.full_name, email: f.email, phone: f.phone || null, address_line: f.address_line, suburb: f.suburb || null, postcode: f.postcode || null, occupancy: f.occupancy, estimated_area_m2: f.area ? Number(f.area) : null, area_unknown: !f.area, life_support: f.life }, "Job submitted to Home Insulation Victoria");
           if (r) { setOpen(false); setF(empty); nav({ to: "/field/$jobId", params: { jobId: r.job_id } }); }
         }}>
           <div><Label>Owner full name</Label><Input className="h-12" value={f.full_name} onChange={set("full_name")} required /></div>
@@ -72,7 +72,7 @@ function SubmitJob() {
             </select></div>
           <div><Label>Estimated ceiling area m² (optional)</Label><Input className="h-12" inputMode="decimal" value={f.area} onChange={set("area")} /></div>
           <label className="flex min-h-12 items-center gap-2 text-sm"><input type="checkbox" className="h-5 w-5" checked={f.life} onChange={(e) => setF({ ...f, life: e.target.checked })} /> Someone at the property uses life support equipment</label>
-          <Button type="submit" className="h-12">Submit to HI VIC</Button>
+          <Button type="submit" className="h-12">Submit to Home Insulation Victoria</Button>
         </form>
       </DialogContent>
     </Dialog>

@@ -24,7 +24,7 @@ export function BusinessProfile({ businessId, isHivicAdmin }: { businessId?: str
   const load = useServerFn(getPartnerProfile);
   const { data, refetch } = useQuery({ queryKey: ["partner-profile", businessId ?? "mine"], queryFn: () => load({ data: businessId ? { businessId } : {} }) });
   if (data === undefined) return <p className="text-muted-foreground">Loading…</p>;
-  if (data === null) return <p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">Your account isn't linked to a partner business yet. Ask HI VIC to set up your business.</p>;
+  if (data === null) return <p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">Your account isn't linked to a partner business yet. Ask Home Insulation Victoria to set up your business.</p>;
   const b = data.business as Record<string, unknown> & { id: string; name: string; onboarding_status: string };
   const canEdit = isHivicAdmin || data.myRole === "business_admin";
   return (
@@ -38,10 +38,10 @@ export function BusinessProfile({ businessId, isHivicAdmin }: { businessId?: str
       <Team businessId={b.id} members={data.members} workers={data.workers} canEdit={canEdit} onDone={refetch} />
       <Electricians businessId={b.id} rels={data.relationships} options={data.electricianBusinesses.filter((e) => e.id !== b.id)} canEdit={canEdit} onDone={refetch} />
       <MeasurementMethods businessId={b.id} methods={data.measurementMethods as MethodRow[]} canEdit={canEdit} isHivicAdmin={isHivicAdmin} onDone={refetch} />
-      <Section title="Rate cards">{data.rateCards.length === 0 ? <p className="text-sm text-muted-foreground">No agreed rate card on file yet – HI VIC sets these up.</p> : data.rateCards.map((r) => <div key={r.id} className="text-sm">{r.name} · {r.kind} · v{r.version} · from {r.effective_from} {r.is_active && <Badge variant="outline">Active</Badge>}</div>)}</Section>
+      <Section title="Rate cards">{data.rateCards.length === 0 ? <p className="text-sm text-muted-foreground">No agreed rate card on file yet – Home Insulation Victoria sets these up.</p> : data.rateCards.map((r) => <div key={r.id} className="text-sm">{r.name} · {r.kind} · v{r.version} · from {r.effective_from} {r.is_active && <Badge variant="outline">Active</Badge>}</div>)}</Section>
       {b.onboarding_status === "approved" && <Bank businessId={b.id} canEdit={false} />}
       <Agreement businessId={b.id} agreements={data.agreements} canSign={data.myRole === "business_admin"} onDone={refetch} />
-      <Section title="Xero supplier setup"><p className="text-sm">{String(b["xero_contact_status"]) === "synced" ? "Supplier contact set up in Xero." : String(b["xero_contact_status"]) === "ready" ? "Ready – HI VIC will set up your supplier record." : "Available once your business is approved."}</p></Section>
+      <Section title="Xero supplier setup"><p className="text-sm">{String(b["xero_contact_status"]) === "synced" ? "Supplier contact set up in Xero." : String(b["xero_contact_status"]) === "ready" ? "Ready – Home Insulation Victoria will set up your supplier record." : "Available once your business is approved."}</p></Section>
     </div>
   );
 }
@@ -52,7 +52,7 @@ function Checklist({ items }: { items: { key: string; label: string; done: boole
 
 function SubmitForReview({ businessId, onDone }: { businessId: string; onDone: () => void }) {
   const set = useAction(setOnboardingStatus);
-  return <Button size="field" className="w-full" onClick={async () => { await set({ businessId, status: "submitted" }, "Submitted to HI VIC for review"); onDone(); }}>Submit for HI VIC review</Button>;
+  return <Button size="field" className="w-full" onClick={async () => { await set({ businessId, status: "submitted" }, "Submitted to Home Insulation Victoria for review"); onDone(); }}>Submit for Home Insulation Victoria review</Button>;
 }
 
 function AdminControls({ businessId, status, xero, onDone }: { businessId: string; status: string; xero: { status: string; id: string | null; error: string | null }; onDone: () => void }) {
@@ -60,7 +60,7 @@ function AdminControls({ businessId, status, xero, onDone }: { businessId: strin
   const sync = useAction(syncXeroSupplier);
   const [note, setNote] = useState("");
   return (
-    <Section title="HI VIC approval">
+    <Section title="Home Insulation Victoria approval">
       <Input placeholder="Note to partner (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
       <div className="mt-2 flex flex-wrap gap-2">{ONBOARDING_STATUSES.map((s) => <Button key={s} size="sm" variant={status === s ? "default" : "outline"} className="capitalize" onClick={async () => { await set({ businessId, status: s, ...(note ? { note } : {}) }, `Marked ${s.replace("_", " ")}`); onDone(); }}>{s.replace("_", " ")}</Button>)}</div>
       <div className="mt-3 flex items-center justify-between gap-2 border-t pt-3 text-sm">
@@ -103,11 +103,11 @@ function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unkno
         {field("service_postcodes", "Verified service postcodes", "3000, 3121, 31*")}{field("service_regions", "Declared suburbs / regions", "Brunswick, Coburg")}
         {field("weekly_capacity", "Weekly capacity (jobs)")}{field("lead_time_days", "Typical lead time (days)")}
         {field("rec_number", "REC number (electricians)")}{field("licence_number", "Licence number")}{field("logo_url", "Logo URL (co-branded quotes)", "https://…")}
-        <label className="text-sm"><span className="text-muted-foreground">Routine customer contact on your jobs</span><select disabled={!canEdit} className="h-10 w-full rounded border bg-background px-2" value={f["default_comms_owner"]} onChange={(e) => setF({ ...f, default_comms_owner: e.target.value })}><option value="installer">We handle routine customer contact</option><option value="hivic">HI VIC handles it</option></select></label>
+        <label className="text-sm"><span className="text-muted-foreground">Routine customer contact on your jobs</span><select disabled={!canEdit} className="h-10 w-full rounded border bg-background px-2" value={f["default_comms_owner"]} onChange={(e) => setF({ ...f, default_comms_owner: e.target.value })}><option value="installer">We handle routine customer contact</option><option value="hivic">Home Insulation Victoria handles it</option></select></label>
         {isHivicAdmin && field("caps", "Capabilities (installer, electrician)")}
         <label className="text-sm sm:col-span-2"><span className="text-muted-foreground">Availability notes</span><Textarea disabled={!canEdit} value={f["availability_notes"] ?? ""} onChange={(e) => setF({ ...f, availability_notes: e.target.value })} /></label>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">Saving as HI VIC confirms the postcode list after reviewing the partner's declared radius and exclusions. Regions alone never count as verified coverage. Payment route: full job invoiced by HI VIC (pilot). Split invoicing is not available.</p>
+      <p className="mt-2 text-xs text-muted-foreground">Saving as Home Insulation Victoria confirms the postcode list after reviewing the partner's declared radius and exclusions. Regions alone never count as verified coverage. Payment route: full job invoiced by Home Insulation Victoria (pilot). Split invoicing is not available.</p>
       {canEdit && <Button className="mt-2" onClick={onSave}>Save details</Button>}
     </Section>
   );
@@ -127,7 +127,7 @@ function Credentials({ businessId, creds, isHivicAdmin, canAdd, onDone }: { busi
       const { error } = await supabase.storage.from("job-files").uploadToSignedUrl(path, token, file, { contentType: file.type });
       if (!error) document_path = path;
     }
-    await add({ businessId, kind: f.kind as (typeof CRED_KINDS)[number], label: f.label || f.kind.replace(/_/g, " "), number: f.number || null, issuer: f.issuer || null, expires_at: f.expires_at || null, critical: true, document_path }, "Document added – HI VIC will verify it");
+    await add({ businessId, kind: f.kind as (typeof CRED_KINDS)[number], label: f.label || f.kind.replace(/_/g, " "), number: f.number || null, issuer: f.issuer || null, expires_at: f.expires_at || null, critical: true, document_path }, "Document added – Home Insulation Victoria will verify it");
     setF({ ...f, label: "", number: "", issuer: "", expires_at: "" }); setFile(null); onDone();
   };
   return (
@@ -217,7 +217,7 @@ function Bank({ businessId, canEdit }: { businessId: string; canEdit: boolean })
     <Section title="Bank details">
       {data ? <p className="text-sm">{data.account_name} · BSB {data.bsb} · Acc {data.account_number}</p> : <p className="text-sm text-muted-foreground">Not provided.</p>}
       {canEdit && <div className="mt-2 grid gap-2 sm:grid-cols-4"><Input placeholder="Account name" value={f.account_name} onChange={(e) => setF({ ...f, account_name: e.target.value })} /><Input placeholder="BSB" value={f.bsb} onChange={(e) => setF({ ...f, bsb: e.target.value })} /><Input placeholder="Account number" value={f.account_number} onChange={(e) => setF({ ...f, account_number: e.target.value })} /><Button onClick={async () => { await save({ businessId, ...f }, "Bank details saved"); setF({ account_name: "", bsb: "", account_number: "" }); refetch(); }}>Save</Button></div>}
-      <p className="mt-1 text-xs text-muted-foreground">Shown masked. Only HI VIC admins can see full details.</p>
+      <p className="mt-1 text-xs text-muted-foreground">Shown masked. Only Home Insulation Victoria admins can see full details.</p>
     </Section>
   );
 }
@@ -230,9 +230,9 @@ function Agreement({ businessId, agreements, canSign, onDone }: { businessId: st
   const [agree, setAgree] = useState(false);
   const signedCurrent = t && agreements.some((a) => a.version === t.version);
   return (
-    <Section title="HI VIC participation agreement">
+    <Section title="Home Insulation Victoria participation agreement">
       {agreements.map((a) => <p key={a.snapshot_sha256} className="text-sm">Signed v{a.version} by {a.signer_name} on {new Date(a.signed_at).toLocaleDateString("en-AU")}</p>)}
-      {!t ? <p className="text-sm text-muted-foreground">HI VIC hasn't published the agreement yet.</p> : !signedCurrent && canSign ? (
+      {!t ? <p className="text-sm text-muted-foreground">Home Insulation Victoria hasn't published the agreement yet.</p> : !signedCurrent && canSign ? (
         <div className="mt-2">
           <div className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded border bg-muted p-3 text-sm">{t.body}</div>
           <label className="mt-2 flex items-center gap-2 text-sm"><Checkbox checked={agree} onCheckedChange={(v) => setAgree(!!v)} /> I am authorised to sign for this business and agree.</label>
@@ -247,7 +247,7 @@ function Agreement({ businessId, agreements, canSign, onDone }: { businessId: st
 type MethodRow = { id: string; version: string; method: string; description: string; tools: string | null; zone_breakdown: boolean; evidence_expected: string | null; exclusions_rule: string | null; status: string; approved_at: string | null; approval_reason: string | null };
 const METHOD_OPTS = [["laser", "Laser"], ["tape", "Tape"], ["floorplan", "Floor plan"], ["other", "Other"]] as const;
 
-/** Partner's documented measurement process. Once HI VIC approves it, measurements using it can be reviewed faster. */
+/** Partner's documented measurement process. Once Home Insulation Victoria approves it, measurements using it can be reviewed faster. */
 function MeasurementMethods({ businessId, methods, canEdit, isHivicAdmin, onDone }: { businessId: string; methods: MethodRow[]; canEdit: boolean; isHivicAdmin: boolean; onDone: () => void }) {
   const save = useAction(savePartnerMethod);
   const review = useAction(reviewPartnerMethod);
@@ -255,7 +255,7 @@ function MeasurementMethods({ businessId, methods, canEdit, isHivicAdmin, onDone
   const [reason, setReason] = useState("");
   return (
     <Section title="Measurement method">
-      <p className="mb-2 text-sm text-muted-foreground">How this business measures ceiling area. Until HI VIC approves a method, supplied measurements are provisional and the ceiling area is measured again onsite. Aerial / map estimates are never accepted as an onsite measurement.</p>
+      <p className="mb-2 text-sm text-muted-foreground">How this business measures ceiling area. Until Home Insulation Victoria approves a method, supplied measurements are provisional and the ceiling area is measured again onsite. Aerial / map estimates are never accepted as an onsite measurement.</p>
       {methods.length === 0 && <p className="text-sm">No method recorded yet.</p>}
       {methods.map((m) => (
         <div key={m.id} className="mb-2 rounded-lg border p-2 text-sm">
@@ -263,7 +263,7 @@ function MeasurementMethods({ businessId, methods, canEdit, isHivicAdmin, onDone
           <p className="whitespace-pre-wrap">{m.description}</p>
           {m.tools && <p className="text-xs text-muted-foreground">Tools: {m.tools}</p>}
           <p className="text-xs text-muted-foreground">Room/zone breakdown: {m.zone_breakdown ? "yes" : "no"}{m.evidence_expected ? ` · Evidence: ${m.evidence_expected}` : ""}{m.exclusions_rule ? ` · Exclusions: ${m.exclusions_rule}` : ""}</p>
-          {m.approval_reason && <p className="text-xs">HI VIC note: {m.approval_reason}</p>}
+          {m.approval_reason && <p className="text-xs">Home Insulation Victoria note: {m.approval_reason}</p>}
           {isHivicAdmin && m.status !== "retired" && (
             <div className="mt-2 flex flex-wrap gap-2">
               <Input className="h-9 max-w-xs" placeholder="Reason (audited)" value={reason} onChange={(e) => setReason(e.target.value)} />
@@ -283,7 +283,7 @@ function MeasurementMethods({ businessId, methods, canEdit, isHivicAdmin, onDone
             <Input placeholder="Evidence you keep (sketch, photos, app export)" value={f.evidence_expected} onChange={(e) => setF({ ...f, evidence_expected: e.target.value })} />
             <Input placeholder="Excluded / non-ceiling areas rule" value={f.exclusions_rule} onChange={(e) => setF({ ...f, exclusions_rule: e.target.value })} />
             <label className="flex items-center gap-2 text-sm"><Checkbox checked={f.zone_breakdown} onCheckedChange={(v) => setF({ ...f, zone_breakdown: !!v })} /> Room / zone breakdown recorded</label>
-            <Button disabled={!f.version.trim() || f.description.trim().length < 10} onClick={async () => { await save({ businessId, ...f }, "Method saved for HI VIC review"); onDone(); }}>Save for HI VIC review</Button>
+            <Button disabled={!f.version.trim() || f.description.trim().length < 10} onClick={async () => { await save({ businessId, ...f }, "Method saved for Home Insulation Victoria review"); onDone(); }}>Save for Home Insulation Victoria review</Button>
           </div>
         </details>
       )}
@@ -291,7 +291,7 @@ function MeasurementMethods({ businessId, methods, canEdit, isHivicAdmin, onDone
   );
 }
 
-/** Admin-only: HI VIC AP measurement standard + optional pilot variance tolerance. */
+/** Admin-only: Home Insulation Victoria AP measurement standard + optional pilot variance tolerance. */
 export function MeasurementStandardCard() {
   const load = useServerFn(getMeasurementStandard);
   const { data, refetch } = useQuery({ queryKey: ["measurement-standard"], queryFn: () => load() });
@@ -304,7 +304,7 @@ export function MeasurementStandardCard() {
   const submit = async (approved: boolean) => { await set({ version: version.trim() || null, approved, tolerancePct: tol === "" ? null : Number(tol), reason }, "Saved"); setReason(""); refetch(); };
   return (
     <Section title="AP measurement standard">
-      <p className="mb-2 text-sm">{data.measurement_standard_approved ? <>Approved standard <b>{data.measurement_standard_version}</b>. Measurements from partners with an approved method can be accepted after HI VIC review.</> : <>Not approved. Installer-supplied measurements stay provisional and an independent onsite trade measures the ceiling area on every job.</>}</p>
+      <p className="mb-2 text-sm">{data.measurement_standard_approved ? <>Approved standard <b>{data.measurement_standard_version}</b>. Measurements from partners with an approved method can be accepted after Home Insulation Victoria review.</> : <>Not approved. Installer-supplied measurements stay provisional and an independent onsite trade measures the ceiling area on every job.</>}</p>
       <p className="mb-2 text-xs text-muted-foreground">Variance tolerance is for pilot calibration only. Leave it empty until you've reviewed the pilot jobs – every variance is then shown without a pass/fail.</p>
       <div className="grid gap-2 sm:grid-cols-3">
         <Input placeholder="Standard version" value={version} onChange={(e) => setVersion(e.target.value)} />

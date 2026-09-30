@@ -22,8 +22,8 @@ const categoryOrder: TodoItem["category"][] = ["Eligibility", "Scheduling", "Pay
 
 export const Route = createFileRoute("/_authenticated/admin/todo")({
   head: () => ({ meta: [
-    { title: "To action – HI VIC Portal" }, { name: "description", content: "Every task waiting on HI VIC staff, in one list." },
-    { property: "og:title", content: "To action – HI VIC Portal" }, { property: "og:description", content: "Every task waiting on HI VIC staff, in one list." },
+    { title: "To action – Home Insulation Victoria Portal" }, { name: "description", content: "Every task waiting on Home Insulation Victoria staff, in one list." },
+    { property: "og:title", content: "To action – Home Insulation Victoria Portal" }, { property: "og:description", content: "Every task waiting on Home Insulation Victoria staff, in one list." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
   ] }),
   component: TodoPage,
@@ -46,7 +46,7 @@ function TodoPage() {
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight">TO ACTION</h1>
-          <p className="text-sm text-muted-foreground">Everything waiting on HI VIC. Items clear themselves once the job shows the step is done.</p>
+          <p className="text-sm text-muted-foreground">Everything waiting on Home Insulation Victoria. Items clear themselves once the job shows the step is done.</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => q.refetch()} disabled={q.isFetching}><RefreshCw className={`mr-2 h-4 w-4 ${q.isFetching ? "animate-spin" : ""}`} />Refresh</Button>
       </div>
@@ -71,7 +71,7 @@ function TodoPage() {
       ) : q.isPending ? (
         <p className="text-sm text-muted-foreground">Checking every job…</p>
       ) : items.length === 0 ? (
-        <div className="flex items-center gap-3 rounded-xl border bg-card p-6"><CheckCircle2 className="h-6 w-6 text-primary" /><div><p className="font-semibold">All clear — nothing is waiting on HI VIC.</p><p className="text-xs text-muted-foreground">Checked {new Date(q.data!.checkedAt).toLocaleTimeString()}</p></div></div>
+        <div className="flex items-center gap-3 rounded-xl border bg-card p-6"><CheckCircle2 className="h-6 w-6 text-primary" /><div><p className="font-semibold">All clear — nothing is waiting on Home Insulation Victoria.</p><p className="text-xs text-muted-foreground">Checked {new Date(q.data!.checkedAt).toLocaleTimeString()}</p></div></div>
       ) : (
         <ul className="space-y-3">
           {visibleItems.map((t) => (
