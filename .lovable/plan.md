@@ -14,7 +14,7 @@ Shown as two side-by-side coloured cards in onboarding, repeated in the installe
 ### Option 1 — You bring the customer
 Step by step, in plain words:
 1. You submit the job in the portal: owner name, address, contact, your quote, and any measurements and photos you already have.
-2. If your measure-up and photos are complete, we don't repeat them. If they're partial, we only ask for what's missing. If you have none, we do a free Ready Check.
+2. If your measure-up and photos are complete, nothing is repeated. If they're partial, you only capture what's missing. If you have none, you do the free Ready Check yourself using our app.
 3. We contact the owner — and why: as the Accredited Person, the law makes us responsible for the owner's eligibility, consent, the electrical safety check and the VEEC assignment. We must hear it from the owner directly; we can't take it second-hand.
 4. Electrical safety check (PIESA): your electrician at your agreed onboarding price, or ours at $349 inc GST.
 5. We send one co-branded quote (your branding plus ours) showing your price, the check, our AP fee and the VEU discount. The owner e-signs it.
