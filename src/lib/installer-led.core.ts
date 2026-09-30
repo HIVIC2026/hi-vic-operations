@@ -25,6 +25,18 @@ export function installerLedOwnerPrice(i: OwnerPriceInput) {
   return { total, discount: i.veecDiscountIncGst, afterDiscount, referralFee: 0, blockers, ready: blockers.length === 0 };
 }
 
+/**
+ * Builds the owner's co-branded price from the installer's validated quoted price (Form A1 sync).
+ * The quoted price must already have passed validateQuotedPrice — unvalidated or mismatched
+ * figures never reach the owner quote; they go to office review instead.
+ */
+export function ownerPriceFromQuoted(
+  price: QuotedPrice,
+  fees: { piesaIncGst: number | null; rectificationIncGst: number; apFeeIncGst: number | null; veecDiscountIncGst: number },
+) {
+  return installerLedOwnerPrice({ installerQuoteIncGst: price.totalIncGst, ...fees });
+}
+
 export type SuppliedEvidence = {
   installerIdPhoto?: boolean; buildingClass?: string | null; builtLast5Years?: boolean | null; floorPlan?: boolean; icObservation?: boolean | null;
   areas: { name?: string | null; state?: "Uninsulated" | "Under-insulated" | null; depthPhoto?: boolean; rValue?: number | null; removal?: boolean | null; m2?: number | null; beforeVideo?: boolean }[];
