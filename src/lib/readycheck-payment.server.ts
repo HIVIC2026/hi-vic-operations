@@ -103,6 +103,7 @@ async function advanceAfterReadyCheckPayment(jobId: string, paymentId: string) {
   const from = await getStage(jobId);
   if (from === READY_CHECK_PAID_STAGE) return;
   try {
+    if (from === "new_enquiry" || from === "eligibility_review") await transition(jobId, "preliminary_estimate_ready", null, "Preliminary estimate issued", { audit_key: `preliminary_ready:${paymentId}` });
     await transition(jobId, READY_CHECK_PAID_STAGE, null, "$99 Ready Check paid — ready to schedule", { payment_id: paymentId, audit_key: `ready_check_ready:${paymentId}` }, { nextAction: READY_CHECK_PAID_NEXT_ACTION });
   } catch (e) {
     if (!(e instanceof WorkflowError)) throw e;
