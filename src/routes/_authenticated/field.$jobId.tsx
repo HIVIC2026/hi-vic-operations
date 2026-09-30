@@ -45,7 +45,7 @@ function FieldJob() {
         {(role === "installer" || role === "electrician") && ["assessment_booking", "assessment_booked"].includes(job.stage!) && <AppointmentPanel jobId={jobId} />}
         {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage!} />}
         {role === "installer" && ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(job.stage!) && <PartnerProposalForm jobId={jobId} />}
-        <MessagesPanel jobId={jobId} isAdmin={false} />
+        <MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" || role === "installer" ? { role } : {})} />
       </div>
     </AppShell>
   );

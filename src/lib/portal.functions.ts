@@ -861,7 +861,10 @@ export const sendMessage = createServerFn({ method: "POST" }).middleware([requir
       if ((data.audience ?? "customer") === "customer") await assertCustomerDeliveryAllowed(data.jobId, `${data.channel} message`);
       else await assertCustomerCommsEnabled(`${data.channel} message`);
     }
-    await admin.from("messages").insert({ job_id: data.jobId, sender_id: context.userId, body: data.body, internal: role === "admin" ? !!data.internal : false, channel: data.channel ?? "portal" });
+    // Owners and trades talk only through the portal: typed phone numbers/emails are masked.
+    const { maskContactDetails } = await import("./messaging.core");
+    const body = role === "admin" ? data.body : maskContactDetails(data.body).body;
+    await admin.from("messages").insert({ job_id: data.jobId, sender_id: context.userId, body, internal: role === "admin" ? !!data.internal : false, channel: data.channel ?? "portal" });
     await admin.from("jobs").update({ last_activity_at: new Date().toISOString() }).eq("id", data.jobId);
     return { ok: true };
   });
