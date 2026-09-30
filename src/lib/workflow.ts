@@ -197,7 +197,7 @@ export function needsReadyCheckFirst(stage: string | null | undefined, outcome: 
 export function waitingOn(stage: Stage | null | undefined, nextAction?: string | null): WaitingOn {
   if (!stage || stage === "complete" || stage === "cancelled") return null;
   const n = (nextAction ?? "").toLowerCase();
-  if (nextAction === READY_CHECK_NEXT) return "HI VIC" as WaitingOn;
+  if (nextAction === READY_CHECK_NEXT) return "HI VIC";
   if (/deposit|xero|payment/.test(n)) return "Payment / Xero";
   if (/\bowner\b|customer/.test(n) && stage !== "new_enquiry") return "Owner";
   if (/measure-up/.test(n) && /installer/.test(n)) return "Installer";
