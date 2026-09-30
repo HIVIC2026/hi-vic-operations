@@ -16,7 +16,7 @@ describe("official DEECA PDF mapping", () => {
   });
   test("yes/no/N-A and outcome map to official choices; blanks reported, not guessed", () => {
     const p = planOfficialFill("piesa", {
-      "Job Reference ID": "HV-1", "Is anyone at this property dependent on life support?": "No",
+      "Portal Job Number": "HV-1", "Is anyone at this property dependent on life support?": "No",
       "Have thermoplastic insulated and sheathed (TPS) cables present in the ceiling space been visually inspected and deemed safe?": "N/A",
       "B1 Assessment outcome": PIESA_OUTCOMES[1], "B2 Required rectifications": ["RCDs need to be installed for circuit/s within the ceiling insulation area"],
     });

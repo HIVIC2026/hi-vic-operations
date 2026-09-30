@@ -145,10 +145,10 @@ export type PrefillCtx = {
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
   { key: "jobNumber", aliases: ["Portal Job Number"], mandatory: true },
   { key: "address", aliases: ["Property Address", "Site address", "Site Address"], mandatory: true },
-  { key: "ownerName", aliases: ["Owner name", "Owner full name", "Client name"], mandatory: true },
+  { key: "ownerName", aliases: ["Owner name", "Owner full name", "Client name", "Property owner name"], mandatory: true },
   { key: "ownerEmail", aliases: ["Owner email"] },
   { key: "ownerPhone", aliases: ["Owner phone", "Owner mobile"] },
-  { key: "assessorName", aliases: ["Assigned Electrician", "Assessor", "Assigned Electrician / Assessor"], mandatory: true },
+  { key: "assessorName", aliases: ["Assigned Electrician", "Assessor", "Assigned Electrician / Assessor", "Full Name (initial assessment)", "Lead installer name"], mandatory: true },
   { key: "assessmentAt", aliases: ["Assessment date/time", "Assessment date time", "Booked assessment date"], datetime: true },
   { key: "estimatedAreaM2", aliases: ["Office estimated ceiling area", "Estimated ceiling area"] },
   { key: "occupancy", aliases: ["Occupancy"] },
@@ -243,7 +243,7 @@ export function parseAudit(audit: Any) {
   // whole-house aggregate and never summed without a validated zone schema.
   const AREA = {
     net: ["Net insulation area (m²) = Gross minus Excluded", "Net insulation area"],
-    total: ["Total area to insulate", "Area to insulate", "Total insulation area"],
+    total: ["Total measured ceiling area m2", "Total area to insulate", "Area to insulate", "Total insulation area"],
     gross: ["Gross ceiling area", "Gross area"],
     excl: ["Excluded area", "Excluded ceiling area"],
   };
@@ -260,13 +260,13 @@ export function parseAudit(audit: Any) {
     else if (area != null && area > 0) patch.measured_area_m2 = r2(area); else issues.push("Measured ceiling area not found in Mitti.");
   }
 
-  const ins = yesNo(val(entries, ["Existing insulation present", "Insulation present"]));
+  const ins = yesNo(val(entries, ["Existing insulation present", "Insulation present", "Any existing insulation present", "Is there insulation present in the ceiling?"]));
   if (ins != null) patch.insulation_present = ins;
   const rv = note(physical(val(entries, ["Existing R-value", "Measured R-value", "Confirmed R-value", "Existing insulation R-value"]), "Existing R-value"));
   if (rv != null && ins !== false) patch.existing_r_value = rv;
   const rem = yesNo(val(entries, ["Removal required", "Existing insulation removal required"]));
   if (rem != null) patch.removal_required = rem;
-  const remM2 = note(physical(val(entries, ["Removal area", "Removal m2", "Area to remove"]), "Removal area"));
+  const remM2 = note(physical(val(entries, ["Total removal area m2", "Removal area", "Removal m2", "Area to remove"]), "Removal area"));
   if (rem && remM2 != null) patch.removal_m2 = remM2;
 
   const acc = norm(val(entries, ["Ceiling access", "Access difficulty", "Roof space access"]));
@@ -274,7 +274,7 @@ export function parseAudit(audit: Any) {
 
   const setInt = (k: keyof AssessmentPatch, aliases: string[]) => { const e = find(entries, aliases, { withValue: true }); const n = note(count(e?.value ?? null, e?.label ?? aliases[0]!)); if (n != null) (patch as Any)[k] = n; };
   setInt("downlights_upgrade_qty", ["Downlights requiring upgrade", "Downlights to upgrade", "Downlight upgrade qty"]);
-  setInt("downlights_qty", ["Number of downlights", "Downlights qty", "Downlight count", "Downlights"]);
+  setInt("downlights_qty", ["Total number of luminaires", "Number of downlights", "Downlights qty", "Downlight count", "Downlights"]);
   setInt("exhaust_fans_clearance_qty", ["Exhaust fans requiring clearance", "Exhaust fan clearance", "Exhaust fans needing clearance"]);
   setInt("exhaust_fans_qty", ["Number of exhaust fans", "Exhaust fans qty", "Exhaust fans"]);
   const dt = val(entries, ["Downlight type"]); if (dt) patch.downlights_type = dt.slice(0, 200);
@@ -286,7 +286,7 @@ export function parseAudit(audit: Any) {
   else if (yesNo(sbUp) === false || /^(ok|satisfactory|compliant|good|no upgrade)/.test(sbCond)) patch.switchboard_condition = "ok";
   else if (sbUp || sbCond) issues.push("Switchboard condition is not explicit – confirm in office.");
 
-  const rcd = yesNo(val(entries, ["RCDs present", "RCD present", "RCD protection present"])); if (rcd != null) patch.rcds_present = rcd;
+  const rcd = yesNo(val(entries, ["RCDs present", "RCD present", "RCD protection present", "Are Residual Current Devices (RCDs) (safety switches) present for circuit/s within the ceiling insulation area, as per the most current version of AS/NZS 3000?"])); if (rcd != null) patch.rcds_present = rcd;
   setInt("rcds_required_qty", ["RCDs required", "RCDs to install", "Number of RCDs required"]);
 
   const ls = yesNo(val(entries, ["Life support equipment onsite", "Life support equipment present", "Life support confirmed", "Is life support equipment"], "piesa"))
@@ -294,12 +294,13 @@ export function parseAudit(audit: Any) {
   if (ls != null) patch.life_support_confirmed = ls;
 
   // Imported B1 "No rectification required" is a preliminary result only – it never establishes a PIESA pass.
-  const po = norm(val(entries, ["PIESA outcome", "PIESA result", "Rectification outcome", "Rectification required"]));
-  if (/no rectification required/.test(po)) issues.push("Mitti reports no rectification required (preliminary B1 only) – PIESA clearance stays pending until confirmed in the portal.");
-  else if (/rectification required/.test(po)) patch.piesa_outcome = "fail";
+  const po = norm(val(entries, ["B1 Assessment outcome", "PIESA outcome", "PIESA result", "Rectification outcome", "Rectification required"]));
+  // Official B1 wording: "...is not required..." / "...is required..." / "...is not possible...".
+  if (/no rectification required|rectification work is not required/.test(po)) issues.push("Mitti reports no rectification required (preliminary B1 only) – PIESA clearance stays pending until confirmed in the portal.");
+  else if (/rectification required|rectification work is required|rectification work is not possible/.test(po)) patch.piesa_outcome = "fail";
   else issues.push("PIESA outcome not recorded or ambiguous – stays pending.");
 
-  const ad = melbourneDay(val(entries, ["PIESA assessment date", "Assessment date/time", "Assessment date", "Assessment datetime", "Conducted on"]));
+  const ad = melbourneDay(val(entries, ["PIESA assessment date", "Date of inspection", "Assessment date/time", "Assessment date", "Assessment datetime", "Conducted on"]));
   if (ad) patch.assessed_on = ad;
   const nt = val(entries, ["Assessor notes", "Final notes", "Notes"]); if (nt) patch.notes = nt.slice(0, 4000);
 
