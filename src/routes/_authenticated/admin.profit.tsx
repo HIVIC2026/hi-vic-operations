@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { AppShell } from "@/components/portal/AppShell";
 import { Pill } from "@/components/portal/badges";
@@ -26,6 +26,15 @@ function ProfitPage() {
   const fetchOnline = useAction(fetchOnlineSpotPrice);
   const [price, setPrice] = useState(""); const [on, setOn] = useState(new Date().toISOString().slice(0, 10)); const [source, setSource] = useState("");
   const spots = data?.spots ?? [];
+  const autoFetch = useServerFn(fetchOnlineSpotPrice);
+  const [autoTried, setAutoTried] = useState(false);
+  useEffect(() => {
+    if (!data || autoTried) return;
+    setAutoTried(true);
+    const today = new Date().toISOString().slice(0, 10);
+    const hasToday = (data.spots ?? []).some((s: { priced_on?: string; created_at?: string }) => (s.created_at ?? s.priced_on ?? "").slice(0, 10) === today);
+    if (!hasToday) autoFetch().then(() => refetch()).catch(() => {});
+  }, [data, autoTried, autoFetch, refetch]);
   const signal = sellSignal(spots, new Date());
   const rows = (data?.rows ?? []).map((r) => ({ ...r, p: jobProfit({ customerTotalIncGst: r.customer, veecDiscountIncGst: r.discount, tradeCostExGst: r.cost }, signal.latest) }));
   const total = (k: "profit" | "veecMargin" | "veecs") => rows.reduce((t, r) => t + (r.p[k] ?? 0), 0);
