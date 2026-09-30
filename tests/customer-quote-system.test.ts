@@ -21,7 +21,7 @@ describe("customer quote system", () => {
     expect(CUSTOMER_ASSESSMENT_ACTION.paragraphs[0]).toBe("Your $99 Home Insulation Ready Check is credited toward your project if you proceed.");
     expect(CUSTOMER_WHAT_COULD_CHANGE.heading).toBe("WHAT COULD CHANGE MY ESTIMATE?");
     expect(CUSTOMER_WHAT_COULD_CHANGE.items).toEqual([]); expect(CUSTOMER_WHAT_COULD_CHANGE.intro).toContain("measured ceiling size, existing insulation and any required removal, ceiling access conditions, and any electrical rectification");
-    expect(CUSTOMER_WHAT_COULD_CHANGE.closing).toBe("Home Insulation Victoria will never proceed with additional work or additional costs without first showing you the required scope and price and receiving your approval.");
+    expect(CUSTOMER_WHAT_COULD_CHANGE.closing).toBe("We will never proceed with additional work or additional costs without first showing you the scope and price and getting your approval.");
   });
 
   test("customer-facing Step 3 sources consume the shared system and contain no HI VIC shorthand", () => {
