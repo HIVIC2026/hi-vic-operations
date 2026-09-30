@@ -43,7 +43,9 @@ function InstallerOnboarding() {
   const [form, setForm] = useState({
     name: "", email: "", phone: "", company: "", service_areas: "",
     cii_certification_status: "", cii_certification_details: "",
-    estimated_r5_install_rate_per_sqm_inc_gst: "", booking_lead_time: "", weekly_capacity: "", notes: "",
+    estimated_r5_install_rate_per_sqm_inc_gst: "",
+    estimated_batts_removal_rate_per_sqm_inc_gst: "", estimated_loose_fill_removal_rate_per_sqm_inc_gst: "",
+    free_quotes_for_hivic_leads: "", booking_lead_time: "", weekly_capacity: "", notes: "",
   });
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -63,6 +65,9 @@ function InstallerOnboarding() {
         cii_certification_status: form.cii_certification_status || null,
         cii_certification_details: form.cii_certification_details || null,
         estimated_r5_install_rate_per_sqm_inc_gst: form.estimated_r5_install_rate_per_sqm_inc_gst ? Number(form.estimated_r5_install_rate_per_sqm_inc_gst) : null,
+        estimated_batts_removal_rate_per_sqm_inc_gst: form.estimated_batts_removal_rate_per_sqm_inc_gst ? Number(form.estimated_batts_removal_rate_per_sqm_inc_gst) : null,
+        estimated_loose_fill_removal_rate_per_sqm_inc_gst: form.estimated_loose_fill_removal_rate_per_sqm_inc_gst ? Number(form.estimated_loose_fill_removal_rate_per_sqm_inc_gst) : null,
+        free_quotes_for_hivic_leads: form.free_quotes_for_hivic_leads === "" ? null : form.free_quotes_for_hivic_leads === "yes",
         booking_lead_time: form.booking_lead_time || null,
         weekly_capacity: form.weekly_capacity || null,
         notes: form.notes || null,
@@ -120,6 +125,19 @@ function InstallerOnboarding() {
             </Field>
             <Field label="Indicative R5.0 supply & install rate per m² (inc GST)">
               <input style={inputStyle} type="number" min="0" step="0.01" value={form.estimated_r5_install_rate_per_sqm_inc_gst} onChange={set("estimated_r5_install_rate_per_sqm_inc_gst")} placeholder="e.g. 18.50" />
+            </Field>
+            <Field label="Indicative batts removal rate per m² (inc GST)">
+              <input style={inputStyle} type="number" min="0" step="0.01" value={form.estimated_batts_removal_rate_per_sqm_inc_gst} onChange={set("estimated_batts_removal_rate_per_sqm_inc_gst")} placeholder="e.g. 6.00" />
+            </Field>
+            <Field label="Indicative loose fill removal rate per m² (inc GST)">
+              <input style={inputStyle} type="number" min="0" step="0.01" value={form.estimated_loose_fill_removal_rate_per_sqm_inc_gst} onChange={set("estimated_loose_fill_removal_rate_per_sqm_inc_gst")} placeholder="e.g. 9.00" />
+            </Field>
+            <Field label="Do you offer free quotes for pre-qualified HI VIC leads?">
+              <select style={inputStyle} value={form.free_quotes_for_hivic_leads} onChange={set("free_quotes_for_hivic_leads")}>
+                <option value="">Select…</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
             </Field>
             <Field label="Typical booking lead time"><input style={inputStyle} value={form.booking_lead_time} onChange={set("booking_lead_time")} placeholder="e.g. 1 week" /></Field>
             <Field label="Weekly capacity"><input style={inputStyle} value={form.weekly_capacity} onChange={set("weekly_capacity")} placeholder="e.g. 5 installs per week" /></Field>
