@@ -11,7 +11,8 @@ describe("Step 3 design review", () => {
     expect(page).toContain('createFileRoute("/_authenticated/admin/step3-design")');
     expect(page).toContain('supabase.rpc("is_admin")');
     expect(page).toContain('if (error || data !== true) throw redirect');
-    expect(navigation).toContain('to="/admin/step3-design"');
+    // The sample page stays reachable by URL for design review but is no longer in the admin menu.
+    expect(navigation).not.toContain('to="/admin/step3-design"');
   });
 
   test("the public route reuses the real header and estimate without a login or data calls", () => {
