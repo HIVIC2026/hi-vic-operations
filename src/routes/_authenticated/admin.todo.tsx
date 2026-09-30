@@ -92,7 +92,7 @@ function TodoPage() {
                   <Button asChild size="sm" variant="outline">
                     <Link
                       to="/admin/partners"
-                      search={t.key.startsWith("penq:") ? { enquiry: t.key.slice(5) } : {}}
+                      search={{ enquiry: t.key.startsWith("penq:") ? t.key.slice(5) : undefined }}
                     >Open</Link>
                   </Button>
                 )}

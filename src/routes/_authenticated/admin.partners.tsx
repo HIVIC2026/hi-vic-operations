@@ -19,7 +19,7 @@ import { activatePartnerApplication } from "@/lib/partner-activation.functions";
 type Row = Tables<"partner_enquiries">;
 
 export const Route = createFileRoute("/_authenticated/admin/partners")({
-  validateSearch: (search: Record<string, unknown>) => ({ enquiry: typeof search.enquiry === "string" ? search.enquiry : undefined }),
+  validateSearch: (search: Record<string, unknown>) => ({ enquiry: typeof search["enquiry"] === "string" ? search["enquiry"] : undefined }),
   head: () => ({ meta: [{ title: "Partner Enquiries – HI VIC Portal" }, { name: "description", content: "Property manager, installer and electrician partner enquiries." }, { property: "og:title", content: "Partner Enquiries – HI VIC Portal" }, { property: "og:description", content: "Property manager, installer and electrician partner enquiries." }] }),
   component: Partners,
 });
