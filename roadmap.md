@@ -1,41 +1,6 @@
 # Roadmap
-- [x] Property Intelligence engine + ESC pre-install controls
-- [x] Read-only Mitti configuration/usage check (no writes)
-- [x] Activity 48 signing sequence correction (agreement / ESC consent / installer decl / final assignment)
-- [x] ReInsulate pilot A: partner business + team onboarding, expiry blockers, Xero contact readiness
-- [x] ReInsulate pilot B: import existing job (files/CSV/paste/source ref) -> draft -> confirm screen
-- [x] ReInsulate pilot C: electrician selection / preferred relationships / nominated onboarding
-- [x] ReInsulate pilot D: appointment coordination + 24/48h SLA + reassignment
-- [x] ReInsulate pilot E: offer HI VIC jobs to partner (opportunities)
-- [x] ReInsulate pilot F: co-branded quote, supplier cost vs customer price, manual price audit
-- [x] ReInsulate pilot G: partner dashboard + business profile page
-- [x] ReInsulate pilot H: tests
-- [ ] Blocked on user: approve Activity 48 / ESC consent / partner agreement wording in Compliance Setup
-- [ ] Blocked on EasyMate: API/webhook/export access for automatic two-way sync (manual import works now)
-- [ ] Blocked on user: set up ReInsulate business + team accounts, documents and rate card; supervised Xero supplier sync
-- [x] Refinement 1: assessment scheduling = one proposal flow; admin override audited; 24/48h + can't-agree review
-- [x] Step 3: indicative customer price + official Activity 48 VEU savings estimator (no payment/booking)
-- [x] Step 3 design review: admin-only static known-area and unknown-area examples
-- [x] Public sample-only Step 3 design preview, independent of admin login
-- [x] Sample-only Step 3 customer estimate email renderer, preview and screenshots; no sending
-- [x] Step 4 staging: immutable Measure + PIESA acceptance and idempotent $349 test-payment gate (live payments remain off)
-- [x] Step 3 engagement tracking + follow-ups (sending waits on Base44 delivery endpoint + comms switch)
-- [x] Redesign Step 3 estimate in HI VIC brand voice with a clear cover, reading flow and next step
-- [ ] Blocked on Base44: homeowner preliminary result, save/navigation guards, and sync fallback changes (A–D)
-- [x] Revalidate Operations Hub email suppression, unsubscribe, deduplication, backlog exclusion, and disabled locks (E)
-- [x] Build and validate three branded customer outcome email designs without enabling delivery
-- [x] Add the approved itemised quote and included-$349 payment section to the likely-eligible email preview
-
-- [x] Correct both $349 fees, all three outcome emails, and the secure area calculator without enabling delivery
-- [x] Fix email sample arithmetic (two $349 fees), shorten quote-email flow, single PAY CTA, brand preview wrapper
-- [x] Mitti bridge integrity fix
-- [x] Simplify likely/onsite email conversion flow and add secure estimate confirm state
-- [x] Fix Step 3 outcome-email routing to use only official recorded eligibility, including safe retries
-- [x] Correct the estimate email so only the assessment fee is fixed at $349 and AP management remains dynamic
-- [x] Complete approved-design onsite and ineligible customer emails, preview switching, and secure link checks
-- [x] Refine the secure Step 3 what-if calculator and feature it in eligible/onsite emails
-- [x] Lock post-$99 Ready Check flow to approved installer assignment, installer-led contact and recorded booking
-
-- [ ] Ready Check: map Mitti field IDs (blocked: Mitti template IDs)
-- [ ] Ready Check: live payment gateway (blocked: provider choice/approval)
-- [ ] Ready Check: enter agreed live REC rate card (blocked: agreed rates)
+- [x] Move BOOK MY READY CHECK CTA higher in quote card (right after final cost, before WHAT COULD CHANGE)
+- [x] Rebuild calculator card: real button, cleaner layout
+- [x] Rebuild referral card: cleaner, less messy
+- [x] Update plain text order to match
+- [x] Update tests, run focused tests + typecheck + build, 390/640 QA
