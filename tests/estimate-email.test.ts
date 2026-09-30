@@ -27,9 +27,15 @@ describe("customer outcome email renderers", () => {
     const order = ["YOUR PRELIMINARY QUOTE", "Estimated ceiling size:", "CHANGE →", "R5.0 ceiling insulation — supply &amp; install", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount", "YOUR ESTIMATED COST AFTER DISCOUNT", "WHAT COULD CHANGE MY ESTIMATE?", "NEXT STEP", "BOOK MY READY CHECK →", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →"].map((t) => h.indexOf(t));
     expect(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1]!))).toBe(true);
     expect(h.split("BOOK MY READY CHECK →").length - 1).toBe(1);
+    const mainQuoteStart = h.indexOf('data-main-quote-card="true"');
+    const mainQuoteEnd = h.indexOf("WANT TO CHECK THE NUMBERS FIRST?");
+    const mainQuote = h.slice(mainQuoteStart, mainQuoteEnd);
+    expect(mainQuote).toContain('data-ready-check-inside-quote="true"');
+    expect(mainQuote).toContain("BOOK MY READY CHECK →");
+    expect(h.split('data-ready-check-inside-quote="true"').length - 1).toBe(1);
+    expect(h).not.toContain('bgcolor="#ECF9F1"');
     expect(h).toContain("border-radius:16px");
     expect(h).toContain("border:1px solid #D4DAF5");
-    expect(h).toContain("border:1px solid #BEE8CE");
     expect(`${email.html} ${email.plainText}`).toContain("could change your estimated project total, VEU / VEEC discount and estimated cost after discount.");
     expect(`${email.html} ${email.plainText}`).not.toContain("VEU discount and estimated price could change.");
     expect(email.plainText).toContain("BOOK MY READY CHECK →:");
@@ -73,6 +79,9 @@ describe("customer outcome email renderers", () => {
     expect(email.html.indexOf("YOUR PRELIMINARY QUOTE")).toBeLessThan(email.html.indexOf("WHAT WE NEED TO CONFIRM"));
     expect(email.html).toContain(`${estimateUrl}#calculator`);
     expect(email.html.split("BOOK MY READY CHECK →").length - 1).toBe(1);
+    const onsiteQuote = email.html.slice(email.html.indexOf('data-main-quote-card="true"'), email.html.indexOf("WANT TO CHECK THE NUMBERS FIRST?"));
+    expect(onsiteQuote).toContain('data-ready-check-inside-quote="true"');
+    expect(onsiteQuote).toContain("BOOK MY READY CHECK →");
     expect(email.html.indexOf("BOOK MY READY CHECK →")).toBeLessThan(email.html.indexOf("WANT TO CHECK THE NUMBERS FIRST?"));
     expect(email.html.indexOf("OPEN THE INTERACTIVE CALCULATOR →")).toBeLessThan(email.html.indexOf("WHAT WE NEED TO CONFIRM"));
     expect(email.plainText.indexOf("BOOK MY READY CHECK →")).toBeLessThan(email.plainText.indexOf("WANT TO CHECK THE NUMBERS FIRST?"));
