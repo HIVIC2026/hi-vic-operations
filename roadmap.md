@@ -42,4 +42,4 @@
 - [x] Profit tab: VEEC income net of owner's $70/VEEC share (we keep spot − 70)
 - [x] Source VEEC spot price from an online feed instead of manual entry
 - [x] Add per-job markup breakdown (charge vs pay: installer, electrician, AP fee, VEEC margin) on the VEECs page
-- [ ] Include $220 installer referral fee confirmed for margin maths
+- [x] Include $220 installer referral fee confirmed for margin maths
