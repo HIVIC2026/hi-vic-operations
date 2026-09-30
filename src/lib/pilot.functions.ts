@@ -390,7 +390,7 @@ async function assignElectrician(jobId: string, userId: string, businessId: stri
   await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "assessment").eq("status", "proposed");
   await admin.from("job_assignments").insert({ job_id: jobId, user_id: userId, role: "electrician", business_id: businessId, assigned_by: actorId });
   await logEvent(jobId, actorId, "contractor_assigned", `Electrician assigned: ${summary}`);
-  if ((await getStage(jobId)) === "awaiting_electrician") await transition(jobId, "assessment_booking", actorId, "Electrician assigned – coordinate the site visit");
+  if ((await getStage(jobId)) === "awaiting_electrician") await transition(jobId, "assessment_booking", actorId, "Electrician assigned – coordinate PIESA");
   const { autoAdvanceJob } = await import("./autoadvance.server");
   await autoAdvanceJob(jobId, actorId, "electrician assigned");
 }
