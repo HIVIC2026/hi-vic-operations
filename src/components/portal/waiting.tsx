@@ -65,14 +65,15 @@ export function ClearTimeline({ jobId, initial = 8 }: { jobId: string; initial?:
   const { data, error } = useJobFile(jobId);
   const [f, setF] = useState("all");
   const [all, setAll] = useState(false);
+  const [auto, setAuto] = useState(false);
   if (error) return <p className="text-sm text-danger">Couldn't load the timeline.</p>;
-  const items = [...(data?.timeline ?? [])].filter((t) => (KIND.find((x) => x.k === f) ?? KIND[0]!).match(t)).reverse();
+  const items = [...(data?.timeline ?? [])].filter((t) => (KIND.find((x) => x.k === f) ?? KIND[0]!).match(t)).filter((t) => auto || !(t.internal && (t.actorRole ?? "System") === "System")).reverse();
   const shown = all ? items : items.slice(0, initial);
   return (
     <section aria-label="Job timeline" className="mb-4 rounded-2xl border bg-card p-4 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="font-display text-lg font-bold">What's happened</div>
-        <div className="flex flex-wrap gap-1">{KIND.map((x) => <button key={x.k} type="button" onClick={() => setF(x.k)} className={`rounded-full px-3 py-1 text-xs font-semibold ${f === x.k ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}>{x.l}</button>)}</div>
+        <div className="flex flex-wrap gap-1"><button type="button" onClick={() => setAuto(!auto)} className={`rounded-full px-3 py-1 text-xs font-semibold ${auto ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>{auto ? "Hide" : "Show"} automatic checks</button>{KIND.map((x) => <button key={x.k} type="button" onClick={() => setF(x.k)} className={`rounded-full px-3 py-1 text-xs font-semibold ${f === x.k ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}>{x.l}</button>)}</div>
       </div>
       {!data ? <p className="text-sm text-muted-foreground">Loading…</p> : shown.length === 0 ? <p className="text-sm text-muted-foreground">Nothing recorded yet.</p> : (
         <ol className="relative ml-3 border-l-2 border-border">
