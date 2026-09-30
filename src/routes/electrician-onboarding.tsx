@@ -9,6 +9,8 @@ import {
 import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
 } from "@/lib/rec-onboarding.functions";
+import { defaultAddressProvider } from "@/lib/address-provider";
+import type { AddressSuggestion } from "@/lib/whatif-location";
 
 // Public REC (electrician) onboarding + partner agreement signing. Progress is saved
 // server-side against an opaque resume token kept in this browser.
@@ -64,6 +66,44 @@ function Money({ value, onChange, unit }: { value: number | null | undefined; on
     </div>
   );
 }
+/** Type-ahead Victorian address lookup (same service as the website form). Selection fills the field; editing keeps free text. */
+function AddressInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [items, setItems] = useState<AddressSuggestion[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const seq = useRef(0);
+  useEffect(() => {
+    const q = value.trim();
+    if (q.length < 4) { setItems([]); setOpen(false); return; }
+    const mine = ++seq.current;
+    const t = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const r = (await defaultAddressProvider.search(q)).slice(0, 6);
+        if (mine !== seq.current) return;
+        setItems(r); setOpen(r.length > 0);
+      } catch { if (mine === seq.current) { setItems([]); setOpen(false); } }
+      finally { if (mine === seq.current) setLoading(false); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [value]);
+  return (
+    <div style={{ position: "relative" }}>
+      <input style={input} autoComplete="off" placeholder="Start typing your address…" value={value}
+        onChange={(e) => onChange(e.target.value)} onBlur={() => setTimeout(() => setOpen(false), 150)} />
+      {loading && <div style={{ position: "absolute", right: 14, top: 14, fontSize: 12, color: MUTED }}>Searching…</div>}
+      {open && (
+        <ul style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #D7DCE8", borderRadius: 12, boxShadow: "0 12px 30px -12px rgba(34,55,107,.35)", overflow: "hidden" }}>
+          {items.map((s) => (
+            <li key={s.id} style={{ padding: "12px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F0F2F8" }}
+              onMouseDown={(e) => { e.preventDefault(); onChange(s.label); setOpen(false); setItems([]); seq.current++; }}>{s.label}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Choice<T extends string | number | boolean>({ options, value, onChange }: { options: { v: T; l: string }[]; value: T | null | undefined; onChange: (v: T) => void }) {
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
