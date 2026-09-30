@@ -116,6 +116,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     if (ue) throw new Error(ue.message);
     await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, plan?.details ?? {});
     if (source === "base44") await completeIntake(existingJob.id, owner!.id, input);
+    if (source === "qa_test") return { job_id: existingJob.id, job_number: existingJob.job_number, created: false, post_intake: "none" as const };
     const queued = await enqueueInitialGate1(existingJob.id, await eligibilityFactsVersion(input), addrChanged ? "address changed" : "eligibility facts changed");
     if (queued !== "none") runAfterResponse(() => processPostIntakeWork({ jobId: existingJob.id })); // best-effort; scheduled worker is the durable fallback
     return { job_id: existingJob.id, job_number: existingJob.job_number, created: false, post_intake: queued };
@@ -148,6 +149,8 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     origin.channel === "installer_sourced" ? "Job source: Installer-sourced (attribution locked)" : "Job source: HI VIC-sourced",
     origin.channel === "installer_sourced" ? { channel: origin.channel, originating_installer_business_id: origin.businessId, originating_installer_user_id: origin.userId, commercial_model: "not_configured" } : { channel: origin.channel });
   if (source === "base44") await completeIntake(job.id, owner!.id, input);
+  // QA records stay permanently isolated from live post-intake automation.
+  if (source === "qa_test") return { job_id: job.id, job_number: job.job_number, created: true, post_intake: "none" as const };
   // Durable hand-off: initial Property Intelligence + the first official Gate 1 run in the post-intake processor.
   const queued = await enqueueInitialGate1(job.id, await eligibilityFactsVersion(input), "new enquiry");
   if (queued !== "none") runAfterResponse(() => processPostIntakeWork({ jobId: job.id })); // best-effort; scheduled worker is the durable fallback
