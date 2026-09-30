@@ -116,6 +116,9 @@ function EmailPreview() {
           {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "confirm"} className={btn} style={pill(previewKind === "confirm")} onClick={() => setPreviewKind("confirm")}>$99 Ready Check (test)</button>}
           {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "measured"} className={btn} style={pill(previewKind === "measured")} onClick={() => setPreviewKind("measured")}>Measured quote + PIESA (test)</button>}
        </div>
+      {previewKind === "measured" && <div className="mb-4 flex flex-wrap gap-2" aria-label="PIESA state">
+        {([["before", "PIESA: before"], ["none", "PIESA: no rectification"], ["same", "PIESA: same"], ["lower", "PIESA: lower"], ["higher", "PIESA: higher"]] as const).map(([k, l]) => <button key={k} type="button" aria-pressed={piesaCase === k} className={btn} style={pill(piesaCase === k)} onClick={() => setPiesaCase(k)}>{l}</button>)}
+      </div>}
       {previewKind === "email" && <><p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p><p className="mb-6 text-sm"><strong>Preheader:</strong> {sample.previewText}</p></>}
        {previewKind === "email" && <div className="mb-4 flex flex-wrap items-center gap-3 text-xs font-bold">
           {outcome !== "ineligible" && <a href={calculatorTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test OPEN THE INTERACTIVE CALCULATOR →</a>}

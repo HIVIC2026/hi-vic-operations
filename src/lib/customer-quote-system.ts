@@ -82,7 +82,7 @@ export const CUSTOMER_READY_CHECK_EMAIL_ACTION = {
 export const CUSTOMER_ASSESSMENT_ACTION = { cta: CUSTOMER_READY_CHECK.cta, paragraphs: CUSTOMER_READY_CHECK.paragraphs } as const;
 
 export const CUSTOMER_WHAT_COULD_CHANGE: { heading: string; intro: string; items: readonly { lead: string; copy: string }[]; closing: string; gst: string } = {
-  heading: "ABOUT YOUR PRELIMINARY ESTIMATE",
+  heading: "WHAT COULD CHANGE MY ESTIMATE?",
   intro: "This estimate is based on the information currently available. The final scope and price may change after we confirm the measured ceiling size, existing insulation and any required removal, ceiling access conditions, and any electrical rectification identified through the mandatory Pre-Installation Electrical Safety Assessment (PIESA).",
   items: [],
   closing: "Home Insulation Victoria will never proceed with additional work or additional costs without first showing you the required scope and price and receiving your approval.",
@@ -133,7 +133,7 @@ export const CUSTOMER_APPROVAL_REASSURANCE = "We will never proceed with additio
 export const CUSTOMER_ONSITE_HERO = {
   heading: "IT'S LOOKING GOOD SO FAR",
   intro: "Based on the information provided, your property may be eligible. We just need to confirm a few details onsite before eligibility and final pricing can be confirmed.",
-  subheading: (_count: number) => "WHAT WE NEED TO CHECK ONSITE",
+  subheading: (count: number) => (count === 1 ? "WE JUST NEED TO CHECK ONE THING ONSITE:" : "WE JUST NEED TO CHECK A COUPLE OF THINGS ONSITE:"),
   transition: "While these items still need to be checked, the preliminary estimate below shows what the project may cost based on the information currently available.",
 } as const;
 
