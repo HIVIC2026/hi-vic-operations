@@ -323,6 +323,13 @@
       "when": 1790731118197,
       "tag": "0045_link_ready_check_bookings_to_installer_assignment",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1790744238309,
+      "tag": "0046_workflow_auto_send_switches",
+      "breakpoints": true
     }
   ]
 }

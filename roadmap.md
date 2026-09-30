@@ -1,10 +1,12 @@
 # Roadmap
-- [x] Move BOOK MY READY CHECK CTA higher in quote card (right after final cost, before WHAT COULD CHANGE)
-- [x] Rebuild calculator card: real button, cleaner layout
-- [x] Rebuild referral card: cleaner, less messy
-- [x] Update plain text order to match
-- [x] Update tests, run focused tests + typecheck + build, 390/640 QA
-- [x] Fix BOOK MY READY CHECK button (dead repeat-click when hash already #confirm)
-- [x] Clean up calculator custom-size input (visible label, full-width, m² inside)
-- [x] Make every customer Ready Check action open the booking screen directly
-- [x] Assess launch readiness, end-to-end flow, remaining blockers, and next launch plan
+- [x] Earlier customer journey, email, calculator and Ready Check fixes
+- [x] Activity 48 compliance timeline rules (all gates, deadlines, 30-day PIESA, 24h/5-day ESC window)
+- [x] Auto-send switches in settings (all off by default)
+- [x] Verify gate list against official ESC Activity 48 guide (added 6 gates; lodgement deadline + spec version need ESC confirmation)
+- [ ] Compliance timeline panel on each job + countdowns in office queues
+- [ ] Auto-build draft measured quote when Ready Check Mitti report syncs
+- [ ] Office queues: Quotes to send / Send to REC / Ready for install / Send to installer / Final sign-off
+- [ ] REC request accept/decline in portal, contact sharing, booking via appointment proposals
+- [ ] Booking → pre-filled Mitti form (PIESA for REC, install for installer) — blocked on Mitti template IDs
+- [ ] PIESA Mitti return → Job File + pass/fail → Ready for install — blocked on which Mitti field holds the result
+- [ ] Installer Mitti return → evidence → AP sign-off queue
