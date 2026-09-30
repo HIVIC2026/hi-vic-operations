@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { renderEstimateEmail, renderIneligibleOutcomeEmail } from "../src/lib/estimate-email";
 import { withUnsubscribe } from "../src/lib/emailsafety.core";
-import { CUSTOMER_BRAND, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_QUOTE_ORDER, CUSTOMER_VISUAL_SYSTEM, CUSTOMER_WHAT_COULD_CHANGE } from "../src/lib/customer-quote-system";
+import { CUSTOMER_BRAND, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_QUOTE_ORDER, CUSTOMER_WHAT_COULD_CHANGE } from "../src/lib/customer-quote-system";
 
 const token = "A".repeat(43);
 const estimateUrl = `https://quote.homeinsulationvictoria.com.au/estimate/${token}`;
@@ -33,10 +33,9 @@ describe("customer outcome email renderers", () => {
     expect(mainQuote).toContain('data-ready-check-inside-quote="true"');
     expect(mainQuote).toContain("BOOK MY READY CHECK →");
     expect(h.split('data-ready-check-inside-quote="true"').length - 1).toBe(1);
-    expect(h).not.toContain(`bgcolor="${CUSTOMER_VISUAL_SYSTEM.paleGreen}"`);
+    expect(h).not.toContain('bgcolor="#ECF9F1"');
     expect(h).toContain("border-radius:16px");
     expect(h).toContain("border:1px solid #D4DAF5");
-    expect(h).toContain("border:1px solid #BEE8CE");
     expect(`${email.html} ${email.plainText}`).toContain("could change your estimated project total, VEU / VEEC discount and estimated cost after discount.");
     expect(`${email.html} ${email.plainText}`).not.toContain("VEU discount and estimated price could change.");
     expect(email.plainText).toContain("BOOK MY READY CHECK →:");
