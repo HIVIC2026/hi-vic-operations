@@ -1,12 +1,14 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Calculator, LogOut } from "lucide-react";
+import { BriefcaseBusiness, Calculator, ClipboardCheck, ExternalLink, LayoutDashboard, LogOut, Menu, Settings, Users, X } from "lucide-react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMe } from "@/hooks/use-me";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 export function AppShell({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
   const { data: me } = useMe();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -17,24 +19,27 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   };
-  const link = "rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors";
-  const active = { className: "bg-sidebar-accent text-sidebar-accent-foreground" };
+  const link = "flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground";
+  const active = { className: "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm" };
+  const group = "px-3 pb-1 pt-5 text-[11px] font-bold uppercase text-sidebar-foreground/45";
   const nav = (
     <>
       {roles.includes("admin") && (
         <>
-          <Link to="/admin" className={link} activeProps={active} activeOptions={{ exact: true }}>Pipeline</Link>
-          <Link to="/admin/businesses" className={link} activeProps={active}>Partners</Link>
-          <Link to="/admin/partners" className={link} activeProps={active}>Partner Enquiries</Link>
-          <Link to="/admin/compliance" className={link} activeProps={active}>Compliance Setup</Link>
-          <Link to="/admin/users" className={link} activeProps={active}>Users</Link>
-           <div className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/50">Customer tools</div>
-           <a href="/test-customer-estimate#calculator" target="_blank" rel="noopener" className={`${link} flex items-center gap-2`}>
-             <Calculator className="h-4 w-4" /> Customer calculator (test) ↗
+          <div className={group}>Work</div>
+          <Link to="/admin" className={link} activeProps={active} activeOptions={{ exact: true }} onClick={() => setMobileOpen(false)}><LayoutDashboard className="h-4 w-4" /> Jobs pipeline</Link>
+          <div className={group}>Partners</div>
+          <Link to="/admin/businesses" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><BriefcaseBusiness className="h-4 w-4" /> Approved partners</Link>
+          <Link to="/admin/partners" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><ClipboardCheck className="h-4 w-4" /> Applications</Link>
+          <div className={group}>Governance</div>
+          <Link to="/admin/compliance" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Settings className="h-4 w-4" /> Compliance setup</Link>
+          <Link to="/admin/users" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Users className="h-4 w-4" /> Users & access</Link>
+          <div className={group}>Tools</div>
+          <a href="/test-customer-estimate#calculator" target="_blank" rel="noopener" className={link}>
+             <Calculator className="h-4 w-4" /> Customer calculator <ExternalLink className="ml-auto h-3.5 w-3.5" />
            </a>
-          <div className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/50">Partner sign-up forms</div>
-          <a href="/electrician-onboarding" target="_blank" rel="noopener" className={link}>Electrician sign-up ↗</a>
-          <a href="/installer-onboarding" target="_blank" rel="noopener" className={link}>Installer sign-up ↗</a>
+          <a href="/electrician-onboarding" target="_blank" rel="noopener" className={link}><ExternalLink className="h-4 w-4" /> REC application form</a>
+          <a href="/installer-onboarding" target="_blank" rel="noopener" className={link}><ExternalLink className="h-4 w-4" /> Installer application form</a>
         </>
       )}
       {(roles.includes("electrician") || roles.includes("installer")) && <Link to="/field" className={link} activeProps={active}>My jobs</Link>}
@@ -43,15 +48,15 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
     </>
   );
   const brand = (
-    <Link to="/home" className="flex items-center gap-2 font-bold tracking-tight">
-      <span className="grid h-9 place-items-center rounded-md bg-card px-1.5"><img src={logo.url} alt="Home Insulation Victoria" className="h-7" /></span>
-      <span className="font-display">Portal</span>
+    <Link to="/home" className="flex min-w-0 items-center gap-2 font-bold">
+      <span className="grid h-9 shrink-0 place-items-center rounded-md bg-card px-1.5"><img src={logo.url} alt="Home Insulation Victoria" className="h-7" /></span>
+      <span className="min-w-0"><span className="block truncate font-display text-sm">HI VIC Operations</span><span className="block text-[10px] font-medium text-sidebar-foreground/50">Activity 48 portal</span></span>
     </Link>
   );
   return (
     <div className="flex min-h-screen bg-background">
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex">
         <div className="flex h-16 items-center border-b border-sidebar-border px-5">{brand}</div>
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">{nav}</nav>
         <div className="flex items-center justify-between gap-2 border-t border-sidebar-border px-4 py-3">
@@ -62,17 +67,16 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Mobile top bar */}
         <header className="sticky top-0 z-30 bg-sidebar text-sidebar-foreground md:hidden">
-          <div className="flex h-14 items-center gap-2 px-4">
+          <div className="flex h-16 items-center justify-between px-4">
             {brand}
-            <nav className="flex flex-1 items-center gap-1 overflow-x-auto">{nav}</nav>
-            <Button variant="ghost" size="icon" onClick={signOut} aria-label="Sign out" className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
-              <LogOut />
+            <Button variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)} aria-label={mobileOpen ? "Close navigation" : "Open navigation"} className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+              {mobileOpen ? <X /> : <Menu />}
             </Button>
           </div>
+          {mobileOpen && <div className="border-t border-sidebar-border px-3 pb-4"><nav className="flex max-h-[70vh] flex-col overflow-y-auto">{nav}</nav><Button variant="ghost" onClick={signOut} className="mt-3 w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"><LogOut /> Sign out</Button></div>}
         </header>
-        <main className={`mx-auto w-full px-4 py-6 ${wide ? "max-w-[1600px]" : "max-w-5xl"}`}>{children}</main>
+        <main className={`mx-auto w-full px-4 py-5 sm:px-6 ${wide ? "max-w-[1800px]" : "max-w-5xl"}`}>{children}</main>
       </div>
     </div>
   );

@@ -14,7 +14,6 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ElectricianOnboardingRouteImport } from './routes/electrician-onboarding'
 import { Route as InstallerOnboardingRouteImport } from './routes/installer-onboarding'
-import { Route as Step3DesignPreviewRouteImport } from './routes/step3-design-preview'
 import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
 import { Route as TestCustomerEstimateRouteImport } from './routes/test-customer-estimate'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
@@ -23,7 +22,6 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminBusinessesRouteImport } from './routes/_authenticated/admin.businesses'
 import { Route as AuthenticatedAdminComplianceRouteImport } from './routes/_authenticated/admin.compliance'
 import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authenticated/admin.partners'
-import { Route as AuthenticatedAdminStep3DesignRouteImport } from './routes/_authenticated/admin.step3-design'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedFieldIndexRouteImport } from './routes/_authenticated/field.index'
 import { Route as AuthenticatedFieldJobIdRouteImport } from './routes/_authenticated/field.$jobId'
@@ -67,11 +65,6 @@ const InstallerOnboardingRoute = InstallerOnboardingRouteImport.update({
   path: '/installer-onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
-const Step3DesignPreviewRoute = Step3DesignPreviewRouteImport.update({
-  id: '/step3-design-preview',
-  path: '/step3-design-preview',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const Step3EmailPreviewRoute = Step3EmailPreviewRouteImport.update({
   id: '/step3-email-preview',
   path: '/step3-email-preview',
@@ -113,12 +106,6 @@ const AuthenticatedAdminPartnersRoute =
   AuthenticatedAdminPartnersRouteImport.update({
     id: '/admin/partners',
     path: '/admin/partners',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedAdminStep3DesignRoute =
-  AuthenticatedAdminStep3DesignRouteImport.update({
-    id: '/admin/step3-design',
-    path: '/admin/step3-design',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
@@ -225,7 +212,6 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
-  '/step3-design-preview': typeof Step3DesignPreviewRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/test-customer-estimate': typeof TestCustomerEstimateRoute
   '/home': typeof AuthenticatedHomeRoute
@@ -233,7 +219,6 @@ export interface FileRoutesByFullPath {
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
-  '/admin/step3-design': typeof AuthenticatedAdminStep3DesignRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
@@ -259,7 +244,6 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
-  '/step3-design-preview': typeof Step3DesignPreviewRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/test-customer-estimate': typeof TestCustomerEstimateRoute
   '/home': typeof AuthenticatedHomeRoute
@@ -267,7 +251,6 @@ export interface FileRoutesByTo {
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
-  '/admin/step3-design': typeof AuthenticatedAdminStep3DesignRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
@@ -295,7 +278,6 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
-  '/step3-design-preview': typeof Step3DesignPreviewRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/test-customer-estimate': typeof TestCustomerEstimateRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
@@ -303,7 +285,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/_authenticated/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
-  '/_authenticated/admin/step3-design': typeof AuthenticatedAdminStep3DesignRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/_authenticated/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
@@ -331,7 +312,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/electrician-onboarding'
     | '/installer-onboarding'
-    | '/step3-design-preview'
     | '/step3-email-preview'
     | '/test-customer-estimate'
     | '/home'
@@ -339,7 +319,6 @@ export interface FileRouteTypes {
     | '/admin/businesses'
     | '/admin/compliance'
     | '/admin/partners'
-    | '/admin/step3-design'
     | '/admin/users'
     | '/field/$jobId'
     | '/owner/$jobId'
@@ -365,7 +344,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/electrician-onboarding'
     | '/installer-onboarding'
-    | '/step3-design-preview'
     | '/step3-email-preview'
     | '/test-customer-estimate'
     | '/home'
@@ -373,7 +351,6 @@ export interface FileRouteTypes {
     | '/admin/businesses'
     | '/admin/compliance'
     | '/admin/partners'
-    | '/admin/step3-design'
     | '/admin/users'
     | '/field/$jobId'
     | '/owner/$jobId'
@@ -400,7 +377,6 @@ export interface FileRouteTypes {
     | '/auth'
     | '/electrician-onboarding'
     | '/installer-onboarding'
-    | '/step3-design-preview'
     | '/step3-email-preview'
     | '/test-customer-estimate'
     | '/_authenticated/home'
@@ -408,7 +384,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/businesses'
     | '/_authenticated/admin/compliance'
     | '/_authenticated/admin/partners'
-    | '/_authenticated/admin/step3-design'
     | '/_authenticated/admin/users'
     | '/_authenticated/field/$jobId'
     | '/_authenticated/owner/$jobId'
@@ -436,7 +411,6 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ElectricianOnboardingRoute: typeof ElectricianOnboardingRoute
   InstallerOnboardingRoute: typeof InstallerOnboardingRoute
-  Step3DesignPreviewRoute: typeof Step3DesignPreviewRoute
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
   TestCustomerEstimateRoute: typeof TestCustomerEstimateRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
@@ -486,13 +460,6 @@ declare module '@tanstack/react-router' {
       path: '/installer-onboarding'
       fullPath: '/installer-onboarding'
       preLoaderRoute: typeof InstallerOnboardingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/step3-design-preview': {
-      id: '/step3-design-preview'
-      path: '/step3-design-preview'
-      fullPath: '/step3-design-preview'
-      preLoaderRoute: typeof Step3DesignPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/step3-email-preview': {
@@ -549,13 +516,6 @@ declare module '@tanstack/react-router' {
       path: '/admin/partners'
       fullPath: '/admin/partners'
       preLoaderRoute: typeof AuthenticatedAdminPartnersRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/admin/step3-design': {
-      id: '/_authenticated/admin/step3-design'
-      path: '/admin/step3-design'
-      fullPath: '/admin/step3-design'
-      preLoaderRoute: typeof AuthenticatedAdminStep3DesignRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/users': {
@@ -692,7 +652,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminBusinessesRoute: typeof AuthenticatedAdminBusinessesRoute
   AuthenticatedAdminComplianceRoute: typeof AuthenticatedAdminComplianceRoute
   AuthenticatedAdminPartnersRoute: typeof AuthenticatedAdminPartnersRoute
-  AuthenticatedAdminStep3DesignRoute: typeof AuthenticatedAdminStep3DesignRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedFieldJobIdRoute: typeof AuthenticatedFieldJobIdRoute
   AuthenticatedOwnerJobIdRoute: typeof AuthenticatedOwnerJobIdRoute
@@ -710,7 +669,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminBusinessesRoute: AuthenticatedAdminBusinessesRoute,
   AuthenticatedAdminComplianceRoute: AuthenticatedAdminComplianceRoute,
   AuthenticatedAdminPartnersRoute: AuthenticatedAdminPartnersRoute,
-  AuthenticatedAdminStep3DesignRoute: AuthenticatedAdminStep3DesignRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedFieldJobIdRoute: AuthenticatedFieldJobIdRoute,
   AuthenticatedOwnerJobIdRoute: AuthenticatedOwnerJobIdRoute,
@@ -732,7 +690,6 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ElectricianOnboardingRoute: ElectricianOnboardingRoute,
   InstallerOnboardingRoute: InstallerOnboardingRoute,
-  Step3DesignPreviewRoute: Step3DesignPreviewRoute,
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
   TestCustomerEstimateRoute: TestCustomerEstimateRoute,
   EstimateTokenRoute: EstimateTokenRoute,

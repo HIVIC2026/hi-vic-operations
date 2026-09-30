@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Calculator, Plus, Search } from "lucide-react";
+import { AlertTriangle, CheckCircle2, List, Plus, Search, SlidersHorizontal, Workflow } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { JobCard, type JobRow } from "@/components/portal/JobCard";
@@ -62,6 +62,7 @@ function Pipeline() {
   const paymentIssue = (j: JobRow) => j.payment_status === "overdue" || j.payment_status === "xero_sync_error";
   const piesaCount = jobs.filter(piesaIssue).length, paymentCount = jobs.filter(paymentIssue).length, acceptanceCount = jobs.filter(needsAcceptance).length;
   const warnings = jobs.filter((j) => piesaIssue(j) || paymentIssue(j) || needsAcceptance(j)).length;
+  const activeCount = jobs.filter((j) => !["complete", "cancelled"].includes(j.stage ?? "")).length;
 
   return (
     <AppShell wide>
@@ -70,54 +71,31 @@ function Pipeline() {
           The Pipeline could not be loaded. Refresh the page or sign in again.
         </div>
       )}
-      {comms?.enabled !== true && (
-        <div role="alert" className="mb-4 rounded-lg border-2 border-warning bg-warning-soft px-4 py-3 text-sm font-bold uppercase tracking-wide text-accent-foreground">
-          PRE-LAUNCH — customer communications disabled
-          <span className="ml-2 font-normal normal-case tracking-normal">No email, SMS or notification is sent to customers or trades. Internal workflow changes still apply.</span>
-        </div>
-      )}
-      {intakeHealth && (
-        <div data-testid="post-intake-health" className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border bg-card px-4 py-2 text-xs text-muted-foreground">
-          <span className="font-semibold text-foreground">Intake worker</span>
-          <span>Queued: <b className="text-foreground">{intakeHealth.counts.queued}</b></span>
-          <span>Running: <b className="text-foreground">{intakeHealth.counts.running}</b></span>
-          <span className={intakeHealth.counts.stale > 0 ? "text-warning font-semibold" : ""}>Stale: <b>{intakeHealth.counts.stale}</b></span>
-          <span className={intakeHealth.counts.failed > 0 ? "text-danger font-semibold" : ""}>Failed: <b>{intakeHealth.counts.failed}</b></span>
-          {intakeHealth.counts.retry_waiting > 0 && <span>Retrying: <b className="text-foreground">{intakeHealth.counts.retry_waiting}</b></span>}
-          <span className="ml-auto">
-            Last worker run:{" "}
-            {intakeHealth.lastWorkerRun ? (
-              <b className={intakeHealth.lastWorkerRun.status === "error" ? "text-danger" : "text-foreground"}>
-                {new Date(intakeHealth.lastWorkerRun.created_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}
-                {intakeHealth.lastWorkerRun.status === "error" && " (failed)"}
-              </b>
-            ) : (
-              <b className="text-warning">never</b>
-            )}
-          </span>
-        </div>
-      )}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="mb-5 flex flex-wrap items-start gap-4 border-b pb-5">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Pipeline</h1>
-          <p className="text-sm text-muted-foreground">{jobs.length} jobs · {warnings} need attention{warnings > 0 && <span className="font-semibold text-danger"> ({[piesaCount && `${piesaCount} PIESA deadline`, paymentCount && `${paymentCount} payment/Xero sync`, acceptanceCount && `${acceptanceCount} unsigned Customer Agreement`].filter(Boolean).join(" · ")})</span>}{hiddenTest > 0 && <> · {hiddenTest} test jobs hidden</>}</p>
+          <h1 className="text-2xl font-bold">Operations pipeline</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Every job from enquiry to VEEC completion, with blockers shown before work moves.</p>
         </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-           <Button asChild variant="outline">
-             <a href="/test-customer-estimate#calculator" target="_blank" rel="noopener"><Calculator /> Customer calculator (test)</a>
-           </Button>
-          <div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search job, address, person" className="w-64 pl-8" /></div>
+        <div className="ml-auto flex items-center gap-2"><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${comms?.enabled === true ? "border-success/30 bg-success-soft text-success" : "border-warning/40 bg-warning-soft text-foreground"}`}><span className={`h-2 w-2 rounded-full ${comms?.enabled === true ? "bg-success" : "bg-warning"}`} />Customer messages {comms?.enabled === true ? "on" : "off"}</span><NewEnquiry /></div>
+      </div>
+      <section className="mb-5 grid gap-3 sm:grid-cols-3" aria-label="Pipeline summary">
+        <button type="button" onClick={() => { setPhase("all"); setShowExceptions(false); }} className="rounded-md border bg-card p-4 text-left shadow-sm transition hover:border-primary"><div className="flex items-center justify-between"><span className="text-sm font-semibold text-muted-foreground">Active jobs</span><Workflow className="h-4 w-4 text-primary" /></div><div className="mt-1 text-2xl font-bold">{activeCount}</div><div className="text-xs text-muted-foreground">Across the full workflow</div></button>
+        <button type="button" onClick={() => setShowExceptions(false)} className={`rounded-md border bg-card p-4 text-left shadow-sm transition hover:border-warning ${warnings > 0 ? "border-l-4 border-l-warning" : ""}`}><div className="flex items-center justify-between"><span className="text-sm font-semibold text-muted-foreground">Needs attention</span><AlertTriangle className="h-4 w-4 text-warning" /></div><div className="mt-1 text-2xl font-bold">{warnings}</div><div className="text-xs text-muted-foreground">{warnings > 0 ? [piesaCount && `${piesaCount} PIESA`, paymentCount && `${paymentCount} payment`, acceptanceCount && `${acceptanceCount} agreement`].filter(Boolean).join(" · ") : "No active blockers"}</div></button>
+        <button type="button" onClick={() => { setPhase("complete"); setShowExceptions(false); }} className="rounded-md border bg-card p-4 text-left shadow-sm transition hover:border-success"><div className="flex items-center justify-between"><span className="text-sm font-semibold text-muted-foreground">Completed</span><CheckCircle2 className="h-4 w-4 text-success" /></div><div className="mt-1 text-2xl font-bold">{byPhase("complete").length}</div><div className="text-xs text-muted-foreground">Ready and closed records</div></button>
+      </section>
+      {comms?.enabled !== true && <p className="mb-3 text-xs text-muted-foreground">Pre-launch safety is active: no email, SMS or notification is sent to customers or trades.</p>}
+      {intakeHealth && <div data-testid="post-intake-health" className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-card px-4 py-2 text-xs text-muted-foreground"><span className="font-semibold text-foreground">Enquiry intake</span><span>Queued <b className="text-foreground">{intakeHealth.counts.queued}</b></span><span>Running <b className="text-foreground">{intakeHealth.counts.running}</b></span><span className={intakeHealth.counts.stale > 0 ? "font-semibold text-warning" : ""}>Stale <b>{intakeHealth.counts.stale}</b></span><span className={intakeHealth.counts.failed > 0 ? "font-semibold text-danger" : ""}>Failed <b>{intakeHealth.counts.failed}</b></span></div>}
+      <div className="mb-5 flex flex-wrap items-center gap-2 rounded-md border bg-card p-3 shadow-sm">
+          <div className="relative min-w-64 flex-1"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search job number, address or person" className="pl-8" /></div>
           <select aria-label="Job source" className="h-9 rounded-md border bg-background px-2 text-sm" value={source} onChange={(e) => setSource(e.target.value as typeof source)}>
             <option value="all">All sources</option><option value="hivic_sourced">HI VIC-sourced</option><option value="installer_sourced">Installer-sourced</option>
           </select>
           <select aria-label="Phase" className="h-9 rounded-md border bg-background px-2 text-sm" value={phase} onChange={(e) => setPhase(e.target.value as typeof phase)}>
             <option value="all">All phases</option>{PIPELINE_PHASES.map((p) => <option key={p.key} value={p.key}>{p.label} ({byPhase(p.key).length})</option>)}
           </select>
-          <Button variant={showExceptions ? "secondary" : "outline"} onClick={() => setShowExceptions(!showExceptions)}>On hold / Cancelled ({byPhase("exceptions").length})</Button>
-          <label className="flex items-center gap-2 text-sm"><Checkbox checked={showTest} onCheckedChange={(v) => setShowTest(!!v)} /> Show test jobs</label>
-          <Button variant="outline" onClick={() => setView(view === "board" ? "list" : "board")}>{view === "board" ? "List view" : "Board view"}</Button>
-          <NewEnquiry />
-        </div>
+          <Button variant={showExceptions ? "secondary" : "outline"} onClick={() => setShowExceptions(!showExceptions)}><AlertTriangle /> Exceptions ({byPhase("exceptions").length})</Button>
+          <label className="flex items-center gap-2 px-1 text-sm"><Checkbox checked={showTest} onCheckedChange={(v) => setShowTest(!!v)} /> Test jobs{hiddenTest > 0 && ` (${hiddenTest})`}</label>
+          <Button variant="outline" onClick={() => setView(view === "board" ? "list" : "board")}>{view === "board" ? <List /> : <SlidersHorizontal />}{view === "board" ? "List" : "Board"}</Button>
       </div>
       {showExceptions && (
         <section className="mb-4 rounded-xl border bg-muted/40 p-3">
@@ -126,13 +104,13 @@ function Pipeline() {
         </section>
       )}
       {view === "board" ? (
-        <div className="flex gap-3 overflow-x-auto pb-4">
+        <div className="flex gap-5 overflow-x-auto pb-5">
           {lanes.map((p) => (
-            <div key={p.key} className="w-80 shrink-0">
-              <div className="mb-2 flex items-center justify-between px-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                <span>{p.label}</span><span className="rounded bg-muted px-1.5">{byPhase(p.key).length}</span>
+            <div key={p.key} className="w-[19rem] shrink-0">
+              <div className="mb-3 flex items-center justify-between border-b px-1 pb-2 text-sm font-bold text-foreground">
+                <span>{p.label}</span><span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{byPhase(p.key).length}</span>
               </div>
-              <div className="space-y-2">{byPhase(p.key).map((j) => <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" />)}</div>
+              <div className="space-y-3">{byPhase(p.key).map((j) => <JobCard key={j.id} job={j} to="/admin/jobs/$jobId" />)}{byPhase(p.key).length === 0 && <div className="rounded-md border border-dashed p-6 text-center text-xs text-muted-foreground">No jobs in this phase</div>}</div>
             </div>
           ))}
         </div>
