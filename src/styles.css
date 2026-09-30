@@ -84,6 +84,20 @@
   --color-workspace-blush-strong: var(--workspace-blush-strong);
   --color-workspace-sun: var(--workspace-sun);
   --color-workspace-sun-strong: var(--workspace-sun-strong);
+  --color-task-eligibility: var(--task-eligibility);
+  --color-task-eligibility-foreground: var(--task-eligibility-foreground);
+  --color-task-scheduling: var(--task-scheduling);
+  --color-task-scheduling-foreground: var(--task-scheduling-foreground);
+  --color-task-payments: var(--task-payments);
+  --color-task-payments-foreground: var(--task-payments-foreground);
+  --color-task-pricing: var(--task-pricing);
+  --color-task-pricing-foreground: var(--task-pricing-foreground);
+  --color-task-measure: var(--task-measure);
+  --color-task-measure-foreground: var(--task-measure-foreground);
+  --color-task-compliance: var(--task-compliance);
+  --color-task-compliance-foreground: var(--task-compliance-foreground);
+  --color-task-partners: var(--task-partners);
+  --color-task-partners-foreground: var(--task-partners-foreground);
   --font-sans: var(--app-font);
   --font-display: var(--app-font-display);
 }
@@ -190,6 +204,20 @@
   --workspace-blush-strong: oklch(0.86 0.08 345);
   --workspace-sun: oklch(0.955 0.075 92);
   --workspace-sun-strong: oklch(0.82 0.13 86);
+  --task-eligibility: oklch(0.93 0.06 345);
+  --task-eligibility-foreground: oklch(0.43 0.13 345);
+  --task-scheduling: oklch(0.92 0.055 250);
+  --task-scheduling-foreground: oklch(0.4 0.14 255);
+  --task-payments: oklch(0.93 0.07 145);
+  --task-payments-foreground: oklch(0.38 0.1 150);
+  --task-pricing: oklch(0.94 0.075 85);
+  --task-pricing-foreground: oklch(0.42 0.1 70);
+  --task-measure: oklch(0.92 0.055 205);
+  --task-measure-foreground: oklch(0.38 0.09 220);
+  --task-compliance: oklch(0.93 0.06 305);
+  --task-compliance-foreground: oklch(0.4 0.12 305);
+  --task-partners: oklch(0.94 0.055 35);
+  --task-partners-foreground: oklch(0.43 0.12 35);
   --sidebar: #22376b;
   --sidebar-foreground: oklch(0.96 0.01 278.5);
   --sidebar-primary: #52c875;
@@ -254,6 +282,20 @@
   --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.551 0.027 264.364);
+  --task-eligibility: oklch(0.34 0.08 345);
+  --task-eligibility-foreground: oklch(0.9 0.07 345);
+  --task-scheduling: oklch(0.34 0.08 255);
+  --task-scheduling-foreground: oklch(0.9 0.06 250);
+  --task-payments: oklch(0.34 0.07 150);
+  --task-payments-foreground: oklch(0.9 0.07 145);
+  --task-pricing: oklch(0.36 0.07 75);
+  --task-pricing-foreground: oklch(0.91 0.08 85);
+  --task-measure: oklch(0.34 0.06 220);
+  --task-measure-foreground: oklch(0.9 0.06 205);
+  --task-compliance: oklch(0.34 0.08 305);
+  --task-compliance-foreground: oklch(0.9 0.07 305);
+  --task-partners: oklch(0.36 0.07 35);
+  --task-partners-foreground: oklch(0.91 0.06 35);
 }
 
 @layer base {
