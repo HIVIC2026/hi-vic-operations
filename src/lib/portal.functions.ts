@@ -50,7 +50,7 @@ export const setEligibility = createServerFn({ method: "POST" }).middleware([req
     const gate = await refreshGate1Flags(data.jobId); // safety/operational flags + 2026 rollout hold (admin outcome stands)
     const overriding = before.eligibility_decision_source === "system";
     await logEvent(data.jobId, context.userId, overriding ? "eligibility_override" : "eligibility_set", `${overriding ? "Admin override of system Gate 1 decision" : "Eligibility"}: ${data.outcome.replaceAll("_", " ")}`, { reason: data.reason, next_action: data.nextAction, previous_outcome: before.eligibility_outcome, previous_source: before.eligibility_decision_source, previous_rules: before.eligibility_decision_rules });
-    if (data.outcome === "does_not_appear_eligible" && stage === "awaiting_electrician") {
+    if (data.outcome === "does_not_appear_eligible" && (stage === "awaiting_electrician" || stage === "ready_check_ready_to_schedule")) {
       await transition(data.jobId, "eligibility_review", context.userId, "Admin corrected Gate 1 – back to eligibility review", { reason: data.reason }, { nextAction: data.nextAction });
       stage = "eligibility_review";
     }
@@ -58,7 +58,7 @@ export const setEligibility = createServerFn({ method: "POST" }).middleware([req
       if (stage === "new_enquiry") await transition(data.jobId, "eligibility_review", context.userId, "Eligibility set – held until general rollout starts 1 Oct 2026", {}, { nextAction: "Hold until general rollout starts 1 Oct 2026, then assign installer for the free Ready Check" });
       await logEvent(data.jobId, context.userId, "gate1_rollout_hold", "Assessment dispatch held: general rollout starts 1 Oct 2026", { flags: gate.flags }, { internal: true });
     } else if (data.outcome !== "does_not_appear_eligible" && (stage === "new_enquiry" || stage === "eligibility_review")) {
-      await transition(data.jobId, "awaiting_electrician", context.userId, "Eligibility passed – awaiting electrician", {}, { nextAction: data.nextAction });
+      await transition(data.jobId, "ready_check_ready_to_schedule", context.userId, "Eligibility passed – free installer Ready Check next", {}, { nextAction: data.nextAction });
       // Owner Authority is no longer requested before assessment; acceptance happens at quote acceptance.
     } else if (stage === "new_enquiry") {
       await transition(data.jobId, "eligibility_review", context.userId, "Moved to eligibility review", {}, { nextAction: data.nextAction });

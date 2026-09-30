@@ -1,3 +1,4 @@
+import { stageMismatches } from "./nextstep.core";
 // TO ACTION list: pure derivation over live records. Nothing is stored, so an item disappears
 // the moment the underlying record shows the step was done. Staff never tick anything off here.
 
@@ -20,6 +21,8 @@ export type TodoInput = {
   installBookings?: { id: string; job_id: string; scheduled_start: string | null }[];
   piesaDeliveries?: { job_id: string; recipient: string }[];
   onboarding?: { id: string; signer_name: string | null; partner_type: string | null; updated_at: string | null }[];
+  electricianJobs?: Set<string>;
+  acceptedQuoteJobs?: Set<string>;
   now: number;
 };
 
@@ -27,6 +30,7 @@ export type TodoInput = {
 export const OFFICE_STAGE_ACTIONS: Record<string, { category: TodoItem["category"]; title: string; action: string; tab: string }> = {
   eligibility_review: { category: "Eligibility", title: "Decide eligibility", action: "Open the Eligibility tab, check the numbered checklist and record the decision.", tab: "eligibility" },
   awaiting_electrician: { category: "Scheduling", title: "Assign an electrician", action: "Open the Overview tab and assign an approved electrician for the PIESA.", tab: "overview" },
+  ready_check_ready_to_schedule: { category: "Scheduling", title: "Arrange the free installer Ready Check", action: "Assign an installer for the free Ready Check – or, if the installer already supplied a full measure-up, review and approve it on the Assessment tab.", tab: "assessment" },
   ready_for_installer_quotes: { category: "Pricing", title: "Prepare the quote", action: "Open the Quotes tab and generate the installation quote options.", tab: "quotes" },
   ap_review: { category: "Compliance", title: "Complete AP review", action: "Open the Evidence and VEEC tabs, verify every item and pass AP review.", tab: "evidence" },
   ready_for_veec: { category: "Compliance", title: "Lodge VEECs", action: "Lodge with the ESC, then record the quantity and submission reference on the VEEC tab.", tab: "veec" },
@@ -62,8 +66,9 @@ export function buildTodos(i: TodoInput): TodoItem[] {
       push(j.id, { key: `gate1:${j.id}`, category: "Eligibility", title: "REVIEW REQUIRED – Gate 1", action: "Open the Eligibility tab, resolve the flagged checks and record the decision.", tab: "eligibility", since: null, urgent: false });
       continue;
     }
-    if (j.stage === "awaiting_electrician" && ["likely_eligible", "needs_onsite_confirmation"].includes(j.eligibility_outcome ?? "")) {
-      push(j.id, { key: `readycheck:${j.id}`, category: "Scheduling", title: "Arrange the free installer Ready Check", action: "Open the job and assign an installer for the free Ready Check (measure-up). The electrician PIESA comes after.", tab: "overview", since: null, urgent: false });
+    const mism = stageMismatches({ stage: j.stage, eligibility_outcome: j.eligibility_outcome ?? null, eligibility_review_required: j.eligibility_review_required, electricianAssigned: (i.electricianJobs ?? new Set()).has(j.id), installQuoteAccepted: (i.acceptedQuoteJobs ?? new Set()).has(j.id) });
+    if (mism.length) {
+      push(j.id, { key: `mismatch:${j.id}`, category: "Compliance", title: "Stage doesn't match records", action: `${mism.join(" ")} Open the job, check its records and correct the stage.`, tab: "overview", since: null, urgent: true });
       continue;
     }
     const s = OFFICE_STAGE_ACTIONS[j.stage];

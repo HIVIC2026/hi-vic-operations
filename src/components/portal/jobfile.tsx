@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { nextStep } from "@/lib/nextstep.core";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Download, FileText, Lock, Phone, Search } from "lucide-react";
@@ -45,7 +46,7 @@ export function JobFileHeader({ jobId, job }: { jobId: string; job: JobRow }) {
           <h1 className="text-2xl font-bold tracking-tight">{job.property_address}</h1>
           <p className="text-sm text-muted-foreground">{job.owner_name} · {job.owner_phone} · {job.owner_email}</p>
         </div>
-        <div className="rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground"><div className="text-xs font-semibold uppercase">Next action</div>{job.next_action}</div>
+        <div className="rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground"><div className="text-xs font-semibold uppercase">Next action</div>{nextStep(job).next}</div>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm md:grid-cols-4">
         <div><dt className="text-xs text-muted-foreground">Channel</dt><dd>{job.channel === "installer_sourced" ? `Installer-sourced · ${job.originating_business_name ?? "partner"}` : "HI VIC-sourced"}</dd></div>

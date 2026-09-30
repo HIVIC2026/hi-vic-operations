@@ -1,4 +1,5 @@
 import { OwnerEstimateCard } from "@/components/portal/estimate";
+import { nextStep } from "@/lib/nextstep.core";
 import { AppointmentPanel } from "@/components/portal/partner";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -32,7 +33,7 @@ function OwnerJob() {
         <h1 className="text-xl font-bold">{job.property_address}</h1>
         <div className="mt-2 flex flex-wrap gap-1.5"><StageBadge stage={s} /><PaymentBadge status={job.payment_status} /><UrgencyBadge urgency={job.urgency} days={job.days_remaining} /></div>
         <Progress value={pct} className="mt-3" />
-        <p className="mt-3 rounded bg-accent px-3 py-2 text-sm font-medium text-accent-foreground">What's next: {job.next_action}</p>
+        <p className="mt-3 rounded bg-accent px-3 py-2 text-sm font-medium text-accent-foreground">What's next: {nextStep(job).next}</p>
         <dl className="mt-3 grid grid-cols-2 gap-1 text-sm"><dt className="text-muted-foreground">Electrician</dt><dd>{job.electrician_name ?? "Being arranged"}</dd><dt className="text-muted-foreground">Installer</dt><dd>{job.installer_name ?? "Being arranged"}</dd></dl>
       </div>
       <div className="space-y-4">

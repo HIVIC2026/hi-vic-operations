@@ -5,6 +5,8 @@ import type { Stage } from "./workflow";
 
 export type AdvanceFacts = {
   eligibilityConfirmed: boolean; // admin-set (eligibility_set_by) and not "does not appear eligible"
+  /** HI VIC has explicitly approved (accepted_by set) the current measure-up, e.g. an installer's own – only then is the Ready Check skipped. */
+  measureUpAccepted?: boolean;
   electricianAssigned: boolean;
   assessmentBookingConfirmed: boolean;
   openRectItems: number;
@@ -37,7 +39,10 @@ export function planStep(stage: Stage, f: AdvanceFacts, opts: { allowApPromotion
   switch (stage) {
     case "new_enquiry":
     case "eligibility_review":
-      return f.eligibilityConfirmed ? t("awaiting_electrician", "Eligibility confirmed – awaiting electrician") : stop("HI VIC must confirm Gate 1 eligibility");
+      if (!f.eligibilityConfirmed) return stop("HI VIC must confirm Gate 1 eligibility");
+      return f.measureUpAccepted ? t("ready_check_complete", "Eligibility confirmed – accepted measure-up already on file, no Ready Check needed") : t("ready_check_ready_to_schedule", "Eligibility confirmed – free installer Ready Check next");
+    case "ready_check_ready_to_schedule":
+      return f.measureUpAccepted ? t("ready_check_complete", "Accepted measure-up on file – Ready Check not needed") : stop("HI VIC must assign an installer for the free Ready Check");
     case "awaiting_electrician":
       return f.electricianAssigned ? t("assessment_booking", "Electrician assigned – booking PIESA") : stop("HI VIC must assign an electrician for PIESA");
     case "assessment_booking":

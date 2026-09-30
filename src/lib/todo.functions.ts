@@ -12,7 +12,7 @@ export const getTodos = createServerFn({ method: "GET" }).middleware([requireSup
       if (r.error) throw new Error(`Could not load ${what}: ${r.error.message}`);
       return (r.data ?? []) as T;
     };
-    const [jobs, invoices, invStatus, rect, meas, reas, penq, esc, books, pdel, onb] = await Promise.all([
+    const [jobs, invoices, invStatus, rect, meas, reas, penq, esc, books, pdel, onb, elecA, accQ] = await Promise.all([
       admin.from("job_overview").select("id, job_number, property_address, stage, source, eligibility_review_required, eligibility_outcome").not("stage", "in", "(complete,cancelled)"),
       admin.from("invoices").select("id, job_id, xero_invoice_id, xero_invoice_number, deposit_request_raised_at, deposit_amount, status, last_sync_error, xero_update_pending, created_at"),
       admin.from("invoice_status").select("id, deposit_cleared, effective_status"),
@@ -24,6 +24,8 @@ export const getTodos = createServerFn({ method: "GET" }).middleware([requireSup
       admin.from("bookings").select("id, job_id, scheduled_start").eq("kind", "installation").in("status", ["proposed", "confirmed"]),
       admin.from("piesa_deliveries").select("job_id, recipient"),
       admin.from("rec_onboarding_applications").select("id, signer_name, partner_type, updated_at").eq("status", "submitted"),
+      admin.from("job_assignments").select("job_id").eq("role", "electrician").eq("active", true),
+      admin.from("quotes").select("job_id").eq("kind", "installation").eq("status", "accepted"),
     ]);
     const jobRows = ok(jobs, "jobs").filter((j) => j.source !== "qa_test");
     const cleared = new Map(ok(invStatus, "payment status").map((s) => [s.id, s]));
@@ -39,6 +41,8 @@ export const getTodos = createServerFn({ method: "GET" }).middleware([requireSup
       installBookings: ok(books, "install bookings"),
       piesaDeliveries: ok(pdel, "PIESA deliveries"),
       onboarding: ok(onb, "onboarding applications"),
+      electricianJobs: new Set(ok(elecA, "electrician assignments").map((r) => r.job_id)),
+      acceptedQuoteJobs: new Set(ok(accQ, "accepted quotes").map((r) => r.job_id)),
     });
     return { items, checkedAt: new Date().toISOString() };
   });
