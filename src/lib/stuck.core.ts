@@ -3,8 +3,8 @@ export interface StuckSignals {
   stage: string | null;
   lastActivityAt: string | null;
   invoiceSyncErrors: string[]; // invoices.last_sync_error non-null
-  readyCheckFailed: boolean; // a ready_check_payments row failed and none paid
-  readyCheckPaidAt: string | null; // paid, but job hasn't moved
+  readyCheckFailed: boolean; // historical paid-flow row failed and none paid
+  readyCheckPaidAt: string | null; // historical payment succeeded, but job did not move
   confirmedBookings: { kind: string; scheduled_start: string }[];
 }
 
@@ -22,9 +22,9 @@ export function stuckReasons(s: StuckSignals, now: Date, idleDays = 7): string[]
   if (!s.stage || CLOSED.includes(s.stage)) return [];
   const out: string[] = [];
   for (const e of s.invoiceSyncErrors) out.push(`Xero sync failed: ${e.slice(0, 120)}`);
-  if (s.readyCheckFailed) out.push("Ready Check payment failed – owner may need help");
+  if (s.readyCheckFailed) out.push("Legacy Ready Check payment failed – review the historical record");
   if (s.readyCheckPaidAt && EARLY.includes(s.stage) && now.getTime() - Date.parse(s.readyCheckPaidAt) > 24 * HOUR)
-    out.push("Ready Check paid over 24h ago but job hasn't moved");
+    out.push("Legacy Ready Check payment was recorded over 24h ago but the job did not move");
   for (const b of s.confirmedBookings) {
     if ((PRE_BOOKED[b.kind] ?? []).includes(s.stage)) out.push(`${b.kind[0]!.toUpperCase()}${b.kind.slice(1)} booking confirmed but stage not updated to ${BOOKED_STAGE[b.kind]!.replace(/_/g, " ")}`);
   }

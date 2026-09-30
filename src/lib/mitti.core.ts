@@ -174,7 +174,7 @@ export function buildPrefill(template: Any, ctx: PrefillCtx) {
 export type CreateCtx = {
   businessUnit: string; stage: string; jobNumber: string; existingAuditId: string | null;
   electricianEmail: string | null; prefill: PrefillCtx;
-  /** Defaults to the combined electrician template. Measure-up-only passes the CONFIGURED template (never invented). */
+  /** Defaults to the electrician PIESA template. Installer measure-up passes the configured measure-up template (never invented). */
   templateId?: string; assigneeRole?: "electrician" | "installer";
 };
 export type CreateResult = { auditId: string; reused: boolean; mittiUserId: string; assigneeEmail: string; prefillCount: number | null; createdAt: string | null };

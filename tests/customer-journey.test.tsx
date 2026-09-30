@@ -17,13 +17,13 @@ describe("customer journey stages", () => {
     expect(html.split("BOOK MY READY CHECK →").length - 1).toBe(1);
   });
 
-  test("measured estimate: shared order, green discount, credit, strongest total", () => {
+  test("measured estimate: shared order, green discount and strongest total", () => {
     const html = renderToStaticMarkup(<MeasuredQuoteView insulation={4500} removal={2250} access={300} allowance={allowance} piesa={349} ap={349} discount={1481.76} />);
-    const order = [CUSTOMER_QUOTE_LABELS.piesa, CUSTOMER_QUOTE_LABELS.insulation, "Existing insulation removal", "Access adjustment", "Preliminary electrical allowance", CUSTOMER_QUOTE_LABELS.apManagement, CUSTOMER_QUOTE_LABELS.projectTotal, CUSTOMER_QUOTE_LABELS.discount, "Ready Check credit", CUSTOMER_MEASURED_QUOTE.labels.finalCost, CUSTOMER_MEASURED_QUOTE.stillChangeHeading, CUSTOMER_APPROVAL_REASSURANCE];
+    const order = [CUSTOMER_QUOTE_LABELS.piesa, CUSTOMER_QUOTE_LABELS.insulation, "Existing insulation removal", "Access adjustment", "Preliminary electrical allowance", CUSTOMER_QUOTE_LABELS.apManagement, CUSTOMER_QUOTE_LABELS.projectTotal, CUSTOMER_QUOTE_LABELS.discount, CUSTOMER_MEASURED_QUOTE.labels.finalCost, CUSTOMER_MEASURED_QUOTE.stillChangeHeading, CUSTOMER_APPROVAL_REASSURANCE];
     const idx = order.map((l) => html.indexOf(l.replace(/&/g, "&amp;")));
     expect(idx.every((v, i) => v >= 0 && (i === 0 || v > idx[i - 1]!))).toBe(true);
     expect(html).toContain('data-testid="quote-discount-band"');
-    expect(html).toContain("−$99");
+    expect(html).not.toMatch(/Ready Check credit|−\$99/);
     expect(html).toContain(CUSTOMER_MEASURED_QUOTE.heading);
     expect(html).not.toMatch(/reconciliation|rate card|remaining/i);
   });

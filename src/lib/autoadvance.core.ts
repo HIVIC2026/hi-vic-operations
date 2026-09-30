@@ -39,7 +39,7 @@ export function planStep(stage: Stage, f: AdvanceFacts, opts: { allowApPromotion
     case "eligibility_review":
       return f.eligibilityConfirmed ? t("awaiting_electrician", "Eligibility confirmed – awaiting electrician") : stop("HI VIC must confirm Gate 1 eligibility");
     case "awaiting_electrician":
-      return f.electricianAssigned ? t("assessment_booking", "Electrician assigned – booking measure-up") : stop("HI VIC must assign an electrician");
+      return f.electricianAssigned ? t("assessment_booking", "Electrician assigned – booking PIESA") : stop("HI VIC must assign an electrician for PIESA");
     case "assessment_booking":
       return f.assessmentBookingConfirmed ? t("assessment_booked", "Assessment booking confirmed") : stop("Assessment booking not confirmed");
     case "assessment_booked":

@@ -45,7 +45,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
   const piesaMissing = evMissing.find((e) => e.category === "piesa_signoff");
   const run = async (f: () => Promise<unknown>) => { setBusy(true); try { await f(); } finally { setBusy(false); } };
   return (
-    <Section title={a?.mitti_scope && a.mitti_scope !== "COMBINED" ? `Mitti assessment · ${String(a.mitti_scope).replaceAll("_", " ").toLowerCase()}` : "Mitti combined assessment"} action={<Pill t={tone as never}>{label}</Pill>}>
+    <Section title={a?.mitti_scope === "MEASURE_UP_ONLY" ? "Mitti installer measure-up" : "Mitti electrical assessment · PIESA"} action={<Pill t={tone as never}>{label}</Pill>}>
       <dl className="grid grid-cols-2 gap-1 text-sm">
         <dt className="text-muted-foreground">Audit ID</dt><dd className="break-all">{a?.external_mitti_id ?? "—"}</dd>
         <dt className="text-muted-foreground">Assignee</dt><dd className="break-all">{a?.mitti_assignee_email ?? "—"}</dd>
@@ -69,7 +69,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
   );
 }
 
-/** Read-only view of Mitti-synced assessment fields (electrician doesn't enter them twice). */
+/** Read-only view of Mitti-synced PIESA fields (the electrician does not enter them twice). */
 export function MittiSyncedFields({ a: raw }: { a: Record<string, unknown> }) {
   const a = raw as { [k in "measured_area_m2"|"insulation_present"|"existing_r_value"|"removal_required"|"removal_m2"|"access_difficulty"|"downlights_qty"|"downlights_upgrade_qty"|"exhaust_fans_qty"|"exhaust_fans_clearance_qty"|"switchboard_condition"|"rcds_present"|"rcds_required_qty"|"life_support_confirmed"|"piesa_outcome"|"assessed_on"|"hazards"|"notes"]: unknown };
   const f = (v: unknown) => (v === true ? "Yes" : v === false ? "No" : v == null || v === "" ? "—" : String(v));
