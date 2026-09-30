@@ -45,25 +45,27 @@ function ProfitPage() {
       </div>
       <Stat label="Estimated profit" value={$(total("profit"))} hint={`${rows.length} accepted jobs`} />
       <Stat label="VEECs held" value={total("veecs").toLocaleString("en-AU", { maximumFractionDigits: 1 })} hint="From accepted quotes" />
-      <Stat label="VEEC margin" value={$(total("veecMargin"))} hint={`Spot − $${OWNER_VEEC_RATE} per VEEC`} />
+      <Stat label="VEEC margin (HI VIC keeps)" value={$(total("veecMargin"))} hint={`Spot − $${OWNER_VEEC_RATE} per VEEC`} />
     </section>
 
     <section className="mt-6 grid gap-5 xl:grid-cols-[1fr_340px]">
       <div className="overflow-x-auto rounded-md border bg-card">
-        <table className="w-full text-sm"><thead className="bg-muted text-left text-xs uppercase"><tr><th className="p-3">Job</th><th className="p-3">Property</th><th className="p-3 text-right">Customer ex GST</th><th className="p-3 text-right">Trade cost ex GST</th><th className="p-3 text-right">VEECs</th><th className="p-3 text-right">VEEC sale</th><th className="p-3 text-right">Profit</th></tr></thead>
+        <table className="w-full text-sm"><thead className="bg-muted text-left text-xs uppercase"><tr><th className="p-3">Job</th><th className="p-3">Property</th><th className="p-3 text-right">Customer ex GST</th><th className="p-3 text-right">Trade cost ex GST</th><th className="p-3 text-right">VEECs</th><th className="p-3 text-right">VEEC margin</th><th className="p-3 text-right">Profit</th></tr></thead>
           <tbody>{rows.length === 0 ? <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">No accepted jobs yet.</td></tr> : rows.map((r) => <tr key={r.jobId} className="border-t">
             <td className="p-3 font-bold"><Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="text-primary underline">{r.jobNumber ?? "—"}</Link></td>
             <td className="p-3">{r.address ?? "—"}</td>
             <td className="p-3 text-right">{$(r.p.customerExGst)}</td>
             <td className="p-3 text-right">{$(r.cost)}{r.costMissing && <div><Pill t="warn">Trade cost missing</Pill></div>}</td>
             <td className="p-3 text-right">{r.p.veecs.toFixed(1)}</td>
-            <td className="p-3 text-right">{$(r.p.veecRevenue)}</td>
+            <td className="p-3 text-right">{$(r.p.veecMargin)}</td>
             <td className={`p-3 text-right font-bold ${(r.p.profit ?? 0) < 0 ? "text-danger" : "text-success"}`}>{$(r.p.profit)}</td>
           </tr>)}</tbody></table>
       </div>
       <aside className="space-y-4">
         <div className="rounded-md border bg-card p-4">
           <h2 className="font-bold">Record today's spot price</h2>
+          <Button className="mt-3 w-full" variant="secondary" onClick={async () => { await fetchOnline({}, "Online spot price saved"); await refetch(); }}>Update from online (Ecovantage)</Button>
+          <p className="mt-2 text-xs text-muted-foreground">Reads the latest published VEEC market update. If the page can't be read, enter the price by hand below.</p>
           <div className="mt-3 grid gap-2"><div><Label>Price per VEEC ($)</Label><Input inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} /></div><div><Label>Date</Label><Input type="date" value={on} onChange={(e) => setOn(e.target.value)} /></div><div><Label>Source (e.g. broker, Ecovantage)</Label><Input value={source} onChange={(e) => setSource(e.target.value)} /></div>
             <Button disabled={!(Number(price) > 0)} onClick={async () => { await save({ price: Number(price), pricedOn: on, source: source || undefined }, "Spot price saved"); setPrice(""); await refetch(); }}>Save spot price</Button></div>
         </div>
