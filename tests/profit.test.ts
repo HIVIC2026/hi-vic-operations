@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { jobProfit, parseVeecSpotFromHtml, sellSignal } from "../src/lib/profit.core";
+import { jobMargin, jobProfit, parseVeecSpotFromHtml, sellSignal } from "../src/lib/profit.core";
 
 const today = new Date("2026-09-30T00:00:00Z");
 describe("profit", () => {
