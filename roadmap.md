@@ -69,4 +69,4 @@
 
 - [x] Remove DC Construction Solutions wording from portal login screens
 
-- [ ] Fix partner enquiry Open links to select the exact applicant instead of only opening the list.
+- [x] Fix partner enquiry Open links to select the exact applicant instead of only opening the list.
