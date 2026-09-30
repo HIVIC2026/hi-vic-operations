@@ -336,6 +336,9 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
 
 function InsuranceStep({ d, up, token, setError }: { d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void }) {
   const [uploading, setUploading] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [found, setFound] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   async function onFile(f: File | undefined) {
     if (!f) return;
     setError(null);
@@ -346,16 +349,40 @@ function InsuranceStep({ d, up, token, setError }: { d: RecData; up: (p: Partial
       const u = await insuranceUploadUrl({ data: { token, content_type: f.type as "application/pdf", size: f.size } });
       const { error } = await supabase.storage.from("partner-files").uploadToSignedUrl(u.path, u.token, f, { contentType: f.type });
       if (error) throw new Error("Upload failed. Please try again.");
-      await confirmInsuranceUpload({ data: { token, path: u.path } });
-      up({ insurance_uploaded: true });
-    } catch (e) { setError(e instanceof Error ? e.message : "Upload failed."); } finally { setUploading(false); }
+      setChecking(true);
+      const r = await confirmInsuranceUpload({ data: { token, path: u.path } });
+      const x = r.extracted;
+      const patch: Partial<RecData> = { insurance_uploaded: true };
+      const notes: string[] = [];
+      if (x) {
+        if (x.insurer) patch.insurer = x.insurer;
+        if (x.policy_number) patch.insurance_policy_number = x.policy_number;
+        if (x.cover_amount) patch.public_liability_cover_amount = x.cover_amount;
+        if (x.expiry) patch.public_liability_expiry = x.expiry;
+        const norm = (v?: string | null) => (v ?? "").toLowerCase().replace(/pty|ltd|limited|the|[^a-z0-9]/g, "");
+        if (x.insured_name) {
+          const n = norm(x.insured_name);
+          const ok = [d.legal_entity_name, d.trading_name].some((b) => { const m = norm(b); return !!m && (n.includes(m) || m.includes(n)); });
+          if (!ok) notes.push(`The certificate is in the name "${x.insured_name}", which doesn't match your business name. Please check you uploaded the right certificate.`);
+        } else notes.push("We couldn't read the insured business name — please check the certificate.");
+        if (x.is_public_liability === false) notes.push("This doesn't look like a public liability certificate.");
+        if (x.cover_amount && x.cover_amount < 5_000_000) notes.push("Cover shown is under the $5,000,000 minimum.");
+        if (x.expiry && x.expiry < new Date().toISOString().slice(0, 10)) notes.push("This certificate appears to have expired.");
+        setFound(x.insured_name ? `We read the certificate for ${x.insured_name} and filled in the details below — please check them.` : "We filled in what we could read below — please check the details.");
+      } else setFound("We couldn't read the certificate automatically — please enter the details below.");
+      setWarnings(notes);
+      up(patch);
+    } catch (e) { setError(e instanceof Error ? e.message : "Upload failed."); } finally { setUploading(false); setChecking(false); }
   }
   return <>
     {d.insurance_uploaded
       ? <div style={{ ...infoCard }}>✓ Certificate uploaded. It's stored privately — only the HI VIC! office can view it. <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label></div>
       : <Field label="Certificate of Currency" required hint="PDF, JPG or PNG, up to 20 MB">
-          <label style={{ ...btn(false, uploading), display: "inline-flex", alignItems: "center" }}>{uploading ? "Uploading…" : "Upload certificate"}<input type="file" hidden disabled={uploading} accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label>
+          <label style={{ ...btn(false, uploading), display: "inline-flex", alignItems: "center" }}>{checking ? "Checking certificate…" : uploading ? "Uploading…" : "Upload certificate"}<input type="file" hidden disabled={uploading} accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label>
         </Field>}
+    {checking && <div style={{ ...infoCard }}>Checking your certificate…</div>}
+    {found && !checking && <div style={{ ...infoCard }}>{found}</div>}
+    {warnings.map((w) => <div key={w} style={{ ...infoCard, borderColor: "#E0A100", background: "#FFF8E6" }}>⚠ {w}</div>)}
     <Field label="Insurer" required><input style={input} value={d.insurer ?? ""} onChange={(e) => up({ insurer: e.target.value })} /></Field>
     <Field label="Policy number" required><input style={input} value={d.insurance_policy_number ?? ""} onChange={(e) => up({ insurance_policy_number: e.target.value })} /></Field>
     <Field label="Public liability cover" required hint="Minimum $5,000,000"><Money value={d.public_liability_cover_amount} onChange={(v) => up({ public_liability_cover_amount: v })} /></Field>
