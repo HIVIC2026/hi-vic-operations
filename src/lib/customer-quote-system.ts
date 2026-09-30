@@ -81,11 +81,13 @@ export const CUSTOMER_READY_CHECK_EMAIL_ACTION = {
 /** Back-compat alias used by renderers: the only next paid step is the Ready Check. */
 export const CUSTOMER_ASSESSMENT_ACTION = { cta: CUSTOMER_READY_CHECK.cta, paragraphs: CUSTOMER_READY_CHECK.paragraphs } as const;
 
+export const CUSTOMER_APPROVAL_REASSURANCE = "We will never proceed with additional work or additional costs without first showing you the scope and price and getting your approval." as const;
+
 export const CUSTOMER_WHAT_COULD_CHANGE: { heading: string; intro: string; items: readonly { lead: string; copy: string }[]; closing: string; gst: string } = {
   heading: "WHAT COULD CHANGE MY ESTIMATE?",
   intro: "This estimate is based on the information currently available. The final scope and price may change after we confirm the measured ceiling size, existing insulation and any required removal, ceiling access conditions, and any electrical rectification identified through the mandatory Pre-Installation Electrical Safety Assessment (PIESA).",
   items: [],
-  closing: "Home Insulation Victoria will never proceed with additional work or additional costs without first showing you the required scope and price and receiving your approval.",
+  closing: CUSTOMER_APPROVAL_REASSURANCE,
   gst: "All prices include GST.",
 };
 
@@ -120,19 +122,16 @@ export const CUSTOMER_LIKELY_HERO = {
 
 export const CUSTOMER_INELIGIBLE_COPY = {
   heading: "UNFORTUNATELY, THIS PROPERTY DOESN'T APPEAR TO BE ELIGIBLE AT THIS STAGE",
-  intro: "Based on the information provided, the property does not currently appear to meet the eligibility requirements.",
-  reasonsHeading: "WHY IT MAY NOT BE ELIGIBLE",
+  intro: "Based on the information we have, this is because:",
   reviewHeading: "IS SOMETHING NOT RIGHT?",
   review: "If any of the information you entered was incorrect, you can review and update your answers. We will reassess the result using the corrected information.",
-  cta: "REVIEW MY ANSWERS →",
+  cta: "REVIEW MY RESULT →",
 } as const;
 
-export const CUSTOMER_APPROVAL_REASSURANCE = "We will never proceed with additional work or additional costs without first showing you the scope and price and getting your approval." as const;
 
 /** Onsite-outcome hero: one heading, one subheading, dynamic reasons. */
 export const CUSTOMER_ONSITE_HERO = {
   heading: "IT'S LOOKING GOOD SO FAR",
-  intro: "Based on the information provided, your property may be eligible. We just need to confirm a few details onsite before eligibility and final pricing can be confirmed.",
   subheading: (count: number) => (count === 1 ? "WE JUST NEED TO CHECK ONE THING ONSITE:" : "WE JUST NEED TO CHECK A COUPLE OF THINGS ONSITE:"),
   transition: "While these items still need to be checked, the preliminary estimate below shows what the project may cost based on the information currently available.",
 } as const;

@@ -131,14 +131,14 @@ describe("customer outcome email renderers", () => {
   test("ineligible has dynamic reasons, no available discount, result CTA and referral", () => {
     const resultUrl = `${estimateUrl}#result`;
     const email = withUnsubscribe(renderIneligibleOutcomeEmail({ referralUrl, resultUrl, reasons: ["The home is five years old or newer.", "A previous Activity 48 upgrade was confirmed.", "The home is five years old or newer."], reference: "HV-1003" }), unsubscribeUrl);
-    for (const copy of ["WE'VE COMPLETED YOUR PROPERTY CHECK.", "UNFORTUNATELY, THIS PROPERTY DOESN'T APPEAR TO BE ELIGIBLE AT THIS STAGE", "WHY IT MAY NOT BE ELIGIBLE", "five years old or newer", "previous Activity 48 upgrade", "If any of the information you entered was incorrect, you can review and update your answers. We will reassess the result using the corrected information.", "REVIEW MY ANSWERS →", "KNOW SOMEONE WHO MIGHT QUALIFY?", "REFER A FRIEND →", "They’ll enter their own Victorian property address and details so we can check their eligibility and calculate an estimate using the correct local VEU settings.", "Reference: HV-1003", "Unsubscribe", "home-insulation-victoria-logo.png"]) expect(email.html).toContain(copy);
+    for (const copy of ["WE'VE COMPLETED YOUR PROPERTY CHECK.", "UNFORTUNATELY, THIS PROPERTY DOESN'T APPEAR TO BE ELIGIBLE AT THIS STAGE", "Based on the information we have, this is because:", "five years old or newer", "previous Activity 48 upgrade", "If any of the information you entered was incorrect, you can review and update your answers. We will reassess the result using the corrected information.", "REVIEW MY RESULT →", "KNOW SOMEONE WHO MIGHT QUALIFY?", "REFER A FRIEND →", "They’ll enter their own Victorian property address and details so we can check their eligibility and calculate an estimate using the correct local VEU settings.", "Reference: HV-1003", "Unsubscribe", "home-insulation-victoria-logo.png"]) expect(email.html).toContain(copy);
     expect(email.html.split("five years old or newer").length - 1).toBe(1);
     expect(email.html).toContain(`href="${resultUrl}"`);
     expect(email.html).not.toMatch(/estimated VEU discount|ESTIMATED CUSTOMER PRICE|PAY \$349|assessment payment available|\$1,325/i);
     expect(email.html).not.toContain("WHY INSULATION MATTERS");
     expect(email.html).not.toContain("COMFORT THROUGH THE SEASONS");
     expect(email.html).not.toContain("THIS PROPERTY DOESN'T CURRENTLY APPEAR ELIGIBLE.");
-    for (const copy of ["UNFORTUNATELY, THIS PROPERTY DOESN'T APPEAR TO BE ELIGIBLE AT THIS STAGE", "WHY IT MAY NOT BE ELIGIBLE", "• The home is five years old or newer.", "• A previous Activity 48 upgrade was confirmed.", "If any of the information you entered was incorrect, you can review and update your answers. We will reassess the result using the corrected information.", `REVIEW MY ANSWERS: ${resultUrl}`]) expect(email.plainText).toContain(copy);
+    for (const copy of ["UNFORTUNATELY, THIS PROPERTY DOESN'T APPEAR TO BE ELIGIBLE AT THIS STAGE", "Based on the information we have, this is because:", "• The home is five years old or newer.", "• A previous Activity 48 upgrade was confirmed.", "If any of the information you entered was incorrect, you can review and update your answers. We will reassess the result using the corrected information.", `REVIEW MY RESULT: ${resultUrl}`]) expect(email.plainText).toContain(copy);
     expect(email.plainText.split("five years old or newer").length - 1).toBe(1);
     expect(email.plainText).not.toMatch(/preliminary quote|payment|\$99|\$349|READY CHECK/i);
     expect(() => renderIneligibleOutcomeEmail({ referralUrl, resultUrl: `${estimateUrl}#confirm`, reasons: ["No"] })).toThrow();
@@ -202,7 +202,7 @@ describe("customer outcome email renderers", () => {
     expect(source + preview).not.toMatch(/sendTemplateEmail|sendLovableEmail|createServerFn|supabase|fetch\(|\.insert\(|\.update\(/);
     expect(preview).toContain("Likely eligible");
     expect(preview).toContain("Test OPEN THE INTERACTIVE CALCULATOR →");
-    expect(preview).toContain("Test REVIEW MY ANSWERS →");
+    expect(preview).toContain("Test REVIEW MY RESULT →");
     expect(preview).toContain("640 desktop");
     expect(preview).toContain("390 mobile");
   });
@@ -219,5 +219,16 @@ describe("customer outcome email renderers", () => {
     expect(ineligible.html).toContain(CUSTOMER_BRAND.logoUrl);
     expect(ineligible.html).toContain(CUSTOMER_BRAND.font);
     expect(`${ineligible.html} ${ineligible.plainText}`).not.toMatch(/PAY \$349|YOUR PRELIMINARY QUOTE|Estimated project total|\bHI VIC\b/);
+  });
+});
+
+import { describe as d2, it as i2, expect as e2 } from "bun:test";
+import { CUSTOMER_APPROVAL_REASSURANCE as CAR, CUSTOMER_WHAT_COULD_CHANGE as WCC, CUSTOMER_INELIGIBLE_COPY as ICP } from "../src/lib/customer-quote-system";
+d2("copy normalisation", () => {
+  i2("one reassurance, kinder ineligible copy", () => {
+    e2(WCC.closing).toBe(CAR);
+    e2(ICP.intro).toBe("Based on the information we have, this is because:");
+    e2(ICP.cta).toBe("REVIEW MY RESULT →");
+    e2("reasonsHeading" in ICP).toBe(false);
   });
 });
