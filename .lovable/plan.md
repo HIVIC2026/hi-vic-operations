@@ -27,7 +27,7 @@ Step by step, in plain words:
 1. We pre-qualify every lead through our website and Gate 1 eligibility checks, so you don't get time-wasters.
 2. You get the job offer in your portal; accept or decline.
 3. You do the free Ready Check (measure-up and photos) using our app.
-4. We handle the owner, the safety check, the quote, invoicing and payment chasing.
+4. We quote the owner at our set customer price, and handle the safety check, invoicing and payment chasing. You're paid the rate we agreed with you at onboarding — the customer price is ours, never shown against your payout.
 5. **$220 lead fee — only if the owner accepts the quote.** If the owner doesn't accept, you pay nothing. No fee on ineligible or cancelled leads.
 6. You install and submit evidence on the day; we review and lodge.
 
@@ -85,7 +85,7 @@ The installer agreement is a signed legal document. Any change to it gets a new 
 ## Decisions still needed (I won't guess these)
 1. Decided: $349 covers both the safety check and our AP fee. Still to confirm: is it one $349 total, or $349 each? And if the installer uses their own electrician, does the owner pay their electrician's price plus our AP fee?
 2. Decided: if the installer already agreed a price with the owner, our fees go on top (owner sees installer price + our fees, less VEU discount). The FAQ says so plainly, so installers tell owners up front.
-3. Decided: on referred jobs the installer quotes after doing the Ready Check.
+3. Decided: on our leads, the owner is quoted at our set customer price; the installer is paid their agreed rate (set at onboarding). The difference is internal and never shown to installers or owners.
 4. Decided: the $220 lead fee is deducted from the installer's payout. (Still to confirm: inc or ex GST.)
 5. Decided: the installer is paid once the owner's invoice is paid in full.
 6. Answered from the regulator's rules (see "What the rules say" below).
