@@ -28,3 +28,38 @@ export function renderErrorPage(): string {
   </body>
 </html>`;
 }
+
+// Shown when a page load was cut off part-way (refresh, navigation, hot update).
+// Nothing broke on our end — the reply simply had nobody left to receive it — so
+// this stays calm, uses the portal's light palette, and asks for one refresh
+// instead of leaving a blank screen.
+export function renderReloadPage(): string {
+  return `<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <title>This page didn't finish loading</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { font: 15px/1.5 system-ui, -apple-system, sans-serif; background: #fbfcfa; color: #22376b; display: grid; place-items: center; min-height: 100vh; margin: 0; padding: 1.5rem; }
+      .card { max-width: 28rem; width: 100%; text-align: center; padding: 2rem; }
+      h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
+      p { color: #5b6a8f; margin: 0 0 1.5rem; }
+      .actions { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; }
+      a, button { padding: 0.5rem 1rem; border-radius: 0.5rem; font: inherit; cursor: pointer; text-decoration: none; border: 1px solid transparent; }
+      .primary { background: #3c51c4; color: #fff; }
+      .secondary { background: #fff; color: #22376b; border-color: #d8dce8; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>This page didn't finish loading</h1>
+      <p>The request was cut off part-way, usually because the page was refreshed or updated while it was still loading. One refresh and you're back.</p>
+      <div class="actions">
+        <button class="primary" onclick="location.reload()">Refresh</button>
+        <a class="secondary" href="/">Go home</a>
+      </div>
+    </div>
+  </body>
+</html>`;
+}

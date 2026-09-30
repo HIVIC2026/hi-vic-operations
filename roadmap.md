@@ -72,3 +72,11 @@
 - [x] Remove DC Construction Solutions wording from portal login screens
 
 - [x] Fix partner enquiry Open links to select the exact applicant instead of only opening the list.
+
+- [x] Add a colour-coded key at the top of Enquiries showing what each view means with live counts
+
+- [ ] Check pending installer and REC applications for area matches against current coverage
+- [x] Check pending installer and REC applications for area matches against current coverage — 43 of 47 live enquiries have a pending REC and a pending installer in their area; gaps: Ballarat (no REC), Yarra Valley (no applicant), Geelong (one REC only), south-east/east (one installer only)
+- [ ] Approve applicants and verify their postcodes — no partner is approved yet, so Service coverage shows "Not configured" on all 47 enquiries
+- [ ] Chase service areas from 6 installers who left the field blank: Fletchers Flues, Jassy Best Insulation, Melbourne Insulation Removals, Michelle's Air Solutions, No Gap Insulation, PF insulation
+- [ ] Find a REC for Ballarat & Central Highlands and for the Yarra Valley enquiry (HV-1036)
