@@ -48,7 +48,7 @@ describe("presentation lock", () => {
     const idx = ["rows.map", "CUSTOMER_QUOTE_LABELS.projectTotal", "CUSTOMER_QUOTE_LABELS.discount", "CUSTOMER_QUOTE_LABELS.finalCost"].map((t) => qb.indexOf(t));
     expect(idx.every((v, i) => v > 0 && (i === 0 || v > idx[i - 1]))).toBe(true);
     expect(qb).toContain("bg-estimate-green-soft"); expect(qb).toContain("discountAmount(discount)"); expect(qb).toContain("text-5xl font-extrabold leading-none text-estimate-blue");
-    expect(ui.match(/CUSTOMER_WHAT_COULD_CHANGE\.heading/g)?.length).toBe(2); // in-card close + Ready Check page only
+    expect(ui.match(/CUSTOMER_WHAT_COULD_CHANGE\.heading/g)?.length).toBe(1); // in-card close only; Ready Check page uses its own single card
     expect(ui).not.toMatch(/no other standard fees/i);
   });
   test("email discount band is green with minus, before final cost; disclaimer once", () => {
