@@ -54,6 +54,7 @@ The installer agreement is a signed legal document. Any change to it gets a new 
 3. The $349 — is it only the electrical safety check, or also the AP fee? What is the AP fee amount installers should see?
 4. Installer already agreed a price with the owner: do we add our fees on top (owner sees a higher total, less the VEU discount) or must the installer's price already include them?
 5. Referred jobs: does the installer quote, or do we price from their rate card?
+6. Which evidence items may be captured on install day before starting, versus needed before the quote? I'll list each item for you to tick.
 
 ## Technical details
 - Add `step 0` "about you" to `installer-onboarding.tsx` and `electrician-onboarding.tsx`; store in existing onboarding data (`primary_contact_name`, email, mobile); greeting helper uses first name.
@@ -61,3 +62,27 @@ The installer agreement is a signed legal document. Any change to it gets a new 
 - New shared content module `src/lib/partner-howitworks.ts` feeding onboarding cards, portal help page and FAQ, so wording lives in one place.
 - Agreement change = version bump of `installer-agreement.text.ts` + re-sign flag.
 - Fees read from settings (never hard-coded).
+- Upload sorting: server function sends each image/PDF (private signed URL) to the Lovable AI image-reading model; returns suggested evidence category, confidence, extracted values and quality issues; saved as suggestions against evidence requirements; staff verify via the existing evidence status flow.
+- Per-requirement settings: capture stage (before quote / before install start / after install) and whether it blocks — admin-approved only.
+- "Before you start" gate added to the field install screen and the central stage-entry guard.
+- Roadmap gets these three tasks at build start.
+
+## Partial evidence (installer has some, not all)
+Example: ceiling-space photos but none of the existing insulation.
+
+**Installer:** drops everything into one upload box — photos, videos, PDFs, measure-up sheets, quotes. No sorting.
+
+**Portal automatically:**
+1. Reads each file and works out which requirement it fills (ceiling space before, existing insulation/R-value, manhole access, measurement sheet, downlights/clearances), pulling out measurements and R-values where readable.
+2. Shows each match as "suggested" with confidence; only counts once staff tick it.
+3. Flags blurry, wrong-room, undated or duplicate photos with a plain reason ("Can't see insulation depth — retake with a tape measure in shot").
+
+**Everyone sees "What we have / What's missing":**
+- Have: Ceiling space before (6 photos) — checked
+- Missing: Existing insulation close-up with depth — how we'll get it: installer takes it on install day, before starting
+- Missing: Ceiling area confirmed — how we'll get it: Ready Check, or the electrician at the PIESA visit
+Each item shows who gets it, when, and whether it blocks the next step.
+
+**"Before you start" on install day:** allowed items appear as a phone checklist; the install can't be marked started until each is uploaded (time-stamped camera). Anything that could change eligibility, quote or price is marked "Needed before quote" and never left to install day.
+
+**Which items can wait:** a setting per requirement, set by you from the Activity 48 pack — nothing is marked "can wait" until you approve it (added as decision 6).
