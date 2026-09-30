@@ -42,8 +42,8 @@ export const MEASUREUP_TEMPLATE_MISSING = "Measure-up-only Mitti template is not
 export const PIESA_TEMPLATE_MISSING = "PIESA Mitti form is not configured. An admin must add the validated PIESA form ID in workflow settings before a PIESA audit can be sent.";
 
 async function templateIds() {
-  const { data } = await admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_piesa_template_id").eq("id", 1).maybeSingle();
-  return { readyCheck: data?.mitti_ready_check_template_id?.trim() || null, piesa: data?.mitti_piesa_template_id?.trim() || null };
+  const { data } = await admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_ready_check_priced_template_id,mitti_piesa_template_id").eq("id", 1).maybeSingle();
+  return { readyCheck: data?.mitti_ready_check_template_id?.trim() || null, readyCheckPriced: data?.mitti_ready_check_priced_template_id?.trim() || null, piesa: data?.mitti_piesa_template_id?.trim() || null };
 }
 
 export async function createAssignMittiAudit(jobId: string, actorId: string, call: MittiCall = realMittiCall) {
