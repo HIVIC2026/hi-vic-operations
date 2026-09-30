@@ -109,7 +109,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
 
   if (existingJob) {
     const { data: before } = await admin.from("properties").select("address_line, suburb, postcode, enrichment").eq("id", existingJob.property_id).single();
-    await admin.from("properties").update({ ...propFields, ...(source === "base44" ? { enrichment: mergeEvidence(before?.enrichment, input) } : {}) }).eq("id", existingJob.property_id);
+    await admin.from("properties").update({ ...propFields, ...(source === "base44" || source === "qa_test" ? { enrichment: mergeEvidence(before?.enrichment, input) } : {}) }).eq("id", existingJob.property_id);
     const addrChanged = !!before && addressHash(before.address_line, before.suburb, before.postcode) !== addressHash(propFields.address_line, propFields.suburb, propFields.postcode);
     const update = { ...jobFields, ...(plan?.patch ?? {}) } as TablesUpdate<"jobs">; // never changes stage
     const { error: ue } = await admin.from("jobs").update(update).eq("id", existingJob.id);
@@ -121,7 +121,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     if (queued !== "none") runAfterResponse(() => processPostIntakeWork({ jobId: existingJob.id })); // best-effort; scheduled worker is the durable fallback
     return { job_id: existingJob.id, job_number: existingJob.job_number, created: false, post_intake: queued };
   }
-  const { data: prop, error: pe } = await admin.from("properties").insert({ ...propFields, ...(source === "base44" ? { enrichment: mergeEvidence(null, input) } : {}) }).select("id").single();
+  const { data: prop, error: pe } = await admin.from("properties").insert({ ...propFields, ...(source === "base44" || source === "qa_test" ? { enrichment: mergeEvidence(null, input) } : {}) }).select("id").single();
   if (pe) throw new Error(pe.message);
   const { data: job, error: je } = await admin
     .from("jobs")

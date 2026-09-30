@@ -26,7 +26,14 @@ export const Route = createFileRoute("/_authenticated/admin/test-centre")({
   component: TestCentre,
 });
 
-const INITIAL = { full_name: "", email: "", phone: "", address_line: "", suburb: "", postcode: "", occupancy: "owner_occupied" as "owner_occupied" | "rental", area: "", life: false };
+const INITIAL = {
+  full_name: "", email: "", phone: "", address_line: "", suburb: "", postcode: "",
+  occupancy: "owner_occupied" as "owner_occupied" | "rental", area: "", life: false,
+  property_type: "house" as "house" | "townhouse" | "unit",
+  over_five_years: "yes" as "yes" | "no" | "unknown",
+  previous_upgrade: "no" as "yes" | "no" | "unknown",
+  existing_insulation: "unknown" as "none" | "some" | "unknown",
+};
 
 function TestCentre() {
   const load = useServerFn(getAdminPipeline);
@@ -64,7 +71,8 @@ function CreateTestJob({ onDone }: { onDone: () => void }) {
   return <Dialog open={open} onOpenChange={setOpen}>
     <DialogTrigger asChild><Button><Plus className="h-4 w-4" />Create dummy journey</Button></DialogTrigger>
     <DialogContent><DialogHeader><DialogTitle>Create isolated dummy journey</DialogTitle></DialogHeader>
-      <form className="grid gap-3 sm:grid-cols-2" onSubmit={async (event) => { event.preventDefault(); setBusy(true); try { const result = await create({ data: { full_name: form.full_name, email: form.email, phone: form.phone || null, address_line: form.address_line, suburb: form.suburb || null, postcode: form.postcode || null, state: "VIC", occupancy: form.occupancy, estimated_area_m2: Number(form.area), area_unknown: false, life_support: form.life } }); toast.success(`${result.job_number} created as a test journey`); setForm(INITIAL); setOpen(false); onDone(); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not create test journey"); } finally { setBusy(false); } }}>
+      <form className="grid gap-3 sm:grid-cols-2" onSubmit={async (event) => { event.preventDefault(); setBusy(true); try { const result = await create({ data: { full_name: form.full_name, email: form.email, phone: form.phone || null, address_line: form.address_line, suburb: form.suburb || null, postcode: form.postcode || null, state: "VIC", occupancy: form.occupancy, estimated_area_m2: Number(form.area), area_unknown: false, life_support: form.life, declared_property_type: form.property_type, declared_over_five_years: form.over_five_years, declared_previous_upgrade: form.previous_upgrade, base44_answers: { insulation: form.existing_insulation, top_floor: "yes" } } }); toast.success(`${result.job_number} created as a test journey`); setForm(INITIAL); setOpen(false); onDone(); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not create test journey"); } finally { setBusy(false); } }}>
+        <p className="text-xs text-muted-foreground sm:col-span-2">These mirror the real online enquiry questions so Gate 1 behaves exactly as it would for a live customer.</p>
         <div><Label htmlFor="test-name">Owner name</Label><Input id="test-name" value={form.full_name} onChange={field("full_name")} required /></div>
         <div><Label htmlFor="test-email">Test email</Label><Input id="test-email" type="email" value={form.email} onChange={field("email")} required /></div>
         <div><Label htmlFor="test-phone">Phone</Label><Input id="test-phone" value={form.phone} onChange={field("phone")} /></div>
@@ -74,6 +82,10 @@ function CreateTestJob({ onDone }: { onDone: () => void }) {
         <div><Label htmlFor="test-postcode">Postcode</Label><Input id="test-postcode" value={form.postcode} onChange={field("postcode")} required /></div>
         <div><Label htmlFor="test-area">Estimated ceiling area m²</Label><Input id="test-area" type="number" min="1" max="5000" value={form.area} onChange={field("area")} required /></div>
         <label className="flex items-end gap-2 pb-2 text-sm"><Checkbox checked={form.life} onCheckedChange={(value) => setForm({ ...form, life: !!value })} />Life support at property</label>
+        <label className="text-sm"><span className="text-muted-foreground">Property type</span><select className="h-9 w-full rounded-md border bg-background px-2" value={form.property_type} onChange={(event) => setForm({ ...form, property_type: event.target.value as typeof form.property_type })}><option value="house">House</option><option value="townhouse">Townhouse</option><option value="unit">Unit / apartment</option></select></label>
+        <label className="text-sm"><span className="text-muted-foreground">Owned the property 5+ years?</span><select className="h-9 w-full rounded-md border bg-background px-2" value={form.over_five_years} onChange={(event) => setForm({ ...form, over_five_years: event.target.value as typeof form.over_five_years })}><option value="yes">Yes</option><option value="no">No</option><option value="unknown">Not sure</option></select></label>
+        <label className="text-sm"><span className="text-muted-foreground">Previous VEU upgrade?</span><select className="h-9 w-full rounded-md border bg-background px-2" value={form.previous_upgrade} onChange={(event) => setForm({ ...form, previous_upgrade: event.target.value as typeof form.previous_upgrade })}><option value="no">No</option><option value="yes">Yes</option><option value="unknown">Not sure</option></select></label>
+        <label className="text-sm"><span className="text-muted-foreground">Existing ceiling insulation?</span><select className="h-9 w-full rounded-md border bg-background px-2" value={form.existing_insulation} onChange={(event) => setForm({ ...form, existing_insulation: event.target.value as typeof form.existing_insulation })}><option value="unknown">Not sure</option><option value="none">None</option><option value="some">Some insulation</option></select></label>
         <Button type="submit" className="sm:col-span-2" disabled={busy}>{busy ? "Creating…" : "Create test journey"}</Button>
       </form>
     </DialogContent>
