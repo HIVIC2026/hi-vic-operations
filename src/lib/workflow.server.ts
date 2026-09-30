@@ -287,8 +287,9 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
     for (const c of checks ?? []) if (c.status !== "pass") blockers.push(`Compliance not passed: ${c.label}`);
   }
   if (to === "complete") {
-    const { data: v } = await admin.from("veec_lodgements").select("status").eq("job_id", jobId).maybeSingle();
-    if (!v || !["submitted", "approved"].includes(v.status)) blockers.push("VEEC lodgement not submitted.");
+    const { data: v } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,notes").eq("job_id", jobId).maybeSingle();
+    const { lodgementEvidenceBlockers } = await import("./veec.core");
+    blockers.push(...lodgementEvidenceBlockers(v, new Date().toISOString().slice(0, 10)));
   }
   return blockers;
 }
