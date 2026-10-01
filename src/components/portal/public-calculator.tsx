@@ -318,7 +318,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
           address={picked?.full ?? addressText.trim()}
           suburb={suburb}
           postcode={postcode}
-          ceilingM2={m2}
+          ceilingM2={m2 ?? 0}
           insulation={insulation ?? "unknown"}
         />
 
