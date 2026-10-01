@@ -32,7 +32,15 @@ Safe automations that don't send anything externally without approval:
 - Overdue flags: PIESA 30-day countdown, 24h/48h trade response, owner reminders — visible in To action.
 - Anything that emails or writes externally stays behind the launch lock until you say go.
 
-## 5. Mitti
+## 5. Gaps found — added to the plan
+
+- **Email sending domain**: customer emails can't send until an email domain is set up (Cloud → Emails). I'll check the status and set it up with you — without it, the redesigned emails exist but can't go out.
+- **Xero invoice design and preflight**: design the actual invoice layout (co-branded, all lines, VEU discount) and show it to you for approval before the first real one is created.
+- **Owner-facing screens**: walk the owner portal exactly as an owner sees it — approvals, payment status, booking, messages — same standard as the onboarding review.
+- **Mobile check on trade screens**: installers and electricians work on phones — verify every field screen on a phone-sized view.
+- **Final security and data check**: RLS policies, private evidence files, role access — one last pass before go-live.
+
+## 6. Mitti
 
 - A1 is built (template_01ee0428be6d4435b34d8b738935f099) — I connect it and run the portal's checks against it first.
 - You build A2, B and C from the briefs in Files as I finalise them; I connect and validate each.
