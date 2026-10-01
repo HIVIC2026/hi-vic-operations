@@ -1,3 +1,4 @@
+import { WorkerStop } from "@/components/portal/worker-stop";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
