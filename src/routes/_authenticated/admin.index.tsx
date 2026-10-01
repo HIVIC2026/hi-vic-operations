@@ -200,7 +200,7 @@ function Pipeline() {
            <Link key={`interest-${i.id}`} to="/admin/interests" className="block rounded-lg border bg-card p-4 shadow-sm transition hover:border-primary">
              <span className="inline-flex rounded-full bg-workspace-blush px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-dark">Registered interest</span>
              <p className="mt-2 font-bold">{i.full_name}</p>
-             <p className="text-sm text-muted-foreground">{[i.address_line, i.suburb, i.postcode].filter(Boolean).join(", ")}</p>
+             <p className="text-sm text-muted-foreground">{i.address_line}</p>
              <p className="mt-2 text-xs text-muted-foreground">{i.ceiling_m2} m² · {i.status === "new" ? "New" : i.status === "contacted" ? "Contacted" : "Booked"} · {new Date(i.created_at).toLocaleDateString("en-AU")}</p>
            </Link>
          ))}{filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase).map((j: JobRow) => {
