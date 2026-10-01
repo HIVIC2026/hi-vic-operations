@@ -113,6 +113,7 @@ function CoveragePage() {
             </div>
           ))}
           {areas.length === 0 && <div className="rounded-md border bg-card p-8 text-center text-muted-foreground">No active enquiry areas to assess.</div>}
+          {unplacedPotential.length > 0 && <div className="rounded-md border border-dashed bg-card p-4 text-sm lg:col-span-2"><div className="font-semibold">Partner enquiries with no recognisable Victorian area ({unplacedPotential.length})</div><ul className="mt-1 text-xs text-muted-foreground">{unplacedPotential.map((p) => <li key={p.id}>{p.name} · {p.kind === "rec" ? "REC" : "Installer"} · {p.service_areas.join(", ") || "No area given"}</li>)}</ul></div>}
         </div>
       </section>
 
