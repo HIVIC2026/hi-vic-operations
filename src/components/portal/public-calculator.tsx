@@ -184,7 +184,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
             {!readyToAnswer ? (
               <div className="flex items-start gap-3 text-sm leading-relaxed text-estimate-navy/80">
                 <Info aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-estimate-blue" />
-                <p>Fill in the three questions above and your estimated price will appear here — it updates as you go.</p>
+                <p>Answer the three questions above and your estimated price will appear here — it updates as you go.</p>
               </div>
             ) : !standard || !primary ? (
               <p className="text-sm font-bold text-danger">We couldn&apos;t calculate an estimate for those answers.</p>
