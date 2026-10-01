@@ -306,7 +306,7 @@ function RecOnboarding() {
         <p style={{ fontSize: 15, lineHeight: 1.6, color: MUTED }}>We're really pleased to have you here and can't wait to work with you. Home Insulation Victoria keeps jobs, communication and assessments simple — all in one place.</p>
         <div style={{ fontWeight: 700, margin: "18px 0 10px", fontFamily: DISPLAY }}>Have these handy</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 22 }}>
-          {["Registered Electrical Contractor (REC) + ABN details", "Product and public liability insurance for the REC business", "Your personal electrician licence", "Your proposed supplier rates"].map((t, i) => (
+          {["Registered Electrical Contractor (REC) + ABN details", "Public liability insurance for the REC business", "Your personal electrician licence", "Your proposed supplier rates"].map((t, i) => (
             <div key={t} style={{ background: ACCENTS[i % 4]!.bg, color: ACCENTS[i % 4]!.fg, borderRadius: 14, padding: "12px 14px", fontSize: 14, fontWeight: 600 }}><span style={{ fontWeight: 800 }}>✓ </span>{t}</div>
           ))}
         </div>
@@ -506,9 +506,8 @@ function InsuranceStep({ d, up, token, setError, preview }: { d: RecData; up: (p
           const ok = [d.legal_entity_name, d.trading_name].some((b) => { const m = norm(b); return !!m && (n.includes(m) || m.includes(n)); });
           if (!ok) notes.push(`The certificate is in the name "${x.insured_name}", which doesn't match your business name. Please check you uploaded the right certificate.`);
         } else notes.push("We couldn't read the insured business name — please check the certificate.");
-        if (x.is_public_liability === false) notes.push("This doesn't look like a product and public liability certificate.");
-        if (x.is_product_liability !== true) notes.push("We couldn't confirm appropriate product liability cover. Please check the certificate includes it for any electrical goods you supply.");
-        if (x.cover_amount && x.cover_amount < MIN_REC_PL_COVER) notes.push("Cover shown is under the $10,000,000 minimum.");
+        if (x.is_public_liability === false) notes.push("This doesn't look like a public liability certificate.");
+        if (x.cover_amount && x.cover_amount < MIN_REC_PL_COVER) notes.push("Cover shown is under the $5,000,000 minimum.");
         if (x.expiry && x.expiry < new Date().toISOString().slice(0, 10)) notes.push("This certificate appears to have expired.");
         setFound(x.insured_name ? `We read the certificate for ${x.insured_name} and filled in the details below — please check them.` : "We filled in what we could read below — please check the details.");
       } else setFound("We couldn't read the certificate automatically — please enter the details below.");
@@ -527,7 +526,7 @@ function InsuranceStep({ d, up, token, setError, preview }: { d: RecData; up: (p
     {warnings.map((w) => <div key={w} style={{ ...infoCard, borderColor: "#E0A100", background: "#FFF8E6" }}>⚠ {w}</div>)}
     <Field label="Insurer" required><input style={input} value={d.insurer ?? ""} onChange={(e) => up({ insurer: e.target.value })} /></Field>
     <Field label="Policy number" required><input style={input} value={d.insurance_policy_number ?? ""} onChange={(e) => up({ insurance_policy_number: e.target.value })} /></Field>
-    <Field label="Product and public liability cover" required hint="Minimum $10,000,000; product cover must be appropriate for any electrical goods you supply"><Money value={d.public_liability_cover_amount} onChange={(v) => up({ public_liability_cover_amount: v })} /></Field>
+    <Field label="Public liability cover" required hint="Minimum $5,000,000"><Money value={d.public_liability_cover_amount} onChange={(v) => up({ public_liability_cover_amount: v })} /></Field>
     <Field label="Expiry date" required><input style={{ ...input, maxWidth: 220 }} type="date" value={d.public_liability_expiry ?? ""} onChange={(e) => up({ public_liability_expiry: e.target.value })} /></Field>
   </>;
 }
@@ -581,7 +580,7 @@ function SignStep({ d, token, onSigned, preview }: { d: RecData; token: string; 
 const SAMPLE_REC_DATA: RecData = {
   works_under_rec: false, primary_contact_name: "Sample REC representative", licence_number: "ESV SAMPLE", business_phone: "0400 000 000", business_email: "sample@example.com",
   legal_entity_name: "Sample Electrical Pty Ltd", trading_name: "Sample Electrical", abn: "51824753556", rec_registration_number: "REC SAMPLE", business_address: "100 Sample Road, Melbourne VIC 3000", business_address_details: { label: "100 Sample Road, Melbourne VIC 3000", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU", provider: "google_places_au" }, authorised_to_register: true,
-  insurance_uploaded: true, insurer: "Sample insurer", insurance_policy_number: "SAMPLE-001", public_liability_cover_amount: 10_000_000, public_liability_expiry: "2099-12-31",
+  insurance_uploaded: true, insurer: "Sample insurer", insurance_policy_number: "SAMPLE-001", public_liability_cover_amount: 5_000_000, public_liability_expiry: "2099-12-31",
   services_all_confirmed: true, service_origin: "100 Sample Road, Melbourne VIC 3000", service_origin_details: { label: "100 Sample Road, Melbourne VIC 3000", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU", provider: "google_places_au" }, travel_radius_km: 50, typical_days: ["Mon", "Tue", "Wed"], normal_attendance_speed: "3-5 business days", capacity_band: "6-10", accepting_jobs: true,
   gst_registered: true, assessment_rate: 330, installation_attendance_rate: 220, rectification_rates: { prohibited_luminaires: 55, circuit_protection: 110, rcd_installation: 220, tps_cable_replacement: 11, basic_protection: 165 }, coes_fee_choice: "included",
   bank_account_name: "Sample Electrical Pty Ltd", bank_bsb: "123-456", bank_account_number: "12345678", agreement_reviewed: true,

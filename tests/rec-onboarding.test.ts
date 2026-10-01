@@ -5,7 +5,7 @@ const full: RecData = {
   works_under_rec: false,
   legal_entity_name: "Spark Pty Ltd", abn: "51824753556", rec_registration_number: "REC 12345",
   business_address: "1 Main St, Melton VIC 3337", business_address_details: { label: "1 Main St, Melton VIC 3337", state: "VIC", postcode: "3337", country: "AU", provider: "google_places_au" }, primary_contact_name: "Sam Smith", licence_number: "A123", business_phone: "0412345678", business_email: "sam@spark.com.au", authorised_to_register: true,
-  insurance_uploaded: true, insurer: "QBE", insurance_policy_number: "P1", public_liability_cover_amount: 10_000_000, public_liability_expiry: "2099-01-01",
+  insurance_uploaded: true, insurer: "QBE", insurance_policy_number: "P1", public_liability_cover_amount: 5_000_000, public_liability_expiry: "2099-01-01",
   services_all_confirmed: true, service_origin: "1 Main St, Melton VIC 3337", service_origin_details: { label: "1 Main St, Melton VIC 3337", state: "VIC", postcode: "3337", country: "AU", provider: "google_places_au" }, travel_radius_km: 50, typical_days: ["Mon"], normal_attendance_speed: "1-2 weeks", capacity_band: "6-10", accepting_jobs: true,
   gst_registered: true, assessment_rate: 300, installation_attendance_rate: 150,
   rectification_rates: { prohibited_luminaires: 50, circuit_protection: 100, rcd_installation: 200, tps_cable_replacement: 10, basic_protection: 150 }, coes_fee_choice: "included", agreement_reviewed: true,
@@ -62,9 +62,9 @@ describe("rec onboarding", () => {
     expect(stepErrors("business", { ...under, host_rec_name: undefined })).toContain("Enter the REC business you work under.");
     expect(stepErrors("about", { works_under_rec: null, primary_contact_name: "Sam", licence_number: "A12345", business_phone: "0412345678", business_email: "sam@example.com" })).toContain("Tell us if you are registering the REC business or joining as staff.");
   });
-  test("REC insurance under $10M and expired rejected", () => {
-    expect(stepErrors("insurance", { ...full, public_liability_cover_amount: 9_999_999 })).toContain("Product and public liability cover must be at least $10,000,000.");
-    expect(stepErrors("insurance", { ...full, public_liability_cover_amount: 10_000_000 })).toEqual([]);
+  test("REC insurance under $5M and expired rejected", () => {
+    expect(stepErrors("insurance", { ...full, public_liability_cover_amount: 4_999_999 })).toContain("Public liability cover must be at least $5,000,000.");
+    expect(stepErrors("insurance", { ...full, public_liability_cover_amount: 5_000_000 })).toEqual([]);
     expect(stepErrors("insurance", { ...full, public_liability_expiry: "2000-01-01" }).length).toBe(1);
   });
   test("PIESA rate always required", () => {
@@ -86,8 +86,9 @@ describe("rec onboarding", () => {
   });
   test("agreement text includes markup clause, schedules and all 8 acknowledgements", () => {
     const t = agreementText(full);
-    expect(t).toContain("HI-VIC-A48-REC-2.1-2026-10-01");
-    expect(t).toContain("product and public liability insurance of at least $10,000,000");
+    expect(t).toContain("HI-VIC-A48-REC-2.2-2026-10-01");
+    expect(t).toContain("public liability insurance of at least $5,000,000");
+    expect(t).toContain("No separate fixed product-liability minimum is imposed");
     expect(t).toContain("six years after the record was made or the relevant transaction was completed, whichever is later");
     expect(t).toContain("is not the customer-facing price");
     expect(t).toContain("does not depend on Home Insulation Victoria receiving payment from the customer");

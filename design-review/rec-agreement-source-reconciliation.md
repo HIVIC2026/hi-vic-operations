@@ -9,10 +9,10 @@ Date: 1 October 2026
 - Source issuer: DC Construction Solutions t/a Home Insulation Victoria, ABN 44 671 613 979
 - Source version: **F.0**
 - Integrated REC agreement: **Activity 48 Registered Electrical Contractor Partner Agreement**
-- Final agreement version: **HI-VIC-A48-REC-2.1-2026-10-01**
+- Final agreement version: **HI-VIC-A48-REC-2.2-2026-10-01**
 - Status: implemented as a REC-specific draft; final solicitor review remains required before live use.
 - The source DOCX was read as supplied and was not modified.
-- Existing signed agreement text remains immutable. Version 2.1 applies only to a new signature and subsequent authorised office approval.
+- Existing signed agreement text remains immutable. Version 2.2 applies only to a new signature and subsequent authorised office approval.
 
 ## Reconciliation principles
 
@@ -21,10 +21,11 @@ Date: 1 October 2026
 - Jo's later REC instructions prevail: portal-only dealings, no direct owner quote/invoice/payment, no customer poaching, 48-hour meaningful response, optional owner replacement, customer/supplier price separation, and mutually accepted standard/custom rates.
 - Immediate-danger and lawful-disclosure exceptions remain.
 - Regulatory operational updates may be notified prospectively. Material contract or rate changes require a new version or mutually accepted rate record; continued work is not silent acceptance.
+- Jo's 1 October 2026 insurance override supersedes source clause 4.1's $10m figure. Current official CII/Activity 48 and ESV REC materials consistently state a $5m+ public-liability minimum, so the REC form and agreement use $5m and do not infer a separate fixed product-liability floor.
 
 ## Every source section and subclause
 
-| Source | Treatment in REC v2.1 | Reason / adaptation |
+| Source | Treatment in REC v2.2 | Reason / adaptation |
 |---|---|---|
 | 1 Definitions | Clause 2 | AP, Agreement, REC/Business Partner, Customer, ESC, ESV, Goods, Services, Scheme, VEEC, Activity 48, PIESA, Job and Nominated Electrician are defined for the REC scope. |
 | 2.1 application to work/personnel | Clauses 1, 3, 4, 5 | Retained for all authorised Activity 48 electrical work and approved REC personnel. |
@@ -33,7 +34,7 @@ Date: 1 October 2026
 | 3.1 independent contractor/limited authority | Clauses 3 and 23 | Retained with limited VEU agency only; no authority to bind, price for, invoice or collect from an owner. |
 | 3.2 personnel/statutory obligations | Clauses 3 and 23 | Retained: REC remains responsible for wages, superannuation, payroll/tax and workers compensation. |
 | 4.1 licences, qualifications, registrations | Clause 5 | Retained for business registration, REC registration, personal licences and role-specific competencies. AS 3999/insulation competencies apply only where law or an approved electrical scope expressly requires them. |
-| 4.1 $10m product/public liability | Clause 6; onboarding insurance gate and Schedule 1 | Increased REC-only minimum from $5m to $10m. Product cover must suit electrical goods supplied. Installer onboarding remains unchanged. |
+| 4.1 $10m product/public liability | Clause 6; onboarding insurance gate and Schedule 1 | Source amount superseded by Jo's latest instruction and verified current official requirements: REC public liability minimum is $5m covering relevant electrical contracting work. Product and other insurance remains required only where law or the actual Goods/Services make it applicable; no unsupported separate fixed product-liability floor was added. |
 | 4.1 workers compensation/other insurance | Clause 6 | Retained where legally required or reasonably applicable, including motor vehicle and professional indemnity. |
 | 4.2 immediate licence/insurance notification | Clauses 5, 6 and 21 | Retained for expiry, suspension, restriction, cancellation and investigation. |
 | 5.1 laws, OHS, standards, manufacturer instructions | Clauses 1, 5, 8 and 10 | Retained and tailored to electrical Services, suitable/approved Goods, and no unauthorised substitution or work-method changes. |
@@ -92,11 +93,19 @@ Date: 1 October 2026
 
 The Essential Services Commission's **Obligations and Program Guide for Accredited Persons**, version 3.8 dated 24 March 2026, section 2.9, states that records required under section 72 of the Act must be retained until six years after they were made or completion of the transactions to which they relate, whichever is later. The agreement uses that formulation and preserves longer periods imposed by other law.
 
+## Official insurance basis and decision
+
+- EEC Certified Insulation Installer requirements: https://eeccertified.org.au/certified-insulation-installer/ — Certificate of Currency showing public liability cover of $5 million or more; employment by the certified business and its business policy can support staff evidence.
+- DEECA/ESC VEU Ceiling Insulation Industry Pack, slide 22: https://www.energy.vic.gov.au/__data/assets/pdf_file/0026/800945/VEU-Ceiling-Insulation-Industry-Pack.pdf — CII public liability cover of $5 million or more.
+- Current DEECA industry webinar transcript: https://www.energy.vic.gov.au/victorian-energy-upgrades/installers/insulation-requirements-for-industry/insulation-requirements-for-industry-webinar-transcript — confirms the $5 million public-liability requirement.
+- Energy Safe Victoria REC licence requirements: https://www.energysafe.vic.gov.au/licensing/electrical-licences/licence-types/registered-electrical-contractors-rec — current public liability insurance of at least $5 million covering electrical contracting work by the applicant and relevant employees/agents.
+- Decision: use $5,000,000 as the fixed REC public-liability minimum throughout validation, form copy, warnings, samples, schedules and agreement. Source F.0's $10m term is recorded but superseded. Do not claim these public-liability sources establish a separate fixed product-liability minimum.
+
 ## Solicitor-review points before live use
 
 - Confirm the final breadth and interaction of clauses 3, 17 and 22: limited agency, VEEC assignment/control, liability cap and indemnity.
 - Confirm enforceability and proportionality of the 12-month connected-work non-solicitation restriction in clause 24.
-- Confirm the product-liability wording and whether professional indemnity should be mandatory rather than reasonably applicable for the final operating model.
+- Confirm whether any supplied electrical Goods or final operating model require additional product, professional-indemnity or other cover beyond the verified $5m public-liability floor; do not infer a fixed amount without authority.
 - Confirm set-off/dispute mechanics, 14-day default payment trigger and treatment of GST/tax invoices.
 - Confirm audit-access drafting for occupied premises, staff records, privacy and third-party property rights.
 - Confirm electronic offer/office-approval formation mechanics and whether a countersigned downloadable record is preferred.
