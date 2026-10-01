@@ -9,7 +9,7 @@ describe("profit", () => {
   });
   test("profit is positive when customer price covers trades", () => {
     const p = jobProfit({ customerTotalIncGst: 3300, veecDiscountIncGst: 1400, tradeCostExGst: 2000 }, 90);
-    expect(p.profit).toBeCloseTo(3000 + 4000);
+    expect(p.profit).toBeCloseTo(3000 + 400 - 2000);
   });
   test("no spot = no profit guess", () => expect(jobProfit({ customerTotalIncGst: 1, veecDiscountIncGst: 70, tradeCostExGst: 0 }, null).profit).toBeNull());
   test("good to sell", () => expect(sellSignal([{ price: 80, priced_on: "2026-08-01" }, { price: 80, priced_on: "2026-09-01" }, { price: 95, priced_on: "2026-09-29" }], today).good).toBe(true));
