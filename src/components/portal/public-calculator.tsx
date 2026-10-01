@@ -150,7 +150,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
 
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="max-w-xl">
-            <h1 className="text-[1.6rem] font-extrabold leading-tight tracking-tight text-estimate-navy sm:text-[2rem]">What would ceiling insulation cost?</h1>
+            <h1 className="text-[1.6rem] font-extrabold leading-tight tracking-tight text-estimate-navy sm:text-[2rem]">How much could you save on ceiling insulation?</h1>
             <p className="mt-1.5 text-[0.85rem] leading-relaxed text-estimate-navy/85">Three quick answers — your estimate and VEU discount appear instantly.</p>
           </div>
           {touched && (
