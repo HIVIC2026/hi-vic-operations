@@ -34,6 +34,8 @@ export const CAPACITY_BANDS = [{ v: "1-5", n: 5 }, { v: "6-10", n: 10 }, { v: "1
 
 export type Electrician = { full_legal_name?: string; licence_number?: string; mobile?: string; email?: string };
 export type RecData = {
+  how_it_works_acknowledged?: boolean;
+  works_under_rec?: boolean | null; host_rec_name?: string; host_rec_number?: string;
   legal_entity_name?: string; trading_name?: string; abn?: string; rec_registration_number?: string;
   business_address?: string; primary_contact_name?: string; business_phone?: string; business_email?: string; authorised_to_register?: boolean;
   insurer?: string; insurance_policy_number?: string; public_liability_cover_amount?: number | null; public_liability_expiry?: string; insurance_uploaded?: boolean;
@@ -56,6 +58,7 @@ export function firstName(d: { primary_contact_name?: string }): string {
 
 export const STEPS = [
   { key: "about", title: "About you" },
+  { key: "howitworks", title: "How we work together" },
   { key: "business", title: "Business details" },
   { key: "contact", title: "Contact details" },
   { key: "insurance", title: "Public liability insurance" },
@@ -73,7 +76,9 @@ export const STEPS = [
 export type StepKey = (typeof STEPS)[number]["key"];
 
 export function visibleSteps(d: RecData) {
-  return STEPS.filter((s) => s.key !== "rectification_pricing" || d.service_rectification === true);
+  return STEPS.filter((s) =>
+    (s.key !== "rectification_pricing" || d.service_rectification === true) &&
+    (s.key !== "insurance" || d.works_under_rec !== true));
 }
 
 export function validAbn(abn: string | undefined): boolean {
@@ -105,10 +110,19 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (!validPhone(d.business_phone)) e.push("Enter a valid Australian mobile.");
       if (!validBusinessEmail(d.business_email)) e.push("Enter a real email address.");
       break;
+    case "howitworks":
+      if (d.how_it_works_acknowledged !== true) e.push("Confirm you've read how jobs work, the same-day rule and the payment terms.");
+      break;
     case "business":
-      if (!txt(d.legal_entity_name)) e.push("Enter the legal entity / REC registered name.");
-      if (!validAbn(d.abn)) e.push("Enter a valid 11-digit ABN.");
-      if (!txt(d.rec_registration_number)) e.push("Enter your REC number.");
+      if (d.works_under_rec == null) e.push("Tell us if you run your own REC business or work under another REC.");
+      if (!txt(d.legal_entity_name)) e.push(d.works_under_rec === true ? "Enter your full legal name." : "Enter the legal entity / REC registered name.");
+      if (d.works_under_rec === true) {
+        if (!txt(d.host_rec_name)) e.push("Enter the REC business you work under.");
+        if (!txt(d.host_rec_number)) e.push("Enter their REC number.");
+      } else {
+        if (!validAbn(d.abn)) e.push("Enter a valid 11-digit ABN.");
+        if (!txt(d.rec_registration_number)) e.push("Enter your REC number.");
+      }
       break;
     case "contact":
       if (!txt(d.business_address)) e.push("Enter your business address.");
@@ -118,6 +132,7 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (d.authorised_to_register !== true) e.push("Confirm you're authorised to set up this REC.");
       break;
     case "insurance":
+      if (d.works_under_rec === true) break; // host REC holds the insurance
       if (d.insurance_uploaded !== true) e.push("Upload your Certificate of Currency.");
       if (!txt(d.insurer)) e.push("Enter the insurer.");
       if (!txt(d.insurance_policy_number)) e.push("Enter the policy number.");
@@ -184,6 +199,7 @@ export const MATERIAL_FIELDS = [
   "legal_entity_name", "trading_name", "abn", "rec_registration_number", "business_email", "service_origin", "travel_radius_km",
   "excluded_areas", "typical_days", "normal_attendance_speed", "capacity_band", "service_rectification", "service_installation_isolation",
   "assessment_rate", "installation_attendance_rate", "rectification_rates", "coes_fee_choice", "coes_fee", "gst_registered", "electricians",
+  "works_under_rec", "host_rec_name", "host_rec_number",
 ] as const;
 
 /** If anything that appears in the agreement schedules changed, the review must be redone. */
@@ -199,9 +215,14 @@ export function scheduleText(d: RecData): string {
   const gst = d.gst_registered ? "inc GST" : "total rate (not GST registered)";
   const lines: string[] = [];
   lines.push("SCHEDULE 1 — REC DETAILS");
-  lines.push(`Legal entity: ${d.legal_entity_name ?? ""}`, `Trading name: ${d.trading_name || "—"}`, `ABN: ${d.abn ?? ""}`, `REC number: ${d.rec_registration_number ?? ""}`,
+  lines.push(`Legal entity: ${d.legal_entity_name ?? ""}`, `Trading name: ${d.trading_name || "—"}`, `ABN: ${d.abn ?? ""}`,
+    d.works_under_rec === true
+      ? `REC: works under ${d.host_rec_name ?? ""} (REC ${d.host_rec_number ?? ""})`
+      : `REC number: ${d.rec_registration_number ?? ""}`,
     `Business address: ${d.business_address ?? ""}`, `Contact: ${d.primary_contact_name ?? ""}, ${d.business_phone ?? ""}, ${d.business_email ?? ""}`,
-    `Public liability: ${d.insurer ?? ""} policy ${d.insurance_policy_number ?? ""}, cover ${money(d.public_liability_cover_amount)}, expires ${d.public_liability_expiry ?? ""}`);
+    d.works_under_rec === true
+      ? `Public liability: held by host REC (${d.host_rec_name ?? ""}, REC ${d.host_rec_number ?? ""})`
+      : `Public liability: ${d.insurer ?? ""} policy ${d.insurance_policy_number ?? ""}, cover ${money(d.public_liability_cover_amount)}, expires ${d.public_liability_expiry ?? ""}`);
   lines.push("", "Nominated electricians:");
   (d.electricians ?? []).forEach((x, i) => lines.push(`${i + 1}. ${x.full_legal_name} — licence ${x.licence_number}`));
   lines.push("", "SCHEDULE 2 — SERVICES, COVERAGE AND CAPACITY");
