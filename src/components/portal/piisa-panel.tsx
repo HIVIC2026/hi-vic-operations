@@ -27,6 +27,19 @@ export function PiisaPanel({ jobId }: { jobId: string }) {
               {data.blockers.map((b) => <li key={b}>{b}</li>)}
             </ul>
           )}
+          {data.hazards.length > 0 && (
+            <div className="space-y-1">
+              <p className="font-medium">PIESA hazards (Part 7)</p>
+              <ul className="space-y-1">
+                {data.hazards.map((h) => (
+                  <li key={h.key} className={h.resolved ? "rounded-md border p-2" : "rounded-md border border-destructive/30 bg-destructive/5 p-2"}>
+                    <strong>{h.text}</strong> — {h.resolved ? "Resolved by verified rectification." : h.reason}
+                    {!h.resolved && <div className="text-muted-foreground">Next action: {h.nextAction}</div>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {data.confirmations.length > 0 && <p className="text-xs text-muted-foreground">Held pending official/legal confirmation: {data.confirmations.join(", ")}.</p>}
         </div>
       )}

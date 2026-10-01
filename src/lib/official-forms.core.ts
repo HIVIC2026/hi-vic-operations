@@ -21,7 +21,7 @@ export type OfficialItem = {
 export type TemplateRecord = {
   key: OfficialKey; title: string; issuingAuthority: string;
   sourceUrl: string | null; sourceUrlStatus: "NEEDS CONFIRMATION" | "confirmed";
-  retrievalDate: string | null; retrievalDateStatus: "NEEDS CONFIRMATION" | "confirmed";
+  /** Official download date. UNKNOWN until confirmed — never the upload or asset timestamp. */ retrievalDate: string | null; retrievalDateStatus: "UNKNOWN" | "confirmed";
   /** Date the uploaded original was inspected here — NOT official provenance. */ dateInspected: string; publication: string;
   /** Printed in the document: no separate version number or effective date is printed. */ formVersion: "not printed"; effectiveDatePrinted: "not printed";
   sha256: string; originalFile: string; mappingVersion: string;
@@ -31,7 +31,7 @@ export type TemplateRecord = {
 export const OFFICIAL_TEMPLATES: Record<OfficialKey, TemplateRecord> = {
   piesa: {
     key: "piesa", title: "VEU pre-installation electrical safety assessment form", issuingAuthority: "Department of Energy, Environment and Climate Action (DEECA), State of Victoria",
-    sourceUrl: null, sourceUrlStatus: "NEEDS CONFIRMATION", retrievalDate: null, retrievalDateStatus: "NEEDS CONFIRMATION",
+    sourceUrl: null, sourceUrlStatus: "NEEDS CONFIRMATION", retrievalDate: null, retrievalDateStatus: "UNKNOWN",
     dateInspected: "2026-10-02", publication: "© DEECA March 2026", formVersion: "not printed", effectiveDatePrinted: "not printed",
     sha256: "2a89d21c1f2c8fef916954d070449bd3175590d90b9a514d4a8d7625f3a299ac",
     originalFile: "docs/official-forms/VEU-pre-installation-electrical-safety-assessment-form_1.docx",
@@ -39,7 +39,7 @@ export const OFFICIAL_TEMPLATES: Record<OfficialKey, TemplateRecord> = {
   },
   piisa: {
     key: "piisa", title: "VEU pre-installation installer safety assessment form", issuingAuthority: "Department of Energy, Environment and Climate Action (DEECA), State of Victoria",
-    sourceUrl: null, sourceUrlStatus: "NEEDS CONFIRMATION", retrievalDate: null, retrievalDateStatus: "NEEDS CONFIRMATION",
+    sourceUrl: null, sourceUrlStatus: "NEEDS CONFIRMATION", retrievalDate: null, retrievalDateStatus: "UNKNOWN",
     dateInspected: "2026-10-02", publication: "© DEECA March 2026", formVersion: "not printed", effectiveDatePrinted: "not printed",
     sha256: "bea62330fa766d3da29137a494d01f9e3e80a883cb5126b2fffb6fa07ad46dea",
     originalFile: "docs/official-forms/VEU-pre-installation-installer-safety-assessment-form-_3.docx",
@@ -357,15 +357,33 @@ export function answersFromEntries(key: OfficialKey, entries: { label: string; v
 export type RuleResult = { rule: string; message: string; confirmation?: "NEEDS OFFICIAL/LEGAL CONFIRMATION" };
 export type Evaluation = { blockers: RuleResult[]; nextActions: RuleResult[] };
 /** How an ineffective Part 7 action was resolved. Only a verified rectification record counts today. */
-export type HazardResolution = { kind: "verified_rectification"; rectificationId: string } | { kind: "authorised_review"; reviewId: string } | null;
+/** Built only by `evaluateHazardRectifications` (hazard-rectification.core.ts): the PIESA hazard keys that a current,
+ * verified rectification record on the same job and same signed PIESA resolves. */
+export type HazardResolution = { kind: "verified_rectification"; resolvedHazards: string[] } | { kind: "authorised_review"; reviewId: string } | null;
+export type PiesaHazard = { key: string; text: string };
+/** Every hazard recorded in PIESA Part 7 (appliance rows and other-hazard rows), with a stable key. */
+export function piesaHazards(a: OfficialAnswers): PiesaHazard[] {
+  const out: PiesaHazard[] = [];
+  for (let r = 0; r < 10; r++) {
+    const c = ["p7.appliance", "p7.location", "p7.hazard"].map((id) => s(a[`${id}#${r}`]));
+    if (c.some(Boolean)) out.push({ key: `appliance#${r}`, text: `${c[0]} (${c[1]}): ${c[2]}` });
+  }
+  for (let r = 0; r < 14; r++) {
+    const h = s(a[`p7.otherHazard#${r}`]);
+    if (h) out.push({ key: `other#${r}`, text: h });
+  }
+  return out;
+}
 /** Audited authorised review may resolve an ineffective hazard action only once official guidance is confirmed. */
 export const HAZARD_REVIEW_GUIDANCE_CONFIRMED = false;
 export const HAZARD_UNRESOLVED = "Hazard remains unresolved - office/electrical review required.";
 export const CONDUCTIVITY_UNCONFIRMED = "Existing insulation conductivity must be confirmed.";
+/** HI VIC supporting evidence — not part of the official PIISA. */
+export const CONDUCTIVITY_PHOTO_MISSING = "HI VIC supporting evidence: add a photo of the existing insulation (separate from the official PIISA).";
 export type PiesaContext = { installStart?: string | null; deliveredToInstallerAt?: string | null; deliveredToOwnerAt?: string | null; hazardResolution?: HazardResolution };
 export type PiisaContext = { piesaCompletionDate?: string | null; piesaReceivedAt?: string | null; electricianRequiredAtStart?: boolean | null;
   /** Explicit recorded answer only — a blank is never treated as "No". */ conductiveExistingInsulation?: boolean | null;
-  /** Supporting evidence (photo/file id) for the recorded conductivity answer. */ conductivityEvidence?: string | null };
+  /** HI VIC supporting evidence (photo/file id), outside the official form. */ conductivityEvidence?: string | null };
 
 function requiredMissing(key: OfficialKey, a: OfficialAnswers, active: (i: OfficialItem) => boolean): RuleResult[] {
   const out: RuleResult[] = [];
@@ -427,9 +445,10 @@ export function evaluatePiesa(a: OfficialAnswers, ctx: PiesaContext = {}): Evalu
   if (applianceRows.some((r) => r.some((c) => !c))) blockers.push({ rule: "P7-ROW-INCOMPLETE", message: "Part 7: every started appliance row needs Appliance, Location and Hazard." });
   if (rows(a, ["p7.otherHazard", "p7.otherAction"], 14).some((r) => r.some((c) => !c))) blockers.push({ rule: "P7-OTHER-INCOMPLETE", message: "Part 7: every listed other hazard needs its action, and every action its hazard." });
   // Ineffective action: the form prints no next step. Fail closed; an attempted action is never treated as risk reduction.
-  if (hazardIdentified && !isYes(a["p7.effective"])) {
+  const hazards = piesaHazards(a);
+  if (hazards.length > 0 && !isYes(a["p7.effective"])) {
     const r = ctx.hazardResolution;
-    const resolved = r?.kind === "verified_rectification" ? !!r.rectificationId : r?.kind === "authorised_review" ? HAZARD_REVIEW_GUIDANCE_CONFIRMED && !!r.reviewId : false;
+    const resolved = r?.kind === "verified_rectification" ? hazards.every((h) => r.resolvedHazards.includes(h.key)) : r?.kind === "authorised_review" ? HAZARD_REVIEW_GUIDANCE_CONFIRMED && !!r.reviewId : false;
     if (!resolved) blockers.push({ rule: "P7-NOT-EFFECTIVE", message: HAZARD_UNRESOLVED, confirmation: "NEEDS OFFICIAL/LEGAL CONFIRMATION" });
   }
   // B1 rectification: "Record actions, conditions and required rectifications in B2. Section C of this document must be completed before ceiling insulation work may commence."
@@ -479,8 +498,12 @@ export function evaluatePiisa(a: OfficialAnswers, ctx: PiisaContext = {}): Evalu
   if (treatment.some((t) => !["Removed", "Topped Up"].includes(t))) blockers.push({ rule: "P6-OPTIONS", message: "Part 6: existing insulation can only be \"Removed and/or Topped Up\"." });
   if (present) {
     // The form has no conductivity field: an explicit recorded answer plus evidence is required; blank never means "No".
-    if (ctx.conductiveExistingInsulation !== true && ctx.conductiveExistingInsulation !== false || !ctx.conductivityEvidence)
+    // Authority: the printed Part 6 note ("foil backed or electrically conductive insulation cannot be topped up and must be
+    // removed") can't be applied without knowing the answer, so an explicit Yes/No is a HI VIC operational rule implementing it.
+    if (ctx.conductiveExistingInsulation !== true && ctx.conductiveExistingInsulation !== false)
       blockers.push({ rule: "P6-FOIL-UNKNOWN", message: CONDUCTIVITY_UNCONFIRMED, confirmation: "NEEDS OFFICIAL/LEGAL CONFIRMATION" });
+    // Authority: HI VIC operational requirement only. The official PIISA asks for no photo; this is separate supporting evidence.
+    if (!ctx.conductivityEvidence) blockers.push({ rule: "HIVIC-CONDUCTIVITY-PHOTO", message: CONDUCTIVITY_PHOTO_MISSING });
     if (ctx.conductiveExistingInsulation === true && treatment.includes("Topped Up")) blockers.push({ rule: "P6-FOIL", message: "\"Note: any foil backed or electrically conductive insulation cannot be topped up and must be removed prior to installation.\"" });
     if (ctx.conductiveExistingInsulation === true && !treatment.includes("Removed")) blockers.push({ rule: "P6-FOIL", message: "\"…must be removed prior to installation.\" Removed is not ticked." });
   }

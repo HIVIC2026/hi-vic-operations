@@ -110,3 +110,9 @@
 - [x] Align REC clauses 4, 5, 12, 24, 26 and 27; increment agreement version and reconciliation.
 - [x] Complete remaining REC UI/save checks and no-write address-proxy proof.
 - [x] Save viewable 1280/390 REC screenshots as embedded JSON and run focused verification.
+- [x] C03 no-lead-fee wording approved in principle; exact before/after delivered; C03 removed from commercial blockers (C01, C02, C04 unchanged)
+- [x] Hazard → verified rectification wiring (test copy; staged 0077, throwaway-tested)
+- [x] Conductivity answer vs HI VIC supporting photo separated; provenance download date UNKNOWN
+- [x] 0074 merged against current code in throwaway copy and retested
+- [ ] Apply 0075 storage + private file store live — waiting on Jo's approval and restore-point confirmation
+- [ ] Apply 0077 / 0074 live, publish app code — waiting on Jo's approval, form approvals, source URL/date, conductivity/hazard official confirmation, C01/C02/C04
