@@ -217,14 +217,13 @@ export const addWorkerApprovedRectificationItem = createServerFn({ method: "POST
     const { admin, l, w } = await resolveLink(data.token);
     if (w.trade_role !== "electrician") throw new Error("Only approved electrician staff can add electrical rectification items.");
     const { data: job } = await admin.from("jobs").select("stage").eq("id", l.job_id).maybeSingle();
-    if (!job || !["assessment_booked", "assessment_booking", "assessment_complete", "rectification_required", "awaiting_owner_rectification_approval"].includes(job.stage)) throw new Error("Approved items can only be added before the owner approves rectification.");
+    if (!job || !["assessment_booked", "assessment_booking", "assessment_complete", "rectification_required"].includes(job.stage)) throw new Error("Approved items can only be added before the rectification quote is issued for owner approval.");
     const { data: cards } = await admin.from("rate_cards").select("id,rate_card_items(code,description)").eq("business_id", l.business_id).eq("kind", "electrical").eq("is_active", true).order("version", { ascending: false }).limit(1);
     const approved = (cards?.[0]?.rate_card_items as { code: string; description: string }[] | undefined)?.find((item) => item.code === data.rateCode);
     if (!approved) throw new Error("That item is not on your REC business's approved rate card.");
     const { error } = await admin.from("rectification_items").insert({ job_id: l.job_id, rate_code: approved.code, description: approved.description, quantity: data.quantity, is_other: false, explanation: data.explanation ?? null, added_by: null });
     if (error) throw new Error("The approved rectification item could not be added.");
     await logEvent(l.job_id, null, "rectification_approved_item_added", `Approved rectification item added by ${w.full_legal_name}: ${approved.description}`, { rate_code: approved.code, quantity: data.quantity, worker_id: l.worker_id });
-    if (job.stage === "awaiting_owner_rectification_approval") { const { generateRectificationQuote } = await import("./quotes.server"); await generateRectificationQuote(l.job_id, l.worker_id); }
     return { ok: true };
   });
 
