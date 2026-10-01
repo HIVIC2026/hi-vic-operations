@@ -41,9 +41,15 @@ export const getAdminCoverage = createServerFn({ method: "POST" }).middleware([r
     return { id: job.id, job_number: job.job_number, stage: job.stage, address: property?.address_line ?? "Address unavailable", suburb: site.suburb, postcode: site.postcode, rec, installer, overall: overallCoverage(rec, installer) };
   });
   const areas = coverageAreas(partners, rows.map((row) => ({ postcode: row.postcode, suburb: row.suburb })));
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: enquiries, error: enquiriesError } = await supabaseAdmin.from("partner_enquiries")
+    .select("id,enquiry_type,status,company,name,service_areas,cii_certification_status,rec_registration_number")
+    .in("enquiry_type", ["electrician_rec", "installer"]).neq("status", "declined").order("created_at", { ascending: false });
+  if (enquiriesError) throw new Error(`Partner enquiries could not be loaded: ${enquiriesError.message}`);
   return {
     rows,
     areas,
+    potentialPartners: (enquiries ?? []).map((e) => ({ id: e.id, kind: e.enquiry_type === "installer" ? "installer" as const : "rec" as const, status: e.status, name: (e.company || e.name || "Unnamed").trim(), service_areas: e.service_areas ?? [], cii: e.cii_certification_status, rec_number: e.rec_registration_number })),
     partners: partners.map((partner) => ({
       id: partner.id, name: partner.name, business_type: partner.business_type, capabilities: partner.capabilities,
       onboarding_status: partner.onboarding_status, is_active: partner.is_active,

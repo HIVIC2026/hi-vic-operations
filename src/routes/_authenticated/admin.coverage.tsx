@@ -39,8 +39,14 @@ function CoveragePage() {
     members: partner.members ?? [],
   }));
   const areas = data?.areas ?? [];
-  const regions = groupAreasByRegion(areas);
+  const potential = (data?.potentialPartners ?? []).map((p) => ({ ...p, regions: regionsForDeclaredAreas(p.service_areas) }));
+  const unplacedPotential = potential.filter((p) => !p.regions.length);
+  const regions = groupAreasByRegion(areas).map((region) => {
+    const here = potential.filter((p) => p.regions.includes(region.id));
+    return { ...region, potentialRec: here.filter((p) => p.kind === "rec"), potentialCii: here.filter((p) => p.kind === "installer") };
+  });
   const maxRegion = Math.max(1, ...regions.map((r) => r.enquiryCount));
+  const ciiLabel = (s: string | null) => s === "all_current" || s === "certified" ? "CII certified" : s === "in_progress" ? "CII in progress" : "CII not stated";
   const readyPartners = partners.filter((partner) => !partner.blocker && !!partner.coverage_verified_at && partner.service_postcodes.length > 0);
   const recPartners = readyPartners.filter((partner) => partner.business_type === "rec" || partner.capabilities?.includes("electrician"));
   const installerPartners = readyPartners.filter((partner) => partner.business_type === "eec_installer" || partner.capabilities?.includes("installer"));
