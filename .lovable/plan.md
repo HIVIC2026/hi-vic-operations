@@ -44,8 +44,6 @@ We fix this one form first, get your sign-off, then move to the next. The old A1
    - How was the ceiling measured?         Laser / Tape / Floor plan / Other   MANDATORY
    - Measurement notes                     text                MANDATORY only if Floor plan or Other
    - Was the ceiling or roof built or replaced in the last 5 years?  Yes / No / Not sure  MANDATORY
-   - Life support equipment seen onsite?   Matches office / Different   MANDATORY
-   - What's different?                     text                MANDATORY only if Different (job pauses, office notified)
 
 5. YOUR QUOTED PRICE (A1 only, all prices inc GST)
    Repeat one line per item:
@@ -72,7 +70,7 @@ We fix this one form first, get your sign-off, then move to the next. The old A1
 - Adds up total area, removal area, and how much of each insulation type there is, so batts and loose fill are priced separately.
 - Checks that the price lines add up to the total. If they don't, or a line is missing, the job goes to the office for review. The portal never guesses a price.
 - Builds the owner quote: your lines + PIESA + our AP fee − VEU discount.
-- If the onsite life support result differs from the office's, or anything is marked "Not sure", it raises a To action item.
+- If anything is marked "Not sure", it raises a To action item.
 
 ## Decisions for you
 1. Per room: one "Area (m2)" number, or length × width with the portal working out the m2?
