@@ -1,7 +1,8 @@
 // Renders the shared "How we work together" content (partner-howitworks.ts) as coloured cards.
 // Used by installer onboarding and the partner help page so wording lives in one place.
 import {
-  AP_WORKLOAD, APP_PITCH, ELECTRICIAN_FLEXIBILITY, LEAD_24H_RULE, OPTION_OWN_CUSTOMER, OPTION_OUR_LEAD,
+  AP_WORKLOAD, APP_PITCH, ELECTRICIAN_FAQ, ELECTRICIAN_FLEXIBILITY, ELECTRICIAN_JOB_FLOW, ELECTRICIAN_PAY, ELECTRICIAN_SAME_DAY,
+  LEAD_24H_RULE, OPTION_OWN_CUSTOMER, OPTION_OUR_LEAD,
   PARTNER_FAQ, PAYMENT_TERMS, PORTAL_ONLY_COMMS, WHY_349, type HowStep,
 } from "@/lib/partner-howitworks";
 
