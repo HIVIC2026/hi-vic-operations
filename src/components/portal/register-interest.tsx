@@ -118,8 +118,8 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
           Thanks {done} — we&apos;ve got your details.
         </p>
         <p className="mt-1 text-xs leading-relaxed text-estimate-navy/85">
-          Someone from Home Insulation Victoria will be in touch to confirm your price and arrange the free Ready
-          Check. Nothing has been booked and no payment is due.
+          Someone from Home Insulation Victoria will be in touch to discuss your estimate and next steps, and to
+          arrange your free Ready Check. Nothing has been booked and no payment is due.
         </p>
       </div>
     );
@@ -127,8 +127,9 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
 
   return (
     <form
+      id="register-interest"
       onSubmit={submit}
-      className="relative mt-4 overflow-hidden rounded-3xl bg-estimate-white px-5 py-6 shadow-[0_30px_70px_-45px_rgba(34,55,107,0.45)] sm:px-8 sm:py-8"
+      className="relative mt-4 scroll-mt-4 overflow-hidden rounded-3xl bg-estimate-white px-5 py-6 shadow-[0_30px_70px_-45px_rgba(34,55,107,0.45)] sm:px-8 sm:py-8"
     >
       <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-10">
         <div className="rounded-2xl bg-estimate-blush/60 p-5 lg:p-6">
@@ -137,10 +138,13 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
             High demand
           </span>
           <h2 className="mt-3 text-[1.35rem] font-extrabold leading-snug text-estimate-navy sm:text-[1.55rem]">
-            Installer capacity is very limited across the state — register your interest now.
+            Demand is high. Installer availability is limited.
           </h2>
           <p className="mt-2 text-[0.8rem] leading-relaxed text-estimate-navy/75">
-            Free and no obligation — we&apos;ll confirm your price and book your free Ready Check.
+            Register your interest now so our team can check your property and discuss availability in your area.
+          </p>
+          <p className="mt-3 text-[0.75rem] font-bold leading-relaxed text-estimate-navy">
+            Free to register. No obligation to proceed.
           </p>
         </div>
 
@@ -259,7 +263,7 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
               Register my interest
             </button>
             <p className="mt-1.5 text-center text-[0.7rem] text-estimate-navy/75">
-              No cost, no obligation. We&apos;ll call to confirm your price and book your free Ready Check.
+              We&apos;ll contact you to discuss your estimate and arrange your free Ready Check.
             </p>
           </div>
         </div>
