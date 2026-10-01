@@ -32,7 +32,7 @@ export const Route = createFileRoute("/api/public/address-search")({
       GET: async ({ request }) => {
         const url = new URL(request.url);
         const q = (url.searchParams.get("q") ?? "").replace(/\s+/g, " ").trim();
-        if (!SAFE_QUERY.test(q)) return json({ error: "Please enter a valid address to search." }, { status: 400 });
+        if (!SAFE_QUERY.test(q)) return json({ error: "Please enter a valid address to search." }, 400);
 
         const params = new URLSearchParams({
           q,
