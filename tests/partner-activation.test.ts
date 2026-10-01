@@ -15,6 +15,13 @@ describe("partner activation", () => {
     expect(approvedRateItems("rec", data).find((x) => x.code === "PIESA")?.unit_price_ex_gst).toBe(300);
   });
 
+  test("persists standard and custom REC units without treating cable metres as square metres", () => {
+    const data = { gst_registered: false, rectification_rates: { tps_cable_replacement: 12 }, custom_rectification_rates: [{ id: "custom-123", description: "Roof-space isolation", unit: "visit", price: 90 }] } as RecData;
+    const items = approvedRateItems("rec", data);
+    expect(items.find((x) => x.code === "TPS_CABLE_REPLACEMENT")).toMatchObject({ unit: "each", display_unit: "metre" });
+    expect(items.find((x) => x.code === "CUSTOM_CUSTOM123")).toMatchObject({ description: "Roof-space isolation", unit: "each", display_unit: "visit", unit_price_ex_gst: 90 });
+  });
+
   test("derives the REC applicant worker before activation side effects", () => {
     const data = { primary_contact_name: "Sam Spark", licence_number: "A123", business_phone: "0412345678", business_email: "SAM@SPARK.COM.AU" } as RecData;
     expect(activationWorkers("rec", data, "business-1", "application-1")).toEqual([{

@@ -1,5 +1,5 @@
 import { INSTALLER_AGREEMENT_VERSION, type InstData, EXTRA_ITEMS } from "./installer-onboarding.core";
-import { REC_AGREEMENT_VERSION, type RecData, RECT_ITEMS, effectiveElectricians, melbourneToday } from "./rec-onboarding.core";
+import { REC_AGREEMENT_VERSION, type RecData, RECT_ITEMS, customRateCode, effectiveElectricians, melbourneToday } from "./rec-onboarding.core";
 
 export type PartnerType = "rec" | "installer";
 
@@ -44,7 +44,8 @@ export function approvedRateItems(type: PartnerType, raw: RecData | InstData) {
   const rows = [
     { code: "PIESA", description: "Pre-insulation electrical safety assessment (PIESA)", category: "electrical", unit: "flat", value: d.assessment_rate, r_value: null, sort: 1 },
     { code: "INSTALL_ATTENDANCE", description: "Installation-day electrical attendance", category: "electrical", unit: "flat", value: d.installation_attendance_rate, r_value: null, sort: 2 },
-    ...RECT_ITEMS.map((item, i) => ({ code: item.key.toUpperCase(), description: item.label, category: "electrical", unit: item.unit === "metre" ? "m2" : "each", value: d.rectification_rates?.[item.key], r_value: null, sort: 10 + i })),
+    ...RECT_ITEMS.map((item, i) => ({ code: item.key.toUpperCase(), description: item.label, category: "electrical", unit: "each", display_unit: item.unit, value: d.rectification_rates?.[item.key], r_value: null, sort: 10 + i })),
+    ...(d.custom_rectification_rates ?? []).map((item, i) => ({ code: customRateCode(item.id), description: item.description.trim(), category: "electrical", unit: "each", display_unit: item.unit.trim(), value: item.price, r_value: null, sort: 30 + i })),
     { code: "COES", description: "Certificate of Electrical Safety", category: "electrical", unit: "flat", value: d.coes_fee_choice === "separate" ? d.coes_fee : null, r_value: null, sort: 20 },
   ];
   return rows.filter((r): r is typeof r & { value: number } => typeof r.value === "number" && Number.isFinite(r.value) && r.value > 0).map(({ value, ...r }) => ({ ...r, unit_price_ex_gst: ex(value) }));

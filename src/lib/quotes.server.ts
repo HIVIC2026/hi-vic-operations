@@ -176,8 +176,10 @@ export async function deriveRectificationItems(jobId: string, actorId: string) {
 
 export async function generateRectificationQuote(jobId: string, actorId: string) {
   const settings = await activePricing();
-  const card = await activeRateCard("electrical");
-  const rates = card.rate_card_items as { code: string; description: string; unit_price_ex_gst: number }[];
+  const { data: rec } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
+  if (!rec?.business_id) throw new WorkflowError("Assign an approved REC business before generating the rectification quote.");
+  const card = await activeRateCard("electrical", rec.business_id);
+  const rates = card.rate_card_items as { code: string; description: string; unit: string; display_unit?: string | null; unit_price_ex_gst: number }[];
   const { data: items } = await admin.from("rectification_items").select("*").eq("job_id", jobId).eq("status", "required");
   if (!items?.length) throw new WorkflowError("No rectification items.");
   const gst = 1 + Number(settings.gst_rate);
@@ -194,7 +196,8 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
       unitInc = r2(Number(rate.unit_price_ex_gst) * gst);
     }
     cost += (unitInc / gst) * Number(it.quantity);
-    lines.push({ code: it.rate_code, description: it.description, quantity: Number(it.quantity), unit: "each", unit_price_inc_gst: unitInc, line_total_inc_gst: r2(unitInc * Number(it.quantity)), is_other: it.is_other, explanation: it.explanation, sort: lines.length });
+    const approved = rates.find((r) => r.code === it.rate_code);
+    lines.push({ code: it.rate_code, description: it.description, quantity: Number(it.quantity), unit: approved?.display_unit || approved?.unit || "each", unit_price_inc_gst: unitInc, line_total_inc_gst: r2(unitInc * Number(it.quantity)), is_other: it.is_other, explanation: it.explanation, sort: lines.length });
   }
   const subtotal = r2(lines.reduce((a, l) => a + l.line_total_inc_gst, 0));
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "rectification").in("status", ["draft", "issued"]);

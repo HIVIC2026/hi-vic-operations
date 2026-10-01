@@ -19,7 +19,7 @@ export const ADDRESS_DEBOUNCE_MS = 350;
 export const ADDRESS_MAX_SUGGESTIONS = 6;
 
 export type AddressSuggestion = { id: string; label: string };
-export type AddressDetails = { label: string; street?: string | null; suburb?: string | null; postcode?: string | null; state?: string | null; latitude?: number | null; longitude?: number | null };
+export type AddressDetails = { label: string; street?: string | null; suburb?: string | null; postcode?: string | null; state?: string | null; country?: string | null; latitude?: number | null; longitude?: number | null };
 /** A selected, verified what-if address (local state only). */
 export type SelectedAddress = { label: string; postcode: string; state: "VIC"; latitude: number | null; longitude: number | null };
 

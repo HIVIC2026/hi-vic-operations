@@ -36,22 +36,23 @@ const dataSchema = z.object({
   how_it_works_acknowledged: z.boolean().optional(),
   works_under_rec: z.boolean().nullable().optional(), host_rec_name: s(200), host_rec_number: s(50),
   legal_entity_name: s(200), trading_name: s(200), abn: s(20), rec_registration_number: s(50),
-  business_address: s(300), primary_contact_name: s(200), business_phone: s(30), business_email: s(320), authorised_to_register: z.boolean().optional(),
+  business_address: s(300), business_address_details: z.object({ label: z.string().max(300), street: s(300).nullable(), suburb: s(100).nullable(), postcode: s(10).nullable(), state: s(30).nullable(), country: s(30).nullable(), latitude: n, longitude: n }).nullable().optional(), primary_contact_name: s(200), business_phone: s(30), business_email: s(320), authorised_to_register: z.boolean().optional(),
   insurer: s(200), insurance_policy_number: s(100), public_liability_cover_amount: n, public_liability_expiry: s(10),
   electricians: z.array(z.object({ full_legal_name: s(200), licence_number: s(50), mobile: s(30), email: s(320) })).max(30).optional(),
   service_piesa: z.boolean().optional(), service_rectification: z.boolean().optional(), service_installation_isolation: z.boolean().optional(), services_all_confirmed: z.boolean().optional(), licence_number: s(50),
-  service_origin: s(300), travel_radius_km: n, excluded_areas: s(2000),
+  service_origin: s(300), service_origin_details: z.object({ label: z.string().max(300), street: s(300).nullable(), suburb: s(100).nullable(), postcode: s(10).nullable(), state: s(30).nullable(), country: s(30).nullable(), latitude: n, longitude: n }).nullable().optional(), travel_radius_km: n, excluded_areas: s(2000),
   typical_days: z.array(z.string().max(3)).max(7).optional(), normal_attendance_speed: s(50),
   capacity_band: s(10), accepting_jobs: z.boolean().optional(),
   gst_registered: z.boolean().nullable().optional(), assessment_rate: n, installation_attendance_rate: n,
   rectification_rates: z.record(z.string().max(40), n).optional(),
+  custom_rectification_rates: z.array(z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{6,64}$/), description: z.string().max(120), unit: z.string().max(30), price: n })).max(20).optional(),
   coes_fee_choice: z.enum(["included", "separate", ""]).optional(), coes_fee: n,
   bank_account_name: s(200), bank_bsb: s(7), bank_account_number: s(10),
   agreement_reviewed: z.boolean().optional(),
 }).strict();
 
-function publicView(app: { status: string; step_key: string | null; data: unknown; insurance_certificate_path: string | null; signed_at: string | null; agreement_version: string | null; test_mode?: boolean }) {
-  return { status: app.status, step_key: app.step_key, data: { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path }, signed_at: app.signed_at, agreement_version: app.agreement_version, test_mode: !!app.test_mode };
+function publicView(app: { status: string; step_key: string | null; data: unknown; insurance_certificate_path: string | null; signed_at: string | null; agreement_version: string | null; test_mode?: boolean; updated_at?: string | null }) {
+  return { status: app.status, step_key: app.step_key, data: { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path }, signed_at: app.signed_at, agreement_version: app.agreement_version, test_mode: !!app.test_mode, updated_at: "updated_at" in app ? String(app.updated_at) : null };
 }
 
 export const startRecOnboarding = createServerFn({ method: "POST" })
@@ -69,13 +70,17 @@ export const loadRecOnboarding = createServerFn({ method: "POST" })
   .handler(async ({ data }) => publicView((await findApp(data.token)).app));
 
 export const saveRecOnboarding = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ token: tokenSchema, step_key: z.string().max(40), data: dataSchema }).parse(d))
+  .inputValidator((d) => z.object({ token: tokenSchema, step_key: z.string().max(40), data: dataSchema, base_updated_at: z.string().datetime().nullable().optional() }).parse(d))
   .handler(async ({ data }) => {
     const { db, app } = await findApp(data.token);
     if (app.status !== "draft") throw new Error("This application has already been signed and submitted.");
     const next = applyMaterialReset(app.data as RecData, data.data as RecData);
-    const { data: row, error } = await db.from("rec_onboarding_applications").update({ data: next as never, step_key: data.step_key }).eq("id", app.id).select("*").single();
+    let update = db.from("rec_onboarding_applications").update({ data: next as never, step_key: data.step_key }).eq("id", app.id).eq("status", "draft");
+    if (data.base_updated_at) update = update.eq("updated_at", data.base_updated_at);
+    const { data: row, error } = await update.select("*").maybeSingle();
+    if (!row && !error) throw new Error("Your application changed in another tab. Reload before saving again.");
     if (error) throw new Error("Could not save your progress. Please try again.");
+    if (!row) throw new Error("Could not save your progress. Please try again.");
     return publicView(row);
   });
 

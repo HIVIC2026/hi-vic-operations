@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Now
+- [ ] Complete authorized REC refinements: navigation, staff terminology, AU/VIC addresses, services/availability copy, custom rates, agreement v1.9, 48-hour rule, focused verification
 - [x] Finish REC onboarding polish: shared trade copy, isolated no-write samples, legacy draft resume, retry state, focused verification
 - [x] Audit and refine REC business onboarding, worker invitations and worker join screens; fix activation validation ordering
 - [x] Delete obsolete old-brand email templates and old calculator code; preserve approved current templates and customer calculator
