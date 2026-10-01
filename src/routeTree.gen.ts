@@ -18,6 +18,7 @@ import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-prev
 import { Route as TestCustomerEstimateRouteImport } from './routes/test-customer-estimate'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
+import { Route as WTokenRouteImport } from './routes/w.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminBusinessesRouteImport } from './routes/_authenticated/admin.businesses'
 import { Route as AuthenticatedAdminCommunicationsRouteImport } from './routes/_authenticated/admin.communications'
@@ -29,6 +30,7 @@ import { Route as AuthenticatedAdminTestCentreRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminTodoRouteImport } from './routes/_authenticated/admin.todo'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminVeecRouteImport } from './routes/_authenticated/admin.veec'
+import { Route as AuthenticatedAdminWorkersRouteImport } from './routes/_authenticated/admin.workers'
 import { Route as AuthenticatedFieldIndexRouteImport } from './routes/_authenticated/field.index'
 import { Route as AuthenticatedFieldJobIdRouteImport } from './routes/_authenticated/field.$jobId'
 import { Route as AuthenticatedOwnerIndexRouteImport } from './routes/_authenticated/owner.index'
@@ -36,6 +38,7 @@ import { Route as AuthenticatedOwnerJobIdRouteImport } from './routes/_authentic
 import { Route as AuthenticatedPartnerIndexRouteImport } from './routes/_authenticated/partner.index'
 import { Route as AuthenticatedPartnerImportRouteImport } from './routes/_authenticated/partner.import'
 import { Route as AuthenticatedPartnerProfileRouteImport } from './routes/_authenticated/partner.profile'
+import { Route as AuthenticatedPartnerWorkersRouteImport } from './routes/_authenticated/partner.workers'
 import { Route as ApiPublicEnquiryRouteImport } from './routes/api/public/enquiry'
 import { Route as ApiPublicPartnerEnquiryRouteImport } from './routes/api/public/partner-enquiry'
 import { Route as ApiPublicUnsubscribeRouteImport } from './routes/api/public/unsubscribe'
@@ -89,6 +92,11 @@ const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
 const EstimateTokenRoute = EstimateTokenRouteImport.update({
   id: '/estimate/$token',
   path: '/estimate/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WTokenRoute = WTokenRouteImport.update({
+  id: '/w/$token',
+  path: '/w/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -153,6 +161,12 @@ const AuthenticatedAdminVeecRoute = AuthenticatedAdminVeecRouteImport.update({
   path: '/admin/veec',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminWorkersRoute =
+  AuthenticatedAdminWorkersRouteImport.update({
+    id: '/admin/workers',
+    path: '/admin/workers',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedFieldIndexRoute = AuthenticatedFieldIndexRouteImport.update({
   id: '/field/',
   path: '/field/',
@@ -189,6 +203,12 @@ const AuthenticatedPartnerProfileRoute =
   AuthenticatedPartnerProfileRouteImport.update({
     id: '/partner/profile',
     path: '/partner/profile',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPartnerWorkersRoute =
+  AuthenticatedPartnerWorkersRouteImport.update({
+    id: '/partner/workers',
+    path: '/partner/workers',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const ApiPublicEnquiryRoute = ApiPublicEnquiryRouteImport.update({
@@ -256,6 +276,7 @@ export interface FileRoutesByFullPath {
   '/test-customer-estimate': typeof TestCustomerEstimateRoute
   '/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
+  '/w/$token': typeof WTokenRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
@@ -266,10 +287,12 @@ export interface FileRoutesByFullPath {
   '/admin/todo': typeof AuthenticatedAdminTodoRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/veec': typeof AuthenticatedAdminVeecRoute
+  '/admin/workers': typeof AuthenticatedAdminWorkersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/partner/import': typeof AuthenticatedPartnerImportRoute
   '/partner/profile': typeof AuthenticatedPartnerProfileRoute
+  '/partner/workers': typeof AuthenticatedPartnerWorkersRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
@@ -294,6 +317,7 @@ export interface FileRoutesByTo {
   '/test-customer-estimate': typeof TestCustomerEstimateRoute
   '/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
+  '/w/$token': typeof WTokenRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
@@ -304,10 +328,12 @@ export interface FileRoutesByTo {
   '/admin/todo': typeof AuthenticatedAdminTodoRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/veec': typeof AuthenticatedAdminVeecRoute
+  '/admin/workers': typeof AuthenticatedAdminWorkersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/partner/import': typeof AuthenticatedPartnerImportRoute
   '/partner/profile': typeof AuthenticatedPartnerProfileRoute
+  '/partner/workers': typeof AuthenticatedPartnerWorkersRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
@@ -334,6 +360,7 @@ export interface FileRoutesById {
   '/test-customer-estimate': typeof TestCustomerEstimateRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
+  '/w/$token': typeof WTokenRoute
   '/_authenticated/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/_authenticated/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/_authenticated/admin/compliance': typeof AuthenticatedAdminComplianceRoute
@@ -344,10 +371,12 @@ export interface FileRoutesById {
   '/_authenticated/admin/todo': typeof AuthenticatedAdminTodoRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/veec': typeof AuthenticatedAdminVeecRoute
+  '/_authenticated/admin/workers': typeof AuthenticatedAdminWorkersRoute
   '/_authenticated/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/_authenticated/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/_authenticated/partner/import': typeof AuthenticatedPartnerImportRoute
   '/_authenticated/partner/profile': typeof AuthenticatedPartnerProfileRoute
+  '/_authenticated/partner/workers': typeof AuthenticatedPartnerWorkersRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
@@ -374,6 +403,7 @@ export interface FileRouteTypes {
     | '/test-customer-estimate'
     | '/home'
     | '/estimate/$token'
+    | '/w/$token'
     | '/admin/businesses'
     | '/admin/communications'
     | '/admin/compliance'
@@ -384,10 +414,12 @@ export interface FileRouteTypes {
     | '/admin/todo'
     | '/admin/users'
     | '/admin/veec'
+    | '/admin/workers'
     | '/field/$jobId'
     | '/owner/$jobId'
     | '/partner/import'
     | '/partner/profile'
+    | '/partner/workers'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/api/public/unsubscribe'
@@ -412,6 +444,7 @@ export interface FileRouteTypes {
     | '/test-customer-estimate'
     | '/home'
     | '/estimate/$token'
+    | '/w/$token'
     | '/admin/businesses'
     | '/admin/communications'
     | '/admin/compliance'
@@ -422,10 +455,12 @@ export interface FileRouteTypes {
     | '/admin/todo'
     | '/admin/users'
     | '/admin/veec'
+    | '/admin/workers'
     | '/field/$jobId'
     | '/owner/$jobId'
     | '/partner/import'
     | '/partner/profile'
+    | '/partner/workers'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/api/public/unsubscribe'
@@ -451,6 +486,7 @@ export interface FileRouteTypes {
     | '/test-customer-estimate'
     | '/_authenticated/home'
     | '/estimate/$token'
+    | '/w/$token'
     | '/_authenticated/admin/businesses'
     | '/_authenticated/admin/communications'
     | '/_authenticated/admin/compliance'
@@ -461,10 +497,12 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/todo'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/veec'
+    | '/_authenticated/admin/workers'
     | '/_authenticated/field/$jobId'
     | '/_authenticated/owner/$jobId'
     | '/_authenticated/partner/import'
     | '/_authenticated/partner/profile'
+    | '/_authenticated/partner/workers'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/api/public/unsubscribe'
@@ -490,6 +528,7 @@ export interface RootRouteChildren {
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
   TestCustomerEstimateRoute: typeof TestCustomerEstimateRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
+  WTokenRoute: typeof WTokenRoute
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
   ApiPublicPartnerEnquiryRoute: typeof ApiPublicPartnerEnquiryRoute
   ApiPublicUnsubscribeRoute: typeof ApiPublicUnsubscribeRoute
@@ -564,6 +603,13 @@ declare module '@tanstack/react-router' {
       path: '/estimate/$token'
       fullPath: '/estimate/$token'
       preLoaderRoute: typeof EstimateTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/w/$token': {
+      id: '/w/$token'
+      path: '/w/$token'
+      fullPath: '/w/$token'
+      preLoaderRoute: typeof WTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -643,6 +689,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminVeecRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/workers': {
+      id: '/_authenticated/admin/workers'
+      path: '/admin/workers'
+      fullPath: '/admin/workers'
+      preLoaderRoute: typeof AuthenticatedAdminWorkersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/field/': {
       id: '/_authenticated/field/'
       path: '/field'
@@ -690,6 +743,13 @@ declare module '@tanstack/react-router' {
       path: '/partner/profile'
       fullPath: '/partner/profile'
       preLoaderRoute: typeof AuthenticatedPartnerProfileRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/partner/workers': {
+      id: '/_authenticated/partner/workers'
+      path: '/partner/workers'
+      fullPath: '/partner/workers'
+      preLoaderRoute: typeof AuthenticatedPartnerWorkersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/public/enquiry': {
@@ -777,10 +837,12 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminTodoRoute: typeof AuthenticatedAdminTodoRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminVeecRoute: typeof AuthenticatedAdminVeecRoute
+  AuthenticatedAdminWorkersRoute: typeof AuthenticatedAdminWorkersRoute
   AuthenticatedFieldJobIdRoute: typeof AuthenticatedFieldJobIdRoute
   AuthenticatedOwnerJobIdRoute: typeof AuthenticatedOwnerJobIdRoute
   AuthenticatedPartnerImportRoute: typeof AuthenticatedPartnerImportRoute
   AuthenticatedPartnerProfileRoute: typeof AuthenticatedPartnerProfileRoute
+  AuthenticatedPartnerWorkersRoute: typeof AuthenticatedPartnerWorkersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedFieldIndexRoute: typeof AuthenticatedFieldIndexRoute
   AuthenticatedOwnerIndexRoute: typeof AuthenticatedOwnerIndexRoute
@@ -800,10 +862,12 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminTodoRoute: AuthenticatedAdminTodoRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminVeecRoute: AuthenticatedAdminVeecRoute,
+  AuthenticatedAdminWorkersRoute: AuthenticatedAdminWorkersRoute,
   AuthenticatedFieldJobIdRoute: AuthenticatedFieldJobIdRoute,
   AuthenticatedOwnerJobIdRoute: AuthenticatedOwnerJobIdRoute,
   AuthenticatedPartnerImportRoute: AuthenticatedPartnerImportRoute,
   AuthenticatedPartnerProfileRoute: AuthenticatedPartnerProfileRoute,
+  AuthenticatedPartnerWorkersRoute: AuthenticatedPartnerWorkersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedFieldIndexRoute: AuthenticatedFieldIndexRoute,
   AuthenticatedOwnerIndexRoute: AuthenticatedOwnerIndexRoute,
@@ -823,6 +887,7 @@ const rootRouteChildren: RootRouteChildren = {
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
   TestCustomerEstimateRoute: TestCustomerEstimateRoute,
   EstimateTokenRoute: EstimateTokenRoute,
+  WTokenRoute: WTokenRoute,
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
   ApiPublicPartnerEnquiryRoute: ApiPublicPartnerEnquiryRoute,
   ApiPublicUnsubscribeRoute: ApiPublicUnsubscribeRoute,
