@@ -1,8 +1,7 @@
 /** Pure Step 3 follow-up renderers (3-day unopened, 3-day engaged, 7-day). No data access or delivery.
  * Uses the approved outcome-email theme (V2_THEME) so reminders match the likely/onsite/ineligible emails. */
-import { escape, V2_THEME, validEstimateUrl, validReferralUrl, validTrackingUrl, pixelTag, type EstimateEmail } from "./estimate-email";
+import { escape, V2_THEME, validEstimateUrl, validReferralUrl, validTrackingUrl, type EstimateEmail } from "./estimate-email";
 import type { FollowupKind } from "./engagement.core";
-import { CUSTOMER_BRAND } from "./customer-quote-system";
 
 export type FollowupEmailInput = { kind: FollowupKind; estimateUrl: string; trackingClickUrl?: string | null; trackingPixelUrl?: string | null; referralUrl?: string | null };
 
@@ -71,7 +70,7 @@ export function renderFollowupEmail(input: FollowupEmailInput): EstimateEmail {
   const action = `<table data-followup-action="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${C.BLUSH}" style="width:100%;border-collapse:separate;background-color:${C.BLUSH};border-radius:20px;"><tr><td style="padding:22px 22px;${F}"><h2 style="margin:0 0 10px;${FH}color:${C.INK};font-size:23px;line-height:1.2;font-weight:800;letter-spacing:0;">${escape(c.actionTitle)}</h2><p class="lx-body" style="margin:0 0 14px;${F}color:${C.INK};font-size:14px;line-height:1.55;">${escape(c.actionBody)}</p>${c.demand ? `<p style="margin:0 0 12px;${F}color:${C.TEXT_GREEN};font-size:14px;line-height:1.45;font-weight:800;">${DEMAND}</p>` : ""}${V2_THEME.button(target, escape(c.cta))}<p style="margin:10px 0 0;${F}color:${C.INK};font-size:13px;line-height:1.5;text-align:center;">${HELPER}</p><p style="margin:6px 0 0;${F}color:${C.INK};font-size:13px;line-height:1.5;text-align:center;font-weight:700;">${REASSURE}</p></td></tr></table>`;
   const refer = referral ? `<p data-followup-referral="true" style="margin:0;${F}color:${C.INK};font-size:13.5px;line-height:1.55;text-align:center;">Know someone else thinking about ceiling insulation? They can check their own eligibility. <a href="${escape(referral)}" style="color:${C.BLUE};font-weight:800;text-decoration:underline;white-space:nowrap;">Refer&nbsp;a&nbsp;friend&nbsp;→</a></p>` : "";
   const reason = "You’re receiving this because you requested a ceiling insulation estimate.";
-  const html = V2_THEME.shell(`${row(V2_THEME.header(c.badge), "22px 36px 18px")}${row(hero, "8px 36px 24px")}${row(list, "0 28px 18px")}${row(action, "0 28px 18px")}${refer ? row(refer, "4px 36px 24px") : ""}${V2_THEME.footerRow(V2_THEME.footer(null, referral, reason))}`, c.preview, null).replace("</table></td></tr></table></body>", `</table>${pixelTag(pixel)}</td></tr></table></body>`);
+  const html = V2_THEME.shell(`${row(V2_THEME.header(c.badge), "22px 36px 18px")}${row(hero, "8px 36px 24px")}${row(list, "0 28px 18px")}${row(action, "0 28px 18px")}${refer ? row(refer, "4px 36px 24px") : ""}${V2_THEME.footerRow(V2_THEME.footer(null, referral, reason))}`, c.preview, pixel);
   const plainText = [
     c.heading, "", c.intro, "",
     c.listTitle.toUpperCase(), ...c.ticks.map((t) => `✓ ${t}`), ...(c.listNote ? [c.listNote] : []), "",
@@ -80,6 +79,5 @@ export function renderFollowupEmail(input: FollowupEmailInput): EstimateEmail {
     ...(referral ? ["", "Know someone else thinking about ceiling insulation? They can check their own eligibility.", `Refer a friend: ${referral}`] : []), "",
     ...V2_THEME.footerPlain(null, referral, reason),
   ].join("\n");
-  void CUSTOMER_BRAND;
   return { subject: c.subject, previewText: c.preview, html, plainText };
 }
