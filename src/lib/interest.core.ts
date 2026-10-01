@@ -42,7 +42,7 @@ const rawInterestSchema = z.object({
   fullName: z.string().trim().min(2, "Please enter your name").max(120),
   mobile: z.string().trim().min(6, "Please enter your mobile number").max(20),
   email: z.string().trim().min(3).max(254).email("Please enter a valid email address"),
-  addressLine: z.string().trim().min(5, "Please enter your property address").max(200),
+  addressLine: z.string().trim().max(200),
   suburb: z.string().trim().max(120),
   postcode: z.string().trim().regex(/^\d{4}$/, "Please enter the 4-digit postcode"),
   ceilingM2: z.union([z.literal(0), z.number().int().min(CALC_MIN_M2).max(CALC_MAX_M2)]),
