@@ -18,9 +18,10 @@ export function WorkerInvites({ businessId }: { businessId: string }) {
   const [busy, setBusy] = useState(false);
 
   return (
-    <section className="mb-6 rounded-xl border bg-card p-4">
-      <h2 className="text-lg font-bold">Invite someone who works for you</h2>
-      <p className="mb-3 text-sm text-muted-foreground">They get their own link to fill in their details and licence and sign for themselves. The link works once and lasts 14 days. Copy it and send it by text or email.</p>
+    <section className="mb-6 rounded-lg border bg-card p-5 shadow-sm">
+      <p className="text-xs font-extrabold uppercase tracking-wider text-success">Primary pathway</p>
+      <h2 className="mt-1 font-display text-xl font-bold">Create a personal staff invitation</h2>
+      <p className="mb-4 mt-2 text-sm leading-relaxed text-muted-foreground">The worker opens the link, provides their own details and licence, and signs their own declarations. The single-use link lasts 14 days. You copy and share it yourself; Home Insulation Victoria does not send it automatically.</p>
       <form className="grid gap-3 sm:grid-cols-2" onSubmit={async (e) => {
         e.preventDefault(); setBusy(true);
         try {
@@ -33,16 +34,17 @@ export function WorkerInvites({ businessId }: { businessId: string }) {
         </div>
         <label className="text-sm font-medium">Their name<Input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="mt-1 h-12" /></label>
         <label className="text-sm font-medium">Their mobile or email (optional)<Input value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} className="mt-1 h-12" /></label>
-        <Button type="submit" size="field" disabled={busy} className="sm:col-span-2">{busy ? "Creating…" : "Create invite link"}</Button>
+        <Button type="submit" size="field" disabled={busy} className="sm:col-span-2 bg-success text-brand-dark hover:bg-success/90">{busy ? "Creating…" : "Create staff invitation link"}</Button>
       </form>
       {link && (
         <div className="mt-3 rounded-lg bg-success-soft p-3 text-sm">
-          <div className="mb-1 font-semibold">Invite link ready — send this to them:</div>
+           <div className="mb-1 font-semibold">Invitation link ready — copy and share it with the worker:</div>
           <div className="break-all font-mono text-xs">{link}</div>
-          <Button size="sm" className="mt-2" onClick={() => { navigator.clipboard.writeText(link); toast.success("Copied"); }}>Copy link</Button>
+          <Button size="sm" className="mt-2 bg-success text-brand-dark hover:bg-success/90" onClick={() => { navigator.clipboard.writeText(link); toast.success("Copied"); }}>Copy invitation link</Button>
           <p className="mt-1 text-xs text-muted-foreground">You won't see this link again — create a new one if it gets lost.</p>
         </div>
       )}
+      {data === undefined && <p className="mt-4 text-sm text-muted-foreground">Loading invitations…</p>}
       {!!data?.length && (
         <ul className="mt-4 space-y-2 text-sm">
           {data.map((i) => (
