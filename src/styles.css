@@ -80,6 +80,10 @@
   --color-estimate-white: var(--estimate-white);
   --color-estimate-accent: var(--estimate-accent);
   --color-estimate-accent-soft: var(--estimate-accent-soft);
+  --color-estimate-mist: var(--estimate-mist);
+  --color-estimate-mint: var(--estimate-mint);
+  --color-estimate-blush: var(--estimate-blush);
+  --color-estimate-line: var(--estimate-line);
   --color-workspace-blush: var(--workspace-blush);
   --color-workspace-blush-strong: var(--workspace-blush-strong);
   --color-workspace-sun: var(--workspace-sun);
@@ -115,6 +119,11 @@
   --estimate-green-light: oklch(0.97024 0.01728 159.124);
   --estimate-accent: #52c875;
   --estimate-accent-soft: oklch(0.97024 0.01728 159.124);
+  /* Light, fresh surfaces for the public client calculator. */
+  --estimate-mist: #f3f6ff;
+  --estimate-mint: #edfaf2;
+  --estimate-blush: #fdf2f6;
+  --estimate-line: #e4e9f5;
   --estimate-secondary-border: oklch(0.884 0.037 278.5);
   --estimate-action-border: oklch(0.89 0.072 157);
   --estimate-white: oklch(1 0 0);
