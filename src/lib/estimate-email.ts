@@ -251,7 +251,7 @@ export function renderEstimateEmail(input: EstimateEmailInput): EstimateEmail {
 // ---------------------------------------------------------------------------
 
 /** Clean public calculator (no customer data in the URL). */
-export const PUBLIC_CALCULATOR_URL = "https://estimate.homeinsulationvictoria.com.au/calculator";
+export const PUBLIC_CALCULATOR_URL = "https://estimate.homeinsulationvictoria.com.au/";
 const TEXT_GREEN = "#067A45";
 const MIST = "#F3F6FF";
 const MINT = "#EDFAF2";
