@@ -236,7 +236,7 @@ function RecOnboarding() {
       const server = r.data as RecData;
       const concurrent = Object.fromEntries(Object.keys(current).filter((key) => JSON.stringify(current[key as keyof RecData]) !== JSON.stringify(submitted[key as keyof RecData])).map((key) => [key, current[key as keyof RecData]])) as Partial<RecData>;
       const merged = applyMaterialReset(server, { ...server, ...concurrent });
-      return { ...merged, agreement_reviewed: server.agreement_reviewed === false ? false : merged.agreement_reviewed };
+      return { ...merged, agreement_reviewed: server.agreement_reviewed === false ? false : (merged.agreement_reviewed ?? false) };
     });
   }
   async function go(delta: 1 | -1) {
