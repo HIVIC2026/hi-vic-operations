@@ -140,9 +140,10 @@ export function parseNominatimSuggestions(payload: unknown, typed = ""): Address
 export function mergeTypedNumber(typed: string, suggestion: AddressSuggestion): AddressSuggestion {
   if (suggestion.streetNumber) return suggestion;
   const match = typed.trim().match(/^(\d{1,5}[A-Za-z]?)\s/);
-  if (!match) return suggestion;
-  const parts: AddressParts = { ...suggestion, streetNumber: match[1] };
-  return { ...parts, full: formatAddress(parts), key: `${suggestion.key}:${match[1]}` };
+  const number = match?.[1];
+  if (!number) return suggestion;
+  const parts: AddressParts = { ...suggestion, streetNumber: number };
+  return { ...parts, full: formatAddress(parts), key: `${suggestion.key}:${number}` };
 }
 
 /**
