@@ -199,7 +199,7 @@ function RecOnboarding() {
     catch (e) { setError(e instanceof Error ? e.message : "Could not save."); } finally { setBusy(false); }
   }
 
-  const shell = (children: React.ReactNode, footer?: React.ReactNode) => <TradeOnboardingShell progress={started && status === "draft" ? { current: idx + 1, total: steps.length, label: steps[idx]?.title ?? "Application" } : undefined} footer={footer ?? <TradeOnboardingFooter />}>{children}</TradeOnboardingShell>;
+  const shell = (children: React.ReactNode, footer?: React.ReactNode) => <TradeOnboardingShell {...(started && status === "draft" ? { progress: { current: idx + 1, total: steps.length, label: steps[idx]?.title ?? "Application" } } : {})} footer={footer ?? <TradeOnboardingFooter />}>{children}</TradeOnboardingShell>;
 
   if (!loaded) return shell(<p>Loading…</p>);
 
