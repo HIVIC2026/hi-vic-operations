@@ -47,3 +47,4 @@
 - [ ] Mobile check on trade screens
 - [ ] Final security/RLS pass
 - [x] Connect Mitti A1 template_01ee0428be6d4435b34d8b738935f099 + validate
+- [ ] Mitti forms: send with a direct open link + clear assignment so the person is notified (not clunky)
