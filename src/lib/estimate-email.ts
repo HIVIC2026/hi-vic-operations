@@ -307,7 +307,7 @@ function renderLikelyEligibleEmail(input: EstimateEmailInput): EstimateEmail {
     { title: "Electrical safety assessment (PIESA)", description: "A mandatory check by a pre-vetted REC electrician, close to installation.", amount: hasBreakdown ? assessment : null },
     { title: "Accredited Person (AP) management", description: "Our accreditation gives you access to the VEU rebate. We handle compliance, paperwork and your claim.", amount: hasBreakdown ? apFee : null },
   ];
-  const tick = `<span aria-hidden="true" style="white-space:nowrap;color:${GREEN};font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;line-height:1;">✓&nbsp;&nbsp;</span>`;
+  const tick = `<span aria-hidden="true" style="white-space:nowrap;color:${GREEN};font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;line-height:1;">✓&nbsp;</span>`;
   const items = rows.map(({ title, description, amount }, i) => line(`${tick}<strong style="font-size:14px;">${escape(title)}</strong>`, amount == null ? "" : escape(money(amount)), escape(description), i === 0)).join("");
   const validApCount = typeof input.apCount === "number" && Number.isInteger(input.apCount) && input.apCount > 0;
   const apCountText = validApCount ? (input.apCount === 2 ? "two" : String(input.apCount)) : null;
