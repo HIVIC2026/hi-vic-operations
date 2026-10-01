@@ -7056,6 +7056,7 @@ export type Database = {
           category: string
           code: string
           description: string
+          display_unit: string | null
           id: string
           r_value: number | null
           rate_card_id: string
@@ -7067,6 +7068,7 @@ export type Database = {
           category: string
           code: string
           description: string
+          display_unit?: string | null
           id?: string
           r_value?: number | null
           rate_card_id: string
@@ -7078,6 +7080,7 @@ export type Database = {
           category?: string
           code?: string
           description?: string
+          display_unit?: string | null
           id?: string
           r_value?: number | null
           rate_card_id?: string
