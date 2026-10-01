@@ -15,7 +15,7 @@ const gate1 = (insulation: string, prev: "yes" | "no") => {
   const p = { state: "VIC", postcode: "3336", occupancy: "owner_occupied", is_residential: null, year_built: null, enrichment: { base44: { ...b, raw: { answers: { insulation } } } } } as unknown as StoredProperty;
   return evaluateGate1(resolveGate1Facts(p, { lifeSupportStatus: "no", preliminaryOutcome: null }, 5, 2026));
 };
-const settings = { id: "t", version: 2, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 15, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349, access_standard_multiplier: 1, access_moderate_multiplier: 1.1, access_difficult_multiplier: 1.25, indicative_veec_value: 70, minimum_customer_copayment_inc_gst: 200 } as never;
+const settings = { id: "t", version: 2, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 0, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349, access_standard_multiplier: 1, access_moderate_multiplier: 1.1, access_difficult_multiplier: 1.25, indicative_veec_value: 70, minimum_customer_copayment_inc_gst: 200 } as never;
 const home = lookupLocation("3336")!;
 const disc = (m2: number, loc = home) => whatIfEstimate(m2, loc, "none" as never, settings)!.scenarios[0]!.by_access.standard;
 const enquiry = { external_enquiry_id: "dummy-1", full_name: "Alex Test", email: "qa@example.com", address_line: "30 Dash St", suburb: "Fraser Rise", postcode: "3336", occupancy: "owner_occupied" };

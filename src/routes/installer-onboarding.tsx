@@ -376,7 +376,7 @@ function StepBody({ step, d, up, token, setError, leadFee }: { step: StepKey; d:
       return <>
         <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
         <div style={infoCard}>{d.gst_registered === false ? "Not GST registered: enter your total rate." : "GST registered: enter rates including GST."} These are proposed supplier rates — Home Insulation Victoria reviews them before they apply.</div>
-        <div style={infoCard}>Lead fee: only on leads we send you. If the owner accepts the quote, a {formatLeadFee(leadFee)} inc GST lead fee is deducted from your payout. On jobs where you bring your own customer, there is no lead fee.</div>
+        <div style={infoCard}>Lead fee: only on leads we send you. A {formatLeadFee(leadFee)} inc GST lead fee is deducted from your payout after the installation is complete and the paperwork is approved. On jobs where you bring your own customer, there is no lead fee.</div>
         <Field label={`R5.0 ceiling insulation supply & install (${unit})`} required><Money value={d.r5_rate} onChange={(v) => up({ r5_rate: v })} unit="m²" /></Field>
         <Field label={`Batts removal (${unit})`} required hint="Required — all installer partners remove existing insulation when a job needs it."><Money value={d.batts_removal_rate} onChange={(v) => up({ batts_removal_rate: v })} unit="m²" /></Field>
         <Field label={`Loose fill removal (${unit})`} required hint="Required — all installer partners remove existing insulation when a job needs it."><Money value={d.loose_fill_removal_rate} onChange={(v) => up({ loose_fill_removal_rate: v })} unit="m²" /></Field>

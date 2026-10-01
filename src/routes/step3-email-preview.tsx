@@ -21,7 +21,7 @@ const SAMPLE_INSTALL = 4500, SAMPLE_DISCOUNT = 1481.76, PIESA_FEE = 349, AP_FEE 
 const SAMPLE_GROSS = SAMPLE_INSTALL + PIESA_FEE + AP_FEE;
 const SAMPLE_CUSTOMER = SAMPLE_GROSS - SAMPLE_DISCOUNT;
 const previewSettings: RetailSettings = {
-  id: "preview-v2", version: 2, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 15,
+  id: "preview-v2", version: 2, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 0,
   piesa_assessment_inc_gst: PIESA_FEE, ap_management_inc_gst: AP_FEE,
   access_standard_multiplier: 1, access_moderate_multiplier: 1.1, access_difficult_multiplier: 1.25,
   indicative_veec_value: 70, veec_value_source_label: "Current settings example",
