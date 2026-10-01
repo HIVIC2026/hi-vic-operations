@@ -14,6 +14,8 @@ Same field list as the rebuilt Form A1, minus the price section:
 
 No price fields anywhere. The installer never sees or enters a customer price on our leads.
 
+**Downlight colours (A1 and A2):** "Recessed downlights in this area?" shows **Yes in red** and **No in green**, so the installer can see straight away that downlights need attention. The brief tells Mitti's AI to colour the two answers this way. If Mitti can't colour answers, the brief falls back to a red warning note that appears when Yes is picked: "Downlights need clearance — the electrician will check these at the safety check." The A1 brief is regenerated (v6) with the same change.
+
 ## What gets built
 
 - Verify the A2 field spec in the portal matches the A1 evidence fields exactly (it already shares the same field list — confirm nothing pricing-related leaks in).
