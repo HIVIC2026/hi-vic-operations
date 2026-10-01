@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { WorkerForm, WorkerRemoveButton, WorkerStatus } from "@/components/portal/workers";
 import { listMyWorkers } from "@/lib/worker-links.functions";
 import { WorkerInvites } from "@/components/portal/worker-invites";
+import { workerListQueryKey } from "@/lib/worker-invite.core";
 
 export const Route = createFileRoute("/_authenticated/partner/workers")({
   head: () => ({ meta: [{ title: "Your workers – Home Insulation Victoria" }, { name: "description", content: "Add the electricians and installers who work under your company." }, { property: "og:title", content: "Your workers – Home Insulation Victoria" }, { property: "og:description", content: "Add the electricians and installers who work under your company." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -18,7 +19,7 @@ function Workers() {
   const load = useServerFn(listMyWorkers);
   const sample = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("sample") === "1";
   const sampleData = { business: { id: "00000000-0000-0000-0000-000000000000", name: "Sample Electrical", trading_name: "Sample Electrical" }, canManage: true, workers: [] };
-  const { data, error, refetch } = useQuery({ queryKey: ["my-workers", sample ? "sample" : "live"], queryFn: () => sample ? Promise.resolve(sampleData) : load(), initialData: sample ? sampleData : undefined });
+  const { data, error, refetch } = useQuery({ queryKey: workerListQueryKey(sample), queryFn: () => sample ? Promise.resolve(sampleData) : load(), initialData: sample ? sampleData : undefined });
   const [editing, setEditing] = useState<string | "new" | null>(null);
   if (error) return <AppShell><div role="alert" className="rounded-lg border border-danger bg-danger-soft p-6"><h1 className="font-display text-2xl font-bold">Staff records could not be loaded</h1><p className="mt-2 text-sm leading-relaxed">Try again. No invitation has been created or sent.</p><Button className="mt-4" variant="outline" onClick={() => refetch()}>Try again</Button></div></AppShell>;
   if (data === undefined) return <AppShell><div className="rounded-lg border bg-card p-6"><p className="font-display text-xl font-bold">Loading your staff records…</p><p className="mt-2 text-sm text-muted-foreground">Checking your business link and invitations.</p></div></AppShell>;

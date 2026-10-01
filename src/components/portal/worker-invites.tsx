@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createWorkerInvite, listWorkerInvites, revokeWorkerInvite } from "@/lib/worker-invite.functions";
+import { workerInviteQueryKey } from "@/lib/worker-invite.core";
 
 const LABEL: Record<string, string> = { active: "Waiting for them", used: "Registered", revoked: "Cancelled", expired: "Expired" };
 
@@ -12,7 +13,7 @@ export function WorkerInvites({ businessId, sample = false }: { businessId: stri
   const list = useServerFn(listWorkerInvites);
   const create = useServerFn(createWorkerInvite);
   const revoke = useServerFn(revokeWorkerInvite);
-  const { data, error, refetch } = useQuery({ queryKey: ["worker-invites", businessId, sample ? "sample" : "live"], queryFn: () => sample ? Promise.resolve([]) : list({ data: { businessId } }), initialData: sample ? [] : undefined });
+  const { data, error, refetch } = useQuery({ queryKey: workerInviteQueryKey(businessId, sample), queryFn: () => sample ? Promise.resolve([]) : list({ data: { businessId } }), initialData: sample ? [] : undefined });
   const [f, setF] = useState({ name: "", contact: "", trade: "electrician" as "electrician" | "installer" });
   const [link, setLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

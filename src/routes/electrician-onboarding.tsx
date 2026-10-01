@@ -117,8 +117,10 @@ function Choice<T extends string | number | boolean>({ options, value, onChange 
 }
 
 function RecOnboarding() {
-  const sampleStep = typeof window !== "undefined" ? parseRecSampleStep(new URLSearchParams(window.location.search).get("sample")) : null;
-  const sampleMode = sampleStep !== null;
+  const rawSample = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("sample") : null;
+  const sampleStep = parseRecSampleStep(rawSample);
+  const sampleMode = rawSample !== null;
+  const invalidSample = sampleMode && sampleStep === null;
   const [token, setToken] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [started, setStarted] = useState(false);
@@ -154,6 +156,7 @@ function RecOnboarding() {
   }
 
   useEffect(() => {
+    if (invalidSample) { setLoaded(true); return; }
     if (sampleStep) {
       setD(SAMPLE_REC_DATA); setToken("sample-preview-token"); setTestMode(false);
       if (sampleStep === "welcome") { setStarted(false); setStatus("draft"); }
@@ -170,7 +173,7 @@ function RecOnboarding() {
       const first = firstIncompleteStep(r.data as RecData);
       setStep(r.status === "submitted" ? "sign" : ((first ?? r.step_key ?? "about") as StepKey));
     }).catch(() => localStorage.removeItem(TOKEN_KEY)).finally(() => setLoaded(true));
-  }, [sampleStep]);
+  }, [invalidSample, sampleStep]);
 
   const steps = useMemo(() => visibleSteps(d), [d]);
   const idx = Math.max(0, steps.findIndex((s) => s.key === step));
@@ -211,6 +214,8 @@ function RecOnboarding() {
   const shell = (children: React.ReactNode, footer?: React.ReactNode) => <TradeOnboardingShell {...(started && status === "draft" ? { progress: { current: idx + 1, total: steps.length, label: steps[idx]?.title ?? "Application" } } : {})} footer={footer ?? <TradeOnboardingFooter />}>{children}</TradeOnboardingShell>;
 
   if (!loaded) return shell(<p>Loading…</p>);
+
+  if (invalidSample) return shell(<div style={card}><p className="text-xs font-extrabold uppercase tracking-[1.2px] text-estimate-green">Sample preview</p><h1 className="mt-2 text-[28px] leading-tight text-estimate-navy">That sample step is not available</h1><p className="mt-3 text-sm leading-relaxed">Open the welcome sample to review this flow safely. No data has been loaded or saved.</p><a href="/electrician-onboarding?sample=welcome" className="mt-5 inline-flex min-h-12 items-center rounded-xl bg-estimate-green px-5 text-sm font-extrabold text-estimate-navy">Open welcome sample →</a></div>);
 
   const previewBanner = sampleMode ? <div role="status" className="mb-4 rounded-xl border border-estimate-blue/25 bg-estimate-mist p-3 text-sm font-bold text-estimate-navy">Sample preview only — no data is saved and no application, invitation or signature is submitted.</div> : null;
 
