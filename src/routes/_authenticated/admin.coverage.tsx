@@ -30,7 +30,13 @@ function CoveragePage() {
   const load = useServerFn(getAdminCoverage);
   const { data, error, isPending, refetch } = useQuery({ queryKey: ["admin-coverage"], queryFn: () => load(), retry: 3, staleTime: 30_000 });
   const rows = data?.rows ?? [];
-  const partners = data?.partners ?? [];
+  const partners = (data?.partners ?? []).map((partner) => ({
+    ...partner,
+    capabilities: partner.capabilities ?? [],
+    service_postcodes: partner.service_postcodes ?? [],
+    workers: partner.workers ?? [],
+    members: partner.members ?? [],
+  }));
   const areas = data?.areas ?? [];
   const readyPartners = partners.filter((partner) => !partner.blocker && !!partner.coverage_verified_at && partner.service_postcodes.length > 0);
   const recPartners = readyPartners.filter((partner) => partner.business_type === "rec" || partner.capabilities?.includes("electrician"));
