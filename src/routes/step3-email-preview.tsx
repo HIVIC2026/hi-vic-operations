@@ -115,7 +115,7 @@ function EmailPreview() {
        <div className="mb-4 flex flex-wrap gap-2" aria-label="Preview screen">
          <button type="button" aria-pressed={previewKind === "email"} className={btn} style={pill(previewKind === "email")} onClick={() => setPreviewKind("email")}>Email</button>
           {outcome === "onsite" && <button type="button" aria-pressed={previewKind === "calculator"} className={btn} style={pill(previewKind === "calculator")} onClick={() => setPreviewKind("calculator")}>Calculator</button>}
-           {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "confirm"} className={btn} style={pill(previewKind === "confirm")} onClick={() => setPreviewKind("confirm")}>{outcome === "likely" ? "Free measure-up & eligibility check (test)" : "Free Ready Check (test)"}</button>}
+           {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "confirm"} className={btn} style={pill(previewKind === "confirm")} onClick={() => setPreviewKind("confirm")}>{outcome === "likely" ? "Free Insulation Measure-Up & Eligibility Check (test)" : "Free Ready Check (test)"}</button>}
           {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "measured"} className={btn} style={pill(previewKind === "measured")} onClick={() => setPreviewKind("measured")}>Measured quote + PIESA (test)</button>}
        </div>
       {previewKind === "measured" && <div className="mb-4 flex flex-wrap gap-2" aria-label="PIESA state">
@@ -127,7 +127,7 @@ function EmailPreview() {
            {outcome === "likely" && <a href={PUBLIC_CALCULATOR_URL} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test Open the calculator → (opens the public calculator)</a>}
          {outcome === "ineligible"
            ? <a href={outcomeTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test REVIEW MY RESULT →</a>
-           : <button type="button" onClick={() => setPreviewKind("confirm")} className="underline" style={{ color: "#067A45" }}>{outcome === "likely" ? "Test Arrange my free check →" : "Test BOOK MY READY CHECK →"}</button>}
+           : <button type="button" onClick={() => setPreviewKind("confirm")} className="underline" style={{ color: "#067A45" }}>{outcome === "likely" ? "Test Arrange my free measure-up & eligibility check →" : "Test BOOK MY READY CHECK →"}</button>}
        </div>}
       <div className="mb-4 flex flex-wrap gap-2" aria-label="Preview width">
         <button type="button" aria-pressed={view === "fit"} className={btn} style={pill(view === "fit")} onClick={() => setView("fit")}>Fit</button>
