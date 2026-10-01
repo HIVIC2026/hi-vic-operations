@@ -512,6 +512,13 @@
       "when": 1790889644404,
       "tag": "0072_worker_invite_atomic",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1790889868877,
+      "tag": "0073_guarded_stage_commit",
+      "breakpoints": true
     }
   ]
 }

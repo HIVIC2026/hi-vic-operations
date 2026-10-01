@@ -9027,6 +9027,19 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      commit_guarded_stage: {
+        Args: {
+          _actor: string
+          _details: Json
+          _disposition?: string
+          _expected: Database["public"]["Enums"]["job_stage"]
+          _job: string
+          _next: string
+          _summary: string
+          _to: Database["public"]["Enums"]["job_stage"]
+        }
+        Returns: boolean
+      }
       consume_cron_nonce: {
         Args: { _nonce: string; _purpose: string }
         Returns: boolean
