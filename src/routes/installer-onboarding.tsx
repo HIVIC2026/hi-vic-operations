@@ -11,6 +11,8 @@ import {
   confirmInstallerInsuranceUpload as confirmInsuranceUpload, getInstallerAgreement as getRecAgreement, installerInsuranceUploadUrl as insuranceUploadUrl,
   loadInstallerOnboarding as loadRecOnboarding, saveInstallerOnboarding as saveRecOnboarding, signInstallerAgreement as signRecAgreement, startInstallerOnboarding as startRecOnboarding,
 } from "@/lib/installer-onboarding.functions";
+import { getPartnerLeadFee } from "@/lib/partner-fees.functions";
+import { formatLeadFee } from "@/lib/installer-onboarding.core";
 import { defaultAddressProvider } from "@/lib/address-provider";
 import type { AddressSuggestion } from "@/lib/whatif-location";
 
@@ -149,6 +151,8 @@ function InstallerOnboarding() {
     }).catch(() => localStorage.removeItem(TOKEN_KEY)).finally(() => setLoaded(true));
   }, []);
 
+  const [leadFee, setLeadFee] = useState(220);
+  useEffect(() => { getPartnerLeadFee().then((r) => setLeadFee(r.leadFee)).catch(() => {}); }, []);
   const steps = useMemo(() => visibleSteps(d), [d]);
   const idx = Math.max(0, steps.findIndex((s) => s.key === step));
   const errs = stepErrors(step, d);
@@ -246,7 +250,7 @@ function InstallerOnboarding() {
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
       {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Nice one, {firstName(d)} — next up: {steps[idx]?.title?.toLowerCase()}.</div>}
       {!firstName(d) && <div style={{ marginBottom: 12 }} />}
-      <StepBody step={step} d={d} up={up} token={token!} setError={setError} />
+      <StepBody step={step} d={d} up={up} token={token!} setError={setError} leadFee={leadFee} />
       {step === "sign" && <SignStep d={d} token={token!} onSigned={() => setStatus("submitted")} />}
       {showErrors && errs.length > 0 && (
         <div style={{ background: "#FDECEA", border: "1px solid #F5C2BE", borderRadius: 12, padding: "10px 14px", color: "#8C1D18", fontSize: 14, marginTop: 8 }}>
@@ -259,7 +263,7 @@ function InstallerOnboarding() {
   );
 }
 
-function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void }) {
+function StepBody({ step, d, up, token, setError, leadFee }: { step: StepKey; d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void; leadFee: number }) {
   const t = (k: keyof RecData, upper = false) => ({ value: (d[k] as string) ?? "", onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => up({ [k]: upper ? e.target.value.toUpperCase() : e.target.value } as Partial<RecData>) });
   switch (step) {
     case "about":
@@ -271,7 +275,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       </>;
     case "howitworks":
       return <>
-        <HowItWorks />
+        <HowItWorks leadFee={leadFee} />
         <div style={{ marginTop: 16 }}>
           <Check checked={d.how_it_works_acknowledged === true} onChange={(v) => up({ how_it_works_acknowledged: v })}>I've read how the two options work, the fees, the payment terms and the portal-only communication rule.</Check>
         </div>
@@ -320,7 +324,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
             onChange={(v) => up({ electrician_choice: v as "have" | "match" | "later", preferred_electricians: v === "have" && list.length === 0 ? [{ is_primary: true }] : list })} />
         </Field>
         {d.electrician_choice === "have" && <>
-          <div style={infoCard}>We'll invite them to join Home Insulation Victoria as your team electrician. Once they accept and we've checked their licence, REC and insurance, your jobs go to them automatically. You can change this any time.</div>
+          <div style={infoCard}>As soon as you sign, we'll send them an invite to join Home Insulation Victoria as your team electrician. Once they accept and we've checked their licence, REC and insurance, your jobs go to them automatically. You can change this any time.</div>
           {list.map((x, i) => (
             <div key={i} style={{ border: `1px solid ${x.is_primary ? BLUE : "#E4E8F0"}`, borderRadius: 14, padding: 14, marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><strong>Electrician {i + 1}{x.is_primary ? " · Main" : " · Backup"}</strong>
@@ -373,7 +377,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       return <>
         <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
         <div style={infoCard}>{d.gst_registered === false ? "Not GST registered: enter your total rate." : "GST registered: enter rates including GST."} These are proposed supplier rates — Home Insulation Victoria reviews them before they apply.</div>
-        <div style={infoCard}>Lead fee: only on leads we send you. If the owner accepts the quote, a $220 inc GST lead fee is deducted from your payout. On jobs where you bring your own customer, there is no lead fee.</div>
+        <div style={infoCard}>Lead fee: only on leads we send you. If the owner accepts the quote, a {formatLeadFee(leadFee)} inc GST lead fee is deducted from your payout. On jobs where you bring your own customer, there is no lead fee.</div>
         <Field label={`R5.0 ceiling insulation supply & install (${unit})`} required><Money value={d.r5_rate} onChange={(v) => up({ r5_rate: v })} unit="m²" /></Field>
         <Field label={`Batts removal (${unit})`} required hint="Required — all installer partners remove existing insulation when a job needs it."><Money value={d.batts_removal_rate} onChange={(v) => up({ batts_removal_rate: v })} unit="m²" /></Field>
         <Field label={`Loose fill removal (${unit})`} required hint="Required — all installer partners remove existing insulation when a job needs it."><Money value={d.loose_fill_removal_rate} onChange={(v) => up({ loose_fill_removal_rate: v })} unit="m²" /></Field>

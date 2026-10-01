@@ -5,6 +5,7 @@ import {
   LEAD_24H_RULE, OPTION_OWN_CUSTOMER, OPTION_OUR_LEAD,
   PARTNER_FAQ, PAYMENT_TERMS, PORTAL_ONLY_COMMS, WHY_349, type HowStep,
 } from "@/lib/partner-howitworks";
+import { DEFAULT_LEAD_FEE, applyLeadFee } from "@/lib/installer-onboarding.core";
 
 const NAVY = "#22376B";
 const MUTED = "#4A5578";
@@ -44,15 +45,17 @@ function Panel({ accent, title, children }: { accent: { bg: string; fg: string }
   );
 }
 
-export function HowItWorks() {
+export function HowItWorks({ leadFee = DEFAULT_LEAD_FEE }: { leadFee?: number } = {}) {
+  const f = (t: string) => applyLeadFee(t, leadFee);
+  const fee = (o: { title: string; tagline: string; steps: HowStep[]; footer: string }) => ({ ...o, title: f(o.title), tagline: f(o.tagline), footer: f(o.footer), steps: o.steps.map((s) => ({ ...s, title: f(s.title), body: f(s.body) })) });
   return (
     <div>
       <Panel accent={GREENA} title="Our app: get it right on the day">
         {APP_PITCH}
       </Panel>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14, marginBottom: 14 }}>
-        <OptionCard accent={PINK} {...OPTION_OWN_CUSTOMER} />
-        <OptionCard accent={BLUEA} {...OPTION_OUR_LEAD} />
+        <OptionCard accent={PINK} {...fee(OPTION_OWN_CUSTOMER)} />
+        <OptionCard accent={BLUEA} {...fee(OPTION_OUR_LEAD)} />
       </div>
       <Panel accent={YELLOW} title={ELECTRICIAN_FLEXIBILITY.title}>
         <p style={{ margin: "0 0 8px" }}>{ELECTRICIAN_FLEXIBILITY.body}</p>
@@ -62,7 +65,7 @@ export function HowItWorks() {
         <div style={{ fontSize: 13, color: MUTED }}>{ELECTRICIAN_FLEXIBILITY.pricing}</div>
       </Panel>
       <Panel accent={GREENA} title={PAYMENT_TERMS.title}>
-        <ul style={{ margin: 0, paddingLeft: 20 }}>{PAYMENT_TERMS.points.map((p) => <li key={p}>{p}</li>)}</ul>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>{PAYMENT_TERMS.points.map((p) => <li key={p}>{f(p)}</li>)}</ul>
       </Panel>
       <Panel accent={BLUEA} title={PORTAL_ONLY_COMMS.title}>
         <ul style={{ margin: 0, paddingLeft: 20 }}>{PORTAL_ONLY_COMMS.points.map((p) => <li key={p}>{p}</li>)}</ul>
@@ -80,10 +83,10 @@ export function HowItWorks() {
       </div>
       <div style={{ ...h, fontWeight: 800, fontSize: 15, margin: "16px 0 8px" }}>Common questions</div>
       <div style={{ display: "grid", gap: 8 }}>
-        {PARTNER_FAQ.map((f) => (
-          <details key={f.q} style={{ border: "1px solid #E4E8F0", borderRadius: 12, padding: "10px 14px", background: "#fff" }}>
-            <summary style={{ fontWeight: 700, fontSize: 14, color: NAVY, cursor: "pointer" }}>{f.q}</summary>
-            <p style={{ fontSize: 14, lineHeight: 1.55, color: MUTED, margin: "8px 0 2px" }}>{f.a}</p>
+        {PARTNER_FAQ.map((q) => (
+          <details key={q.q} style={{ border: "1px solid #E4E8F0", borderRadius: 12, padding: "10px 14px", background: "#fff" }}>
+            <summary style={{ fontWeight: 700, fontSize: 14, color: NAVY, cursor: "pointer" }}>{f(q.q)}</summary>
+            <p style={{ fontSize: 14, lineHeight: 1.55, color: MUTED, margin: "8px 0 2px" }}>{f(q.a)}</p>
           </details>
         ))}
       </div>
@@ -115,8 +118,8 @@ export function HowItWorksElectrician() {
       <div style={{ display: "grid", gap: 8 }}>
         {ELECTRICIAN_FAQ.map((f) => (
           <details key={f.q} style={{ border: "1px solid #E4E8F0", borderRadius: 12, padding: "10px 14px", background: "#fff" }}>
-            <summary style={{ fontWeight: 700, fontSize: 14, color: NAVY, cursor: "pointer" }}>{f.q}</summary>
-            <p style={{ fontSize: 14, lineHeight: 1.55, color: MUTED, margin: "8px 0 2px" }}>{f.a}</p>
+            <summary style={{ fontWeight: 700, fontSize: 14, color: NAVY, cursor: "pointer" }}>{f(q.q)}</summary>
+            <p style={{ fontSize: 14, lineHeight: 1.55, color: MUTED, margin: "8px 0 2px" }}>{f(q.a)}</p>
           </details>
         ))}
       </div>
