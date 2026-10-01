@@ -313,7 +313,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
           <Choice options={[{ v: false as boolean, l: "I run my own REC business" }, { v: true as boolean, l: "I work under another REC" }]} value={d.works_under_rec ?? null} onChange={(v) => up({ works_under_rec: v })} />
         </Field>
         {d.works_under_rec === true ? <>
-          <div style={infoCard}>Easy — no ABN, business or insurance needed. The REC you work under holds all of that; we just verify with them. We only need your details and your bank account for payment.</div>
+          <div style={infoCard}>Easy — no ABN, business, insurance or bank details needed. The REC you work under holds all of that and receives payment; we just verify with them. We only need your details and your rates.</div>
           <Field label="Your full legal name" required><input style={input} {...t("legal_entity_name")} /></Field>
           <Field label="The REC business you work under" required hint="Their registered business name"><input style={input} {...t("host_rec_name")} /></Field>
           <Field label="Their REC number" required hint="Ask them — it's on their ESV registration"><input style={input} {...t("host_rec_number", true)} /></Field>

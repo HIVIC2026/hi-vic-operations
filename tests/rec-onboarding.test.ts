@@ -24,7 +24,9 @@ describe("rec onboarding", () => {
     const under: RecData = { ...full, works_under_rec: true, abn: undefined, rec_registration_number: undefined, host_rec_name: "Host Electrical Pty Ltd", host_rec_number: "REC 999" };
     expect(stepErrors("business", under)).toEqual([]);
     expect(visibleSteps(under).some((s) => s.key === "insurance")).toBe(false);
+    expect(visibleSteps(under).some((s) => s.key === "bank")).toBe(false);
     expect(stepErrors("insurance", { ...under, insurance_uploaded: false, insurer: undefined })).toEqual([]);
+    expect(stepErrors("bank", { ...under, bank_account_name: undefined })).toEqual([]);
     expect(firstIncompleteStep(under)).toBeNull();
     expect(stepErrors("business", { ...under, host_rec_name: undefined })).toContain("Enter the REC business you work under.");
     expect(stepErrors("business", { works_under_rec: null })).toContain("Tell us if you run your own REC business or work under another REC.");

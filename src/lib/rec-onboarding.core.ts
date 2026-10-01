@@ -78,7 +78,8 @@ export type StepKey = (typeof STEPS)[number]["key"];
 export function visibleSteps(d: RecData) {
   return STEPS.filter((s) =>
     (s.key !== "rectification_pricing" || d.service_rectification === true) &&
-    (s.key !== "insurance" || d.works_under_rec !== true));
+    (s.key !== "insurance" || d.works_under_rec !== true) &&
+    (s.key !== "bank" || d.works_under_rec !== true));
 }
 
 export function validAbn(abn: string | undefined): boolean {
@@ -176,6 +177,7 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (d.coes_fee_choice === "separate" && !pos(d.coes_fee)) e.push("Enter the Certificate of Electrical Safety fee.");
       break;
     case "bank":
+      if (d.works_under_rec === true) break; // paid through the host REC
       if (!txt(d.bank_account_name)) e.push("Enter the bank account name.");
       if (!/^\d{3}-?\d{3}$/.test(d.bank_bsb ?? "")) e.push("Enter a valid 6-digit BSB.");
       if (!/^\d{5,10}$/.test(d.bank_account_number ?? "")) e.push("Enter a valid bank account number.");
