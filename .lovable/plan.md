@@ -16,7 +16,7 @@ By Friday: onboarding links sent and partners signing up, owners linked with the
 
 ## Today (Thursday) — your side
 
-1. **Paste each brief into Mitti as I deliver it** (A1 first), eyeball against the brief, send me the four template IDs. I connect and test each within minutes.
+1. **Paste each brief into Mitti as I deliver it** (A1 first), eyeball against the brief, send me the four template IDs. I connect and test each within minutes. **A1 is built: template_01ee0428be6d4435b34d8b738935f099 — I connect and validate it first.**
 2. **Send the onboarding links** to your installers and electricians — this can start as soon as I confirm the invite path (this morning).
 3. **Three quick decisions**: (a) hazard photo per area or one description, (b) "Not sure" allowed on remove/top-up?, (c) $220 lead fee inc or ex GST.
 4. **Approve the invoice design** when I show you the preflight.
