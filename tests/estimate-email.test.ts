@@ -129,8 +129,9 @@ describe("customer outcome email renderers", () => {
     expect(() => renderIneligibleOutcomeEmail({ referralUrl, resultUrl: `${estimateUrl}#confirm`, reasons: ["No"] })).toThrow();
   });
 
-  test("AP count never appears in likely; onsite keeps verified wording", () => {
-    expect(renderEstimateEmail({ ...common, apCount: 7 }).html).not.toMatch(/one of only/i);
+  test("AP count is conditional in likely; onsite keeps verified wording", () => {
+    expect(renderEstimateEmail({ ...common, outcome: "likely", apCount: 7 }).html).toContain("One of only 7 Accredited Persons currently approved for VEU ceiling insulation in Victoria.");
+    expect(renderEstimateEmail({ ...common, outcome: "likely" }).html).not.toMatch(/one of only/i);
     const verified = renderEstimateEmail({ ...common, outcome: "onsite", apCount: 7 });
     expect(verified.html).toContain("ONE OF ONLY 7 ACCREDITED PERSONS CURRENTLY APPROVED FOR ACTIVITY 48 IN VICTORIA");
     for (const email of [verified, renderIneligibleOutcomeEmail({ referralUrl })]) expect(`${email.html} ${email.plainText}`).not.toMatch(/team member|staff/i);
