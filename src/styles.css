@@ -80,6 +80,10 @@
   --color-estimate-white: var(--estimate-white);
   --color-estimate-accent: var(--estimate-accent);
   --color-estimate-accent-soft: var(--estimate-accent-soft);
+  --color-estimate-mist: var(--estimate-mist);
+  --color-estimate-mint: var(--estimate-mint);
+  --color-estimate-blush: var(--estimate-blush);
+  --color-estimate-line: var(--estimate-line);
   --color-workspace-blush: var(--workspace-blush);
   --color-workspace-blush-strong: var(--workspace-blush-strong);
   --color-workspace-sun: var(--workspace-sun);
