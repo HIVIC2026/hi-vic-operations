@@ -29,7 +29,7 @@ describe("customer outcome email renderers", () => {
     expect(`${h} ${email.plainText}`).not.toMatch(/undefined|NaN|\$0\b|Gate 1|one of only|guaranteed|energy bill|<div class="hiv-hero-title"/i);
     expect(email.subject).toBe("Alex, you could save $1,325 on ceiling insulation");
     for (const t of ["How much could you save on ceiling insulation?", "Your estimated VEU rebate: You could save $1,325", "Your estimated cost after rebate: $3,747", "incl. GST · before rebate $5,072", "Open the calculator: https://estimate.homeinsulationvictoria.com.au/calculator", `Arrange my free Ready Check: ${estimateUrl}#confirm`, "No payment required. No obligation to proceed with installation.", "R5.0 ceiling insulation — supply & install: $4,023", "WHAT COULD CHANGE THIS PRICE?"]) expect(email.plainText).toContain(t);
-    expect(email.plainText.indexOf("Open the calculator")).toBeLessThan(email.plainText.indexOf("Arrange my free Ready Check"));
+    expect(email.plainText.indexOf("Arrange my free Ready Check")).toBeLessThan(email.plainText.indexOf("Open the calculator"));
   });
 
   test("likely eligible fallbacks: typical area, no name, no address, tracked CTA", () => {
@@ -173,7 +173,7 @@ describe("customer outcome email renderers", () => {
     expect(CUSTOMER_BRAND).toEqual({ name: "Home Insulation Victoria", logoUrl: "https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png", colors: { blue: "#3C51C4", green: "#07BF61", accent: "#52C875", offWhite: "#FBFCFA", navy: "#22376B", white: "#FFFFFF" }, font: "'Open Sans',Arial,Helvetica,sans-serif" });
     for (const outcome of ["likely", "onsite"] as const) {
       const email = renderEstimateEmail({ ...detailed, outcome });
-      const quoteText = outcome === "likely" ? email.plainText.slice(email.plainText.indexOf("WHAT'S IN THE ESTIMATE")) : email.plainText;
+      const quoteText = outcome === "likely" ? email.plainText.slice(email.plainText.indexOf("Your estimate includes:")) : email.plainText;
       const indexes = CUSTOMER_QUOTE_ORDER.slice(0, outcome === "likely" ? 3 : 6).map((label) => quoteText.indexOf(label));
       expect(indexes.every((index, position) => index >= 0 && (position === 0 || index > indexes[position - 1]!))).toBe(true);
       expect(`${email.html} ${email.plainText}`).not.toMatch(/\bHI VIC\b/);
