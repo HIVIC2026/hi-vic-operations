@@ -115,7 +115,6 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
   const est = whatIfEstimate(m2, location, insulation, settings);
   const primary = est?.scenarios[0];
   const standard = primary?.by_access.standard;
-  const removal = est?.scenarios.find((s) => s.key === "full_removal");
   const priced = standard != null && primary != null;
   const touched = addressText !== "" || raw !== "" || insulation != null;
 
@@ -303,10 +302,10 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                   />
                 </div>
                 {standard.copayment_capped && <p className="mt-2 text-xs leading-relaxed">The discount is limited so your contribution meets the program minimum.</p>}
-                {removal && (
-                  <p className="mt-3 rounded-lg border border-estimate-line bg-estimate-white px-3 py-2.5 text-xs leading-relaxed">
-                    If your existing insulation has to come out, your total would be around{" "}
-                    <strong className="text-estimate-blue">{dollars(removal.by_access.standard.estimated_customer_total)}</strong>. We confirm whether removal is needed before you agree to anything.
+                {insulation !== "none" && (
+                  <p className="mt-3 rounded-lg border border-workspace-blush-strong/40 bg-workspace-blush/50 px-3 py-2.5 text-xs leading-relaxed text-estimate-navy/90">
+                    <strong className="text-estimate-navy">Already have insulation?</strong> In many homes it can stay. If part of yours does need removing, budget an extra{" "}
+                    <strong className="text-estimate-blue">$10–$15 per m² of the area requiring removal</strong>, depending on the insulation type. Your installer will assess it and advise you at your free Ready Check — before you agree to anything.
                   </p>
                 )}
               </div>

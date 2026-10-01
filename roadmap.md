@@ -69,3 +69,4 @@
 - [x] Button wording "Demand is high — register your interest" (AP-safe: no rebate promise, no fake deadline)
 - [x] Address search returns Victorian properties only — no state guessing, so Canberra/NSW rows can never appear as VIC
 - [ ] Give clients the permanent link (published URL 404s and the preview needs sign-in until the site is published)
+- [x] Calculator: removal note ($10-$15/m² of area requiring removal, installer advises at Ready Check), demand-high badge + green register button, includes order Ready Check → PIESA → install → AP
