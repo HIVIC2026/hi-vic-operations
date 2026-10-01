@@ -6,7 +6,7 @@ import { refreshIndicativeEstimate } from "./estimate.server";
 import { LINK_PURPOSE, linkAllowed, linkUsable } from "./estimatelink.core";
 import { renderEstimateEmail } from "./estimate-email";
 import { renderFollowupEmail } from "./followup-email";
-import { clickUrl, dedupe, estimateUrl, pixelUrl, planFollowup, planInitialFollowups, retryAt, sendBlocker, type FollowupKind } from "./engagement.core";
+import { clickUrl, dedupe, estimateUrl, isActiveFollowupKind, pixelUrl, planFollowup, planInitialFollowups, retryAt, sendBlocker, type ActiveFollowupKind } from "./engagement.core";
 import { issueTrackingTokens, jobSummary, recordEngagement } from "./engagement.server";
 import { configuredDeliveryAdapter } from "./delivery.server";
 import { referralUrlForJob } from "./referral.server";
@@ -136,6 +136,11 @@ export async function processDueFollowups(opts: { limit?: number; adapter?: Deli
   const results: Array<{ status: string; reason?: string }> = [];
   for (const f of claimed ?? []) {
     try {
+      if (f.slot !== "3d" || !isActiveFollowupKind(f.kind)) {
+        await admin.from("customer_followups").update({ status: "suppressed", suppression_reason: "retired_followup_kind", lease_until: null }).eq("id", f.id);
+        await recordEngagement({ jobId: f.job_id, type: "followup_suppressed", metadata: { followup_kind: f.kind, reason: "retired_followup_kind" }, dedupeKey: dedupe.followup(f.id, "suppressed") });
+        results.push({ status: "suppressed", reason: "retired_followup_kind" }); continue;
+      }
       const [{ link, gates }, summary] = await Promise.all([gatesFor(f.job_id, adapter), jobSummary(f.job_id)]);
       const plan = planFollowup(f as never, summary, gates);
       if (plan.action === "suppress") {
@@ -158,7 +163,7 @@ export async function processDueFollowups(opts: { limit?: number; adapter?: Deli
       }
       const { data: fresh } = await admin.from("customer_followups").select("status").eq("id", f.id).maybeSingle();
       if (!fresh || fresh.status !== "queued") { results.push({ status: "suppressed", reason: "changed_after_claim" }); continue; }
-      const kind: FollowupKind = plan.kind;
+      const kind: ActiveFollowupKind = plan.kind;
       await admin.from("customer_followups").update({ kind, reason: kind }).eq("id", f.id);
       const r = await deliverTracked({ jobId: f.job_id, linkId: link!.id, linkToken: link!.token, purpose: kind, key: `followup:${f.id}`, adapter: adapter!, to, actorId: null, render: (u) => renderFollowupEmail({ kind, ...u }) });
       if (r.sent) {
