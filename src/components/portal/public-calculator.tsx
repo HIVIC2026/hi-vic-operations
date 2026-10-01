@@ -200,11 +200,8 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
               </div>
             </Field>
 
-            <div className="px-5 pb-3 lg:pt-0">
+            <div className="px-5 pb-3">
               <WhatCouldChange />
-              <p className="mt-3 text-[0.7rem] leading-relaxed text-estimate-navy/70">
-                Licensed electrician for the safety assessment · EEC certified installer · we manage the paperwork and the rebate claim for you.
-              </p>
             </div>
           </div>
 
