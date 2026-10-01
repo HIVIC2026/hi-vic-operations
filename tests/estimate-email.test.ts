@@ -150,10 +150,12 @@ describe("customer outcome email renderers", () => {
     for (const email of [renderEstimateEmail(common), renderIneligibleOutcomeEmail({ referralUrl, reasons: ["Fixture reason"] })]) {
       expect(email.html).not.toMatch(/<script\b|\son\w+=/i);
       expect(email.html).toContain("max-width:640px");
-      expect(email.html).toContain("font-family:'Open Sans',Arial,Helvetica,sans-serif");
       for (const colour of ["#3C51C4", "#07BF61"]) expect(email.html).toContain(colour);
     }
     const likely = renderEstimateEmail(common).html;
+    const ineligible = renderIneligibleOutcomeEmail({ referralUrl, reasons: ["Fixture reason"] }).html;
+    expect(likely).toContain("font-family:'Figtree',Arial,Helvetica,sans-serif");
+    expect(ineligible).toContain("font-family:'Open Sans',Arial,Helvetica,sans-serif");
     expect(likely).toContain("family=Figtree:wght@400;600;700;800&amp;family=Outfit:wght@700;800");
     expect(likely).toContain("font-family:'Outfit','Figtree',Arial,Helvetica,sans-serif");
     expect(likely).toContain("<!--[if !mso]><!-->");
