@@ -45,14 +45,13 @@ export const PIESA_OUTCOMES = [
   "Electrical rectification work is not possible prior to insulation being installed or upgraded under parts 2 and 3",
 ];
 
-/** Pricing section — installer-sourced jobs only (Form A1). Lines drop straight into the co-branded owner quote. */
+/** Pricing section — installer-sourced jobs only (Form A1). Repeat one line per item; lines drop straight into the co-branded owner quote. */
+export const PRICE_ITEMS = ["R5.0 supply and install", "Removal of existing insulation", "Difficult access", "Tile lift", "Metal sheet access", "Other"] as const;
 export const PRICING_FIELDS: FormField[] = [
-  { label: "Line description", type: "text", required: true, perPriceLine: true, source: "portal – quote line, e.g. Supply and install ceiling insulation" },
-  { label: "Quantity", type: "number", required: true, perPriceLine: true, source: "portal – quote line" },
-  { label: "Unit", type: "choice", required: true, perPriceLine: true, choices: ["m2", "each", "flat", "hour"], source: "portal – quote line unit" },
-  { label: "Unit price incl GST $", type: "number", required: true, perPriceLine: true, source: "portal – quote line, customer-facing prices are always incl GST" },
-  { label: "Total quoted price incl GST $", type: "number", required: true, source: "portal – must equal the sum of the lines; mismatches go to office review, never guessed" },
-  { label: "What this price includes", type: "text", required: true, source: "portal – e.g. removal, tile lift, travel; nothing priced in gets lost" },
+  { label: "Item", type: "choice", required: true, perPriceLine: true, choices: [...PRICE_ITEMS], source: "portal – quote line; exactly one 'R5.0 supply and install' line required" },
+  { label: "Describe the item", type: "text", required: true, perPriceLine: true, when: "Other", source: "portal – required only when the item is Other" },
+  { label: "Price $", type: "number", required: true, perPriceLine: true, source: "portal – quote line, customer-facing prices are always incl GST" },
+  { label: "Total quoted price $", type: "number", required: true, source: "portal – must equal the sum of the lines; mismatches go to office review, never guessed" },
   { label: "Price already agreed with the owner?", type: "choice", required: true, choices: ["Yes", "No"], source: "portal – if Yes, their price stays and our fees go on top, less the VEU discount" },
 ];
 
