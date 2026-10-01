@@ -92,7 +92,7 @@ describe("rec onboarding", () => {
     expect(agreementText(full)).not.toContain("Account number:");
     expect(agreementText(full)).not.toContain("BSB:");
   });
-  test("agreement text includes markup clause, schedules and all 8 acknowledgements", () => {
+  test("agreement text includes final clauses, schedules and every acknowledgement", () => {
     const t = agreementText(full);
     expect(t).toContain("HI-VIC-A48-REC-2.3-2026-10-01");
     expect(t).toContain("public liability insurance of at least $5,000,000");
@@ -103,6 +103,8 @@ describe("rec onboarding", () => {
     expect(t).toContain("does not itself commence this agreement");
     expect(t).toContain("within 48 elapsed hours after the allocation is made available and notified to the REC");
     expect(t).toContain("there is no automatic cancellation");
+    expect(t).toContain("Home Insulation Victoria's written authority does not replace the owner's required approval");
+    expect(t).toContain("does not repeat the business signup or require a second invitation");
     expect(t).toContain("Pre-insulation electrical safety assessment (PIESA): $300.00 / visit");
     expect(t).toContain("1. Sam Smith — licence A123");
     expect(ACKNOWLEDGEMENTS.length).toBe(9);

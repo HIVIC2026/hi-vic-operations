@@ -67,7 +67,12 @@ describe("24/48h responsiveness", () => {
     expect(s.message).toBe("Electrician can't attend in time — request another electrician");
   });
   test("confirmed booking stops the clock", () => {
-    expect(appointmentSla({ assigned_at: at(100), booking_confirmed_at: at(1) }, now).state).toBe("booked");
+    expect(appointmentSla({ assigned_at: at(100), first_response_at: at(90), booking_confirmed_at: at(1) }, now).state).toBe("booked");
+  });
+  test("an office-entered booking does not fabricate meaningful REC contact", () => {
+    const s = appointmentSla({ assigned_at: at(49), booking_confirmed_at: at(1) }, now);
+    expect(s.canRequestAnother).toBe(true);
+    expect(s.message).toBe("No meaningful contact after 48 hours — request another electrician");
   });
 });
 
