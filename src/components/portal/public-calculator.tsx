@@ -45,7 +45,7 @@ function WhatCouldChange() {
       </summary>
       <div className="grid gap-x-5 gap-y-2 border-t border-estimate-line px-3 py-3 text-xs leading-relaxed sm:grid-cols-2">
         <div>
-          <p>Based on what you&apos;ve told us. Your final scope and price are confirmed after we check:</p>
+          <p>Your final price is confirmed once we check:</p>
           <ul className="mt-2 space-y-1.5">
             {CHANGE_FACTORS.map((f) => (
               <li key={f} className="flex items-start gap-2">
