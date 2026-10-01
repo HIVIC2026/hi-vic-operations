@@ -55,7 +55,7 @@ describe("customer outcome email renderers", () => {
     const without = renderEstimateEmail({ ...common, outcome: "likely" });
     expect(without.html).not.toMatch(/One of only/i);
     expect(without.plainText).not.toMatch(/One of only/i);
-    expect(without.html).toContain("Our Accredited Person (AP) accreditation gives eligible customers access to VEU ceiling insulation rebates");
+    expect(without.html).toContain("arranged through our AP accreditation");
   });
 
   test("onsite confirmation remains positive and renders dynamic reasons", () => {
