@@ -184,3 +184,47 @@ describe("Mitti answers and signed snapshots", () => {
   });
   test("every required official item is covered by the answer list", () => expect(answerItems("piesa").length).toBeGreaterThan(70));
 });
+
+// ---------- installation-day PIISA gate ----------
+import { piisaGate, type StoredCopy } from "../src/lib/piisa-workflow.core";
+import { HAZARD_UNRESOLVED, CONDUCTIVITY_UNCONFIRMED } from "../src/lib/official-forms.core";
+describe("PIISA installation-day gate", () => {
+  const facts = { installDate: "2026-10-10", lifeSupport: "false", leadInstallerId: "i1", piesaCopyId: "pe1", piesaCompletionDate: "2026-10-01", existingInsulation: "false" };
+  const copy = (key: "piesa" | "piisa", answers: OfficialAnswers, date: string, jobFacts = facts): StoredCopy => ({ id: key === "piesa" ? "pe1" : "pi1", status: "current", signatureDate: date,
+    snapshot: buildSignedSnapshot({ key, answers, signer: { userId: "u", name: "N", role: key === "piesa" ? "electrician" : "installer" }, enteredDate: date, serverTimestamp: "2026-10-10T00:00:00Z", jobFacts, acknowledgementIds: [], signature: "N" }) });
+  const base = (over: Partial<Parameters<typeof piisaGate>[0]> = {}) => piisaGate({ today: "2026-10-10", installDate: "2026-10-10", piisa: copy("piisa", { ...piisaPass(), "p8.date": "2026-10-10" }, "2026-10-10"), piesa: copy("piesa", piesaPass(), "2026-10-01"),
+    facts, piesaReceivedAt: "2026-10-02T00:00:00Z", conductiveExistingInsulation: false, conductivityEvidence: "f1", hazardResolution: null, formUse: { piesa: null, piisa: null }, ...over });
+  test("happy path passes", () => { const r = base(); expect(r.blockers).toEqual([]); expect(r.due).toBe("passed"); });
+  test("forms stay blocked for live use by default", () => expect(base({ formUse: undefined }).blockers.some((b) => b.includes("can't be used yet"))).toBe(true));
+  test("missing PIISA: installer responsible, due states", () => {
+    expect(base({ piisa: null }).responsible).toBe("installer");
+    expect(base({ piisa: null, today: "2026-10-09" }).due).toBe("due_on_installation_day");
+    expect(base({ piisa: null }).due).toBe("due_today");
+    expect(base({ piisa: null, today: "2026-10-11" }).due).toBe("overdue");
+  });
+  test("signed on another day is blocked", () => expect(base({ piisa: copy("piisa", { ...piisaPass(), "p8.date": "2026-10-09" }, "2026-10-09") }).blockers.some((b) => b.includes("installation day"))).toBe(true));
+  test("changed material fact makes signed PIISA stale", () => { const r = base({ facts: { ...facts, installDate: "2026-10-12" } }); expect(r.due).toBe("stale"); });
+  test("invalidated copy counts as missing", () => expect(base({ piisa: { ...copy("piisa", piisaPass(), "2026-10-10"), status: "invalidated" } }).blockers.length).toBeGreaterThan(0));
+  test("cannot-proceed answer blocks", () => expect(base({ piisa: copy("piisa", { ...piisaPass(), "p8.date": "2026-10-10", "p3.swms": "No" }, "2026-10-10") }).blockers.some((b) => b.includes("CANNOT proceed"))).toBe(true));
+  test("life support without attachment blocks", () => expect(base({ piisa: copy("piisa", { ...piisaPass(), "p8.date": "2026-10-10", lifeSupport: "Yes", lifeSupportConsent: undefined }, "2026-10-10") }).blockers.length).toBeGreaterThan(0));
+  test("electrician needed: explicit blocker, electrician responsible", () => {
+    const r = base({ piisa: copy("piisa", { ...piisaPass(), "p8.date": "2026-10-10", "p4.present": "Yes", "p4.instructions": "Yes", "p4.isolator": "No", "p5.electricianPresent": "N/A" }, "2026-10-10") });
+    expect(r.responsible).toBe("electrician"); expect(r.nextAction).toContain("electrician");
+  });
+  test("rule A: ineffective hazard action blocks with the exact message; attempted action not success; review not yet accepted", () => {
+    const pe = { ...piesaPass(), "p7.flues": "Yes", "p7.appliance#0": "Fan", "p7.location#0": "Bath", "p7.hazard#0": "Heat", "p7.actions": "Tried", "p7.effective": "No" };
+    expect(evaluatePiesa(pe).blockers.find((b) => b.rule === "P7-NOT-EFFECTIVE")?.message).toBe(HAZARD_UNRESOLVED);
+    expect(base({ piesa: copy("piesa", pe, "2026-10-01") }).blockers).toContain(HAZARD_UNRESOLVED);
+    expect(evaluatePiesa(pe, { hazardResolution: { kind: "authorised_review", reviewId: "r" } }).blockers.some((b) => b.rule === "P7-NOT-EFFECTIVE")).toBe(true);
+    expect(evaluatePiesa(pe, { hazardResolution: { kind: "verified_rectification", rectificationId: "x" } }).blockers.some((b) => b.rule === "P7-NOT-EFFECTIVE")).toBe(false);
+  });
+  test("rule B: conductivity blank is never No; needs answer and evidence", () => {
+    const a = { ...piisaPass(), "p8.date": "2026-10-10", "p6.present": "Yes", "p6.height": 50, "p6.treatment": ["Removed"], "p6.suitable": "Yes" };
+    const p = copy("piisa", a, "2026-10-10");
+    expect(base({ piisa: p, conductiveExistingInsulation: null }).blockers.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(true);
+    expect(base({ piisa: p, conductivityEvidence: null }).blockers.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(true);
+    expect(base({ piisa: p }).blockers.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(false);
+  });
+  test("storage missing fails closed", () => expect(base({ storageUnavailable: true }).due).toBe("blocked"));
+  test("document hash stored and checked", () => { const c = copy("piisa", piisaPass(), "2026-10-10"); expect(c.snapshot.documentSha256).toMatch(/^[0-9a-f]{64}$/); expect(snapshotProblems({ ...c.snapshot, documentSha256: "0".repeat(64) }).length).toBeGreaterThan(0); });
+});
