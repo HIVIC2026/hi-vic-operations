@@ -50,17 +50,19 @@ const dataSchema = z.object({
   agreement_reviewed: z.boolean().optional(),
 }).strict();
 
-function publicView(app: { status: string; step_key: string | null; data: unknown; insurance_certificate_path: string | null; signed_at: string | null; agreement_version: string | null }) {
-  return { status: app.status, step_key: app.step_key, data: { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path }, signed_at: app.signed_at, agreement_version: app.agreement_version };
+function publicView(app: { status: string; step_key: string | null; data: unknown; insurance_certificate_path: string | null; signed_at: string | null; agreement_version: string | null; test_mode?: boolean }) {
+  return { status: app.status, step_key: app.step_key, data: { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path }, signed_at: app.signed_at, agreement_version: app.agreement_version, test_mode: !!app.test_mode };
 }
 
-export const startRecOnboarding = createServerFn({ method: "POST" }).handler(async () => {
-  const token = newToken();
-  const db = await admin();
-  const { error } = await db.from("rec_onboarding_applications").insert({ resume_token_hash: await sha256(token), step_key: "about" });
-  if (error) throw new Error("Could not start onboarding. Please try again.");
-  return { token };
-});
+export const startRecOnboarding = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ test: z.boolean().optional() }).parse(d ?? {}))
+  .handler(async ({ data }) => {
+    const token = newToken();
+    const db = await admin();
+    const { error } = await db.from("rec_onboarding_applications").insert({ resume_token_hash: await sha256(token), step_key: "about", test_mode: !!data.test });
+    if (error) throw new Error("Could not start onboarding. Please try again.");
+    return { token };
+  });
 
 export const loadRecOnboarding = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ token: tokenSchema }).parse(d))
@@ -130,7 +132,7 @@ export const signRecAgreement = createServerFn({ method: "POST" })
     if (!validBusinessEmail(data.signer_email)) throw new Error("Enter a real business email for the signer.");
     for (const a of ACKNOWLEDGEMENTS) if (data.acknowledgements[a.key] !== true) throw new Error("Tick every acknowledgement to sign.");
     const d: RecData = { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path };
-    const missing = firstIncompleteStep(d);
+    const missing = app.test_mode ? null : firstIncompleteStep(d);
     if (missing) throw new Error(`Please complete the "${missing.replace(/_/g, " ")}" step before signing.`);
 
     const text = agreementText(d);
@@ -142,7 +144,7 @@ export const signRecAgreement = createServerFn({ method: "POST" })
     const services = ["assessment_piesa", d.service_rectification && "rectification", d.service_installation_isolation && "installation_attendance"].filter(Boolean) as string[];
     const { data: pe, error: peErr } = await db.from("partner_enquiries").insert({
       source_system: "portal_form", enquiry_type: "electrician_rec", submission_id: `portal-rec-onboarding-${app.id}`,
-      source: "portal_rec_onboarding", name: d.primary_contact_name ?? null, email: d.business_email ?? null, phone: d.business_phone ?? null,
+      source: app.test_mode ? "portal_rec_onboarding_test" : "portal_rec_onboarding", name: d.primary_contact_name ?? null, email: d.business_email ?? null, phone: d.business_phone ?? null,
       company: d.trading_name || d.legal_entity_name || null, service_areas: [d.service_origin, d.travel_radius_km === 9999 ? "Anywhere in Victoria" : `${d.travel_radius_km} km radius`].filter(Boolean) as string[],
       rec_registration_number: ((d.works_under_rec === true ? d.host_rec_number : d.rec_registration_number) ?? "").toUpperCase(), esv_licensed_electricians_confirmed: (d.electricians ?? []).length > 0,
       services, estimated_piesa_fee_inc_gst: d.assessment_rate ?? null, booking_lead_time: d.normal_attendance_speed ?? null, weekly_capacity: d.capacity_band ?? null,
