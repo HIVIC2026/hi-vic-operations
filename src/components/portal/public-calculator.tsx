@@ -201,6 +201,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                     <Button
                       key={q}
                       type="button"
+                      variant="outline"
                       aria-pressed={on}
                       onClick={() => setRaw(String(q))}
                       className={`h-9 min-h-9 rounded-full px-4 text-xs font-extrabold ${on ? "border-transparent bg-estimate-blue text-white hover:bg-estimate-navy" : "border-estimate-line bg-estimate-white text-estimate-navy hover:border-estimate-blue/60"}`}
@@ -241,6 +242,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                     <Button
                       key={String(o.value)}
                       type="button"
+                      variant="outline"
                       aria-pressed={on}
                       onClick={() => setInsulation(o.value)}
                       className={`flex h-auto min-h-14 flex-col items-start justify-center gap-0.5 whitespace-normal rounded-2xl border px-2.5 py-2.5 text-left ${
