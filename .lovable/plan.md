@@ -48,18 +48,20 @@ We fix this one form first, get your sign-off, then move to the next. The old A1
    - What's different?                     text                MANDATORY only if Different (job pauses, office notified)
 
 5. YOUR QUOTED PRICE (A1 only, all prices inc GST)
-   a. R5.0 ceiling insulation, supply and install
-      - Price $                            number              MANDATORY
-      (area is taken from the room totals above, never retyped)
-   b. Removal of existing insulation       (only shown if any room says Remove)
-      - Price $                            number              MANDATORY only if shown
-      (removal m2 and batts/loose fill come from the rooms above)
-   c. Other items (repeat as many as needed: tile lift, metal sheet access, etc.)
-      - Any other items?                   Yes / No            MANDATORY
-      - Describe the item                  text                MANDATORY only if Yes
-      - Price $                            number              MANDATORY only if Yes
-   d. Total quoted price $                 number              MANDATORY (must equal a + b + c)
+   Repeat one line per item:
+   - Item                                  dropdown            MANDATORY
+       R5.0 supply and install / Removal of existing insulation /
+       Difficult access / Tile lift / Metal sheet access / Other
+   - Describe the item                     text                MANDATORY only if Other
+   - Price $                               number              MANDATORY
+   - Total quoted price $                  number              MANDATORY (must equal the sum of the lines)
    - Already agreed this price with the owner?   Yes / No      MANDATORY
+
+   Portal checks (the job goes to the office if any fail, nothing is guessed):
+   - There must be exactly one "R5.0 supply and install" line.
+   - A "Removal" line is required if any room says Remove, and not allowed if none do.
+   - The areas come from the rooms above and are never retyped.
+   - No separate "what this includes" question. The lines already spell it out.
 
 6. FINISH
    - Anything else the office should know? text                optional
