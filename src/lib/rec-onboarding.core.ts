@@ -38,6 +38,8 @@ export type RecData = {
   works_under_rec?: boolean | null; host_rec_name?: string; host_rec_number?: string;
   legal_entity_name?: string; trading_name?: string; abn?: string; rec_registration_number?: string;
   business_address?: string; primary_contact_name?: string; business_phone?: string; business_email?: string; authorised_to_register?: boolean;
+  /** The applicant's own Victorian electrician licence — the person signing up IS the electrician. */
+  licence_number?: string;
   insurer?: string; insurance_policy_number?: string; public_liability_cover_amount?: number | null; public_liability_expiry?: string; insurance_uploaded?: boolean;
   electricians?: Electrician[];
   service_rectification?: boolean; service_installation_isolation?: boolean;
@@ -58,11 +60,9 @@ export function firstName(d: { primary_contact_name?: string }): string {
 
 export const STEPS = [
   { key: "about", title: "About you" },
-  { key: "howitworks", title: "How we work together" },
   { key: "business", title: "Business details" },
   { key: "contact", title: "Contact details" },
   { key: "insurance", title: "Public liability insurance" },
-  { key: "electricians", title: "Licensed electricians" },
   { key: "services", title: "Home Insulation Victoria work" },
   { key: "coverage", title: "Where you work" },
   { key: "availability", title: "When you work" },
@@ -110,11 +110,9 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
   switch (step) {
     case "about":
       if (!txt(d.primary_contact_name)) e.push("Enter your name.");
+      if (!txt(d.licence_number)) e.push("Enter your Victorian electrician licence number.");
       if (!validPhone(d.business_phone)) e.push("Enter a valid Australian mobile.");
       if (!validBusinessEmail(d.business_email)) e.push("Enter a real email address.");
-      break;
-    case "howitworks":
-      if (d.how_it_works_acknowledged !== true) e.push("Confirm you've read how jobs work, the same-day rule and the payment terms.");
       break;
     case "business":
       if (d.works_under_rec == null) e.push("Tell us if you run your own REC business or work under another REC.");
@@ -142,18 +140,6 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (!(typeof d.public_liability_cover_amount === "number" && d.public_liability_cover_amount >= MIN_PL_COVER)) e.push("Public liability cover must be at least $5,000,000.");
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d.public_liability_expiry ?? "") || (d.public_liability_expiry as string) < melbourneToday(now)) e.push("Insurance expiry must be today or later.");
       break;
-    case "electricians": {
-      const list = d.electricians ?? [];
-      if (list.length < 1) e.push("Add at least one licensed electrician.");
-      list.forEach((x, i) => {
-        if (!txt(x.full_legal_name) || !txt(x.licence_number) || !validPhone(x.mobile) || !validBusinessEmail(x.email)) e.push(`Electrician ${i + 1}: complete name, licence number, a valid mobile and email.`);
-      });
-      const emails = list.map((x) => (x.email ?? "").trim().toLowerCase()).filter(Boolean);
-      const lic = list.map((x) => (x.licence_number ?? "").trim().toUpperCase()).filter(Boolean);
-      if (new Set(emails).size !== emails.length) e.push("Each electrician needs a different email.");
-      if (new Set(lic).size !== lic.length) e.push("Each electrician needs a different licence number.");
-      break;
-    }
     case "services":
       break;
     case "coverage":
