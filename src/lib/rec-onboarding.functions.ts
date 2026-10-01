@@ -4,7 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { withRequestMeta } from "./request-meta";
 import {
-  ACKNOWLEDGEMENTS, REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, agreementText, applyMaterialReset,
+  acknowledgementsFor, REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, agreementText, applyMaterialReset,
   effectiveElectricians, firstIncompleteStep, validBusinessEmail, type RecData,
 } from "./rec-onboarding.core";
 
