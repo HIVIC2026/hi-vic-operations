@@ -41,9 +41,9 @@ export const COMMERCIAL_DECISIONS: readonly CommercialDecision[] = [
   {
     code: "C04",
     question: "Who may change the Accredited Person management fee?",
-    decided: "Only Jo (the Home Insulation Victoria owner account). No other staff member, and no automation, may change it. The reason stays recorded permanently.",
+    decided: "Only Jo (info@homeinsulationvictoria.com.au) may change it, with a non-blank reason, audited, and only before the customer accepts the quote. Once accepted it is permanently locked for everyone. No post-acceptance reconfirmation flow.",
     decidedAt: "2026-10-02",
-    enforcedBy: "ap-fee.core.ts, installer-invoice.functions.ts",
+    enforcedBy: "ap-fee.core.ts (applyApFeeChange), installer-invoice.functions.ts; tests/ap-fee-lock.test.ts; DB backstop 0078 staged, not applied",
     status: "decided",
   },
 ] as const;

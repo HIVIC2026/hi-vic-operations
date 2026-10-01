@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
 import { installerLedOwnerPrice, piesaChargeIncGst, type ElectricianChoice } from "./installer-led.core";
-import { apFeeOverrideBlocker, canChangeApFee, resolveApFeeAllowedIds } from "./ap-fee.core";
+import { apFeeLockedByQuotes, applyApFeeChange, canChangeApFee, resolveApFeeAllowedIds } from "./ap-fee.core";
 
 // Admin-only co-branded invoice preview for installer-led jobs. Read-only: never creates a Xero invoice.
 export const getInstallerLedInvoice = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -22,6 +22,9 @@ export const getInstallerLedInvoice = createServerFn({ method: "POST" }).middlew
         .order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
     if (se) throw new Error(se.message);
+    const { data: allQuotes, error: aqe } = await admin.from("quotes").select("id, status, accepted_at").eq("job_id", data.jobId).eq("kind", "installation");
+    if (aqe) throw new Error(aqe.message);
+    const apFeeLocked = apFeeLockedByQuotes(allQuotes ?? []);
     if (qe) throw new Error(qe.message);
     const standardApFee = s ? Number(s.ap_management_inc_gst) : null;
     const override = job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : null;
@@ -37,7 +40,8 @@ export const getInstallerLedInvoice = createServerFn({ method: "POST" }).middlew
       installerLed: job.installer_led, quote, piesa, standardApFee, apFee,
       override: override == null ? null : { amount: override, reason: job.ap_fee_override_reason, at: job.ap_fee_override_at },
       // C04: computed here, not in the browser, so the screen can't be talked into showing the editor.
-      canChangeApFee: canChangeApFee(context.userId, resolveApFeeAllowedIds(process.env["AP_FEE_OVERRIDE_USER_IDS"])),
+      apFeeLocked,
+      canChangeApFee: !apFeeLocked && canChangeApFee(context.userId, resolveApFeeAllowedIds(process.env["AP_FEE_OVERRIDE_USER_IDS"])),
       price,
     };
   });
@@ -46,30 +50,32 @@ export const getInstallerLedInvoice = createServerFn({ method: "POST" }).middlew
 // Reason required; permanently logged.
 export const setApFeeOverride = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
-    jobId: z.string().uuid(), amount: z.number().min(0).max(100000).nullable(), reason: z.string().trim().min(3).max(500),
+    jobId: z.string().uuid(), amount: z.number().min(0).max(100000).nullable(), reason: z.string().max(500),
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const block = apFeeOverrideBlocker({
-      actorId: context.userId,
-      allowedUserIds: resolveApFeeAllowedIds(process.env["AP_FEE_OVERRIDE_USER_IDS"]),
-      reason: data.reason,
-    });
-    if (block) throw new Error(block);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { logEvent } = await import("./workflow.server");
-    const { data: acceptedQuote, error: quoteError } = await admin.from("quotes")
-      .select("id").eq("job_id", data.jobId).eq("kind", "installation").eq("status", "accepted").limit(1).maybeSingle();
-    if (quoteError) throw new Error("The accepted quote could not be checked. Please try again.");
-    if (acceptedQuote) throw new Error("The Accredited Person fee is locked because the owner has accepted the quote.");
-    const amount = data.amount == null ? null : Math.round(data.amount * 100) / 100;
-    const { error } = await admin.from("jobs").update({
-      ap_fee_override_inc_gst: amount, ap_fee_override_reason: amount == null ? null : data.reason,
-      ap_fee_override_by: amount == null ? null : context.userId, ap_fee_override_at: amount == null ? null : new Date().toISOString(),
-    }).eq("id", data.jobId);
-    if (error) throw new Error(error.message);
-    await logEvent(data.jobId, context.userId, "ap_fee_override",
-      amount == null ? "AP fee reset to standard" : `AP fee overridden to $${amount.toFixed(2)} inc GST`,
-      { amount, reason: data.reason }, { internal: true });
-    return { ok: true };
+    return applyApFeeChange({
+      async loadInstallationQuotes(jobId) {
+        const { data: rows, error } = await admin.from("quotes").select("id, status, accepted_at").eq("job_id", jobId).eq("kind", "installation");
+        if (error) throw new Error("The quote could not be checked. Please try again.");
+        return rows ?? [];
+      },
+      async loadJob(jobId) {
+        const { data: j, error } = await admin.from("jobs").select("ap_fee_override_inc_gst, ap_fee_override_reason, ap_fee_override_by, ap_fee_override_at").eq("id", jobId).single();
+        if (error) throw new Error(error.message);
+        return { ...j, ap_fee_override_inc_gst: j.ap_fee_override_inc_gst == null ? null : Number(j.ap_fee_override_inc_gst) };
+      },
+      async writeJob(jobId, next) {
+        const { error } = await admin.from("jobs").update(next).eq("id", jobId);
+        if (error) throw new Error(error.message);
+      },
+      async audit(jobId, actorId, type, summary, details) { await logEvent(jobId, actorId, type, summary, details, { internal: true }); },
+      now: () => new Date().toISOString(),
+    }, {
+      actorId: context.userId, // from the verified session, never from the browser
+      allowedUserIds: resolveApFeeAllowedIds(process.env["AP_FEE_OVERRIDE_USER_IDS"]),
+      jobId: data.jobId, amount: data.amount, reason: data.reason,
+    });
   });
