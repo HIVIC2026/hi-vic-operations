@@ -35,6 +35,31 @@ function Field({ id, icon: Icon, label, hint, children }: { id: string; icon: ty
   );
 }
 
+/** Kept in the question column so opening it never pushes the price out of view. */
+function WhatCouldChange() {
+  return (
+    <details className="group mt-3 overflow-hidden rounded-lg border border-estimate-line bg-estimate-white">
+      <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-extrabold text-estimate-blue">
+        What could change this price?
+        <ChevronDown aria-hidden="true" className="size-4 shrink-0 transition group-open:rotate-180" />
+      </summary>
+      <div className="border-t border-estimate-line px-3 py-3 text-xs leading-relaxed">
+        <p>Based on what you&apos;ve told us. Your final scope and price are confirmed after we check:</p>
+        <ul className="mt-2 space-y-1.5">
+          {CHANGE_FACTORS.map((f) => (
+            <li key={f} className="flex items-start gap-2">
+              <Check aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-estimate-green" />
+              <span>{f}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 font-bold">{CUSTOMER_WHAT_COULD_CHANGE.closing}</p>
+        <p className="mt-2 font-bold">{CUSTOMER_WHAT_COULD_CHANGE.gst}</p>
+      </div>
+    </details>
+  );
+}
+
 export function PublicCalculator({ settings }: { settings: RetailSettings }) {
   const [postcode, setPostcode] = useState("");
   const [raw, setRaw] = useState("");
@@ -69,7 +94,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
 
   return (
     <div className="estimate-brand min-h-screen bg-gradient-to-b from-estimate-blush via-estimate-canvas to-estimate-canvas">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-4 pb-24 sm:px-6 lg:pb-6">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-4 pb-24 sm:px-6 lg:pb-3">
         <header className="flex flex-wrap items-center justify-between gap-3 py-3">
           <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-9 w-auto sm:h-10" />
           <p className="text-xs font-extrabold uppercase tracking-wider text-estimate-green">Free instant estimate · no obligation</p>
@@ -132,7 +157,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                     </button>
                   );
                 })}
-                <div className="relative">
+                <div className="relative w-full sm:w-[104px]">
                   <input
                     ref={areaRef}
                     id="calc-area"
@@ -143,8 +168,8 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                     value={raw}
                     onChange={(e) => setRaw(e.target.value)}
                     aria-label="Your own ceiling size in square metres"
-                    placeholder="Other"
-                    className="h-9 w-[100px] rounded-lg border-2 border-estimate-line bg-estimate-white pl-3 pr-8 text-sm font-bold text-estimate-navy placeholder:font-normal placeholder:text-estimate-navy/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    placeholder="Or type your own size"
+                    className="h-9 w-full rounded-lg border-2 border-estimate-line bg-estimate-white pl-3 pr-8 text-sm font-bold text-estimate-navy placeholder:font-normal placeholder:text-estimate-navy/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   />
                   <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs font-bold text-estimate-navy/50">m²</span>
                 </div>
@@ -171,8 +196,11 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
               </div>
             </Field>
 
-            <div className="border-t border-estimate-line px-5 py-3 text-[0.7rem] leading-relaxed text-estimate-navy/70">
-              Licensed electrician for the safety assessment · EEC certified installer · we manage the paperwork and the rebate claim for you.
+            <div className="px-5 pb-3 lg:pt-0">
+              <WhatCouldChange />
+              <p className="mt-3 text-[0.7rem] leading-relaxed text-estimate-navy/70">
+                Licensed electrician for the safety assessment · EEC certified installer · we manage the paperwork and the rebate claim for you.
+              </p>
             </div>
           </div>
 
@@ -219,36 +247,17 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                     <strong className="text-estimate-blue">{dollars(removal.by_access.standard.estimated_customer_total)}</strong>. We confirm whether removal is needed before you agree to anything.
                   </p>
                 )}
-                <details className="group mt-3 overflow-hidden rounded-lg border border-estimate-line bg-estimate-white">
-                  <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-extrabold text-estimate-blue">
-                    What could change this price?
-                    <ChevronDown aria-hidden="true" className="size-4 shrink-0 transition group-open:rotate-180" />
-                  </summary>
-                  <div className="border-t border-estimate-line px-3 py-3 text-xs leading-relaxed">
-                    <p>Based on what you&apos;ve told us. Your final scope and price are confirmed after we check:</p>
-                    <ul className="mt-2 space-y-1.5">
-                      {CHANGE_FACTORS.map((f) => (
-                        <li key={f} className="flex items-start gap-2">
-                          <Check aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-estimate-green" />
-                          <span>{f}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="mt-3 font-bold">{CUSTOMER_WHAT_COULD_CHANGE.closing}</p>
-                    <p className="mt-2 font-bold">{CUSTOMER_WHAT_COULD_CHANGE.gst}</p>
-                  </div>
-                </details>
               </div>
             )}
           </div>
         </div>
 
-        <p className="mt-3 text-center text-[0.7rem] leading-relaxed text-estimate-navy/65">
+        <p className="mt-3 text-[0.7rem] leading-relaxed text-estimate-navy/65">
           Estimates only — not a quote. Prices include GST. Nothing you type is saved, sent or shared.{" "}
           <a href={ENQUIRY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-estimate-blue underline decoration-estimate-green/60 underline-offset-2 hover:text-estimate-green">
             homeinsulationvictoria.com.au
           </a>
-          <br /> Home Insulation Victoria manages your project end-to-end as the Accredited Person under the Victorian Energy Upgrades program.
+          <br className="hidden sm:block" /> Home Insulation Victoria manages your project end-to-end as the Accredited Person under the Victorian Energy Upgrades program.
         </p>
 
         {priced && (
