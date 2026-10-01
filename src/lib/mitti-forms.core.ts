@@ -221,7 +221,7 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const TYPE_ALIASES: Record<FieldType, string[]> = {
   text: ["text", "textsingle"], number: ["number", "slider", "textsingle", "text"], choice: ["list", "question", "choice"],
   multichoice: ["list", "question", "choice", "multiselect", "checkbox"],
-  yesno: ["question", "list", "yesno"], media: ["media", "attachment"], signature: ["signature", "drawing"], datetime: ["datetime"],
+  yesno: ["question", "list", "yesno"], media: ["media", "attachment", "drawing"], signature: ["signature", "drawing"], datetime: ["datetime"],
 };
 
 export type TemplateItem = { label: string; type: string };
