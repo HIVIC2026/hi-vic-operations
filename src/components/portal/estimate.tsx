@@ -53,7 +53,7 @@ export const FREE_CHECK_CONFIRM_COPY = {
   successNext: "What they measure on the day will be used to update your estimate for you to review.",
 } as const;
 
-export function ConfirmQuote({ onBack, testMode = false, state = null, busy = false, error = null, onAccept }: { estimatedPrice?: number; assessmentFee?: number; onBack: () => void; preview?: boolean; testMode?: boolean; state?: ReadyCheckAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; onTestPayment?: (outcome: "success" | "failure") => void }) {
+export function ConfirmQuote({ onBack, preview = false, testMode = preview, state = null, busy = false, error = null, onAccept }: { estimatedPrice?: number; assessmentFee?: number; onBack: () => void; preview?: boolean; testMode?: boolean; state?: ReadyCheckAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; onTestPayment?: (outcome: "success" | "failure") => void }) {
   const accepted = state?.paymentStatus === "accepted";
   const [acknowledged, setAcknowledged] = useState(false);
   const C = FREE_CHECK_CONFIRM_COPY;
@@ -88,14 +88,16 @@ export function ConfirmQuote({ onBack, testMode = false, state = null, busy = fa
           </label>}
           <div className="mt-5 space-y-3">
             {!state && <button type="button" className="min-h-14 w-full rounded-xl bg-estimate-green px-5 py-4 text-base font-extrabold leading-snug text-estimate-white shadow-[0_10px_24px_-12px_rgba(7,191,97,.55)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-estimate-navy focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" disabled={!acknowledged || busy || !onAccept} onClick={onAccept}>{busy ? "Sending your request…" : C.cta}</button>}
-            {state?.stale && <p className="border-l-4 border-danger bg-danger-soft px-4 py-3 text-sm font-bold" role="alert">{C.stale}</p>}
-            {error && <p className="text-sm font-bold text-danger" role="alert">{error}</p>}
             <p className="text-center text-[13px] font-bold leading-relaxed">{C.reassurance}</p>
           </div>
         </section>
         <div className="mx-3 mt-4 rounded-[14px] bg-estimate-mist px-5 py-4 sm:mx-7"><p className="text-[13px] font-bold leading-relaxed" data-testid="approval-reassurance">{CUSTOMER_APPROVAL_REASSURANCE}</p></div>
         <div className="h-6" />
       </>}
+      {(state?.stale || error) && <div className="space-y-3 px-5 pb-6 sm:px-9" data-testid="confirm-alerts">
+        {state?.stale && <p className="border-l-4 border-danger bg-danger-soft px-4 py-3 text-sm font-bold" role="alert">{C.stale}</p>}
+        {error && <p className="text-sm font-bold text-danger" role="alert">{error}</p>}
+      </div>}
     </div>
     <button type="button" className="mt-4 min-h-12 w-full rounded-xl text-sm font-bold text-estimate-blue underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-estimate-blue" onClick={onBack}>← Back to my estimate</button>
   </div>;
