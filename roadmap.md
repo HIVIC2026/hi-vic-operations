@@ -1,6 +1,9 @@
 # Roadmap
 
 ## Now
+- [x] Restore-point check guide for applying 0071–0073 (report only)
+- [x] Launch fixes in test copy (booking atomic, licence guard, Ready Check order proof); pricing questions shown verbatim
+- [ ] Pricing questions C01–C04: waiting on Jo to confirm which are settled
 - [x] Provide safe no-write onboarding links for an external AI audit
 - [x] Prevent cancelled preview page requests from surfacing an AbortError and blanking the screen
 - [x] Complete authorized REC refinements: fix save/navigation races; verified AU/VIC addresses; exact service/availability/rates copy; staff links; assigned-REC standard/custom rates; agreement v2.3 source reconciliation and official $5m insurance override; terminology sweep; focused tests, provider/browser checks, viewable screenshots and audit
