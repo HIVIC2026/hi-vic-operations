@@ -76,6 +76,7 @@ describe("rec onboarding", () => {
   });
   test("material change resets review", () => {
     expect(applyMaterialReset(full, { ...full, assessment_rate: 350 }).agreement_reviewed).toBe(false);
+    expect(applyMaterialReset(full, { ...full, public_liability_cover_amount: 20_000_000 }).agreement_reviewed).toBe(false);
     expect(applyMaterialReset(full, { ...full, primary_contact_name: "Other" }).agreement_reviewed).toBe(true);
   });
   test("bank details are required and excluded from the agreement text", () => {

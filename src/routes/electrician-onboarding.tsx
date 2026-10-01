@@ -507,6 +507,7 @@ function InsuranceStep({ d, up, token, setError, preview }: { d: RecData; up: (p
           if (!ok) notes.push(`The certificate is in the name "${x.insured_name}", which doesn't match your business name. Please check you uploaded the right certificate.`);
         } else notes.push("We couldn't read the insured business name — please check the certificate.");
         if (x.is_public_liability === false) notes.push("This doesn't look like a product and public liability certificate.");
+        if (x.is_product_liability !== true) notes.push("We couldn't confirm appropriate product liability cover. Please check the certificate includes it for any electrical goods you supply.");
         if (x.cover_amount && x.cover_amount < MIN_REC_PL_COVER) notes.push("Cover shown is under the $10,000,000 minimum.");
         if (x.expiry && x.expiry < new Date().toISOString().slice(0, 10)) notes.push("This certificate appears to have expired.");
         setFound(x.insured_name ? `We read the certificate for ${x.insured_name} and filled in the details below — please check them.` : "We filled in what we could read below — please check the details.");

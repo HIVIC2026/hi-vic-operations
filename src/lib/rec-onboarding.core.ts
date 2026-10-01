@@ -279,6 +279,7 @@ export const MATERIAL_FIELDS = [
   "excluded_areas", "typical_days", "normal_attendance_speed", "capacity_band", "services_all_confirmed",
   "assessment_rate", "installation_attendance_rate", "rectification_rates", "custom_rectification_rates", "coes_fee_choice", "coes_fee", "gst_registered", "electricians",
   "works_under_rec", "host_rec_name", "host_rec_number",
+  "insurer", "insurance_policy_number", "public_liability_cover_amount", "public_liability_expiry", "insurance_uploaded",
 ] as const;
 
 /** If anything that appears in the agreement schedules changed, the review must be redone. */
@@ -301,7 +302,7 @@ export function scheduleText(d: RecData): string {
     `Business address: ${d.business_address ?? ""}`, `Contact: ${d.primary_contact_name ?? ""}, ${d.business_phone ?? ""}, ${d.business_email ?? ""}`,
     d.works_under_rec === true
       ? `Public liability: held by host REC (${d.host_rec_name ?? ""}, REC ${d.host_rec_number ?? ""})`
-      : `Public liability: ${d.insurer ?? ""} policy ${d.insurance_policy_number ?? ""}, cover ${money(d.public_liability_cover_amount)}, expires ${d.public_liability_expiry ?? ""}`);
+      : `Product and public liability: ${d.insurer ?? ""} policy ${d.insurance_policy_number ?? ""}, cover ${money(d.public_liability_cover_amount)}, expires ${d.public_liability_expiry ?? ""}`);
   lines.push("", "Nominated electricians:");
   effectiveElectricians(d).forEach((x, i) => lines.push(`${i + 1}. ${x.full_legal_name} — licence ${x.licence_number}`));
   lines.push("", "SCHEDULE 2 — SERVICES, COVERAGE AND CAPACITY");
