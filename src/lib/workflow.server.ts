@@ -275,6 +275,12 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
     const r = await installReadiness(jobId);
     for (const b of r.blockers) blockers.push(`Not ready to install: ${b}`);
   }
+  // PIISA: due on installation day immediately before work starts; canonical gate (fails closed).
+  if (to === "evidence_outstanding") {
+    const { piisaPanel } = await import("./official-forms.server");
+    const { todayMelbourne } = await import("./eligibility.server");
+    blockers.push(...(await piisaPanel(jobId, todayMelbourne())).blockers);
+  }
   if (to === "ap_review" || to === "ready_for_veec") {
     const { data: reqs } = await admin
       .from("evidence_requirements")

@@ -5,7 +5,7 @@ import { electricianStepErrors, type ElectricianChoice, type PreferredElectricia
 import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, DAYS, LEAD_TIMES, RADII } from "./rec-onboarding.core";
 
 export { DAYS, LEAD_TIMES, RADII, validAbn };
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.8-2026-10-01";
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.9-2026-10-02";
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
@@ -207,21 +207,11 @@ export function scheduleText(d: InstData): string {
   return L.join("\n");
 }
 
-/** Default partner lead fee (inc GST); the live value is `workflow_settings.partner_lead_fee_inc_gst`. */
-export const DEFAULT_LEAD_FEE = 220;
-export function formatLeadFee(fee: number): string {
-  return `$${Number.isInteger(fee) ? fee : fee.toFixed(2)}`;
-}
-/** Swap the default "$220" in shared partner copy for the office-configured lead fee. */
-export function applyLeadFee(text: string, fee: number = DEFAULT_LEAD_FEE): string {
-  return text.split("$220").join(formatLeadFee(fee));
-}
-
-export function agreementText(d: InstData, leadFee: number = DEFAULT_LEAD_FEE): string {
+export function agreementText(d: InstData): string {
   return [
     INSTALLER_AGREEMENT_TITLE, `Version: ${INSTALLER_AGREEMENT_VERSION}`,
     `Between: ${AP_ENTITY}, acting as an Accredited Person for Victorian Energy Upgrades (VEU) Activity 48, and the insulation installation business (Installer) identified in Schedule 1.`, "",
-    ...INSTALLER_AGREEMENT_SECTIONS.flatMap((s) => [`${s.n}. ${s.title}`, ...s.paras.map((p) => applyLeadFee(p, leadFee)), ""]),
+    ...INSTALLER_AGREEMENT_SECTIONS.flatMap((s) => [`${s.n}. ${s.title}`, ...s.paras, ""]),
     scheduleText(d), "", "ACKNOWLEDGEMENTS",
     ...ACKNOWLEDGEMENTS.map((a, i) => `${i + 1}. ${a.text}`),
   ].join("\n");

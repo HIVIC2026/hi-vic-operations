@@ -21,7 +21,7 @@ export function installerLedOwnerPrice(i: OwnerPriceInput) {
   const total = Math.round((i.installerQuoteIncGst + (i.piesaIncGst ?? 0) + i.rectificationIncGst + (i.apFeeIncGst ?? 0)) * 100) / 100;
   const afterDiscount = Math.round((total - i.veecDiscountIncGst) * 100) / 100;
   if (afterDiscount < 200) blockers.push("Owner co-payment would be below the $200 minimum.");
-  return { total, discount: i.veecDiscountIncGst, afterDiscount, referralFee: 0, blockers, ready: blockers.length === 0 };
+  return { total, discount: i.veecDiscountIncGst, afterDiscount, blockers, ready: blockers.length === 0 };
 }
 
 /**

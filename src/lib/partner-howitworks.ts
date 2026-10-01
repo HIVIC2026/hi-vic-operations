@@ -18,7 +18,7 @@ export const OPTION_OWN_CUSTOMER: { title: string; tagline: string; steps: HowSt
     { n: 5, title: "One co-branded quote", body: "Your branding plus ours, showing your price, the safety check, our Accredited Person fee and the VEU discount. The owner e-signs it in their portal." },
     { n: 6, title: "We invoice and chase payment", body: "Including the 50% deposit before any work is scheduled. You never chase money." },
     { n: 7, title: "You install", body: "Submit your photos and installer declaration through the app the same day. We do the Accredited Person review and lodge the VEECs." },
-    { n: 8, title: "You get paid", body: "Your quoted price, once the owner's invoice is paid in full. No lead fee on your own customers — ever." },
+    { n: 8, title: "You get paid", body: "Your quoted price, once the owner's invoice is paid in full. Home Insulation Victoria does not charge installers or electricians a lead fee." },
   ],
   footer: "Your routine sales contact with the owner (follow-ups, scope, reviews) stays with you. We handle the formal compliance contact and tell you when we've been in touch.",
 };
@@ -31,7 +31,7 @@ export const OPTION_OUR_LEAD: { title: string; tagline: string; steps: HowStep[]
     { n: 2, title: "You get the job offer", body: "It appears in your portal with the suburb, property type and what we know. Accept or decline — no penalty for declining." },
     { n: 3, title: "You do the free Ready Check", body: "The measure-up and photos, using our app. It tells you exactly what to capture, in order." },
     { n: 4, title: "We quote the owner", body: "At our set customer price. We handle the safety check, the quote, invoicing and payment chasing. You're paid the rate we agreed with you at onboarding." },
-    { n: 5, title: "Lead fee — only on completed approved work", body: "A $220 inc GST lead fee is deducted from your payout only after the job is installed and the required paperwork is approved. If the owner doesn't accept, or the lead is ineligible, declined or cancelled before completion, you pay nothing." },
+    { n: 5, title: "No lead fee", body: "Home Insulation Victoria does not charge installers or electricians a lead fee. You're paid the rate we agreed with you at onboarding." },
     { n: 6, title: "You install", body: "Submit evidence on the day through the app; we review and lodge." },
   ],
   footer: "On our leads you must message the owner in the portal within 24 hours of accepting the offer — see the 24-hour rule below.",
@@ -74,7 +74,7 @@ export const LEAD_24H_RULE = {
   points: [
     "When we give you a lead, you must message the owner in the portal within 24 hours of accepting.",
     "If there's been no contact after 24 hours, the owner is offered a choice in their portal: keep waiting, or choose a different installer (or electrician, if they're the one not responding).",
-    "If the owner switches, the job moves to the new installer with its full history — nothing is re-entered, and no lead fee applies to you.",
+    "If the owner switches, the job moves to the new installer with its full history — nothing is re-entered.",
   ],
 };
 
@@ -167,11 +167,11 @@ export const PARTNER_FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: "The owner turns out ineligible — what happens to my time and fees?",
-    a: "On your own customers there's never a lead fee. On leads we supply, the fee is deducted only after installation and paperwork approval — an ineligible, declined or cancelled lead costs you nothing.",
+    a: "Home Insulation Victoria does not charge installers or electricians a lead fee. An ineligible, declined or cancelled lead costs you nothing.",
   },
   {
-    q: "When is the $220 inc GST lead fee charged, and when isn't it?",
-    a: "Only on leads we give you, after installation and the required paperwork is approved. It's deducted from your payout. Never on your own customers, and never on declined, ineligible or cancelled jobs that do not reach that point.",
+    q: "Do you charge a lead fee?",
+    a: "No. Home Insulation Victoria does not charge installers or electricians a lead fee.",
   },
   {
     q: "I have my own electrician, or I work with another installer — how do we team up?",

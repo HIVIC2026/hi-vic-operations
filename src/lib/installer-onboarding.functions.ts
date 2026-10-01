@@ -22,11 +22,6 @@ const tokenSchema = z.string().min(20).max(100).regex(/^[A-Za-z0-9_-]+$/);
 async function admin() {
   return (await import("@/integrations/supabase/client.server")).supabaseAdmin;
 }
-async function readLeadFee(db: Awaited<ReturnType<typeof admin>>): Promise<number> {
-  const { data } = await db.from("workflow_settings").select("partner_lead_fee_inc_gst").limit(1).maybeSingle();
-  const fee = Number(data?.partner_lead_fee_inc_gst ?? 220);
-  return Number.isFinite(fee) ? fee : 220;
-}
 
 async function findApp(token: string) {
   const db = await admin();
@@ -120,7 +115,7 @@ export const getInstallerAgreement = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { db, app } = await findApp(data.token);
     const d = { ...(app.data as InstData), insurance_uploaded: !!app.insurance_certificate_path };
-    return { title: INSTALLER_AGREEMENT_TITLE, version: INSTALLER_AGREEMENT_VERSION, text: app.agreement_text ?? agreementText(d, await readLeadFee(db)) };
+    return { title: INSTALLER_AGREEMENT_TITLE, version: INSTALLER_AGREEMENT_VERSION, text: app.agreement_text ?? agreementText(d) };
   });
 
 export const signInstallerAgreement = createServerFn({ method: "POST" })
@@ -144,7 +139,7 @@ export const signInstallerAgreement = createServerFn({ method: "POST" })
     const missing = app.test_mode ? null : firstIncompleteStep(d);
     if (missing) throw new Error(`Please complete the "${missing.replace(/_/g, " ")}" step before signing.`);
 
-    const text = agreementText(d, await readLeadFee(db));
+    const text = agreementText(d);
     const signedAt = new Date().toISOString();
     const acks = Object.fromEntries(ACKNOWLEDGEMENTS.map((a) => [a.key, { text: a.text, accepted: true }]));
     const hash = await sha256(text);
