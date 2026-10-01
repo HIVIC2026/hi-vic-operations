@@ -58,6 +58,22 @@ export function firstName(d: { primary_contact_name?: string }): string {
   return (d.primary_contact_name ?? "").trim().split(/\s+/)[0] || "";
 }
 
+/**
+ * The licensed electricians on this application. The person signing up IS the
+ * electrician, so when no explicit list exists we derive it from their own
+ * details. An explicit list (legacy applications) always wins.
+ */
+export function effectiveElectricians(d: RecData): Electrician[] {
+  if ((d.electricians ?? []).length > 0) return d.electricians!;
+  if (!txt(d.primary_contact_name) || !txt(d.licence_number)) return [];
+  return [{
+    full_legal_name: (d.primary_contact_name ?? "").trim(),
+    licence_number: (d.licence_number ?? "").trim().toUpperCase(),
+    mobile: (d.business_phone ?? "").trim(),
+    email: (d.business_email ?? "").trim().toLowerCase(),
+  }];
+}
+
 export const STEPS = [
   { key: "about", title: "About you" },
   { key: "business", title: "Business details" },
@@ -216,7 +232,7 @@ export function scheduleText(d: RecData): string {
       ? `Public liability: held by host REC (${d.host_rec_name ?? ""}, REC ${d.host_rec_number ?? ""})`
       : `Public liability: ${d.insurer ?? ""} policy ${d.insurance_policy_number ?? ""}, cover ${money(d.public_liability_cover_amount)}, expires ${d.public_liability_expiry ?? ""}`);
   lines.push("", "Nominated electricians:");
-  (d.electricians ?? []).forEach((x, i) => lines.push(`${i + 1}. ${x.full_legal_name} — licence ${x.licence_number}`));
+  effectiveElectricians(d).forEach((x, i) => lines.push(`${i + 1}. ${x.full_legal_name} — licence ${x.licence_number}`));
   lines.push("", "SCHEDULE 2 — SERVICES, COVERAGE AND CAPACITY");
   lines.push("Pre-insulation electrical safety assessment (PIESA): included");
   lines.push(`Electrical rectification: ${d.service_rectification ? "yes" : "no"}`, `Installation-day electrical attendance: ${d.service_installation_isolation ? "yes" : "no"}`);
