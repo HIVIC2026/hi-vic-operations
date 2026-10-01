@@ -115,7 +115,7 @@ export function sendBlocker(g: SendGates): string | null {
 }
 
 export type FollowupRow = { slot: "3d" | "7d"; kind: FollowupKind; status: string; due_at: string };
-export type FollowupPlan = { action: "suppress"; reason: string } | { action: "block"; reason: string } | { action: "send"; kind: FollowupKind };
+export type FollowupPlan = { action: "suppress"; reason: string } | { action: "block"; reason: string } | { action: "send"; kind: ActiveFollowupKind };
 export function planFollowup(f: FollowupRow, s: Summary, g: Omit<SendGates, "alreadySent">, now = Date.now()): FollowupPlan {
   if (f.status === "sent" || f.status === "suppressed") return { action: "suppress", reason: "already_final" };
   if (f.slot !== "3d" || !isActiveFollowupKind(f.kind)) return { action: "suppress", reason: "retired_followup_kind" };

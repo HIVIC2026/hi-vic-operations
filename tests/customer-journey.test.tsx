@@ -13,13 +13,14 @@ describe("customer journey stages", () => {
   test("free check confirmation: approved name, gated request, no duplicate CTA after acceptance", () => {
     const html = renderToStaticMarkup(<ConfirmQuote estimatedPrice={3716.24} onBack={noop} preview testMode />);
     const C = FREE_CHECK_CONFIRM_COPY;
-    for (const c of [C.name, C.intro, C.free, C.installer, C.piesa, C.reassurance, CUSTOMER_APPROVAL_REASSURANCE, ...C.checklist]) expect(html).toContain(c.replace(/&/g, "&amp;"));
+    for (const c of [C.name, C.intro, C.free, C.checklistHeading, C.installer, C.piesa, C.reassurance, CUSTOMER_APPROVAL_REASSURANCE, ...C.checklist]) expect(html).toContain(c.replace(/&/g, "&amp;"));
     expect(html).not.toMatch(/remaining|\$3,716|YOUR ESTIMATED COST AFTER DISCOUNT|WHAT COULD CHANGE|Ready Check/i);
     expect(html.split(C.cta.replace(/&/g, "&amp;")).length - 1).toBe(1);
     expect(html).toMatch(/<input type="checkbox"(?![^>]*checked)[^>]*>/);
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Confirm my free/);
     const done = renderToStaticMarkup(<ConfirmQuote onBack={noop} preview testMode state={{ paymentStatus: "accepted" } as never} />);
     expect(done).toContain(C.successHeading.replace(/’/g, "’"));
+    expect(done).toContain(C.successNext.replace(/’/g, "’"));
     expect(done).not.toContain("Confirm my free");
     expect(done).not.toContain('type="checkbox"');
     expect(done).not.toMatch(/booked for|assigned to/i);
