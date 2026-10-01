@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
-import { overallCoverage, tradeCoverage, type CoveragePartner } from "./coverage.core";
+import { coverageAreas, coveragePartnerBlocker, overallCoverage, tradeCoverage, type CoveragePartner } from "./coverage.core";
 import { customerCommsEnabled, hasCurrentOwnerContactConsent, recordCommunication } from "./comms.server";
 import { configuredDeliveryAdapter } from "./delivery.server";
 import { suppressionFor, unsubscribeUrlForJob } from "./emailsafety.server";
@@ -13,24 +13,26 @@ const uuid = z.string().uuid();
 
 async function loadCoverageData() {
   const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-  const [{ data: businesses, error: businessesError }, { data: credentials, error: credentialsError }, { data: jobs, error: jobsError }] = await Promise.all([
+  const [{ data: businesses, error: businessesError }, { data: credentials, error: credentialsError }, { data: jobs, error: jobsError }, { data: workers, error: workersError }, { data: members, error: membersError }] = await Promise.all([
     admin.from("businesses").select("id,name,trading_name,business_type,capabilities,onboarding_status,is_active,service_postcodes,service_regions,coverage_verified_at,declared_service_origin,declared_travel_radius_km,declared_excluded_areas,free_measureups_for_hivic_quote_leads"),
     admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification"),
     admin.from("jobs").select("id,job_number,stage,source,properties(address_line,suburb,postcode)").not("stage", "in", "(complete,cancelled)"),
+    admin.from("partner_workers").select("id,business_id,full_legal_name,trade_role,approval_status,removed_at").is("removed_at", null),
+    admin.from("business_members").select("business_id,user_id,member_role,active,profiles!business_members_user_id_fkey(full_name)").eq("active", true),
   ]);
-  const error = businessesError ?? credentialsError ?? jobsError;
+  const error = businessesError ?? credentialsError ?? jobsError ?? workersError ?? membersError;
   if (error) throw new Error(`Coverage could not be loaded: ${error.message}`);
   const partners: CoveragePartner[] = (businesses ?? []).map((business) => ({
     ...business,
     name: business.trading_name || business.name,
     credentials: (credentials ?? []).filter((credential) => credential.business_id === business.id),
   })) as CoveragePartner[];
-  return { partners, jobs: jobs ?? [] };
+  return { partners, jobs: jobs ?? [], workers: workers ?? [], members: members ?? [] };
 }
 
 export const getAdminCoverage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
-  const { partners, jobs } = await loadCoverageData();
+  const { partners, jobs, workers, members } = await loadCoverageData();
   const rows = jobs.filter((job) => job.source !== "qa_test").map((job) => {
     const property = job.properties as { address_line: string; suburb: string | null; postcode: string | null } | null;
     const site = { postcode: property?.postcode ?? null, suburb: property?.suburb ?? null };
@@ -38,13 +40,19 @@ export const getAdminCoverage = createServerFn({ method: "POST" }).middleware([r
     const installer = tradeCoverage(partners, "installer", site);
     return { id: job.id, job_number: job.job_number, stage: job.stage, address: property?.address_line ?? "Address unavailable", suburb: site.suburb, postcode: site.postcode, rec, installer, overall: overallCoverage(rec, installer) };
   });
+  const areas = coverageAreas(partners, rows.map((row) => ({ postcode: row.postcode, suburb: row.suburb })));
   return {
     rows,
+    areas,
     partners: partners.map((partner) => ({
       id: partner.id, name: partner.name, business_type: partner.business_type, capabilities: partner.capabilities,
+      onboarding_status: partner.onboarding_status, is_active: partner.is_active,
       service_postcodes: partner.service_postcodes ?? [], coverage_verified_at: partner.coverage_verified_at ?? null,
       declared_service_origin: partner.declared_service_origin ?? null, declared_travel_radius_km: partner.declared_travel_radius_km ?? null,
       declared_excluded_areas: partner.declared_excluded_areas ?? null, free_measureups_for_hivic_quote_leads: partner.free_measureups_for_hivic_quote_leads ?? null,
+      blocker: coveragePartnerBlocker(partner, partner.business_type === "rec" || partner.capabilities?.includes("electrician") ? "rec" : "installer"),
+      workers: workers.filter((worker) => worker.business_id === partner.id).map((worker) => ({ id: worker.id, name: worker.full_legal_name, trade_role: worker.trade_role, approved: worker.approval_status === "approved" })),
+      members: members.filter((member) => member.business_id === partner.id).map((member) => ({ id: member.user_id, name: (member.profiles as unknown as { full_name: string | null } | null)?.full_name ?? "Business contact", member_role: member.member_role })),
     })),
   };
 });
