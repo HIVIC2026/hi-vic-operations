@@ -80,20 +80,25 @@ describe("create & assign", () => {
   });
   test("A1 definition-shaped template prefills job, address, owner, property type, life support and assessor", () => {
     // Mirrors the live Mitti v1 definition shape (wrapped under `template`, no header split).
-    const a1 = { template: { items: [
-      { item_id: "f1", label: "Portal Job Number", type: "textsingle" },
-      { item_id: "f2", label: "Site address", type: "site" },
-      { item_id: "f3", label: "Owner name", type: "textsingle" },
-      { item_id: "f4", label: "Property type", type: "question" },
-      { item_id: "f5", label: "Office life support result", type: "textsingle" },
-      { item_id: "f6", label: "Assessor", type: "textsingle" },
-      { item_id: "f7", label: "Are these details correct?", type: "question" },
+    const a1 = { template: { response_sets: [{ id: "rs1", responses: [{ id: "o1", label: "House" }, { id: "o2", label: "Townhouse" }] }], items: [
+      { id: "f1", item_id: "f1", label: "Portal Job Number", type: "textsingle" },
+      { id: "f2", item_id: "f2", label: "Site address", type: "address" },
+      { id: "f3", item_id: "f3", label: "Owner name", type: "textsingle" },
+      { id: "f4", item_id: "f4", label: "Property type", type: "question", question: { response_set_id: "rs1" } },
+      { id: "f5", item_id: "f5", label: "Office life support result", type: "textsingle" },
+      { id: "f6", item_id: "f6", label: "Assessor", type: "textsingle" },
+      { id: "f7", item_id: "f7", label: "Are these details correct?", type: "question" },
     ] } };
     const p = buildPrefill(a1, { ...ctx().prefill, propertyType: "Townhouse", lifeSupport: "None recorded by office" });
     expect(p.missing).toEqual([]);
     expect(p.ambiguous).toEqual([]);
     expect(p.items.map((i: { label: string }) => i.label).sort()).toEqual(["Assessor", "Office life support result", "Owner name", "Portal Job Number", "Property type", "Site address"]);
-    expect(p.items.find((i: { label: string }) => i.label === "Property type")?.responses).toEqual({ selected: [{ label: "Townhouse" }] });
+    // Mitti needs the option ID, and addresses as location_text — otherwise it silently drops the answer.
+    expect(p.items.find((i: { label: string }) => i.label === "Property type")?.responses).toEqual({ selected: [{ id: "o2", label: "Townhouse" }] });
+    expect(p.items.find((i: { label: string }) => i.label === "Site address")?.responses).toEqual({ location_text: ctx().prefill.address });
+    // A Mitti "Site" field can't take a typed address: block loudly, never send a blank form.
+    const site = { template: { ...a1.template, items: a1.template.items.map((i) => (i.id === "f2" ? { ...i, type: "site" } : i)) } };
+    expect(buildPrefill(site, { ...ctx().prefill, propertyType: "Townhouse" }).missing.join()).toMatch(/Site address/);
   });
   test("propertyTypeOption maps only real options and never invents", () => {
     expect(propertyTypeOption("House")).toBe("House");
