@@ -20,6 +20,22 @@ export const ACKNOWLEDGEMENTS = [
 ] as const;
 export type AckKey = (typeof ACKNOWLEDGEMENTS)[number]["key"];
 
+/**
+ * The acknowledgements an applicant must tick to sign. The REC director binds
+ * the business; a worker registering under another REC signs on their own
+ * behalf and confirms the REC has approved them — they can never bind the REC.
+ */
+export function acknowledgementsFor(d: RecData) {
+  if (d.works_under_rec === true) {
+    return ACKNOWLEDGEMENTS.map((a) =>
+      a.key === "authority"
+        ? { key: a.key, text: "I am signing on my own behalf, and the REC I work under has approved me registering under their business." }
+        : a,
+    );
+  }
+  return [...ACKNOWLEDGEMENTS];
+}
+
 export const RECT_ITEMS = [
   { key: "prohibited_luminaires", label: "IC / IC-4 light replacement", unit: "light" },
   { key: "circuit_protection", label: "Circuit protection / derating", unit: "circuit" },
@@ -130,9 +146,9 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (!txt(d.licence_number)) e.push("Enter your Victorian electrician licence number.");
       if (!validPhone(d.business_phone)) e.push("Enter a valid Australian mobile.");
       if (!validBusinessEmail(d.business_email)) e.push("Enter a real email address.");
+      if (d.works_under_rec == null) e.push("Tell us if you are the REC or you work under a REC.");
       break;
     case "business":
-      if (d.works_under_rec == null) e.push("Tell us if you run your own REC business or work under another REC.");
       if (!txt(d.legal_entity_name)) e.push(d.works_under_rec === true ? "Enter your full legal name." : "Enter the legal entity / REC registered name.");
       if (d.works_under_rec === true) {
         if (!txt(d.host_rec_name)) e.push("Enter the REC business you work under.");
@@ -147,7 +163,7 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (!txt(d.primary_contact_name)) e.push("Enter a contact name.");
       if (!validPhone(d.business_phone)) e.push("Enter a valid Australian phone number.");
       if (!validBusinessEmail(d.business_email)) e.push("Enter a real business email address.");
-      if (d.authorised_to_register !== true) e.push("Confirm you're authorised to set up this REC.");
+      if (d.works_under_rec !== true && d.authorised_to_register !== true) e.push("Confirm you're authorised to set up this REC.");
       break;
     case "insurance":
       if (d.works_under_rec === true) break; // host REC holds the insurance
