@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { BadgeDollarSign, Check, ChevronDown, Info, Layers, MapPin, RotateCcw, Ruler } from "lucide-react";
+import { Check, ChevronDown, Info, Layers, MapPin, RotateCcw, Ruler } from "lucide-react";
 import { QuoteBreakdown } from "./estimate";
 import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
 import { CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings } from "@/lib/estimate.core";
@@ -301,17 +301,10 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                     </div>
                   ))}
                 </dl>
-                <div className="mt-3 overflow-hidden rounded-xl border-2 border-estimate-green bg-estimate-white shadow-[0_12px_28px_-22px_rgba(7,191,97,0.85)]" data-testid="public-calculator-discount-highlight">
-                  <div className="flex items-center gap-2 bg-estimate-mint px-3.5 py-2 text-[0.7rem] font-extrabold uppercase tracking-wider text-estimate-navy">
-                    <BadgeDollarSign aria-hidden="true" className="size-4 text-estimate-green" />
-                    Your estimated VEU discount
-                  </div>
-                  <div className="flex items-end justify-between gap-4 px-3.5 py-3">
-                    <p className="max-w-[230px] text-xs leading-relaxed text-estimate-navy/85">Already deducted from the estimated cost shown below.</p>
-                    <p className="shrink-0 text-3xl font-extrabold leading-none text-estimate-green">−{dollars(standard.applied_discount)}</p>
-                  </div>
-                </div>
-                <div className="mt-3">
+                <div
+                  className="mt-3 [&_[data-testid=quote-discount-band]]:border-2 [&_[data-testid=quote-discount-band]]:border-estimate-green [&_[data-testid=quote-discount-band]]:bg-estimate-mint [&_[data-testid=quote-discount-band]]:py-5 [&_[data-testid=quote-discount-band]_dd]:text-3xl [&_[data-testid=quote-discount-band]_dt]:text-estimate-navy"
+                  data-testid="public-calculator-discount-highlight"
+                >
                   <QuoteBreakdown
                     rows={customerQuoteRows({ piesa: settings.piesa_assessment_inc_gst, installation: standard.installation, apManagement: settings.ap_management_inc_gst })}
                     gross={standard.pre_discount_total}
@@ -334,10 +327,10 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
           insulation={insulation ?? "unknown"}
         />
 
-        <footer className="mt-5 border-t border-estimate-line pb-3 pt-3 text-center text-[0.7rem] leading-relaxed text-estimate-navy/85 sm:text-left">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-            <p className="sm:max-w-[460px]">Estimate only, not a quote. Prices include GST. Your entries are only saved if you register your interest.</p>
-            <p className="flex flex-col items-center gap-0.5 sm:items-end">
+        <footer className="mt-5 border-t border-estimate-line pb-5 pt-4 text-center text-xs leading-relaxed text-estimate-navy/85 sm:text-left lg:pb-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
+            <p className="sm:max-w-[430px]">Estimate only, not a quote. Prices include GST.<br className="hidden sm:block" /> Your details are saved only if you register your interest.</p>
+            <p className="flex flex-col items-center gap-1 sm:items-end sm:text-right">
               <span className="font-bold text-estimate-navy">Home Insulation Victoria · Accredited Person for Victorian Energy Upgrades</span>
               <a href={ENQUIRY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-estimate-blue underline decoration-estimate-green/60 underline-offset-2 hover:text-estimate-green">
                 homeinsulationvictoria.com.au
