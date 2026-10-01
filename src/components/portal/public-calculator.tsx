@@ -119,7 +119,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
           )}
         </div>
 
-        <div className="estimate-offset mt-3 grid overflow-hidden rounded-2xl border border-estimate-line bg-estimate-white lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+        <div className="estimate-offset mt-2.5 grid overflow-hidden rounded-2xl border border-estimate-line bg-estimate-white lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
           <div>
             <Field id="calc-postcode" icon={MapPin} label="Where is the property?" hint="Enter your Victorian postcode. You can change it any time — the price updates instantly.">
               <div className="flex flex-wrap items-center gap-3">
