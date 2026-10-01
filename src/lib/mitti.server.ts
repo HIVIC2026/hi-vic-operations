@@ -4,11 +4,14 @@
 import type { Json } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { MITTI_BASE_URL, MITTI_TEMPLATE_ID, MittiError, createOrReuseAudit, mittiApi, planSync, splitPatch, type MittiCall } from "./mitti.core";
+import { MITTI_BASE_URL, MITTI_TEMPLATE_ID, MittiError, createOrReuseAudit, mittiApi, planSync, propertyTypeOption, splitPatch, type MittiCall } from "./mitti.core";
 import { planMeasurementUpdate, type MeasurementLike } from "./scope.core";
 import { jobScope } from "./requirements.server";
 import { readyCheckVariant } from "./mitti-forms.core";
 import { formatPropertyAddress } from "./address";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type Any = any;
 
 export const realMittiCall: MittiCall = async (method, path, body) => {
   const token = process.env["MITTI_API_TOKEN"];
@@ -83,6 +86,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string, cal
         assessorName: prof?.full_name || prof?.email || "", assessmentAt: booking?.scheduled_start ?? null,
         estimatedAreaM2: job.estimated_area_m2 != null ? Number(job.estimated_area_m2) : null,
         occupancy: prop?.occupancy ? prop.occupancy.replace("_", " ") : null, lifeSupport: job.life_support ? "Yes – life support recorded" : "None recorded by office",
+        propertyType: propertyTypeOption((prop?.enrichment as Any)?.base44?.declared?.property_type ?? null),
       },
     });
   } catch (e) {
