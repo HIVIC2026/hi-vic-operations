@@ -1,17 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { EngagementPanel } from "./engagement";
 import { useServerFn } from "@tanstack/react-start";
 import { BadgeCheck, Check, ChevronDown, ClipboardCheck, Flame, Leaf, ShieldCheck, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getAdminEstimate, getAdminEstimateLink, getAdminEstimateLinkUrl, getOwnerEstimate } from "@/lib/estimate.functions";
 import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
-import { BENCHMARK_LABEL, CALC_ASSUMPTION_LABEL, CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, FEE_DESCRIPTION, FEE_LABEL, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings, type Scenario } from "@/lib/estimate.core";
+import { BENCHMARK_LABEL, FEE_DESCRIPTION, FEE_LABEL, dollars, type RetailSettings, type Scenario } from "@/lib/estimate.core";
 import type { LocationVariables } from "@/lib/activity48.core";
-import { WHATIF_ADDRESS_COPY, locationBasisLine, resolveWhatIfLocation, type SelectedAddress } from "@/lib/whatif-location";
-import { VictorianAddressAutocomplete, type AddressProvider } from "./VictorianAddressAutocomplete";
-import { defaultAddressProvider } from "@/lib/address-provider";
-import { CUSTOMER_APPROVAL_REASSURANCE, CUSTOMER_READY_CHECK_PAGE, CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows, discountAmount } from "@/lib/customer-quote-system";
+import { CUSTOMER_APPROVAL_REASSURANCE, CUSTOMER_READY_CHECK_PAGE, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows, discountAmount } from "@/lib/customer-quote-system";
 import { READY_CHECK_BOOKING_SUCCESS, type ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
 import { Pill } from "./badges";
 
@@ -148,39 +145,17 @@ export function QuoteCardReadyCheckClose({ href, onSelect, inert = false }: { hr
   </div>;
 }
 
-function PriceResult({ est, area, fees, assumption = false, onReadyCheck }: { est: Est; area: number; fees: NonNullable<CustomerData["fees"]>; assumption?: boolean; onReadyCheck?: () => void }) {
+function PriceResult({ est, area, fees, onReadyCheck }: { est: Est; area: number; fees: NonNullable<CustomerData["fees"]>; onReadyCheck?: () => void }) {
   const primary = est.scenarios.find((s) => s.key === "can_remain") ?? est.scenarios[0];
   if (!primary) return null;
   const standard = primary.by_access.standard;
   return <section className="estimate-quote-card px-5 py-7 sm:px-8 sm:py-9" aria-label="Your estimated home upgrade">
     <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Your estimated home upgrade</p>
-    <p className="mt-3 text-sm leading-relaxed text-estimate-navy/80">{assumption ? `${CALC_ASSUMPTION_LABEL}: ${area} m². Final area measured onsite.` : `Based on an estimated ${area} m² ceiling area${est.scenarios.some((s) => s.key === "full_removal") ? ", assuming your existing insulation can remain" : ""}.`}</p>
-    <div className="mt-4"><QuoteBreakdown rows={customerQuoteRows({ piesa: fees.piesa, installation: standard.installation, apManagement: fees.ap })} gross={standard.pre_discount_total} discount={standard.applied_discount} final={standard.estimated_customer_total} ids={{ final: assumption ? "calculator-total-can_remain" : "total-can_remain" }} /></div>
+    <p className="mt-3 text-sm leading-relaxed text-estimate-navy/80">Based on an estimated {area} m² ceiling area{est.scenarios.some((s) => s.key === "full_removal") ? ", assuming your existing insulation can remain" : ""}.</p>
+    <div className="mt-4"><QuoteBreakdown rows={customerQuoteRows({ piesa: fees.piesa, installation: standard.installation, apManagement: fees.ap })} gross={standard.pre_discount_total} discount={standard.applied_discount} final={standard.estimated_customer_total} ids={{ final: "total-can_remain" }} /></div>
     {standard.copayment_capped && <p className="mt-3 text-sm">The discount is limited so your contribution meets the program minimum.</p>}
     <QuoteCardReadyCheckClose href="#confirm" {...(onReadyCheck ? { onSelect: onReadyCheck } : {})} />
   </section>;
-}
-
-function CalculatorQuoteResult({ est, area, fees, existingInsulation, onReadyCheck }: { est: Est; area: number; fees: NonNullable<CustomerData["fees"]>; existingInsulation: boolean; onReadyCheck?: () => void }) {
-  const primary = est.scenarios.find((scenario) => scenario.key === "can_remain") ?? est.scenarios[0];
-  if (!primary) return null;
-  const standard = primary.by_access.standard;
-  const rows = customerQuoteRows({ piesa: fees.piesa, installation: standard.installation, apManagement: fees.ap });
-  return <div className="space-y-5" data-testid="calculator-result">
-    <section className="estimate-quote-card overflow-hidden" aria-label="Revised preliminary estimate">
-      <div className="px-5 py-6 sm:px-8 sm:py-8">
-        <p className="text-xs font-extrabold uppercase text-estimate-green">Your revised preliminary quote</p>
-        <div className="mt-3 flex items-baseline justify-between gap-4 border-b border-estimate-blue-soft pb-4">
-          <span className="text-sm font-bold">Estimated ceiling size</span>
-          <strong className="text-xl text-estimate-blue" data-testid="calculator-area">{area} m²</strong>
-        </div>
-        <QuoteBreakdown rows={rows} gross={standard.pre_discount_total} discount={standard.applied_discount} final={standard.estimated_customer_total} ids={{ gross: "calculator-gross", discount: "calculator-discount", final: "calculator-total-can_remain" }} />
-        {standard.copayment_capped && <p className="mt-2 text-xs">The discount is limited so your contribution meets the program minimum.</p>}
-        <QuoteCardReadyCheckClose href="#confirm" {...(onReadyCheck ? { onSelect: onReadyCheck } : {})} />
-      </div>
-    </section>
-    {existingInsulation && <p className="estimate-secondary-card text-sm font-semibold leading-relaxed">{CUSTOMER_EXISTING_INSULATION_NOTE}</p>}
-  </div>;
 }
 
 const insulationSource = "https://www.energy.vic.gov.au/victorian-energy-upgrades/products/insulation-discounts";
@@ -241,14 +216,14 @@ function ManagedProcess() {
   </section>;
 }
 
-function RemovalNote({ est, assumption = false }: { est: Est; assumption?: boolean }) {
+function RemovalNote({ est }: { est: Est }) {
   const removal = est.scenarios.find((s) => s.key === "full_removal");
   if (!removal) return null;
-  return <p className="estimate-secondary-card text-sm leading-relaxed">If full removal is required, your estimated total would be around <strong data-testid={assumption ? "calculator-total-full_removal" : "total-full_removal"}>{dollars(removal.by_access.standard.estimated_customer_total)}</strong>. Your Ready Check confirms whether removal is actually needed.</p>;
+  return <p className="estimate-secondary-card text-sm leading-relaxed">If full removal is required, your estimated total would be around <strong data-testid="total-full_removal">{dollars(removal.by_access.standard.estimated_customer_total)}</strong>. Your Ready Check confirms whether removal is actually needed.</p>;
 }
 
 /** Customer-facing estimate. Renders nothing when Gate 1 does not permit display. */
-export function CustomerEstimate({ data, publicPage = false, propertyAddress, onCalculatorUse, onReadyCheck }: { data: CustomerData; publicPage?: boolean; propertyAddress?: string | null; onCalculatorUse?: (m2: number) => void; onReadyCheck?: () => void }) {
+export function CustomerEstimate({ data, publicPage = false, onReadyCheck }: { data: CustomerData; publicPage?: boolean; onReadyCheck?: () => void }) {
   if (!data.visible || !data.mode) return null;
   const fees = data.fees;
   const Heading = publicPage ? "h1" : "h2";
@@ -263,87 +238,11 @@ export function CustomerEstimate({ data, publicPage = false, propertyAddress, on
        </div>
       {data.rolloutHold && <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Assessments for private homes open from 1 October 2026. This is a scheduling hold only, not an eligibility result.</p>}
       {!fees ? <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Your estimate is being prepared.</p> : <>
-         {data.estimate ? <PriceResult est={data.estimate} area={data.estimate.area.m2} fees={fees} {...(onReadyCheck ? { onReadyCheck } : {})} /> : data.calc ? <AreaCalculator calc={data.calc} initial={null} fees={fees} {...(propertyAddress !== undefined ? { propertyAddress } : {})} {...(onCalculatorUse ? { onUse: onCalculatorUse } : {})} {...(onReadyCheck ? { onReadyCheck } : {})} /> : <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">{data.postcodeUnlisted ? "We can't calculate a VEU discount for this postcode yet because it isn't in the official VEU location list. We'll confirm your pricing directly." : "Your estimate is being prepared."}</p>}
+         {data.estimate ? <PriceResult est={data.estimate} area={data.estimate.area.m2} fees={fees} {...(onReadyCheck ? { onReadyCheck } : {})} /> : <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">{data.postcodeUnlisted ? "We can't calculate a VEU discount for this postcode yet because it isn't in the official VEU location list. We'll confirm your pricing directly." : "Your estimate is being prepared."}</p>}
          {data.estimate && <><RemovalNote est={data.estimate} /><HouseholdBenefits /><PriceProtection settings={data.calc?.settings} fees={fees} /><ManagedProcess /></>}
-         {data.estimate && data.calc && <AreaCalculator calc={data.calc} initial={data.estimate.area.m2} fees={fees} {...(propertyAddress !== undefined ? { propertyAddress } : {})} secondary {...(onCalculatorUse ? { onUse: onCalculatorUse } : {})} {...(onReadyCheck ? { onReadyCheck } : {})} />}
         {data.calc && <details className="group border-b border-estimate-blue/20 pb-5 text-sm"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-bold text-estimate-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">How is the VEU discount estimated? <ChevronDown aria-hidden="true" className="size-5 shrink-0 transition-transform group-open:rotate-180" /></summary><p className="mt-4 leading-relaxed">We use the official Activity 48 postcode/climate calculation and a {dollars(data.calc.settings.indicative_veec_value)} consumer benchmark calibrated to the Victorian Government&apos;s published example. Final certificate values can change. This is not the live VEEC market price.</p>{data.calc.settings.veec_value_source_url?.startsWith("https://") && <a className="mt-2 inline-block font-bold text-estimate-blue underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" href={data.calc.settings.veec_value_source_url} target="_blank" rel="noopener noreferrer">View the published example <span aria-hidden="true">↗</span></a>}</details>}
       </>}
     </div>
-  );
-}
-
-/** Pure client-side what-if. Local state only: no server call, never saved to the job, measurements or estimates. */
-export function AreaCalculator({ calc, initial, fees, propertyAddress, secondary = false, preview = false, onUse, onReadyCheck, addressProvider = defaultAddressProvider }: { addressProvider?: AddressProvider; calc: NonNullable<CustomerData["calc"]>; initial: number | null; fees: NonNullable<CustomerData["fees"]>; propertyAddress?: string | null; secondary?: boolean; preview?: boolean; onUse?: (m2: number) => void; onReadyCheck?: () => void }) {
-  const id = useId();
-  const [open, setOpen] = useState(!secondary);
-  const [raw, setRawState] = useState(initial == null ? "" : String(initial));
-  const [custom, setCustom] = useState(initial != null && !CALC_QUICK.includes(initial as never));
-  const [touched, setTouched] = useState(false);
-  const setRaw = (v: string) => { setTouched(true); setRawState(v); };
-  const m2 = parseAssumption(raw);
-  const reported = useRef(false);
-  // Engagement signal only (never the area itself to the job): debounced, at most once per page session.
-  useEffect(() => {
-    if (!onUse || !touched || m2 == null || reported.current) return;
-    const t = setTimeout(() => { reported.current = true; onUse(m2); }, 1500);
-    return () => clearTimeout(t);
-  }, [m2, touched, onUse]);
-  // What-if address: local state only. Never sent via onUse, never saved to the job/property/estimate/enquiry.
-  const [addrOpen, setAddrOpen] = useState(false);
-  const [altSelected, setAltSelected] = useState<SelectedAddress | null>(null);
-  const where = resolveWhatIfLocation(calc.location, altSelected);
-  const activeLocation = where.status === "original" || where.status === "alternate" ? where.location : null;
-  const est = activeLocation ? whatIfEstimate(m2, activeLocation, calc.insulation as InsulationDeclared, calc.settings) : null;
-  const revert = () => { setAddrOpen(false); setAltSelected(null); };
-  useEffect(() => {
-    if (secondary && window.location.hash === "#calculator") setOpen(true);
-  }, [secondary]);
-  return (
-    <section id={secondary ? "calculator" : undefined} className="scroll-mt-6" data-testid="area-calculator" aria-label="Ceiling area calculator">
-      {secondary && !open ? <Button variant="ghost" size="field" className="h-auto min-h-12 max-w-full justify-start whitespace-normal px-0 text-left font-bold text-estimate-blue underline underline-offset-4 hover:bg-transparent hover:text-estimate-blue" onClick={() => setOpen(true)}>Want to test a different ceiling area? <ChevronDown aria-hidden="true" /></Button> : <>
-        <div className="estimate-quote-card overflow-hidden">
-        <div className="bg-estimate-blue px-5 py-5 text-estimate-white sm:px-7 sm:py-6">
-          <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-auto w-36 max-w-full rounded-sm bg-estimate-white p-2" />
-          <p className="mt-4 text-xs font-extrabold uppercase text-estimate-green-light">Interactive preliminary estimate</p>
-          <h3 className="mt-1.5 text-xl font-extrabold leading-tight sm:text-2xl">TRY ANOTHER PROPERTY OR CEILING SIZE</h3>
-          <p className="mt-2 max-w-xl text-sm font-semibold leading-relaxed">{CUSTOMER_CALCULATOR_COPY}</p>
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-estimate-white/30 bg-estimate-white/10 px-4 py-3" data-testid="calculator-property">
-            <div className="min-w-0">
-              <p className="text-xs font-extrabold uppercase text-estimate-green-light">Property</p>
-              <p className="mt-0.5 text-sm font-extrabold break-words">{where.status === "original" ? (propertyAddress ?? `Your enquiry property (postcode ${calc.location.postcode})`) : (altSelected?.label ?? "Select a Victorian property address")}</p>
-            </div>
-            {where.status === "original" && !addrOpen && <button type="button" className="shrink-0 text-sm font-extrabold text-estimate-green-light underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" onClick={() => setAddrOpen(true)}>{WHATIF_ADDRESS_COPY.change}</button>}
-          </div>
-        </div>
-        <div className="px-5 py-6 sm:px-8 sm:py-8">
-        {addrOpen && <div className="estimate-secondary-card mb-6 text-sm" data-testid="whatif-address">
-          <VictorianAddressAutocomplete provider={addressProvider} onSelect={setAltSelected} />
-          {altSelected && where.status === "alternate" && <div className="mt-3 rounded-xl bg-estimate-green-soft p-3" data-testid="whatif-selected"><p className="font-extrabold text-estimate-navy break-words">{altSelected.label}</p><p className="mt-1 text-xs font-bold">{locationBasisLine(where.location)}</p></div>}
-          <p className="mt-3 text-xs font-semibold leading-relaxed">{WHATIF_ADDRESS_COPY.notice}</p>
-          {where.status === "unlisted" && <p role="alert" className="mt-3 font-bold text-danger">{WHATIF_ADDRESS_COPY.unlisted}</p>}
-          <Button type="button" size="field" variant="outline" className="mt-4 rounded-lg border border-estimate-blue bg-estimate-white font-extrabold text-estimate-blue hover:bg-estimate-blue-pale hover:text-estimate-blue" onClick={revert}>{WHATIF_ADDRESS_COPY.revert}</Button>
-        </div>}
-        <p className="text-sm font-extrabold text-estimate-blue">Choose an estimated ceiling size</p>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-          {CALC_QUICK.map((q) => <Button key={q} type="button" size="field" variant="outline" className={`h-11 rounded-lg border border-estimate-blue-soft px-3 font-semibold text-estimate-navy shadow-none hover:bg-estimate-green-soft hover:text-estimate-navy ${!custom && m2 === q ? "bg-estimate-green-soft" : "bg-estimate-white"}`} aria-pressed={!custom && m2 === q} onClick={() => { setCustom(false); setRaw(String(q)); }}>{q} m²</Button>)}
-          <Button type="button" size="field" variant="outline" className={`h-11 rounded-lg border border-estimate-blue-soft px-3 font-semibold text-estimate-navy shadow-none hover:bg-estimate-green-soft hover:text-estimate-navy ${custom ? "bg-estimate-green-soft" : "bg-estimate-white"}`} aria-pressed={custom} onClick={() => { setCustom(true); setRaw(""); }}>Other / custom</Button>
-        </div>
-        {custom && <div className="mt-3">
-          <label htmlFor={id} className="text-sm font-semibold text-estimate-navy">Enter another ceiling size (m²)</label>
-          <div className="relative mt-2">
-            <input id={id} inputMode="decimal" type="number" min={CALC_MIN_M2} max={CALC_MAX_M2} className="h-12 w-full rounded-lg border border-estimate-blue bg-estimate-white px-3 pr-12 text-base text-estimate-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="e.g. 175" />
-            <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-semibold text-estimate-navy/70">m²</span>
-          </div>
-        </div>}
-        {raw.trim() !== "" && m2 == null && <p role="alert" className="mt-3 text-sm font-bold text-danger">Enter an area between {CALC_MIN_M2} and {CALC_MAX_M2} m².</p>}
-        <p className="estimate-secondary-card mt-5 text-sm font-semibold leading-relaxed">This is a what-if calculator only. It does not change the property details you submitted. Your onsite measure confirms the final eligible area.</p>
-        </div>
-        </div>
-         {est && activeLocation && <p className="mt-4 text-center text-xs font-bold text-estimate-navy" data-testid="calculator-location-basis">{locationBasisLine(activeLocation)}</p>}
-         {est && <div className="mt-6"><CalculatorQuoteResult est={est} area={m2 ?? 0} fees={fees} existingInsulation={calc.insulation === "present"} {...(onReadyCheck ? { onReadyCheck } : {})} /></div>}
-         {preview && <p className="mt-4 text-center text-xs font-bold text-estimate-blue">Preview only — nothing is saved, sent or paid.</p>}
-      </>}
-    </section>
   );
 }
 

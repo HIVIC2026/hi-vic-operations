@@ -2,8 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { acceptReadyCheckFn as acceptPreAssessment, getPublicEstimate } from "@/lib/estimate.functions";
-import { trackCalculatorUse } from "@/lib/engagement.functions";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { ConfirmQuote, CustomerEstimate, type CustomerData } from "@/components/portal/estimate";
 import { LINK_UNAVAILABLE } from "@/lib/estimatelink.core";
 import { ReferralShare } from "@/components/portal/ReferralShare";
@@ -34,9 +33,7 @@ type Payload = { job: { job_number: string | null; address: string | null }; est
 function PublicEstimatePage() {
   const { token } = Route.useParams();
   const fn = useServerFn(getPublicEstimate);
-  const track = useServerFn(trackCalculatorUse);
   const accept = useServerFn(acceptPreAssessment);
-  const onCalculatorUse = useCallback((m2: number) => { track({ data: { token, m2 } }).catch(() => {}); }, [track, token]);
   const { data, isLoading, isError, refetch } = useQuery({ queryKey: ["public_estimate", token], queryFn: () => fn({ data: { token } }) as Promise<Payload>, retry: false, refetchOnWindowFocus: false, staleTime: Infinity });
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -67,7 +64,7 @@ function PublicEstimatePage() {
              {data.job.job_number && <p className="mb-4 px-1 text-xs font-medium text-estimate-navy/70">Reference {data.job.job_number}</p>}
              {showConfirm
                 ? <ConfirmQuote estimatedPrice={standard.estimated_customer_total} assessmentFee={fee} state={data.assessment} testMode={data.assessmentTestMode} busy={busy} error={actionError} onAccept={acceptCurrent} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
-                 : <div className="estimate-offset overflow-hidden rounded-2xl border border-estimate-blue-soft bg-estimate-white px-5 py-7 sm:px-10 sm:py-11"><CustomerEstimate data={data.estimate} publicPage propertyAddress={data.job.address} onCalculatorUse={onCalculatorUse} onReadyCheck={openReadyCheck} /></div>}
+                 : <div className="estimate-offset overflow-hidden rounded-2xl border border-estimate-blue-soft bg-estimate-white px-5 py-7 sm:px-10 sm:py-11"><CustomerEstimate data={data.estimate} publicPage onReadyCheck={openReadyCheck} /></div>}
              {!showConfirm && data.referralShareUrl && <ReferralShare url={data.referralShareUrl} />}
           </>}
       </main>

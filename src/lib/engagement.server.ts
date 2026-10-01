@@ -53,14 +53,6 @@ export async function recordEstimateView(jobId: string, linkId: string) {
   await recordEngagement({ jobId, linkId, type: "estimate_viewed", source: "estimate_page", dedupeKey: dedupe.view(linkId) });
 }
 
-/** Calculator use by secure token (job id never leaves the server). One event per link per day. */
-export async function recordCalculatorUse(token: unknown, m2: number) {
-  if (!isWellFormedToken(token) || !Number.isFinite(m2)) return;
-  const { data: l } = await admin.from("customer_estimate_links").select("id, job_id, status, expires_at").eq("token", token).eq("purpose", LINK_PURPOSE).maybeSingle();
-  if (!l || !linkUsable(l)) return;
-  await recordEngagement({ jobId: l.job_id, linkId: l.id, type: "calculator_used", source: "estimate_page", metadata: { area_band: areaBand(m2) }, dedupeKey: dedupe.calc(l.id) });
-}
-
 export async function suppressFollowups(jobId: string, reason: string) {
   const { data } = await admin.from("customer_followups").update({ status: "suppressed", suppression_reason: reason, lease_until: null }).eq("job_id", jobId).in("status", ["pending", "queued", "failed"]).select("id, kind");
   for (const f of data ?? []) await recordEngagement({ jobId, type: "followup_suppressed", metadata: { followup_kind: f.kind, reason }, dedupeKey: dedupe.followup(f.id, "suppressed") });

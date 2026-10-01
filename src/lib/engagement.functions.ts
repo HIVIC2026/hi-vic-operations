@@ -2,15 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-/** Public, no-login: the secure token is the only credential. Server dedupes to one event per link per day. */
-export const trackCalculatorUse = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ token: z.string().max(200), m2: z.number().finite().min(0).max(10000) }).parse(d))
-  .handler(async ({ data }) => {
-    const { recordCalculatorUse } = await import("./engagement.server");
-    await recordCalculatorUse(data.token, data.m2).catch(() => {});
-    return { ok: true };
-  });
-
 export const getAdminEngagement = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
