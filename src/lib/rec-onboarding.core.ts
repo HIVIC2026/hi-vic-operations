@@ -37,11 +37,11 @@ export function acknowledgementsFor(d: RecData) {
 }
 
 export const RECT_ITEMS = [
-  { key: "prohibited_luminaires", label: "IC / IC-4 light replacement", unit: "light" },
-  { key: "circuit_protection", label: "Circuit protection / derating", unit: "circuit" },
-  { key: "rcd_installation", label: "RCD installation", unit: "circuit" },
-  { key: "tps_cable_replacement", label: "TPS cable replacement", unit: "metre" },
-  { key: "basic_protection", label: "Basic Protection repair", unit: "defect" },
+  { key: "prohibited_luminaires", rateCode: "DOWNLIGHT_UPGRADE", label: "Downlight upgrade to IC-4 LED", unit: "light" },
+  { key: "circuit_protection", rateCode: "SWITCHBOARD_UPGRADE", label: "Switchboard upgrade", unit: "switchboard" },
+  { key: "rcd_installation", rateCode: "RCD_INSTALL", label: "RCD installation", unit: "RCD" },
+  { key: "tps_cable_replacement", rateCode: "TPS_CABLE_REPLACEMENT", label: "TPS cable replacement", unit: "metre" },
+  { key: "basic_protection", rateCode: "EXHAUST_CLEARANCE", label: "Exhaust fan clearance guard", unit: "guard" },
 ] as const;
 
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -52,7 +52,7 @@ export const CAPACITY_BANDS = [{ v: "1-5", n: 5 }, { v: "6-10", n: 10 }, { v: "1
 export type Electrician = { full_legal_name?: string; licence_number?: string; mobile?: string; email?: string };
 export type ResolvedAddress = {
   label: string; street?: string | null; suburb?: string | null; postcode?: string | null;
-  state?: string | null; country?: string | null; latitude?: number | null; longitude?: number | null;
+  state?: string | null; country: "AU"; provider: "google_places_au"; latitude?: number | null; longitude?: number | null;
 };
 export type CustomRectificationRate = { id: string; description: string; unit: string; price: number | null };
 export type RecData = {
@@ -156,7 +156,8 @@ export function validBusinessEmail(e?: string) {
 const txt = (s?: string) => (s ?? "").trim().length > 0;
 const pos = (n?: number | null) => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= 100000;
 const stateCode = (state?: string | null) => (state ?? "").trim().toUpperCase();
-export const isAustralianAddress = (address?: ResolvedAddress | null) => !!address && ["AU", "AUS", "AUSTRALIA", ""].includes(stateCode(address.country)) && txt(address.state ?? undefined) && txt(address.postcode ?? undefined);
+const AU_STATES = new Set(["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"]);
+export const isAustralianAddress = (address?: ResolvedAddress | null) => !!address && address.provider === "google_places_au" && address.country === "AU" && AU_STATES.has(stateCode(address.state)) && /^\d{4}$/.test(address.postcode ?? "");
 export const isVictorianAddress = (address?: ResolvedAddress | null) => isAustralianAddress(address) && ["VIC", "VICTORIA"].includes(stateCode(address?.state));
 export const customRateCode = (id: string) => `CUSTOM_${id.replace(/[^A-Za-z0-9]/g, "").toUpperCase()}`.slice(0, 40);
 
@@ -193,7 +194,7 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (!txt(d.licence_number)) e.push("Enter your Victorian electrician licence number.");
       if (!validPhone(d.business_phone)) e.push("Enter a valid Australian mobile.");
       if (!validBusinessEmail(d.business_email)) e.push("Enter a real email address.");
-      if (d.works_under_rec == null) e.push("Tell us if you are the REC or you work under a REC.");
+      if (d.works_under_rec == null) e.push("Tell us if you are registering the REC business or joining as staff.");
       break;
     case "business":
       if (!txt(d.legal_entity_name)) e.push(d.works_under_rec === true ? "Enter your full legal name." : "Enter the legal entity / REC registered name.");
