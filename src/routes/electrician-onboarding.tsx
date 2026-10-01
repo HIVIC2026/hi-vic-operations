@@ -10,7 +10,6 @@ import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
 } from "@/lib/rec-onboarding.functions";
 import { loadTeamInvite, respondTeamInvite } from "@/lib/teaming.functions";
-import { HowItWorksElectrician } from "@/components/portal/how-it-works";
 import { defaultAddressProvider } from "@/lib/address-provider";
 import type { AddressSuggestion } from "@/lib/whatif-location";
 
@@ -301,15 +300,9 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       return <>
         <div style={infoCard}>First things first — so we know who we're talking to. We'll use your name throughout.</div>
         <Field label="Your name" required><input style={input} autoFocus placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
+        <Field label="Your Victorian electrician licence number" required hint="Your personal ESV licence — you're the electrician, so this is you"><input style={input} {...t("licence_number", true)} /></Field>
         <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
         <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
-      </>;
-    case "howitworks":
-      return <>
-        <HowItWorksElectrician />
-        <div style={{ marginTop: 16 }}>
-          <Check checked={d.how_it_works_acknowledged === true} onChange={(v) => up({ how_it_works_acknowledged: v })}>I've read how jobs work, the same-day rule and the payment terms.</Check>
-        </div>
       </>;
     case "business":
       return <>
@@ -337,24 +330,6 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       </>;
     case "insurance":
       return <InsuranceStep d={d} up={up} token={token} setError={setError} />;
-    case "electricians": {
-      const list = d.electricians ?? [];
-      const set = (i: number, p: Partial<NonNullable<RecData["electricians"]>[number]>) => up({ electricians: list.map((x, j) => (j === i ? { ...x, ...p } : x)) });
-      return <>
-        <div style={infoCard}>You only need to add ONE electrician to continue. Add more only if they may attend Home Insulation Victoria jobs.</div>
-        {list.map((x, i) => (
-          <div key={i} style={{ border: "1px solid #E4E8F0", borderRadius: 14, padding: 14, marginBottom: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><strong>Electrician {i + 1}</strong>
-              <button type="button" onClick={() => up({ electricians: list.filter((_, j) => j !== i) })} style={{ border: "none", background: "none", color: "#B3261E", cursor: "pointer", fontWeight: 700 }}>Remove</button></div>
-            <Field label="Full legal name" required><input style={input} value={x.full_legal_name ?? ""} onChange={(e) => set(i, { full_legal_name: e.target.value })} /></Field>
-            <Field label="Victorian licence number" required><input style={input} value={x.licence_number ?? ""} onChange={(e) => set(i, { licence_number: e.target.value.toUpperCase() })} /></Field>
-            <Field label="Mobile" required><input style={input} type="tel" value={x.mobile ?? ""} onChange={(e) => set(i, { mobile: e.target.value })} /></Field>
-            <Field label="Email" required><input style={input} type="email" value={x.email ?? ""} onChange={(e) => set(i, { email: e.target.value })} /></Field>
-          </div>
-        ))}
-        <button type="button" style={btn(false)} onClick={() => up({ electricians: [...list, {}] })}>+ Add electrician</button>
-      </>;
-    }
     case "services":
       return <>
         <div style={infoCard}><strong>Included for all electrical partners:</strong> Initial onsite assessment + ceiling measure-up + PIESA</div>
