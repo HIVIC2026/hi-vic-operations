@@ -28,10 +28,10 @@
 - [ ] Browser-verify owner/electrician/installer job views as those roles
 - [ ] Confirm: $349 one total vs each; $220 inc/ex GST; own-electrician price + AP fee combination
 - [x] Public client calculator page (light one-screen, live cost, no sign-in) — built; needs publishing to give clients the permanent link
-- [ ] Calculator: fix the bottom of the page — user says it looks horrible at their window size (898px wide)
-- [ ] Calculator: question labels and hints are too light — darken for readability
-- [ ] Calculator: "What this includes" panel — Ready Check $0 and its value, electrical safety assessment + PIESA by a licensed electrician, install by an EEC-certified installer, Home Insulation Victoria as Accredited Person handling paperwork and rebate claim
-- [ ] Calculator: "Register my interest" lead capture (name, mobile, email, address, ceiling size) stored in the database with consent — no messages sent, no job created
+- [x] Calculator: fix the bottom of the page — footer split into two short lines, pink tint removed, sticky bar tightened
+- [x] Calculator: question labels and hints darkened for readability
+- [x] Calculator: "What this includes" panel — Ready Check $0 and its value, electrical safety assessment + PIESA, EEC-certified installer, Home Insulation Victoria as Accredited Person
+- [x] Calculator: "Register my interest" lead capture (name, mobile, email, address) stored with consent — no messages sent, no job created
 
 
 
