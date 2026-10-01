@@ -51,7 +51,7 @@ const dataSchema = z.object({
   agreement_reviewed: z.boolean().optional(),
 }).strict();
 
-function publicView(app: { status: string; step_key: string | null; data: unknown; insurance_certificate_path: string | null; signed_at: string | null; agreement_version: string | null; test_mode?: boolean }) {
+function publicView(app: { status: string; step_key: string | null; data: unknown; insurance_certificate_path: string | null; signed_at: string | null; agreement_version: string | null; test_mode?: boolean; updated_at?: string | null }) {
   return { status: app.status, step_key: app.step_key, data: { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path }, signed_at: app.signed_at, agreement_version: app.agreement_version, test_mode: !!app.test_mode, updated_at: "updated_at" in app ? String(app.updated_at) : null };
 }
 

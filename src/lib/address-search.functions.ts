@@ -32,5 +32,5 @@ export const addressDetails = createServerFn({ method: "POST" })
     const r = await call({ action: "details", placeId: data.placeId });
     const a = (r["address"] ?? null) as Record<string, unknown> | null;
     if (!a) return null;
-    return { label: str(a["label"]) ?? "", street: str(a["street"]), suburb: str(a["suburb"]), postcode: str(a["postcode"], 10), state: str(a["state"], 20), latitude: num(a["latitude"]), longitude: num(a["longitude"]) };
+    return { label: str(a["label"]) ?? "", street: str(a["street"]), suburb: str(a["suburb"]), postcode: str(a["postcode"], 10), state: str(a["state"], 20), country: "AU", latitude: num(a["latitude"]), longitude: num(a["longitude"]) };
   });
