@@ -61,7 +61,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string, cal
   if (!templateId) throw new WorkflowError(measureOnly ? MEASUREUP_TEMPLATE_MISSING : PIESA_TEMPLATE_MISSING);
 
   const [{ data: prop }, { data: owner }, { data: asg }, { data: booking }, { data: a }] = await Promise.all([
-    admin.from("properties").select("address_line,suburb,state,postcode,occupancy").eq("id", job.property_id).single(),
+    admin.from("properties").select("address_line,suburb,state,postcode,occupancy,enrichment").eq("id", job.property_id).single(),
     admin.from("owners").select("full_name,email,phone").eq("id", job.owner_id).single(),
     admin.from("job_assignments").select("user_id, profiles:user_id(full_name,email)").eq("job_id", jobId).eq("role", role).eq("active", true).maybeSingle(),
     admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "assessment").neq("status", "cancelled").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
