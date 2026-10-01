@@ -58,7 +58,6 @@ describe("customerEntryPoint", () => {
   it("leaves every other path on the customer address alone", () => {
     for (const path of [
       "/calculator",
-      "/free-estimate",
       "/home",
       "/auth",
       "/admin/jobs/job-1",

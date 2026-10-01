@@ -4,9 +4,8 @@ import { renderFollowupEmail } from "@/lib/followup-email";
 import { renderCoverageUnavailableEmail } from "@/lib/coverage-email";
 import { renderEstimateEmail, renderIneligibleOutcomeEmail, PUBLIC_CALCULATOR_URL } from "@/lib/estimate-email";
 import { withUnsubscribe } from "@/lib/emailsafety.core";
-import { AreaCalculator, ConfirmQuote } from "@/components/portal/estimate";
+import { ConfirmQuote } from "@/components/portal/estimate";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
-import { lookupLocation } from "@/lib/activity48.core";
 import type { RetailSettings } from "@/lib/estimate.core";
 import { CUSTOMER_BRAND, CUSTOMER_QUOTE_LABELS } from "@/lib/customer-quote-system";
 import type { ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
@@ -30,7 +29,6 @@ const previewSettings: RetailSettings = {
   veec_value_checked_at: "2026-09-29", minimum_customer_copayment_inc_gst: 200,
   spec_version: "25.0", spec_source_url: "https://www.energy.vic.gov.au/",
 };
-const previewLocation = lookupLocation("3336");
 const quote = {
   estimateUrl,
   estimatedTotal: SAMPLE_CUSTOMER,
@@ -88,7 +86,7 @@ function EmailPreview() {
   const [view, setView] = useState<"fit" | "desktop" | "mobile">("fit");
   const [outcome, setOutcome] = useState<keyof typeof samples>("likely");
   const [hasExistingInsulation, setHasExistingInsulation] = useState(false);
-  const [previewKind, setPreviewKind] = useState<"email" | "calculator" | "confirm" | "measured">("email");
+  const [previewKind, setPreviewKind] = useState<"email" | "confirm" | "measured">("email");
   const [piesaCase, setPiesaCase] = useState<PiesaPreviewCase>("higher");
   const [testState, setTestState] = useState<"unaccepted" | "accepted">("unaccepted");
   const [emailHeight, setEmailHeight] = useState(2050);
@@ -120,7 +118,6 @@ function EmailPreview() {
        </div>
        <div className="mb-4 flex flex-wrap gap-2" aria-label="Preview screen">
          <button type="button" aria-pressed={previewKind === "email"} className={btn} style={pill(previewKind === "email")} onClick={() => setPreviewKind("email")}>Email</button>
-          {outcome === "onsite" && <button type="button" aria-pressed={previewKind === "calculator"} className={btn} style={pill(previewKind === "calculator")} onClick={() => setPreviewKind("calculator")}>Calculator</button>}
            {isQuote && <button type="button" aria-pressed={previewKind === "confirm"} className={btn} style={pill(previewKind === "confirm")} onClick={() => setPreviewKind("confirm")}>Free Insulation Measure-Up & Eligibility Check (test)</button>}
           {isQuote && <button type="button" aria-pressed={previewKind === "measured"} className={btn} style={pill(previewKind === "measured")} onClick={() => setPreviewKind("measured")}>Measured quote + PIESA (test)</button>}
        </div>
@@ -143,7 +140,7 @@ function EmailPreview() {
         <h2 className="mb-3 text-sm font-extrabold uppercase" style={{ color: "#3C51C4" }}>{view === "fit" ? "Responsive fit" : view === "desktop" ? "Desktop · 640px" : "Mobile · 390px"}</h2>
           {previewKind === "measured" ? <div className="mx-auto max-w-full" style={{ width: width ?? "100%" }}><MeasuredQuoteSample insulation={SAMPLE_INSTALL} piesa={PIESA_FEE} ap={AP_FEE} discount={SAMPLE_DISCOUNT} existingInsulation={hasExistingInsulation} piesaCase={piesaCase} /></div> : previewKind === "email" ? <div className="mx-auto max-w-full overflow-x-auto" style={width ? { width } : undefined}>
              <iframe key={`${outcome}-${view}-${hasExistingInsulation}`} title={`${outcome} email`} srcDoc={srcDoc} sandbox="allow-same-origin" onLoad={(event) => { const frame = event.currentTarget; const doc = frame.contentDocument; const measure = () => { const measured = doc?.querySelector(".hiv-main")?.getBoundingClientRect().bottom; if (measured) setEmailHeight(Math.ceil(measured) + 38); }; measure(); for (const ms of [250, 900, 2000]) window.setTimeout(measure, ms); doc?.fonts?.ready.then(measure).catch(() => {}); doc?.querySelectorAll("img").forEach((img) => img.addEventListener("load", measure, { once: true })); }} className="block max-w-full border-0" style={{ width: width ?? "100%", height: emailHeight, background: "#FBFCFA" }} />
-            </div> : previewKind === "calculator" && previewLocation ? <div className="estimate-brand mx-auto max-w-full overflow-hidden bg-estimate-canvas" style={{ width: width ?? "100%" }}><EstimateHeader /><div className="px-4 pb-10"><AreaCalculator calc={{ location: previewLocation, insulation: hasExistingInsulation ? "present" : "none", settings: previewSettings }} initial={150} fees={{ piesa: PIESA_FEE, ap: AP_FEE, minCopay: 200 }} propertyAddress="30 Dash St, Fraser Rise VIC 3336" preview /></div></div> : <div className="estimate-brand mx-auto max-w-full overflow-hidden bg-estimate-canvas" style={{ width: width ?? "100%" }}><EstimateHeader /><div className="px-4 pb-10"><ConfirmQuote key={testState} estimatedPrice={SAMPLE_CUSTOMER} assessmentFee={PIESA_FEE} preview testMode state={previewAcceptance} onAccept={() => setTestState("accepted")} onBack={() => setPreviewKind("email")} /></div></div>}
+            </div> : <div className="estimate-brand mx-auto max-w-full overflow-hidden bg-estimate-canvas" style={{ width: width ?? "100%" }}><EstimateHeader /><div className="px-4 pb-10"><ConfirmQuote key={testState} estimatedPrice={SAMPLE_CUSTOMER} assessmentFee={PIESA_FEE} preview testMode state={previewAcceptance} onAccept={() => setTestState("accepted")} onBack={() => setPreviewKind("email")} /></div></div>}
          {previewKind === "confirm" && isQuote && <div className="mb-4 flex flex-wrap gap-2" aria-label="Test request state">{(["unaccepted", "accepted"] as const).map((item) => <button key={item} type="button" className={btn} aria-pressed={testState === item} style={pill(testState === item)} onClick={() => setTestState(item)}>{item}</button>)}</div>}
        {isQuote && <div className="mb-4 flex flex-wrap gap-2" aria-label="Existing insulation sample">
          <button type="button" aria-pressed={!hasExistingInsulation} className={btn} style={pill(!hasExistingInsulation)} onClick={() => setHasExistingInsulation(false)}>No existing insulation</button>
