@@ -5,7 +5,8 @@
 - [x] Launch fixes in test copy (booking atomic, licence guard, Ready Check order proof); pricing questions shown verbatim
 - [x] Migrations 0071, 0072, 0073 applied to live with checks
 - [x] 0074 staged in throwaway database with undo script tested; live apply waiting on Jo
-- [ ] Pricing questions C01–C04: waiting on Jo to confirm which are settled
+- [x] C01–C04 recorded and enforced in code (unpublished): two separate $349 lines; installer's own price passes through with no markup plus our two set fees; no lead fee; AP fee changeable only by Jo; Ready Check sheet for installers not yet on site; unsupplied items carried to the PIISA
+- [ ] AP fee after quote acceptance stays locked for everyone including Jo — confirm with her whether a post-acceptance change should exist (would need customer reconfirmation rules)
 - [ ] Old electrician-visit path: waiting on Jo's decision (Ready Check not guaranteed before PIESA on it)
 - [x] Official PIESA/PIISA forms Parts 1–4: correct both forms, printed-rule checks, template records, re-run comparison (keep blocked until Jo approves + source URLs confirmed)
 - [x] Signed-copy storage (0075 staged + throwaway-tested), PIISA wired into central gate, rules A/B fail-closed
