@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
-  ACKNOWLEDGEMENTS, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION,
+  acknowledgementsFor, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION,
   firstName, stepErrors, firstIncompleteStep, validAbn, visibleSteps, type RecData, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
