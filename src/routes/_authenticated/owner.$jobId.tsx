@@ -26,7 +26,7 @@ function OwnerJob() {
   if (!job) return <AppShell><p className="text-muted-foreground">Loading…</p></AppShell>;
   const s = job.stage!;
   const pct = Math.max(5, Math.round(((STAGE_ORDER.indexOf(s) + 1) / STAGE_ORDER.length) * 100));
-  const bookKind = s === "rectification_scheduling" || s === "rectification_booked" ? "rectification" : s === "installation_scheduling" || s === "installation_booked" ? "installation" : s === "assessment_booking" || s === "assessment_booked" ? "assessment" : null;
+  const bookKind = s === "rectification_scheduling" || s === "rectification_booked" ? "rectification" : s === "installation_scheduling" || s === "installation_booked" ? "installation" : null; // legacy assessment bookings retired
   return (
     <AppShell>
       <WhoHasTheBall jobId={jobId} />

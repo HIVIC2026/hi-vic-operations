@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { DEFAULT_NEXT_ACTION, STAGE_LABEL, type JobRole, type Stage } from "./workflow";
+import { DEFAULT_NEXT_ACTION, STAGE_LABEL, retiredStageBlocker, type JobRole, type Stage } from "./workflow";
 
 export class WorkflowError extends Error {}
 
@@ -16,8 +16,8 @@ type Sb = SupabaseClient<Database>;
  */
 export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
   // Eligible jobs go to the free installer Ready Check first; the electrician PIESA comes later (piesa_and_install_window_pending).
-  new_enquiry: ["eligibility_review", "ready_check_ready_to_schedule", "ready_check_complete", "preliminary_estimate_ready", "awaiting_electrician"],
-  eligibility_review: ["ready_check_ready_to_schedule", "ready_check_complete", "preliminary_estimate_ready", "awaiting_electrician"],
+  new_enquiry: ["eligibility_review", "ready_check_ready_to_schedule", "ready_check_complete", "preliminary_estimate_ready"],
+  eligibility_review: ["ready_check_ready_to_schedule", "ready_check_complete", "preliminary_estimate_ready"],
   // Ready Check pathway. NO electrician-review stage between ready_check_complete and measured_estimate_ready.
   preliminary_estimate_ready: ["ready_check_awaiting_acceptance", "ready_check_ready_to_schedule"],
   ready_check_awaiting_acceptance: ["ready_check_ready_to_schedule"],
@@ -32,9 +32,10 @@ export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
   piesa_scheduled: ["piesa_complete", "piesa_and_install_window_pending"],
   piesa_complete: ["electrical_variation_pending", "rectification_scheduling", "installation_scheduling", "awaiting_deposit_payment"],
   electrical_variation_pending: ["rectification_scheduling", "installation_scheduling", "awaiting_deposit_payment"],
-  awaiting_electrician: ["assessment_booking", "eligibility_review", "ready_check_ready_to_schedule", "ready_check_complete"], // back-step only for admin eligibility correction
-  assessment_booking: ["assessment_booked"],
-  assessment_booked: ["assessment_complete", "assessment_booking"],
+  // Retired legacy path: entry is blocked (retiredStageBlocker); exits only lead back to the Ready Check-first flow.
+  awaiting_electrician: ["eligibility_review", "ready_check_ready_to_schedule", "ready_check_complete"],
+  assessment_booking: ["assessment_booked", "ready_check_ready_to_schedule"],
+  assessment_booked: ["assessment_complete", "assessment_booking", "ready_check_ready_to_schedule"],
   assessment_complete: ["rectification_required", "ready_for_installer_quotes"],
   rectification_required: ["awaiting_owner_rectification_approval"],
   awaiting_owner_rectification_approval: ["ready_for_installer_quotes", "rectification_required"],
@@ -193,6 +194,8 @@ export async function measurementBlocker(jobId: string): Promise<string | null> 
 }
 
 export async function stageEntryBlockers(jobId: string, to: Stage): Promise<string[]> {
+  const retired = retiredStageBlocker(to);
+  if (retired) return [retired]; // server-side: stale clients / direct calls cannot re-enter the legacy path
   const blockers: string[] = [];
   blockers.push(...(await readyCheckBlockers(jobId, to)));
   if (["assessment_booked", "assessment_complete", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"].includes(to)) {
