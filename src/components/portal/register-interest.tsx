@@ -152,6 +152,7 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
               <>
                 <AddressCombobox
                   id="register-address"
+                  tone="dark"
                   value={line}
                   onChange={(next) => {
                     addressTouched.current = true;
