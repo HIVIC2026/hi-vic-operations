@@ -35,5 +35,5 @@ export function apFeeOverrideBlocker(input: {
 
 /** Can this sign-in change the fee? Used to decide whether to show the editor at all. */
 export function canChangeApFee(actorId: string | null, allowedUserIds: readonly string[]): boolean {
-  return apFeeOverrideBlocker({ actorId, allowedUserIds, reason: "placeholder".repeat(1) }) === null;
+  return allowedUserIds.length > 0 && !!actorId && allowedUserIds.includes(actorId);
 }
