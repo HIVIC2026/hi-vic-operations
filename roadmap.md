@@ -64,3 +64,5 @@
 - [x] Register form: name, mobile, email only; address prefilled from the calculator
 - Calculator heading font: apply the brand display font (Space Grotesk) + DM Sans body
 - Calculator: property question = full address with type-ahead autofill (not postcode); register band carries that address down
+- Calculator heading font: Space Grotesk rejected by Joannah - pick a new display font
+- Calculator: darken remaining light grey text (placeholders, hints, suffixes)
