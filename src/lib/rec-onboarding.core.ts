@@ -2,10 +2,12 @@
 // No I/O. Used by the public form (live validation) and the server (authoritative checks).
 import { REC_AGREEMENT_SECTIONS } from "./rec-agreement.text";
 
-export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-2.0-2026-10-01";
+export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-2.1-2026-10-01";
 export const REC_AGREEMENT_TITLE = "Activity 48 Registered Electrical Contractor Partner Agreement";
 export const AP_ENTITY = "DC Construction Solutions Pty Ltd ABN 44 671 613 979 trading as Home Insulation Victoria";
+/** Installer onboarding retains its separately approved $5m requirement. */
 export const MIN_PL_COVER = 5_000_000;
+export const MIN_REC_PL_COVER = 10_000_000;
 
 export const ACKNOWLEDGEMENTS = [
   { key: "authority", text: "I am authorised to bind the REC to this agreement." },
@@ -219,7 +221,7 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (d.insurance_uploaded !== true) e.push("Upload your Certificate of Currency.");
       if (!txt(d.insurer)) e.push("Enter the insurer.");
       if (!txt(d.insurance_policy_number)) e.push("Enter the policy number.");
-      if (!(typeof d.public_liability_cover_amount === "number" && d.public_liability_cover_amount >= MIN_PL_COVER)) e.push("Public liability cover must be at least $5,000,000.");
+      if (!(typeof d.public_liability_cover_amount === "number" && d.public_liability_cover_amount >= MIN_REC_PL_COVER)) e.push("Product and public liability cover must be at least $10,000,000.");
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d.public_liability_expiry ?? "") || (d.public_liability_expiry as string) < melbourneToday(now)) e.push("Insurance expiry must be today or later.");
       break;
     case "services":

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
-  acknowledgementsFor, agreementText, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION,
+  acknowledgementsFor, agreementText, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION, MIN_REC_PL_COVER,
   applyMaterialReset, firstName, isAustralianAddress, isVictorianAddress, parseRecSampleStep, stepErrors, firstIncompleteStep, validAbn, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
@@ -506,8 +506,8 @@ function InsuranceStep({ d, up, token, setError, preview }: { d: RecData; up: (p
           const ok = [d.legal_entity_name, d.trading_name].some((b) => { const m = norm(b); return !!m && (n.includes(m) || m.includes(n)); });
           if (!ok) notes.push(`The certificate is in the name "${x.insured_name}", which doesn't match your business name. Please check you uploaded the right certificate.`);
         } else notes.push("We couldn't read the insured business name — please check the certificate.");
-        if (x.is_public_liability === false) notes.push("This doesn't look like a public liability certificate.");
-        if (x.cover_amount && x.cover_amount < 5_000_000) notes.push("Cover shown is under the $5,000,000 minimum.");
+        if (x.is_public_liability === false) notes.push("This doesn't look like a product and public liability certificate.");
+        if (x.cover_amount && x.cover_amount < MIN_REC_PL_COVER) notes.push("Cover shown is under the $10,000,000 minimum.");
         if (x.expiry && x.expiry < new Date().toISOString().slice(0, 10)) notes.push("This certificate appears to have expired.");
         setFound(x.insured_name ? `We read the certificate for ${x.insured_name} and filled in the details below — please check them.` : "We filled in what we could read below — please check the details.");
       } else setFound("We couldn't read the certificate automatically — please enter the details below.");
@@ -526,7 +526,7 @@ function InsuranceStep({ d, up, token, setError, preview }: { d: RecData; up: (p
     {warnings.map((w) => <div key={w} style={{ ...infoCard, borderColor: "#E0A100", background: "#FFF8E6" }}>⚠ {w}</div>)}
     <Field label="Insurer" required><input style={input} value={d.insurer ?? ""} onChange={(e) => up({ insurer: e.target.value })} /></Field>
     <Field label="Policy number" required><input style={input} value={d.insurance_policy_number ?? ""} onChange={(e) => up({ insurance_policy_number: e.target.value })} /></Field>
-    <Field label="Public liability cover" required hint="Minimum $5,000,000"><Money value={d.public_liability_cover_amount} onChange={(v) => up({ public_liability_cover_amount: v })} /></Field>
+    <Field label="Product and public liability cover" required hint="Minimum $10,000,000; product cover must be appropriate for any electrical goods you supply"><Money value={d.public_liability_cover_amount} onChange={(v) => up({ public_liability_cover_amount: v })} /></Field>
     <Field label="Expiry date" required><input style={{ ...input, maxWidth: 220 }} type="date" value={d.public_liability_expiry ?? ""} onChange={(e) => up({ public_liability_expiry: e.target.value })} /></Field>
   </>;
 }

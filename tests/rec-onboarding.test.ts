@@ -62,8 +62,9 @@ describe("rec onboarding", () => {
     expect(stepErrors("business", { ...under, host_rec_name: undefined })).toContain("Enter the REC business you work under.");
     expect(stepErrors("about", { works_under_rec: null, primary_contact_name: "Sam", licence_number: "A12345", business_phone: "0412345678", business_email: "sam@example.com" })).toContain("Tell us if you are registering the REC business or joining as staff.");
   });
-  test("insurance under $5M and expired rejected", () => {
-    expect(stepErrors("insurance", { ...full, public_liability_cover_amount: 4_999_999 }).length).toBe(1);
+  test("REC insurance under $10M and expired rejected", () => {
+    expect(stepErrors("insurance", { ...full, public_liability_cover_amount: 9_999_999 })).toContain("Product and public liability cover must be at least $10,000,000.");
+    expect(stepErrors("insurance", { ...full, public_liability_cover_amount: 10_000_000 })).toEqual([]);
     expect(stepErrors("insurance", { ...full, public_liability_expiry: "2000-01-01" }).length).toBe(1);
   });
   test("PIESA rate always required", () => {
@@ -84,7 +85,9 @@ describe("rec onboarding", () => {
   });
   test("agreement text includes markup clause, schedules and all 8 acknowledgements", () => {
     const t = agreementText(full);
-    expect(t).toContain("HI-VIC-A48-REC-2.0-2026-10-01");
+    expect(t).toContain("HI-VIC-A48-REC-2.1-2026-10-01");
+    expect(t).toContain("product and public liability insurance of at least $10,000,000");
+    expect(t).toContain("six years after the record was made or the relevant transaction was completed, whichever is later");
     expect(t).toContain("is not the customer-facing price");
     expect(t).toContain("does not depend on Home Insulation Victoria receiving payment from the customer");
     expect(t).toContain("Pre-insulation electrical safety assessment (PIESA): $300.00 / visit");
