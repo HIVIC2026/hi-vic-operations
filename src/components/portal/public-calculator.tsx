@@ -165,7 +165,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
 
         <div className="mt-5 grid overflow-hidden rounded-3xl bg-estimate-white shadow-[0_30px_70px_-45px_rgba(34,55,107,0.45)] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]">
           <div className="space-y-7 px-5 py-6 sm:px-8 sm:py-8">
-            <Question id="calc-address" label="Where is the property?">
+            <Question id="calc-address" n={1} label="Where is the property?">
               <div className="space-y-2.5">
                 <div className="max-w-[420px]">
                   <AddressCombobox
@@ -195,7 +195,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
               </div>
             </Question>
 
-            <Question id="calc-area" label="How big is your ceiling?">
+            <Question id="calc-area" n={2} label="How big is your ceiling?">
               <div className="flex flex-wrap gap-2">
                 {CALC_QUICK.map((q) => {
                   const on = raw === String(q);
@@ -236,7 +236,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
               {raw.trim() !== "" && m2 == null && <p role="alert" className="text-xs font-bold text-danger">Please enter an area between {CALC_MIN_M2} and {CALC_MAX_M2} m².</p>}
             </Question>
 
-            <Question id="calc-insulation" label="Any insulation already up there?">
+            <Question id="calc-insulation" n={3} label="Any insulation already up there?">
               <div className="grid grid-cols-3 gap-2">
                 {INSULATION_OPTIONS.map((o) => {
                   const on = insulation === o.value;
