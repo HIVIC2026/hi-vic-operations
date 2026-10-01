@@ -1,22 +1,23 @@
 import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/react-start";
 
-import { renderErrorPage } from "./lib/error-page";
+import { renderErrorPage, renderReloadPage } from "./lib/error-page";
+import { isConnectionTeardown } from "./lib/http-abort";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
     return await next();
   } catch (error) {
+    // A client that disconnects while loading must never receive an empty
+    // successful-looking document if the response is still deliverable.
+    if (isConnectionTeardown(error)) {
+      return new Response(renderReloadPage(), {
+        status: 503,
+        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+      });
+    }
     if (error != null && typeof error === "object" && "statusCode" in error) {
       throw error;
-    }
-    // The browser closed the connection mid-request (reload/navigation/hot
-    // update). Nobody is waiting for a reply, so don't report it as a crash.
-    const msg = error instanceof Error ? error.message : String(error);
-    const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : "";
-    if (/^aborted$|AbortError|ECONNRESET/i.test(msg) || /^aborted$/i.test(cause) ||
-        (error instanceof Error && error.name === "AbortError")) {
-      return new Response(null, { status: 499 });
     }
     console.error(error);
     return new Response(renderErrorPage(), {

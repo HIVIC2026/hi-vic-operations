@@ -72,4 +72,5 @@
 - [x] Portal menu "Customer calculator" was opening the old test page — now opens the new calculator
 - [x] Calculator: removal note ($10-$15/m² of area requiring removal, installer advises at Ready Check), demand-high badge + green register button, includes order Ready Check → PIESA → install → AP
 - [x] Calculator flow: existing-insulation note moved under its answer, VEU discount made prominent, footer simplified, old test calculator deleted
+- [x] Calculator phone usability: show live price before supporting details, shorten prompts, and verify answer-to-result flow at phone and desktop sizes
 - [x] Blank-screen recovery: a page load that drops part-way now shows "This page needs a refresh" with a working refresh action
