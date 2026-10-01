@@ -3345,6 +3345,227 @@ export type Database = {
           },
         ]
       }
+      external_action_events: {
+        Row: {
+          action_type: string | null
+          actor_id: string | null
+          at: string
+          details: Json
+          event_type: string
+          id: string
+          outbox_id: string | null
+        }
+        Insert: {
+          action_type?: string | null
+          actor_id?: string | null
+          at?: string
+          details?: Json
+          event_type: string
+          id?: string
+          outbox_id?: string | null
+        }
+        Update: {
+          action_type?: string | null
+          actor_id?: string | null
+          at?: string
+          details?: Json
+          event_type?: string
+          id?: string
+          outbox_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_action_events_action_type_fkey"
+            columns: ["action_type"]
+            isOneToOne: false
+            referencedRelation: "external_action_modes"
+            referencedColumns: ["action_type"]
+          },
+          {
+            foreignKeyName: "external_action_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_action_events_outbox_id_fkey"
+            columns: ["outbox_id"]
+            isOneToOne: false
+            referencedRelation: "external_action_outbox"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_action_modes: {
+        Row: {
+          action_type: string
+          mode: string
+          reason: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          action_type: string
+          mode?: string
+          reason?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          action_type?: string
+          mode?: string
+          reason?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_action_modes_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_action_outbox: {
+        Row: {
+          action_type: string
+          approved_at: string | null
+          approved_by: string | null
+          attempt_count: number
+          cancel_reason: string | null
+          cancelled_at: string | null
+          completed_at: string | null
+          completed_ref: string | null
+          created_at: string
+          delivery_basis: string
+          due_at: string | null
+          event_type: string
+          facts_hash: string
+          id: string
+          idempotency_key: string
+          job_id: string
+          last_attempt_at: string | null
+          last_error_code: string | null
+          lease_id: string | null
+          lease_until: string | null
+          payload_ref: string
+          source_event_id: string
+          status: string
+          superseded_by: string | null
+          target_ref: string
+          template_version: string
+        }
+        Insert: {
+          action_type: string
+          approved_at?: string | null
+          approved_by?: string | null
+          attempt_count?: number
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          completed_ref?: string | null
+          created_at?: string
+          delivery_basis: string
+          due_at?: string | null
+          event_type: string
+          facts_hash: string
+          id?: string
+          idempotency_key: string
+          job_id: string
+          last_attempt_at?: string | null
+          last_error_code?: string | null
+          lease_id?: string | null
+          lease_until?: string | null
+          payload_ref: string
+          source_event_id: string
+          status?: string
+          superseded_by?: string | null
+          target_ref: string
+          template_version: string
+        }
+        Update: {
+          action_type?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          attempt_count?: number
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          completed_ref?: string | null
+          created_at?: string
+          delivery_basis?: string
+          due_at?: string | null
+          event_type?: string
+          facts_hash?: string
+          id?: string
+          idempotency_key?: string
+          job_id?: string
+          last_attempt_at?: string | null
+          last_error_code?: string | null
+          lease_id?: string | null
+          lease_until?: string | null
+          payload_ref?: string
+          source_event_id?: string
+          status?: string
+          superseded_by?: string | null
+          target_ref?: string
+          template_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_action_outbox_action_type_fkey"
+            columns: ["action_type"]
+            isOneToOne: false
+            referencedRelation: "external_action_modes"
+            referencedColumns: ["action_type"]
+          },
+          {
+            foreignKeyName: "external_action_outbox_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_action_outbox_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_action_outbox_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "external_action_outbox_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_action_outbox_source_event_id_fkey"
+            columns: ["source_event_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_action_outbox_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "external_action_outbox"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       external_sync_logs: {
         Row: {
           created_at: string
@@ -8764,6 +8985,20 @@ export type Database = {
         Returns: boolean
       }
       customer_followups_tick: { Args: { _url: string }; Returns: number }
+      enqueue_external_action: {
+        Args: {
+          _action: string
+          _basis: string
+          _event: string
+          _facts: string
+          _job: string
+          _key: string
+          _payload: string
+          _target: string
+          _version: string
+        }
+        Returns: string
+      }
       format_property_address: {
         Args: {
           _address_line: string
@@ -8796,6 +9031,24 @@ export type Database = {
       job_deposit_cleared: { Args: { _job: string }; Returns: boolean }
       my_job_role: { Args: { _job: string }; Returns: string }
       post_intake_tick: { Args: { _url: string }; Returns: number }
+      review_external_action: {
+        Args: {
+          _actor: string
+          _id: string
+          _operation: string
+          _reason: string
+        }
+        Returns: undefined
+      }
+      set_external_action_mode: {
+        Args: {
+          _action: string
+          _actor: string
+          _mode: string
+          _reason: string
+        }
+        Returns: undefined
+      }
       shares_job_with: { Args: { _profile: string }; Returns: boolean }
     }
     Enums: {
