@@ -270,7 +270,7 @@ export function parseAudit(audit: Any) {
     const removal = /^(remove|must be removed)/.test(action) ? true : /^(top up|can be topped up)/.test(action) ? false : yesNo(val(kids, ["Removal required"]));
     if (/not sure/.test(action)) issues.push("A ceiling area's existing insulation is marked 'Not sure' – office review required.");
     const removalType = val(kids, ["Insulation type (tick all that apply)", "Existing insulation type", "Insulation type to remove"]);
-    return { m2: m2.value, state, removal, removalType };
+    return { parent: p, m2: m2.value, state, removal, removalType };
   });
   if (rooms.length > 0) {
     if (rooms.some((r) => r.m2 == null || r.m2 <= 0)) issues.push("A room's measured area was missing or invalid – whole-house area not taken from Mitti; office review required.");
@@ -312,22 +312,25 @@ export function parseAudit(audit: Any) {
   }
   const rv = note(physical(val(entries, ["Existing R-value", "Measured R-value", "Confirmed R-value", "Existing insulation R-value"]), "Existing R-value"));
   if (rv != null && patch.insulation_present !== false) patch.existing_r_value = rv;
-  const method = val(entries, ["How the ceiling was measured", "Measurement method"]);
+  const method = val(entries, ["How was the ceiling measured?", "How the ceiling was measured", "Measurement method"]);
   if (method) patch.notes = [patch.notes, `Measured by: ${method}`].filter(Boolean).join(". ").slice(0, 4000);
   else if (rooms.length > 0) issues.push("Measurement method not captured – how the ceiling was measured must be documented.");
 
-  const acc = norm(val(entries, ["Ceiling access", "Access difficulty", "Roof space access"]));
+  const acc = norm(val(entries, ["How easy is the ceiling access?", "Ceiling access", "Access difficulty", "Roof space access"]));
   if (acc) { const a = /difficult|hard|restricted/.test(acc) ? "difficult" : /moderate|medium/.test(acc) ? "moderate" : /easy|good/.test(acc) ? "easy" : null; if (a) patch.access_difficulty = a; else issues.push("Ceiling access answer not recognised."); }
 
   const setInt = (k: keyof AssessmentPatch, aliases: string[]) => { const e = find(entries, aliases, { withValue: true }); const n = note(count(e?.value ?? null, e?.label ?? aliases[0]!)); if (n != null) (patch as Any)[k] = n; };
   setInt("downlights_upgrade_qty", ["Downlights requiring upgrade", "Downlights to upgrade", "Downlight upgrade qty"]);
-  setInt("downlights_qty", ["Total number of luminaires", "Number of downlights", "Downlights qty", "Downlight count", "Downlights"]);
+  // Per-area downlight counts ("How many?") are summed; whole-job aliases cover legacy forms.
+  const perAreaDownlights = rooms.length ? rooms.reduce((s, r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); const n = count(val(kids, ["How many?"])); return s + (n ?? 0); }, 0) : 0;
+  if (perAreaDownlights > 0) patch.downlights_qty = perAreaDownlights;
+  else setInt("downlights_qty", ["Total number of luminaires", "Number of downlights", "Downlights qty", "Downlight count", "Downlights"]);
   setInt("exhaust_fans_clearance_qty", ["Exhaust fans requiring clearance", "Exhaust fan clearance", "Exhaust fans needing clearance"]);
   setInt("exhaust_fans_qty", ["Number of exhaust fans", "Exhaust fans qty", "Exhaust fans"]);
   const dt = val(entries, ["Downlight type"]); if (dt) patch.downlights_type = dt.slice(0, 200);
   const hz = val(entries, ["Hazards identified", "Hazards", "Hazards seen in the ceiling space"]); if (hz) patch.hazards = hz.slice(0, 4000);
   const roof = val(entries, ["Roof type"]); if (roof) patch.notes = [patch.notes, `Roof type: ${roof}`].filter(Boolean).join(". ").slice(0, 4000);
-  const built5 = val(entries, ["Ceiling or roof built in the last 5 years", "Relevant ceiling or roof built in the last 5 years"]); if (built5) patch.notes = [patch.notes, `Ceiling/roof built in last 5 years (installer observed): ${built5}`].filter(Boolean).join(". ").slice(0, 4000);
+  const built5 = val(entries, ["Was the ceiling or roof built or replaced in the last 5 years?", "Ceiling or roof built in the last 5 years", "Relevant ceiling or roof built in the last 5 years"]); if (built5) patch.notes = [patch.notes, `Ceiling/roof built in last 5 years (installer observed): ${built5}`].filter(Boolean).join(". ").slice(0, 4000);
 
   const sbUp = val(entries, ["Switchboard upgrade required"]);
   const sbCond = norm(val(entries, ["Switchboard condition", "Switchboard"]));
