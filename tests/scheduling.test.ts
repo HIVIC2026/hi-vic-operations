@@ -12,7 +12,7 @@ describe("assessment scheduling has one normal path", () => {
     expect(src("src/routes/_authenticated/field.$jobId.tsx")).not.toMatch(/BookingPanel[^>]*kind="assessment"/);
     const owner = src("src/routes/_authenticated/owner.$jobId.tsx");
     expect(owner).toContain(': null; // legacy assessment bookings retired');
-    expect(owner).toContain("<AppointmentPanel");
+    expect(owner).not.toContain("<AppointmentPanel"); // legacy assessment appointments retired
   });
   test("admin assessment BookingPanel is read-only; override is separately labelled", () => {
     const a = src("src/routes/_authenticated/admin.jobs.$jobId.tsx");
