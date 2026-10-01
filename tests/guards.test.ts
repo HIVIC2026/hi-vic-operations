@@ -53,13 +53,11 @@ describe("measurement gate (new)", () => {
     seed();
     expect((await stageEntryBlockers(J, "ready_for_installer_quotes")).some((b) => /measure-up/i.test(b))).toBe(false);
   });
-  test("assessment_complete requires BOTH requirements", async () => {
+  test("assessment_complete is retired: entry refused before any other check", async () => {
     seed({ assessments: [{ job_id: J, status: "draft" }] });
-    expect(await stageEntryBlockers(J, "assessment_complete")).toContain("Electrical assessment / PIESA not yet recorded.");
-    seed({ ceiling_measurements: [{ job_id: J, is_current: true, status: "draft", measured_area_m2: 120 }] });
-    expect(await stageEntryBlockers(J, "assessment_complete")).toContain("Ceiling measure-up not yet completed.");
+    expect((await stageEntryBlockers(J, "assessment_complete"))[0]).toContain("is retired");
     seed();
-    expect(await stageEntryBlockers(J, "assessment_complete")).toEqual([]);
+    expect(await stageEntryBlockers(J, "assessment_complete")).toHaveLength(1); // even with everything complete
   });
 });
 
@@ -75,7 +73,7 @@ describe("existing guards unchanged", () => {
   });
   test("13 assessment no longer needs Owner Authority; signing + deposit gates hold", async () => {
     seed({ owner_authorities: [] });
-    expect(await stageEntryBlockers(J, "assessment_booked")).toEqual([]);
+    expect((await stageEntryBlockers(J, "assessment_booked"))[0]).toContain("is retired");
     seed({ customer_agreements: [] });
     expect(await stageEntryBlockers(J, "installation_scheduling")).toContain(CONSUMER_SIGN_BLOCKER);
     seed();

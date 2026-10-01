@@ -16,6 +16,7 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     rectification: [["rectification_scheduling", "rectification_booked"], "rectification_booked"],
     installation: [["installation_scheduling", "installation_booked"], "installation_booked"],
   };
+  if ((kind as string) === "assessment") throw new WorkflowError("Assessment bookings are retired. The free Ready Check comes first; the PIESA is booked after quote acceptance.");
   const [allowed, target] = map[kind];
   if (!allowed.includes(stage)) throw new WorkflowError(`A ${kind} booking can't be made at ${STAGE_LABEL[stage]}.`);
   const { data: contractor } = await admin.from("job_assignments").select("id, user_id, business_id, businesses(business_type, onboarding_status, is_active, capabilities)").eq("job_id", jobId).eq("role", need).eq("active", true).maybeSingle();

@@ -76,7 +76,7 @@ export async function electricianCandidates(jobId: string) {
 /** Team-up auto-assignment (DB only, no messaging): installer-sourced job needs an electrician and none is active. */
 export async function tryTeamAssign(jobId: string, actorId: string | null): Promise<boolean> {
   const stage = await getStage(jobId);
-  if (!["piesa_and_install_window_pending", "awaiting_electrician"].includes(stage)) return false;
+  if (stage !== "piesa_and_install_window_pending") return false; // legacy awaiting_electrician retired
   const { data: active } = await admin.from("job_assignments").select("id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
   if (active) return false;
   const { cands, site, installerBiz } = await electricianCandidates(jobId);
@@ -86,6 +86,5 @@ export async function tryTeamAssign(jobId: string, actorId: string | null): Prom
   await admin.from("jobs").update({ electrician_choice: "preferred" }).eq("id", jobId);
   await admin.from("job_assignments").insert({ job_id: jobId, user_id: pick.userId, role: "electrician", business_id: pick.businessId, assigned_by: actorId ?? pick.userId });
   await logEvent(jobId, actorId, "contractor_assigned", `Electrician assigned: ${name} (auto-assigned via team-up, ${pick.via === "primary" ? "Main" : "backup"} electrician)`);
-  if (stage === "awaiting_electrician") await transition(jobId, "assessment_booking", actorId, "Team electrician assigned – coordinate PIESA", { auto: true });
   return true;
 }

@@ -379,7 +379,6 @@ async function assignElectrician(jobId: string, userId: string, businessId: stri
   await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "assessment").eq("status", "proposed");
   await admin.from("job_assignments").insert({ job_id: jobId, user_id: userId, role: "electrician", business_id: businessId, assigned_by: actorId });
   await logEvent(jobId, actorId, "contractor_assigned", `Electrician assigned: ${summary}`);
-  if ((await getStage(jobId)) === "awaiting_electrician") await transition(jobId, "assessment_booking", actorId, "Electrician assigned – coordinate PIESA");
   const { autoAdvanceJob } = await import("./autoadvance.server");
   await autoAdvanceJob(jobId, actorId, "electrician assigned");
 }
@@ -416,6 +415,7 @@ export const proposeTime = createServerFn({ method: "POST" }).middleware([requir
   .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["assessment", "ready_check", "rectification", "installation"]).default("assessment"), start: z.string().datetime({ offset: true }), note: txt(500) }).parse(d))
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "owner", "electrician", "installer"]);
+    if (data.kind === "assessment") throw new WorkflowError("Assessment appointments are retired. The free Ready Check comes first; the PIESA is booked after quote acceptance.");
     if (Date.parse(data.start) <= Date.now()) throw new WorkflowError("Propose a time in the future.");
     const { data: a } = await admin.from("job_assignments").select("id, user_id, first_response_at").eq("job_id", data.jobId).eq("role", data.kind === "installation" || data.kind === "ready_check" ? "installer" : "electrician").eq("active", true).maybeSingle();
     if (!a) throw new WorkflowError("No trade is assigned yet.");
