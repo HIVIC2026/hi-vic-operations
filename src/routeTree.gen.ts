@@ -16,7 +16,6 @@ import { Route as CalculatorRouteImport } from './routes/calculator'
 import { Route as ElectricianOnboardingRouteImport } from './routes/electrician-onboarding'
 import { Route as InstallerOnboardingRouteImport } from './routes/installer-onboarding'
 import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
-import { Route as TestCustomerEstimateRouteImport } from './routes/test-customer-estimate'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as WTokenRouteImport } from './routes/w.$token'
@@ -85,11 +84,6 @@ const InstallerOnboardingRoute = InstallerOnboardingRouteImport.update({
 const Step3EmailPreviewRoute = Step3EmailPreviewRouteImport.update({
   id: '/step3-email-preview',
   path: '/step3-email-preview',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TestCustomerEstimateRoute = TestCustomerEstimateRouteImport.update({
-  id: '/test-customer-estimate',
-  path: '/test-customer-estimate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
@@ -293,7 +287,6 @@ export interface FileRoutesByFullPath {
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
-  '/test-customer-estimate': typeof TestCustomerEstimateRoute
   '/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/w/$token': typeof WTokenRoute
@@ -337,7 +330,6 @@ export interface FileRoutesByTo {
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
-  '/test-customer-estimate': typeof TestCustomerEstimateRoute
   '/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/w/$token': typeof WTokenRoute
@@ -383,7 +375,6 @@ export interface FileRoutesById {
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
-  '/test-customer-estimate': typeof TestCustomerEstimateRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/w/$token': typeof WTokenRoute
@@ -429,7 +420,6 @@ export interface FileRouteTypes {
     | '/electrician-onboarding'
     | '/installer-onboarding'
     | '/step3-email-preview'
-    | '/test-customer-estimate'
     | '/home'
     | '/estimate/$token'
     | '/w/$token'
@@ -473,7 +463,6 @@ export interface FileRouteTypes {
     | '/electrician-onboarding'
     | '/installer-onboarding'
     | '/step3-email-preview'
-    | '/test-customer-estimate'
     | '/home'
     | '/estimate/$token'
     | '/w/$token'
@@ -518,7 +507,6 @@ export interface FileRouteTypes {
     | '/electrician-onboarding'
     | '/installer-onboarding'
     | '/step3-email-preview'
-    | '/test-customer-estimate'
     | '/_authenticated/home'
     | '/estimate/$token'
     | '/w/$token'
@@ -564,7 +552,6 @@ export interface RootRouteChildren {
   ElectricianOnboardingRoute: typeof ElectricianOnboardingRoute
   InstallerOnboardingRoute: typeof InstallerOnboardingRoute
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
-  TestCustomerEstimateRoute: typeof TestCustomerEstimateRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
   WTokenRoute: typeof WTokenRoute
   ApiPublicAddressSearchRoute: typeof ApiPublicAddressSearchRoute
@@ -628,13 +615,6 @@ declare module '@tanstack/react-router' {
       path: '/step3-email-preview'
       fullPath: '/step3-email-preview'
       preLoaderRoute: typeof Step3EmailPreviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/test-customer-estimate': {
-      id: '/test-customer-estimate'
-      path: '/test-customer-estimate'
-      fullPath: '/test-customer-estimate'
-      preLoaderRoute: typeof TestCustomerEstimateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/home': {
@@ -948,7 +928,6 @@ const rootRouteChildren: RootRouteChildren = {
   ElectricianOnboardingRoute: ElectricianOnboardingRoute,
   InstallerOnboardingRoute: InstallerOnboardingRoute,
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
-  TestCustomerEstimateRoute: TestCustomerEstimateRoute,
   EstimateTokenRoute: EstimateTokenRoute,
   WTokenRoute: WTokenRoute,
   ApiPublicAddressSearchRoute: ApiPublicAddressSearchRoute,
