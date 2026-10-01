@@ -44,8 +44,6 @@ We fix this one form first, get your sign-off, then move to the next. The old A1
    - How was the ceiling measured?         Laser / Tape / Floor plan / Other   MANDATORY
    - Measurement notes                     text                MANDATORY only if Floor plan or Other
    - Was the ceiling or roof built or replaced in the last 5 years?  Yes / No / Not sure  MANDATORY
-   - Life support equipment seen onsite?   Matches office / Different   MANDATORY
-   - What's different?                     text                MANDATORY only if Different (job pauses, office notified)
 
 5. YOUR QUOTED PRICE (A1 only, all prices inc GST)
    Repeat one line per item:
