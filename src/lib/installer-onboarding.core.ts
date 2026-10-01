@@ -125,7 +125,7 @@ export function stepErrors(step: StepKey, d: InstData, now = new Date()): string
       break;
     case "services":
       if (typeof d.free_quotes_for_hivic_leads !== "boolean") e.push("Tell us if you offer free quotes for pre-qualified Home Insulation Victoria leads.");
-      if (typeof d.free_measureups_for_hivic_quote_leads !== "boolean") e.push("Tell us if you will provide free measure-ups for pre-qualified Home Insulation Victoria quote leads.");
+      if (d.free_measureups_for_hivic_quote_leads !== true) e.push("Free Home Insulation Ready Checks are required to receive pre-qualified Home Insulation Victoria leads.");
       break;
     case "coverage":
       if (!txt(d.service_origin)) e.push("Enter your service starting location.");
@@ -195,7 +195,7 @@ export function scheduleText(d: InstData): string {
   L.push("Ceiling insulation supply & installation: included");
   L.push("Removal of existing insulation (batts and loose fill): included — required of all installer partners",
     `Free quotes for pre-qualified Home Insulation Victoria leads: ${d.free_quotes_for_hivic_leads ? "yes" : "no"}`,
-    `Free eligibility measure-ups for Home Insulation Victoria pre-qualified quote leads: ${d.free_measureups_for_hivic_quote_leads ? "yes" : "no"}`);
+    `Free Home Insulation Ready Checks for pre-qualified Home Insulation Victoria leads (required): ${d.free_measureups_for_hivic_quote_leads ? "yes" : "no"}`);
   L.push(`Service origin: ${d.service_origin ?? ""}; radius: ${d.travel_radius_km === 9999 ? "anywhere in Victoria" : `${d.travel_radius_km} km`}${d.excluded_areas ? `; excluded: ${d.excluded_areas}` : ""}`);
   L.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}; weekly installations: ${d.capacity_band ?? ""}`);
   L.push("", `SCHEDULE 3 — PROPOSED SUPPLIER RATES (${gst}; not binding until accepted by Home Insulation Victoria under clause 17)`);
