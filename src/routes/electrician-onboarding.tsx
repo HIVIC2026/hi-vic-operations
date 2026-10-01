@@ -217,8 +217,8 @@ function RecOnboarding() {
   const up = (patch: Partial<RecData>) => setD((x) => applyMaterialReset(x, { ...x, ...patch }));
 
   async function begin() {
-    if (sampleMode) { setD(SAMPLE_REC_DATA); setToken("sample-preview-token"); setStep("about"); setStarted(true); setError(null); return; }
     if (token) { setStarted(true); setError(null); return; }
+    if (sampleMode) { setD(SAMPLE_REC_DATA); setToken("sample-preview-token"); setStep("about"); setStarted(true); setError(null); return; }
     setBusy(true); setError(null);
     try {
       const { token: t } = await startRecOnboarding({ data: { test: testMode } });
@@ -345,7 +345,7 @@ function RecOnboarding() {
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
       {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Nice one, {firstName(d)} — next up: {steps[idx]?.title?.toLowerCase()}.</div>}
       {!firstName(d) && <div style={{ marginBottom: 12 }} />}
-      <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} />
+      <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onRevision={setBaseUpdatedAt} />
       {step === "sign" && <SignStep d={d} token={token ?? ""} onSigned={() => setStatus("submitted")} preview={sampleMode} />}
       {showErrors && errs.length > 0 && (
         <div style={{ background: "#FDECEA", border: "1px solid #F5C2BE", borderRadius: 12, padding: "10px 14px", color: "#8C1D18", fontSize: 14, marginTop: 8 }}>
@@ -358,7 +358,7 @@ function RecOnboarding() {
   );
 }
 
-function StepBody({ step, d, up, token, setError, preview }: { step: StepKey; d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void; preview: boolean }) {
+function StepBody({ step, d, up, token, setError, preview, onRevision }: { step: StepKey; d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void; preview: boolean; onRevision: (revision: string) => void }) {
   const t = (k: keyof RecData, upper = false) => ({ value: (d[k] as string) ?? "", onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => up({ [k]: upper ? e.target.value.toUpperCase() : e.target.value } as Partial<RecData>) });
   switch (step) {
     case "about":
@@ -395,17 +395,16 @@ function StepBody({ step, d, up, token, setError, preview }: { step: StepKey; d:
         {d.works_under_rec !== true && <Check checked={d.authorised_to_register === true} onChange={(v) => up({ authorised_to_register: v })}>I'm authorised to set up this REC.</Check>}
       </>;
     case "insurance":
-      return <InsuranceStep d={d} up={up} token={token} setError={setError} preview={preview} />;
+      return <InsuranceStep d={d} up={up} token={token} setError={setError} preview={preview} onRevision={onRevision} />;
     case "services":
       return <>
         <div style={infoCard}>
-          <strong>Every Home Insulation Victoria REC partner provides all three electrical services:</strong>
+          <strong>Home Insulation Victoria provides pre-installation electrical safety assessment (PIESA) jobs in your service area.</strong>
           <ol style={{ margin: "8px 0 0", paddingLeft: 20, lineHeight: 1.6 }}>
-            <li><strong>Formal PIESA</strong> — completed by a licensed electrician before installation.</li>
-            <li><strong>Authorised safety rectification</strong> — approved electrical work required for the job to proceed.</li>
-            <li><strong>Installation-day electrical attendance</strong> — when the approved job scope requires it.</li>
+            <li>Complete the electrical safety assessment and submit the PIESA through our portal.</li>
+            <li>Identify and quote only the electrical rectification required for the ceiling insulation to be installed safely. Complete that work once the scope and price are approved through Home Insulation Victoria.</li>
+            <li>Attend the installation on site when electrical attendance is required.</li>
           </ol>
-          <p style={{ margin: "8px 0 0", fontSize: 13, color: MUTED }}>We provide booked assessment jobs. You complete and submit the PIESA assessment, required tests and evidence. If the assessment identifies mandatory electrical safety rectification, submit only that itemised quote through the portal for owner approval before work begins.</p>
         </div>
         <Check checked={d.services_all_confirmed === true} onChange={(v) => up({ services_all_confirmed: v })}>I confirm our REC can provide all three electrical services listed above, as required for each job.</Check>
       </>;
@@ -444,6 +443,7 @@ function StepBody({ step, d, up, token, setError, preview }: { step: StepKey; d:
     case "rectification_pricing": {
       const r = d.rectification_rates ?? {};
       return <>
+        <div style={{ ...infoCard, marginBottom: 12 }}>We provide an assessment app for your PIESA visit. Select the mandatory electrical rectification items and enter the quantity of each. The app uses your agreed rates to calculate an itemised rectification quote when you finish the assessment. Home Insulation Victoria manages the customer quote and approval through the portal.</div>
         <div style={infoCard}>{d.gst_registered === false ? "Enter total rates (not GST registered)." : "Enter rates including GST."}</div>
         {RECT_ITEMS.map((it) => <Field key={it.key} label={it.label} required><Money value={r[it.key]} onChange={(v) => up({ rectification_rates: { ...r, [it.key]: v } })} unit={it.unit} /></Field>)}
         <Field label="Certificate of Electrical Safety" required><Choice options={[{ v: "included" as const, l: "Included" }, { v: "separate" as const, l: "Separate fee" }]} value={d.coes_fee_choice || null} onChange={(v) => up({ coes_fee_choice: v })} /></Field>
@@ -474,7 +474,7 @@ function StepBody({ step, d, up, token, setError, preview }: { step: StepKey; d:
   }
 }
 
-function InsuranceStep({ d, up, token, setError, preview }: { d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void; preview: boolean }) {
+function InsuranceStep({ d, up, token, setError, preview, onRevision }: { d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void; preview: boolean; onRevision?: (revision: string) => void }) {
   const [uploading, setUploading] = useState(false);
   const [checking, setChecking] = useState(false);
   const [found, setFound] = useState<string | null>(null);
@@ -492,6 +492,7 @@ function InsuranceStep({ d, up, token, setError, preview }: { d: RecData; up: (p
       if (error) throw new Error("Upload failed. Please try again.");
       setChecking(true);
       const r = await confirmInsuranceUpload({ data: { token, path: u.path } });
+      onRevision?.(r.updated_at);
       const x = r.extracted;
       const patch: Partial<RecData> = { insurance_uploaded: true };
       const notes: string[] = [];
@@ -557,6 +558,8 @@ function SignStep({ d, token, onSigned, preview }: { d: RecData; token: string; 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const ackList = acknowledgementsFor(d);
+  const acknowledgementRevision = `${REC_AGREEMENT_VERSION}:${agreementText(d)}`;
+  useEffect(() => setAcks({}), [acknowledgementRevision]);
   const ready = ackList.every((a) => acks[a.key]) && name.trim().length > 1 && position.trim().length > 1 && email.includes("@");
   async function sign() {
     if (preview) { setErr("Sample preview only — no agreement was signed or submitted."); return; }
