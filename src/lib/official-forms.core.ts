@@ -355,8 +355,16 @@ export function answersFromEntries(key: OfficialKey, entries: { label: string; v
 // ---------- printed-rule enforcement (Part 3) ----------
 export type RuleResult = { rule: string; message: string; confirmation?: "NEEDS OFFICIAL/LEGAL CONFIRMATION" };
 export type Evaluation = { blockers: RuleResult[]; nextActions: RuleResult[] };
-export type PiesaContext = { installStart?: string | null; deliveredToInstallerAt?: string | null; deliveredToOwnerAt?: string | null };
-export type PiisaContext = { piesaCompletionDate?: string | null; piesaReceivedAt?: string | null; electricianRequiredAtStart?: boolean | null; conductiveExistingInsulation?: boolean | null };
+/** How an ineffective Part 7 action was resolved. Only a verified rectification record counts today. */
+export type HazardResolution = { kind: "verified_rectification"; rectificationId: string } | { kind: "authorised_review"; reviewId: string } | null;
+/** Audited authorised review may resolve an ineffective hazard action only once official guidance is confirmed. */
+export const HAZARD_REVIEW_GUIDANCE_CONFIRMED = false;
+export const HAZARD_UNRESOLVED = "Hazard remains unresolved - office/electrical review required.";
+export const CONDUCTIVITY_UNCONFIRMED = "Existing insulation conductivity must be confirmed.";
+export type PiesaContext = { installStart?: string | null; deliveredToInstallerAt?: string | null; deliveredToOwnerAt?: string | null; hazardResolution?: HazardResolution };
+export type PiisaContext = { piesaCompletionDate?: string | null; piesaReceivedAt?: string | null; electricianRequiredAtStart?: boolean | null;
+  /** Explicit recorded answer only — a blank is never treated as "No". */ conductiveExistingInsulation?: boolean | null;
+  /** Supporting evidence (photo/file id) for the recorded conductivity answer. */ conductivityEvidence?: string | null };
 
 function requiredMissing(key: OfficialKey, a: OfficialAnswers, active: (i: OfficialItem) => boolean): RuleResult[] {
   const out: RuleResult[] = [];
@@ -417,7 +425,12 @@ export function evaluatePiesa(a: OfficialAnswers, ctx: PiesaContext = {}): Evalu
   if (hazardAsked && applianceRows.length === 0) blockers.push({ rule: "P7-DESCRIBE", message: "Part 7: a Yes answer needs at least one appliance row (Appliance, Location, Hazard)." });
   if (applianceRows.some((r) => r.some((c) => !c))) blockers.push({ rule: "P7-ROW-INCOMPLETE", message: "Part 7: every started appliance row needs Appliance, Location and Hazard." });
   if (rows(a, ["p7.otherHazard", "p7.otherAction"], 14).some((r) => r.some((c) => !c))) blockers.push({ rule: "P7-OTHER-INCOMPLETE", message: "Part 7: every listed other hazard needs its action, and every action its hazard." });
-  if (hazardIdentified && isNo(a["p7.effective"])) blockers.push({ rule: "P7-NOT-EFFECTIVE", message: "Part 7: the action does not effectively reduce the risk. The form prints no next step for this answer.", confirmation: "NEEDS OFFICIAL/LEGAL CONFIRMATION" });
+  // Ineffective action: the form prints no next step. Fail closed; an attempted action is never treated as risk reduction.
+  if (hazardIdentified && !isYes(a["p7.effective"])) {
+    const r = ctx.hazardResolution;
+    const resolved = r?.kind === "verified_rectification" ? !!r.rectificationId : r?.kind === "authorised_review" ? HAZARD_REVIEW_GUIDANCE_CONFIRMED && !!r.reviewId : false;
+    if (!resolved) blockers.push({ rule: "P7-NOT-EFFECTIVE", message: HAZARD_UNRESOLVED, confirmation: "NEEDS OFFICIAL/LEGAL CONFIRMATION" });
+  }
   // B1 rectification: "Record actions, conditions and required rectifications in B2. Section C of this document must be completed before ceiling insulation work may commence."
   if (rect && b2.length === 0) blockers.push({ rule: "B1-B2", message: "B1: \"Record actions, conditions and required rectifications in B2.\"" });
   if (b2.length && !rect) blockers.push({ rule: "B2-ONLY-IF-RECT", message: "B2 lists required electrical work, but B1 does not say rectification is required." });
@@ -463,9 +476,12 @@ export function evaluatePiisa(a: OfficialAnswers, ctx: PiisaContext = {}): Evalu
   const p5 = ["p5.reviewed", "p5.electricianPresent", "p5.icConfirmed", "p5.safeToCover", "p5.rcd", "p5.tps", "p5.basic", "p5.noAccess"];
   if (p5.some((k) => isNo(a[k]))) blockers.push({ rule: "P5-CANNOT-COMMENCE", message: "\"If you’ve answered NO to questions in PART 5 - PRE-INSTALLATION ELECTRICAL SAFETY ASSESSMENT (other than are there recessed luminaries present in the ceiling?), the activity CANNOT commence.\"" });
   if (treatment.some((t) => !["Removed", "Topped Up"].includes(t))) blockers.push({ rule: "P6-OPTIONS", message: "Part 6: existing insulation can only be \"Removed and/or Topped Up\"." });
-  if (present && treatment.includes("Topped Up")) {
-    if (ctx.conductiveExistingInsulation === true) blockers.push({ rule: "P6-FOIL", message: "\"Note: any foil backed or electrically conductive insulation cannot be topped up and must be removed prior to installation.\"" });
-    else if (ctx.conductiveExistingInsulation == null) blockers.push({ rule: "P6-FOIL-UNKNOWN", message: "Top-up chosen, but no record says whether the existing insulation is foil backed or electrically conductive. The form has no field for this.", confirmation: "NEEDS OFFICIAL/LEGAL CONFIRMATION" });
+  if (present) {
+    // The form has no conductivity field: an explicit recorded answer plus evidence is required; blank never means "No".
+    if (ctx.conductiveExistingInsulation !== true && ctx.conductiveExistingInsulation !== false || !ctx.conductivityEvidence)
+      blockers.push({ rule: "P6-FOIL-UNKNOWN", message: CONDUCTIVITY_UNCONFIRMED, confirmation: "NEEDS OFFICIAL/LEGAL CONFIRMATION" });
+    if (ctx.conductiveExistingInsulation === true && treatment.includes("Topped Up")) blockers.push({ rule: "P6-FOIL", message: "\"Note: any foil backed or electrically conductive insulation cannot be topped up and must be removed prior to installation.\"" });
+    if (ctx.conductiveExistingInsulation === true && !treatment.includes("Removed")) blockers.push({ rule: "P6-FOIL", message: "\"…must be removed prior to installation.\" Removed is not ticked." });
   }
   if (rows(a, ["p2.addName", "p2.addEec"], 3).some((r) => r.some((c) => !c))) blockers.push({ rule: "P2-ADDITIONAL-ROW", message: "Part 2: each additional installer needs both a name and an EEC certification number." });
   // 30-day rule: intro + Part 8(b).
@@ -491,6 +507,8 @@ export type SignedSnapshot = {
   acknowledgement: { itemId: string; ticked: true }[]; signature: string;
   jobFacts: Record<string, string>; document: { id: string; kind: ItemKind; label: string; value: Value; letter?: string }[];
   delivery: { to: string; at: string; evidence: string }[];
+  attachments: { itemId: string; fileId: string; sha256: string }[];
+  /** SHA-256 of the completed official document (form order). */ documentSha256: string;
   hash: string;
 };
 const canon = (o: unknown): string => JSON.stringify(o, (_k, v) => (v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, v[k]])) : v));
@@ -508,6 +526,7 @@ export function renderOfficialDocument(key: OfficialKey, a: OfficialAnswers) {
 export function buildSignedSnapshot(input: {
   key: OfficialKey; answers: OfficialAnswers; signer: Signer; enteredDate: string; serverTimestamp: string;
   jobFacts: Record<string, string>; acknowledgementIds: string[]; signature: string; delivery?: SignedSnapshot["delivery"];
+  attachments?: SignedSnapshot["attachments"];
 }): SignedSnapshot {
   if (!isDate(input.enteredDate)) throw new Error("Entered date must be a date only (YYYY-MM-DD).");
   const t = OFFICIAL_TEMPLATES[input.key];
@@ -516,7 +535,9 @@ export function buildSignedSnapshot(input: {
     key: input.key, templateSha256: t.sha256, mappingVersion: t.mappingVersion, signer: input.signer, enteredDate: input.enteredDate,
     serverTimestamp: input.serverTimestamp, acknowledgement: input.acknowledgementIds.map((itemId) => ({ itemId, ticked: true as const })),
     signature: input.signature, jobFacts: input.jobFacts, document: renderOfficialDocument(input.key, input.answers), delivery: input.delivery ?? [],
+    attachments: input.attachments ?? [], documentSha256: "",
   };
+  body.documentSha256 = sha(canon(body.document));
   return { ...body, hash: sha(canon(body)) };
 }
 
@@ -527,9 +548,14 @@ export function snapshotProblems(snap: SignedSnapshot, current?: OfficialAnswers
   if (sha(canon(body)) !== hash) out.push("Signed copy has been altered since it was signed.");
   const t = OFFICIAL_TEMPLATES[snap.key];
   if (snap.mappingVersion !== t.mappingVersion || snap.templateSha256 !== t.sha256) out.push("Signed copy uses a different template or mapping version.");
+  if (sha(canon(snap.document)) !== snap.documentSha256) out.push("Completed document hash does not match.");
   if (current && canon(renderOfficialDocument(snap.key, current)) !== canon(snap.document)) out.push("Form answers changed after signing — the signed copy is no longer valid.");
   return out;
 }
+
+/** Rebuilds answers from a signed document (item id → value). */
+export const answersFromDocument = (doc: SignedSnapshot["document"]): OfficialAnswers => Object.fromEntries(doc.filter((d) => d.value != null).map((d) => [d.id, d.value]));
+export const documentSha = (doc: SignedSnapshot["document"]) => sha(canon(doc));
 
 export const PRINTED_RULE_IDS = {
   piesa: ["P1-LIFE-SUPPORT", "P2-SWITCH-OVERALL", "P2P3-NO", "RECT-REQUIRED", "P7-DESCRIBE", "P7-ROW-INCOMPLETE", "P7-OTHER-INCOMPLETE", "P7-NOT-EFFECTIVE", "B1-ONE", "B1-B2", "B2-ONLY-IF-RECT", "B1-SECTION-C", "B1-ELECTRICIAN-AT-START", "B1-NOT-POSSIBLE-SCOPE", "B1-NOT-POSSIBLE-PART4-6", "COPY-24H", "REQ"],
