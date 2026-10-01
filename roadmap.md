@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Now
-- [x] Complete authorized REC refinements: fix save/navigation races; verified AU/VIC addresses; exact service/availability/rates copy; staff links; assigned-REC standard/custom rates; agreement v2.1 source reconciliation and audit; terminology sweep; focused tests, provider/browser checks, screenshots and audit
+- [x] Complete authorized REC refinements: fix save/navigation races; verified AU/VIC addresses; exact service/availability/rates copy; staff links; assigned-REC standard/custom rates; agreement v2.2 source reconciliation and official $5m insurance override; terminology sweep; focused tests, provider/browser checks, screenshots and audit
 - [x] Finish REC onboarding polish: shared trade copy, isolated no-write samples, legacy draft resume, retry state, focused verification
 - [x] Audit and refine REC business onboarding, worker invitations and worker join screens; fix activation validation ordering
 - [x] Delete obsolete old-brand email templates and old calculator code; preserve approved current templates and customer calculator
