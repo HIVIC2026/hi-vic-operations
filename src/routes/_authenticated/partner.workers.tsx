@@ -11,7 +11,7 @@ import { WorkerInvites } from "@/components/portal/worker-invites";
 import { workerListQueryKey } from "@/lib/worker-invite.core";
 
 export const Route = createFileRoute("/_authenticated/partner/workers")({
-  head: () => ({ meta: [{ title: "Your workers – Home Insulation Victoria" }, { name: "description", content: "Add the electricians and installers who work under your company." }, { property: "og:title", content: "Your workers – Home Insulation Victoria" }, { property: "og:description", content: "Add the electricians and installers who work under your company." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+    { title: "Your staff – Home Insulation Victoria" }, { name: "description", content: "Add the electricians and installers who work under your company." }, { property: "og:title", content: "Your staff – Home Insulation Victoria" }, { property: "og:description", content: "Add the electricians and installers who work under your company." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: Workers,
 });
 
@@ -21,14 +21,14 @@ function Workers() {
   const sampleData = { business: { id: "00000000-0000-0000-0000-000000000000", name: "Sample Electrical", trading_name: "Sample Electrical" }, canManage: true, workers: [] };
   const { data, error, refetch } = useQuery({ queryKey: workerListQueryKey(sample), queryFn: () => sample ? Promise.resolve(sampleData) : load(), initialData: sample ? sampleData : undefined });
   const [editing, setEditing] = useState<string | "new" | null>(null);
-  if (error) return <AppShell><div role="alert" className="rounded-xl border bg-card p-6 text-sm"><p className="text-danger">Your workers could not be loaded.</p><Button className="mt-3" variant="outline" onClick={() => refetch()}>Try again</Button></div></AppShell>;
+  if (error) return <AppShell><div role="alert" className="rounded-xl border bg-card p-6 text-sm"><p className="text-danger">Your staff could not be loaded.</p><Button className="mt-3" variant="outline" onClick={() => refetch()}>Try again</Button></div></AppShell>;
   if (data === undefined) return <AppShell><p className="text-muted-foreground">Loading…</p></AppShell>;
   if (data === null) return <AppShell><p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">Your account isn't linked to a partner business yet.</p></AppShell>;
   const done = () => { setEditing(null); refetch(); };
   return (
     <AppShell>
       <Link to="/partner" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" /> Dashboard</Link>
-      <h1 className="text-2xl font-bold">Your workers</h1>
+      <h1 className="text-2xl font-bold">Your staff</h1>
       <p className="mb-4 text-sm text-muted-foreground">One account for {data.business?.trading_name || data.business?.name}. List the people who do the work — they don't need their own login. When they're on a job, they get a private link to just that job: the form to fill in, the timeline, and messages with the owner. Home Insulation Victoria approves each new worker once.</p>
       {data.canManage && data.business && <WorkerInvites businessId={data.business.id} sample={sample} />}
       {!sample && data.canManage && editing !== "new" && <Button className="mb-4" size="field" variant="outline" onClick={() => setEditing("new")}>+ Add worker myself (incl. me, if I do the work)</Button>}
@@ -47,7 +47,7 @@ function Workers() {
             </div>
           </li>
         ))}
-        {!data.workers.length && <li className="text-sm text-muted-foreground">No workers yet.</li>}
+        {!data.workers.length && <li className="text-sm text-muted-foreground">No staff added yet.</li>}
       </ul>
     </AppShell>
   );

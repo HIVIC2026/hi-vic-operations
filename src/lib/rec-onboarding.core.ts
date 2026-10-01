@@ -2,14 +2,14 @@
 // No I/O. Used by the public form (live validation) and the server (authoritative checks).
 import { REC_AGREEMENT_SECTIONS } from "./rec-agreement.text";
 
-export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-1.8-2026-10-01";
+export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-1.9-2026-10-01";
 export const REC_AGREEMENT_TITLE = "Activity 48 Registered Electrical Contractor Partner Agreement";
 export const AP_ENTITY = "DC Construction Solutions Pty Ltd ABN 44 671 613 979 trading as Home Insulation Victoria";
 export const MIN_PL_COVER = 5_000_000;
 
 export const ACKNOWLEDGEMENTS = [
   { key: "authority", text: "I am authorised to bind the REC to this agreement." },
-  { key: "personnel", text: "The REC will ensure every nominated electrician and worker on Home Insulation Victoria jobs complies with the obligations that apply to them." },
+  { key: "personnel", text: "The REC will ensure every nominated electrician and staff member on Home Insulation Victoria jobs complies with the obligations that apply to them." },
   { key: "compliance", text: "I understand the REC and its personnel must comply with current VEU, Code of Conduct, PIESA, electrical-safety and Home Insulation Victoria requirements." },
   { key: "records", text: "I confirm the REC will provide truthful records and evidence and cooperate with Home Insulation Victoria, ESC and ESV compliance checks." },
   { key: "no_bypass", text: "I understand that rectification, electrical upgrades, attendance and other work identified through or required for a Home Insulation Victoria Activity 48 job must be quoted, approved, scheduled and completed through the Home Insulation Victoria workflow and must not be taken off-platform or dealt with directly." },
@@ -50,12 +50,17 @@ export const RADII = [{ v: 25, l: "25 km" }, { v: 50, l: "50 km" }, { v: 75, l: 
 export const CAPACITY_BANDS = [{ v: "1-5", n: 5 }, { v: "6-10", n: 10 }, { v: "11-20", n: 20 }, { v: "20+", n: 25 }] as const;
 
 export type Electrician = { full_legal_name?: string; licence_number?: string; mobile?: string; email?: string };
+export type ResolvedAddress = {
+  label: string; street?: string | null; suburb?: string | null; postcode?: string | null;
+  state?: string | null; country?: string | null; latitude?: number | null; longitude?: number | null;
+};
+export type CustomRectificationRate = { id: string; description: string; unit: string; price: number | null };
 export type RecData = {
   how_it_works_acknowledged?: boolean;
   works_under_rec?: boolean | null; host_rec_name?: string; host_rec_number?: string;
   legal_entity_name?: string; trading_name?: string; abn?: string; rec_registration_number?: string;
-  business_address?: string; primary_contact_name?: string; business_phone?: string; business_email?: string; authorised_to_register?: boolean;
-  /** The applicant's own Victorian electrician licence — the person signing up IS the electrician. */
+  business_address?: string; business_address_details?: ResolvedAddress | null; primary_contact_name?: string; business_phone?: string; business_email?: string; authorised_to_register?: boolean;
+  /** The applicant's own Victorian electrician licence. */
   licence_number?: string;
   insurer?: string; insurance_policy_number?: string; public_liability_cover_amount?: number | null; public_liability_expiry?: string; insurance_uploaded?: boolean;
   electricians?: Electrician[];
@@ -63,11 +68,12 @@ export type RecData = {
   service_piesa?: boolean; service_rectification?: boolean; service_installation_isolation?: boolean;
   /** "I confirm our REC can provide all three electrical services listed above, as required for each job." */
   services_all_confirmed?: boolean;
-  service_origin?: string; travel_radius_km?: number | null; excluded_areas?: string;
+  service_origin?: string; service_origin_details?: ResolvedAddress | null; travel_radius_km?: number | null; excluded_areas?: string;
   typical_days?: string[]; normal_attendance_speed?: string;
   capacity_band?: string; accepting_jobs?: boolean;
   gst_registered?: boolean | null; assessment_rate?: number | null; installation_attendance_rate?: number | null;
   rectification_rates?: Partial<Record<(typeof RECT_ITEMS)[number]["key"], number | null>>;
+  custom_rectification_rates?: CustomRectificationRate[];
   coes_fee_choice?: "included" | "separate" | ""; coes_fee?: number | null;
   bank_account_name?: string; bank_bsb?: string; bank_account_number?: string;
   agreement_reviewed?: boolean;
@@ -101,7 +107,7 @@ export const STEPS = [
   { key: "insurance", title: "Public liability insurance" },
   { key: "services", title: "Home Insulation Victoria work" },
   { key: "coverage", title: "Where you work" },
-  { key: "availability", title: "When you work" },
+  { key: "availability", title: "When you're available to work" },
   { key: "capacity", title: "Weekly capacity" },
   { key: "assessment_pricing", title: "PIESA pricing" },
   { key: "rectification_pricing", title: "Rectification pricing" },
@@ -149,6 +155,30 @@ export function validBusinessEmail(e?: string) {
 }
 const txt = (s?: string) => (s ?? "").trim().length > 0;
 const pos = (n?: number | null) => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= 100000;
+const stateCode = (state?: string | null) => (state ?? "").trim().toUpperCase();
+export const isAustralianAddress = (address?: ResolvedAddress | null) => !!address && ["AU", "AUS", "AUSTRALIA", ""].includes(stateCode(address.country)) && txt(address.state ?? undefined) && txt(address.postcode ?? undefined);
+export const isVictorianAddress = (address?: ResolvedAddress | null) => isAustralianAddress(address) && ["VIC", "VICTORIA"].includes(stateCode(address?.state));
+export const customRateCode = (id: string) => `CUSTOM_${id.replace(/[^A-Za-z0-9]/g, "").toUpperCase()}`.slice(0, 40);
+
+export function customRectificationRateErrors(rows: CustomRectificationRate[] | undefined): string[] {
+  const errors: string[] = [];
+  const labels = new Set<string>();
+  const codes = new Set<string>();
+  for (const [index, row] of (rows ?? []).entries()) {
+    const label = row.description.trim();
+    const unit = row.unit.trim();
+    const code = customRateCode(row.id);
+    if (!/^[A-Za-z0-9_-]{6,64}$/.test(row.id)) errors.push(`Custom item ${index + 1} has an invalid identifier.`);
+    if (label.length < 2 || label.length > 120) errors.push(`Enter a description for custom item ${index + 1} (2–120 characters).`);
+    if (unit.length < 1 || unit.length > 30) errors.push(`Enter a unit for custom item ${index + 1}.`);
+    if (!pos(row.price)) errors.push(`Enter a positive rate for custom item ${index + 1}.`);
+    const normalized = label.toLowerCase();
+    if (labels.has(normalized)) errors.push(`Custom item descriptions must be unique.`);
+    if (codes.has(code) || RECT_ITEMS.some((item) => item.key.toUpperCase() === code)) errors.push(`Custom item identifiers must be unique.`);
+    labels.add(normalized); codes.add(code);
+  }
+  return [...new Set(errors)];
+}
 
 /** Today in Melbourne as YYYY-MM-DD. */
 export function melbourneToday(now = new Date()): string {
@@ -177,6 +207,7 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       break;
     case "contact":
       if (!txt(d.business_address)) e.push("Enter your business address.");
+      if (!isAustralianAddress(d.business_address_details) || d.business_address_details?.label !== d.business_address) e.push("Select an Australian business address from the list.");
       if (!txt(d.primary_contact_name)) e.push("Enter a contact name.");
       if (!validPhone(d.business_phone)) e.push("Enter a valid Australian phone number.");
       if (!validBusinessEmail(d.business_email)) e.push("Enter a real business email address.");
@@ -195,11 +226,13 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       break;
     case "coverage":
       if (!txt(d.service_origin)) e.push("Enter your service starting location.");
+      if (!isVictorianAddress(d.service_origin_details) || d.service_origin_details?.label !== d.service_origin) e.push("Sorry, your service area needs to be in Victoria.");
       if (!pos(d.travel_radius_km ?? null) && d.travel_radius_km !== 9999) e.push("Choose a travel radius.");
       break;
     case "availability":
       if (!(d.typical_days ?? []).length) e.push("Select at least one day.");
       if (!LEAD_TIMES.includes((d.normal_attendance_speed ?? "") as never)) e.push("Choose your usual lead time.");
+      if (typeof d.accepting_jobs !== "boolean") e.push("Tell us if you're accepting new Home Insulation Victoria work now.");
       break;
     case "capacity":
       if (!CAPACITY_BANDS.some((b) => b.v === d.capacity_band)) e.push("Choose your weekly capacity.");
@@ -215,6 +248,7 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       for (const it of RECT_ITEMS) if (!pos(d.rectification_rates?.[it.key] ?? null)) e.push(`Enter a rate for ${it.label}.`);
       if (d.coes_fee_choice !== "included" && d.coes_fee_choice !== "separate") e.push("Choose how the Certificate of Electrical Safety is charged.");
       if (d.coes_fee_choice === "separate" && !pos(d.coes_fee)) e.push("Enter the Certificate of Electrical Safety fee.");
+      e.push(...customRectificationRateErrors(d.custom_rectification_rates));
       break;
     case "bank":
       if (d.works_under_rec === true) break; // paid through the host REC
@@ -240,7 +274,7 @@ export function firstIncompleteStep(d: RecData, now = new Date()): StepKey | nul
 export const MATERIAL_FIELDS = [
   "legal_entity_name", "trading_name", "abn", "rec_registration_number", "business_email", "service_origin", "travel_radius_km",
   "excluded_areas", "typical_days", "normal_attendance_speed", "capacity_band", "services_all_confirmed",
-  "assessment_rate", "installation_attendance_rate", "rectification_rates", "coes_fee_choice", "coes_fee", "gst_registered", "electricians",
+  "assessment_rate", "installation_attendance_rate", "rectification_rates", "custom_rectification_rates", "coes_fee_choice", "coes_fee", "gst_registered", "electricians",
   "works_under_rec", "host_rec_name", "host_rec_number",
 ] as const;
 
@@ -271,14 +305,14 @@ export function scheduleText(d: RecData): string {
   lines.push("Required electrical services (all three, as required for each job):",
     "- Pre-installation electrical safety assessment (PIESA)",
     "- Electrical rectification (completing required electrical work after approval)",
-    "- Installation-day electrical attendance (when required for the job)",
-    "Ceiling measure-up and eligibility measure-up: completed by the insulation installer, not the REC");
+    "- Installation-day electrical attendance (when required for the job)");
   lines.push(`Service origin: ${d.service_origin ?? ""}; radius: ${d.travel_radius_km === 9999 ? "anywhere in Victoria" : `${d.travel_radius_km} km`}${d.excluded_areas ? `; excluded: ${d.excluded_areas}` : ""}`);
   lines.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}; weekly assessments: ${d.capacity_band ?? ""}`);
   lines.push("", `SCHEDULE 3 — PROPOSED SUPPLIER RATES (${gst}; not binding until accepted by Home Insulation Victoria under clause 17)`);
   lines.push(`Pre-insulation electrical safety assessment (PIESA): ${money(d.assessment_rate)} / visit`);
   lines.push(`Installation-day attendance: ${money(d.installation_attendance_rate)} / visit`);
   for (const it of RECT_ITEMS) lines.push(`${it.label}: ${money(d.rectification_rates?.[it.key] ?? null)} / ${it.unit}`);
+  for (const it of d.custom_rectification_rates ?? []) lines.push(`${it.description.trim()}: ${money(it.price)} / ${it.unit.trim()} (custom approved item ${customRateCode(it.id)})`);
   lines.push(`Certificate of Electrical Safety: ${d.coes_fee_choice === "separate" ? `${money(d.coes_fee)} separate fee` : "included"}`);
   return lines.join("\n");
 }
