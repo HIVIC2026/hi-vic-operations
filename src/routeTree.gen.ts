@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CalculatorRouteImport } from './routes/calculator'
 import { Route as ElectricianOnboardingRouteImport } from './routes/electrician-onboarding'
+import { Route as FreeEstimateRouteImport } from './routes/free-estimate'
 import { Route as InstallerOnboardingRouteImport } from './routes/installer-onboarding'
 import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
@@ -74,6 +75,11 @@ const CalculatorRoute = CalculatorRouteImport.update({
 const ElectricianOnboardingRoute = ElectricianOnboardingRouteImport.update({
   id: '/electrician-onboarding',
   path: '/electrician-onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FreeEstimateRoute = FreeEstimateRouteImport.update({
+  id: '/free-estimate',
+  path: '/free-estimate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InstallerOnboardingRoute = InstallerOnboardingRouteImport.update({
@@ -285,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/calculator': typeof CalculatorRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
+  '/free-estimate': typeof FreeEstimateRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
@@ -328,6 +335,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/calculator': typeof CalculatorRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
+  '/free-estimate': typeof FreeEstimateRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
@@ -373,6 +381,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/calculator': typeof CalculatorRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
+  '/free-estimate': typeof FreeEstimateRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
@@ -418,6 +427,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/calculator'
     | '/electrician-onboarding'
+    | '/free-estimate'
     | '/installer-onboarding'
     | '/step3-email-preview'
     | '/home'
@@ -461,6 +471,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/calculator'
     | '/electrician-onboarding'
+    | '/free-estimate'
     | '/installer-onboarding'
     | '/step3-email-preview'
     | '/home'
@@ -505,6 +516,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/calculator'
     | '/electrician-onboarding'
+    | '/free-estimate'
     | '/installer-onboarding'
     | '/step3-email-preview'
     | '/_authenticated/home'
@@ -550,6 +562,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   CalculatorRoute: typeof CalculatorRoute
   ElectricianOnboardingRoute: typeof ElectricianOnboardingRoute
+  FreeEstimateRoute: typeof FreeEstimateRoute
   InstallerOnboardingRoute: typeof InstallerOnboardingRoute
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
@@ -601,6 +614,13 @@ declare module '@tanstack/react-router' {
       path: '/electrician-onboarding'
       fullPath: '/electrician-onboarding'
       preLoaderRoute: typeof ElectricianOnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/free-estimate': {
+      id: '/free-estimate'
+      path: '/free-estimate'
+      fullPath: '/free-estimate'
+      preLoaderRoute: typeof FreeEstimateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/installer-onboarding': {
@@ -926,6 +946,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   CalculatorRoute: CalculatorRoute,
   ElectricianOnboardingRoute: ElectricianOnboardingRoute,
+  FreeEstimateRoute: FreeEstimateRoute,
   InstallerOnboardingRoute: InstallerOnboardingRoute,
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
   EstimateTokenRoute: EstimateTokenRoute,
