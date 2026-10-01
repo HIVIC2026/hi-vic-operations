@@ -93,11 +93,9 @@
         "query": "100 Swanston Street Melbourne VIC 3000",
         "sampleStep": "contact",
         "suggestions": [
-          "100 Sample Rd, Huntly VIC",
-          "100 Ring Road, Ardeer VIC",
-          "100 Melbourne Place, Melbourne VIC 3000"
+          "100 Swanston Street, Melbourne VIC 3000"
         ],
-        "selectedValue": "Sample Rd, Huntly VIC 3551",
+        "selectedValue": "100 Swanston St, Melbourne VIC 3000",
         "status": [
           "SAMPLE PREVIEW \u2014 no data is saved and no application, invitation or signature is submitted."
         ],
@@ -108,13 +106,13 @@
         "query": "1 London Circuit Canberra ACT 2601",
         "sampleStep": "coverage",
         "suggestions": [
-          "100 Sample Rd, Huntly VIC",
-          "100 Ring Road, Ardeer VIC",
-          "100 Melbourne Place, Melbourne VIC 3000"
+          "1 London Circuit, Canberra ACT 2601",
+          "ACT Settlements Room, 1 London Circuit, Canberra ACT 2601"
         ],
-        "selectedValue": "Sample Rd, Huntly VIC 3551",
+        "selectedValue": "1 London Circuit Canberra ACT 2601",
         "status": [
-          "SAMPLE PREVIEW \u2014 no data is saved and no application, invitation or signature is submitted."
+          "SAMPLE PREVIEW \u2014 no data is saved and no application, invitation or signature is submitted.",
+          "Sorry, your service area needs to be in Victoria."
         ],
         "actualAppProviderUi": true,
         "writes": false
