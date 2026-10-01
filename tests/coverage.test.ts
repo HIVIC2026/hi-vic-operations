@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { overallCoverage, tradeCoverage, type CoveragePartner } from "../src/lib/coverage.core";
+import { coverageAreas, overallCoverage, tradeCoverage, type CoveragePartner } from "../src/lib/coverage.core";
 
 const installer = (patch: Partial<CoveragePartner> = {}): CoveragePartner => ({
   id: "installer", name: "Installer", business_type: "eec_installer", capabilities: ["installer"], onboarding_status: "approved", is_active: true,
@@ -38,5 +38,19 @@ describe("partner coverage", () => {
   test("distinguishes configured-but-uncovered from no configured network", () => {
     expect(tradeCoverage([installer()], "installer", { postcode: "3999" }).state).toBe("unserviceable");
     expect(tradeCoverage([], "installer", { postcode: "3999" }).state).toBe("not_configured");
+  });
+
+  test("groups active enquiry locations and shows matching teams by area", () => {
+    const areas = coverageAreas([rec(), installer()], [
+      { postcode: "3121", suburb: "Richmond" },
+      { postcode: "3121", suburb: "Richmond" },
+      { postcode: "3999", suburb: "Regional" },
+    ]);
+    expect(areas).toHaveLength(2);
+    expect(areas[0]?.enquiryCount).toBe(2);
+    expect(areas[0]?.rec.matches.map((match) => match.name)).toEqual(["REC"]);
+    expect(areas[0]?.installer.matches.map((match) => match.name)).toEqual(["Installer"]);
+    expect(areas[0]?.overall).toBe("serviceable");
+    expect(areas[1]?.overall).toBe("unserviceable");
   });
 });

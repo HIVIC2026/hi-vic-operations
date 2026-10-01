@@ -29,6 +29,15 @@ export type TradeCoverage = {
   blocked: Array<{ id: string; name: string; reason: string }>;
 };
 
+export type CoverageArea = {
+  suburb: string | null;
+  postcode: string | null;
+  enquiryCount: number;
+  rec: TradeCoverage;
+  installer: TradeCoverage;
+  overall: CoverageState;
+};
+
 export function coveragePartnerBlocker(partner: CoveragePartner, trade: CoverageTrade, now = new Date()): string | null {
   if (!partner.is_active) return "Inactive";
   if (partner.onboarding_status !== "approved") return `Onboarding ${partner.onboarding_status.replace(/_/g, " ")}`;
@@ -65,4 +74,27 @@ export function overallCoverage(rec: TradeCoverage, installer: TradeCoverage): C
   if (rec.state === "not_configured" || installer.state === "not_configured") return "not_configured";
   if (rec.state === "unserviceable" && installer.state === "unserviceable") return "unserviceable";
   return "partial";
+}
+
+export function coverageAreas(
+  partners: CoveragePartner[],
+  sites: Array<{ postcode: string | null; suburb?: string | null }>,
+  now = new Date(),
+): CoverageArea[] {
+  const grouped = new Map<string, { postcode: string | null; suburb: string | null; enquiryCount: number }>();
+  for (const site of sites) {
+    const postcode = site.postcode?.trim() || null;
+    const suburb = site.suburb?.trim() || null;
+    const key = `${postcode ?? ""}|${suburb?.toLocaleLowerCase("en-AU") ?? ""}`;
+    const current = grouped.get(key);
+    if (current) current.enquiryCount += 1;
+    else grouped.set(key, { postcode, suburb, enquiryCount: 1 });
+  }
+  return [...grouped.values()]
+    .map((site) => {
+      const rec = tradeCoverage(partners, "rec", site, now);
+      const installer = tradeCoverage(partners, "installer", site, now);
+      return { ...site, rec, installer, overall: overallCoverage(rec, installer) };
+    })
+    .sort((a, b) => (a.postcode ?? "9999").localeCompare(b.postcode ?? "9999") || (a.suburb ?? "").localeCompare(b.suburb ?? ""));
 }
