@@ -1,0 +1,2 @@
+ALTER TABLE public.workflow_settings ADD COLUMN IF NOT EXISTS partner_lead_fee_inc_gst numeric(10,2) NOT NULL DEFAULT 220;
+ALTER TABLE public.workflow_settings ADD CONSTRAINT workflow_settings_lead_fee_range CHECK (partner_lead_fee_inc_gst >= 0 AND partner_lead_fee_inc_gst <= 5000);
