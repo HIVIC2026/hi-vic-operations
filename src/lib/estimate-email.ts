@@ -322,7 +322,6 @@ function renderV2QuoteEmail(input: EstimateEmailInput, kind: "likely" | "onsite"
   const row = (content: string, pad = "0 36px 28px", extra = "") => `<tr><td class="lx-pad" style="padding:${pad};${F}${extra}">${content}</td></tr>`;
   const p = (t: string, s = "") => `<p class="lx-body" style="margin:0;${F}color:${INK};font-size:15px;line-height:1.6;${s}">${t}</p>`;
   const h2 = (t: string) => `<h2 style="margin:0 0 12px;${FH}color:${INK};font-size:23px;line-height:1.2;font-weight:800;letter-spacing:0;">${t}</h2>`;
-  const button = (href: string, text: string, primary: boolean) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;"><tr><td align="center" bgcolor="${primary ? GREEN : WHITE}" style="background-color:${primary ? GREEN : WHITE};border:${primary ? "0" : `2px solid ${BLUE}`};border-radius:12px;mso-padding-alt:15px 18px;${primary ? "box-shadow:0 10px 24px -12px rgba(7,191,97,.55);" : ""}"><a class="lx-button" href="${escape(href)}" style="display:block;padding:15px 18px;${F}color:${primary ? WHITE : BLUE};font-size:16px;line-height:20px;font-weight:800;text-decoration:none;border-radius:12px;">${text}</a></td></tr></table>`;
 
   // 1. Header
   const header = v2Header("Free estimate · no obligation");
