@@ -260,11 +260,18 @@ function RecOnboarding() {
     <div style={{ ...card, textAlign: "center" }}>
       {previewBanner}
       <div style={{ width: 56, height: 56, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 28, lineHeight: "56px", margin: "0 auto 16px" }}>✓</div>
-      <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — we've got everything.</h1>
-      <p style={{ color: MUTED, lineHeight: 1.6 }}>Your application and signed agreement are now with the Home Insulation Victoria team. We'll review your details, check your REC registration, licences and insurance, and be in touch if we need anything else.</p>
-       <p style={{ color: MUTED, lineHeight: 1.6 }}>The office will review the REC registration, insurance and application, then agree supplier rates before approving portal access. Approval and work are not guaranteed.</p>
-       <div style={{ ...infoCard, textAlign: "left", marginTop: 8 }}><strong>What happens next:</strong> office review and rates agreed → business portal access arranged → invite each staff electrician → office approves each worker before job access. A REC owner who performs electrical work must also be listed and approved as a worker.</div>
-       <p style={{ color: MUTED, lineHeight: 1.6 }}>Invitation links are created and copied in the portal; they are not sent automatically.</p>
+      <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — we've received your application</h1>
+      <p style={{ color: MUTED, lineHeight: 1.6 }}>Your signed agreement and business details are with our team. We'll check your REC registration, licences and insurance, review your proposed rates, and contact you if we need anything else.</p>
+      <div style={{ ...infoCard, textAlign: "left", marginTop: 16 }}>
+        <strong>What happens next</strong>
+        <ol style={{ margin: "10px 0 0", paddingLeft: 20, display: "grid", gap: 8 }}>
+          <li style={{ color: MUTED, lineHeight: 1.5 }}>We confirm business approval and agreed rates.</li>
+          <li style={{ color: MUTED, lineHeight: 1.5 }}>We help you access your REC business profile.</li>
+          <li style={{ color: MUTED, lineHeight: 1.5 }}>You invite your staff to complete their details and declarations.</li>
+          <li style={{ color: MUTED, lineHeight: 1.5 }}>We approve each electrician before they access assigned jobs.</li>
+        </ol>
+      </div>
+      <p style={{ color: MUTED, fontSize: 13, marginTop: 16 }}>If you carry out electrical work, your own staff record also needs approval.</p>
       <p style={{ color: MUTED, fontSize: 13 }}>Agreement version {REC_AGREEMENT_VERSION} · A copy of everything you've submitted is kept on your file.</p>
     </div>,
   );

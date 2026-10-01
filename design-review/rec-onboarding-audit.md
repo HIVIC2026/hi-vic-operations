@@ -43,3 +43,6 @@ Activation creates the approved business and worker records, but it does not aut
 - `/join/sample-installer` — safe installer invitation sample using the production declaration set.
 - `/join/sample-electrician?receipt=1` — safe worker receipt sample.
 - `/partner/workers?sample=1` — staff invitation sample for an authenticated staff/partner preview session.
+## Receipt copy-only polish (2026-10-01)
+- Submitted receipt now has one intro paragraph, a mist "What happens next" card with four numbered steps, the working-owner note and agreement version/file line; duplicate review/guarantee/invite paragraphs removed. No logic, signed text, rates or terms changed.
+- Verified via `/electrician-onboarding?sample=submitted` at true 390 and 640 viewports: all four next-step items, heading and working-owner note present; document scrollWidth equalled viewport width (no horizontal overflow). Screenshots refreshed in design-review/rec-onboarding-refinement.json. No submissions, sends or publication.
