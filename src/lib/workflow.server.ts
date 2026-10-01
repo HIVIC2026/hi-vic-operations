@@ -275,6 +275,11 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
     const r = await installReadiness(jobId);
     for (const b of r.blockers) blockers.push(`Not ready to install: ${b}`);
   }
+  // PIESA Part 7: an unresolved hazard blocks PIESA completion and installation (evidence_outstanding via piisaPanel).
+  if (["piesa_complete", "assessment_complete", "installation_scheduling", "installation_booked"].includes(to)) {
+    const { hazardBlockers } = await import("./official-forms.server");
+    blockers.push(...(await hazardBlockers(jobId)));
+  }
   // PIISA: due on installation day immediately before work starts; canonical gate (fails closed).
   if (to === "evidence_outstanding") {
     const { piisaPanel } = await import("./official-forms.server");

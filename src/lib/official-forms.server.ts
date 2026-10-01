@@ -2,7 +2,9 @@
 // official-form-copies). Server-only. Fails closed when the storage (migration 0075) isn't present.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildSignedSnapshot, documentSha, officialFormUseBlocker, OFFICIAL_TEMPLATES, type OfficialAnswers, type OfficialKey, type SignedSnapshot, type Signer } from "./official-forms.core";
+import { answersFromDocument, evaluatePiesa, HAZARD_UNRESOLVED } from "./official-forms.core";
 import { piisaGate, type MaterialFacts, type PiisaPanel, type StoredCopy } from "./piisa-workflow.core";
+import { evaluateHazardRectifications, rectFingerprint, type HazardStatus, type HazardVerification } from "./hazard-rectification.core";
 
 export const OFFICIAL_BUCKET = "official-form-copies";
 // The table is not in the generated types until 0075 is applied; keep the untyped access in one place.
@@ -70,9 +72,9 @@ export async function materialFacts(jobId: string, piesa: StoredCopy | null): Pr
   };
 }
 
-export async function piisaPanel(jobId: string, today: string): Promise<PiisaPanel> {
+export async function piisaPanel(jobId: string, today: string): Promise<PiisaPanel & { hazards: HazardStatus[] }> {
   const [pe, pi] = await Promise.all([currentCopy(jobId, "piesa"), currentCopy(jobId, "piisa")]);
-  if (pe.unavailable || pi.unavailable) return piisaGate({ today, installDate: null, piisa: null, piesa: null, facts: {}, piesaReceivedAt: null, conductiveExistingInsulation: null, conductivityEvidence: null, hazardResolution: null, storageUnavailable: true });
+  if (pe.unavailable || pi.unavailable) return piisaGate({ today, installDate: null, piisa: null, piesa: null, facts: {}, piesaReceivedAt: null, conductiveExistingInsulation: null, conductivityEvidence: null, hazardResolution: null, storageUnavailable: true }) && { ...piisaGate({ today, installDate: null, piisa: null, piesa: null, facts: {}, piesaReceivedAt: null, conductiveExistingInsulation: null, conductivityEvidence: null, hazardResolution: null, storageUnavailable: true }), hazards: [] };
   const { facts, installDate } = await materialFacts(jobId, pe.copy);
   let piesaReceivedAt: string | null = null;
   if (pe.copy) {
@@ -83,10 +85,71 @@ export async function piisaPanel(jobId: string, today: string): Promise<PiisaPan
   const { data: row } = pi.copy ? await db().from("official_form_signed_copies").select("answers").eq("id", pi.copy.id).single() : { data: null };
   const ans = (row?.answers ?? {}) as Record<string, unknown>;
   const c = String(ans["supp.conductive"] ?? "");
-  return piisaGate({
+  const hz = await hazardState(jobId, pe.copy);
+  const gate = piisaGate({
     today, installDate, piisa: pi.copy, piesa: pe.copy, facts, piesaReceivedAt,
     conductiveExistingInsulation: c === "Yes" ? true : c === "No" ? false : null,
     conductivityEvidence: ans["supp.conductiveEvidence"] ? String(ans["supp.conductiveEvidence"]) : null,
-    hazardResolution: null, // no verified-rectification link exists yet → fail closed
+    hazardResolution: hz.resolution,
   });
+  return { ...gate, hazards: hz.hazards };
+}
+
+/** PIESA Part 7 hazards for the current signed PIESA and their verified-rectification state. Fails closed
+ * (nothing resolved) when the verification table (staged 0077) isn't present. */
+export async function hazardState(jobId: string, piesa: StoredCopy | null): Promise<{ hazards: HazardStatus[]; resolution: ReturnType<typeof evaluateHazardRectifications>["resolution"] }> {
+  if (!piesa) return { hazards: [], resolution: null };
+  const answers = answersFromDocument(piesa.snapshot.document);
+  const [{ data: vs, error }, { data: items, error: ie }] = await Promise.all([
+    db().from("hazard_rectification_verifications").select("*").eq("job_id", jobId).eq("piesa_copy_id", piesa.id),
+    supabaseAdmin.from("rectification_items").select("id,job_id,status,description,quantity,rate_code").eq("job_id", jobId),
+  ]);
+  if (ie) throw new Error(ie.message);
+  if (error && !missing(error)) throw new Error(error.message);
+  const verifications: HazardVerification[] = (vs ?? []).map((v: any) => ({
+    id: v.id, jobId: v.job_id, piesaCopyId: v.piesa_copy_id, hazardKey: v.hazard_key, status: v.status,
+    rectificationItemId: v.rectification_item_id, rectificationFingerprint: v.rectification_fingerprint,
+    verifiedBy: v.verified_by, verifiedAt: v.verified_at, evidenceFileIds: v.evidence_file_ids ?? [],
+    cesRequired: v.ces_required, cesNumber: v.ces_number, cesEvidenceFileId: v.ces_evidence_file_id,
+  }));
+  return evaluateHazardRectifications({ jobId, piesaCopyId: piesa.id, answers, verifications,
+    items: (items ?? []).map((x) => ({ id: x.id, jobId: x.job_id, status: x.status, description: x.description, quantity: x.quantity, rateCode: x.rate_code })) });
+}
+
+/** Central stage check: an unresolved PIESA hazard blocks PIESA completion and installation. */
+export async function hazardBlockers(jobId: string): Promise<string[]> {
+  const pe = await currentCopy(jobId, "piesa");
+  if (pe.unavailable || !pe.copy) return []; // no signed PIESA can exist, so no recorded hazard to hold
+  const hz = await hazardState(jobId, pe.copy);
+  const ev = evaluatePiesa(answersFromDocument(pe.copy.snapshot.document), { hazardResolution: hz.resolution });
+  if (!ev.blockers.some((b) => b.rule === "P7-NOT-EFFECTIVE")) return [];
+  return [HAZARD_UNRESOLVED, ...hz.hazards.filter((h) => !h.resolved).map((h) => `Hazard "${h.text}": ${h.reason}`)];
+}
+
+/** Office records a verified rectification for one PIESA hazard. Fingerprint and hazard text come from the records. */
+export async function recordHazardVerification(i: { jobId: string; hazardKey: string; rectificationItemId: string; evidenceFileIds: string[]; cesRequired: boolean; cesNumber: string | null; cesEvidenceFileId: string | null; notes: string | null; actor: string }) {
+  const pe = await currentCopy(i.jobId, "piesa");
+  if (pe.unavailable) throw new Error("Signed-copy storage isn't set up yet.");
+  if (!pe.copy) throw new Error("No current signed PIESA on this job.");
+  const hz = await hazardState(i.jobId, pe.copy);
+  const hazard = hz.hazards.find((h) => h.key === i.hazardKey);
+  if (!hazard) throw new Error("That hazard isn't on the current PIESA.");
+  const { data: item, error } = await supabaseAdmin.from("rectification_items").select("id,job_id,status,description,quantity,rate_code").eq("id", i.rectificationItemId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!item || item.job_id !== i.jobId) throw new Error("That rectification item isn't on this job.");
+  if (item.status !== "completed") throw new Error("The rectification item must be completed before it can be verified.");
+  const r = await db().from("hazard_rectification_verifications").insert({
+    job_id: i.jobId, piesa_copy_id: pe.copy.id, hazard_key: hazard.key, hazard_text: hazard.text, rectification_item_id: item.id,
+    rectification_fingerprint: rectFingerprint({ status: item.status, description: item.description, quantity: item.quantity, rateCode: item.rate_code }),
+    verified_by: i.actor, evidence_file_ids: i.evidenceFileIds, ces_required: i.cesRequired, ces_number: i.cesNumber, ces_evidence_file_id: i.cesEvidenceFileId, notes: i.notes,
+  }).select("id").single();
+  if (missing(r.error)) throw new Error("Hazard verification storage isn't set up yet.");
+  if (r.error) throw new Error(r.error.message);
+  return r.data.id as string;
+}
+
+export async function supersedeHazardVerification(id: string, reason: string, actor: string) {
+  if (!reason.trim()) throw new Error("A reason is required.");
+  const { error } = await db().from("hazard_rectification_verifications").update({ status: "superseded", superseded_reason: reason.trim(), superseded_at: new Date().toISOString(), superseded_by: actor }).eq("id", id).eq("status", "current");
+  if (error) throw new Error(error.message);
 }
