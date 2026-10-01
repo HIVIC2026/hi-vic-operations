@@ -79,6 +79,7 @@ function CoveragePage() {
               return <a key={region.id} role="listitem" href={`#region-${region.id}`} style={{ gridColumn: region.col, gridRow: region.row, opacity: weight }} className={`flex flex-col justify-between rounded-md border-2 p-1.5 text-left hover:ring-2 hover:ring-primary ${tone}`}>
                 <span className="text-[11px] font-semibold leading-tight sm:text-xs">{region.name}</span>
                 <span className="text-lg font-bold leading-none sm:text-2xl">{region.enquiryCount}<span className="ml-1 text-[10px] font-normal text-muted-foreground">enq</span></span>
+                <span className="mt-0.5 text-[10px] font-semibold leading-tight">{region.recTeams.length} REC · {region.installerTeams.length} CII</span>
               </a>;
             })}
           </div>
