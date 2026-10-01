@@ -110,6 +110,14 @@ describe("C04 state boundaries", () => {
     expect(state.job.ap_fee_override_inc_gst).toBe(349);
     expect(state.audits.some((a) => a.type === "ap_fee_override")).toBe(false);
   });
+  test("with the database safeguard, a change that committed before acceptance stands and is audited", async () => {
+    const { repo, state } = fakeRepo([issued], { acceptDuringWrite: true });
+    let n = 0; const write = repo.writeJob;
+    repo.writeJob = async (j, next) => { if (++n > 1) throw new Error(AP_FEE_LOCKED_MESSAGE); return write(j, next); };
+    await expect(run(repo, HIVIC_OWNER_USER_ID, "Just before")).resolves.toEqual({ ok: true });
+    expect(state.job.ap_fee_override_inc_gst).toBe(299);
+    expect(state.audits.map((a) => a.type)).toEqual(["ap_fee_override"]);
+  });
   test("after acceptance is locked", () => expect(apFeeLockedByQuotes([accepted])).toBe(true));
   test("cancelled/declined/superseded quotes never accepted do not lock", () => {
     expect(apFeeLockedByQuotes([{ id: "a", status: "declined", accepted_at: null }, { id: "b", status: "superseded", accepted_at: null }, { id: "c", status: "draft", accepted_at: null }])).toBe(false);

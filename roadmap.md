@@ -117,3 +117,5 @@
 - [x] 0074 merged against current code in throwaway copy and retested
 - [ ] Apply 0075 storage + private file store live — waiting on Jo's approval and restore-point confirmation
 - [ ] Apply 0077 / 0074 live, publish app code — waiting on Jo's approval, form approvals, source URL/date, conductivity/hazard official confirmation, C01/C02/C04
+
+- [x] Read-only live readiness check: REC/installer onboarding, worker invites, job links, commercial wording (PASS/FAIL/NOT LIVE with URLs + evidence)

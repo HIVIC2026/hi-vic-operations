@@ -10,7 +10,9 @@ export type CommercialDecision = {
   decided: string;
   decidedAt: string;
   enforcedBy: string;
-  status: "decided";
+  status: "decided" | "resolved";
+  /** Separate, not-yet-applied safeguards. Never affects status. */
+  pendingSafeguard?: string;
 };
 
 export const COMMERCIAL_DECISIONS: readonly CommercialDecision[] = [
@@ -43,14 +45,15 @@ export const COMMERCIAL_DECISIONS: readonly CommercialDecision[] = [
     question: "Who may change the Accredited Person management fee?",
     decided: "Only Jo (info@homeinsulationvictoria.com.au) may change it, with a non-blank reason, audited, and only before the customer accepts the quote. Once accepted it is permanently locked for everyone. No post-acceptance reconfirmation flow.",
     decidedAt: "2026-10-02",
-    enforcedBy: "ap-fee.core.ts (applyApFeeChange), installer-invoice.functions.ts; tests/ap-fee-lock.test.ts; DB backstop 0078 staged, not applied",
-    status: "decided",
+    enforcedBy: "ap-fee.core.ts (applyApFeeChange), installer-invoice.functions.ts; tests/ap-fee-lock.test.ts",
+    status: "resolved",
+    pendingSafeguard: "Database safeguard 0078 tested in a throwaway copy only; not applied to the live database.",
   },
 ] as const;
 
 /** Anything still undecided. Empty while every recorded decision stands. */
 export function openCommercialDecisions(): CommercialDecision[] {
-  return COMMERCIAL_DECISIONS.filter((d) => d.status !== "decided");
+  return COMMERCIAL_DECISIONS.filter((d) => d.status !== "decided" && d.status !== "resolved");
 }
 
 /** null while every decision is recorded; a message for the office while any is outstanding. */

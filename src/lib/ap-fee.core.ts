@@ -97,10 +97,16 @@ export async function applyApFeeChange(repo: ApFeeRepo, input: {
   };
   await repo.writeJob(input.jobId, next);
   // Acceptance may have landed between the check and the write: re-check and undo.
+  // With the database safeguard (0078) the write itself is refused once accepted, and an
+  // acceptance waits for an in-flight change; if the undo is refused, the change committed
+  // before acceptance and stands, so it is audited as a normal change.
   if (apFeeLockedByQuotes(await repo.loadInstallationQuotes(input.jobId))) {
-    await repo.writeJob(input.jobId, before);
-    await repo.audit(input.jobId, input.actorId, "ap_fee_override_refused", "AP fee change undone: customer accepted during the change", { attempted_amount: amount });
-    throw new Error(AP_FEE_LOCKED_MESSAGE);
+    let undone = true;
+    try { await repo.writeJob(input.jobId, before); } catch { undone = false; }
+    if (undone) {
+      await repo.audit(input.jobId, input.actorId, "ap_fee_override_refused", "AP fee change undone: customer accepted during the change", { attempted_amount: amount });
+      throw new Error(AP_FEE_LOCKED_MESSAGE);
+    }
   }
   await repo.audit(input.jobId, input.actorId, "ap_fee_override",
     amount == null ? "AP fee reset to standard" : `AP fee overridden to $${amount.toFixed(2)} inc GST`,
