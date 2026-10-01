@@ -90,3 +90,36 @@ export function HowItWorks() {
     </div>
   );
 }
+
+/** Electrician-facing "How we work together" — job flow, same-day rule, pay, comms. */
+export function HowItWorksElectrician() {
+  return (
+    <div>
+      <Panel accent={GREENA} title="One app, every job">
+        <p style={{ margin: 0 }}>{APP_PITCH}</p>
+      </Panel>
+      <StepsCard title={ELECTRICIAN_JOB_FLOW.title} tagline={ELECTRICIAN_JOB_FLOW.tagline} steps={ELECTRICIAN_JOB_FLOW.steps} footer={ELECTRICIAN_JOB_FLOW.footer} tone="blue" />
+      <Panel accent={YELLOW} title={ELECTRICIAN_SAME_DAY.title}>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>{ELECTRICIAN_SAME_DAY.points.map((p) => <li key={p}>{p}</li>)}</ul>
+      </Panel>
+      <Panel accent={GREENA} title={ELECTRICIAN_PAY.title}>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>{ELECTRICIAN_PAY.points.map((p) => <li key={p}>{p}</li>)}</ul>
+      </Panel>
+      <Panel accent={BLUEA} title={PORTAL_ONLY_COMMS.title}>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>{PORTAL_ONLY_COMMS.points.map((p) => <li key={p}>{p}</li>)}</ul>
+      </Panel>
+      <Panel accent={PINK} title={LEAD_24H_RULE.title}>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>{LEAD_24H_RULE.points.map((p) => <li key={p}>{p}</li>)}</ul>
+      </Panel>
+      <div style={{ ...h, fontWeight: 800, fontSize: 15, margin: "16px 0 8px" }}>Common questions</div>
+      <div style={{ display: "grid", gap: 8 }}>
+        {ELECTRICIAN_FAQ.map((f) => (
+          <details key={f.q} style={{ border: "1px solid #E4E8F0", borderRadius: 12, padding: "10px 14px", background: "#fff" }}>
+            <summary style={{ fontWeight: 700, fontSize: 14, color: NAVY, cursor: "pointer" }}>{f.q}</summary>
+            <p style={{ fontSize: 14, lineHeight: 1.55, color: MUTED, margin: "8px 0 2px" }}>{f.a}</p>
+          </details>
+        ))}
+      </div>
+    </div>
+  );
+}
