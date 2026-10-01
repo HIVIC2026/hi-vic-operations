@@ -24,20 +24,10 @@ function NotFoundComponent() {
   );
 }
 
-// A dropped connection (aborted stream, socket closed mid-request) or a half-loaded
-// server module can fail a page load part-way. Only a full document reload recovers
-// from that, so those errors get a "Refresh the page" action instead of "Try again".
-const TRANSPORT_ERROR = /aborted|aborterror|econnreset|econnrefused|socket hang up|etimedout|failed to fetch|networkerror|network request failed|load failed|reading 'method'|unsupported method/i;
-
-function isTransportError(error: unknown) {
-  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-  return TRANSPORT_ERROR.test(message);
-}
-
 function ErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  const transport = isTransportError(error);
+  const transport = isRecoverableTransportError(error);
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
