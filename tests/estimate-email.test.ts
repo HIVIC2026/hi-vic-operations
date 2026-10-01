@@ -23,6 +23,9 @@ describe("customer outcome email renderers", () => {
     expect(h).toContain(`href="${estimateUrl}#confirm"`);
     expect(h).toContain('href="https://estimate.homeinsulationvictoria.com.au/calculator"');
     expect(h).not.toContain("#calculator");
+    expect(h.match(new RegExp(`href="${unsubscribeUrl}"`, "g"))?.length).toBe(1);
+    expect(h).not.toContain("A secure unsubscribe link appears below");
+    expect(email.plainText).not.toContain("A secure unsubscribe link appears below");
     expect(h).not.toMatch(/<form|<input|<iframe|<script|\son\w+=/i);
     expect(`${h} ${email.plainText}`).not.toMatch(/undefined|NaN|\$0\b|Gate 1|guaranteed|energy bill/i);
     expect(email.subject).toBe("Alex, you could save $1,325 on ceiling insulation");
