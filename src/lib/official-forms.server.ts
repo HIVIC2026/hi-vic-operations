@@ -5,6 +5,7 @@ import { buildSignedSnapshot, documentSha, officialFormUseBlocker, OFFICIAL_TEMP
 import { answersFromDocument, evaluatePiesa, HAZARD_UNRESOLVED } from "./official-forms.core";
 import { piisaGate, type MaterialFacts, type PiisaPanel, type StoredCopy } from "./piisa-workflow.core";
 import { evaluateHazardRectifications, rectFingerprint, type HazardStatus, type HazardVerification } from "./hazard-rectification.core";
+import { evidenceFromRecords, piisaCarryOver, readyCheckCoverage, type CarryOver, type MeasurementRecord } from "./installer-led.core";
 
 export const OFFICIAL_BUCKET = "official-form-copies";
 // The table is not in the generated types until 0075 is applied; keep the untyped access in one place.

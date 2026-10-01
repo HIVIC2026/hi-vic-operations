@@ -40,6 +40,21 @@ export function PiisaPanel({ jobId }: { jobId: string }) {
               </ul>
             </div>
           )}
+          {(data.readyCheckCarryOver.beforeQuote.length > 0 || data.readyCheckCarryOver.atPiisa.length > 0) && (
+            <div className="space-y-2">
+              <p className="font-medium">Ready Check items the installer hasn't supplied</p>
+              {data.readyCheckCarryOver.beforeQuote.length > 0 && (
+                <ul className="list-disc space-y-1 rounded-md border border-destructive/30 bg-destructive/5 p-3 pl-6 text-destructive">
+                  {data.readyCheckCarryOver.beforeQuote.map((m) => <li key={m}>{m} — settle before quoting</li>)}
+                </ul>
+              )}
+              {data.readyCheckCarryOver.atPiisa.length > 0 && (
+                <ul className="list-disc space-y-1 rounded-md border p-3 pl-6 text-muted-foreground">
+                  {data.readyCheckCarryOver.atPiisa.map((m) => <li key={m}>{m} — bring with the PIISA on installation day</li>)}
+                </ul>
+              )}
+            </div>
+          )}
           {data.confirmations.length > 0 && <p className="text-xs text-muted-foreground">Held pending official/legal confirmation: {data.confirmations.join(", ")}.</p>}
         </div>
       )}
