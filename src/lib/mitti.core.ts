@@ -178,7 +178,10 @@ export function buildPrefill(template: Any, ctx: PrefillCtx) {
     if (!r.entry) { if (r.ambiguous) ambiguous.push(f.aliases[0]!); else if (f.mandatory) missing.push(f.aliases[0]!); continue; }
     const e = r.entry;
     if (empty) continue;
-    const row = { item_id: e.id, label: e.label, type: e.type, responses: f.datetime ? { datetime: String(v) } : { text: String(v) } };
+    const vStr = String(v);
+    const choiceLike = /choice|question|switch/i.test(e.type);
+    const responses = f.datetime ? { datetime: vStr } : choiceLike ? { selected: [{ label: vStr }] } : { text: vStr };
+    const row = { item_id: e.id, label: e.label, type: e.type, responses };
     (e.header ? header_items : items).push(row);
   }
   return { header_items, items, count: header_items.length + items.length, missing, ambiguous, blank };
