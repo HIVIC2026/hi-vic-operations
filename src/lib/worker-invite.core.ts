@@ -22,6 +22,9 @@ export const INVITE_STATE_MESSAGE: Record<"used" | "revoked" | "expired", string
 
 export const WORKER_DECLARATIONS_VERSION = "worker-v1";
 
+export const workerListQueryKey = (sample: boolean) => ["my-workers", sample ? "sample" : "live"] as const;
+export const workerInviteQueryKey = (businessId: string, sample: boolean) => ["worker-invites", businessId, sample ? "sample" : "live"] as const;
+
 export function workerDeclarations(trade: "electrician" | "installer", businessName: string) {
   const work = trade === "electrician" ? "electrical work" : "insulation work";
   return [

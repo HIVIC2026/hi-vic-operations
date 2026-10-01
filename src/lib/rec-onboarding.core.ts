@@ -111,6 +111,21 @@ export const STEPS = [
 ] as const;
 export type StepKey = (typeof STEPS)[number]["key"];
 
+export type RecSampleStep = StepKey | "welcome" | "submitted";
+
+/** Accept only real onboarding steps for the public no-write sample. */
+export function parseRecSampleStep(value: string | null): RecSampleStep | null {
+  if (value === "welcome" || value === "submitted") return value;
+  return STEPS.some((step) => step.key === value) ? value as StepKey : null;
+}
+
+/** Legacy drafts must resolve their old worker/business answer before continuing. */
+export function recDraftRole(d: RecData): "business" | "worker" | "unresolved" {
+  if (d.works_under_rec === false) return "business";
+  if (d.works_under_rec === true) return "worker";
+  return "unresolved";
+}
+
 export function visibleSteps(d: RecData) {
   return STEPS.filter((s) =>
     (s.key !== "insurance" || d.works_under_rec !== true) &&

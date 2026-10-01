@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   acknowledgementsFor, agreementText, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION,
-  firstName, stepErrors, firstIncompleteStep, validAbn, visibleSteps, type RecData, type StepKey,
+  firstName, parseRecSampleStep, recDraftRole, stepErrors, firstIncompleteStep, validAbn, visibleSteps, type RecData, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
@@ -117,7 +117,10 @@ function Choice<T extends string | number | boolean>({ options, value, onChange 
 }
 
 function RecOnboarding() {
-  const sampleStep = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("sample") as StepKey | "submitted" | null : null;
+  const rawSample = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("sample") : null;
+  const sampleStep = parseRecSampleStep(rawSample);
+  const sampleMode = rawSample !== null;
+  const invalidSample = sampleMode && sampleStep === null;
   const [token, setToken] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [started, setStarted] = useState(false);
@@ -133,12 +136,14 @@ function RecOnboarding() {
   const [invite, setInvite] = useState<string | null>(null);
   const [inviteInfo, setInviteInfo] = useState<Awaited<ReturnType<typeof loadTeamInvite>> | null>(null);
   useEffect(() => {
+    if (sampleMode) return;
     const i = new URLSearchParams(window.location.search).get("invite");
     if (!i) return;
     setInvite(i);
     loadTeamInvite({ data: { invite: i } }).then(setInviteInfo).catch((e) => setError(e instanceof Error ? e.message : "Invitation not found."));
-  }, []);
+  }, [sampleMode]);
   async function answerInvite(accept: boolean) {
+    if (sampleMode) return;
     if (!invite) return;
     setBusy(true); setError(null);
     try {
@@ -151,9 +156,12 @@ function RecOnboarding() {
   }
 
   useEffect(() => {
+    if (invalidSample) { setLoaded(true); return; }
     if (sampleStep) {
-      setD(SAMPLE_REC_DATA); setToken("sample-preview-token"); setStarted(true); setTestMode(true);
-      if (sampleStep === "submitted") setStatus("submitted"); else setStep(sampleStep);
+      setD(SAMPLE_REC_DATA); setToken("sample-preview-token"); setTestMode(false);
+      if (sampleStep === "welcome") { setStarted(false); setStatus("draft"); }
+      else if (sampleStep === "submitted") { setStarted(true); setStatus("submitted"); }
+      else { setStarted(true); setStatus("draft"); setStep(sampleStep); }
       setLoaded(true); return;
     }
     if (new URLSearchParams(window.location.search).get("reset") === "1") { localStorage.removeItem(TOKEN_KEY); setLoaded(true); return; }
@@ -165,7 +173,7 @@ function RecOnboarding() {
       const first = firstIncompleteStep(r.data as RecData);
       setStep(r.status === "submitted" ? "sign" : ((first ?? r.step_key ?? "about") as StepKey));
     }).catch(() => localStorage.removeItem(TOKEN_KEY)).finally(() => setLoaded(true));
-  }, [sampleStep]);
+  }, [invalidSample, sampleStep]);
 
   const steps = useMemo(() => visibleSteps(d), [d]);
   const idx = Math.max(0, steps.findIndex((s) => s.key === step));
@@ -173,6 +181,10 @@ function RecOnboarding() {
   const up = (patch: Partial<RecData>) => setD((x) => ({ ...x, ...patch }));
 
   async function beginBusiness() {
+    if (sampleMode) {
+      setD(SAMPLE_REC_DATA); setToken("sample-preview-token"); setStep("about"); setStarted(true); setError(null);
+      return;
+    }
     setBusy(true); setError(null);
     try {
       const { token: t } = await startRecOnboarding({ data: { test: testMode } });
@@ -182,7 +194,7 @@ function RecOnboarding() {
     } catch (e) { setError(e instanceof Error ? e.message : "Could not start."); } finally { setBusy(false); }
   }
   async function persist(nextStep: StepKey) {
-    if (sampleStep) return;
+    if (sampleMode) return;
     if (!token) return;
     const { insurance_uploaded: _u, ...data } = d;
     const r = await saveRecOnboarding({ data: { token, step_key: nextStep, data: data as never } });
@@ -190,8 +202,8 @@ function RecOnboarding() {
   }
   async function go(delta: 1 | -1) {
     setError(null);
-    if (delta === 1 && d.works_under_rec === true) return; // workers join via the boss's invite link
-    if (delta === 1 && errs.length && !testMode) { setShowErrors(true); return; }
+    if (delta === 1 && d.works_under_rec === true) return; // workers join via the business invitation link
+    if (delta === 1 && errs.length && !testMode && !sampleMode) { setShowErrors(true); return; }
     setShowErrors(false);
     const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "about";
     setBusy(true);
@@ -202,6 +214,10 @@ function RecOnboarding() {
   const shell = (children: React.ReactNode, footer?: React.ReactNode) => <TradeOnboardingShell {...(started && status === "draft" ? { progress: { current: idx + 1, total: steps.length, label: steps[idx]?.title ?? "Application" } } : {})} footer={footer ?? <TradeOnboardingFooter />}>{children}</TradeOnboardingShell>;
 
   if (!loaded) return shell(<p>Loading…</p>);
+
+  if (invalidSample) return shell(<div style={card}><p className="text-xs font-extrabold uppercase tracking-[1.2px] text-estimate-green">Sample preview</p><h1 className="mt-2 text-[28px] leading-tight text-estimate-navy">That sample step is not available</h1><p className="mt-3 text-sm leading-relaxed">Open the welcome sample to review this flow safely. No data has been loaded or saved.</p><a href="/electrician-onboarding?sample=welcome" className="mt-5 inline-flex min-h-12 items-center rounded-xl bg-estimate-green px-5 text-sm font-extrabold text-estimate-navy">Open welcome sample →</a></div>);
+
+  const previewBanner = sampleMode ? <div role="status" className="mb-4 rounded-xl border border-estimate-blue/25 bg-estimate-mist p-3 text-sm font-bold text-estimate-navy">Sample preview only — no data is saved and no application, invitation or signature is submitted.</div> : null;
 
   if (invite && inviteInfo && !inviteInfo.answered) return shell(
     <div style={card}>
@@ -220,6 +236,7 @@ function RecOnboarding() {
   if (invite && inviteInfo?.answered === "declined") return shell(<div style={card}><h1 style={{ color: BLUE }}>Thanks for letting us know</h1><p style={{ color: MUTED }}>We've told Home Insulation Victoria you'd rather not team up. You can still join our trade network any time from this page.</p></div>);
 
   if (!started) return shell(<div style={card}>
+    {previewBanner}
     <p className="text-xs font-extrabold uppercase tracking-[1.2px] text-estimate-green">REC partner onboarding</p>
     <h1 className="mt-2 text-[30px] leading-tight text-estimate-navy sm:text-[36px]">Join our electrician network</h1>
     <p className="mt-4 text-[15px] leading-relaxed">Set up your REC business once. Then invite the licensed electricians who work with you.</p>
@@ -241,6 +258,7 @@ function RecOnboarding() {
 
   if (status === "submitted") return shell(
     <div style={{ ...card, textAlign: "center" }}>
+      {previewBanner}
       <div style={{ width: 56, height: 56, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 28, lineHeight: "56px", margin: "0 auto 16px" }}>✓</div>
       <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — we've got everything.</h1>
       <p style={{ color: MUTED, lineHeight: 1.6 }}>Your application and signed agreement are now with the Home Insulation Victoria team. We'll review your details, check your REC registration, licences and insurance, and be in touch if we need anything else.</p>
@@ -250,6 +268,30 @@ function RecOnboarding() {
       <p style={{ color: MUTED, fontSize: 13 }}>Agreement version {REC_AGREEMENT_VERSION} · A copy of everything you've submitted is kept on your file.</p>
     </div>,
   );
+
+  const draftRole = recDraftRole(d);
+  if (status === "draft" && draftRole !== "business") return shell(<div style={card}>
+    {previewBanner}
+    <p className="text-xs font-extrabold uppercase tracking-[1.2px] text-estimate-green">Resume your application</p>
+    {draftRole === "worker" ? <>
+      <h1 className="mt-2 text-[28px] leading-tight text-estimate-navy">Continue through your REC business invitation</h1>
+      <div className="mt-5 rounded-[18px] bg-estimate-blush p-5"><h2 className="text-lg text-estimate-navy">Ask your REC administrator for your personal link</h2><p className="mt-2 text-sm leading-relaxed">Your saved answers show that you work under an REC business. The business administrator creates and copies your invitation from their portal. Your existing draft has not been converted or overwritten.</p></div>
+    </> : <>
+      <h1 className="mt-2 text-[28px] leading-tight text-estimate-navy">Are you setting up the REC business?</h1>
+      <p className="mt-3 text-sm leading-relaxed">This older draft needs one role choice before it can continue. Your saved answers will remain in place.</p>
+      <div className="mt-5 grid gap-3">
+        <button type="button" onClick={async () => {
+          const next = { ...d, works_under_rec: false };
+          setBusy(true); setError(null);
+          try { if (!sampleMode && token) await saveRecOnboarding({ data: { token, step_key: "about", data: next as never } }); setD(next); setStep("about"); }
+          catch (e) { setError(e instanceof Error ? e.message : "Could not save your choice."); }
+          finally { setBusy(false); }
+        }} disabled={busy} className="min-h-14 rounded-xl bg-estimate-green px-5 text-left text-sm font-extrabold text-estimate-navy">Yes, I’m setting up the REC business →</button>
+        <button type="button" onClick={() => setD((current) => ({ ...current, works_under_rec: true }))} className="min-h-14 rounded-xl border-2 border-estimate-line bg-estimate-white px-5 text-left text-sm font-bold text-estimate-navy">No, I work for an REC business</button>
+      </div>
+    </>}
+    {error && <p role="alert" className="mt-3 text-sm font-bold text-danger">{error}</p>}
+  </div>);
 
   const footer = (
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#fff", borderTop: "1px solid #E4E8F0", padding: "12px 20px", zIndex: 10 }}>
@@ -262,13 +304,14 @@ function RecOnboarding() {
 
   return shell(
     <div style={card}>
-      {testMode && <div style={{ background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#7A5A00", marginBottom: 14 }}>TEST MODE — nothing is mandatory, so you can click straight through. This application is marked as a test and won't count as a real applicant.</div>}
+      {previewBanner}
+      {testMode && !sampleMode && <div style={{ background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#7A5A00", marginBottom: 14 }}>TEST MODE — validation is relaxed for testing. If submitted, this is stored as a test application and not treated as a real applicant.</div>}
       <p className="text-xs font-extrabold uppercase tracking-[1.2px] text-estimate-green">REC business application</p>
       <h1 style={{ fontSize: 26, fontWeight: 800, margin: "6px 0 4px", color: NAVY }}>{steps[idx]?.title}</h1>
       {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Application for {d.trading_name || d.legal_entity_name || `${firstName(d)}'s REC business`}.</div>}
       {!firstName(d) && <div style={{ marginBottom: 12 }} />}
-       <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={!!sampleStep} />
-       {step === "sign" && <SignStep d={d} token={token ?? ""} onSigned={() => setStatus("submitted")} preview={!!sampleStep} />}
+        <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} />
+        {step === "sign" && <SignStep d={d} token={token ?? ""} onSigned={() => setStatus("submitted")} preview={sampleMode} />}
       {showErrors && errs.length > 0 && (
         <div style={{ background: "#FDECEA", border: "1px solid #F5C2BE", borderRadius: 12, padding: "10px 14px", color: "#8C1D18", fontSize: 14, marginTop: 8 }}>
           {errs.map((e) => <div key={e}>• {e}</div>)}
@@ -285,12 +328,11 @@ function StepBody({ step, d, up, token, setError, preview }: { step: StepKey; d:
   switch (step) {
     case "about":
       return <>
-        <div style={infoCard}><strong>Business representative and nominated electrician</strong><br />This application currently requires the authorised business representative to also provide their own Victorian electrical licence. If the authorised business contact is not a licensed electrician, the office must assist rather than using another person's licence.</div>
+        <div style={infoCard}><strong>Your licence and the business registration are different.</strong><br />Enter your own Victorian electrical licence. If you manage the business but are not a licensed electrician, contact our team for help setting up the REC profile.</div>
         <Field label="Authorised representative's name" required><input style={input} autoFocus placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
         <Field label="Your personal Victorian electrical licence number" required hint="This is your individual ESV electrical licence, not the business REC registration number."><input style={input} {...t("licence_number", true)} /></Field>
         <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
         <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
-        <div style={infoCard}>You are setting up the <strong>REC business profile</strong>. Staff electricians join later through personal invitation links.</div>
       </>;
     case "business":
       return <>
@@ -314,7 +356,7 @@ function StepBody({ step, d, up, token, setError, preview }: { step: StepKey; d:
         {d.works_under_rec !== true && <Check checked={d.authorised_to_register === true} onChange={(v) => up({ authorised_to_register: v })}>I'm authorised to set up this REC.</Check>}
       </>;
     case "insurance":
-      return <InsuranceStep d={d} up={up} token={token} setError={setError} />;
+      return <InsuranceStep d={d} up={up} token={token} setError={setError} preview={preview} />;
     case "services":
       return <>
         <div style={infoCard}>
@@ -354,8 +396,7 @@ function StepBody({ step, d, up, token, setError, preview }: { step: StepKey; d:
       const unit = d.gst_registered === false ? "total rate" : "inc GST";
       return <>
         <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
-        <div style={infoCard}>{d.gst_registered === false ? "Not GST registered: enter your total rate." : "GST registered: enter rates including GST."} These are proposed supplier rates — Home Insulation Victoria reviews them before they apply.</div>
-         <div style={infoCard}>Enter your proposed supplier rates. Home Insulation Victoria reviews and agrees rates with the business before they are used. These are not the customer-facing prices and no volume of work is promised.</div>
+        <div style={infoCard}>{d.gst_registered === false ? "Enter your total rates because the business is not GST registered." : "Enter rates including GST."} These are proposed supplier rates, not customer prices. Home Insulation Victoria reviews and agrees them with the business before use.</div>
         <Field label={`Pre-Insulation Electrical Safety Assessment (PIESA) visit (${unit})`} required hint="Formal electrical safety assessment and PIESA only. The installer completes the separate eligibility measure-up."><Money value={d.assessment_rate} onChange={(v) => up({ assessment_rate: v })} unit="visit" /></Field>
         {<Field label={`Installation-day attendance (${unit})`} required><Money value={d.installation_attendance_rate} onChange={(v) => up({ installation_attendance_rate: v })} unit="visit" /></Field>}
       </>;
@@ -384,13 +425,14 @@ function StepBody({ step, d, up, token, setError, preview }: { step: StepKey; d:
   }
 }
 
-function InsuranceStep({ d, up, token, setError }: { d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void }) {
+function InsuranceStep({ d, up, token, setError, preview }: { d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void; preview: boolean }) {
   const [uploading, setUploading] = useState(false);
   const [checking, setChecking] = useState(false);
   const [found, setFound] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   async function onFile(f: File | undefined) {
     if (!f) return;
+    if (preview) { setError("Sample preview only — certificate upload is disabled."); return; }
     setError(null);
     if (!["application/pdf", "image/jpeg", "image/png"].includes(f.type)) { setError("Upload a PDF, JPG or PNG."); return; }
     if (f.size > 20 * 1024 * 1024) { setError("File must be 20 MB or smaller."); return; }
@@ -426,7 +468,7 @@ function InsuranceStep({ d, up, token, setError }: { d: RecData; up: (p: Partial
   }
   return <>
     {d.insurance_uploaded
-      ? <div style={{ ...infoCard }}>✓ Certificate uploaded. It's stored privately — only the Home Insulation Victoria office can view it. <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label></div>
+      ? <div style={{ ...infoCard }}>✓ Certificate uploaded. It's stored privately — only the Home Insulation Victoria office can view it. {!preview && <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label>}</div>
       : <Field label="Certificate of Currency" required hint="PDF, JPG or PNG, up to 20 MB">
           <label style={{ ...btn(false, uploading), display: "inline-flex", alignItems: "center" }}>{checking ? "Checking certificate…" : uploading ? "Uploading…" : "Upload certificate"}<input type="file" hidden disabled={uploading} accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label>
         </Field>}

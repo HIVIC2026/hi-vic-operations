@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { validAbn, validPhone, validBusinessEmail, stepErrors, firstIncompleteStep, applyMaterialReset, agreementText, scheduleText, visibleSteps, effectiveElectricians, ACKNOWLEDGEMENTS, type RecData } from "../src/lib/rec-onboarding.core";
+import { validAbn, validPhone, validBusinessEmail, stepErrors, firstIncompleteStep, applyMaterialReset, agreementText, scheduleText, visibleSteps, effectiveElectricians, parseRecSampleStep, recDraftRole, ACKNOWLEDGEMENTS, type RecData } from "../src/lib/rec-onboarding.core";
 
 const full: RecData = {
   works_under_rec: false,
@@ -16,6 +16,16 @@ describe("rec onboarding", () => {
   test("ABN checksum", () => { expect(validAbn("51 824 753 556")).toBe(true); expect(validAbn("51824753557")).toBe(false); });
   test("phone + email", () => { expect(validPhone("0412 345 678")).toBe(true); expect(validPhone("12345")).toBe(false); expect(validBusinessEmail("x@privaterelay.appleid.com")).toBe(false); });
   test("complete application has no incomplete step", () => expect(firstIncompleteStep(full)).toBeNull());
+  test("sample steps are restricted to real onboarding states", () => {
+    expect(parseRecSampleStep("welcome")).toBe("welcome");
+    expect(parseRecSampleStep("assessment_pricing")).toBe("assessment_pricing");
+    expect(parseRecSampleStep("made-up-step")).toBeNull();
+  });
+  test("legacy draft role answers remain explicit", () => {
+    expect(recDraftRole({ works_under_rec: false })).toBe("business");
+    expect(recDraftRole({ works_under_rec: true })).toBe("worker");
+    expect(recDraftRole({ works_under_rec: null })).toBe("unresolved");
+  });
   test("the applicant IS the electrician: licence collected up front, no add-electricians step", () => {
     expect(visibleSteps(full).some((s) => s.key === "electricians")).toBe(false);
     expect(visibleSteps(full).some((s) => s.key === "howitworks")).toBe(false);

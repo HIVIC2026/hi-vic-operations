@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Now
+- [x] Finish REC onboarding polish: shared trade copy, isolated no-write samples, legacy draft resume, retry state, focused verification
 - [x] Audit and refine REC business onboarding, worker invitations and worker join screens; fix activation validation ordering
 - [x] Delete obsolete old-brand email templates and old calculator code; preserve approved current templates and customer calculator
 - [x] Point customer email calculator links to the built calculator at the customer-domain home address
