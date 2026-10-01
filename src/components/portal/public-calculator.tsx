@@ -24,13 +24,13 @@ const CHANGE_FACTORS = [
 
 function Field({ id, icon: Icon, label, hint, children }: { id: string; icon: typeof MapPin; label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div className="border-t border-estimate-line px-5 py-4 first:border-t-0">
+    <div className="border-t border-estimate-line px-5 py-3 first:border-t-0">
       <label htmlFor={id} className="flex items-center gap-2 text-[0.7rem] font-extrabold uppercase tracking-wider text-estimate-navy/60">
         <Icon aria-hidden="true" className="size-3.5 text-estimate-green" />
         {label}
       </label>
       {hint && <p className="mt-1 text-xs leading-relaxed text-estimate-navy/65">{hint}</p>}
-      <div className="mt-2.5">{children}</div>
+      <div className="mt-2">{children}</div>
     </div>
   );
 }
@@ -69,28 +69,28 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
 
   return (
     <div className="estimate-brand min-h-screen bg-gradient-to-b from-estimate-blush via-estimate-canvas to-estimate-canvas">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-4 pb-24 sm:px-6 lg:pb-8">
-        <header className="flex flex-wrap items-center justify-between gap-3 py-5">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-4 pb-24 sm:px-6 lg:pb-6">
+        <header className="flex flex-wrap items-center justify-between gap-3 py-3">
           <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-9 w-auto sm:h-10" />
           <p className="text-xs font-extrabold uppercase tracking-wider text-estimate-green">Free instant estimate · no obligation</p>
         </header>
 
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-extrabold leading-tight text-estimate-navy sm:text-[1.9rem]">What would ceiling insulation cost?</h1>
-            <p className="mt-1.5 max-w-[560px] text-sm leading-relaxed text-estimate-navy/75">
-              Answer three quick questions — your estimated price updates as you go, including the discount your home is likely to qualify for.
+            <h1 className="text-2xl font-extrabold leading-tight text-estimate-navy sm:text-[1.7rem]">What would ceiling insulation cost?</h1>
+            <p className="mt-1 max-w-[580px] text-[0.82rem] leading-relaxed text-estimate-navy/75">
+              Three quick questions — your estimated price updates as you go, including the discount your home is likely to qualify for.
             </p>
           </div>
           {touched && (
-            <button type="button" onClick={startAgain} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-estimate-line bg-estimate-white px-3 text-xs font-extrabold text-estimate-navy/70 hover:border-estimate-green/50 hover:text-estimate-blue">
+            <button type="button" onClick={startAgain} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-estimate-line bg-estimate-white px-2.5 text-[0.7rem] font-extrabold text-estimate-navy/70 hover:border-estimate-green/50 hover:text-estimate-blue">
               <RotateCcw aria-hidden="true" className="size-3.5" />
               Start again
             </button>
           )}
         </div>
 
-        <div className="estimate-offset mt-4 grid overflow-hidden rounded-2xl border border-estimate-line bg-estimate-white lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+        <div className="estimate-offset mt-3 grid overflow-hidden rounded-2xl border border-estimate-line bg-estimate-white lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
           <div>
             <Field id="calc-postcode" icon={MapPin} label="Where is the property?" hint="Enter your Victorian postcode. You can change it any time — the price updates instantly.">
               <div className="flex flex-wrap items-center gap-3">
@@ -104,10 +104,10 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                   onChange={(e) => setPostcode(e.target.value.replace(/[^\d]/g, ""))}
                   placeholder="e.g. 3000"
                   aria-label="Your Victorian postcode"
-                  className="h-11 w-[140px] rounded-lg border-2 border-estimate-line bg-estimate-white px-3 text-lg font-bold text-estimate-navy placeholder:font-normal placeholder:text-estimate-navy/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  className="h-10 w-[132px] rounded-lg border-2 border-estimate-line bg-estimate-white px-3 text-base font-bold text-estimate-navy placeholder:font-normal placeholder:text-estimate-navy/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 />
                 {location && (
-                  <span className="inline-flex items-center gap-2 rounded-lg bg-estimate-mint px-2.5 py-1.5 text-xs font-extrabold text-estimate-green">
+                  <span className="inline-flex items-center gap-2 rounded-lg bg-estimate-mint px-2.5 py-1.5 text-[0.7rem] font-extrabold text-estimate-green">
                     <Check aria-hidden="true" className="size-3.5" />
                     {location.metropolitan_or_regional} · {location.climate_region}
                   </span>
@@ -126,7 +126,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                       type="button"
                       aria-pressed={on}
                       onClick={() => setRaw(String(q))}
-                      className={`min-h-10 rounded-lg border px-3 text-xs font-extrabold transition ${on ? "border-estimate-green bg-estimate-mint text-estimate-navy" : "border-estimate-line bg-estimate-white text-estimate-navy/75 hover:border-estimate-green/50"}`}
+                      className={`min-h-9 rounded-lg border px-3 text-xs font-extrabold transition ${on ? "border-estimate-green bg-estimate-mint text-estimate-navy" : "border-estimate-line bg-estimate-white text-estimate-navy/75 hover:border-estimate-green/50"}`}
                     >
                       {q} m²
                     </button>
@@ -144,7 +144,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                     onChange={(e) => setRaw(e.target.value)}
                     aria-label="Your own ceiling size in square metres"
                     placeholder="Other"
-                    className="h-10 w-[104px] rounded-lg border-2 border-estimate-line bg-estimate-white pl-3 pr-8 text-sm font-bold text-estimate-navy placeholder:font-normal placeholder:text-estimate-navy/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    className="h-9 w-[100px] rounded-lg border-2 border-estimate-line bg-estimate-white pl-3 pr-8 text-sm font-bold text-estimate-navy placeholder:font-normal placeholder:text-estimate-navy/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   />
                   <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs font-bold text-estimate-navy/50">m²</span>
                 </div>
@@ -162,7 +162,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                       type="button"
                       aria-pressed={on}
                       onClick={() => setInsulation(o.value)}
-                      className={`min-h-10 rounded-lg px-2 text-xs font-extrabold transition ${on ? "bg-estimate-white text-estimate-blue ring-1 ring-estimate-green/50" : "text-estimate-navy/70 hover:bg-estimate-white/70"}`}
+                      className={`min-h-9 rounded-lg px-2 text-xs font-extrabold transition ${on ? "bg-estimate-white text-estimate-blue ring-1 ring-estimate-green/50" : "text-estimate-navy/70 hover:bg-estimate-white/70"}`}
                     >
                       {o.label}
                     </button>
@@ -171,22 +171,22 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
               </div>
             </Field>
 
-            <div className="border-t border-estimate-line px-5 py-4 text-xs leading-relaxed text-estimate-navy/70">
+            <div className="border-t border-estimate-line px-5 py-3 text-[0.7rem] leading-relaxed text-estimate-navy/70">
               Licensed electrician for the safety assessment · EEC certified installer · we manage the paperwork and the rebate claim for you.
             </div>
           </div>
 
-          <div className="border-t border-estimate-line bg-estimate-mist px-5 py-5 lg:border-l lg:border-t-0">
+          <div className="border-t border-estimate-line bg-estimate-mist px-5 py-4 lg:border-l lg:border-t-0">
             {!priced ? (
-              <div className="flex h-full min-h-[220px] flex-col justify-center">
+              <div className="flex h-full min-h-[200px] flex-col justify-center">
                 <p className="text-sm leading-relaxed text-estimate-navy/75">
-                  <span className="font-extrabold text-estimate-navy">Your price will show here.</span> Fill in the three questions and it appears instantly — change any answer and it updates on the spot.
+                  <span className="font-extrabold text-estimate-navy">Your price will show here.</span> Answer the three questions and it appears instantly — change any answer and it updates on the spot.
                 </p>
               </div>
             ) : (
               <div data-testid="public-calculator-result">
                 <p className="text-[0.7rem] font-extrabold uppercase tracking-wider text-estimate-green">Your estimated cost</p>
-                <dl className="mt-3 space-y-1.5 rounded-xl border border-estimate-line bg-estimate-white px-3.5 py-3 text-xs">
+                <dl className="mt-2.5 space-y-1 rounded-xl border border-estimate-line bg-estimate-white px-3.5 py-2.5 text-xs">
                   {[
                     { label: "Property", value: trimmed, onChange: changePostcode },
                     { label: "Ceiling", value: `${m2} m²`, onChange: changeArea },
@@ -203,7 +203,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                     </div>
                   ))}
                 </dl>
-                <div className="mt-4">
+                <div className="mt-3">
                   <QuoteBreakdown
                     rows={customerQuoteRows({ piesa: settings.piesa_assessment_inc_gst, installation: standard.installation, apManagement: settings.ap_management_inc_gst })}
                     gross={standard.pre_discount_total}
@@ -219,8 +219,8 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                     <strong className="text-estimate-blue">{dollars(removal.by_access.standard.estimated_customer_total)}</strong>. We confirm whether removal is needed before you agree to anything.
                   </p>
                 )}
-                <details className="group mt-4 overflow-hidden rounded-lg border border-estimate-line bg-estimate-white">
-                  <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-extrabold text-estimate-blue">
+                <details className="group mt-3 overflow-hidden rounded-lg border border-estimate-line bg-estimate-white">
+                  <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-extrabold text-estimate-blue">
                     What could change this price?
                     <ChevronDown aria-hidden="true" className="size-4 shrink-0 transition group-open:rotate-180" />
                   </summary>
@@ -243,12 +243,12 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
           </div>
         </div>
 
-        <p className="mt-4 text-center text-[0.7rem] leading-relaxed text-estimate-navy/65">
-          Estimates only — not a quote. Prices include GST. Nothing you type is saved, sent or shared.
-          <br className="hidden sm:block" /> Home Insulation Victoria manages your project end-to-end as the Accredited Person under the Victorian Energy Upgrades program.{" "}
+        <p className="mt-3 text-center text-[0.7rem] leading-relaxed text-estimate-navy/65">
+          Estimates only — not a quote. Prices include GST. Nothing you type is saved, sent or shared.{" "}
           <a href={ENQUIRY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-estimate-blue underline decoration-estimate-green/60 underline-offset-2 hover:text-estimate-green">
             homeinsulationvictoria.com.au
           </a>
+          <br /> Home Insulation Victoria manages your project end-to-end as the Accredited Person under the Victorian Energy Upgrades program.
         </p>
 
         {priced && (
