@@ -38,6 +38,7 @@ export type Installer = { full_legal_name?: string; qualification?: string; mobi
 export type InstData = {
   legal_entity_name?: string; trading_name?: string; abn?: string; cii_status?: string; cii_details?: string;
   business_address?: string; primary_contact_name?: string; business_phone?: string; business_email?: string; authorised_to_register?: boolean;
+  works_for_business?: boolean | null;
   insurer?: string; insurance_policy_number?: string; public_liability_cover_amount?: number | null; public_liability_expiry?: string; insurance_uploaded?: boolean;
   installers?: Installer[];
   service_batts_removal?: boolean; service_loose_fill_removal?: boolean; free_quotes_for_hivic_leads?: boolean | null; free_measureups_for_hivic_quote_leads?: boolean | null;

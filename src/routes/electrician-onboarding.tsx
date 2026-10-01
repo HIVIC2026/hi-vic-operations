@@ -187,6 +187,7 @@ function RecOnboarding() {
   }
   async function go(delta: 1 | -1) {
     setError(null);
+    if (delta === 1 && d.works_under_rec === true) return; // workers join via the boss's invite link
     if (delta === 1 && errs.length && !testMode) { setShowErrors(true); return; }
     setShowErrors(false);
     const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "about";
@@ -303,9 +304,10 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
         <Field label="Your Victorian electrician licence number" required hint="Your personal ESV licence — you're the electrician, so this is you"><input style={input} {...t("licence_number", true)} /></Field>
         <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
         <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
-        <Field label="Are you the REC, or do you work under a REC?" required hint="The REC is the registered electrical contractor business — usually the director sets that up. If you work under someone else's REC, pick the second option.">
+        <Field label="Are you the REC, or do you work under a REC?" required hint="The REC is the registered electrical contractor business — the director/boss sets that up here. People who work for them join with a personal invite link from the boss.">
           <Choice options={[{ v: false as boolean, l: "I am the REC — I run the registered business" }, { v: true as boolean, l: "I work under a REC" }]} value={d.works_under_rec ?? null} onChange={(v) => up({ works_under_rec: v })} />
         </Field>
+        {d.works_under_rec === true && <WorkerStop who="REC" />}
       </>;
     case "business":
       return <>
