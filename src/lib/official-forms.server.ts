@@ -74,7 +74,7 @@ export async function materialFacts(jobId: string, piesa: StoredCopy | null): Pr
 
 export async function piisaPanel(jobId: string, today: string): Promise<PiisaPanel & { hazards: HazardStatus[] }> {
   const [pe, pi] = await Promise.all([currentCopy(jobId, "piesa"), currentCopy(jobId, "piisa")]);
-  if (pe.unavailable || pi.unavailable) return piisaGate({ today, installDate: null, piisa: null, piesa: null, facts: {}, piesaReceivedAt: null, conductiveExistingInsulation: null, conductivityEvidence: null, hazardResolution: null, storageUnavailable: true }) && { ...piisaGate({ today, installDate: null, piisa: null, piesa: null, facts: {}, piesaReceivedAt: null, conductiveExistingInsulation: null, conductivityEvidence: null, hazardResolution: null, storageUnavailable: true }), hazards: [] };
+  if (pe.unavailable || pi.unavailable) return { ...piisaGate({ today, installDate: null, piisa: null, piesa: null, facts: {}, piesaReceivedAt: null, conductiveExistingInsulation: null, conductivityEvidence: null, hazardResolution: null, storageUnavailable: true }), hazards: [] };
   const { facts, installDate } = await materialFacts(jobId, pe.copy);
   let piesaReceivedAt: string | null = null;
   if (pe.copy) {
