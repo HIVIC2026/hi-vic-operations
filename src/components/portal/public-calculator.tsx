@@ -173,7 +173,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                     onChange={(e) => setRaw(e.target.value)}
                     aria-label="Your own ceiling size in square metres"
                     placeholder="Or type your own size"
-                    className="h-9 w-full rounded-lg border-2 border-estimate-line bg-estimate-white pl-3 pr-8 text-sm font-bold text-estimate-navy placeholder:font-normal placeholder:text-estimate-navy/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    className="h-9 w-full rounded-lg border border-estimate-line bg-estimate-white pl-3 pr-8 text-sm font-bold text-estimate-navy placeholder:font-normal placeholder:text-estimate-navy/35 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   />
                   <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs font-bold text-estimate-navy/50">m²</span>
                 </div>
