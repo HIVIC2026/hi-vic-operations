@@ -52,7 +52,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
           <Link to="/admin/users" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Users className="h-4 w-4" /> Users & access</Link>
           <div className={group}>Tools</div>
           <Link to="/admin/test-centre" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><FlaskConical className="h-4 w-4" /> Test Centre</Link>
-          <a href="/test-customer-estimate#calculator" target="_blank" rel="noopener" className={link}>
+          <a href="/calculator" target="_blank" rel="noopener" className={link}>
              <Calculator className="h-4 w-4" /> Customer calculator <ExternalLink className="ml-auto h-3.5 w-3.5" />
            </a>
           <a href="/electrician-onboarding" target="_blank" rel="noopener" className={link}><ExternalLink className="h-4 w-4" /> REC application form</a>
