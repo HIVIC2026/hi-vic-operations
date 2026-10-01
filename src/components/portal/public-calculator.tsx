@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { ArrowDown, Check, ChevronDown, Info, PiggyBank, RotateCcw } from "lucide-react";
-import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
+import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE } from "@/lib/customer-quote-system";
 import { CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings } from "@/lib/estimate.core";
 import { lookupLocation } from "@/lib/activity48.core";
 import { INTEREST_INCLUDED } from "@/lib/interest.core";
