@@ -6,7 +6,7 @@ import { AppShell } from "@/components/portal/AppShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getAdminCoverage } from "@/lib/coverage.functions";
-import { groupAreasByRegion } from "@/lib/coverage-regions.core";
+import { groupAreasByRegion, regionsForDeclaredAreas } from "@/lib/coverage-regions.core";
 
 export const Route = createFileRoute("/_authenticated/admin/coverage")({
   head: () => ({ meta: [{ title: "Service Coverage – Home Insulation Victoria Portal" }, { name: "description", content: "REC and installer team capacity and service coverage for Home Insulation Victoria." }, { property: "og:title", content: "Service Coverage – Home Insulation Victoria Portal" }, { property: "og:description", content: "REC and installer team capacity and service coverage for Home Insulation Victoria." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -39,8 +39,14 @@ function CoveragePage() {
     members: partner.members ?? [],
   }));
   const areas = data?.areas ?? [];
-  const regions = groupAreasByRegion(areas);
+  const potential = (data?.potentialPartners ?? []).map((p) => ({ ...p, regions: regionsForDeclaredAreas(p.service_areas) }));
+  const unplacedPotential = potential.filter((p) => !p.regions.length);
+  const regions = groupAreasByRegion(areas).map((region) => {
+    const here = potential.filter((p) => p.regions.includes(region.id));
+    return { ...region, potentialRec: here.filter((p) => p.kind === "rec"), potentialCii: here.filter((p) => p.kind === "installer") };
+  });
   const maxRegion = Math.max(1, ...regions.map((r) => r.enquiryCount));
+  const ciiLabel = (s: string | null) => s === "all_current" || s === "certified" ? "CII certified" : s === "in_progress" ? "CII in progress" : "CII not stated";
   const readyPartners = partners.filter((partner) => !partner.blocker && !!partner.coverage_verified_at && partner.service_postcodes.length > 0);
   const recPartners = readyPartners.filter((partner) => partner.business_type === "rec" || partner.capabilities?.includes("electrician"));
   const installerPartners = readyPartners.filter((partner) => partner.business_type === "eec_installer" || partner.capabilities?.includes("installer"));
@@ -80,25 +86,34 @@ function CoveragePage() {
                 <span className="text-[11px] font-semibold leading-tight sm:text-xs">{region.name}</span>
                 <span className="text-lg font-bold leading-none sm:text-2xl">{region.enquiryCount}<span className="ml-1 text-[10px] font-normal text-muted-foreground">enq</span></span>
                 <span className="mt-0.5 text-[10px] font-semibold leading-tight">{region.recTeams.length} REC · {region.installerTeams.length} CII</span>
+                <span className="text-[10px] font-semibold leading-tight text-primary">Enquired: {region.potentialRec.length} REC · {region.potentialCii.length} CII</span>
               </a>;
             })}
           </div>
           <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground"><span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-success" />REC + installer verified</span><span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-warning" />Some teams</span><span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-danger" />No teams yet</span><span>Map is schematic (approximate postcode regions), not to scale.</span></div>
         </div>
         <div className="grid gap-3 lg:grid-cols-2">
-          {regions.filter((r) => r.enquiryCount > 0).sort((a, b) => b.enquiryCount - a.enquiryCount).map((region) => (
+          {regions.filter((r) => r.enquiryCount > 0 || r.potentialRec.length || r.potentialCii.length).sort((a, b) => b.enquiryCount - a.enquiryCount).map((region) => (
             <div key={region.id} id={`region-${region.id}`} className="rounded-md border bg-card p-4">
               <div className="flex items-start justify-between gap-2"><div><div className="text-xs font-semibold uppercase text-muted-foreground">{region.group}</div><h3 className="text-base font-bold">{region.name}</h3></div><div className="text-right"><div className="text-2xl font-bold">{region.enquiryCount}</div><div className="text-xs text-muted-foreground">enquiries · {region.areas.length} suburbs</div></div></div>
               <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
                 <div><dt className="font-semibold">REC teams ({region.recTeams.length})</dt><dd className="text-xs"><PartnerNames matches={region.recTeams} empty="Need an REC here" /></dd></div>
                 <div><dt className="font-semibold">Installer teams ({region.installerTeams.length})</dt><dd className="text-xs"><PartnerNames matches={region.installerTeams} empty="Need an installer here" /></dd></div>
               </dl>
+              <div className="mt-3 rounded-md bg-primary/5 p-3 text-sm">
+                <div className="text-xs font-semibold uppercase text-primary">Potential partners who enquired with us</div>
+                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  <div><div className="font-semibold">RECs ({region.potentialRec.length})</div><ul className="mt-1 space-y-0.5 text-xs">{region.potentialRec.map((p) => <li key={p.id}>{p.name}{p.rec_number ? <span className="text-muted-foreground"> · REC {p.rec_number.replace(/^rec\s*/i, "")}</span> : null}</li>)}{!region.potentialRec.length && <li className="text-muted-foreground">None yet</li>}</ul></div>
+                  <div><div className="font-semibold">Installers / CII ({region.potentialCii.length})</div><ul className="mt-1 space-y-0.5 text-xs">{region.potentialCii.map((p) => <li key={p.id}>{p.name} <span className="text-muted-foreground">· {ciiLabel(p.cii)}</span></li>)}{!region.potentialCii.length && <li className="text-muted-foreground">None yet</li>}</ul></div>
+                </div>
+              </div>
               <details className="mt-3 text-sm"><summary className="cursor-pointer font-semibold text-primary">Show suburbs ({region.coveredAreas} of {region.areas.length} fully covered)</summary>
                 <ul className="mt-2 flex flex-wrap gap-1.5">{region.areas.map((area) => <li key={`${area.postcode}-${area.suburb}`} className={`rounded-full border px-2 py-0.5 text-xs ${tones[area.overall]}`}>{area.suburb || "Suburb missing"} {area.postcode ?? ""} · {area.enquiryCount}</li>)}</ul>
               </details>
             </div>
           ))}
           {areas.length === 0 && <div className="rounded-md border bg-card p-8 text-center text-muted-foreground">No active enquiry areas to assess.</div>}
+          {unplacedPotential.length > 0 && <div className="rounded-md border border-dashed bg-card p-4 text-sm lg:col-span-2"><div className="font-semibold">Partner enquiries with no recognisable Victorian area ({unplacedPotential.length})</div><ul className="mt-1 text-xs text-muted-foreground">{unplacedPotential.map((p) => <li key={p.id}>{p.name} · {p.kind === "rec" ? "REC" : "Installer"} · {p.service_areas.join(", ") || "No area given"}</li>)}</ul></div>}
         </div>
       </section>
 
