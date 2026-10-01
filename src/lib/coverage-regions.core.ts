@@ -73,3 +73,23 @@ export function groupAreasByRegion<A extends AreaLike>(areas: A[]): RegionSummar
     return { ...region, areas: list, enquiryCount, recTeams, installerTeams, coveredAreas, state };
   });
 }
+
+// Maps the service-area labels partners pick on their enquiry form to planning regions.
+const DECLARED: Array<[RegExp, RegionId[]]> = [
+  [/inner/i, ["mel_inner"]], [/melbourne.*north/i, ["mel_north"]], [/melbourne.*west/i, ["mel_west"]],
+  [/melbourne.*south[- ]?east/i, ["mel_south_east"]], [/melbourne.*east$/i, ["mel_east"]],
+  [/mornington/i, ["mornington"]], [/geelong|bellarine|surf coast/i, ["geelong"]],
+  [/ballarat|central highlands/i, ["ballarat"]], [/bendigo|loddon/i, ["bendigo_macedon", "wimmera_mallee"]],
+  [/gippsland/i, ["gippsland"]], [/goulburn|hume|north east/i, ["hume"]],
+  [/western victoria|south west|wimmera|mallee/i, ["south_west", "wimmera_mallee"]],
+];
+
+export function regionsForDeclaredAreas(labels: string[] | null | undefined): RegionId[] {
+  const out = new Set<RegionId>();
+  for (const label of labels ?? []) {
+    const text = label.trim();
+    if (/anywhere|all of vic|statewide/i.test(text)) REGIONS.forEach((r) => r.id !== "unknown" && out.add(r.id));
+    for (const [re, ids] of DECLARED) if (re.test(text)) ids.forEach((id) => out.add(id));
+  }
+  return [...out];
+}

@@ -24,3 +24,10 @@ describe("coverage regions", () => {
     expect(regions.find((r) => r.id === "gippsland")!.state).toBe("empty");
   });
 });
+
+import { regionsForDeclaredAreas } from "../src/lib/coverage-regions.core";
+test("partner enquiry area labels map to regions", () => {
+  expect(regionsForDeclaredAreas(["Melbourne — east", "Melbourne — south-east"]).sort()).toEqual(["mel_east", "mel_south_east"]);
+  expect(regionsForDeclaredAreas(["Western Victoria"]).sort()).toEqual(["south_west", "wimmera_mallee"]);
+  expect(regionsForDeclaredAreas(["30 Dash Crescent, Fadden ACT 100 km radius"])).toEqual([]);
+});
