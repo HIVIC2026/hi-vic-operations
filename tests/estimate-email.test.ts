@@ -47,8 +47,8 @@ describe("customer outcome email renderers", () => {
 
   test("likely eligible AP count is conditional (business-supplied figure)", () => {
     const withCount = renderEstimateEmail({ ...common, outcome: "likely", apCount: 2 });
-    expect(withCount.html).toContain("Home Insulation Victoria is one of only two Accredited Persons approved for VEU ceiling insulation in Victoria.");
-    expect(withCount.plainText).toContain("Home Insulation Victoria is one of only two Accredited Persons approved for VEU ceiling insulation in Victoria.");
+    expect(withCount.html).toContain("We’re one of only two Accredited Persons approved for VEU ceiling insulation in Victoria.");
+    expect(withCount.plainText).toContain("We’re one of only two Accredited Persons approved for VEU ceiling insulation in Victoria.");
     const without = renderEstimateEmail({ ...common, outcome: "likely" });
     expect(without.html).not.toMatch(/One of only/i);
     expect(without.plainText).not.toMatch(/One of only/i);
@@ -127,7 +127,7 @@ describe("customer outcome email renderers", () => {
   });
 
   test("AP count is conditional in likely; onsite keeps verified wording", () => {
-    expect(renderEstimateEmail({ ...common, outcome: "likely", apCount: 7 }).html).toContain("Home Insulation Victoria is one of only 7 Accredited Persons approved for VEU ceiling insulation in Victoria.");
+    expect(renderEstimateEmail({ ...common, outcome: "likely", apCount: 7 }).html).toContain("We’re one of only 7 Accredited Persons approved for VEU ceiling insulation in Victoria.");
     expect(renderEstimateEmail({ ...common, outcome: "likely" }).html).not.toMatch(/one of only/i);
     const verified = renderEstimateEmail({ ...common, outcome: "onsite", apCount: 7 });
     expect(verified.html).toContain("ONE OF ONLY 7 ACCREDITED PERSONS CURRENTLY APPROVED FOR ACTIVITY 48 IN VICTORIA");
