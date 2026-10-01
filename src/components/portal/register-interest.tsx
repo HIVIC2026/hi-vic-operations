@@ -25,13 +25,13 @@ type Props = {
   insulation: InsulationAnswer;
 };
 
-const navyInput =
-  "h-11 w-full rounded-xl border border-white/15 bg-white/10 px-4 text-[0.95rem] text-white placeholder:text-white/60 focus-visible:border-white/40 focus-visible:bg-white/15 focus-visible:outline-none";
+const lightInput =
+  "h-11 w-full rounded-xl border border-estimate-line bg-estimate-white px-4 text-[0.95rem] text-estimate-navy placeholder:text-estimate-navy/50 focus-visible:border-estimate-blue focus-visible:outline-none";
 
 function Row({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label htmlFor={id} className="text-[0.65rem] font-extrabold uppercase tracking-[0.12em] text-white/75">
+      <label htmlFor={id} className="text-[0.65rem] font-extrabold uppercase tracking-[0.12em] text-estimate-navy/70">
         {label}
       </label>
       <div className="mt-1">{children}</div>
@@ -128,31 +128,28 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
   return (
     <form
       onSubmit={submit}
-      className="relative mt-4 overflow-hidden rounded-3xl bg-estimate-navy px-5 py-6 text-white shadow-[0_30px_70px_-45px_rgba(34,55,107,0.7)] sm:px-8 sm:py-8"
+      className="relative mt-4 overflow-hidden rounded-3xl bg-estimate-white px-5 py-6 shadow-[0_30px_70px_-45px_rgba(34,55,107,0.45)] sm:px-8 sm:py-8"
     >
-      <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full bg-white/5 blur-3xl" />
-
-      <div className="relative grid gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-10">
-        <div className="lg:pt-1">
-          <span className="inline-flex items-center gap-2 rounded-full bg-estimate-green px-3 py-1 text-[0.62rem] font-extrabold uppercase tracking-wide text-estimate-white">
-            <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-white" />
+      <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-10">
+        <div className="rounded-2xl bg-estimate-blush/60 p-5 lg:p-6">
+          <span className="inline-flex items-center gap-2 rounded-full bg-estimate-white px-3 py-1 text-[0.62rem] font-extrabold uppercase tracking-wide text-estimate-navy shadow-sm">
+            <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-estimate-green" />
             High demand
           </span>
-          <h2 className="mt-3 text-[1.35rem] font-extrabold leading-snug sm:text-[1.55rem]">
+          <h2 className="mt-3 text-[1.35rem] font-extrabold leading-snug text-estimate-navy sm:text-[1.55rem]">
             Installer capacity is very limited across the state — register your interest now.
           </h2>
-          <p className="mt-2 text-[0.8rem] leading-relaxed text-white/75">
+          <p className="mt-2 text-[0.8rem] leading-relaxed text-estimate-navy/75">
             Free and no obligation — we&apos;ll confirm your price and book your free Ready Check.
           </p>
         </div>
 
-        <div className="relative space-y-3">
-          <div className="rounded-xl border border-white/15 bg-white/10 px-4 py-2.5">
+        <div className="space-y-3">
+          <div className="rounded-xl border border-estimate-line bg-estimate-mist px-4 py-2.5">
             {editing ? (
               <>
                 <AddressCombobox
                   id="register-address"
-                  tone="dark"
                   value={line}
                   onChange={(next) => {
                     addressTouched.current = true;
@@ -174,21 +171,21 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
                 <button
                   type="button"
                   onClick={() => setEditing(false)}
-                  className="mt-1.5 text-[0.7rem] font-extrabold text-white underline underline-offset-2 hover:text-white/80"
+                  className="mt-1.5 text-[0.7rem] font-extrabold text-estimate-blue underline underline-offset-2 hover:text-estimate-green"
                 >
                   Done
                 </button>
               </>
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="flex min-w-0 items-center gap-2 text-sm font-bold text-white">
+                <p className="flex min-w-0 items-center gap-2 text-sm font-bold text-estimate-navy">
                   <MapPin aria-hidden="true" className="size-4 shrink-0 text-estimate-green" />
                   <span className="truncate">{line || "Your property address"}</span>
                 </p>
                 <button
                   type="button"
                   onClick={() => setEditing(true)}
-                  className="text-[0.7rem] font-extrabold text-white underline underline-offset-2 hover:text-white/80"
+                  className="text-[0.7rem] font-extrabold text-estimate-blue underline underline-offset-2 hover:text-estimate-green"
                 >
                   Change
                 </button>
@@ -205,7 +202,7 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
                 value={fullName}
                 onChange={(event) => setFullName(event.target.value)}
                 placeholder="Jane Doe"
-                className={navyInput}
+                className={lightInput}
               />
             </Row>
             <Row id="ri-mobile" label="Mobile">
@@ -218,7 +215,7 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
                 value={mobile}
                 onChange={(event) => setMobile(event.target.value)}
                 placeholder="0400 000 000"
-                className={navyInput}
+                className={lightInput}
               />
             </Row>
             <Row id="ri-email" label="Email">
@@ -231,12 +228,12 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="jane@example.com"
-                className={navyInput}
+                className={lightInput}
               />
             </Row>
           </div>
 
-          <label className="flex cursor-pointer items-start gap-2 text-[0.7rem] leading-relaxed text-white/75">
+          <label className="flex cursor-pointer items-start gap-2 text-[0.7rem] leading-relaxed text-estimate-navy/75">
             <input
               type="checkbox"
               checked={consent}
@@ -247,7 +244,7 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
           </label>
 
           {error && (
-            <p role="alert" className="rounded-xl bg-white/10 px-3.5 py-2 text-xs font-bold text-white">
+            <p role="alert" className="rounded-xl bg-estimate-blush px-3.5 py-2 text-xs font-bold text-estimate-navy">
               {error}
             </p>
           )}
@@ -261,7 +258,7 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
               {busy && <Loader2 aria-hidden="true" className="size-4 animate-spin" />}
               Register my interest
             </button>
-            <p className="mt-1.5 text-center text-[0.7rem] text-white/75">
+            <p className="mt-1.5 text-center text-[0.7rem] text-estimate-navy/75">
               No cost, no obligation. We&apos;ll call to confirm your price and book your free Ready Check.
             </p>
           </div>
