@@ -8,11 +8,11 @@ import { createWorkerInvite, listWorkerInvites, revokeWorkerInvite } from "@/lib
 
 const LABEL: Record<string, string> = { active: "Waiting for them", used: "Registered", revoked: "Cancelled", expired: "Expired" };
 
-export function WorkerInvites({ businessId }: { businessId: string }) {
+export function WorkerInvites({ businessId, sample = false }: { businessId: string; sample?: boolean }) {
   const list = useServerFn(listWorkerInvites);
   const create = useServerFn(createWorkerInvite);
   const revoke = useServerFn(revokeWorkerInvite);
-  const { data, refetch } = useQuery({ queryKey: ["worker-invites", businessId], queryFn: () => list({ data: { businessId } }) });
+  const { data, error, refetch } = useQuery({ queryKey: ["worker-invites", businessId], queryFn: () => list({ data: { businessId } }), enabled: !sample, ...(sample ? { initialData: [] } : {}) });
   const [f, setF] = useState({ name: "", contact: "", trade: "electrician" as "electrician" | "installer" });
   const [link, setLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -25,6 +25,7 @@ export function WorkerInvites({ businessId }: { businessId: string }) {
       <form className="grid gap-3 sm:grid-cols-2" onSubmit={async (e) => {
         e.preventDefault(); setBusy(true);
         try {
+          if (sample) { setLink(`${window.location.origin}/join/sample-electrician`); setF({ ...f, name: "", contact: "" }); return; }
           const r = await create({ data: { businessId, name: f.name, contact: f.contact || null, trade: f.trade } });
           setLink(`${window.location.origin}/join/${r.token}`); setF({ ...f, name: "", contact: "" }); refetch();
         } catch (er) { toast.error(er instanceof Error ? er.message : "Could not create invite"); } finally { setBusy(false); }
@@ -45,6 +46,7 @@ export function WorkerInvites({ businessId }: { businessId: string }) {
         </div>
       )}
       {data === undefined && <p className="mt-4 text-sm text-muted-foreground">Loading invitations…</p>}
+      {error && <p role="alert" className="mt-4 rounded-lg bg-danger-soft p-3 text-sm text-danger">Invitations could not be loaded. Try again before creating another link.</p>}
       {!!data?.length && (
         <ul className="mt-4 space-y-2 text-sm">
           {data.map((i) => (

@@ -18,9 +18,10 @@ function Workers() {
   const load = useServerFn(listMyWorkers);
   const sample = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("sample") === "1";
   const sampleData = { business: { id: "00000000-0000-0000-0000-000000000000", name: "Sample Electrical", trading_name: "Sample Electrical" }, canManage: true, workers: [] };
-  const { data, refetch } = useQuery({ queryKey: ["my-workers"], queryFn: () => load(), enabled: !sample, ...(sample ? { initialData: sampleData } : {}) });
+  const { data, error, refetch } = useQuery({ queryKey: ["my-workers"], queryFn: () => load(), enabled: !sample, ...(sample ? { initialData: sampleData } : {}) });
   const [editing, setEditing] = useState<string | "new" | null>(null);
   if (data === undefined) return <AppShell><div className="rounded-lg border bg-card p-6"><p className="font-display text-xl font-bold">Loading your staff records…</p><p className="mt-2 text-sm text-muted-foreground">Checking your business link and invitations.</p></div></AppShell>;
+  if (error) return <AppShell><div role="alert" className="rounded-lg border border-danger bg-danger-soft p-6"><h1 className="font-display text-2xl font-bold">Staff records could not be loaded</h1><p className="mt-2 text-sm leading-relaxed">Try again. No invitation has been created or sent.</p></div></AppShell>;
   if (data === null) return <AppShell><div className="rounded-lg border bg-card p-6"><h1 className="font-display text-2xl font-bold">Business access is not linked yet</h1><p className="mt-2 text-sm leading-relaxed text-muted-foreground">The office must link your approved REC business to your portal account before you can create staff invitations. Contact Home Insulation Victoria if your business has already been approved.</p></div></AppShell>;
   const done = () => { setEditing(null); refetch(); };
   return (
@@ -32,7 +33,7 @@ function Workers() {
       <div className="my-5 grid gap-3 sm:grid-cols-3">
         {[{ icon: Link2, title: "Create and copy a link", copy: "Nothing is sent automatically." }, { icon: FilePenLine, title: "Worker completes it", copy: "They enter their own licence and sign declarations." }, { icon: ShieldCheck, title: "Office approval", copy: "Approval is required before job access." }].map(({ icon: Icon, title, copy }) => <div key={title} className="rounded-lg bg-secondary p-4"><Icon className="mb-3 size-5 text-success" /><p className="font-bold">{title}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{copy}</p></div>)}
       </div>
-      {data.canManage && data.business && <WorkerInvites businessId={data.business.id} />}
+       {data.canManage && data.business && <WorkerInvites businessId={data.business.id} sample={sample} />}
       {data.canManage && editing !== "new" && <div className="mb-5 border-t pt-5"><p className="mb-3 text-xs leading-relaxed text-muted-foreground"><strong>Office record only:</strong> adding someone manually creates a pending company record. It does not record the worker's personal declarations. Use an invitation whenever the worker can complete their own details.</p><Button size="field" variant="outline" onClick={() => setEditing("new")}>Add an office record manually</Button></div>}
       {editing === "new" && data.business && <div className="mb-4"><WorkerForm businessId={data.business.id} onDone={done} /></div>}
       <h2 className="mb-3 font-display text-xl font-bold">Staff records</h2>

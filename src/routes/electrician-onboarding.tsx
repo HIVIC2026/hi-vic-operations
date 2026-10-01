@@ -206,11 +206,11 @@ function RecOnboarding() {
   if (invite && inviteInfo && !inviteInfo.answered) return shell(
     <div style={card}>
       <div style={{ fontSize: 13, fontWeight: 700, color: GREEN, textTransform: "uppercase", letterSpacing: 0.8 }}>You've been invited</div>
-      <h1 style={{ fontSize: 26, fontWeight: 800, margin: "8px 0 10px", color: BLUE }}>Hi {inviteInfo.firstName || "there"}, {inviteInfo.installer} has chosen you as their preferred electrician</h1>
+       <h1 style={{ fontSize: 26, fontWeight: 800, margin: "8px 0 10px", color: NAVY }}>Hi {inviteInfo.firstName || "there"}, {inviteInfo.installer} invited you to connect</h1>
       {inviteInfo.usable ? <>
-        <p style={{ fontSize: 15, lineHeight: 1.6, color: MUTED }}>Join Home Insulation Victoria's trade network and you'll be teamed up with {inviteInfo.installer}. Once Home Insulation Victoria has checked your licence, REC and insurance, their jobs in your area come straight to you.</p>
+         <p style={{ fontSize: 15, lineHeight: 1.6, color: MUTED }}>Accept to continue the REC business application connected with {inviteInfo.installer}. Home Insulation Victoria still reviews the business, registration, insurance and licences before approving access. This does not guarantee jobs.</p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 18 }}>
-          <button type="button" disabled={busy} onClick={() => answerInvite(true)} style={{ minHeight: 48, padding: "0 22px", borderRadius: 12, border: "none", background: BLUE, color: "#fff", fontWeight: 800, cursor: "pointer" }}>Yes, team me up and sign up</button>
+           <button type="button" disabled={busy} onClick={() => answerInvite(true)} style={{ minHeight: 48, padding: "0 22px", borderRadius: 12, border: "none", background: GREEN, color: NAVY, fontWeight: 800, cursor: "pointer" }}>Accept and continue →</button>
           <button type="button" disabled={busy} onClick={() => answerInvite(false)} style={{ minHeight: 48, padding: "0 22px", borderRadius: 12, border: "1px solid #D7DCE8", background: "#fff", color: NAVY, fontWeight: 700, cursor: "pointer" }}>No thanks</button>
         </div>
       </> : <p style={{ color: "#B3261E" }}>{inviteInfo.reason}</p>}
@@ -476,7 +476,7 @@ function SignStep({ d, token, onSigned, preview }: { d: RecData; token: string; 
     } catch (e) { setErr(e instanceof Error ? e.message : "Could not sign."); } finally { setBusy(false); }
   }
   return <>
-    <div style={infoCard}>🛡 You're signing electronically. We store the exact wording you signed, its version, your details and the time, so both parties have the same record.</div>
+        <div style={infoCard}><strong>Electronic signature record.</strong> We store the exact wording you signed, its version, your details and the time, so both parties have the same record.</div>
     {ackList.map((a) => <Check key={a.key} checked={!!acks[a.key]} onChange={(v) => setAcks((x) => ({ ...x, [a.key]: v }))}>{a.text}</Check>)}
     <Field label="Signer full legal name" required><input style={input} value={name} onChange={(e) => setName(e.target.value)} /></Field>
     <Field label="Position / title" required><input style={input} placeholder="e.g. Director" value={position} onChange={(e) => setPosition(e.target.value)} /></Field>
