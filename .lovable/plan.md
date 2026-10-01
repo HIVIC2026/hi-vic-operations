@@ -1,53 +1,43 @@
-# Exact launch plan — go live Monday 5 October
+# Launch TODAY — Thursday 1 October
 
-## First, breathe: the enquiries are safe
+## The enquiries are safe right now
 
-Every enquiry coming in is being captured and stored in the portal with all its answers, consent and photos. Nothing is lost, nothing is auto-emailed, nothing progresses on its own. They are queued and waiting for you — the risk is delay, not data loss. The plan below gets you processing them live on Monday.
+Every enquiry is captured with all answers, consent and photos. Nothing is lost, nothing auto-sends. They are queued waiting for you. Today we get you processing them live.
 
-## The plan, day by day
+## What I build today (my side, no input needed from you)
 
-### Today (Thursday) — forms and decisions
-1. You paste **Mitti_template_briefs_v5_A1.md** into Mitti's AI builder, eyeball it against the brief, send me the template ID. I connect and test the sync.
-2. I build the **A2 brief** (our leads — same questions, no pricing) with the downlight Yes=red / No=green colours, and regenerate A1 (v6) with the same colours.
-3. You give me the test team's names/emails (installer, electrician, owner) so I can set up the four real test logins.
-4. You answer the three open decisions: (a) hazard photo per area or one description, (b) is "Not sure" allowed on remove/top-up, (c) $220 lead fee inc or ex GST.
+1. **Form A2 brief** (our leads — same questions as A1, no pricing) + regenerated **A1 v6**, both with downlights Yes=red / No=green. Ready for you to paste into Mitti.
+2. **Forms B (PIESA) and C (PIISA) briefs** rebuilt to the same standard — all four briefs done today.
+3. **Shared gate timeline** for installers/electricians with the 30-day PIESA countdown tracked per job.
+4. **To action tab** verified against live data — every stuck enquiry, booking, payment and form shows as a card with the exact action.
+5. **Full regression run**: all tests, build, security scan, mobile screens.
+6. **Dress rehearsal**: I drive a complete dummy journey in the browser — enquiry → Gate 1 → Ready Check → PIESA → quote → acceptance → invoice preview → deposit gate → install → PIISA → VEEC — and fix anything wrong on the spot.
 
-### Friday — finish the machine
-5. Forms B (PIESA) and C (PIISA) briefs rebuilt the same way as A1; you build them in Mitti; I connect all four IDs.
-6. Shared gate timeline for installers/electricians with the 30-day PIESA countdown (already partly built — finished here).
-7. Invoice preflight reconciled line-by-line against what Xero will receive; you approve the invoice design on screen. No Xero write yet.
-8. Communications test mode: every message the portal would send gets redirected to the test team, so we prove wording and timing without touching a real customer.
+## What only you can do today (in parallel with me)
 
-### Saturday — full dress rehearsal
-9. Run two complete dummy journeys start to finish with the real test logins: one installer-brings-customer job, one our-lead job — enquiry → Gate 1 → Ready Check → PIESA → quote → acceptance → invoice preview → deposit gate → install → PIISA → evidence → VEEC.
-10. Every wrong stage, missing notification or confusing screen found gets fixed same day.
+1. **Paste the four briefs into Mitti** as I deliver them (A1 first), eyeball each against the brief, send me the four template IDs — I connect and test sync within minutes of each.
+2. **Three quick decisions**: (a) hazard photo per area or one description, (b) is "Not sure" allowed on remove/top-up, (c) $220 lead fee inc or ex GST.
+3. **Approve the invoice design** on screen when I show you the preflight.
+4. **Final "go"** — explicit approval to switch on live customer communications. Nothing sends to a real customer until you say so.
 
-### Sunday — final checks
-11. Regression run: all tests, build, security, mobile screens, failure cases (expired links, double-clicks, wrong role).
-12. You review the launch evidence report and give the explicit go.
+## Tonight — go-live sequence (once the above is green)
 
-### Monday — launch
-13. I switch on live communications and external sends (currently locked).
-14. You action the first controlled Xero invoice yourself; we reconcile it together.
-15. The enquiry backlog is worked through the pipeline — oldest first — with the To action tab driving the team.
+1. All four Mitti IDs connected; sync tested on a dummy job.
+2. Invoice preflight approved by you.
+3. All tests pass; no build or security errors; no stage/action mismatches.
+4. **You say "go"** → I switch on live communications.
+5. The team starts working the enquiry backlog through the pipeline, oldest first, driven by the To action tab.
+6. First real Xero invoice: you action it yourself, we reconcile it together before a second one is ever created.
 
-## Go / no-go gates (all must be green Monday)
-- Four role logins work; both dummy journeys pass end to end
-- Mitti forms connected and syncing into the portal and official PDFs
-- Messages reach the test team correctly; failures show in To action
-- Invoice totals and design approved by you; deposit/scheduling gates cannot be bypassed
-- No stage/action mismatches; no build or security errors
+## Honest limits
 
-If any gate is red, we do a controlled pilot (a handful of real jobs, watched closely) instead of a full switch-on — never an unsafe launch.
-
-## What I need from you
-1. Mitti template IDs as you build each form (A1 first)
-2. Test team names + emails
-3. The three decisions in item 4 above
-4. Monday: your explicit "go" before anything sends to real customers
+- If Mitti forms aren't built and connected today, the portal still launches — but Ready Check/PIESA/PIISA data entry falls back to the portal's own screens until Mitti is connected.
+- Live communications stay off until your explicit approval — that lock is deliberate and I won't bypass it.
+- If any go-live check is red tonight, we launch with that piece in manual mode (visible in To action), not silently broken.
 
 ## Technical details
-- No changes to locked Step 1 (Base44 handoff) or Gate 1 rules
-- Communications/external writes stay fail-closed until your explicit Monday approval
-- Test jobs stay flagged `qa_test`, excluded from live totals and automation
-- Forms work: `src/lib/mitti-forms.core.ts` spec + briefs generated from it so labels cannot drift; `validateTemplate` refuses drifted Mitti forms
+
+- Locked Step 1 (Base44 handoff) and Gate 1 rules untouched.
+- Test jobs stay flagged `qa_test`, excluded from live totals.
+- Forms: `src/lib/mitti-forms.core.ts` spec generates the briefs; `validateTemplate` refuses drifted Mitti forms.
+- Timeline: extends `src/lib/waiting.core.ts` + job journey strip to installer/electrician views.
