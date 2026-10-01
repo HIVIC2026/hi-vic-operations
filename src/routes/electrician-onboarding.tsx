@@ -179,6 +179,15 @@ function RecOnboarding() {
       localStorage.setItem(TOKEN_KEY, t); setToken(t); setStarted(true);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not start."); } finally { setBusy(false); }
   }
+  async function beginBusiness() {
+    setBusy(true); setError(null);
+    try {
+      const { token: t } = await startRecOnboarding({ data: { test: testMode } });
+      const initial: RecData = { ...d, works_under_rec: false };
+      await saveRecOnboarding({ data: { token: t, step_key: "about", data: initial as never } });
+      localStorage.setItem(TOKEN_KEY, t); setToken(t); setD(initial); setStarted(true);
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not start."); } finally { setBusy(false); }
+  }
   async function persist(nextStep: StepKey) {
     if (sampleStep) return;
     if (!token) return;
@@ -232,7 +241,7 @@ function RecOnboarding() {
       <ul className="mt-6 space-y-3 text-sm leading-relaxed">{["One business profile for REC registration, ABN, insurance, coverage, proposed supplier rates and payment details.", "Clear job scope, agreed rates and central job records with Home Insulation Victoria coordination.", "After office approval, invite each staff electrician to provide their own licence details and declarations."].map((t) => <li key={t} className="flex gap-3"><span className="font-bold text-estimate-green">✓</span><span>{t}</span></li>)}</ul>
       <p className="mt-5 text-xs leading-relaxed text-estimate-navy/70">Progress is saved on this device. No invitation or application is sent automatically.</p>
       {error && <p role="alert" className="mt-3 text-sm font-bold text-danger">{error}</p>}
-      <button className="mt-5 min-h-14 w-full rounded-xl bg-estimate-green px-5 py-3 text-base font-extrabold text-estimate-navy disabled:opacity-50" disabled={busy} onClick={async () => { setD((x) => ({ ...x, works_under_rec: false })); await begin(); }}>{busy ? "Starting…" : "Set up my REC business →"}</button>
+      <button className="mt-5 min-h-14 w-full rounded-xl bg-estimate-green px-5 py-3 text-base font-extrabold text-estimate-navy disabled:opacity-50" disabled={busy} onClick={beginBusiness}>{busy ? "Starting…" : "Set up my REC business →"}</button>
     </>}
     {entryRole === "worker" && <div className="mt-6 rounded-[18px] bg-estimate-blush p-5"><h2 className="text-lg text-estimate-navy">Ask your REC administrator for your link</h2><p className="mt-2 text-sm leading-relaxed">They create and copy a personal invitation from their Home Insulation Victoria portal. You then enter your own contact and Victorian electrical licence details and sign your declarations. The office must approve you before you can access assigned jobs.</p><p className="mt-3 text-sm font-bold">You do not need a separate business account or a shared company password.</p></div>}
   </div>);
