@@ -134,6 +134,7 @@ function RecOnboarding() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showErrors, setShowErrors] = useState(false);
+  const [testMode, setTestMode] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("test") === "1");
 
   const [invite, setInvite] = useState<string | null>(null);
   const [inviteInfo, setInviteInfo] = useState<Awaited<ReturnType<typeof loadTeamInvite>> | null>(null);
@@ -148,7 +149,7 @@ function RecOnboarding() {
     setBusy(true); setError(null);
     try {
       let t = token;
-      if (accept && !t) { t = (await startRecOnboarding()).token; localStorage.setItem(TOKEN_KEY, t); setToken(t); }
+      if (accept && !t) { t = (await startRecOnboarding({ data: { test: testMode } })).token; localStorage.setItem(TOKEN_KEY, t); setToken(t); }
       await respondTeamInvite({ data: { invite, accept, recToken: accept ? t ?? undefined : undefined } });
       if (accept && t) { const r = await loadRecOnboarding({ data: { token: t } }); setD(r.data as RecData); setStatus(r.status as "draft" | "submitted"); setStarted(true); }
       setInviteInfo((x) => (x ? { ...x, answered: accept ? "accepted" : "declined" } : x));
@@ -160,6 +161,7 @@ function RecOnboarding() {
     if (!t) { setLoaded(true); return; }
     loadRecOnboarding({ data: { token: t } }).then((r) => {
       setToken(t); setD(r.data as RecData); setStatus(r.status as "draft" | "submitted"); setStarted(true);
+      if (r.test_mode) setTestMode(true);
       const first = firstIncompleteStep(r.data as RecData);
       setStep(r.status === "submitted" ? "sign" : ((first ?? r.step_key ?? "about") as StepKey));
     }).catch(() => localStorage.removeItem(TOKEN_KEY)).finally(() => setLoaded(true));
@@ -173,7 +175,7 @@ function RecOnboarding() {
   async function begin() {
     setBusy(true); setError(null);
     try {
-      const { token: t } = await startRecOnboarding();
+      const { token: t } = await startRecOnboarding({ data: { test: testMode } });
       localStorage.setItem(TOKEN_KEY, t); setToken(t); setStarted(true);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not start."); } finally { setBusy(false); }
   }
@@ -185,7 +187,7 @@ function RecOnboarding() {
   }
   async function go(delta: 1 | -1) {
     setError(null);
-    if (delta === 1 && errs.length) { setShowErrors(true); return; }
+    if (delta === 1 && errs.length && !testMode) { setShowErrors(true); return; }
     setShowErrors(false);
     const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "about";
     setBusy(true);
