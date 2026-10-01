@@ -1,6 +1,6 @@
 // Fake Mitti only – no network, no database. Run: bun test ./tests/
 import { describe, expect, test } from "bun:test";
-import { MITTI_TEMPLATE_ID, buildPrefill, createOrReuseAudit, mittiApi, parseAudit, planSync, type CreateCtx, type MittiCall } from "../src/lib/mitti.core";
+import { MITTI_TEMPLATE_ID, buildPrefill, createOrReuseAudit, mittiApi, parseAudit, planSync, propertyTypeOption, type CreateCtx, type MittiCall } from "../src/lib/mitti.core";
 
 const TEMPLATE = {
   template_id: MITTI_TEMPLATE_ID,
@@ -77,6 +77,31 @@ describe("create & assign", () => {
   });
   test("prefill count excludes empty values", () => {
     expect(buildPrefill(TEMPLATE, { ...ctx().prefill, ownerEmail: null, estimatedAreaM2: null }).count).toBe(7);
+  });
+  test("A1 definition-shaped template prefills job, address, owner, property type, life support and assessor", () => {
+    // Mirrors the live Mitti v1 definition shape (wrapped under `template`, no header split).
+    const a1 = { template: { items: [
+      { item_id: "f1", label: "Portal Job Number", type: "textsingle" },
+      { item_id: "f2", label: "Site address", type: "site" },
+      { item_id: "f3", label: "Owner name", type: "textsingle" },
+      { item_id: "f4", label: "Property type", type: "question" },
+      { item_id: "f5", label: "Office life support result", type: "textsingle" },
+      { item_id: "f6", label: "Assessor", type: "textsingle" },
+      { item_id: "f7", label: "Are these details correct?", type: "question" },
+    ] } };
+    const p = buildPrefill(a1, { ...ctx().prefill, propertyType: "Townhouse", lifeSupport: "None recorded by office" });
+    expect(p.missing).toEqual([]);
+    expect(p.ambiguous).toEqual([]);
+    expect(p.items.map((i: { label: string }) => i.label).sort()).toEqual(["Assessor", "Office life support result", "Owner name", "Portal Job Number", "Property type", "Site address"]);
+    expect(p.items.find((i: { label: string }) => i.label === "Property type")?.responses).toEqual({ selected: [{ label: "Townhouse" }] });
+  });
+  test("propertyTypeOption maps only real options and never invents", () => {
+    expect(propertyTypeOption("House")).toBe("House");
+    expect(propertyTypeOption("TOWNHOUSE")).toBe("Townhouse");
+    expect(propertyTypeOption("unit or apartment")).toBe("Unit or apartment");
+    expect(propertyTypeOption("Unit/apartment")).toBe("Unit or apartment");
+    expect(propertyTypeOption("warehouse")).toBeNull();
+    expect(propertyTypeOption(null)).toBeNull();
   });
 });
 
