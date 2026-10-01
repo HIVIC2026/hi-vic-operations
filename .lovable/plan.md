@@ -5,7 +5,7 @@ When the owner picks "Some there" or "Not sure", show a plain note under the pri
 
 ```text
 Already have insulation? It may not need to come out at all. If removal
-is needed, it's an extra of $10–$15 per m² of the area removed, depending
+is needed, budget an extra $10–$15 per m² of the area removed, depending
 on the insulation type. Your installer will check and advise you at your
 free Ready Check — before you agree to anything.
 ```
