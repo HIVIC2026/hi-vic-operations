@@ -125,7 +125,7 @@ export function stepErrors(step: StepKey, d: InstData, now = new Date()): string
       break;
     case "services":
       if (typeof d.free_quotes_for_hivic_leads !== "boolean") e.push("Tell us if you offer free quotes for pre-qualified Home Insulation Victoria leads.");
-      if (typeof d.free_measureups_for_hivic_quote_leads !== "boolean") e.push("Tell us if you will provide free measure-ups for pre-qualified Home Insulation Victoria quote leads.");
+      if (d.free_measureups_for_hivic_quote_leads !== true) e.push("Free Home Insulation Ready Checks are required to receive pre-qualified Home Insulation Victoria leads.");
       break;
     case "coverage":
       if (!txt(d.service_origin)) e.push("Enter your service starting location.");
