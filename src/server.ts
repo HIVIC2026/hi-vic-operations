@@ -68,7 +68,25 @@ function customerEntryRewrite(request: Request): Request | undefined {
   const target = customerEntryPoint(request.headers.get("host"), url.pathname);
   if (!target) return undefined;
   url.pathname = target;
-  return new Request(url.toString(), request);
+  return detachedGetRequest(request, url.toString());
+}
+
+// srvx ties its Request.signal to the Node response socket. TanStack reads that
+// signal while rendering, so closing or superseding a page request can dispatch
+// an AbortError from srvx's `res.close` listener after our fetch try/catch has
+// finished. Page requests have no body: give rendering an equivalent Request
+// without the adapter-owned signal, while preserving normal POST cancellation.
+function detachedPageRequest(request: Request): Request {
+  if (request.method !== "GET" && request.method !== "HEAD") return request;
+  return detachedGetRequest(request, request.url);
+}
+
+function detachedGetRequest(request: Request, url: string): Request {
+  return new Request(url, {
+    method: request.method,
+    headers: request.headers,
+    redirect: request.redirect,
+  });
 }
 
 
@@ -76,7 +94,7 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const rewritten = customerEntryRewrite(request);
-      const incoming = rewritten ?? request;
+      const incoming = rewritten ?? detachedPageRequest(request);
       const handler = await getServerEntry();
       const c = ctx as { waitUntil?: (p: Promise<unknown>) => void } | undefined;
       const waitUntil = typeof c?.waitUntil === "function" ? c.waitUntil.bind(c) : undefined;

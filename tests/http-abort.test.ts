@@ -23,3 +23,10 @@ test("all server layers show a reload page instead of returning a blank response
   expect(start).toContain("isConnectionTeardown(error)");
   expect(start).not.toContain("new Response(null, { status: 499 })");
 });
+
+test("page rendering is detached from the local adapter's response-close signal", () => {
+  const server = readFileSync("src/server.ts", "utf8");
+  expect(server).toContain("function detachedPageRequest(request: Request)");
+  expect(server).toContain("rewritten ?? detachedPageRequest(request)");
+  expect(server).toContain('request.method !== "GET" && request.method !== "HEAD"');
+});
