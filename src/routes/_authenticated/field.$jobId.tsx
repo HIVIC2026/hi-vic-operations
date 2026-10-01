@@ -1,4 +1,4 @@
-import { AppointmentPanel, ElectricianChoicePanel, PartnerProposalForm } from "@/components/portal/partner";
+import { ElectricianChoicePanel, PartnerProposalForm } from "@/components/portal/partner";
 import { nextStep } from "@/lib/nextstep.core";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
