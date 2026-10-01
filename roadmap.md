@@ -74,3 +74,5 @@
 - [x] Calculator flow: existing-insulation note moved under its answer, VEU discount made prominent, footer simplified, old test calculator deleted
 - [x] Calculator phone usability: show live price before supporting details, shorten prompts, and verify answer-to-result flow at phone and desktop sizes
 - [x] Blank-screen recovery: a page load that drops part-way now shows "This page needs a refresh" with a working refresh action
+- [x] Calculator visual refinement — calm redesign applied (v1 direction), urgency copy added
+- [ ] Audit + refine installer onboarding (name-first, pathways, evidence, copy)

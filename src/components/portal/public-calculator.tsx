@@ -1,5 +1,7 @@
+// ============= Full file contents =============
+
 import { useRef, useState } from "react";
-import { Check, ChevronDown, Info, Layers, MapPin, RotateCcw, Ruler } from "lucide-react";
+import { Check, ChevronDown, Info, RotateCcw } from "lucide-react";
 import { QuoteBreakdown } from "./estimate";
 import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
 import { CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings } from "@/lib/estimate.core";
@@ -34,28 +36,29 @@ const CHANGE_FACTORS = [
   "Any electrical rectification found during the mandatory PIESA",
 ];
 
-function Field({ id, icon: Icon, label, hint, children }: { id: string; icon: typeof MapPin; label: string; hint?: string; children: React.ReactNode }) {
+function Question({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
   return (
-    <div className="border-t border-estimate-line px-4 py-2.5 first:border-t-0 sm:px-5">
-      <label htmlFor={id} className="flex items-center gap-2 text-[0.7rem] font-extrabold uppercase tracking-wider text-estimate-navy">
-        <Icon aria-hidden="true" className="size-3.5 text-estimate-green" />
+    <div className="space-y-3">
+      <label htmlFor={id} className="block text-[0.7rem] font-extrabold uppercase tracking-[0.14em] text-estimate-navy/70">
         {label}
       </label>
-      {hint && <p className="mt-0.5 text-[0.7rem] leading-relaxed text-estimate-navy/85">{hint}</p>}
-      <div className="mt-1.5">{children}</div>
+      {children}
     </div>
   );
 }
 
+const quietInput =
+  "w-full rounded-xl bg-estimate-canvas px-4 py-3 text-[0.95rem] text-estimate-navy placeholder:text-estimate-navy/70 focus-visible:bg-estimate-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+
 /** Supporting detail lives after the price, never between an answer and its result. */
 function WhatCouldChange() {
   return (
-    <details className="group mt-2 overflow-hidden rounded-lg border border-estimate-line bg-estimate-white">
-      <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 bg-workspace-blush/40 px-3 py-2 text-xs font-extrabold text-estimate-blue">
+    <details className="group overflow-hidden rounded-2xl bg-estimate-white shadow-[0_10px_30px_-20px_rgba(34,55,107,0.35)]">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-3.5 text-sm font-extrabold text-estimate-navy">
         What could change this price?
-        <ChevronDown aria-hidden="true" className="size-4 shrink-0 transition group-open:rotate-180" />
+        <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-estimate-navy/70 transition group-open:rotate-180" />
       </summary>
-      <div className="grid gap-x-5 gap-y-2 border-t border-estimate-line px-3 py-3 text-xs leading-relaxed sm:grid-cols-2">
+      <div className="grid gap-x-5 gap-y-2 border-t border-estimate-line px-5 py-3.5 text-xs leading-relaxed sm:grid-cols-2">
         <div>
           <p>Your final price is confirmed once we check:</p>
           <ul className="mt-2 space-y-1.5">
@@ -79,15 +82,12 @@ function WhatCouldChange() {
 /** What the price on screen actually covers — the same lines the owner is later quoted. */
 function WhatIsIncluded() {
   return (
-    <details className="group mt-2 rounded-xl border border-estimate-line bg-estimate-white/80">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs font-extrabold uppercase tracking-wider text-estimate-navy">
-        <span className="flex items-center gap-2">
-          <Check className="h-3.5 w-3.5 text-estimate-green" strokeWidth={3} />
-          What this includes
-        </span>
-        <ChevronDown className="h-4 w-4 shrink-0 text-estimate-navy/85 transition group-open:rotate-180" />
+    <details className="group overflow-hidden rounded-2xl bg-estimate-white shadow-[0_10px_30px_-20px_rgba(34,55,107,0.35)]">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-3.5 text-sm font-extrabold text-estimate-navy">
+        What this includes
+        <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-estimate-navy/70 transition group-open:rotate-180" />
       </summary>
-      <ul className="space-y-2 px-3 pb-3">
+      <ul className="space-y-2 border-t border-estimate-line px-5 py-3.5">
         {INTEREST_INCLUDED.map((row) => (
           <li key={row.label} className="flex gap-2">
             <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-estimate-green" strokeWidth={3} />
@@ -141,33 +141,31 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
   };
 
   return (
-    <div className="estimate-brand min-h-screen bg-gradient-to-b from-estimate-blush via-estimate-canvas to-estimate-canvas">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-4 pb-24 sm:px-6 lg:pb-4">
-        <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2.5">
+    <div className="estimate-brand min-h-screen bg-estimate-canvas">
+      <div className="mx-auto w-full max-w-[1080px] px-4 pb-24 pt-3 sm:px-6 lg:pb-8">
+        <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 pb-4">
           <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-9 w-auto sm:h-10" />
-          <p className="rounded-full bg-workspace-blush px-2 py-1 text-[0.6rem] font-extrabold uppercase text-task-eligibility-foreground sm:px-3 sm:text-xs">Free estimate · no obligation</p>
+          <p className="rounded-full bg-estimate-blush px-3 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-wide text-estimate-navy sm:text-[0.7rem]">Free estimate · no obligation</p>
         </header>
 
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h1 className="text-[1.35rem] font-extrabold leading-tight text-estimate-blue sm:text-[1.7rem]">What would ceiling insulation cost?</h1>
-            <p className="mt-1 max-w-[780px] text-[0.8rem] leading-relaxed text-estimate-navy/85">
-              Three quick answers — your estimate and VEU discount appear instantly.
-            </p>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="max-w-xl">
+            <h1 className="text-[1.6rem] font-extrabold leading-tight tracking-tight text-estimate-navy sm:text-[2rem]">What would ceiling insulation cost?</h1>
+            <p className="mt-1.5 text-[0.85rem] leading-relaxed text-estimate-navy/85">Three quick answers — your estimate and VEU discount appear instantly.</p>
           </div>
           {touched && (
-            <Button type="button" variant="outline" onClick={startAgain} className="min-h-8 gap-1.5 border-estimate-line bg-estimate-white px-2.5 text-[0.7rem] font-extrabold text-estimate-navy/85 hover:border-estimate-green/50 hover:text-estimate-blue">
+            <Button type="button" variant="outline" onClick={startAgain} className="min-h-8 gap-1.5 border-transparent bg-estimate-white px-3 text-[0.7rem] font-extrabold text-estimate-navy/85 shadow-none hover:text-estimate-blue">
               <RotateCcw aria-hidden="true" className="size-3.5" />
               Start again
             </Button>
           )}
         </div>
 
-        <div className="estimate-offset mt-3 grid overflow-hidden rounded-lg border border-estimate-line bg-estimate-white lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
-          <div>
-            <Field id="calc-address" icon={MapPin} label="Where is the property?" hint="Start typing your Victorian address.">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="w-full sm:max-w-[380px]">
+        <div className="mt-5 grid overflow-hidden rounded-3xl bg-estimate-white shadow-[0_30px_70px_-45px_rgba(34,55,107,0.45)] lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]">
+          <div className="space-y-7 px-5 py-6 sm:px-8 sm:py-8">
+            <Question id="calc-address" label="Where is the property?">
+              <div className="space-y-2.5">
+                <div className="max-w-[420px]">
                   <AddressCombobox
                     id="calc-address"
                     value={addressText}
@@ -183,34 +181,36 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                     ariaLabel="Your street address"
                   />
                 </div>
-                {location && (
-                  <span className="inline-flex h-10 items-center gap-2 rounded-lg bg-estimate-mint px-3 text-[0.7rem] font-extrabold text-estimate-green">
-                    <Check aria-hidden="true" className="size-3.5" />
-                    {location.metropolitan_or_regional} · {location.climate_region}
-                  </span>
-                )}
-                {postcode.length === 4 && !location && <p role="alert" className="text-xs leading-relaxed text-estimate-navy/85">We don&apos;t hold pricing for that Victorian postcode yet — send us your address and we&apos;ll confirm directly.</p>}
+                <div className="flex flex-wrap items-center gap-2 text-xs leading-relaxed">
+                  {location && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-estimate-mint px-2.5 py-1 font-extrabold text-estimate-green">
+                      <Check aria-hidden="true" className="size-3.5" />
+                      {location.metropolitan_or_regional} · {location.climate_region}
+                    </span>
+                  )}
+                  {postcode.length === 4 && !location && <p role="alert" className="font-bold text-estimate-navy">We don&apos;t hold pricing for that Victorian postcode yet — send us your address and we&apos;ll confirm directly.</p>}
+                </div>
               </div>
-            </Field>
+            </Question>
 
-            <Field id="calc-area" icon={Ruler} label="How big is your ceiling?">
-              <div className="flex flex-wrap gap-1.5">
+            <Question id="calc-area" label="How big is your ceiling?">
+              <div className="flex flex-wrap gap-2">
                 {CALC_QUICK.map((q) => {
                   const on = raw === String(q);
                   return (
-                     <Button
+                    <Button
                       key={q}
                       type="button"
-                       variant="outline"
+                      variant="outline"
                       aria-pressed={on}
                       onClick={() => setRaw(String(q))}
-                       className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${on ? "border-estimate-green bg-estimate-mint text-estimate-navy" : "border-estimate-line bg-estimate-white text-estimate-navy/90 hover:border-estimate-green/50"}`}
+                      className={`h-9 min-h-9 rounded-full px-4 text-xs font-extrabold ${on ? "border-transparent bg-estimate-blue text-white hover:bg-estimate-navy" : "border-estimate-line bg-estimate-white text-estimate-navy hover:border-estimate-blue/60"}`}
                     >
                       {q} m²
-                     </Button>
+                    </Button>
                   );
                 })}
-                <div className="relative w-full sm:w-[104px]">
+                <div className="relative w-full sm:w-[185px]">
                   <input
                     ref={areaRef}
                     id="calc-area"
@@ -222,68 +222,64 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                     onChange={(e) => setRaw(e.target.value)}
                     aria-label="Your own ceiling size in square metres"
                     placeholder="Or type your own size"
-                    className="h-9 w-full rounded-lg border border-estimate-line bg-estimate-white pl-3 pr-9 text-sm font-bold text-estimate-navy placeholder:font-normal placeholder:text-estimate-navy/75 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    className="h-9 w-full rounded-full bg-estimate-canvas pl-4 pr-9 text-sm font-bold text-estimate-navy placeholder:font-normal placeholder:text-estimate-navy/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   />
-                  <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-bold text-estimate-navy/85">m²</span>
+                  <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs font-bold text-estimate-navy/85">m²</span>
                 </div>
               </div>
-              <p className="mt-2 flex items-start gap-2 rounded-lg border-l-2 border-workspace-blush-strong bg-workspace-blush/50 px-3 py-2 text-xs leading-relaxed text-estimate-navy/90">
-                <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-task-eligibility-foreground" />
-                 <span>Not sure? Try 150 m². A closer estimate of your ceiling size means a more accurate price.</span>
+              <p className="flex items-start gap-2 text-xs leading-relaxed text-estimate-navy/85">
+                <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-estimate-navy/70" />
+                <span>Not sure? Try 150 m². A closer estimate of your ceiling size means a more accurate price.</span>
               </p>
-              {raw.trim() !== "" && m2 == null && <p role="alert" className="mt-2 text-xs font-bold text-danger">Please enter an area between {CALC_MIN_M2} and {CALC_MAX_M2} m².</p>}
-            </Field>
+              {raw.trim() !== "" && m2 == null && <p role="alert" className="text-xs font-bold text-danger">Please enter an area between {CALC_MIN_M2} and {CALC_MAX_M2} m².</p>}
+            </Question>
 
-            <Field id="calc-insulation" icon={Layers} label="Any insulation already up there?">
-               <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+            <Question id="calc-insulation" label="Any insulation already up there?">
+              <div className="grid grid-cols-3 gap-2">
                 {INSULATION_OPTIONS.map((o) => {
                   const on = insulation === o.value;
                   return (
-                     <Button
+                    <Button
                       key={String(o.value)}
                       type="button"
-                       variant="outline"
+                      variant="outline"
                       aria-pressed={on}
                       onClick={() => setInsulation(o.value)}
-                       className={`flex h-auto min-h-12 flex-col items-start justify-center gap-0.5 whitespace-normal rounded-lg border-2 px-2 py-2 text-left sm:min-h-[3.75rem] sm:px-3 sm:py-2.5 ${
+                      className={`flex h-auto min-h-14 flex-col items-start justify-center gap-0.5 whitespace-normal rounded-2xl border px-2.5 py-2.5 text-left ${
                         on
-                           ? "border-estimate-green bg-estimate-mint"
-                          : "border-estimate-line bg-estimate-white hover:border-estimate-blue/45 hover:bg-estimate-mist"
+                          ? "border-estimate-blue bg-estimate-mist text-estimate-blue"
+                          : "border-transparent bg-estimate-canvas text-estimate-navy hover:border-estimate-line"
                       }`}
                     >
-                       <span className="flex w-full items-center justify-between gap-1 text-xs font-extrabold text-estimate-navy sm:text-sm">
+                      <span className="flex w-full items-center justify-between gap-1 text-[0.8rem] font-extrabold sm:text-sm">
                         {o.label}
-                        {on && <Check aria-hidden="true" className="size-4 shrink-0 text-estimate-green" strokeWidth={3} />}
+                        {on && <Check aria-hidden="true" className="size-4 shrink-0 text-estimate-blue" strokeWidth={3} />}
                       </span>
-                       <span className="hidden text-[0.7rem] leading-snug text-estimate-navy/90 sm:block">{INSULATION_HELP[String(o.value)]}</span>
-                     </Button>
+                      <span className={`hidden text-[0.7rem] leading-snug sm:block ${on ? "text-estimate-navy/85" : "text-estimate-navy/80"}`}>{INSULATION_HELP[String(o.value)]}</span>
+                    </Button>
                   );
                 })}
               </div>
               {insulation !== null && insulation !== "none" && (
-                <div className="mt-2.5 flex items-start gap-2.5 rounded-lg border border-workspace-blush-strong/50 bg-workspace-blush/50 px-3 py-2.5 text-xs leading-relaxed text-estimate-navy/90">
-                  <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-task-eligibility-foreground" />
-                  <p>
-                    <strong className="text-estimate-navy">Your existing insulation may be able to stay.</strong> Your installer will check it and advise you at your free Ready Check. If removal is required, budget an extra{" "}
-                    <strong className="text-estimate-blue">$10–$15 per m² of the area requiring removal</strong>, depending on the insulation type.
-                  </p>
-                </div>
+                <p className="rounded-xl bg-estimate-blush px-3.5 py-2.5 text-xs leading-relaxed text-estimate-navy/90">
+                  <strong className="text-estimate-navy">Your existing insulation may be able to stay.</strong> Your installer will check it and advise you at your free Ready Check. If removal is required, budget an extra{" "}
+                  <strong className="text-estimate-blue">$10–$15 per m² of the area requiring removal</strong>, depending on the insulation type.
+                </p>
               )}
-            </Field>
-
+            </Question>
           </div>
 
-          <div className="border-t border-estimate-line px-4 py-3 lg:border-l lg:border-t-0 lg:bg-estimate-mist lg:px-5 lg:py-4">
+          <div className="bg-estimate-mist px-5 py-6 sm:px-8 sm:py-8 lg:border-l lg:border-estimate-line">
             {!priced ? (
-               <div className="flex h-full min-h-12 flex-col justify-center lg:min-h-[200px]">
-                 <p className="text-sm leading-relaxed text-estimate-navy/85">
-                    <span className="font-extrabold text-estimate-navy">Your price will show here.</span> Add your address and ceiling size above.
-                 </p>
-               </div>
+              <div className="flex h-full min-h-16 items-center lg:min-h-[240px]">
+                <p className="text-sm leading-relaxed text-estimate-navy/85">
+                  <span className="font-extrabold text-estimate-navy">Your price will show here.</span> Add your address and ceiling size above.
+                </p>
+              </div>
             ) : (
               <div data-testid="public-calculator-result">
-                <p className="text-[0.7rem] font-extrabold uppercase tracking-wider text-estimate-green">Your estimated cost</p>
-                <dl className="mt-2.5 space-y-1 rounded-xl border border-estimate-line bg-estimate-white px-3.5 py-2.5 text-xs">
+                <p className="text-[0.7rem] font-extrabold uppercase tracking-[0.14em] text-estimate-navy/70">Your estimated cost</p>
+                <dl className="mt-3 space-y-1.5 text-xs">
                   {[
                     { label: "Property", value: suburb ? `${suburb} ${postcode}` : postcode, onChange: changeAddress },
                     { label: "Ceiling", value: `${m2} m²`, onChange: changeArea },
@@ -293,15 +289,15 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                       <dt className="text-estimate-navy/85">{row.label}</dt>
                       <dd className="flex items-center gap-2 font-extrabold text-estimate-navy">
                         {row.value}
-                         <Button type="button" variant="link" onClick={row.onChange} className="h-auto p-0 text-xs font-bold text-estimate-blue underline decoration-estimate-green/60 underline-offset-2 hover:text-estimate-green">
+                        <Button type="button" variant="link" onClick={row.onChange} className="h-auto p-0 text-xs font-bold text-estimate-blue underline decoration-estimate-green/60 underline-offset-2 hover:text-estimate-green">
                           Change
-                         </Button>
+                        </Button>
                       </dd>
                     </div>
                   ))}
                 </dl>
                 <div
-                  className="mt-3 [&_[data-testid=quote-discount-band]]:border-2 [&_[data-testid=quote-discount-band]]:border-estimate-green [&_[data-testid=quote-discount-band]]:bg-estimate-mint [&_[data-testid=quote-discount-band]]:py-5 [&_[data-testid=quote-discount-band]_dd]:text-3xl [&_[data-testid=quote-discount-band]_dt]:text-estimate-navy"
+                  className="mt-3.5 [&_[data-testid=quote-discount-band]]:rounded-2xl [&_[data-testid=quote-discount-band]]:border-2 [&_[data-testid=quote-discount-band]]:border-estimate-green [&_[data-testid=quote-discount-band]]:bg-estimate-mint [&_[data-testid=quote-discount-band]]:py-4 [&_[data-testid=quote-discount-band]_dd]:text-2xl [&_[data-testid=quote-discount-band]_dt]:text-estimate-navy"
                   data-testid="public-calculator-discount-highlight"
                 >
                   <QuoteBreakdown
@@ -318,7 +314,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
           </div>
         </div>
 
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <WhatIsIncluded />
           <WhatCouldChange />
         </div>
@@ -331,7 +327,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
           insulation={insulation ?? "unknown"}
         />
 
-        <footer className="mt-5 border-t border-estimate-line pb-5 pt-4 text-center text-xs leading-relaxed text-estimate-navy/85 sm:text-left lg:pb-3">
+        <footer className="mt-6 border-t border-estimate-line pb-6 pt-4 text-center text-xs leading-relaxed text-estimate-navy/85 sm:text-left lg:pb-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
             <p className="sm:max-w-[430px]">Estimate only, not a quote. Prices include GST.<br className="hidden sm:block" /> Your details are saved only if you register your interest.</p>
             <p className="flex flex-col items-center gap-1 sm:items-end sm:text-right">

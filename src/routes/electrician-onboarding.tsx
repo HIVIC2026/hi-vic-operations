@@ -257,7 +257,7 @@ function RecOnboarding() {
       <div style={{ width: 56, height: 56, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 28, lineHeight: "56px", margin: "0 auto 16px" }}>✓</div>
       <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — we've got everything.</h1>
       <p style={{ color: MUTED, lineHeight: 1.6 }}>Your application and signed agreement are now with the Home Insulation Victoria team. We'll review your details, check your REC registration, licences and insurance, and be in touch if we need anything else.</p>
-      <p style={{ color: MUTED, lineHeight: 1.6 }}>Once you're approved and your rates are agreed, you'll start receiving job offers through the portal. We'll also reach out then to collect your payment details.</p>
+      <p style={{ color: MUTED, lineHeight: 1.6 }}>Once you're approved and your rates are agreed, you'll start receiving job offers through the portal. {d.works_under_rec ? <>Your work is paid through {d.host_rec_name || "the business you work under"} — nothing more to set up.</> : <>Your payment details are already on file — you're paid once each job's invoice is paid in full.</>}</p>
       <div style={{ ...infoCard, textAlign: "left", marginTop: 8 }}><strong>What happens next:</strong> review and verification → rates confirmed → welcome aboard. Keep an eye on {d.business_email || "your email"} — that's where we'll contact you.</div>
       <p style={{ color: MUTED, fontSize: 13 }}>Agreement version {REC_AGREEMENT_VERSION} · A copy of everything you've submitted is kept on your file.</p>
     </div>,

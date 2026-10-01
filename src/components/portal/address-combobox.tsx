@@ -26,10 +26,12 @@ type Props = {
   onPick: (suggestion: AddressSuggestion) => void;
   placeholder?: string;
   className?: string;
+  /** "dark" renders the input and status note legibly on the navy register panel. */
+  tone?: "light" | "dark";
   ariaLabel?: string;
 };
 
-export function AddressCombobox({ id, value, onChange, onPick, placeholder, className, ariaLabel }: Props) {
+export function AddressCombobox({ id, value, onChange, onPick, placeholder, className, tone = "light", ariaLabel }: Props) {
   const [items, setItems] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -155,11 +157,13 @@ export function AddressCombobox({ id, value, onChange, onPick, placeholder, clas
           }}
           className={`${
             className ??
-            "h-11 w-full rounded-lg border-2 border-estimate-line bg-estimate-white pl-9 pr-10 text-base font-bold text-estimate-navy"
-          } placeholder:font-normal placeholder:text-estimate-navy/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring`}
+            (tone === "dark"
+              ? "h-11 w-full rounded-xl border border-white/15 bg-white/10 pl-9 pr-10 text-[0.95rem] text-white placeholder:text-white/60 focus-visible:border-white/40 focus-visible:bg-white/15 focus-visible:outline-none"
+              : "h-11 w-full rounded-lg border-2 border-estimate-line bg-estimate-white pl-9 pr-10 text-base font-bold text-estimate-navy")
+          } ${tone === "dark" ? "placeholder:font-normal focus-visible:outline-none" : "placeholder:font-normal placeholder:text-estimate-navy/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"}`}
         />
         {busy && (
-          <Loader2 aria-hidden="true" className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-estimate-blue" />
+          <Loader2 aria-hidden="true" className={`absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin ${tone === "dark" ? "text-white" : "text-estimate-blue"}`} />
         )}
       </div>
 
@@ -192,7 +196,7 @@ export function AddressCombobox({ id, value, onChange, onPick, placeholder, clas
       )}
 
       {open && items.length === 0 && note && (
-        <p role="status" className="mt-1.5 text-xs leading-relaxed font-semibold text-estimate-navy/85">
+        <p role="status" className={`mt-1.5 text-xs leading-relaxed font-semibold ${tone === "dark" ? "text-white/80" : "text-estimate-navy/85"}`}>
           {note}
         </p>
       )}
