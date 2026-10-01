@@ -35,34 +35,69 @@ export type CustomerData = {
 
 type Est = { scenarios: Scenario[]; access_adjustment: { moderate: number; difficult: number } };
 
-export function ConfirmQuote({ onBack, preview = false, testMode = preview, state = null, busy = false, error = null, onAccept, onTestPayment }: { estimatedPrice?: number; assessmentFee?: number; onBack: () => void; preview?: boolean; testMode?: boolean; state?: ReadyCheckAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; onTestPayment?: (outcome: "success" | "failure") => void }) {
+/** Customer-facing copy for the free check confirmation (presentation-only rename of the Home Insulation Ready Check). */
+export const FREE_CHECK_CONFIRM_COPY = {
+  name: "Free Insulation Measure-Up & Eligibility Check",
+  intro: "Confirm your request below. An installer from our panel will contact you to arrange a time.",
+  free: "FREE · No payment required",
+  checklistHeading: "What happens at the visit",
+  checklist: ["Ceiling measurements", "Existing insulation, any removal needed, and ceiling access", "Eligibility evidence and site photos", "An updated estimate for you to review"],
+  installer: "Carried out by a pre-vetted Certified Insulation Installer (CII) from our panel.",
+  piesa: "The mandatory electrical safety assessment (PIESA) is a separate paid step, completed later by a licensed electrician, close to installation.",
+  reassurance: "No payment required. No obligation to proceed with installation.",
+  acceptance: "I understand this is a free installer visit to measure my ceiling and check eligibility details. It is not the electrical safety assessment (PIESA), and I have no obligation to proceed with installation.",
+  cta: "Confirm my free measure-up & eligibility check →",
+  stale: "Your estimate changed. Please review it and confirm your free measure-up & eligibility check again.",
+  successHeading: "We’ve received your request",
+  successBody: "An installer from our panel will contact you to arrange a suitable time for your Free Insulation Measure-Up & Eligibility Check.",
+  successNext: "What they measure on the day will be used to update your estimate for you to review.",
+} as const;
+
+export function ConfirmQuote({ onBack, testMode = false, state = null, busy = false, error = null, onAccept }: { estimatedPrice?: number; assessmentFee?: number; onBack: () => void; preview?: boolean; testMode?: boolean; state?: ReadyCheckAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; onTestPayment?: (outcome: "success" | "failure") => void }) {
   const accepted = state?.paymentStatus === "accepted";
   const [acknowledged, setAcknowledged] = useState(false);
-  const P = CUSTOMER_READY_CHECK_PAGE;
-  return <div className="estimate-brand space-y-6 text-estimate-navy">
-    {testMode && <div className="bg-warning-soft px-5 py-3 text-center text-xs font-extrabold uppercase text-warning-foreground">Test mode · no live booking will be created</div>}
-    <CustomerStageHero eyebrow={P.eyebrow} heading={P.heading} intro={P.intro} id="confirm-quote-title" />
-    <section className="estimate-quote-card px-5 py-7 sm:px-8" aria-labelledby="confirm-quote-title" data-testid="ready-check-card">
-      <p className="text-2xl font-extrabold leading-tight text-estimate-blue">{P.cardTitle}</p>
-      <p className="mt-2 text-sm font-extrabold">{P.credit}</p>
-      <h2 className="mt-6 text-xs font-extrabold uppercase tracking-wider text-estimate-green">{P.whatHappensHeading}</h2>
-      <ul className="mt-3 space-y-3 text-sm font-semibold">{P.whatHappens.map((item) => <li key={item} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-estimate-green" /><span>{item}</span></li>)}</ul>
-      <p className="mt-5 text-sm leading-relaxed">{P.notPiesa}</p>
-      <p className="mt-3 text-sm font-extrabold leading-relaxed" data-testid="approval-reassurance">{CUSTOMER_APPROVAL_REASSURANCE}</p>
-      <div className="mt-6 border-t border-estimate-blue-soft pt-6">
-        {!accepted && <label className="flex items-start gap-3 text-sm leading-relaxed">
-          <input type="checkbox" checked={!!state || acknowledged} disabled={!!state || busy} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-1 size-4 accent-estimate-blue" />
-          <span>{P.acceptance}</span>
-        </label>}
-        <div className="mt-5 space-y-3">
-          {!state && <Button type="button" size="field" className="estimate-action-button h-auto min-h-14 w-full px-5 py-4 font-extrabold" disabled={!acknowledged || busy || !onAccept} onClick={onAccept}>{busy ? "RECORDING…" : CUSTOMER_READY_CHECK.cta}</Button>}
-          {accepted && <div role="status"><p className="text-xs font-extrabold uppercase text-estimate-green">Request received</p><h2 className="mt-2 text-xl font-extrabold text-estimate-blue">{READY_CHECK_BOOKING_SUCCESS.heading}</h2><p className="mt-3 text-sm font-bold">{READY_CHECK_BOOKING_SUCCESS.received}</p><p className="mt-3 text-sm leading-relaxed">{READY_CHECK_BOOKING_SUCCESS.assignment}</p><p className="mt-3 text-sm leading-relaxed">{READY_CHECK_BOOKING_SUCCESS.visit}</p><p className="mt-3 text-xs font-semibold leading-relaxed">{READY_CHECK_BOOKING_SUCCESS.reassurance}</p></div>}
-          {state?.stale && <p className="border-l-4 border-danger bg-danger-soft px-4 py-3 text-sm font-bold" role="alert">Your estimate changed. Please review and request the Ready Check again.</p>}
-          {error && <p className="text-sm font-bold text-danger" role="alert">{error}</p>}
-        </div>
-      </div>
-    </section>
-    <Button type="button" variant="ghost" size="field" className="w-full font-bold text-estimate-blue hover:bg-estimate-green-soft hover:text-estimate-blue" onClick={onBack}>← BACK TO MY ESTIMATE</Button>
+  const C = FREE_CHECK_CONFIRM_COPY;
+  return <div className="estimate-brand mx-auto max-w-[640px] text-estimate-navy">
+    {testMode && <div className="mb-4 rounded-xl bg-warning-soft px-5 py-3 text-center text-xs font-extrabold uppercase text-warning-foreground">Test mode · no live booking will be created</div>}
+    <div className="overflow-hidden rounded-[24px] bg-estimate-white shadow-[0_30px_70px_-45px_rgba(34,55,107,.45)]">
+      {accepted ? <section role="status" aria-labelledby="confirm-quote-title" data-testid="ready-check-success" className="px-5 py-8 sm:px-9">
+        <p className="text-[11px] font-extrabold uppercase tracking-[1.4px] text-[#067A45]">Request received</p>
+        <h1 id="confirm-quote-title" className="mt-2 text-[28px] leading-tight text-estimate-navy sm:text-[34px]">{C.successHeading}</h1>
+        <p className="mt-4 text-[15px] leading-relaxed">{C.successBody}</p>
+        <p className="mt-3 text-[15px] leading-relaxed">{C.successNext}</p>
+        <div className="mt-6 rounded-[18px] bg-estimate-mist px-5 py-4 text-sm font-bold leading-relaxed">{C.reassurance}</div>
+      </section> : <>
+        <header className="px-5 pb-6 pt-8 sm:px-9">
+          <p className="text-[11px] font-extrabold uppercase tracking-[1.4px] text-[#067A45]">Your next step</p>
+          <h1 id="confirm-quote-title" className="mt-2 text-[28px] leading-tight text-estimate-navy sm:text-[34px]">{C.name}</h1>
+          <p className="mt-3 text-[15px] leading-relaxed">{C.intro}</p>
+          <p className="mt-4 inline-block rounded-full border-2 border-estimate-green bg-estimate-mint px-4 py-1.5 text-sm font-extrabold text-[#067A45]" data-testid="free-badge">{C.free}</p>
+        </header>
+        <section className="mx-3 rounded-[22px] bg-estimate-mist px-4 py-5 sm:mx-7 sm:px-6" aria-labelledby="confirm-quote-title" data-testid="ready-check-card">
+          <div className="rounded-[14px] bg-estimate-white px-4 py-4">
+            <h2 className="text-base text-estimate-navy">{C.checklistHeading}</h2>
+            <ul className="mt-3 space-y-2.5 text-[14px] leading-snug">{C.checklist.map((item) => <li key={item} className="flex items-start gap-2.5"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" strokeWidth={3} /><span>{item}</span></li>)}</ul>
+            <p className="mt-4 border-t border-estimate-line pt-3 text-[13px] leading-relaxed">{C.installer}</p>
+          </div>
+          <p className="mt-4 text-[13px] leading-relaxed">{C.piesa}</p>
+        </section>
+        <section className="mx-3 mt-4 rounded-[20px] bg-estimate-blush px-5 py-6 sm:mx-7" aria-label="Confirm your request">
+          {!state && <label className="flex items-start gap-3 text-sm leading-relaxed">
+            <input type="checkbox" checked={acknowledged} disabled={busy} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-1 size-5 shrink-0 accent-estimate-green" />
+            <span>{C.acceptance}</span>
+          </label>}
+          <div className="mt-5 space-y-3">
+            {!state && <button type="button" className="min-h-14 w-full rounded-xl bg-estimate-green px-5 py-4 text-base font-extrabold leading-snug text-estimate-white shadow-[0_10px_24px_-12px_rgba(7,191,97,.55)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-estimate-navy focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" disabled={!acknowledged || busy || !onAccept} onClick={onAccept}>{busy ? "Sending your request…" : C.cta}</button>}
+            {state?.stale && <p className="border-l-4 border-danger bg-danger-soft px-4 py-3 text-sm font-bold" role="alert">{C.stale}</p>}
+            {error && <p className="text-sm font-bold text-danger" role="alert">{error}</p>}
+            <p className="text-center text-[13px] font-bold leading-relaxed">{C.reassurance}</p>
+          </div>
+        </section>
+        <div className="mx-3 mt-4 rounded-[14px] bg-estimate-mist px-5 py-4 sm:mx-7"><p className="text-[13px] font-bold leading-relaxed" data-testid="approval-reassurance">{CUSTOMER_APPROVAL_REASSURANCE}</p></div>
+        <div className="h-6" />
+      </>}
+    </div>
+    <button type="button" className="mt-4 min-h-12 w-full rounded-xl text-sm font-bold text-estimate-blue underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-estimate-blue" onClick={onBack}>← Back to my estimate</button>
   </div>;
 }
 
