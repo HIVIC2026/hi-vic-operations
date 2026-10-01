@@ -303,12 +303,13 @@ function renderLikelyEligibleEmail(input: EstimateEmailInput): EstimateEmail {
   const summary = `${address ? `<tr><td style="padding:4px 0;${F}color:${INK};font-size:13px;">Property</td><td align="right" style="padding:4px 0 4px 12px;${F}color:${INK};font-size:13px;font-weight:800;">${escape(address)}</td></tr>` : ""}<tr><td style="padding:4px 0;${F}color:${INK};font-size:13px;">Ceiling</td><td align="right" style="padding:4px 0 4px 12px;${F}color:${INK};font-size:13px;font-weight:800;">${areaNote}</td></tr>`;
   const line = (t: string, amt: string, note: string, top: boolean) => `<tr><td valign="top" style="padding:8px 12px 2px 0;${top ? "" : `border-top:1px solid ${LINE};`}${F}color:${INK};font-size:14px;line-height:1.45;">${t}</td><td class="lx-row-amt" width="96" align="right" valign="top" style="width:96px;padding:8px 0 2px;${top ? "" : `border-top:1px solid ${LINE};`}${F}color:${INK};font-size:14px;line-height:1.45;font-weight:700;white-space:nowrap;">${amt}</td></tr><tr><td colspan="2" style="padding:0 0 8px;${F}color:${INK};font-size:12.5px;line-height:1.45;">${note}</td></tr>`;
   const rows = [
-    { title: "R5.0 ceiling insulation — supply & install", description: "Fitted by a pre-vetted Certified Insulation Installer (CII) from our panel.", amount: hasBreakdown ? installation : null },
-    { title: "Electrical safety assessment (PIESA)", description: "A mandatory check by a pre-vetted REC electrician, close to installation.", amount: hasBreakdown ? assessment : null },
-    { title: "Accredited Person (AP) management", description: "Our accreditation gives you access to the VEU rebate. We handle compliance, paperwork and your claim.", amount: hasBreakdown ? apFee : null },
+    { title: "Ready-to-install measure-up", description: "An onsite Home Insulation Ready Check by an installer from our panel.", amount: `<span style="color:${GREEN};font-weight:800;">FREE</span>`, plain: ": FREE" },
+    { title: "R5.0 ceiling insulation — supply & install", description: "Fitted by a pre-vetted Certified Insulation Installer (CII) from our panel.", amount: hasBreakdown ? escape(money(installation)) : "", plain: hasBreakdown ? `: ${money(installation)}` : "" },
+    { title: "Electrical safety assessment (PIESA)", description: "A mandatory check by a pre-vetted REC electrician, close to installation.", amount: hasBreakdown ? escape(money(assessment)) : "", plain: hasBreakdown ? `: ${money(assessment)}` : "" },
+    { title: "Accredited Person (AP) management", description: "Our accreditation gives you access to the VEU rebate. We handle compliance, paperwork and your claim.", amount: hasBreakdown ? escape(money(apFee)) : "", plain: hasBreakdown ? `: ${money(apFee)}` : "" },
   ];
   const tick = `<span aria-hidden="true" style="white-space:nowrap;color:${GREEN};font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;line-height:1;">✓&nbsp;</span>`;
-  const items = rows.map(({ title, description, amount }, i) => line(`${tick}<strong style="font-size:14px;">${escape(title)}</strong>`, amount == null ? "" : escape(money(amount)), escape(description), i === 0)).join("");
+  const items = rows.map(({ title, description, amount }, i) => line(`${tick}<strong style="font-size:14px;">${escape(title)}</strong>`, amount, escape(description), i === 0)).join("");
   const validApCount = typeof input.apCount === "number" && Number.isInteger(input.apCount) && input.apCount > 0;
   const apCountText = validApCount ? (input.apCount === 2 ? "two" : String(input.apCount)) : null;
   const apTrust = apCountText ? `<p style="margin:11px 0 0;padding-top:11px;border-top:1px solid ${LINE};${F}color:${INK};font-size:12.5px;line-height:1.5;font-weight:700;">We’re one of only ${escape(apCountText)} Accredited Person${input.apCount === 1 ? "" : "s"} approved for VEU ceiling insulation in Victoria.</p>` : "";
@@ -347,7 +348,7 @@ function renderLikelyEligibleEmail(input: EstimateEmailInput): EstimateEmail {
     "Estimate only. Eligibility, measurements and final pricing confirmed after assessment.",
     ...(address ? [`Property: ${address}`] : []),
     `Ceiling: ${number(area)} m²${input.areaIsTypical ? " (typical-home assumption)" : ""}`,
-    "", "WHAT THIS INCLUDES", ...rows.map(({ title, description, amount }) => `✓ ${title}${amount == null ? "" : `: ${money(amount)}`}
+    "", "WHAT THIS INCLUDES", ...rows.map(({ title, description, plain }) => `✓ ${title}${plain}
 ${description}`),
     ...(apCountText ? [`We’re one of only ${apCountText} Accredited Person${input.apCount === 1 ? "" : "s"} approved for VEU ceiling insulation in Victoria.`] : []), "",
     "YOUR NEXT STEP: A FREE READY CHECK",
