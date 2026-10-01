@@ -6,8 +6,9 @@ const full: RecData = {
   legal_entity_name: "Spark Pty Ltd", abn: "51824753556", rec_registration_number: "REC 12345",
   business_address: "1 Main St, Melton VIC", primary_contact_name: "Sam Smith", licence_number: "A123", business_phone: "0412345678", business_email: "sam@spark.com.au", authorised_to_register: true,
   insurance_uploaded: true, insurer: "QBE", insurance_policy_number: "P1", public_liability_cover_amount: 10_000_000, public_liability_expiry: "2099-01-01",
-  service_piesa: true, service_origin: "Melton", travel_radius_km: 50, typical_days: ["Mon"], normal_attendance_speed: "1-2 weeks", capacity_band: "6-10",
-  gst_registered: true, assessment_rate: 300, agreement_reviewed: true,
+  service_piesa: true, service_rectification: true, service_installation_isolation: true, service_origin: "Melton", travel_radius_km: 50, typical_days: ["Mon"], normal_attendance_speed: "1-2 weeks", capacity_band: "6-10",
+  gst_registered: true, assessment_rate: 300, installation_attendance_rate: 150,
+  rectification_rates: { prohibited_luminaires: 50, circuit_protection: 100, rcd_installation: 200, tps_cable_replacement: 10, basic_protection: 150 }, coes_fee_choice: "included", agreement_reviewed: true,
   bank_account_name: "Spark Pty Ltd", bank_bsb: "123-456", bank_account_number: "12345678",
 };
 
@@ -23,11 +24,18 @@ describe("rec onboarding", () => {
     // an explicit legacy list always wins
     expect(effectiveElectricians({ ...full, electricians: [{ full_legal_name: "Other", licence_number: "B9", mobile: "0400000000", email: "o@x.com" }] })[0].full_legal_name).toBe("Other");
   });
-  test("services: at least one referral type must be ticked", () => {
-    expect(stepErrors("services", {})).toContain("Tick at least one type of work you'd like referrals for.");
-    expect(stepErrors("services", { service_piesa: true })).toEqual([]);
-    expect(stepErrors("services", { service_rectification: true })).toEqual([]);
-    expect(stepErrors("services", { service_installation_isolation: true })).toEqual([]);
+  test("services: rectification and install day attendance are required, PIESA optional", () => {
+    expect(stepErrors("services", {})).toContain("Rectification work and install day attendance are required — tick both to continue.");
+    expect(stepErrors("services", { service_rectification: true })).toContain("Rectification work and install day attendance are required — tick both to continue.");
+    expect(stepErrors("services", { service_installation_isolation: true })).toContain("Rectification work and install day attendance are required — tick both to continue.");
+    expect(stepErrors("services", { service_rectification: true, service_installation_isolation: true })).toEqual([]);
+    expect(stepErrors("services", { service_piesa: true, service_rectification: true, service_installation_isolation: true })).toEqual([]);
+  });
+  test("customer-ownership acknowledgement is required to sign", () => {
+    const ack = ACKNOWLEDGEMENTS.find((a) => a.key === "customer_owner");
+    expect(ack?.text).toContain("customer is Home Insulation Victoria's customer");
+    expect(ack?.text).toContain("will not quote, invoice or accept payment from them separately");
+    expect(agreementText(full)).toContain(ack!.text);
   });
   test("worker under another REC: no ABN/REC/insurance needed, host REC required", () => {
     const under: RecData = { ...full, works_under_rec: true, abn: undefined, rec_registration_number: undefined, host_rec_name: "Host Electrical Pty Ltd", host_rec_number: "REC 999" };
@@ -51,9 +59,9 @@ describe("rec onboarding", () => {
   test("PIESA rate not required when PIESA referrals declined", () => {
     expect(stepErrors("assessment_pricing", { ...full, service_piesa: false, service_installation_isolation: true, installation_attendance_rate: 150, assessment_rate: undefined })).toEqual([]);
   });
-  test("rectification step only when opted in, and requires all rates", () => {
-    expect(visibleSteps(full).some((s) => s.key === "rectification_pricing")).toBe(false);
-    expect(firstIncompleteStep({ ...full, service_rectification: true })).toBe("rectification_pricing");
+  test("rectification pricing step is always shown and requires all rates", () => {
+    expect(visibleSteps(full).some((s) => s.key === "rectification_pricing")).toBe(true);
+    expect(firstIncompleteStep({ ...full, rectification_rates: undefined })).toBe("rectification_pricing");
   });
   test("material change resets review", () => {
     expect(applyMaterialReset(full, { ...full, assessment_rate: 350 }).agreement_reviewed).toBe(false);
@@ -71,7 +79,7 @@ describe("rec onboarding", () => {
     expect(t).toContain("does not depend on Home Insulation Victoria receiving payment from the customer");
     expect(t).toContain("Pre-insulation electrical safety assessment (PIESA): $300.00 / visit");
     expect(t).toContain("1. Sam Smith — licence A123");
-    expect(ACKNOWLEDGEMENTS.length).toBe(8);
+    expect(ACKNOWLEDGEMENTS.length).toBe(9);
     for (const a of ACKNOWLEDGEMENTS) expect(t).toContain(a.text);
   });
 });

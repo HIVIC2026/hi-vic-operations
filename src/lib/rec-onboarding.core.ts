@@ -13,6 +13,7 @@ export const ACKNOWLEDGEMENTS = [
   { key: "compliance", text: "I understand the REC and its personnel must comply with current VEU, Code of Conduct, PIESA, electrical-safety and Home Insulation Victoria requirements." },
   { key: "records", text: "I confirm the REC will provide truthful records and evidence and cooperate with Home Insulation Victoria, ESC and ESV compliance checks." },
   { key: "no_bypass", text: "I understand that rectification, electrical upgrades, attendance and other work identified through or required for a Home Insulation Victoria Activity 48 job must be quoted, approved, scheduled and completed through the Home Insulation Victoria workflow and must not be taken off-platform or dealt with directly." },
+  { key: "customer_owner", text: "I understand the customer is Home Insulation Victoria's customer. I will not quote, invoice or accept payment from them separately for any work connected to a Home Insulation Victoria job, and I will not approach them for other work. All communication goes through the Home Insulation Victoria portal." },
   { key: "same_day", text: "I understand PIESA results and any rectification quote (or confirmation that none is required) must be submitted through the Home Insulation Victoria portal on the day of each assessment." },
   { key: "pricing", text: "I understand our approved rates are supplier rates, Home Insulation Victoria sets the customer price independently and may include its own margin, and Home Insulation Victoria does not have to disclose that margin to us. I will not share our rates with customers." },
   { key: "electronic_signature", text: "I agree to electronic execution and to the signed agreement, exact wording, version and audit record being stored by Home Insulation Victoria." },
@@ -157,7 +158,7 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d.public_liability_expiry ?? "") || (d.public_liability_expiry as string) < melbourneToday(now)) e.push("Insurance expiry must be today or later.");
       break;
     case "services":
-      if (d.service_piesa !== true && d.service_rectification !== true && d.service_installation_isolation !== true) e.push("Tick at least one type of work you'd like referrals for.");
+      if (d.service_rectification !== true || d.service_installation_isolation !== true) e.push("Rectification work and install day attendance are required — tick both to continue.");
       break;
     case "coverage":
       if (!txt(d.service_origin)) e.push("Enter your service starting location.");
