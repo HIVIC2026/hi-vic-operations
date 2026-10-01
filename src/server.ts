@@ -75,12 +75,13 @@ function customerEntryRewrite(request: Request): Request | undefined {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
-      const entryRedirect = customerEntryRedirect(request);
-      if (entryRedirect) return entryRedirect;
+      const rewritten = customerEntryRewrite(request);
+      const incoming = rewritten ?? request;
       const handler = await getServerEntry();
       const c = ctx as { waitUntil?: (p: Promise<unknown>) => void } | undefined;
       const waitUntil = typeof c?.waitUntil === "function" ? c.waitUntil.bind(c) : undefined;
-      const response = await requestContext.run({ waitUntil }, () => handler.fetch(request, env, ctx));
+      const response = await requestContext.run({ waitUntil }, () => handler.fetch(incoming, env, ctx));
+
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {
       if (isConnectionTeardown(error)) {
