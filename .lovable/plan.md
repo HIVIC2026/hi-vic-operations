@@ -4,9 +4,11 @@
 When the owner picks "Some there" or "Not sure", show a plain note under the price (replaces the current removal paragraph):
 
 ```text
-If your existing insulation needs to be removed, budget $10–$15 per m²
-depending on the insulation type. Removal needs approval, and it may not
-need to come out at all — we confirm this at your free Ready Check.
+Good to know: some existing insulation can stay, and yours may not need
+to come out at all. If removal is needed, it's a discretionary extra of
+$10–$15 per m² depending on the insulation type — and it only goes ahead
+with your approval. We'll confirm exactly what's needed at your free
+Ready Check, before you agree to anything.
 ```
 
 - Just a note — no priced add-on, no live calculation, headline price unchanged.
