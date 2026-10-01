@@ -323,7 +323,7 @@ function renderLikelyEligibleEmail(input: EstimateEmailInput): EstimateEmail {
   const freeVsPiesa = "The Ready Check is free. The PIESA electrical safety assessment in your estimate is a separate paid step, completed later by a licensed electrician.";
   const demand = "Demand is exceptionally high. Installer capacity is limited. Request your free Ready Check now so we can arrange the next step in your area.";
   const stepRows = steps.map(([t, c], i) => `<tr><td width="40" valign="top" style="width:40px;padding:0 0 14px;"><div style="width:28px;height:28px;line-height:28px;border-radius:14px;background-color:${GREEN};color:${WHITE};text-align:center;${FH}font-size:14px;font-weight:800;">${i + 1}</div></td><td valign="top" style="padding:2px 0 14px;${F}"><p style="margin:0 0 2px;${F}color:${INK};font-size:15px;line-height:1.4;font-weight:800;">${t}</p><p style="margin:0;${F}color:${INK};font-size:14px;line-height:1.5;">${c}</p></td></tr>`).join("");
-  const nextStep = `<table data-likely-next-step="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUSH}" style="width:100%;border-collapse:separate;background-color:${BLUSH};border-radius:20px;"><tr><td style="padding:24px 22px;${F}">${h2("Your next step: a free onsite Ready Check")}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin-top:4px;">${stepRows}</table>${button(confirmTarget, "Arrange my free Ready Check →", true)}<p style="margin:10px 0 0;${F}color:${INK};font-size:13px;line-height:1.5;font-weight:700;text-align:center;">No payment required. No obligation to proceed with installation.</p><p style="margin:12px 0 0;${F}color:${INK};font-size:12px;line-height:1.5;text-align:center;">${freeVsPiesa} ${demand}</p></td></tr></table>`;
+  const nextStep = `<table data-likely-next-step="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUSH}" style="width:100%;border-collapse:separate;background-color:${BLUSH};border-radius:20px;"><tr><td style="padding:24px 22px;${F}">${h2("Your next step: a free onsite Ready Check")}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin-top:4px;">${stepRows}</table>${button(confirmTarget, "Arrange my free Ready Check →", true)}<p style="margin:10px 0 0;${F}color:${INK};font-size:13px;line-height:1.5;font-weight:700;text-align:center;">No payment required. No obligation to proceed with installation.</p><p style="margin:12px 0 0;${F}color:${INK};font-size:12px;line-height:1.5;text-align:center;">${freeVsPiesa} <strong>${demand}</strong></p></td></tr></table>`;
 
   // 5. Secondary calculator link
   const calc = `<p style="margin:0;${F}color:${INK};font-size:14px;line-height:1.5;text-align:center;">Want to explore a different ceiling size? <a href="${escape(PUBLIC_CALCULATOR_URL)}" style="color:${BLUE};font-weight:800;text-decoration:underline;">Open the calculator →</a></p>`;
@@ -346,7 +346,9 @@ function renderLikelyEligibleEmail(input: EstimateEmailInput): EstimateEmail {
     subject, "",
     "How much could you save on ceiling insulation?", "",
     `${name ? `Good news, ${name} — based` : "Good news — based"} on what you’ve told us, your home looks likely to qualify for a VEU ceiling insulation rebate.`,
-    "A more comfortable home could be closer than you think. We’ll coordinate the installer, electrical checks and paperwork.", "",
+    "A more comfortable home could be closer than you think.", "",
+    valueHeading.toUpperCase(),
+    `${valueBody}${apLine}`, "",
     "YOUR ESTIMATE",
     `Your estimated VEU rebate: You could save ${money(discount)}`,
     `Your estimated cost after rebate: ${money(customer)}`,
