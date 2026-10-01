@@ -28,10 +28,10 @@
 - [ ] Browser-verify owner/electrician/installer job views as those roles
 - [ ] Confirm: $349 one total vs each; $220 inc/ex GST; own-electrician price + AP fee combination
 - [x] Public client calculator page (light one-screen, live cost, no sign-in) — built; needs publishing to give clients the permanent link
-- [ ] Calculator: fix the bottom of the page — user says it looks horrible at their window size (898px wide)
-- [ ] Calculator: question labels and hints are too light — darken for readability
-- [ ] Calculator: "What this includes" panel — Ready Check $0 and its value, electrical safety assessment + PIESA by a licensed electrician, install by an EEC-certified installer, Home Insulation Victoria as Accredited Person handling paperwork and rebate claim
-- [ ] Calculator: "Register my interest" lead capture (name, mobile, email, address, ceiling size) stored in the database with consent — no messages sent, no job created
+- [x] Calculator: fix the bottom of the page — footer split into two short lines, pink tint removed, sticky bar tightened
+- [x] Calculator: question labels and hints darkened for readability
+- [x] Calculator: "What this includes" panel — Ready Check $0 and its value, electrical safety assessment + PIESA, EEC-certified installer, Home Insulation Victoria as Accredited Person
+- [x] Calculator: "Register my interest" lead capture (name, mobile, email, address) stored with consent — no messages sent, no job created
 
 
 
@@ -59,10 +59,13 @@
 - [ ] Worker link: photo/evidence upload directly on the link page (today photos go through the Mitti form)
 - [ ] Worker link: send by text/email automatically once communications are switched on
 
-- [x] Calculator: change heading font and colour, add more blue and green
-- [x] Calculator: insulation question options as clear labelled boxes
-- [x] Register form: name, mobile, email only; address prefilled from the calculator
-- Calculator heading font: apply the brand display font (Space Grotesk) + DM Sans body
-- Calculator: property question = full address with type-ahead autofill (not postcode); register band carries that address down
-- Calculator heading font: Space Grotesk rejected by Joannah - pick a new display font
-- Calculator: darken remaining light grey text (placeholders, hints, suffixes)
+## Public calculator (client-facing)
+- [x] Heading font and colour changed; more blue and green
+- [x] Insulation question options as clear labelled boxes
+- [x] Register form: full name, mobile, email only; address carried down from the calculator
+- [x] Heading font: Space Grotesk and Syne both rejected — now Outfit 800, the portal's own heading font
+- [x] Property question = full address with type-ahead autofill (not postcode)
+- [x] Darkened remaining light grey text (placeholders, hints, suffixes, footer)
+- [x] Button wording "Demand is high — register your interest" (AP-safe: no rebate promise, no fake deadline)
+- [x] Address search returns Victorian properties only — no state guessing, so Canberra/NSW rows can never appear as VIC
+- [ ] Give clients the permanent link (published URL 404s and the preview needs sign-in until the site is published)

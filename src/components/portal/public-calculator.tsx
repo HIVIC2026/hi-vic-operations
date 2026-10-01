@@ -6,6 +6,8 @@ import { CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, dollars, parseAssumption, whatIfE
 import { lookupLocation } from "@/lib/activity48.core";
 import { INTEREST_INCLUDED } from "@/lib/interest.core";
 import { RegisterInterest } from "./register-interest";
+import { extractPostcode, suburbFromLine, type AddressSuggestion } from "@/lib/address.core";
+import { AddressCombobox } from "./address-combobox";
 
 /** The public site lives in Base44 — this page only ever points there. */
 const ENQUIRY_URL = "https://homeinsulationvictoria.com.au";
@@ -82,7 +84,7 @@ function WhatIsIncluded() {
           <Check className="h-3.5 w-3.5 text-estimate-green" strokeWidth={3} />
           What this includes
         </span>
-        <ChevronDown className="h-4 w-4 shrink-0 text-estimate-navy/70 transition group-open:rotate-180" />
+        <ChevronDown className="h-4 w-4 shrink-0 text-estimate-navy/85 transition group-open:rotate-180" />
       </summary>
       <ul className="space-y-2 px-3 pb-3">
         {INTEREST_INCLUDED.map((row) => (
@@ -100,31 +102,38 @@ function WhatIsIncluded() {
 }
 
 export function PublicCalculator({ settings }: { settings: RetailSettings }) {
-  const [postcode, setPostcode] = useState("");
+  const [addressText, setAddressText] = useState("");
+  const [picked, setPicked] = useState<AddressSuggestion | null>(null);
   const [raw, setRaw] = useState("");
   const [insulation, setInsulation] = useState<InsulationDeclared>(null);
-  const postcodeRef = useRef<HTMLInputElement>(null);
   const areaRef = useRef<HTMLInputElement>(null);
 
-  const trimmed = postcode.trim();
-  const location = trimmed.length === 4 ? lookupLocation(trimmed) : null;
+  const postcode = (picked?.postcode ?? extractPostcode(addressText)).trim();
+  const suburb = picked?.suburb ?? suburbFromLine(addressText);
+  const location = postcode.length === 4 ? lookupLocation(postcode) : null;
   const m2 = parseAssumption(raw);
   const est = whatIfEstimate(m2, location, insulation, settings);
   const primary = est?.scenarios[0];
   const standard = primary?.by_access.standard;
   const removal = est?.scenarios.find((s) => s.key === "full_removal");
   const priced = standard != null && primary != null;
-  const touched = postcode !== "" || raw !== "" || insulation != null;
+  const touched = addressText !== "" || raw !== "" || insulation != null;
 
+  const focusAddress = () => {
+    const el = document.getElementById("calc-address");
+    if (el instanceof HTMLInputElement) el.focus();
+  };
   const startAgain = () => {
-    setPostcode("");
+    setAddressText("");
+    setPicked(null);
     setRaw("");
     setInsulation(null);
-    postcodeRef.current?.focus();
+    focusAddress();
   };
-  const changePostcode = () => {
-    setPostcode("");
-    postcodeRef.current?.focus();
+  const changeAddress = () => {
+    setAddressText("");
+    setPicked(null);
+    focusAddress();
   };
   const changeArea = () => {
     setRaw("");
@@ -142,12 +151,12 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-extrabold leading-tight text-estimate-blue sm:text-[1.7rem]">What would ceiling insulation cost?</h1>
-            <p className="mt-1 max-w-[780px] text-[0.82rem] leading-relaxed text-estimate-navy/75">
+            <p className="mt-1 max-w-[780px] text-[0.82rem] leading-relaxed text-estimate-navy/85">
               Three quick questions — your estimated price updates as you go, including the VEU discount your home is likely to qualify for.
             </p>
           </div>
           {touched && (
-            <button type="button" onClick={startAgain} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-estimate-line bg-estimate-white px-2.5 text-[0.7rem] font-extrabold text-estimate-navy/70 hover:border-estimate-green/50 hover:text-estimate-blue">
+            <button type="button" onClick={startAgain} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-estimate-line bg-estimate-white px-2.5 text-[0.7rem] font-extrabold text-estimate-navy/85 hover:border-estimate-green/50 hover:text-estimate-blue">
               <RotateCcw aria-hidden="true" className="size-3.5" />
               Start again
             </button>
@@ -156,27 +165,31 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
 
         <div className="estimate-offset mt-2 grid overflow-hidden rounded-2xl border border-estimate-line bg-estimate-white shadow-[0_18px_45px_-28px_rgba(34,55,107,0.45)] lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
           <div>
-            <Field id="calc-postcode" icon={MapPin} label="Where is the property?" hint="Enter your Victorian postcode. You can change it any time — the price updates instantly.">
+            <Field id="calc-address" icon={MapPin} label="Where is the property?" hint="Start typing your street address and we'll autofill it. The price updates instantly.">
               <div className="flex flex-wrap items-center gap-3">
-                <input
-                  ref={postcodeRef}
-                  id="calc-postcode"
-                  inputMode="numeric"
-                  type="text"
-                  maxLength={4}
-                  value={postcode}
-                  onChange={(e) => setPostcode(e.target.value.replace(/[^\d]/g, ""))}
-                  placeholder="e.g. 3000"
-                  aria-label="Your Victorian postcode"
-                  className="h-10 w-[132px] rounded-lg border-2 border-estimate-line bg-estimate-white px-3 text-base font-bold text-estimate-navy placeholder:font-normal placeholder:text-estimate-navy/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                />
+                <div className="w-full sm:max-w-[380px]">
+                  <AddressCombobox
+                    id="calc-address"
+                    value={addressText}
+                    onChange={(next) => {
+                      setAddressText(next);
+                      setPicked(null);
+                    }}
+                    onPick={(suggestion) => {
+                      setPicked(suggestion);
+                      setAddressText(suggestion.full);
+                    }}
+                    placeholder="e.g. 34 Watsons Road, Bundoora"
+                    ariaLabel="Your street address"
+                  />
+                </div>
                 {location && (
                   <span className="inline-flex h-10 items-center gap-2 rounded-lg bg-estimate-mint px-3 text-[0.7rem] font-extrabold text-estimate-green">
                     <Check aria-hidden="true" className="size-3.5" />
                     {location.metropolitan_or_regional} · {location.climate_region}
                   </span>
                 )}
-                {trimmed.length === 4 && !location && <p role="alert" className="text-xs leading-relaxed text-estimate-navy/75">We don&apos;t hold pricing for that Victorian postcode yet — send us your address and we&apos;ll confirm directly.</p>}
+                {postcode.length === 4 && !location && <p role="alert" className="text-xs leading-relaxed text-estimate-navy/85">We don&apos;t hold pricing for that Victorian postcode yet — send us your address and we&apos;ll confirm directly.</p>}
               </div>
             </Field>
 
@@ -208,12 +221,12 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                     onChange={(e) => setRaw(e.target.value)}
                     aria-label="Your own ceiling size in square metres"
                     placeholder="Or type your own size"
-                    className="h-9 w-full rounded-lg border border-estimate-line bg-estimate-white pl-3 pr-9 text-sm font-bold text-estimate-navy placeholder:font-normal placeholder:text-estimate-navy/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    className="h-9 w-full rounded-lg border border-estimate-line bg-estimate-white pl-3 pr-9 text-sm font-bold text-estimate-navy placeholder:font-normal placeholder:text-estimate-navy/75 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   />
-                  <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-bold text-estimate-navy/50">m²</span>
+                  <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-bold text-estimate-navy/85">m²</span>
                 </div>
               </div>
-              <p className="mt-2 flex items-start gap-2 rounded-lg border-l-2 border-workspace-blush-strong bg-workspace-blush/50 px-3 py-2 text-xs leading-relaxed text-estimate-navy/80">
+              <p className="mt-2 flex items-start gap-2 rounded-lg border-l-2 border-workspace-blush-strong bg-workspace-blush/50 px-3 py-2 text-xs leading-relaxed text-estimate-navy/90">
                 <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-task-eligibility-foreground" />
                 <span>A typical Victorian home is around 150 m². The closer your number is to the real thing, the closer this price is to your final quote.</span>
               </p>
@@ -240,7 +253,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                         {o.label}
                         {on && <Check aria-hidden="true" className="size-4 shrink-0 text-estimate-green" strokeWidth={3} />}
                       </span>
-                      <span className="text-[0.7rem] leading-snug text-estimate-navy/80">{INSULATION_HELP[String(o.value)]}</span>
+                      <span className="text-[0.7rem] leading-snug text-estimate-navy/90">{INSULATION_HELP[String(o.value)]}</span>
                     </button>
                   );
                 })}
@@ -256,7 +269,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
           <div className="border-t border-estimate-line bg-estimate-mist px-5 py-4 lg:border-l lg:border-t-0">
             {!priced ? (
               <div className="flex h-full min-h-[200px] flex-col justify-center">
-                <p className="text-sm leading-relaxed text-estimate-navy/75">
+                <p className="text-sm leading-relaxed text-estimate-navy/85">
                   <span className="font-extrabold text-estimate-navy">Your price will show here.</span> Answer the three questions and it appears instantly — change any answer and it updates on the spot.
                 </p>
               </div>
@@ -265,7 +278,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                 <p className="text-[0.7rem] font-extrabold uppercase tracking-wider text-estimate-green">Your estimated cost</p>
                 <dl className="mt-2.5 space-y-1 rounded-xl border border-estimate-line bg-estimate-white px-3.5 py-2.5 text-xs">
                   {[
-                    { label: "Property", value: trimmed, onChange: changePostcode },
+                    { label: "Property", value: suburb ? `${suburb} ${postcode}` : postcode, onChange: changeAddress },
                     { label: "Ceiling", value: `${m2} m²`, onChange: changeArea },
                     { label: "Existing insulation", value: INSULATION_OPTIONS.find((o) => o.value === insulation)?.label ?? "—", onChange: () => setInsulation(null) },
                   ].map((row) => (
@@ -301,12 +314,18 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
           </div>
         </div>
 
-        <RegisterInterest postcode={postcode} ceilingM2={m2} insulation={insulation ?? "unknown"} />
+        <RegisterInterest
+          address={picked?.full ?? addressText.trim()}
+          suburb={suburb}
+          postcode={postcode}
+          ceilingM2={m2 ?? 0}
+          insulation={insulation ?? "unknown"}
+        />
 
-        <div className="mt-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[0.7rem] text-estimate-navy/80">
+        <div className="mt-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[0.7rem] text-estimate-navy/90">
           <p>Estimates only — not a quote. Prices include GST. Nothing you type here is saved unless you register your interest.</p>
           <p className="flex flex-wrap items-center gap-x-2">
-            <span className="font-bold text-estimate-navy/75">Home Insulation Victoria · Accredited Person under the Victorian Energy Upgrades program</span>
+            <span className="font-bold text-estimate-navy/85">Home Insulation Victoria · Accredited Person under the Victorian Energy Upgrades program</span>
             <a href={ENQUIRY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-estimate-blue underline decoration-estimate-green/60 underline-offset-2 hover:text-estimate-green">
               homeinsulationvictoria.com.au
             </a>
@@ -316,8 +335,8 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
         {priced && (
           <div className="fixed inset-x-0 bottom-0 z-20 border-t border-estimate-line bg-estimate-white/95 px-5 py-3 backdrop-blur lg:hidden">
             <div className="mx-auto flex max-w-[560px] items-baseline justify-between gap-3">
-              <span className="text-[0.7rem] font-extrabold uppercase tracking-wider text-estimate-navy/65">Estimated cost</span>
-              <span className="hidden text-[0.65rem] text-estimate-navy/55 sm:inline">Includes GST · not a quote</span>
+              <span className="text-[0.7rem] font-extrabold uppercase tracking-wider text-estimate-navy/85">Estimated cost</span>
+              <span className="hidden text-[0.65rem] text-estimate-navy/80 sm:inline">Includes GST · not a quote</span>
               <span className="text-2xl font-extrabold leading-none text-estimate-blue">{dollars(standard.estimated_customer_total)}</span>
             </div>
           </div>

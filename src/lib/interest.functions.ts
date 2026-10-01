@@ -114,7 +114,12 @@ export const updateInterest = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     if (data.status && !INTEREST_STATUSES.includes(data.status)) throw new Error("That status is not available.");
-    const patch: Record<string, unknown> = {};
+    const patch: {
+      status?: InterestStatus;
+      followed_up_by?: string;
+      followed_up_at?: string;
+      admin_notes?: string;
+    } = {};
     if (data.status) {
       patch.status = data.status;
       patch.followed_up_by = context.userId;
