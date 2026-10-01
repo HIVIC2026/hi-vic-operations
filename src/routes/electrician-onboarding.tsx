@@ -334,9 +334,9 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       return <>
         <div style={infoCard}><strong>I would like to receive referrals from Home Insulation Victoria for:</strong></div>
         <Check checked={d.service_piesa === true} onChange={(v) => up({ service_piesa: v })}>PIESA — pre-insulation electrical safety assessment (includes the ceiling measure-up)</Check>
-        <Check checked={d.service_rectification === true} onChange={(v) => up({ service_rectification: v })}>Electrical rectification work</Check>
-        <Check checked={d.service_installation_isolation === true} onChange={(v) => up({ service_installation_isolation: v })}>Install day attendance</Check>
-        <p style={{ fontSize: 13, color: MUTED }}>Tick every type of work you want us to send you. You'll only ever be offered the work you tick.</p>
+        <Check checked={d.service_rectification === true} onChange={(v) => up({ service_rectification: v })}>Electrical rectification work <span style={{ color: MUTED }}>(required)</span></Check>
+        <Check checked={d.service_installation_isolation === true} onChange={(v) => up({ service_installation_isolation: v })}>Install day attendance <span style={{ color: MUTED }}>(required)</span></Check>
+        <p style={{ fontSize: 13, color: MUTED }}>Every Home Insulation Victoria electrician takes rectification work and install day attendance — both are required. PIESA assessments are optional: tick it if you want us to send you assessment work too.</p>
       </>;
     case "coverage":
       return <>
