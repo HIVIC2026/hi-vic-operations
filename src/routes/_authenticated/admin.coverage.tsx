@@ -6,6 +6,7 @@ import { AppShell } from "@/components/portal/AppShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getAdminCoverage } from "@/lib/coverage.functions";
+import { groupAreasByRegion } from "@/lib/coverage-regions.core";
 
 export const Route = createFileRoute("/_authenticated/admin/coverage")({
   head: () => ({ meta: [{ title: "Service Coverage – Home Insulation Victoria Portal" }, { name: "description", content: "REC and installer team capacity and service coverage for Home Insulation Victoria." }, { property: "og:title", content: "Service Coverage – Home Insulation Victoria Portal" }, { property: "og:description", content: "REC and installer team capacity and service coverage for Home Insulation Victoria." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -38,6 +39,8 @@ function CoveragePage() {
     members: partner.members ?? [],
   }));
   const areas = data?.areas ?? [];
+  const regions = groupAreasByRegion(areas);
+  const maxRegion = Math.max(1, ...regions.map((r) => r.enquiryCount));
   const readyPartners = partners.filter((partner) => !partner.blocker && !!partner.coverage_verified_at && partner.service_postcodes.length > 0);
   const recPartners = readyPartners.filter((partner) => partner.business_type === "rec" || partner.capabilities?.includes("electrician"));
   const installerPartners = readyPartners.filter((partner) => partner.business_type === "eec_installer" || partner.capabilities?.includes("installer"));
@@ -67,12 +70,34 @@ function CoveragePage() {
       </section>
 
       <section className="mb-6" aria-labelledby="area-heading">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-2"><div><h2 id="area-heading" className="text-lg font-bold">Teams by active enquiry area</h2><p className="text-sm text-muted-foreground">Each area is grouped from current enquiries. Names are eligible verified partners for that location.</p></div><Badge variant="outline">{areas.length} active {areas.length === 1 ? "area" : "areas"}</Badge></div>
-        <div className="overflow-x-auto rounded-md border bg-card">
-          <table className="w-full min-w-[760px] text-left text-sm"><thead className="border-b bg-muted/50 text-xs uppercase text-muted-foreground"><tr><th className="p-3">Area</th><th className="p-3">Enquiries</th><th className="p-3">REC teams</th><th className="p-3">Installer teams</th><th className="p-3">Pairing</th></tr></thead><tbody>
-            {areas.map((area) => <tr key={`${area.postcode ?? "missing"}-${area.suburb ?? "unknown"}`} className="border-b align-top last:border-0"><td className="p-3"><div className="font-bold">{area.suburb || "Suburb missing"}</div><div className="text-xs text-muted-foreground">{area.postcode || "Postcode missing"}</div></td><td className="p-3 font-bold">{area.enquiryCount}</td><td className="p-3"><div className="mb-1 font-bold">{area.rec.matches.length} {area.rec.matches.length === 1 ? "business" : "businesses"}</div><div className="max-w-80 text-xs"><PartnerNames matches={area.rec.matches} empty="No verified REC team" /></div></td><td className="p-3"><div className="mb-1 font-bold">{area.installer.matches.length} {area.installer.matches.length === 1 ? "business" : "businesses"}</div><div className="max-w-80 text-xs"><PartnerNames matches={area.installer.matches} empty="No verified installer team" /></div></td><td className="p-3"><StateBadge state={area.overall} /><div className="mt-1 text-xs text-muted-foreground">{area.overall === "serviceable" ? `${area.rec.matches.length * area.installer.matches.length} possible business ${area.rec.matches.length * area.installer.matches.length === 1 ? "pair" : "pairs"}` : "Partner needed"}</div></td></tr>)}
-            {areas.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">No active enquiry areas to assess.</td></tr>}
-          </tbody></table>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2"><div><h2 id="area-heading" className="text-lg font-bold">Where our enquiries are, and who covers them</h2><p className="text-sm text-muted-foreground">Suburbs are grouped into regions of Victoria. Darker tiles have more enquiries; the colour shows whether we have a verified REC and installer there.</p></div><Badge variant="outline">{areas.length} suburbs in {regions.filter((r) => r.enquiryCount > 0).length} regions</Badge></div>
+        <div className="mb-4 rounded-md border bg-card p-3">
+          <div className="grid grid-cols-6 gap-1.5" style={{ gridTemplateRows: "repeat(4, minmax(64px, auto))" }} role="list" aria-label="Schematic map of Victoria regions">
+            {regions.map((region) => {
+              const tone = region.state === "covered" ? "border-success bg-success-soft" : region.state === "partial" ? "border-warning bg-warning-soft" : region.state === "gap" ? "border-danger bg-danger-soft" : "border-dashed border-muted bg-muted/40";
+              const weight = region.enquiryCount ? Math.min(1, 0.35 + region.enquiryCount / maxRegion) : 1;
+              return <a key={region.id} role="listitem" href={`#region-${region.id}`} style={{ gridColumn: region.col, gridRow: region.row, opacity: weight }} className={`flex flex-col justify-between rounded-md border-2 p-1.5 text-left hover:ring-2 hover:ring-primary ${tone}`}>
+                <span className="text-[11px] font-semibold leading-tight sm:text-xs">{region.name}</span>
+                <span className="text-lg font-bold leading-none sm:text-2xl">{region.enquiryCount}<span className="ml-1 text-[10px] font-normal text-muted-foreground">enq</span></span>
+              </a>;
+            })}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground"><span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-success" />REC + installer verified</span><span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-warning" />Some teams</span><span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-danger" />No teams yet</span><span>Map is schematic (approximate postcode regions), not to scale.</span></div>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {regions.filter((r) => r.enquiryCount > 0).sort((a, b) => b.enquiryCount - a.enquiryCount).map((region) => (
+            <div key={region.id} id={`region-${region.id}`} className="rounded-md border bg-card p-4">
+              <div className="flex items-start justify-between gap-2"><div><div className="text-xs font-semibold uppercase text-muted-foreground">{region.group}</div><h3 className="text-base font-bold">{region.name}</h3></div><div className="text-right"><div className="text-2xl font-bold">{region.enquiryCount}</div><div className="text-xs text-muted-foreground">enquiries · {region.areas.length} suburbs</div></div></div>
+              <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                <div><dt className="font-semibold">REC teams ({region.recTeams.length})</dt><dd className="text-xs"><PartnerNames matches={region.recTeams} empty="Need an REC here" /></dd></div>
+                <div><dt className="font-semibold">Installer teams ({region.installerTeams.length})</dt><dd className="text-xs"><PartnerNames matches={region.installerTeams} empty="Need an installer here" /></dd></div>
+              </dl>
+              <details className="mt-3 text-sm"><summary className="cursor-pointer font-semibold text-primary">Show suburbs ({region.coveredAreas} of {region.areas.length} fully covered)</summary>
+                <ul className="mt-2 flex flex-wrap gap-1.5">{region.areas.map((area) => <li key={`${area.postcode}-${area.suburb}`} className={`rounded-full border px-2 py-0.5 text-xs ${tones[area.overall]}`}>{area.suburb || "Suburb missing"} {area.postcode ?? ""} · {area.enquiryCount}</li>)}</ul>
+              </details>
+            </div>
+          ))}
+          {areas.length === 0 && <div className="rounded-md border bg-card p-8 text-center text-muted-foreground">No active enquiry areas to assess.</div>}
         </div>
       </section>
 
