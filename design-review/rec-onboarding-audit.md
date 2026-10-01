@@ -46,3 +46,7 @@ Activation creates the approved business and worker records, but it does not aut
 ## Receipt copy-only polish (2026-10-01)
 - Submitted receipt now has one intro paragraph, a mist "What happens next" card with four numbered steps, the working-owner note and agreement version/file line; duplicate review/guarantee/invite paragraphs removed. No logic, signed text, rates or terms changed.
 - Verified via `/electrician-onboarding?sample=submitted` at true 390 and 640 viewports: all four next-step items, heading and working-owner note present; document scrollWidth equalled viewport width (no horizontal overflow). Screenshots refreshed in design-review/rec-onboarding-refinement.json. No submissions, sends or publication.
+
+
+## REVERTED (2026-10-01)
+The visual redesign described above was REVERTED at the user's request ("revert back to previous style"). Presentation restored from commit acdafb46. Do not reapply the redesigned style/shell/role-selector. Kept: effectiveElectricians activation fix, sample no-write guards, isolated query keys, query error/retry, access/approval guards.
