@@ -292,9 +292,9 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
 
       <input
         type="text"
-        name="company"
+        name="hp_ref_x9"
         tabIndex={-1}
-        autoComplete="off"
+        autoComplete="new-password"
         aria-hidden="true"
         value={honeypot}
         onChange={(event) => setHoneypot(event.target.value)}
