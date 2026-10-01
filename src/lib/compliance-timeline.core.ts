@@ -81,13 +81,13 @@ export function buildComplianceTimeline(f: TimelineFacts): Gate[] {
   push({ key: "assignment_copy_to_consumer", label: "Copy of signed VEEC assignment form given to owner", when: "At written signing, or within 10 business days if signed electronically", status: deadline(f.assignmentCopyGivenAt ?? null, f.assignmentSignedAt ? addBusinessDays(f.assignmentSignedAt, 10) : null, f.now), dueAt: f.assignmentSignedAt ? addBusinessDays(f.assignmentSignedAt, 10) : null, detail: null, blocks: "VEEC lodgement record" });
   if (f.lifeSupport) push({ key: "life_support_plan", label: "Life support written consent / medical plan", when: "Before PIESA starts", status: f.lifeSupportPlanAt ? "done" : "open", dueAt: null, detail: null, blocks: "PIESA and installation" });
   const piesaStatus: GateStatus = f.piesaCompletedAt ? (f.piesaOutcome === "pass" ? "done" : "blocked") : f.depositCleared ? "open" : "blocked";
-  push({ key: "piesa_completed", label: "PIESA completed and passed (licensed electrician/REC)", when: "After deposit, before install", status: piesaStatus, dueAt: null, detail: f.piesaCompletedAt && f.piesaOutcome !== "pass" ? `PIESA outcome: ${f.piesaOutcome ?? "not recorded"} — rectification required` : null, blocks: "Ready to install" });
+  push({ key: "piesa_completed", label: "VEU pre-installation electrical safety assessment completed, signed and passed", when: "No earlier than 30 days before installation", status: piesaStatus, dueAt: null, detail: f.piesaCompletedAt && f.piesaOutcome !== "pass" ? `Assessment outcome: ${f.piesaOutcome ?? "not recorded"} — rectification required` : null, blocks: "Ready to install" });
 
   push({ key: "owner_esc_consent", label: "Owner ESC consent (Reg 23A)", when: "≥24h before install", status: f.installStart ? deadline(f.ownerEscConsentAt, pre24, f.now) : f.ownerEscConsentAt ? "done" : "not_yet", dueAt: pre24, detail: null, blocks: "Ready to install" });
   push({ key: "esc_notified", label: "ESC notified of upcoming installation", when: "5 days to 24h before install", status: f.installStart ? deadline(f.escSentAt, pre24, f.now, f.escSentAt ? null : escEarliest) : f.escSentAt ? "done" : "not_yet", dueAt: pre24, detail: escEarliest ? `Window opens ${escEarliest}` : null, blocks: "Installation start" });
-  push({ key: "installer_safety_assessment", label: "Installer pre-installation safety assessment", when: "Before works, within PIESA window", status: f.installerSafetyAssessmentAt ? "done" : f.installStart ? deadline(null, f.installStart, f.now) : "not_yet", dueAt: f.installStart, detail: null, blocks: "Installation start" });
+  push({ key: "installer_safety_assessment", label: "VEU pre-installation installer safety assessment completed and signed", when: "Before works, within the electrical assessment's 30-day window", status: f.installerSafetyAssessmentAt ? "done" : f.installStart ? deadline(null, f.installStart, f.now) : "not_yet", dueAt: f.installStart, detail: null, blocks: "Installation start" });
   push({ key: "pre_install_consumer_docs", label: "Owner given Consumer Factsheet, Code of Conduct info, PIESA copy (+ CES if rectified)", when: "Before installation", status: f.installStart ? deadline(f.preInstallDocsGivenAt ?? null, f.installStart, f.now) : f.preInstallDocsGivenAt ? "done" : "not_yet", dueAt: f.installStart, detail: null, blocks: "Installation start" });
-  push({ key: "piesa_copies_delivered", label: "PIESA copies given to owner and installer", when: "≥24h before install", status: f.installStart ? deadline(f.piesaCopiesDeliveredAt, pre24, f.now) : f.piesaCopiesDeliveredAt ? "done" : "not_yet", dueAt: pre24, detail: null, blocks: "Ready to install" });
+  push({ key: "piesa_copies_delivered", label: "Completed signed electrical assessment given to owner and installer", when: "≥24h before install", status: f.installStart ? deadline(f.piesaCopiesDeliveredAt, pre24, f.now) : f.piesaCopiesDeliveredAt ? "done" : "not_yet", dueAt: pre24, detail: null, blocks: "Ready to install" });
 
   let windowStatus: GateStatus = "not_yet";
   let windowDetail: string | null = null;
@@ -100,7 +100,7 @@ export function buildComplianceTimeline(f: TimelineFacts): Gate[] {
   push({ key: "install_within_piesa_window", label: `Installation within ${windowDays} days of PIESA`, when: "After PIESA", status: windowStatus, dueAt: piesaDeadline, detail: windowDetail, blocks: "Installation" });
 
   const installed = !!f.installCompletedAt;
-  push({ key: "co_payment_paid", label: "Minimum $200 inc GST co-payment paid by owner", when: "Before VEEC creation", status: f.coPaymentPaidAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "VEEC creation" });
+  push({ key: "co_payment_paid", label: "Minimum $200 inc GST co-payment paid by the energy consumer to the Accredited Person", when: "Before VEEC creation; must not be reimbursed", status: f.coPaymentPaidAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "VEEC creation" });
   push({ key: "completion_consumer_docs", label: "Owner given tax invoice, dispute info, instructions, contacts and 5-year warranty", when: "On completion", status: f.completionDocsGivenAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "AP review" });
   push({ key: "installer_declaration", label: "Installer declaration", when: "After install", status: f.installerDeclarationAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "AP review" });
   push({ key: "evidence_complete", label: "Installation evidence complete", when: "After install", status: f.evidenceComplete ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "AP review" });
@@ -122,9 +122,9 @@ export type RecordKey = "life_support_plan" | "assignment_copy_to_consumer" | "i
 export const RECORD_LABELS: Record<RecordKey, string> = {
   life_support_plan: "Life support written consent / medical plan",
   assignment_copy_to_consumer: "Copy of signed VEEC assignment form given to owner",
-  installer_safety_assessment: "Installer pre-installation safety assessment",
+  installer_safety_assessment: "Completed signed VEU pre-installation installer safety assessment",
   pre_install_consumer_docs: "Owner given Consumer Factsheet, Code of Conduct info, PIESA copy (+ CES if rectified)",
-  co_payment_paid: "Minimum $200 inc GST co-payment paid by owner",
+  co_payment_paid: "Minimum $200 inc GST co-payment paid by the energy consumer to the Accredited Person and not reimbursed",
   completion_consumer_docs: "Owner given tax invoice, dispute info, instructions, contacts and 5-year warranty",
 };
 export const MIN_CO_PAYMENT_INC_GST = 200;

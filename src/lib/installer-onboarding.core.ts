@@ -5,17 +5,17 @@ import { electricianStepErrors, type ElectricianChoice, type PreferredElectricia
 import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, DAYS, LEAD_TIMES, RADII } from "./rec-onboarding.core";
 
 export { DAYS, LEAD_TIMES, RADII, validAbn };
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.7-2026-10-01";
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.8-2026-10-01";
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
   { key: "authority", text: "I am authorised to bind the Installer business to this agreement." },
   { key: "personnel", text: "The Installer will ensure every nominated installer and worker on Home Insulation Victoria jobs is trained, competent and complies with the obligations that apply to them." },
-  { key: "compliance", text: "I understand the Installer and its personnel must comply with current VEU, Code of Conduct, Activity 48, AS 3999, safety and Home Insulation Victoria requirements, and must not install without a current PIESA and Home Insulation Victoria ready-to-install confirmation." },
+  { key: "compliance", text: "I understand the Installer and its personnel must comply with current VEU, Code of Conduct, Activity 48, AS 3999, safety and Home Insulation Victoria requirements, and must not install without a current signed VEU pre-installation electrical safety assessment and Home Insulation Victoria ready-to-install confirmation." },
   { key: "records", text: "I confirm the Installer will provide truthful measurements, records and evidence and cooperate with Home Insulation Victoria, ESC and regulator compliance checks." },
   { key: "no_bypass", text: "I understand that removal, access, extras and other work identified through a Home Insulation Victoria Activity 48 job must be quoted, approved, scheduled and completed through the Home Insulation Victoria workflow and must not be taken off-platform or dealt with directly." },
   { key: "pricing", text: "I understand our approved rates are supplier rates, on Home Insulation Victoria-sourced jobs Home Insulation Victoria sets the customer price and may include its own margin (on our own customers we set our price and Home Insulation Victoria's fees are added on top), and Home Insulation Victoria does not have to disclose that margin to us. I will not share our rates with customers." },
-  { key: "same_day", text: "I understand the PIISA and install-day evidence must be submitted through the Home Insulation Victoria portal on the day of each installation." },
+  { key: "same_day", text: "I understand the signed VEU pre-installation installer safety assessment and install-day evidence must be submitted through the Home Insulation Victoria portal on the day of each installation." },
   { key: "electronic_signature", text: "I agree to electronic execution and to the signed agreement, exact wording, version and audit record being stored by Home Insulation Victoria." },
 ] as const;
 
