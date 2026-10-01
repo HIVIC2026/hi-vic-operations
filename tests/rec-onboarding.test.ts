@@ -62,9 +62,9 @@ describe("rec onboarding", () => {
     expect(stepErrors("business", { ...under, host_rec_name: undefined })).toContain("Enter the REC business you work under.");
     expect(stepErrors("about", { works_under_rec: null, primary_contact_name: "Sam", licence_number: "A12345", business_phone: "0412345678", business_email: "sam@example.com" })).toContain("Tell us if you are registering the REC business or joining as staff.");
   });
-  test("REC insurance under $10M and expired rejected", () => {
-    expect(stepErrors("insurance", { ...full, public_liability_cover_amount: 9_999_999 })).toContain("Product and public liability cover must be at least $10,000,000.");
-    expect(stepErrors("insurance", { ...full, public_liability_cover_amount: 10_000_000 })).toEqual([]);
+  test("REC insurance under $5M and expired rejected", () => {
+    expect(stepErrors("insurance", { ...full, public_liability_cover_amount: 4_999_999 })).toContain("Public liability cover must be at least $5,000,000.");
+    expect(stepErrors("insurance", { ...full, public_liability_cover_amount: 5_000_000 })).toEqual([]);
     expect(stepErrors("insurance", { ...full, public_liability_expiry: "2000-01-01" }).length).toBe(1);
   });
   test("PIESA rate always required", () => {
@@ -86,8 +86,9 @@ describe("rec onboarding", () => {
   });
   test("agreement text includes markup clause, schedules and all 8 acknowledgements", () => {
     const t = agreementText(full);
-    expect(t).toContain("HI-VIC-A48-REC-2.1-2026-10-01");
-    expect(t).toContain("product and public liability insurance of at least $10,000,000");
+    expect(t).toContain("HI-VIC-A48-REC-2.2-2026-10-01");
+    expect(t).toContain("public liability insurance of at least $5,000,000");
+    expect(t).toContain("No separate fixed product-liability minimum is imposed");
     expect(t).toContain("six years after the record was made or the relevant transaction was completed, whichever is later");
     expect(t).toContain("is not the customer-facing price");
     expect(t).toContain("does not depend on Home Insulation Victoria receiving payment from the customer");

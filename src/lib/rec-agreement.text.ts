@@ -1,4 +1,4 @@
-// DRAFT REC agreement v2.1 (2026-10-01). Lawyer review required before live use.
+// DRAFT REC agreement v2.2 (2026-10-01). Lawyer review required before live use.
 // any wording change needs a NEW version string so earlier signatures keep their exact text.
 export const REC_AGREEMENT_SECTIONS: { n: number; title: string; paras: string[] }[] = [
  {
@@ -52,7 +52,7 @@ export const REC_AGREEMENT_SECTIONS: { n: number; title: string; paras: string[]
   "n": 6,
   "title": "Insurance",
   "paras": [
-    "The REC must maintain product and public liability insurance of at least $10,000,000, or any higher amount reasonably required for the relevant work, for the entire period it performs Home Insulation Victoria services. Product cover must be appropriate for any electrical Goods the REC supplies. The REC must also maintain workers compensation insurance where required by law and motor vehicle, professional indemnity or other insurance reasonably applicable to the Services.",
+    "The REC must maintain public liability insurance of at least $5,000,000 covering the electrical contracting work of the REC and its relevant employees and agents, or any higher amount required by applicable law, for the entire period it performs Home Insulation Victoria services. The REC must also maintain workers compensation insurance where required by law and any product, motor vehicle, professional indemnity or other insurance actually required by law or reasonably appropriate to the Goods or Services it supplies. No separate fixed product-liability minimum is imposed by this clause.",
    "The REC must provide a current Certificate of Currency, ensure the insured entity matches the contracting REC, and notify Home Insulation Victoria immediately of cancellation, lapse, material limitation or reduction in cover.",
    "Home Insulation Victoria will suspend new Job offers automatically if the recorded Certificate of Currency expires or the insured entity does not match the contracting REC. Offers resume once a current, matching certificate is verified. Accepted Jobs may be reallocated if cover cannot be confirmed before the scheduled work."
   ]
