@@ -10,6 +10,7 @@ import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
 } from "@/lib/rec-onboarding.functions";
 import { loadTeamInvite, respondTeamInvite } from "@/lib/teaming.functions";
+import { HowItWorksElectrician } from "@/components/portal/how-it-works";
 import { defaultAddressProvider } from "@/lib/address-provider";
 import type { AddressSuggestion } from "@/lib/whatif-location";
 
@@ -299,13 +300,30 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
         <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
         <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
       </>;
+    case "howitworks":
+      return <>
+        <HowItWorksElectrician />
+        <div style={{ marginTop: 16 }}>
+          <Check checked={d.how_it_works_acknowledged === true} onChange={(v) => up({ how_it_works_acknowledged: v })}>I've read how jobs work, the same-day rule and the payment terms.</Check>
+        </div>
+      </>;
     case "business":
       return <>
-        <Field label="Legal entity / REC registered name" required><input style={input} {...t("legal_entity_name")} /></Field>
-        <Field label="Trading name"><input style={input} {...t("trading_name")} /></Field>
-        <Field label="ABN" required hint="11 digits"><input style={input} inputMode="numeric" {...t("abn")} /></Field>
-        <Field label="REC number" required hint="Your Victorian REC registration"><input style={input} {...t("rec_registration_number", true)} /></Field>
-        {validAbn(d.abn) && (d.rec_registration_number ?? "").trim() && <div style={{ ...infoCard, display: "inline-block" }}>✓ Ready for verification</div>}
+        <Field label="Do you run your own REC business, or work under another REC?" required>
+          <Choice options={[{ v: false as boolean, l: "I run my own REC business" }, { v: true as boolean, l: "I work under another REC" }]} value={d.works_under_rec ?? null} onChange={(v) => up({ works_under_rec: v })} />
+        </Field>
+        {d.works_under_rec === true ? <>
+          <div style={infoCard}>Easy — no ABN, business or insurance needed. The REC you work under holds all of that; we just verify with them. We only need your details and your bank account for payment.</div>
+          <Field label="Your full legal name" required><input style={input} {...t("legal_entity_name")} /></Field>
+          <Field label="The REC business you work under" required hint="Their registered business name"><input style={input} {...t("host_rec_name")} /></Field>
+          <Field label="Their REC number" required hint="Ask them — it's on their ESV registration"><input style={input} {...t("host_rec_number", true)} /></Field>
+        </> : d.works_under_rec === false ? <>
+          <Field label="Legal entity / REC registered name" required><input style={input} {...t("legal_entity_name")} /></Field>
+          <Field label="Trading name"><input style={input} {...t("trading_name")} /></Field>
+          <Field label="ABN" required hint="11 digits"><input style={input} inputMode="numeric" {...t("abn")} /></Field>
+          <Field label="REC number" required hint="Your Victorian REC registration"><input style={input} {...t("rec_registration_number", true)} /></Field>
+          {validAbn(d.abn) && (d.rec_registration_number ?? "").trim() && <div style={{ ...infoCard, display: "inline-block" }}>✓ Ready for verification</div>}
+        </> : null}
       </>;
     case "contact":
       return <>
