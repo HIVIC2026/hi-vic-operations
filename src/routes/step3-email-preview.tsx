@@ -51,6 +51,7 @@ const samples = {
     ...quote,
     estimateUrl,
     outcome: "likely",
+    apCount: 2, // business-owner supplied current figure (1 Oct 2026), not registry-verified
   }), unsubscribeUrl),
   onsite: withUnsubscribe(renderEstimateEmail({
     ...quote,
