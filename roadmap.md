@@ -10,7 +10,7 @@
 - [x] Official PIESA/PIISA forms Parts 1–4: correct both forms, printed-rule checks, template records, re-run comparison (keep blocked until Jo approves + source URLs confirmed)
 - [x] Signed-copy storage (0075 staged + throwaway-tested), PIISA wired into central gate, rules A/B fail-closed
 - [ ] Live: apply 0075 + create private bucket + publish code — awaiting Jo go-ahead and form approval
-- [ ] C03 (no lead fee): full search report with classification, remove from every active surface (onboarding, agreements as new versions, rate cards, payouts, quotes, invoices, emails, help, tests), side-by-side before/after wording, proofs; nothing live until Jo approves wording
+- [x] C03 (no lead fee) in test copy; awaiting Jo wording approval before publish —: full search report with classification, remove from every active surface (onboarding, agreements as new versions, rate cards, payouts, quotes, invoices, emails, help, tests), side-by-side before/after wording, proofs; nothing live until Jo approves wording
 - [ ] Launch-fix app code re-test on a rebuilt merged copy (test copy was cleared)
 - [x] Provide safe no-write onboarding links for an external AI audit
 - [x] Prevent cancelled preview page requests from surfacing an AbortError and blanking the screen
