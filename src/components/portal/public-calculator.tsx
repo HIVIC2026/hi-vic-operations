@@ -55,7 +55,7 @@ function WhatCouldChange() {
             ))}
           </ul>
         </div>
-        <div className="sm:pt-6">
+        <div className="sm:pt-4">
           <p className="font-bold">{CUSTOMER_WHAT_COULD_CHANGE.closing}</p>
           <p className="mt-2 font-bold">{CUSTOMER_WHAT_COULD_CHANGE.gst}</p>
         </div>
