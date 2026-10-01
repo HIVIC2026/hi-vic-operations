@@ -8305,6 +8305,53 @@ export type Database = {
         }
         Relationships: []
       }
+      worker_access_attempts: {
+        Row: {
+          at: string
+          event_type: string
+          id: string
+          invite_id: string | null
+        }
+        Insert: {
+          at?: string
+          event_type: string
+          id?: string
+          invite_id?: string | null
+        }
+        Update: {
+          at?: string
+          event_type?: string
+          id?: string
+          invite_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_access_attempts_invite_id_fkey"
+            columns: ["invite_id"]
+            isOneToOne: false
+            referencedRelation: "partner_worker_invites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      worker_access_budgets: {
+        Row: {
+          bucket: string
+          key_hash: string
+          requests: number
+        }
+        Insert: {
+          bucket: string
+          key_hash: string
+          requests?: number
+        }
+        Update: {
+          bucket?: string
+          key_hash?: string
+          requests?: number
+        }
+        Relationships: []
+      }
       worker_job_links: {
         Row: {
           business_id: string
@@ -8982,6 +9029,20 @@ export type Database = {
       }
       consume_cron_nonce: {
         Args: { _nonce: string; _purpose: string }
+        Returns: boolean
+      }
+      consume_worker_access_budget: {
+        Args: { _key: string; _limit: number }
+        Returns: boolean
+      }
+      consume_worker_invite: {
+        Args: {
+          _agent: string
+          _declarations: Json
+          _hash: string
+          _ip: string
+          _submission: Json
+        }
         Returns: boolean
       }
       customer_followups_tick: { Args: { _url: string }; Returns: number }
