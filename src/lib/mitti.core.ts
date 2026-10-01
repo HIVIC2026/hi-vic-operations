@@ -18,9 +18,8 @@ type Any = any;
 
 export function mittiApi(call: MittiCall) {
   return {
-    /** Full template definition (SafetyCulture v1 route) – used only to validate form structure. */
+    /** Full template definition (v1 route) – used for form validation AND label-based prefill. */
     getTemplateDefinition: (id: string) => call("GET", `/templates/v1/templates/${encodeURIComponent(id)}`) as Promise<Any>,
-    getTemplate: (id: string) => call("GET", `/templates/${encodeURIComponent(id)}`) as Promise<Any>,
     searchUsers: (email: string) => call("POST", "/users/search", { email: [email] }) as Promise<Any>,
     createAudit: (body: { template_id: string; header_items?: unknown[]; items?: unknown[] }) => call("POST", "/audits", body) as Promise<Any>,
     shareAudit: (auditId: string, userId: string) =>
