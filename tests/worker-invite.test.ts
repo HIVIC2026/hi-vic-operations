@@ -17,6 +17,14 @@ describe("worker invites", () => {
   test("workers tick the customer-ownership box", () => {
     expect(workerDeclarations("electrician", "Acme").map((d) => d.key)).toContain("customer_owner");
   });
+  test("sampleable declarations stay complete and trade-specific", () => {
+    const electrician = workerDeclarations("electrician", "Acme");
+    const installer = workerDeclarations("installer", "Acme");
+    expect(electrician).toHaveLength(6);
+    expect(installer).toHaveLength(6);
+    expect(electrician.find((d) => d.key === "licence_current")?.text).toContain("electrician licence");
+    expect(installer.find((d) => d.key === "licence_current")?.text).toContain("training");
+  });
   test("submission validation", () => {
     const keys = workerDeclarations("electrician", "Acme").map((d) => d.key);
     const ok = { full_legal_name: "Sam Taylor", mobile: "0412 345 678", email: "sam@x.com", licence_number: "A123", accepted: keys, signed_name: "Sam Taylor" };

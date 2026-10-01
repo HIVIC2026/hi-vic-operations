@@ -12,7 +12,7 @@ export function WorkerInvites({ businessId, sample = false }: { businessId: stri
   const list = useServerFn(listWorkerInvites);
   const create = useServerFn(createWorkerInvite);
   const revoke = useServerFn(revokeWorkerInvite);
-  const { data, error, refetch } = useQuery({ queryKey: ["worker-invites", businessId], queryFn: () => list({ data: { businessId } }), enabled: !sample, ...(sample ? { initialData: [] } : {}) });
+  const { data, error, refetch } = useQuery({ queryKey: ["worker-invites", businessId, sample ? "sample" : "live"], queryFn: () => sample ? Promise.resolve([]) : list({ data: { businessId } }), initialData: sample ? [] : undefined });
   const [f, setF] = useState({ name: "", contact: "", trade: "electrician" as "electrician" | "installer" });
   const [link, setLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -21,21 +21,22 @@ export function WorkerInvites({ businessId, sample = false }: { businessId: stri
     <section className="mb-6 rounded-lg border bg-card p-5 shadow-sm">
       <p className="text-xs font-extrabold uppercase tracking-wider text-success">Primary pathway</p>
       <h2 className="mt-1 font-display text-xl font-bold">Create a personal staff invitation</h2>
-      <p className="mb-4 mt-2 text-sm leading-relaxed text-muted-foreground">The worker opens the link, provides their own details and licence, and signs their own declarations. The single-use link lasts 14 days. You copy and share it yourself; Home Insulation Victoria does not send it automatically.</p>
+      <p className="mb-4 mt-2 text-sm leading-relaxed text-muted-foreground">The team member opens the link, provides their own trade details and signs their own declarations. The single-use link lasts 14 days. You copy and share it yourself; Home Insulation Victoria does not send it automatically.</p>
+      {sample && <div className="mb-4 rounded-lg bg-secondary p-3 text-sm"><strong>Preview links:</strong> <a className="text-primary underline" href="/join/sample-electrician">Electrician invitation</a> · <a className="text-primary underline" href="/join/sample-installer">Installer invitation</a></div>}
       <form className="grid gap-3 sm:grid-cols-2" onSubmit={async (e) => {
         e.preventDefault(); setBusy(true);
         try {
-          if (sample) { setLink(`${window.location.origin}/join/sample-electrician`); setF({ ...f, name: "", contact: "" }); return; }
+          if (sample) return;
           const r = await create({ data: { businessId, name: f.name, contact: f.contact || null, trade: f.trade } });
           setLink(`${window.location.origin}/join/${r.token}`); setF({ ...f, name: "", contact: "" }); refetch();
         } catch (er) { toast.error(er instanceof Error ? er.message : "Could not create invite"); } finally { setBusy(false); }
       }}>
         <div className="flex gap-2 sm:col-span-2">
-          {(["electrician", "installer"] as const).map((t) => <Button key={t} type="button" variant={f.trade === t ? "default" : "outline"} onClick={() => setF({ ...f, trade: t })}>{t === "electrician" ? "Electrician" : "Installer"}</Button>)}
+          {(["electrician", "installer"] as const).map((t) => <Button key={t} type="button" disabled={sample} variant={f.trade === t ? "default" : "outline"} onClick={() => setF({ ...f, trade: t })}>{t === "electrician" ? "Electrician" : "Installer"}</Button>)}
         </div>
-        <label className="text-sm font-medium">Their name<Input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="mt-1 h-12" /></label>
-        <label className="text-sm font-medium">Their mobile or email (optional)<Input value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} className="mt-1 h-12" /></label>
-        <Button type="submit" size="field" disabled={busy} className="sm:col-span-2 bg-success text-brand-dark hover:bg-success/90">{busy ? "Creating…" : "Create staff invitation link"}</Button>
+        <label className="text-sm font-medium">Their name<Input required disabled={sample} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="mt-1 h-12" /></label>
+        <label className="text-sm font-medium">Their mobile or email (optional)<Input disabled={sample} value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} className="mt-1 h-12" /></label>
+        <Button type="submit" size="field" disabled={busy || sample} className="sm:col-span-2 bg-success text-brand-dark hover:bg-success/90">{sample ? "Preview only — invitations disabled" : busy ? "Creating…" : "Create staff invitation link"}</Button>
       </form>
       {link && (
         <div className="mt-3 rounded-lg bg-success-soft p-3 text-sm">
@@ -52,7 +53,7 @@ export function WorkerInvites({ businessId, sample = false }: { businessId: stri
           {data.map((i) => (
             <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2">
               <span><strong>{i.invitee_name}</strong> · {i.trade_role === "electrician" ? "Electrician" : "Installer"} · {LABEL[i.state]}</span>
-              {i.state === "active" && <Button size="sm" variant="outline" onClick={async () => { await revoke({ data: { id: i.id } }); refetch(); }}>Cancel</Button>}
+               {!sample && i.state === "active" && <Button size="sm" variant="outline" onClick={async () => { await revoke({ data: { id: i.id } }); refetch(); }}>Cancel</Button>}
             </li>
           ))}
         </ul>

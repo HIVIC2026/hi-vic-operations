@@ -18,6 +18,10 @@
 8. **Worker privacy and access are explicit.** Workers do not receive business rates or banking details and use private, revocable links for assigned jobs. A working REC owner must also be represented and approved as a worker.
 9. **Confirmed activation mismatch fixed.** REC activation now derives the applicant worker through `effectiveElectricians`, matching the current form when the legacy `electricians` array is empty. Required worker, rates, and banking preflight validation now occurs before business creation.
 10. **Existing signed terms were preserved.** Agreement wording, version, declarations, prices, and stored identifiers were not changed.
+11. **Shared staff screens are trade-safe.** The management screen now uses business/team language, while personal invitations use the invitation's electrician or installer trade for licence, qualification and business wording.
+12. **Samples are isolated and read-only.** Sample query keys cannot reuse live worker caches; all create, edit, remove, revoke, upload and submit paths are disabled or guarded. Both electrician and installer samples use the production declaration helper.
+13. **Legacy drafts resume safely.** Drafts with no saved role must choose before continuing; drafts already marked as workers are directed to their business invitation without converting or overwriting the draft.
+14. **Initial load failures are actionable.** Staff records show the error before the loading state and provide a working retry action.
 
 ## Remaining operational limitation
 
@@ -25,7 +29,7 @@ Activation creates the approved business and worker records, but it does not aut
 
 ## Verification
 
-- Focused tests: **29 passed, 0 failed, 99 expectations** across REC onboarding, partner activation, partner worker access, worker invitations, and worker job links.
+- Focused test results are refreshed below after the final regression pass.
 - Type check: **passed**.
 - Production build: **passed**.
 - Browser review: true **390px** and **640px** viewports for welcome/role choice, representative details, insurance, services and rates, review/sign, submitted receipt, staff invitation, staff join and staff receipt.
@@ -34,7 +38,8 @@ Activation creates the approved business and worker records, but it does not aut
 ## Direct preview routes
 
 - `/electrician-onboarding` — live draft entry (do not submit during review).
-- `/electrician-onboarding?sample=about` — safe sample flow; replace `about` with `insurance`, `services`, `assessment_pricing`, `review`, `sign`, or `submitted`.
+- `/electrician-onboarding?sample=welcome` — safe, no-write welcome that navigates locally; direct sample states accept only real persisted step keys plus `submitted`.
 - `/join/sample-electrician` — safe worker invitation sample.
+- `/join/sample-installer` — safe installer invitation sample using the production declaration set.
 - `/join/sample-electrician?receipt=1` — safe worker receipt sample.
 - `/partner/workers?sample=1` — staff invitation sample for an authenticated staff/partner preview session.
