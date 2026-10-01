@@ -44,6 +44,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
   const evMissing = data.ev.filter((e) => ((e.gate === "assessment" && a?.mitti_scope !== "ELECTRICAL_ONLY") || (a?.piesa_outcome === "pass" && e.category === "piesa_signoff")) && !["uploaded", "verified"].includes(e.status));
   const piesaMissing = evMissing.find((e) => e.category === "piesa_signoff");
   const run = async (f: () => Promise<unknown>) => { setBusy(true); try { await f(); } finally { setBusy(false); } };
+  const mittiUrl = a?.external_mitti_id ? `https://app.au.mitti.com/inspections/${a.external_mitti_id}` : null;
   return (
     <Section title={a?.mitti_scope === "MEASURE_UP_ONLY" ? "Mitti installer measure-up" : "Mitti electrical assessment · PIESA"} action={<Pill t={tone as never}>{label}</Pill>}>
       <dl className="grid grid-cols-2 gap-1 text-sm">
@@ -52,6 +53,12 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
         <dt className="text-muted-foreground">Last sync</dt><dd>{a?.mitti_synced_at ? new Date(a.mitti_synced_at).toLocaleString("en-AU") : a?.mitti_modified_at ? `partial (Mitti edited ${new Date(a.mitti_modified_at).toLocaleString("en-AU")})` : "—"}</dd>
         {isAdmin && a?.mitti_prefill_count != null && <><dt className="text-muted-foreground">Prefilled fields</dt><dd>{a.mitti_prefill_count}</dd></>}
       </dl>
+      {mittiUrl && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+          <a href={mittiUrl} target="_blank" rel="noreferrer" className="font-medium text-primary underline">Open this form in Mitti</a>
+          <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(mittiUrl); (await import("sonner")).toast.success("Mitti link copied – send it to the installer"); }}>Copy link for installer</Button>
+        </div>
+      )}
       {a?.mitti_last_error && <p className="mt-2 rounded bg-destructive/10 px-2 py-1 text-sm text-danger">{a.mitti_last_error}</p>}
       {issues.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-muted-foreground">{issues.map((i) => <li key={i}>{i}</li>)}</ul>}
       {a?.mitti_completed && !locked && (
