@@ -109,7 +109,7 @@ export function WorkerLinksPanel({ jobId }: { jobId: string }) {
             </li>
           );
         })}
-        {!data.workers.length && <li className="text-sm text-muted-foreground">No workers listed for the assigned company yet. The company adds them under Workers in their portal.</li>}
+        {!data.workers.length && <li className="text-sm text-muted-foreground">No staff listed for the assigned company yet. The company adds them under Staff in their portal.</li>}
       </ul>
     </Section>
   );
