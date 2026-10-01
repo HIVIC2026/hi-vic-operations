@@ -18,50 +18,74 @@ describe("Ready Check variants", () => {
     expect(base.some((l) => l.toLowerCase().includes("price"))).toBe(false);
   });
 
+  test("areas are measured as length x width; the portal computes m2", () => {
+    const labels = FORMS.ready_check.fields.map((f) => f.label);
+    expect(labels).toContain("How many separate ceiling areas are there?");
+    expect(labels).toContain("Length (m)");
+    expect(labels).toContain("Width (m)");
+    expect(labels).toContain("Upgrade area diagram or floor plan");
+    expect(labels).not.toContain("Measured area m2");
+  });
+
   test("priced variant validates against a matching template; evidence-only template fails it", () => {
     const items = FORMS.ready_check_priced.fields.map((f) => ({ label: f.label, type: f.type === "choice" ? "question" : f.type === "multichoice" ? "checkbox" : f.type === "yesno" ? "question" : f.type === "media" ? "media" : f.type }));
     expect(validateTemplate("ready_check_priced", items).ok).toBe(true);
     const missingPricing = FORMS.ready_check.fields.map((f) => ({ label: f.label, type: f.type === "choice" ? "question" : f.type === "multichoice" ? "checkbox" : f.type === "yesno" ? "question" : f.type === "media" ? "media" : f.type }));
     const result = validateTemplate("ready_check_priced", missingPricing);
     expect(result.ok).toBe(false);
-    expect(result.issues.some((i) => i.includes("Total quoted price incl GST $"))).toBe(true);
+    expect(result.issues.some((i) => i.includes("Total quoted price $"))).toBe(true);
   });
 
-  test("AI prompt for the priced form includes the Quoted price line repeat section", () => {
+  test("AI prompt for the priced form includes the Quoted price line repeat section and the draw option", () => {
     const prompt = mittiAiPrompt("ready_check_priced");
     expect(prompt).toContain('"Quoted price line"');
-    expect(prompt).toContain('"Total quoted price incl GST $"');
+    expect(prompt).toContain('"Total quoted price $"');
     expect(prompt).toContain('"Price already agreed with the owner?"');
+    expect(prompt).toContain("DRAW the diagram inside the form");
     expect(mittiAiPrompt("ready_check")).not.toContain("Quoted price line");
   });
 });
 
 describe("validateQuotedPrice", () => {
-  const goodLine = { description: "Supply and install ceiling insulation", quantity: 100, unit: "m2", unitPriceIncGst: 12 };
+  const r50 = { item: "R5.0 supply and install", description: "", priceIncGst: 1200 };
+  const removal = { item: "Removal of existing insulation", description: "", priceIncGst: 400 };
 
-  test("accepts a consistent quote and computes line totals", () => {
-    const r = validateQuotedPrice({ lines: [goodLine], totalIncGst: 1200, includes: "Removal and tile lift", agreedWithOwner: true });
+  test("accepts a consistent quote", () => {
+    const r = validateQuotedPrice({ lines: [r50, removal], totalIncGst: 1600, agreedWithOwner: true, removalRequired: true });
     expect(r.ok).toBe(true);
-    expect(r.price?.lines[0].lineTotalIncGst).toBe(1200);
+    expect(r.price?.lines).toHaveLength(2);
     expect(r.price?.agreedWithOwner).toBe(true);
   });
 
   test("flags a total that does not match the lines — never trusts either figure", () => {
-    const r = validateQuotedPrice({ lines: [goodLine], totalIncGst: 900, includes: "x", agreedWithOwner: false });
+    const r = validateQuotedPrice({ lines: [r50], totalIncGst: 900, agreedWithOwner: false, removalRequired: false });
     expect(r.ok).toBe(false);
     expect(r.issues[0]).toContain("does not equal the sum of the lines");
     expect(r.price).toBeNull();
   });
 
-  test("fails closed on missing lines, bad unit, missing includes or unanswered agreement", () => {
-    expect(validateQuotedPrice({ lines: [], totalIncGst: 100, includes: "x", agreedWithOwner: true }).ok).toBe(false);
-    expect(validateQuotedPrice({ lines: [{ ...goodLine, unit: "sqm" }], totalIncGst: 1200, includes: "x", agreedWithOwner: true }).ok).toBe(false);
-    expect(validateQuotedPrice({ lines: [goodLine], totalIncGst: 1200, includes: " ", agreedWithOwner: true }).ok).toBe(false);
-    expect(validateQuotedPrice({ lines: [goodLine], totalIncGst: 1200, includes: "x", agreedWithOwner: null }).ok).toBe(false);
+  test("requires exactly one R5.0 line", () => {
+    expect(validateQuotedPrice({ lines: [removal], totalIncGst: 400, agreedWithOwner: true, removalRequired: true }).ok).toBe(false);
+    expect(validateQuotedPrice({ lines: [r50, r50], totalIncGst: 2400, agreedWithOwner: true, removalRequired: false }).ok).toBe(false);
+  });
+
+  test("removal line required when an area says Remove; not allowed when none do", () => {
+    const missing = validateQuotedPrice({ lines: [r50], totalIncGst: 1200, agreedWithOwner: true, removalRequired: true });
+    expect(missing.ok).toBe(false);
+    expect(missing.issues.some((i) => i.includes("Removal of existing insulation"))).toBe(true);
+    const extra = validateQuotedPrice({ lines: [r50, removal], totalIncGst: 1600, agreedWithOwner: true, removalRequired: false });
+    expect(extra.ok).toBe(false);
+  });
+
+  test("Other lines need a description; fails closed on missing answers", () => {
+    expect(validateQuotedPrice({ lines: [r50, { item: "Other", description: "", priceIncGst: 100 }], totalIncGst: 1300, agreedWithOwner: true, removalRequired: false }).ok).toBe(false);
+    expect(validateQuotedPrice({ lines: [r50, { item: "Other", description: "Asbestos check", priceIncGst: 100 }], totalIncGst: 1300, agreedWithOwner: true, removalRequired: false }).ok).toBe(true);
+    expect(validateQuotedPrice({ lines: [r50], totalIncGst: 1200, agreedWithOwner: null, removalRequired: false }).ok).toBe(false);
+    expect(validateQuotedPrice({ lines: [], totalIncGst: 100, agreedWithOwner: true, removalRequired: false }).ok).toBe(false);
   });
 
   test("validated price feeds the owner co-branded quote without retyping", () => {
-    const r = validateQuotedPrice({ lines: [goodLine], totalIncGst: 1200, includes: "all", agreedWithOwner: true });
+    const r = validateQuotedPrice({ lines: [r50], totalIncGst: 1200, agreedWithOwner: true, removalRequired: false });
     const owner = ownerPriceFromQuoted(r.price!, { piesaIncGst: 349, rectificationIncGst: 0, apFeeIncGst: 349, veecDiscountIncGst: 500 });
     expect(owner.ready).toBe(true);
     expect(owner.total).toBe(1200 + 349 + 349);

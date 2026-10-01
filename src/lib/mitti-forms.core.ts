@@ -45,14 +45,13 @@ export const PIESA_OUTCOMES = [
   "Electrical rectification work is not possible prior to insulation being installed or upgraded under parts 2 and 3",
 ];
 
-/** Pricing section — installer-sourced jobs only (Form A1). Lines drop straight into the co-branded owner quote. */
+/** Pricing section — installer-sourced jobs only (Form A1). Repeat one line per item; lines drop straight into the co-branded owner quote. */
+export const PRICE_ITEMS = ["R5.0 supply and install", "Removal of existing insulation", "Difficult access", "Tile lift", "Metal sheet access", "Other"] as const;
 export const PRICING_FIELDS: FormField[] = [
-  { label: "Line description", type: "text", required: true, perPriceLine: true, source: "portal – quote line, e.g. Supply and install ceiling insulation" },
-  { label: "Quantity", type: "number", required: true, perPriceLine: true, source: "portal – quote line" },
-  { label: "Unit", type: "choice", required: true, perPriceLine: true, choices: ["m2", "each", "flat", "hour"], source: "portal – quote line unit" },
-  { label: "Unit price incl GST $", type: "number", required: true, perPriceLine: true, source: "portal – quote line, customer-facing prices are always incl GST" },
-  { label: "Total quoted price incl GST $", type: "number", required: true, source: "portal – must equal the sum of the lines; mismatches go to office review, never guessed" },
-  { label: "What this price includes", type: "text", required: true, source: "portal – e.g. removal, tile lift, travel; nothing priced in gets lost" },
+  { label: "Item", type: "choice", required: true, perPriceLine: true, choices: [...PRICE_ITEMS], source: "portal – quote line; exactly one 'R5.0 supply and install' line required" },
+  { label: "Describe the item", type: "text", required: true, perPriceLine: true, when: "Other", source: "portal – required only when the item is Other" },
+  { label: "Price $", type: "number", required: true, perPriceLine: true, source: "portal – quote line, customer-facing prices are always incl GST" },
+  { label: "Total quoted price $", type: "number", required: true, source: "portal – must equal the sum of the lines; mismatches go to office review, never guessed" },
   { label: "Price already agreed with the owner?", type: "choice", required: true, choices: ["Yes", "No"], source: "portal – if Yes, their price stays and our fees go on top, less the VEU discount" },
 ];
 
@@ -60,30 +59,45 @@ const READY_CHECK_TITLE = "Home Insulation Victoria | Ready Check – Eligibilit
 
 /** Shared evidence fields for both Ready Check variants (A1 installer-sourced, A2 HI VIC-sourced). */
 const READY_CHECK_FIELDS: FormField[] = [
+      // 1. Check the job details (portal-prefilled; installer confirms)
       { label: "Portal Job Number", type: "text", required: true, prefill: true, source: "portal" },
       { label: "Site address", type: "text", required: true, prefill: true, source: "portal" },
       { label: "Owner name", type: "text", required: true, prefill: true, source: "portal" },
+      { label: "Property type", type: "choice", required: true, prefill: true, choices: ["House", "Townhouse", "Unit or apartment"], source: "portal – prefilled from enquiry; portal derives building class (House/Townhouse = Class 1, Unit = Class 2 sole-occupancy unit)" },
+      { label: "Office life support result", type: "text", required: true, prefill: true, source: "portal – office screening result; display only, never re-asked" },
+      { label: "Are these details correct?", type: "choice", required: true, choices: ["Yes", "No"], source: "portal – installer confirms prefilled details" },
+      { label: "What needs correcting?", type: "text", required: true, when: "No", source: "portal – corrections go to the office" },
+      // 2. Getting into the ceiling
       { label: "Assessor", type: "text", required: true, prefill: true, source: "portal – person doing the measure-up" },
       { label: "Installer photo at front of premises with photo ID", type: "media", required: true, source: `${G} Table 4` },
-      { label: "Property type", type: "choice", required: true, prefill: true, choices: ["House", "Townhouse", "Unit or apartment"], source: "portal – prefilled from enquiry; portal derives building class (House/Townhouse = Class 1, Unit = Class 2 sole-occupancy unit)" },
-      { label: "Ceiling or roof built in the last 5 years", type: "choice", required: true, choices: ["Yes", "No", "Not sure"], source: `${G} eligibility` },
       { label: "Roof type", type: "choice", required: true, choices: ["Tiles", "Metal sheet", "Other"], source: "portal – quoting: tile lift / metal-sheet access extras" },
-      { label: "Ceiling access", type: "choice", required: true, choices: ["Easy", "Moderate", "Difficult"], source: "portal – quoting: access difficulty" },
-      { label: "Ceiling access point photo", type: "media", required: true, source: "portal – quoting + ESC Table 4 access evidence" },
-      { label: "How the ceiling was measured", type: "choice", required: true, choices: ["Laser measure in the ceiling space", "Tape measure in the ceiling space", "Scaled from the floor plan", "Other (explain in notes)"], source: "portal – measurement provenance; aerial/online estimates never accepted" },
-      { label: "Measurement notes", type: "text", required: false, source: "portal – explain Other, obstacles, partial access" },
-      { label: "Hazards seen in the ceiling space", type: "text", required: false, source: `${G} safety – installer observation, electrician confirms` },
-      { label: "Floor plan with dimensions", type: "media", required: true, source: `${G} Table 4` },
-      { label: "Recessed downlights in the ceiling", type: "choice", required: true, choices: ["Yes", "No", "Not sure"], source: "portal – observation only; electrician confirms ratings at PIESA" },
-      { label: "Quote extras", type: "text", required: false, portalOnly: true, source: "portal – tile lift, metal roof, access" },
-      { label: "Area name", type: "text", required: true, perArea: true, source: `${G} Table 4 floor plan` },
-      { label: "Existing insulation", type: "choice", required: true, perArea: true, choices: ["Uninsulated", "Under-insulated"], source: `${G} eligibility` },
-      { label: "Existing insulation type", type: "multichoice", required: true, perArea: true, choices: ["Batts or blankets", "Loose fill", "Not sure"], when: "Under-insulated", source: "portal – quoting: loose fill and batts price differently; choose all that apply" },
-      { label: "Existing insulation depth photo with vertical ruler", type: "media", required: true, perArea: true, when: "Under-insulated", source: `${G} Table 4` },
-      { label: "Estimated existing R-value", type: "number", required: true, perArea: true, when: "Under-insulated", source: "Assignment form" },
-      { label: "What happens to the existing insulation", type: "choice", required: true, perArea: true, choices: ["Must be removed", "Can be topped up", "Not sure – needs office review"], when: "Under-insulated", source: `${G} removal criteria` },
-      { label: "Measured area m2", type: "number", required: true, perArea: true, source: "VEEC creation form" },
-      { label: "360 video of ceiling space before upgrade", type: "media", required: true, perArea: true, source: `${G} Table 4` },
+      { label: "Describe the roof type", type: "text", required: true, when: "Other", source: "portal – quoting" },
+      { label: "How easy is the ceiling access?", type: "choice", required: true, choices: ["Easy", "Moderate", "Difficult"], source: "portal – quoting: access difficulty" },
+      { label: "Photo of the ceiling access point", type: "media", required: true, source: "portal – quoting + ESC Table 4 access evidence" },
+      // 3. Ceiling areas
+      { label: "How many separate ceiling areas are there?", type: "choice", required: true, choices: ["1", "2", "3", "4", "5", "6+"], source: "portal – opens that many repeating 'Ceiling area' sections" },
+      { label: "Where is this area?", type: "text", required: true, perArea: true, source: `${G} Table 4 floor plan, e.g. Main house, Rear extension` },
+      { label: "Length (m)", type: "number", required: true, perArea: true, source: "portal – portal works out the m2; odd shapes are split into extra areas" },
+      { label: "Width (m)", type: "number", required: true, perArea: true, source: "portal – portal works out the m2" },
+      { label: "Is there existing insulation?", type: "choice", required: true, perArea: true, choices: ["Yes", "No"], source: `${G} eligibility` },
+      { label: "Insulation type (tick all that apply)", type: "multichoice", required: true, perArea: true, choices: ["Batts", "Loose fill"], when: "Yes", source: "portal – quoting: loose fill and batts price differently; choose all that apply" },
+      { label: "Depth (mm)", type: "number", required: true, perArea: true, when: "Yes", source: "Assignment form" },
+      { label: "Photo with tape measure showing depth", type: "media", required: true, perArea: true, when: "Yes", source: `${G} Table 4` },
+      { label: "What needs to happen to it?", type: "choice", required: true, perArea: true, choices: ["Remove", "Top up", "Not sure"], when: "Yes", source: `${G} removal criteria; Not sure goes to office review` },
+      { label: "Area to remove (m2)", type: "number", required: true, perArea: true, when: "Remove", source: "portal – removal pricing" },
+      { label: "Photo of the empty ceiling space", type: "media", required: true, perArea: true, when: "No", source: `${G} Table 4` },
+      { label: "Recessed downlights in this area?", type: "choice", required: true, perArea: true, choices: ["Yes", "No"], source: "portal – observation only; electrician confirms ratings at PIESA" },
+      { label: "How many?", type: "number", required: true, perArea: true, when: "Yes", source: "portal – luminaire count" },
+      { label: "Hazards in this area?", type: "choice", required: true, perArea: true, choices: ["Yes", "No"], source: `${G} safety – installer observation, electrician confirms` },
+      { label: "Describe them and add a photo", type: "media", required: true, perArea: true, when: "Yes", source: `${G} safety` },
+      // 4. Whole job
+      { label: "How was the ceiling measured?", type: "choice", required: true, choices: ["Laser in the ceiling space", "Tape in the ceiling space", "Scaled from floor plan", "Other"], source: "portal – measurement provenance; aerial/online estimates never accepted" },
+      { label: "Explain the method", type: "text", required: true, when: "Scaled from floor plan or Other", source: "portal – provenance" },
+      { label: "Upgrade area diagram or floor plan", type: "media", required: true, source: `${G} Table 4 – required regulator evidence: sketch of each area with its length and width; draw it in the form, photograph a paper sketch, mark up a plan photo, or upload a plan` },
+      { label: "Was the ceiling or roof built or replaced in the last 5 years?", type: "choice", required: true, choices: ["Yes", "No", "Not sure"], source: `${G} eligibility` },
+      // 6. Finish
+      { label: "Anything else the office should know?", type: "text", required: false, source: "portal" },
+      { label: "I confirm this information is accurate", type: "signature", required: true, source: `${G} – installer confirmation` },
 ];
 
 export const FORMS: Record<FormKey, { title: string; role: "installer" | "electrician"; fields: FormField[] }> = {
@@ -285,8 +299,9 @@ export function mittiAiPrompt(key: FormKey): string {
     "- Yes/No questions use a response set with exactly the listed options, no N/A unless listed.",
     "- Photo/video fields must allow the camera and multiple files.",
     "- Signature fields must capture the signer's name.",
-    perArea.length ? `- Put these fields in a repeatable section called "Ceiling area" (one repeat per room/zone): ${perArea.map((x) => `"${x.label}"`).join(", ")}. All other fields are NOT repeated.` : "",
-    perPriceLine.length ? `- Put these fields in a repeatable section called "Quoted price line" (one repeat per line item of the installer's quote): ${perPriceLine.map((x) => `"${x.label}"`).join(", ")}. The "Total quoted price incl GST $", "What this price includes" and "Price already agreed with the owner?" fields are NOT repeated.` : "",
+    perArea.length ? `- Ask "How many separate ceiling areas are there?" first, then open that many repeating sections called "Ceiling area" (Area 1, Area 2, ...). These fields go inside the repeating section: ${perArea.map((x) => `"${x.label}"`).join(", ")}. All other fields are NOT repeated.` : "",
+    perPriceLine.length ? `- Put these fields in a repeatable section called "Quoted price line" (one repeat per line item of the installer's quote): ${perPriceLine.map((x) => `"${x.label}"`).join(", ")}. The "Total quoted price $" and "Price already agreed with the owner?" fields are NOT repeated.` : "",
+    key === "ready_check" || key === "ready_check_priced" ? `- For "Upgrade area diagram or floor plan": allow the installer to DRAW the diagram inside the form (sketch/drawing input), photograph a paper sketch, or upload a plan. Help text: "Rough is fine. Draw the house shape, split it into the areas you measured, write the length and width on each, take a photo, done."` : "",
     key === "piesa" ? "- Section C and the rectification electrician fields are completed on the return visit after rectification. Put them in a section called \"Section C – Rectification completion\" shown only when \"B1 Assessment outcome\" is \"Electrical rectification work is required before insulation is installed or upgraded.\"" : "",
     key === "piesa" || key === "piisa" ? "- If \"Is anyone at this property dependent on life support?\" is Yes, the consent/medical-plan question and attachment are required; if neither was received, the assessment must not proceed (add an instruction saying: STOP – do not start the assessment. Call the Home Insulation Victoria office.)." : "",
     "- Order the fields exactly as listed.",
@@ -303,52 +318,56 @@ export function readyCheckVariant(channel: string | null | undefined): "ready_ch
   return channel === "installer_sourced" ? "ready_check_priced" : "ready_check";
 }
 
-export type QuotedPriceLine = { description: string; quantity: number; unit: string; unitPriceIncGst: number; lineTotalIncGst: number };
+export type QuotedPriceLine = { item: string; description: string; priceIncGst: number };
 export type QuotedPrice = {
   lines: QuotedPriceLine[];
   totalIncGst: number;
-  includes: string;
   agreedWithOwner: boolean;
 };
 
-const UNITS = ["m2", "each", "flat", "hour"] as const;
 const r2 = (n: number) => Math.round(n * 100) / 100;
+const R50 = "r5.0 supply and install";
+const REMOVAL = "removal of existing insulation";
 
 /**
- * Validates an installer's quoted price from the priced Ready Check. Fails closed:
+ * Validates an installer's quoted price from the priced Ready Check (Form A1). Fails closed:
  * any problem returns an issue list and the quote goes to office review — a price is never guessed.
+ * Checks: exactly one R5.0 line; a Removal line is required when any ceiling area says Remove and
+ * not allowed when none do; "Other" lines need a description; the total must equal the sum of the lines.
  */
 export function validateQuotedPrice(input: {
-  lines: { description?: string | null; quantity?: number | null; unit?: string | null; unitPriceIncGst?: number | null }[];
+  lines: { item?: string | null; description?: string | null; priceIncGst?: number | null }[];
   totalIncGst?: number | null;
-  includes?: string | null;
   agreedWithOwner?: boolean | null;
+  removalRequired?: boolean | null;
 }): { ok: boolean; issues: string[]; price: QuotedPrice | null } {
   const issues: string[] = [];
   const lines: QuotedPriceLine[] = [];
   if (!input.lines.length) issues.push("No quoted price lines — at least one line is required.");
   input.lines.forEach((l, i) => {
     const where = `Line ${i + 1}`;
+    const item = (l.item ?? "").trim().toLowerCase();
+    const matched = (PRICE_ITEMS as readonly string[]).find((p) => p.toLowerCase() === item);
+    if (!matched) { issues.push(`${where}: item must be one of ${PRICE_ITEMS.join(", ")}.`); return; }
     const description = (l.description ?? "").trim();
-    if (!description) issues.push(`${where}: description is missing.`);
-    const quantity = Number(l.quantity);
-    if (!Number.isFinite(quantity) || quantity <= 0) issues.push(`${where}: quantity must be a number greater than 0.`);
-    const unit = (l.unit ?? "").trim().toLowerCase();
-    if (!(UNITS as readonly string[]).includes(unit)) issues.push(`${where}: unit must be one of ${UNITS.join(", ")}.`);
-    const unitPriceIncGst = Number(l.unitPriceIncGst);
-    if (!Number.isFinite(unitPriceIncGst) || unitPriceIncGst < 0) issues.push(`${where}: unit price must be a number (0 or more).`);
-    if (description && Number.isFinite(quantity) && quantity > 0 && (UNITS as readonly string[]).includes(unit) && Number.isFinite(unitPriceIncGst) && unitPriceIncGst >= 0)
-      lines.push({ description, quantity, unit, unitPriceIncGst: r2(unitPriceIncGst), lineTotalIncGst: r2(quantity * unitPriceIncGst) });
+    if (matched === "Other" && !description) issues.push(`${where}: describe the item (required for Other).`);
+    const priceIncGst = Number(l.priceIncGst);
+    if (!Number.isFinite(priceIncGst) || priceIncGst <= 0) issues.push(`${where}: price must be a number greater than 0.`);
+    else lines.push({ item: matched, description, priceIncGst: r2(priceIncGst) });
   });
+  const r50 = lines.filter((l) => l.item.toLowerCase() === R50);
+  if (r50.length !== 1) issues.push(r50.length === 0 ? "Missing the 'R5.0 supply and install' line — exactly one is required." : "More than one 'R5.0 supply and install' line — exactly one is required.");
+  const removalLines = lines.filter((l) => l.item.toLowerCase() === REMOVAL);
+  if (input.removalRequired === true && removalLines.length === 0) issues.push("A ceiling area is marked Remove, but there is no 'Removal of existing insulation' price line.");
+  if (input.removalRequired === false && removalLines.length > 0) issues.push("A 'Removal of existing insulation' price line was given, but no ceiling area is marked Remove — office must review.");
   const totalIncGst = Number(input.totalIncGst);
   if (!Number.isFinite(totalIncGst) || totalIncGst <= 0) issues.push("Total quoted price is missing or not a positive number.");
-  if (!(input.includes ?? "").trim()) issues.push("'What this price includes' is missing.");
   if (input.agreedWithOwner == null) issues.push("'Price already agreed with the owner?' was not answered.");
   if (lines.length && Number.isFinite(totalIncGst) && totalIncGst > 0) {
-    const sum = r2(lines.reduce((a, l) => a + l.lineTotalIncGst, 0));
+    const sum = r2(lines.reduce((a, l) => a + l.priceIncGst, 0));
     if (Math.abs(sum - r2(totalIncGst)) > 0.01)
       issues.push(`Total quoted price ($${r2(totalIncGst).toFixed(2)}) does not equal the sum of the lines ($${sum.toFixed(2)}) — office must review before quoting the owner.`);
   }
   if (issues.length) return { ok: false, issues, price: null };
-  return { ok: true, issues: [], price: { lines, totalIncGst: r2(totalIncGst), includes: (input.includes ?? "").trim(), agreedWithOwner: input.agreedWithOwner === true } };
+  return { ok: true, issues: [], price: { lines, totalIncGst: r2(totalIncGst), agreedWithOwner: input.agreedWithOwner === true } };
 }
