@@ -1,34 +1,53 @@
-# Form A2 — Ready Check (we bring the customer)
+# Exact launch plan — go live Monday 5 October
 
-Form A2 is the Ready Check an installer fills in on jobs where Home Insulation Victoria brings the customer. The evidence questions are identical to Form A1 — the only difference is there is no pricing section, because on our leads the owner is quoted at our set customer price and the installer is paid their agreed onboarding rate.
+## First, breathe: the enquiries are safe
 
-## What the form contains
+Every enquiry coming in is being captured and stored in the portal with all its answers, consent and photos. Nothing is lost, nothing is auto-emailed, nothing progresses on its own. They are queued and waiting for you — the risk is delay, not data loss. The plan below gets you processing them live on Monday.
 
-Same field list as the rebuilt Form A1, minus the price section:
+## The plan, day by day
 
-1. **Check the job details** — job number, owner name, address, property type and the office life-support result, all prefilled by the portal. The installer confirms, or says what needs correcting.
-2. **Getting into the ceiling** — roof type (Tiles / Metal sheet / Other), ceiling access (Easy / Moderate / Difficult), ceiling access point photo.
-3. **Ceiling areas** — "How many separate ceiling areas are there?" (1–6+), then that many sections open. Each area asks: where it is, length (m), width (m) (the portal works out the m2), existing insulation Yes/No, insulation type (tick all that apply — Batts / Loose fill), depth (mm) with tape-measure photo, remove / top up / not sure, area to remove (m2) if removing, empty ceiling space photo if no insulation, recessed downlights (Yes/No + how many), hazards (Yes/No + describe + photo).
-4. **Whole job** — how the ceiling was measured (Laser in the ceiling space / Tape in the ceiling space / Scaled from floor plan / Other), method explanation if floor plan or Other, upgrade area diagram or floor plan (draw inside the form, photograph a sketch, or upload a plan — with the regulator note), ceiling or roof built/replaced in the last 5 years.
-5. **Finish** — anything else the office should know (optional), accuracy confirmation tick (mandatory).
+### Today (Thursday) — forms and decisions
+1. You paste **Mitti_template_briefs_v5_A1.md** into Mitti's AI builder, eyeball it against the brief, send me the template ID. I connect and test the sync.
+2. I build the **A2 brief** (our leads — same questions, no pricing) with the downlight Yes=red / No=green colours, and regenerate A1 (v6) with the same colours.
+3. You give me the test team's names/emails (installer, electrician, owner) so I can set up the four real test logins.
+4. You answer the three open decisions: (a) hazard photo per area or one description, (b) is "Not sure" allowed on remove/top-up, (c) $220 lead fee inc or ex GST.
 
-No price fields anywhere. The installer never sees or enters a customer price on our leads.
+### Friday — finish the machine
+5. Forms B (PIESA) and C (PIISA) briefs rebuilt the same way as A1; you build them in Mitti; I connect all four IDs.
+6. Shared gate timeline for installers/electricians with the 30-day PIESA countdown (already partly built — finished here).
+7. Invoice preflight reconciled line-by-line against what Xero will receive; you approve the invoice design on screen. No Xero write yet.
+8. Communications test mode: every message the portal would send gets redirected to the test team, so we prove wording and timing without touching a real customer.
 
-**Downlight colours (A1 and A2):** "Recessed downlights in this area?" shows **Yes in red** and **No in green**, so the installer can see straight away that downlights need attention. The brief tells Mitti's AI to colour the two answers this way. If Mitti can't colour answers, the brief falls back to a red warning note that appears when Yes is picked: "Downlights need clearance — the electrician will check these at the safety check." The A1 brief is regenerated (v6) with the same change.
+### Saturday — full dress rehearsal
+9. Run two complete dummy journeys start to finish with the real test logins: one installer-brings-customer job, one our-lead job — enquiry → Gate 1 → Ready Check → PIESA → quote → acceptance → invoice preview → deposit gate → install → PIISA → evidence → VEEC.
+10. Every wrong stage, missing notification or confusing screen found gets fixed same day.
 
-## What gets built
+### Sunday — final checks
+11. Regression run: all tests, build, security, mobile screens, failure cases (expired links, double-clicks, wrong role).
+12. You review the launch evidence report and give the explicit go.
 
-- Verify the A2 field spec in the portal matches the A1 evidence fields exactly (it already shares the same field list — confirm nothing pricing-related leaks in).
-- Generate the paste-ready brief **Mitti_template_briefs_v5_A2.md** in Files, same format as the A1 brief: exact labels in quotes, mandatory rules, conditional logic, geotagging settings, and the strict "no rephrasing or extra questions" instruction so Mitti's AI builds it to match.
-- Round-trip check: confirm every label in the brief matches the portal's spec verbatim and a template built from it passes the portal's validator.
+### Monday — launch
+13. I switch on live communications and external sends (currently locked).
+14. You action the first controlled Xero invoice yourself; we reconcile it together.
+15. The enquiry backlog is worked through the pipeline — oldest first — with the To action tab driving the team.
+
+## Go / no-go gates (all must be green Monday)
+- Four role logins work; both dummy journeys pass end to end
+- Mitti forms connected and syncing into the portal and official PDFs
+- Messages reach the test team correctly; failures show in To action
+- Invoice totals and design approved by you; deposit/scheduling gates cannot be bypassed
+- No stage/action mismatches; no build or security errors
+
+If any gate is red, we do a controlled pilot (a handful of real jobs, watched closely) instead of a full switch-on — never an unsafe launch.
+
+## What I need from you
+1. Mitti template IDs as you build each form (A1 first)
+2. Test team names + emails
+3. The three decisions in item 4 above
+4. Monday: your explicit "go" before anything sends to real customers
 
 ## Technical details
-
-- `src/lib/mitti-forms.core.ts` — A2 is the existing `ready_check` key (READY_CHECK_FIELDS, no PRICING_FIELDS); verify only, change only if a mismatch is found.
-- Brief generated from the spec via the existing `mittiAiPrompt` generator so labels cannot drift.
-- Tests: extend `tests/ready-check-variants.test.ts` with an A2 round-trip test (spec labels all present in the generated brief; matching template passes `validateTemplate`).
-- Run `bun test ./tests/` — baseline 751 pass.
-
-## After this
-
-Once A2's brief is approved, you paste it into Mitti, build the form, and send me the template ID — then we move on to Form B (PIESA) the same way.
+- No changes to locked Step 1 (Base44 handoff) or Gate 1 rules
+- Communications/external writes stay fail-closed until your explicit Monday approval
+- Test jobs stay flagged `qa_test`, excluded from live totals and automation
+- Forms work: `src/lib/mitti-forms.core.ts` spec + briefs generated from it so labels cannot drift; `validateTemplate` refuses drifted Mitti forms
