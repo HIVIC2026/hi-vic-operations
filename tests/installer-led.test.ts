@@ -4,10 +4,10 @@ import { FORMS, validateTemplate, flattenDefinition, PIESA_OUTCOMES } from "../s
 import { jobMargin } from "../src/lib/profit.core";
 
 describe("installer-led pricing", () => {
-  it("PIESA is $349 with our electrician, own REC price otherwise, fail closed when unknown", () => {
+  it("the owner is charged the standard $349 assessment fee for either approved electrician source", () => {
     expect(piesaChargeIncGst("hivic_matched", null)).toBe(349);
-    expect(piesaChargeIncGst("installer_own", 280)).toBe(280);
-    expect(piesaChargeIncGst("installer_own", null)).toBeNull();
+    expect(piesaChargeIncGst("installer_own", 280)).toBe(349);
+    expect(piesaChargeIncGst("installer_own", null)).toBe(349);
     expect(piesaChargeIncGst(null, 280)).toBeNull();
   });
   it("owner price = quote + PIESA + rectification + AP fee − discount, no referral, min $200", () => {
@@ -18,8 +18,9 @@ describe("installer-led pricing", () => {
   });
   it("installer-led jobs never carry a referral fee in profit", () => {
     const base = { installerCostExGst: 1000, installerMarginExGst: 0, apFeeExGst: 317.27, electricalCostExGst: 0, electricalChargeExGst: 0, installerSourced: true, veecDiscountIncGst: 700, piesaRecCostExGst: null, veecLodgementFeeExGst: null };
-    expect(jobMargin({ ...base, installerLed: true }, 85).referralFeeEx).toBe(0);
-    expect(jobMargin(base, 85).referralFeeEx).toBe(200);
+    expect(jobMargin({ ...base, installerLed: true, leadFeeEarned: true }, 85).referralFeeEx).toBe(0);
+    expect(jobMargin({ ...base, leadFeeEarned: false }, 85).referralFeeEx).toBe(0);
+    expect(jobMargin({ ...base, leadFeeEarned: true }, 85).referralFeeEx).toBe(200);
   });
 });
 

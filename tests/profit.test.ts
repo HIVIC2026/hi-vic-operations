@@ -28,7 +28,7 @@ describe("online spot price parser", () => {
 });
 
 describe("job markup breakdown", () => {
-  const base = { installerCostExGst: 2500, installerMarginExGst: 300, apFeeExGst: 317, electricalCostExGst: 250, electricalChargeExGst: 349, installerSourced: true, veecDiscountIncGst: 1400, piesaRecCostExGst: null as number | null, veecLodgementFeeExGst: null as number | null };
+  const base = { installerCostExGst: 2500, installerMarginExGst: 300, apFeeExGst: 317, electricalCostExGst: 250, electricalChargeExGst: 349, installerSourced: true, leadFeeEarned: true, veecDiscountIncGst: 1400, piesaRecCostExGst: null as number | null, veecLodgementFeeExGst: null as number | null };
   test("installer charged = cost + markup + PIESA fee", () => {
     const m = jobMargin(base, 90);
     expect(m.installerChargedEx).toBe(3117);
@@ -58,10 +58,14 @@ describe("job markup breakdown", () => {
     expect(unset.lodgementFeeEx).toBeNull();
     expect(unset.profit).toBeCloseTo(300 + 317 + 99 + 400 - 200); // not deducted while unrecorded
   });
-  test("HI VIC-sourced job pays no referral fee", () => {
+  test("installer-owned customer pays no lead fee", () => {
     const m = jobMargin({ ...base, installerSourced: false }, 90);
     expect(m.referralFeeEx).toBe(0);
     expect(m.profit).toBeCloseTo(300 + 317 + 99 + 400);
+  });
+  test("lead fee waits for installation and paperwork approval", () => {
+    expect(jobMargin({ ...base, leadFeeEarned: false }, 90).referralFeeEx).toBe(0);
+    expect(jobMargin({ ...base, leadFeeEarned: true }, 90).referralFeeEx).toBeCloseTo(200);
   });
   test("no spot price = no profit guess", () => {
     const m = jobMargin(base, null);

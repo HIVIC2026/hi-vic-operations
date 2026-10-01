@@ -9,28 +9,28 @@
 - [x] Point customer email calculator links to the built calculator at the customer-domain home address
 - [x] Retire viewed and seven-day estimate reminders; suppress legacy queued rows; clarify free measure-up visit copy and verify previews
 - [x] Boss signs up business; workers join via personal invite link (/join)
-- [ ] Installer agreement audit: payment timing contradiction (step 2/cl.27 vs cl.17); free Ready Check mandatory (remove step 8 "No"); customer-contact rule for installer-supplied customers vs cl.28; "your customer, your price" vs HIV pricing; PIESA booking/payment order; separate EEC Certified Insulation Installer certification from training
+- [x] Installer agreement audit: payment timing, free Ready Check, customer contact, customer/supplier pricing, assessment timing, and separate installer certification clarified in v1.8
 
 
 ## In progress (approved plan: installer onboarding overhaul)
 - [ ] Name-first step on installer + electrician onboarding; greet by first name throughout; invites prefill invitee name + inviter business
 - [ ] Shared "How we work with you" content module (Option 1 own customer / Option 2 our lead), portal help page, FAQ
-- [ ] "Why the $349" box (covers safety check + AP work; confirm one $349 total vs each)
+- [x] "Why the $349" box: two separate $349 inc GST owner charges; REC receives agreed supplier rate
 - [ ] Saved electrician preference per installer (own / HIV list / ask each job)
 - [ ] Partial evidence: one upload box, AI-suggested requirement matching, staff verify, have/missing list
 - [ ] Install-day "Before you start" checklist auto-built from missing allowed items; feeds Mitti/PIISA
 - [ ] Per-requirement capture-stage settings (before quote / before install start / after install) per ESC table; verify against full Obligations & Program Guide annexure before enabling
 - [x] Shared gate timeline for staff/installer/electrician with countdowns (PIESA 30-day validity, ESC notification 24h–5d, PIESA copy 24h, same-day rectification quote)
 - [ ] 24-hour rule on our leads: owner offered choice of different installer/electrician after 24h no contact
-- [ ] Installer agreement new version with Option 1/2 + portal-only communication wording; re-sign flag
-- [ ] Referred jobs: owner quoted at our set customer price; installer paid agreed onboarding rate; $220 lead fee deducted from payout only when owner accepts; installer paid once owner invoice fully paid
+- [x] Installer agreement v1.8 with Option 1/2, official assessment/timing rules, payment trigger, portal communication and re-sign versioning
+- [x] Our leads: owner quoted at our set customer price; installer paid agreed onboarding rate; $220 inc GST lead fee deducted only after installation and paperwork approval
 
 ## Decisions locked this session
-- $349 = both safety check + AP fee (confirm one total vs each)
+- Two separate owner charges: $349 inc GST electrical assessment + $349 inc GST Accredited Person fee
 - Pre-agreed installer price: our fees on top (owner sees less VEU discount)
 - Our leads: set customer price; installer paid agreed rate; margin internal only
-- $220 lead fee: only when owner accepts; deducted from payout; never on ineligible/declined/cancelled
-- Installer paid once owner invoice paid in full
+- $220 inc GST lead fee: Home Insulation Victoria leads only; deducted from installer payout after installation and paperwork approval; never installer-owned customers
+- Approved electrician is paid the agreed supplier rate; owner still pays the standard $349 electrical assessment fee
 - Portal-only communication; 24h no-contact rule on our leads
 
 ## Still open from before
@@ -38,7 +38,7 @@
 - [ ] Chase service areas from 6 installers; partner/postcode coverage follow-ups
 - [ ] Mitti form IDs from user — now FOUR: A1 (installer-sourced, with quoted price), A2 (our leads, no pricing), B (PIESA), C (PIISA); briefs in Mitti_template_briefs_v4.md
 - [ ] Browser-verify owner/electrician/installer job views as those roles
-- [ ] Confirm: $349 one total vs each; $220 inc/ex GST; own-electrician price + AP fee combination
+- [x] Confirmed: two separate $349 charges; $220 inc GST; own electrician paid agreed supplier rate while owner charges remain standard
 - [x] Public client calculator page (light one-screen, live cost, no sign-in) — built; needs publishing to give clients the permanent link
 - [x] Calculator: fix the bottom of the page — footer split into two short lines, pink tint removed, sticky bar tightened
 - [x] Calculator: question labels and hints darkened for readability
@@ -82,7 +82,7 @@
 - [x] Address search returns Victorian properties only — no state guessing, so Canberra/NSW rows can never appear as VIC
 - [x] Give clients the permanent link — live and public at https://hi-vic-operations.lovable.app/calculator (no sign-in)
 - [x] Portal menu "Customer calculator" was opening the old test page — now opens the new calculator
-- [x] Calculator: removal note ($10-$15/m² of area requiring removal, installer advises at Ready Check), demand-high badge + green register button, includes order Ready Check → PIESA → install → AP
+- [x] Calculator: no removal amount before inspection; note says existing insulation may or may not require separately priced removal; demand-high badge retained
 - [x] Calculator flow: existing-insulation note moved under its answer, VEU discount made prominent, footer simplified, old test calculator deleted
 - [x] Calculator phone usability: show live price before supporting details, shorten prompts, and verify answer-to-result flow at phone and desktop sizes
 - [x] Blank-screen recovery: a page load that drops part-way now shows "This page needs a refresh" with a working refresh action

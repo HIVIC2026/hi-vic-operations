@@ -132,15 +132,15 @@ function VeecPage() {
 
     {profit && <section className="mt-10">
       <h2 className="text-2xl font-bold">Markup by job – accepted jobs</h2>
-      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">What Home Insulation Victoria charges versus what we pay each trade. Installer work is marked up and carries the Accredited Person fee; electrical work is charged at the agreed electrical rate card. The $220 inc GST referral fee applies only when an installer-sourced job proceeds.</p>
+      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">What Home Insulation Victoria charges versus what we pay each trade. Installer work is marked up and carries the Accredited Person fee. The owner is charged the standard $349 electrical assessment fee while the REC is paid its agreed supplier rate. The $220 inc GST lead fee applies only to customers we supply, after installation and paperwork approval.</p>
       {profit.rows.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">No accepted jobs yet — this table fills in as quotes are accepted.</p> : <>
       <div className="mt-3 overflow-x-auto rounded-md border bg-card">
         <table className="w-full text-sm"><thead className="bg-muted text-left text-xs uppercase">
-          <tr><th className="p-3" rowSpan={2}>Job</th><th className="border-b p-3 text-center" colSpan={3}>Installer</th><th className="border-b p-3 text-center" colSpan={3}>Electrician (rectification)</th><th className="border-b p-3 text-center" colSpan={2}>PIESA (AP fee, $349 inc GST)</th><th className="p-3 text-right" rowSpan={2}>Referral fee</th><th className="p-3 text-right" rowSpan={2}>VEEC margin</th><th className="p-3 text-right" rowSpan={2}>Home Insulation Victoria profit</th></tr>
+          <tr><th className="p-3" rowSpan={2}>Job</th><th className="border-b p-3 text-center" colSpan={3}>Installer</th><th className="border-b p-3 text-center" colSpan={3}>Electrician (rectification)</th><th className="border-b p-3 text-center" colSpan={2}>Electrical assessment ($349 inc GST)</th><th className="p-3 text-right" rowSpan={2}>Lead fee</th><th className="p-3 text-right" rowSpan={2}>VEEC margin</th><th className="p-3 text-right" rowSpan={2}>Home Insulation Victoria profit</th></tr>
           <tr><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Charged</th><th className="p-3 text-right">Markup</th><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Charged</th><th className="p-3 text-right">Markup</th><th className="p-3 text-right">Charged (ex GST)</th><th className="p-3 text-right">REC paid</th></tr>
         </thead>
           <tbody>{profit.rows.map((r) => {
-            const m = jobMargin({ installerCostExGst: r.installerCost, installerMarginExGst: r.installerMargin, apFeeExGst: r.apFee, electricalCostExGst: r.electricalCost, electricalChargeExGst: r.electricalChargeEx, installerSourced: r.installerSourced, installerLed: r.installerLed, veecDiscountIncGst: r.discount, piesaRecCostExGst: r.piesaCostEx, veecLodgementFeeExGst: r.lodgementFeeExGst }, spot);
+            const m = jobMargin({ installerCostExGst: r.installerCost, installerMarginExGst: r.installerMargin, apFeeExGst: r.apFee, electricalCostExGst: r.electricalCost, electricalChargeExGst: r.electricalChargeEx, installerSourced: r.installerSourced, installerLed: r.installerLed, leadFeeEarned: r.leadFeeEarned, veecDiscountIncGst: r.discount, piesaRecCostExGst: r.piesaCostEx, veecLodgementFeeExGst: r.lodgementFeeExGst }, spot);
             return <tr key={r.jobId} className="border-t">
               <td className="p-3 font-bold"><Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="text-primary underline">{r.jobNumber ?? "—"}</Link><div className="text-xs font-normal text-muted-foreground">{r.owner ?? ""}</div></td>
               <td className="p-3 text-right">{r.costMissing ? "—" : money(r.installerCost)}</td>
@@ -158,7 +158,7 @@ function VeecPage() {
           })}</tbody>
           {(() => {
             const tot = profit.rows.reduce((t, r) => {
-              const m = jobMargin({ installerCostExGst: r.installerCost, installerMarginExGst: r.installerMargin, apFeeExGst: r.apFee, electricalCostExGst: r.electricalCost, electricalChargeExGst: r.electricalChargeEx, installerSourced: r.installerSourced, installerLed: r.installerLed, veecDiscountIncGst: r.discount, piesaRecCostExGst: r.piesaCostEx, veecLodgementFeeExGst: r.lodgementFeeExGst }, spot);
+              const m = jobMargin({ installerCostExGst: r.installerCost, installerMarginExGst: r.installerMargin, apFeeExGst: r.apFee, electricalCostExGst: r.electricalCost, electricalChargeExGst: r.electricalChargeEx, installerSourced: r.installerSourced, installerLed: r.installerLed, leadFeeEarned: r.leadFeeEarned, veecDiscountIncGst: r.discount, piesaRecCostExGst: r.piesaCostEx, veecLodgementFeeExGst: r.lodgementFeeExGst }, spot);
               return { installerMarkup: t.installerMarkup + m.installerMarkup, piesaCharge: t.piesaCharge + m.piesaChargeEx, piesaRecPaid: t.piesaRecPaid + (m.piesaRecPaidEx ?? 0), referral: t.referral + m.referralFeeEx, lodgement: t.lodgement + (m.lodgementFeeEx ?? 0), veec: t.veec + (m.veecMargin ?? 0), profit: m.profit != null ? t.profit + m.profit : t.profit, anyNull: t.anyNull || m.profit == null };
             }, { installerMarkup: 0, piesaCharge: 0, piesaRecPaid: 0, referral: 0, lodgement: 0, veec: 0, profit: 0, anyNull: false });
             return <tfoot><tr className="border-t-2 bg-muted font-bold">
@@ -176,7 +176,7 @@ function VeecPage() {
           })()}
         </table>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">Electrical upgrades pass through at the agreed electrical rate card — no markup. PIESA is charged at $349 inc GST ($317.27 ex GST); the REC is paid a lower negotiated set rate (shown once recorded in pricing settings — until then the profit figure is optimistic). Profit also deducts the ESC $4.35 per VEEC lodgement fee. "—" means a figure is not recorded yet. VEEC margin shows only once a spot price is known.</p>
+      <p className="mt-2 text-xs text-muted-foreground">Electrical upgrades pass through at the agreed electrical rate card — no markup. The VEU pre-installation electrical safety assessment is charged at $349 inc GST ($317.27 ex GST); the REC is paid its negotiated supplier rate. The $220 lead fee appears only after installation and paperwork approval. Profit also deducts the ESC $4.35 per VEEC lodgement fee. "—" means a figure is not recorded yet.</p>
       </>}
     </section>}
   </AppShell>;

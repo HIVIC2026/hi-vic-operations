@@ -30,6 +30,7 @@ describe("compliance timeline", () => {
     expect(g(f, "owner_esc_consent").dueAt).toBe("2026-10-11T00:00:00.000Z");
     expect(g(f, "owner_esc_consent").status).toBe("due_soon");
     expect(g({ ...f, now: "2026-10-11T06:00:00Z" }, "piesa_copies_delivered").status).toBe("overdue");
+    expect(g(f, "piesa_copies_delivered").label).toContain("owner and installer");
   });
   test("ESC notice not open earlier than 5 days before", () => {
     const f = { ...base, installStart: "2026-10-20T00:00:00Z" };
@@ -58,6 +59,11 @@ describe("official ESC additions", () => {
     const f = { ...base, installCompletedAt: base.now, installerDeclarationAt: base.now, evidenceComplete: true, assignmentEffective: true };
     expect(buildComplianceTimeline(f).find((x) => x.key === "ap_approved")!.status).toBe("not_yet");
     expect(buildComplianceTimeline({ ...f, coPaymentPaidAt: base.now, completionDocsGivenAt: base.now }).find((x) => x.key === "ap_approved")!.status).toBe("open");
+  });
+  test("official form labels keep the two assessments separate and the co-payment non-reimbursable", () => {
+    expect(g(base, "piesa_completed").label).toContain("electrical safety assessment");
+    expect(g(base, "installer_safety_assessment").label).toContain("installer safety assessment");
+    expect(g(base, "co_payment_paid").when).toContain("must not be reimbursed");
   });
 });
 
