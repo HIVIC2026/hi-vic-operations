@@ -80,6 +80,6 @@ function Join() {
       ))}
     </div>
     <label className="mt-5 block text-sm font-medium">Type your full name to sign<Input value={f.signed_name} onChange={set("signed_name")} className="mt-1 h-12" /></label>
-    <Button type="submit" size="field" className="mt-5 w-full bg-success text-brand-dark hover:bg-success/90" disabled={busy}>{busy ? "Saving…" : "Sign and submit for approval →"}</Button>
+    <Button type="submit" size="field" className="mt-5 w-full bg-success text-brand-dark hover:bg-success/90" disabled={busy || preview}>{preview ? "Preview only — submission disabled" : busy ? "Saving…" : "Sign and submit for approval →"}</Button>
   </form>);
 }
