@@ -43,9 +43,10 @@ export function evaluateHazardRectifications(i: {
     const none = { key: h.key, text: h.text, resolved: false, verificationId: null };
     if (mine.length === 0) return { ...none, reason: "No verified rectification is recorded for this hazard.", nextAction: "Electrician completes the rectification; office verifies it with evidence and links it to this hazard." };
     if (mine.length > 1) return { ...none, reason: "More than one current verification is linked to this hazard.", nextAction: "Office supersedes the duplicate verification." };
-    const problem = check(mine[0], items, i.jobId);
-    if (problem) return { ...none, verificationId: mine[0].id, reason: problem, nextAction: "Office re-verifies the rectification against the current record and evidence." };
-    return { key: h.key, text: h.text, resolved: true, verificationId: mine[0].id, reason: "Verified rectification on record.", nextAction: "None." };
+    const v = mine[0]!;
+    const problem = check(v, items, i.jobId);
+    if (problem) return { ...none, verificationId: v.id, reason: problem, nextAction: "Office re-verifies the rectification against the current record and evidence." };
+    return { key: h.key, text: h.text, resolved: true, verificationId: v.id, reason: "Verified rectification on record.", nextAction: "None." };
   });
   return { hazards, resolution: { kind: "verified_rectification", resolvedHazards: hazards.filter((h) => h.resolved).map((h) => h.key) } };
 }
