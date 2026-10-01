@@ -23,8 +23,7 @@ function Index() {
       <div className="absolute inset-x-0 bottom-0 h-2 bg-workspace-sun-strong" aria-hidden="true" />
       <div className="w-full max-w-lg text-center">
         <div className="mx-auto mb-8 inline-flex rounded-lg border bg-card px-6 py-4 shadow-sm"><img src={logo.url} alt="Home Insulation Victoria" className="h-16 w-auto" /></div>
-        <h1 className="font-display text-4xl font-bold text-foreground sm:text-5xl">Home Insulation Victoria</h1>
-        <p className="mt-2 font-display text-xl font-semibold text-primary">Operations</p>
+        <h1 className="font-display text-4xl font-bold text-foreground sm:text-5xl">Home Insulation Victoria <span className="mt-2 block text-xl font-semibold text-primary">Operations portal</span></h1>
         <p className="mx-auto mt-5 max-w-md text-sm leading-6 text-muted-foreground">For Home Insulation Victoria staff, assigned electricians, installers and homeowners.</p>
         <Button asChild size="field" className="mt-8 min-w-48">
           <Link to="/home">Sign in to the portal</Link>
