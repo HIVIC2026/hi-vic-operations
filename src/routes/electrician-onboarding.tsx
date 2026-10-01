@@ -1,10 +1,8 @@
-import { WorkerStop } from "@/components/portal/worker-stop";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
-  acknowledgementsFor, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION,
+  acknowledgementsFor, agreementText, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION,
   firstName, stepErrors, firstIncompleteStep, validAbn, visibleSteps, type RecData, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
@@ -40,7 +38,6 @@ export const Route = createFileRoute("/electrician-onboarding")({
 
 const input: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #D7DCE8", fontSize: 15, fontFamily: "inherit", color: NAVY, background: "#fff", boxSizing: "border-box", minHeight: 48 };
 const card: React.CSSProperties = { background: "#fff", borderRadius: 24, padding: 24, border: `1px solid ${BLUE}1A`, boxShadow: "0 10px 30px -18px rgba(34,55,107,.35)" };
-const DISPLAY = "'Outfit', 'Figtree', system-ui, sans-serif";
 const infoCard: React.CSSProperties = { background: "#EAF8F0", border: `1px solid ${GREEN}55`, borderRadius: 14, padding: "12px 14px", fontSize: 14, color: NAVY, lineHeight: 1.5, marginBottom: 18 };
 const btn = (primary: boolean, disabled = false): React.CSSProperties => ({ minHeight: 48, padding: "0 20px", borderRadius: 12, border: primary ? "none" : `1px solid #D7DCE8`, background: primary ? (disabled ? "#8FDCAF" : GREEN) : "#fff", color: primary ? NAVY : BLUE, fontWeight: 800, fontSize: 14, cursor: disabled ? "default" : "pointer", fontFamily: "inherit" });
 
@@ -120,6 +117,7 @@ function Choice<T extends string | number | boolean>({ options, value, onChange 
 }
 
 function RecOnboarding() {
+  const sampleStep = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("sample") as StepKey | "submitted" | null : null;
   const [token, setToken] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [started, setStarted] = useState(false);
@@ -153,6 +151,11 @@ function RecOnboarding() {
   }
 
   useEffect(() => {
+    if (sampleStep) {
+      setD(SAMPLE_REC_DATA); setToken("sample-preview-token"); setStarted(true); setTestMode(true);
+      if (sampleStep === "submitted") setStatus("submitted"); else setStep(sampleStep);
+      setLoaded(true); return;
+    }
     if (new URLSearchParams(window.location.search).get("reset") === "1") { localStorage.removeItem(TOKEN_KEY); setLoaded(true); return; }
     const t = localStorage.getItem(TOKEN_KEY);
     if (!t) { setLoaded(true); return; }
@@ -162,7 +165,7 @@ function RecOnboarding() {
       const first = firstIncompleteStep(r.data as RecData);
       setStep(r.status === "submitted" ? "sign" : ((first ?? r.step_key ?? "about") as StepKey));
     }).catch(() => localStorage.removeItem(TOKEN_KEY)).finally(() => setLoaded(true));
-  }, []);
+  }, [sampleStep]);
 
   const steps = useMemo(() => visibleSteps(d), [d]);
   const idx = Math.max(0, steps.findIndex((s) => s.key === step));
@@ -177,6 +180,7 @@ function RecOnboarding() {
     } catch (e) { setError(e instanceof Error ? e.message : "Could not start."); } finally { setBusy(false); }
   }
   async function persist(nextStep: StepKey) {
+    if (sampleStep) return;
     if (!token) return;
     const { insurance_uploaded: _u, ...data } = d;
     const r = await saveRecOnboarding({ data: { token, step_key: nextStep, data: data as never } });
@@ -261,8 +265,8 @@ function RecOnboarding() {
       <h1 style={{ fontSize: 26, fontWeight: 800, margin: "6px 0 4px", color: NAVY }}>{steps[idx]?.title}</h1>
       {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Application for {d.trading_name || d.legal_entity_name || `${firstName(d)}'s REC business`}.</div>}
       {!firstName(d) && <div style={{ marginBottom: 12 }} />}
-      <StepBody step={step} d={d} up={up} token={token!} setError={setError} />
-      {step === "sign" && <SignStep d={d} token={token!} onSigned={() => setStatus("submitted")} />}
+       <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={!!sampleStep} />
+       {step === "sign" && <SignStep d={d} token={token ?? ""} onSigned={() => setStatus("submitted")} preview={!!sampleStep} />}
       {showErrors && errs.length > 0 && (
         <div style={{ background: "#FDECEA", border: "1px solid #F5C2BE", borderRadius: 12, padding: "10px 14px", color: "#8C1D18", fontSize: 14, marginTop: 8 }}>
           {errs.map((e) => <div key={e}>• {e}</div>)}
@@ -274,7 +278,7 @@ function RecOnboarding() {
   );
 }
 
-function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void }) {
+function StepBody({ step, d, up, token, setError, preview }: { step: StepKey; d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void; preview: boolean }) {
   const t = (k: keyof RecData, upper = false) => ({ value: (d[k] as string) ?? "", onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => up({ [k]: upper ? e.target.value.toUpperCase() : e.target.value } as Partial<RecData>) });
   switch (step) {
     case "about":
@@ -372,7 +376,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
         <Field label="Account number" required><input style={input} inputMode="numeric" autoComplete="off" {...t("bank_account_number")} /></Field>
       </>;
     case "review":
-      return <ReviewStep d={d} up={up} token={token} />;
+      return <ReviewStep d={d} up={up} token={token} preview={preview} />;
     default:
       return null;
   }
@@ -434,13 +438,14 @@ function InsuranceStep({ d, up, token, setError }: { d: RecData; up: (p: Partial
   </>;
 }
 
-function ReviewStep({ d, up, token }: { d: RecData; up: (p: Partial<RecData>) => void; token: string }) {
+function ReviewStep({ d, up, token, preview }: { d: RecData; up: (p: Partial<RecData>) => void; token: string; preview: boolean }) {
   const [text, setText] = useState<string | null>(null);
   const [version, setVersion] = useState("");
   useEffect(() => {
+    if (preview) { setText(agreementText(d)); setVersion(REC_AGREEMENT_VERSION); return; }
     // Save first so the schedules reflect the latest answers, then load the exact text.
     getRecAgreement({ data: { token } }).then((a) => { setText(a.text); setVersion(a.version); }).catch(() => setText("Could not load the agreement. Please go back and try again."));
-  }, [token]);
+  }, [d, preview, token]);
   return <>
     <div style={{ fontSize: 12, fontWeight: 800, color: GREEN, textTransform: "uppercase", letterSpacing: 0.8 }}>Activity 48 · VEU</div>
     <div style={{ fontSize: 13, color: MUTED, marginBottom: 6 }}>Version {version}</div>
@@ -451,7 +456,7 @@ function ReviewStep({ d, up, token }: { d: RecData; up: (p: Partial<RecData>) =>
   </>;
 }
 
-function SignStep({ d, token, onSigned }: { d: RecData; token: string; onSigned: () => void }) {
+function SignStep({ d, token, onSigned, preview }: { d: RecData; token: string; onSigned: () => void; preview: boolean }) {
   const [acks, setAcks] = useState<Record<string, boolean>>({});
   const [name, setName] = useState(d.primary_contact_name ?? "");
   const [position, setPosition] = useState("");
@@ -461,6 +466,7 @@ function SignStep({ d, token, onSigned }: { d: RecData; token: string; onSigned:
   const ackList = acknowledgementsFor(d);
   const ready = ackList.every((a) => acks[a.key]) && name.trim().length > 1 && position.trim().length > 1 && email.includes("@");
   async function sign() {
+    if (preview) { setErr("Sample preview only — no agreement was signed or submitted."); return; }
     setBusy(true); setErr(null);
     try {
       await signRecAgreement({ data: { token, signer_name: name, signer_position: position, signer_email: email, acknowledgements: acks, agreement_version: REC_AGREEMENT_VERSION } });
@@ -474,6 +480,15 @@ function SignStep({ d, token, onSigned }: { d: RecData; token: string; onSigned:
     <Field label="Position / title" required><input style={input} placeholder="e.g. Director" value={position} onChange={(e) => setPosition(e.target.value)} /></Field>
     <Field label="Signer email" required><input style={input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
     {err && <p style={{ color: "#B3261E", fontSize: 14 }}>{err}</p>}
-    <button style={{ ...btn(true, !ready || busy), width: "100%" }} disabled={!ready || busy} onClick={sign}>{busy ? "Signing…" : "Sign agreement & submit"}</button>
+    <button style={{ ...btn(true, !ready || busy), width: "100%" }} disabled={!ready || busy} onClick={sign}>{busy ? "Signing…" : preview ? "Preview only — signing disabled" : "Sign agreement & submit"}</button>
   </>;
 }
+
+const SAMPLE_REC_DATA: RecData = {
+  works_under_rec: false, primary_contact_name: "Sample REC representative", licence_number: "ESV SAMPLE", business_phone: "0400 000 000", business_email: "sample@example.com",
+  legal_entity_name: "Sample Electrical Pty Ltd", trading_name: "Sample Electrical", abn: "51824753556", rec_registration_number: "REC SAMPLE", business_address: "100 Sample Road, Melbourne VIC 3000", authorised_to_register: true,
+  insurance_uploaded: true, insurer: "Sample insurer", insurance_policy_number: "SAMPLE-001", public_liability_cover_amount: 10_000_000, public_liability_expiry: "2099-12-31",
+  services_all_confirmed: true, service_origin: "Melbourne VIC", travel_radius_km: 50, typical_days: ["Mon", "Tue", "Wed"], normal_attendance_speed: "3-5 business days", capacity_band: "6-10", accepting_jobs: true,
+  gst_registered: true, assessment_rate: 330, installation_attendance_rate: 220, rectification_rates: { prohibited_luminaires: 55, circuit_protection: 110, rcd_installation: 220, tps_cable_replacement: 11, basic_protection: 165 }, coes_fee_choice: "included",
+  bank_account_name: "Sample Electrical Pty Ltd", bank_bsb: "123-456", bank_account_number: "12345678", agreement_reviewed: true,
+};

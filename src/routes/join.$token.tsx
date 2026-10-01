@@ -30,8 +30,14 @@ function Join() {
   const [ticks, setTicks] = useState<string[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
-  useEffect(() => { load({ data: { token } }).then((r) => { setInv(r); if (r.ok) setF((x) => ({ ...x, full_legal_name: r.inviteeName })); }).catch(() => setInv({ ok: false, message: "We couldn't open this invite. Please try again." })); }, [token]);
+  const preview = token === "sample-electrician";
+  const [done, setDone] = useState(() => preview && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("receipt") === "1");
+  useEffect(() => {
+    if (preview) { const sample = { ok: true as const, inviteeName: "Sample electrician", trade: "electrician" as const, businessName: "Sample Electrical", declarations: [
+      { key: "own_behalf", text: "I am signing on my own behalf as a worker of Sample Electrical." }, { key: "licence_current", text: "My Victorian electrician licence is current." }, { key: "true_info", text: "The details I have given are true and correct." },
+    ] }; setInv(sample); setF((x) => ({ ...x, full_legal_name: sample.inviteeName, mobile: "0400 000 000", email: "sample@example.com", licence_number: "ESV SAMPLE" })); return; }
+    load({ data: { token } }).then((r) => { setInv(r); if (r.ok) setF((x) => ({ ...x, full_legal_name: r.inviteeName })); }).catch(() => setInv({ ok: false, message: "We couldn't open this invite. Please try again." }));
+  }, [load, preview, token]);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
 
   const wrap = (c: React.ReactNode) => <TradeOnboardingShell footer={<TradeOnboardingFooter />}><main className="overflow-hidden rounded-[24px] border border-estimate-line bg-estimate-white p-5 shadow-[0_30px_70px_-45px_rgba(34,55,107,.45)] sm:p-8"><p className="text-xs font-extrabold uppercase tracking-[1.2px] text-estimate-green">Personal staff invitation</p>{c}</main></TradeOnboardingShell>;
@@ -42,6 +48,7 @@ function Join() {
   return wrap(<form onSubmit={async (e) => {
     e.preventDefault(); setBusy(true); setErrors([]);
     try {
+      if (preview) { setErrors(["Sample preview only — no worker details were submitted."]); return; }
       const r = await submit({ data: { token, ...f, accepted: ticks } });
       if (r.ok) setDone(true); else { setErrors(r.errors); window.scrollTo({ top: 0 }); }
     } catch { setErrors(["Something went wrong. Please try again."]); } finally { setBusy(false); }
