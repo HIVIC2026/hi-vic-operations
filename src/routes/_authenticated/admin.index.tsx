@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { listInterests } from "@/lib/interest.functions";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Archive, Ban, CheckCircle2, FlaskConical, Plus, Search, Workflow } from "lucide-react";
@@ -97,6 +98,13 @@ function Pipeline() {
     return jobs.filter((j) => source === "all" || j.channel === source).filter((j) => !s || [j.job_number, j.property_address, j.owner_name, j.electrician_name, j.installer_name].some((v) => v?.toLowerCase().includes(s)));
   }, [jobs, q, source]);
   const byPhase = (p: Phase) => filtered.filter((j) => phaseForStage(j.stage) === p);
+  const loadInterests = useServerFn(listInterests);
+  const { data: interests = [] } = useQuery({ queryKey: ["calculator-interests"], queryFn: () => loadInterests(), staleTime: 30_000 });
+  const shownInterests = useMemo(() => {
+    if (tab !== "enquiries" || !(workView === "active" || workView === "all") || phase !== "all" || source === "installer_sourced") return [];
+    const s = q.toLowerCase();
+    return interests.filter((i) => i.status !== "closed").filter((i) => !s || [i.full_name, i.address_line, i.suburb, i.email, i.mobile].some((v) => v?.toLowerCase().includes(s)));
+  }, [interests, tab, workView, phase, source, q]);
   const lanes = PIPELINE_PHASES.filter((p) => p.key !== "complete" && p.key !== "exceptions" && (phase === "all" || p.key === phase));
   const { data: signedJobs } = useQuery({
     queryKey: ["pipeline_assignments"],
@@ -188,10 +196,17 @@ function Pipeline() {
       {pipelinePending ? (
         <div role="status" className="rounded-md border bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">Loading enquiries…</div>
       ) : (
-         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase).map((j: JobRow) => {
+         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{shownInterests.map((i) => (
+           <Link key={`interest-${i.id}`} to="/admin/interests" className="block rounded-lg border bg-card p-4 shadow-sm transition hover:border-primary">
+             <span className="inline-flex rounded-full bg-workspace-blush px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-dark">Registered interest</span>
+             <p className="mt-2 font-bold">{i.full_name}</p>
+             <p className="text-sm text-muted-foreground">{i.address_line}</p>
+             <p className="mt-2 text-xs text-muted-foreground">{i.ceiling_m2} m² · {i.status === "new" ? "New" : i.status === "contacted" ? "Contacted" : "Booked"} · {new Date(i.created_at).toLocaleDateString("en-AU")}</p>
+           </Link>
+         ))}{filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase).map((j: JobRow) => {
            const coverage = coverageByJob.get(j.id ?? "");
            return <div key={j.id} className={`relative rounded-lg ${selected.has(j.id!) ? "ring-2 ring-primary" : ""}`}><div className="absolute right-2 top-2 z-10 rounded bg-card p-1 shadow-sm"><Checkbox checked={selected.has(j.id!)} onCheckedChange={() => toggle(j.id!)} aria-label={`Select job ${j.job_number ?? ""}`} /></div><JobCard job={j} to="/admin/jobs/$jobId" {...(coverage ? { coverage } : {})} /></div>;
-         })}{filtered.length === 0 && <div className="col-span-full rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">No records in this view.</div>}</div>
+         })}{filtered.length === 0 && shownInterests.length === 0 && <div className="col-span-full rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">No records in this view.</div>}</div>
       )}
     </AppShell>
   );
