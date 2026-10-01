@@ -1,7 +1,8 @@
 # Roadmap
 
 ## Now
-- [x] Complete authorized REC refinements: fix save/navigation races; verified AU/VIC addresses; exact service/availability/rates copy; staff links; assigned-REC standard/custom rates; agreement v2.2 source reconciliation and official $5m insurance override; terminology sweep; focused tests, provider/browser checks, screenshots and audit
+- [x] Prevent cancelled preview page requests from surfacing an AbortError and blanking the screen
+- [x] Complete authorized REC refinements: fix save/navigation races; verified AU/VIC addresses; exact service/availability/rates copy; staff links; assigned-REC standard/custom rates; agreement v2.3 source reconciliation and official $5m insurance override; terminology sweep; focused tests, provider/browser checks, viewable screenshots and audit
 - [x] Finish REC onboarding polish: shared trade copy, isolated no-write samples, legacy draft resume, retry state, focused verification
 - [x] Audit and refine REC business onboarding, worker invitations and worker join screens; fix activation validation ordering
 - [x] Delete obsolete old-brand email templates and old calculator code; preserve approved current templates and customer calculator
@@ -94,6 +95,6 @@
 - [ ] Customer web address (estimate.homeinsulationvictoria.com.au): bare address opens the calculator only; staff sign-in moves to /home; hide the "Edit with Lovable" badge so nothing says Lovable on customer pages
 
 - [x] Confirm public portal access boundaries and provide the published app URL.
-- [ ] Align REC clauses 4, 5, 12, 24, 26 and 27; increment agreement version and reconciliation.
-- [ ] Complete remaining REC UI/save checks and no-write address-proxy proof.
-- [ ] Save viewable 1280/390 REC screenshots as embedded JSON and run focused verification.
+- [x] Align REC clauses 4, 5, 12, 24, 26 and 27; increment agreement version and reconciliation.
+- [x] Complete remaining REC UI/save checks and no-write address-proxy proof.
+- [x] Save viewable 1280/390 REC screenshots as embedded JSON and run focused verification.

@@ -9,10 +9,10 @@ Date: 1 October 2026
 - Source issuer: DC Construction Solutions t/a Home Insulation Victoria, ABN 44 671 613 979
 - Source version: **F.0**
 - Integrated REC agreement: **Activity 48 Registered Electrical Contractor Partner Agreement**
-- Final agreement version: **HI-VIC-A48-REC-2.2-2026-10-01**
+- Final agreement version: **HI-VIC-A48-REC-2.3-2026-10-01**
 - Status: implemented as a REC-specific draft; final solicitor review remains required before live use.
 - The source DOCX was read as supplied and was not modified.
-- Existing signed agreement text remains immutable. Version 2.2 applies only to a new signature and subsequent authorised office approval.
+- Existing signed agreement text remains immutable. Version 2.3 applies only to a new signature and subsequent authorised office approval.
 
 ## Reconciliation principles
 
@@ -25,15 +25,15 @@ Date: 1 October 2026
 
 ## Every source section and subclause
 
-| Source | Treatment in REC v2.2 | Reason / adaptation |
+| Source | Treatment in REC v2.3 | Reason / adaptation |
 |---|---|---|
 | 1 Definitions | Clause 2 | AP, Agreement, REC/Business Partner, Customer, ESC, ESV, Goods, Services, Scheme, VEEC, Activity 48, PIESA, Job and Nominated Electrician are defined for the REC scope. |
 | 2.1 application to work/personnel | Clauses 1, 3, 4, 5 | Retained for all authorised Activity 48 electrical work and approved REC personnel. |
-| 2.2 signature/work-order/commencement acceptance | Clause 26 | Portal signature is the REC's offer; authorised recorded office approval and agreed rates activate access. Work commencement cannot bypass approval. |
+| 2.2 signature/work-order/commencement acceptance | Clauses 24 and 26 | Portal signature is the REC's offer and does not commence the agreement. Only authorised recorded AP office approval of the signed application and mutually agreed rates commences it and activates Job access. Work commencement cannot bypass approval. |
 | 2.3 unilateral written variation | Clauses 17, 25, 26 | Regulatory procedures may update on notice; material terms require a new signed version and rates require mutual acceptance. No silent price variation. |
 | 3.1 independent contractor/limited authority | Clauses 3 and 23 | Retained with limited VEU agency only; no authority to bind, price for, invoice or collect from an owner. |
 | 3.2 personnel/statutory obligations | Clauses 3 and 23 | Retained: REC remains responsible for wages, superannuation, payroll/tax and workers compensation. |
-| 4.1 licences, qualifications, registrations | Clause 5 | Retained for business registration, REC registration, personal licences and role-specific competencies. AS 3999/insulation competencies apply only where law or an approved electrical scope expressly requires them. |
+| 4.1 licences, qualifications, registrations | Clause 5 | Retained for business registration, REC registration, personal licences and role-specific competencies. Every field electrician needs an individual record, own licence, office approval and personal Job access. Staff use private invitations; an owner who supplied those details in the business application does not repeat signup. AS 3999/insulation competencies apply only where law or an approved electrical scope expressly requires them. |
 | 4.1 $10m product/public liability | Clause 6; onboarding insurance gate and Schedule 1 | Source amount superseded by Jo's latest instruction and verified current official requirements: REC public liability minimum is $5m covering relevant electrical contracting work. Product and other insurance remains required only where law or the actual Goods/Services make it applicable; no unsupported separate fixed product-liability floor was added. |
 | 4.1 workers compensation/other insurance | Clause 6 | Retained where legally required or reasonably applicable, including motor vehicle and professional indemnity. |
 | 4.2 immediate licence/insurance notification | Clauses 5, 6 and 21 | Retained for expiry, suspension, restriction, cancellation and investigation. |
@@ -85,7 +85,10 @@ Date: 1 October 2026
 - The REC cannot give the owner a quote, invoice the owner, take owner payment or divert connected work.
 - Only mandatory electrical safety rectification enters the Activity 48 scope; unrelated independently requested electrical work is distinguished.
 - Supplier rates, including accepted custom Schedule 3 items, are separate from customer prices and bind only after mutual acceptance.
-- Meaningful response is due within 48 hours of the later actual portal allocation and relevant owner booking message. Owner replacement deactivates the old REC allocation and open proposals, not the Job.
+- First meaningful human REC-to-owner portal contact is due within 48 elapsed hours from the allocation being made available and notified to the REC, regardless of whether the owner writes first. Automatic receipts do not qualify. Later owner messages have their own response periods and cannot postpone the first-contact deadline.
+- At 48 hours without first meaningful contact, replacement is an owner option rather than an automatic action. An owner-requested replacement ends the former REC allocation, supersedes open proposals and revokes access, while preserving the Job, history and accrued rights for compliant accepted work.
+- Routine communication is portal-only. The same narrow immediate-safety and legally required exceptions apply consistently in clauses 12 and 27.
+- Chargeable work requires both portal-approved scope and owner approval of scope and price. AP authority alone cannot replace owner approval; only minimum legally necessary immediate-danger make-safe work is excepted.
 - Regulatory 24-hour delivery/notification timelines remain separate from the commercial 48-hour response rule.
 - Electrical test measurements remain required evidence.
 
@@ -109,5 +112,6 @@ The Essential Services Commission's **Obligations and Program Guide for Accredit
 - Confirm set-off/dispute mechanics, 14-day default payment trigger and treatment of GST/tax invoices.
 - Confirm audit-access drafting for occupied premises, staff records, privacy and third-party property rights.
 - Confirm electronic offer/office-approval formation mechanics and whether a countersigned downloadable record is preferred.
+- Confirm that the final first-contact/replacement wording and any later-message response tracking are reflected in operating procedures without automatic live cancellation.
 - Confirm current Activity 48, PIESA, electrical safety and record-retention references immediately before activation.
 - This implementation is not represented as legally flawless or guaranteed enforceable.
