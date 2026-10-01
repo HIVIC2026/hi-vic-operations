@@ -118,8 +118,8 @@ export function HowItWorksElectrician() {
       <div style={{ display: "grid", gap: 8 }}>
         {ELECTRICIAN_FAQ.map((f) => (
           <details key={f.q} style={{ border: "1px solid #E4E8F0", borderRadius: 12, padding: "10px 14px", background: "#fff" }}>
-            <summary style={{ fontWeight: 700, fontSize: 14, color: NAVY, cursor: "pointer" }}>{f(q.q)}</summary>
-            <p style={{ fontSize: 14, lineHeight: 1.55, color: MUTED, margin: "8px 0 2px" }}>{f(q.a)}</p>
+            <summary style={{ fontWeight: 700, fontSize: 14, color: NAVY, cursor: "pointer" }}>{f.q}</summary>
+            <p style={{ fontSize: 14, lineHeight: 1.55, color: MUTED, margin: "8px 0 2px" }}>{f.a}</p>
           </details>
         ))}
       </div>
