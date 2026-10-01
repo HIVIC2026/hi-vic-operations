@@ -332,10 +332,11 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       return <InsuranceStep d={d} up={up} token={token} setError={setError} />;
     case "services":
       return <>
-        <div style={infoCard}><strong>Included for all electrical partners:</strong> Initial onsite assessment + ceiling measure-up + PIESA</div>
+        <div style={infoCard}><strong>I would like to receive referrals from Home Insulation Victoria for:</strong></div>
+        <Check checked={d.service_piesa === true} onChange={(v) => up({ service_piesa: v })}>PIESA — pre-insulation electrical safety assessment (includes the ceiling measure-up)</Check>
         <Check checked={d.service_rectification === true} onChange={(v) => up({ service_rectification: v })}>Electrical rectification work</Check>
-        <Check checked={d.service_installation_isolation === true} onChange={(v) => up({ service_installation_isolation: v })}>Installation-day electrical attendance</Check>
-        <p style={{ fontSize: 13, color: MUTED }}>Optional. Leave either service off if you don't want that type of work.</p>
+        <Check checked={d.service_installation_isolation === true} onChange={(v) => up({ service_installation_isolation: v })}>Install day attendance</Check>
+        <p style={{ fontSize: 13, color: MUTED }}>Tick every type of work you want us to send you. You'll only ever be offered the work you tick.</p>
       </>;
     case "coverage":
       return <>

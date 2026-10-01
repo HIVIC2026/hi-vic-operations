@@ -39,7 +39,7 @@ const dataSchema = z.object({
   business_address: s(300), primary_contact_name: s(200), business_phone: s(30), business_email: s(320), authorised_to_register: z.boolean().optional(),
   insurer: s(200), insurance_policy_number: s(100), public_liability_cover_amount: n, public_liability_expiry: s(10),
   electricians: z.array(z.object({ full_legal_name: s(200), licence_number: s(50), mobile: s(30), email: s(320) })).max(30).optional(),
-  service_rectification: z.boolean().optional(), service_installation_isolation: z.boolean().optional(),
+  service_piesa: z.boolean().optional(), service_rectification: z.boolean().optional(), service_installation_isolation: z.boolean().optional(), licence_number: s(50),
   service_origin: s(300), travel_radius_km: n, excluded_areas: s(2000),
   typical_days: z.array(z.string().max(3)).max(7).optional(), normal_attendance_speed: s(50),
   capacity_band: s(10), accepting_jobs: z.boolean().optional(),
@@ -141,7 +141,7 @@ export const signRecAgreement = createServerFn({ method: "POST" })
     const hash = await sha256(text);
 
     // Partner enquiry row so the application appears in the existing admin review list.
-    const services = ["assessment_piesa", d.service_rectification && "rectification", d.service_installation_isolation && "installation_attendance"].filter(Boolean) as string[];
+    const services = [d.service_piesa !== false && "assessment_piesa", d.service_rectification && "rectification", d.service_installation_isolation && "installation_attendance"].filter(Boolean) as string[];
     const { data: pe, error: peErr } = await db.from("partner_enquiries").insert({
       source_system: "portal_form", enquiry_type: "electrician_rec", submission_id: `portal-rec-onboarding-${app.id}`,
       source: app.test_mode ? "portal_rec_onboarding_test" : "portal_rec_onboarding", name: d.primary_contact_name ?? null, email: d.business_email ?? null, phone: d.business_phone ?? null,
