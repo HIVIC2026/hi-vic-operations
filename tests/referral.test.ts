@@ -79,8 +79,8 @@ describe("customer payload + emails", () => {
     expect(withRef.html).not.toContain("KNOW SOMEONE WHO MIGHT QUALIFY?");
     expect(withRef.plainText).toContain(`Refer a friend: ${url}`);
     const onsiteRef = renderEstimateEmail({ estimateUrl, referralUrl: url, ...quote, outcome: "onsite" });
-    expect(onsiteRef.html).toContain("KNOW SOMEONE WHO MIGHT QUALIFY?");
-    expect(onsiteRef.plainText).toContain(`REFER A FRIEND: ${url}`);
+    expect(onsiteRef.html).toContain("Refer a friend</a>");
+    expect(onsiteRef.plainText).toContain(`Refer a friend: ${url}`);
     const none = renderEstimateEmail({ estimateUrl, ...quote });
     expect(none.html.toLowerCase()).not.toContain("refer a friend");
     expect(none.plainText.toLowerCase()).not.toContain("refer a friend");

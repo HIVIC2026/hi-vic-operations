@@ -58,41 +58,25 @@ describe("customer outcome email renderers", () => {
     expect(without.plainText).not.toMatch(/One of only/i);
   });
 
-  test("onsite confirmation remains positive and renders dynamic reasons", () => {
-    const email = renderEstimateEmail({ ...detailed, outcome: "onsite", reasons: ["existing_insulation_unknown", "Existing insulation needs confirmation.", "roof_access_review", "eligible_ceiling_area_unverified"] });
-    for (const copy of ["IT'S LOOKING GOOD SO FAR.", "WE JUST NEED TO CHECK", "Existing insulation — confirm what is currently installed and whether removal is required.", "Ceiling access — confirm access conditions and whether any access adjustment applies.", "Ceiling area — confirm the measured eligible ceiling area.", "$1,325", "$3,747", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "BOOK MY READY CHECK →", "See exactly what’s included on the next page."]) expect(email.html).toContain(copy);
-    for (const out of [email.html, email.plainText]) {
-      expect(out.split("IT'S LOOKING GOOD SO FAR").length - 1).toBe(1);
-      for (const gone of ["YOUR PRELIMINARY ESTIMATE IS READY", "YOU COULD STILL QUALIFY", "could still qualify"]) expect(out).not.toContain(gone);
-      expect(out.indexOf("IT'S LOOKING GOOD SO FAR")).toBeLessThan(out.indexOf("WE JUST NEED TO CHECK"));
-      expect(out.indexOf("Ceiling area — confirm")).toBeLessThan(out.indexOf("YOUR PRELIMINARY QUOTE"));
-    }
-    expect(email.plainText.indexOf("Ceiling area — confirm")).toBeLessThan(email.plainText.indexOf("PROPERTY"));
-    // hero reasons live inside hero; quote card follows directly
-    const afterHero = email.html.slice(email.html.indexOf('data-onsite-reasons="true"'));
-    expect(afterHero.indexOf('data-main-quote-card="true"')).toBeGreaterThan(0);
-    expect(afterHero.slice(0, afterHero.indexOf('data-main-quote-card="true"'))).not.toContain(CUSTOMER_VISUAL_SYSTEM_BORDER);
-    const one = renderEstimateEmail({ ...detailed, outcome: "onsite", reasons: ["roof_access_review"] });
-    expect(one.html).toContain("WE JUST NEED TO CHECK");
-    expect(one.plainText).toContain("WE JUST NEED TO CHECK");
-    const named = renderEstimateEmail({ ...detailed, outcome: "onsite", firstName: "Alex", reasons: ["roof_access_review"] });
-    expect(named.html).toContain("IT'S LOOKING GOOD SO FAR, ALEX.");
+  test("onsite confirmation uses the approved design and renders dynamic reasons once", () => {
+    const email = withUnsubscribe(renderEstimateEmail({ ...detailed, outcome: "onsite", address: "30 Dash St, Fraser Rise VIC 3336", reasons: ["existing_insulation_unknown", "Existing insulation needs confirmation.", "roof_access_review", "eligible_ceiling_area_unverified"] }), unsubscribeUrl);
+    const h = email.html;
+    for (const copy of ["Your insulation estimate — a few details to confirm", "It’s looking good — let’s check a few details", "Your home may qualify for a VEU ceiling insulation rebate. We just need to confirm a few details onsite.", "What we need to confirm", "Your potential VEU rebate", "You could save $1,325", "Estimated cost if eligible", "$3,747", "Indicative estimate only. Eligibility, ceiling measurements and final pricing still need to be confirmed.", "Open&nbsp;the&nbsp;calculator&nbsp;→", "Free Insulation Measure-Up &amp; Eligibility Check", "R5.0 ceiling insulation — supply &amp; install", "Electrical safety assessment (PIESA)", "Accredited Person (AP) management", "Arrange my free measure-up &amp; eligibility check →", "Demand is high. Installer availability is limited.", "No payment required. No obligation to proceed with installation.", "What could change this price?", CUSTOMER_WHAT_COULD_CHANGE.closing, "Unsubscribe"]) expect(`${email.subject} ${h}`).toContain(copy);
     for (const safeReason of ["Existing insulation — confirm what is currently installed and whether removal is required.", "Ceiling access — confirm access conditions and whether any access adjustment applies.", "Ceiling area — confirm the measured eligible ceiling area."]) {
-      expect(email.html.split(safeReason).length - 1).toBe(1);
+      expect(h.split(safeReason).length - 1).toBe(1);
       expect(email.plainText.split(safeReason).length - 1).toBe(1);
     }
-    for (const internal of ["existing_insulation_unknown", "roof_access_review", "eligible_ceiling_area_unverified", "WHAT WE NEED TO CONFIRM"]) expect(`${email.html} ${email.plainText}`).not.toContain(internal);
-    expect(email.html).toContain(`${estimateUrl}#calculator`);
-    expect(email.html.split("BOOK MY READY CHECK →").length - 1).toBe(1);
-    const onsiteQuote = email.html.slice(email.html.indexOf('data-main-quote-card="true"'), email.html.indexOf("WANT TO CHECK THE NUMBERS FIRST?"));
-    expect(onsiteQuote).toContain('data-ready-check-inside-quote="true"');
-    expect(onsiteQuote).toContain("BOOK MY READY CHECK →");
-    expect(email.html.indexOf("BOOK MY READY CHECK →")).toBeLessThan(email.html.indexOf("WANT TO CHECK THE NUMBERS FIRST?"));
-    expect(email.plainText.indexOf("BOOK MY READY CHECK →")).toBeLessThan(email.plainText.indexOf("WANT TO CHECK THE NUMBERS FIRST?"));
-    expect(`${email.html} ${email.plainText}`).not.toMatch(/NOT SURE YOUR CEILING SIZE IS RIGHT\?|CHECK ANOTHER CEILING SIZE →/);
-    const htmlQuote = email.html.slice(email.html.indexOf("YOUR PRELIMINARY QUOTE"), email.html.indexOf("NEXT STEP"));
-    const textQuote = email.plainText.slice(email.plainText.indexOf("YOUR PRELIMINARY QUOTE"), email.plainText.indexOf("NEXT STEP"));
-    for (const quote of [htmlQuote, textQuote]) expect(quote).not.toMatch(/\$99 Home Insulation Ready Check — payable now|credited toward your project|Estimated remaining project balance after Ready Check/);
+    for (const internal of ["existing_insulation_unknown", "roof_access_review", "eligible_ceiling_area_unverified"]) expect(`${h} ${email.plainText}`).not.toContain(internal);
+    expect(`${h} ${email.plainText}`).not.toMatch(/Ready Check|your home qualifies|Arrange my free check|A secure unsubscribe link appears below/i);
+    const order = ["<h1", "data-onsite-reasons", "data-likely-savings", "data-likely-calculator", "data-likely-itemised", "data-likely-next-step", "What could change this price?", "DC Construction Solutions Pty Ltd"].map((t) => h.indexOf(t));
+    expect(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1]!))).toBe(true);
+    expect(h.match(/<h1\b/g)?.length).toBe(1);
+    expect(h).toContain(`href="${estimateUrl}#confirm"`);
+    expect(h.split('href="https://estimate.homeinsulationvictoria.com.au/calculator"').length - 1).toBe(1);
+    expect(h.split(`href="${unsubscribeUrl}"`).length - 1).toBe(1);
+    const named = renderEstimateEmail({ ...detailed, outcome: "onsite", firstName: "Alex", reasons: [] });
+    expect(named.html).toContain("Alex, your home may qualify");
+    expect(named.html).toContain("A few property details that can only be confirmed onsite");
   });
 
   test("keeps detailed removal guidance off both emails", () => {
@@ -117,24 +101,26 @@ describe("customer outcome email renderers", () => {
   test("ineligible has dynamic reasons, no available discount, result CTA and referral", () => {
     const resultUrl = `${estimateUrl}#result`;
     const email = withUnsubscribe(renderIneligibleOutcomeEmail({ referralUrl, resultUrl, reasons: ["The home is five years old or newer.", "A previous Activity 48 upgrade was confirmed.", "The home is five years old or newer."], reference: "HV-1003" }), unsubscribeUrl);
-    for (const copy of ["WE'VE COMPLETED YOUR PROPERTY CHECK.", "UNFORTUNATELY, THIS PROPERTY DOESN'T APPEAR TO BE ELIGIBLE AT THIS STAGE", "Based on the information we have, this is because:", "five years old or newer", "previous Activity 48 upgrade", "If any of the information you entered was incorrect, you can review and update your answers. We will reassess the result using the corrected information.", "REVIEW MY RESULT →", "KNOW SOMEONE WHO MIGHT QUALIFY?", "REFER A FRIEND →", "They’ll enter their own Victorian property address and details so we can check their eligibility and calculate an estimate using the correct local VEU settings.", "Reference: HV-1003", "Unsubscribe", "home-insulation-victoria-logo.png"]) expect(email.html).toContain(copy);
+    for (const copy of ["Eligibility result", "Preliminary eligibility result", "Your ceiling insulation eligibility result", "this property doesn’t appear eligible for a VEU ceiling insulation rebate at this stage.", "What we found", "five years old or newer", "previous Activity 48 upgrade", "Something doesn’t look right?", "If any details are incorrect, review your result or contact us so we can check them.", "Review my result →", "Know someone else thinking about ceiling insulation? They can check their own eligibility.", "Refer&nbsp;a&nbsp;friend&nbsp;→", "For eligible upgrades", "Reference: HV-1003", "Unsubscribe", "home-insulation-victoria-logo.png"]) expect(email.html).toContain(copy);
     expect(email.html.split("five years old or newer").length - 1).toBe(1);
     expect(email.html).toContain(`href="${resultUrl}"`);
-    expect(email.html).not.toMatch(/estimated VEU discount|ESTIMATED CUSTOMER PRICE|PAY \$349|assessment payment available|\$1,325/i);
-    expect(email.html).not.toContain("WHY INSULATION MATTERS");
-    expect(email.html).not.toContain("COMFORT THROUGH THE SEASONS");
-    expect(email.html).not.toContain("THIS PROPERTY DOESN'T CURRENTLY APPEAR ELIGIBLE.");
-    for (const copy of ["UNFORTUNATELY, THIS PROPERTY DOESN'T APPEAR TO BE ELIGIBLE AT THIS STAGE", "Based on the information we have, this is because:", "• The home is five years old or newer.", "• A previous Activity 48 upgrade was confirmed.", "If any of the information you entered was incorrect, you can review and update your answers. We will reassess the result using the corrected information.", `REVIEW MY RESULT: ${resultUrl}`]) expect(email.plainText).toContain(copy);
+    expect(email.html).toContain(`href="${referralUrl}"`);
+    expect(email.html.split(`href="${unsubscribeUrl}"`).length - 1).toBe(1);
+    expect(email.html).not.toMatch(/You could save|cost after rebate|PAY \$349|\$1,325|Demand is high|Arrange my free|✓/i);
+    for (const copy of ["• The home is five years old or newer.", "• A previous Activity 48 upgrade was confirmed.", `Review my result: ${resultUrl}`, `Refer a friend: ${referralUrl}`]) expect(email.plainText).toContain(copy);
     expect(email.plainText.split("five years old or newer").length - 1).toBe(1);
-    expect(email.plainText).not.toMatch(/preliminary quote|payment|\$99|\$349|READY CHECK/i);
+    expect(email.plainText).not.toMatch(/preliminary quote|payment|\$99|\$349|READY CHECK|appears below/i);
+    expect(renderIneligibleOutcomeEmail({ referralUrl }).html).toContain("doesn’t meet the current requirements");
     expect(() => renderIneligibleOutcomeEmail({ referralUrl, resultUrl: `${estimateUrl}#confirm`, reasons: ["No"] })).toThrow();
   });
 
   test("AP count is conditional in likely; onsite keeps verified wording", () => {
     expect(renderEstimateEmail({ ...common, outcome: "likely", apCount: 7 }).html).toContain("We’re one of only 7 Accredited Persons approved for VEU ceiling insulation in Victoria.");
     expect(renderEstimateEmail({ ...common, outcome: "likely" }).html).not.toMatch(/one of only/i);
-    const verified = renderEstimateEmail({ ...common, outcome: "onsite", apCount: 7 });
-    expect(verified.html).toContain("ONE OF ONLY 7 ACCREDITED PERSONS CURRENTLY APPROVED FOR ACTIVITY 48 IN VICTORIA");
+    const verified = renderEstimateEmail({ ...detailed, outcome: "onsite", apCount: 7 });
+    expect(verified.html).toContain("We’re one of only 7 Accredited Persons approved for VEU ceiling insulation in Victoria.");
+    expect(renderEstimateEmail({ ...detailed, outcome: "onsite" }).html).not.toMatch(/one of only/i);
+    expect(renderIneligibleOutcomeEmail({ referralUrl, apCount: 2 }).html).not.toMatch(/one of only/i);
     for (const email of [verified, renderIneligibleOutcomeEmail({ referralUrl })]) expect(`${email.html} ${email.plainText}`).not.toMatch(/team member|staff/i);
   });
 
@@ -167,7 +153,7 @@ describe("customer outcome email renderers", () => {
     const likely = renderEstimateEmail(common).html;
     const ineligible = renderIneligibleOutcomeEmail({ referralUrl, reasons: ["Fixture reason"] }).html;
     expect(likely).toContain("font-family:'Figtree',Arial,Helvetica,sans-serif");
-    expect(ineligible).toContain("font-family:'Open Sans',Arial,Helvetica,sans-serif");
+    expect(ineligible).toContain("font-family:'Figtree',Arial,Helvetica,sans-serif");
     expect(likely).toContain("family=Figtree:wght@400;600;700;800&amp;family=Outfit:wght@700;800");
     expect(likely).toContain("font-family:'Outfit','Figtree',Arial,Helvetica,sans-serif");
     expect(likely).toContain("<!--[if !mso]><!-->");
@@ -175,8 +161,8 @@ describe("customer outcome email renderers", () => {
     expect(likely).toContain("@media only screen and (max-width:480px)");
     expect(source + preview).not.toMatch(/sendTemplateEmail|sendLovableEmail|createServerFn|supabase|fetch\(|\.insert\(|\.update\(/);
     expect(preview).toContain("Likely eligible");
-    expect(preview).toContain("Test OPEN THE INTERACTIVE CALCULATOR →");
-    expect(preview).toContain("Test REVIEW MY RESULT →");
+    expect(preview).toContain("Test Open the calculator →");
+    expect(preview).toContain("Test Review my result →");
     expect(preview).toContain("640 desktop");
     expect(preview).toContain("390 mobile");
   });
@@ -186,14 +172,14 @@ describe("customer outcome email renderers", () => {
     for (const outcome of ["likely", "onsite"] as const) {
       const email = renderEstimateEmail({ ...detailed, outcome });
       const quoteText = email.plainText;
-      const labels = outcome === "likely" ? ["R5.0 ceiling insulation", "Electrical safety assessment (PIESA)", "Accredited Person (AP) management"] : CUSTOMER_QUOTE_ORDER;
+      const labels = ["R5.0 ceiling insulation", "Electrical safety assessment (PIESA)", "Accredited Person (AP) management"];
       const indexes = labels.map((label) => quoteText.indexOf(label));
       expect(indexes.every((index, position) => index >= 0 && (position === 0 || index > indexes[position - 1]!))).toBe(true);
       expect(`${email.html} ${email.plainText}`).not.toMatch(/\bHI VIC\b/);
     }
     const ineligible = renderIneligibleOutcomeEmail({ referralUrl, reasons: ["Fixture reason"] });
     expect(ineligible.html).toContain(CUSTOMER_BRAND.logoUrl);
-    expect(ineligible.html).toContain(CUSTOMER_BRAND.font);
+    expect(ineligible.html).toContain("'Outfit','Figtree'");
     expect(`${ineligible.html} ${ineligible.plainText}`).not.toMatch(/PAY \$349|YOUR PRELIMINARY QUOTE|Estimated project total|\bHI VIC\b/);
   });
 });

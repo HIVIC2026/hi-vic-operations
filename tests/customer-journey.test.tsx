@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
-import { ConfirmQuote } from "../src/components/portal/estimate";
+import { ConfirmQuote, FREE_CHECK_CONFIRM_COPY } from "../src/components/portal/estimate";
 import { MeasuredQuoteView, PiesaStageView, SAMPLE_OBSERVATIONS } from "../src/components/portal/readycheck";
 import { CUSTOMER_APPROVAL_REASSURANCE, CUSTOMER_MEASURED_QUOTE, CUSTOMER_PIESA_STAGE, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK_PAGE } from "../src/lib/customer-quote-system";
 import { TEST_REC_RATE_CARD, computeElectricalAllowance, reconcilePiesa } from "../src/lib/readycheck.core";
@@ -10,11 +10,19 @@ const allowance = computeElectricalAllowance(SAMPLE_OBSERVATIONS, TEST_REC_RATE_
 const noop = () => {};
 
 describe("customer journey stages", () => {
-  test("Ready Check page: single card, no pseudo-quote or remaining balance", () => {
+  test("free check confirmation: approved name, gated request, no duplicate CTA after acceptance", () => {
     const html = renderToStaticMarkup(<ConfirmQuote estimatedPrice={3716.24} onBack={noop} preview testMode />);
-    for (const c of [CUSTOMER_READY_CHECK_PAGE.heading, CUSTOMER_READY_CHECK_PAGE.intro, CUSTOMER_READY_CHECK_PAGE.cardTitle, CUSTOMER_READY_CHECK_PAGE.credit, CUSTOMER_READY_CHECK_PAGE.notPiesa, CUSTOMER_APPROVAL_REASSURANCE, "BOOK MY READY CHECK →"]) expect(html).toContain(c.replace(/’/g, "’"));
-    expect(html).not.toMatch(/remaining|\$3,716|YOUR ESTIMATED COST AFTER DISCOUNT|WHAT COULD CHANGE/i);
-    expect(html.split("BOOK MY READY CHECK →").length - 1).toBe(1);
+    const C = FREE_CHECK_CONFIRM_COPY;
+    for (const c of [C.name, C.intro, C.free, C.installer, C.piesa, C.reassurance, CUSTOMER_APPROVAL_REASSURANCE, ...C.checklist]) expect(html).toContain(c.replace(/&/g, "&amp;"));
+    expect(html).not.toMatch(/remaining|\$3,716|YOUR ESTIMATED COST AFTER DISCOUNT|WHAT COULD CHANGE|Ready Check/i);
+    expect(html.split(C.cta.replace(/&/g, "&amp;")).length - 1).toBe(1);
+    expect(html).toMatch(/<input type="checkbox"(?![^>]*checked)[^>]*>/);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Confirm my free/);
+    const done = renderToStaticMarkup(<ConfirmQuote onBack={noop} preview testMode state={{ paymentStatus: "accepted" } as never} />);
+    expect(done).toContain(C.successHeading.replace(/’/g, "’"));
+    expect(done).not.toContain("Confirm my free");
+    expect(done).not.toContain('type="checkbox"');
+    expect(done).not.toMatch(/booked for|assigned to/i);
   });
 
   test("measured estimate: shared order, green discount and strongest total", () => {
