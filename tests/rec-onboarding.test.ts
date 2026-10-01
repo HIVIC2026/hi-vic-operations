@@ -50,7 +50,7 @@ describe("rec onboarding", () => {
     expect(stepErrors("rectification_pricing", { ...under, service_rectification: true })).toEqual([]);
     expect(firstIncompleteStep(under)).toBeNull();
     expect(stepErrors("business", { ...under, host_rec_name: undefined })).toContain("Enter the REC business you work under.");
-    expect(stepErrors("business", { works_under_rec: null })).toContain("Tell us if you run your own REC business or work under another REC.");
+    expect(stepErrors("about", { works_under_rec: null, primary_contact_name: "Sam", licence_number: "A12345", business_phone: "0412345678", business_email: "sam@example.com" })).toContain("Tell us if you are the REC or you work under a REC.");
   });
   test("insurance under $5M and expired rejected", () => {
     expect(stepErrors("insurance", { ...full, public_liability_cover_amount: 4_999_999 }).length).toBe(1);

@@ -4,7 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { withRequestMeta } from "./request-meta";
 import {
-  ACKNOWLEDGEMENTS, REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, agreementText, applyMaterialReset,
+  acknowledgementsFor, REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, agreementText, applyMaterialReset,
   effectiveElectricians, firstIncompleteStep, validBusinessEmail, type RecData,
 } from "./rec-onboarding.core";
 
@@ -130,14 +130,15 @@ export const signRecAgreement = createServerFn({ method: "POST" })
     if (app.status !== "draft") throw new Error("This application has already been signed.");
     if (data.agreement_version !== REC_AGREEMENT_VERSION) throw new Error("The agreement has been updated. Please reload and review it again.");
     if (!validBusinessEmail(data.signer_email)) throw new Error("Enter a real business email for the signer.");
-    for (const a of ACKNOWLEDGEMENTS) if (data.acknowledgements[a.key] !== true) throw new Error("Tick every acknowledgement to sign.");
     const d: RecData = { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path };
+    const ackList = acknowledgementsFor(d);
+    for (const a of ackList) if (data.acknowledgements[a.key] !== true) throw new Error("Tick every acknowledgement to sign.");
     const missing = app.test_mode ? null : firstIncompleteStep(d);
     if (missing) throw new Error(`Please complete the "${missing.replace(/_/g, " ")}" step before signing.`);
 
     const text = agreementText(d);
     const signedAt = new Date().toISOString();
-    const acks = Object.fromEntries(ACKNOWLEDGEMENTS.map((a) => [a.key, { text: a.text, accepted: true }]));
+    const acks = Object.fromEntries(ackList.map((a) => [a.key, { text: a.text, accepted: true }]));
     const hash = await sha256(text);
 
     // Partner enquiry row so the application appears in the existing admin review list.

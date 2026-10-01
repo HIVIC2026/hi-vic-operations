@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
-  ACKNOWLEDGEMENTS, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION,
+  acknowledgementsFor, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION,
   firstName, stepErrors, firstIncompleteStep, validAbn, visibleSteps, type RecData, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
@@ -303,12 +303,12 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
         <Field label="Your Victorian electrician licence number" required hint="Your personal ESV licence — you're the electrician, so this is you"><input style={input} {...t("licence_number", true)} /></Field>
         <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
         <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
+        <Field label="Are you the REC, or do you work under a REC?" required hint="The REC is the registered electrical contractor business — usually the director sets that up. If you work under someone else's REC, pick the second option.">
+          <Choice options={[{ v: false as boolean, l: "I am the REC — I run the registered business" }, { v: true as boolean, l: "I work under a REC" }]} value={d.works_under_rec ?? null} onChange={(v) => up({ works_under_rec: v })} />
+        </Field>
       </>;
     case "business":
       return <>
-        <Field label="Do you run your own REC business, or work under another REC?" required>
-          <Choice options={[{ v: false as boolean, l: "I run my own REC business" }, { v: true as boolean, l: "I work under another REC" }]} value={d.works_under_rec ?? null} onChange={(v) => up({ works_under_rec: v })} />
-        </Field>
         {d.works_under_rec === true ? <>
           <div style={infoCard}>Easy — no ABN, business, insurance, rates or bank details needed. The REC you work under holds all of that, agrees the rates and receives payment; we just verify with them. We only need your details and your licence.</div>
           <Field label="Your full legal name" required><input style={input} {...t("legal_entity_name")} /></Field>
@@ -326,7 +326,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       return <>
         <Field label="Business address" required hint="Start typing and pick your address from the list"><AddressInput value={d.business_address ?? ""} onChange={(v) => up({ business_address: v })} /></Field>
         <div style={{ ...infoCard, marginBottom: 16 }}>Contact: <strong>{d.primary_contact_name}</strong> · {d.business_phone} · {d.business_email} — if any of these are wrong, go back to "About you".</div>
-        <Check checked={d.authorised_to_register === true} onChange={(v) => up({ authorised_to_register: v })}>I'm authorised to set up this REC.</Check>
+        {d.works_under_rec !== true && <Check checked={d.authorised_to_register === true} onChange={(v) => up({ authorised_to_register: v })}>I'm authorised to set up this REC.</Check>}
       </>;
     case "insurance":
       return <InsuranceStep d={d} up={up} token={token} setError={setError} />;
@@ -474,7 +474,8 @@ function SignStep({ d, token, onSigned }: { d: RecData; token: string; onSigned:
   const [email, setEmail] = useState(d.business_email ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const ready = ACKNOWLEDGEMENTS.every((a) => acks[a.key]) && name.trim().length > 1 && position.trim().length > 1 && email.includes("@");
+  const ackList = acknowledgementsFor(d);
+  const ready = ackList.every((a) => acks[a.key]) && name.trim().length > 1 && position.trim().length > 1 && email.includes("@");
   async function sign() {
     setBusy(true); setErr(null);
     try {
@@ -484,7 +485,7 @@ function SignStep({ d, token, onSigned }: { d: RecData; token: string; onSigned:
   }
   return <>
     <div style={infoCard}>🛡 You're signing electronically. We store the exact wording you signed, its version, your details and the time, so both parties have the same record.</div>
-    {ACKNOWLEDGEMENTS.map((a) => <Check key={a.key} checked={!!acks[a.key]} onChange={(v) => setAcks((x) => ({ ...x, [a.key]: v }))}>{a.text}</Check>)}
+    {ackList.map((a) => <Check key={a.key} checked={!!acks[a.key]} onChange={(v) => setAcks((x) => ({ ...x, [a.key]: v }))}>{a.text}</Check>)}
     <Field label="Signer full legal name" required><input style={input} value={name} onChange={(e) => setName(e.target.value)} /></Field>
     <Field label="Position / title" required><input style={input} placeholder="e.g. Director" value={position} onChange={(e) => setPosition(e.target.value)} /></Field>
     <Field label="Signer email" required><input style={input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
