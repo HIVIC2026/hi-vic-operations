@@ -31,6 +31,7 @@ function officialFields(key: "piesa" | "piisa"): FormField[] {
     ...(i.kind === "heading" || i.kind === "statement" ? { statement: i.kind } : {}), source: `${src} ${i.section}`,
   }));
 }
+const YN = ["Yes", "No"];
 const SUPP = "Home Insulation Victoria evidence – not part of the official form";
 const sup = (label: string, source: string, extra: Partial<FormField> = {}): FormField => ({ label, type: "media", required: true, supplemental: true, source: `${SUPP}: ${source}`, ...extra });
 const PIESA_SUPPLEMENTAL: FormField[] = [
@@ -124,6 +125,8 @@ const TYPE_ALIASES: Record<FieldType, string[]> = {
   text: ["text", "textsingle"], number: ["number", "slider", "textsingle", "text"], choice: ["list", "question", "choice"],
   multichoice: ["list", "question", "choice", "multiselect", "checkbox"],
   yesno: ["question", "list", "yesno"], media: ["media", "attachment", "drawing"], signature: ["signature", "drawing"], datetime: ["datetime"],
+  // Mitti has no date-only item; the portal keeps only the date part (see official-forms.core renderOfficialDocument).
+  date: ["datetime", "date"], tick: ["checkbox", "question", "list"], statement: [],
 };
 
 export type TemplateItem = { label: string; type: string };
@@ -132,10 +135,18 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
   const issues: string[] = [];
   const byLabel = new Map<string, TemplateItem[]>();
   for (const it of items) { const n = norm(it.label ?? ""); if (!n) continue; byLabel.set(n, [...(byLabel.get(n) ?? []), it]); }
-  for (const f of FORMS[key].fields) {
+  // Official forms repeat some labels (e.g. "Licence no:" in B3 and Section C): expect exactly that many.
+  const expected = new Map<string, number>();
+  const fields = FORMS[key].fields.filter((f) => !f.statement);
+  for (const f of fields) if (!f.perArea && !f.perPriceLine && !f.row) expected.set(norm(f.label), (expected.get(norm(f.label)) ?? 0) + 1);
+  const checked = new Set<string>();
+  for (const f of fields) {
     const hits = byLabel.get(norm(f.label)) ?? [];
     if (hits.length === 0) { if (f.required) issues.push(`Missing: ${f.label}`); continue; }
-    if (hits.length > 1 && !f.perArea && !f.perPriceLine) { issues.push(`Duplicate: ${f.label}`); continue; }
+    const exp = expected.get(norm(f.label)) ?? 0;
+    const rowCap = fields.filter((x) => x.row && norm(x.label) === norm(f.label)).reduce((s, x) => s + x.row!.rows, 0);
+    if (!f.perArea && !f.perPriceLine && !f.row && hits.length > exp + rowCap) { if (!checked.has(norm(f.label))) issues.push(`Duplicate: ${f.label}`); checked.add(norm(f.label)); continue; }
+    if (!f.perArea && !f.perPriceLine && !f.row && hits.length < exp && f.required) { if (!checked.has(norm(f.label))) issues.push(`Missing: ${f.label} (expected ${exp})`); checked.add(norm(f.label)); continue; }
     if (hits.some((h) => !TYPE_ALIASES[f.type].includes(String(h.type).toLowerCase()))) issues.push(`Wrong type: ${f.label} (expected ${f.type})`);
   }
   // Role guard: installer forms must never contain PIESA conclusions.
@@ -174,11 +185,13 @@ export function flattenDefinition(def: unknown): TemplateItem[] {
 const MITTI_TYPE: Record<FieldType, string> = {
   text: "Text answer", number: "Number answer", choice: "Multiple choice (single answer)", multichoice: "Multiple choice (choose ALL that apply)", yesno: "Question (response set)",
   media: "Media (photo/video, camera allowed)", signature: "Signature", datetime: "Date & time",
+  date: "Date & time (the portal keeps the date only)", tick: "Checkbox (single tick)", statement: "Instruction (text only, copy verbatim)",
 };
 /** Exact brief to paste into Mitti's AI template builder. Labels must be copied verbatim — the portal matches on them. */
 export function mittiAiPrompt(key: FormKey): string {
   const f = FORMS[key];
   const fields = f.fields.filter((x) => !x.portalOnly);
+  const rowGroups = [...new Set(fields.filter((x) => x.row).map((x) => x.row!.group))];
   const perArea = fields.filter((x) => x.perArea);
   const perPriceLine = fields.filter((x) => x.perPriceLine);
   const lines = fields.map((x, i) => {
@@ -187,6 +200,9 @@ export function mittiAiPrompt(key: FormKey): string {
     bits.push(x.required ? (x.when ? `MANDATORY only when: ${x.when} (use logic to show it; hidden otherwise)` : "MANDATORY") : "optional");
     if (x.perArea) bits.push("inside the repeating 'Ceiling area' section");
     if (x.perPriceLine) bits.push("inside the repeating 'Quoted price line' section");
+    if (x.row) bits.push(`column of the repeating table "${x.row.group}" (up to ${x.row.rows} rows)`);
+    if (x.supplemental) bits.push("put in the separate final section \"Home Insulation Victoria evidence (not part of the official form)\"");
+    if (x.statement) return `${i + 1}. INSTRUCTION, verbatim: "${x.label}"`;
     if (x.prefill) bits.push("header field, prefilled by the portal – keep editable but do not rename");
     return `${i + 1}. "${x.label}" — ${bits.join("; ")}`;
   });
@@ -205,7 +221,8 @@ export function mittiAiPrompt(key: FormKey): string {
     perPriceLine.length ? `- Put these fields in a repeatable section called "Quoted price line": ${perPriceLine.map((x) => `"${x.label}"`).join(", ")}.` : "",
     key === "ready_check_priced" ? `- Price section: ONE multiple-choice question where the installer ticks everything included, then ONE total price. Do NOT add a price box per item and do NOT repeat the price section. Build "What's included in your price (tick all that apply)" as a SINGLE question with all 6 options (not separate checkboxes). Show "Describe the other item" only when "Other" is ticked. All prices incl GST.` : "",
     key === "ready_check" || key === "ready_check_priced" ? `- For "Upgrade area diagram or floor plan": allow the installer to DRAW the diagram inside the form (sketch/drawing input), photograph a paper sketch, or upload a plan. Help text: "Rough is fine. Draw the house shape, split it into the areas you measured, write the length and width on each, take a photo, done."` : "",
-    key === "piesa" ? "- Section C and the rectification electrician fields are completed on the return visit after rectification. Put them in a section called \"Section C – Rectification completion\" shown only when \"B1 Assessment outcome\" is \"Electrical rectification work is required before insulation is installed or upgraded.\"" : "",
+    rowGroups.length ? `- Build each repeating table (${rowGroups.join(", ")}) as a repeatable section with exactly the listed columns, limited to the listed number of rows.` : "",
+    key === "piesa" ? "- Section C fields are completed after rectification and are shown only when the B1 answer is \"Electrical rectification work is required before insulation is installed or upgraded.\"" : "",
     key === "piesa" || key === "piisa" ? "- If \"Is anyone at this property dependent on life support?\" is Yes, the consent/medical-plan question and attachment are required; if neither was received, the assessment must not proceed (add an instruction saying: STOP – do not start the assessment. Call the Home Insulation Victoria office.)." : "",
     "- Order the fields exactly as listed.",
     "",
