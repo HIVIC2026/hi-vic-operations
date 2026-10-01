@@ -47,11 +47,18 @@ We fix this one form first, get your sign-off, then move to the next. The old A1
    - Life support equipment seen onsite?   Matches office / Different   MANDATORY
    - What's different?                     text                MANDATORY only if Different (job pauses, office notified)
 
-5. YOUR QUOTED PRICE (A1 only)
-   Repeat one line per item:
-   - Line description | Quantity | Unit (m2 / each / flat / hour) | Unit price inc GST $   all MANDATORY
-   - Total quoted price inc GST $          number              MANDATORY (must match the lines)
-   - What this price includes              text                MANDATORY
+5. YOUR QUOTED PRICE (A1 only, all prices inc GST)
+   a. R5.0 ceiling insulation, supply and install
+      - Price $                            number              MANDATORY
+      (area is taken from the room totals above, never retyped)
+   b. Removal of existing insulation       (only shown if any room says Remove)
+      - Price $                            number              MANDATORY only if shown
+      (removal m2 and batts/loose fill come from the rooms above)
+   c. Other items (repeat as many as needed: tile lift, metal sheet access, etc.)
+      - Any other items?                   Yes / No            MANDATORY
+      - Describe the item                  text                MANDATORY only if Yes
+      - Price $                            number              MANDATORY only if Yes
+   d. Total quoted price $                 number              MANDATORY (must equal a + b + c)
    - Already agreed this price with the owner?   Yes / No      MANDATORY
 
 6. FINISH
