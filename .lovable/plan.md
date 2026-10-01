@@ -70,7 +70,7 @@ We fix this one form first, get your sign-off, then move to the next. The old A1
 - Adds up total area, removal area, and how much of each insulation type there is, so batts and loose fill are priced separately.
 - Checks that the price lines add up to the total. If they don't, or a line is missing, the job goes to the office for review. The portal never guesses a price.
 - Builds the owner quote: your lines + PIESA + our AP fee − VEU discount.
-- If the onsite life support result differs from the office's, or anything is marked "Not sure", it raises a To action item.
+- If anything is marked "Not sure", it raises a To action item.
 
 ## Decisions for you
 1. Per room: one "Area (m2)" number, or length × width with the portal working out the m2?
