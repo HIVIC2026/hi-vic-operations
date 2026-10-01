@@ -93,4 +93,4 @@
 
 - [ ] Customer web address (estimate.homeinsulationvictoria.com.au): bare address opens the calculator only; staff sign-in moves to /home; hide the "Edit with Lovable" badge so nothing says Lovable on customer pages
 
-- [ ] Confirm public portal access boundaries and provide the published app URL.
+- [x] Confirm public portal access boundaries and provide the published app URL.
