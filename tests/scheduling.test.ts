@@ -11,7 +11,7 @@ describe("assessment scheduling has one normal path", () => {
   test("owner and field views do not expose a direct assessment booking form", () => {
     expect(src("src/routes/_authenticated/field.$jobId.tsx")).not.toMatch(/BookingPanel[^>]*kind="assessment"/);
     const owner = src("src/routes/_authenticated/owner.$jobId.tsx");
-    expect(owner).toContain('bookKind !== "assessment"');
+    expect(owner).toContain(': null; // legacy assessment bookings retired');
     expect(owner).toContain("<AppointmentPanel");
   });
   test("admin assessment BookingPanel is read-only; override is separately labelled", () => {
