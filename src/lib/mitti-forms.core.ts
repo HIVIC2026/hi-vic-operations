@@ -40,8 +40,8 @@ const PIESA_SUPPLEMENTAL: FormField[] = [
 ];
 const PIISA_SUPPLEMENTAL: FormField[] = [
   sup("SWMS", `${G} SWMS`),
-  sup("Is the existing insulation foil backed or electrically conductive?", "portal record — official note in Part 6 (NEEDS OFFICIAL/LEGAL CONFIRMATION)", { type: "choice", choices: ["Yes", "No"], when: "Existing insulation present", id: "supp.conductive" }),
-  sup("Photo of existing insulation showing whether it is foil backed or conductive", "portal record — evidence for the conductivity answer", { when: "Existing insulation present", id: "supp.conductiveEvidence" }),
+  sup("Is the existing insulation foil backed or electrically conductive?", "HI VIC portal record (not on the official PIISA) — needed to apply the printed Part 6 note (NEEDS OFFICIAL/LEGAL CONFIRMATION)", { type: "choice", choices: ["Yes", "No"], when: "Existing insulation present", id: "supp.conductive" }),
+  sup("HI VIC supporting evidence: photo of existing insulation showing whether it is foil backed or conductive", "HI VIC supporting evidence — separate from the official PIISA, which asks for no photo", { when: "Existing insulation present", id: "supp.conductiveEvidence" }),
   sup("Isolation photo – switchboard tagged and locked out, solar and battery isolators off", `${G} Table 4`),
   sup("Electrician photo at front of premises with photo ID on install day", `${G} Table 4`, { when: "Electrician required at installation" }),
   sup("Product packaging photo – brand, model, R-value", `${G} Table 4`),
