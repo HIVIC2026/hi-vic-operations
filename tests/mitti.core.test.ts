@@ -28,7 +28,7 @@ function fake(opts: { users?: { id: string; email: string }[]; template?: unknow
     if (path.startsWith("/users/search")) return { users: opts.users ?? [{ id: "user_77", email: "sparky@hivic.test" }] };
     if (path.startsWith("/templates/")) return opts.template ?? TEMPLATE;
     if (path === "/audits") return { audit_id: `audit_${++n}`, created_at: "2026-09-28T01:00:00Z" };
-    if (path.endsWith("/share")) return {};
+    if (path.endsWith("/share") || path.endsWith("/owner")) return {};
     if (path.startsWith("/audits/")) return opts.audit;
     throw new Error("unexpected " + path);
   };
