@@ -73,10 +73,9 @@ describe("parseInterest", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("requires a property address", () => {
+  it("accepts a lead with no property address — never lose a lead", () => {
     const result = parseInterest({ ...base, addressLine: "", suburb: "", ceilingM2: 0 });
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors.addressLine ?? "").toContain("property address");
+    expect(result.ok).toBe(true);
   });
 
   it("accepts a lead with a full address and no ceiling size", () => {
