@@ -5,7 +5,6 @@ import {
   LEAD_24H_RULE, OPTION_OWN_CUSTOMER, OPTION_OUR_LEAD,
   PARTNER_FAQ, PAYMENT_TERMS, PORTAL_ONLY_COMMS, WHY_349, type HowStep,
 } from "@/lib/partner-howitworks";
-import { DEFAULT_LEAD_FEE, applyLeadFee } from "@/lib/installer-onboarding.core";
 
 const NAVY = "#22376B";
 const MUTED = "#4A5578";
@@ -45,9 +44,8 @@ function Panel({ accent, title, children }: { accent: { bg: string; fg: string }
   );
 }
 
-export function HowItWorks({ leadFee = DEFAULT_LEAD_FEE }: { leadFee?: number } = {}) {
-  const f = (t: string) => applyLeadFee(t, leadFee);
-  const fee = (o: { title: string; tagline: string; steps: HowStep[]; footer: string }) => ({ ...o, title: f(o.title), tagline: f(o.tagline), footer: f(o.footer), steps: o.steps.map((s) => ({ ...s, title: f(s.title), body: f(s.body) })) });
+export function HowItWorks() {
+  const fee = (o: { title: string; tagline: string; steps: HowStep[]; footer: string }) => o;
   return (
     <div>
       <Panel accent={GREENA} title="Our app: get it right on the day">
