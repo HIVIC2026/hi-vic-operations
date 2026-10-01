@@ -147,7 +147,7 @@ export const signInstallerAgreement = createServerFn({ method: "POST" })
     const services = ["supply_install", d.service_batts_removal && "batts_removal", d.service_loose_fill_removal && "loose_fill_removal"].filter(Boolean) as string[];
     const { data: pe, error: peErr } = await db.from("partner_enquiries").insert({
       source_system: "portal_form", enquiry_type: "installer", submission_id: `portal-installer-onboarding-${app.id}`,
-      source: "portal_installer_onboarding", name: d.primary_contact_name ?? null, email: d.business_email ?? null, phone: d.business_phone ?? null,
+      source: app.test_mode ? "portal_installer_onboarding_test" : "portal_installer_onboarding", name: d.primary_contact_name ?? null, email: d.business_email ?? null, phone: d.business_phone ?? null,
       company: d.trading_name || d.legal_entity_name || null, service_areas: [d.service_origin, d.travel_radius_km === 9999 ? "Anywhere in Victoria" : `${d.travel_radius_km} km radius`].filter(Boolean) as string[],
       cii_certification_status: d.cii_status ?? null, cii_certification_details: d.cii_details ?? null,
       services, estimated_r5_install_rate_per_sqm_inc_gst: d.r5_rate ?? null,
