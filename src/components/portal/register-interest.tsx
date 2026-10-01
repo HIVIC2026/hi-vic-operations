@@ -69,12 +69,7 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
     setError("");
     const trimmedLine = line.trim();
     const foundPostcode = postcodeNow.trim() || extractPostcode(trimmedLine);
-    if (trimmedLine.length < 5) {
-      setEditing(true);
-      setError("Please add your property address so we know where to come.");
-      return;
-    }
-    if (foundPostcode.length !== 4) {
+    if (trimmedLine.length >= 5 && foundPostcode.length !== 4) {
       setEditing(true);
       setError("Please include your postcode in the address, for example 34 Watsons Road, Bundoora VIC 3757.");
       return;
