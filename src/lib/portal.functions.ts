@@ -377,6 +377,36 @@ export const addOtherRectItem = createServerFn({ method: "POST" }).middleware([r
     return { ok: true };
   });
 
+export const getAssignedRecRates = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const { data: assigned } = await admin.from("job_assignments").select("business_id").eq("job_id", data.jobId).eq("role", "electrician").eq("active", true).maybeSingle();
+    if (!assigned?.business_id) return [];
+    const { data: card } = await admin.from("rate_cards").select("id").eq("business_id", assigned.business_id).eq("kind", "electrical").eq("is_active", true).order("version", { ascending: false }).limit(1).maybeSingle();
+    if (!card) return [];
+    const { data: rates, error } = await admin.from("rate_card_items").select("code,description,unit,display_unit,unit_price_ex_gst").eq("rate_card_id", card.id).eq("category", "electrical").like("code", "CUSTOM_%").order("sort");
+    if (error) throw new WorkflowError("Approved REC rates could not be loaded.");
+    return rates ?? [];
+  });
+
+export const addApprovedRectItem = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, rateCode: z.string().regex(/^CUSTOM_[A-Z0-9]{1,33}$/), quantity: z.number().positive().max(1000), explanation: z.string().trim().max(2000).optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const stage = await getStage(data.jobId);
+    if (!["assessment_booked", "assessment_booking", "assessment_complete", "rectification_required", "awaiting_owner_rectification_approval"].includes(stage)) throw new WorkflowError("Approved items can only be added before the owner approves rectification.");
+    const { data: assigned } = await admin.from("job_assignments").select("business_id").eq("job_id", data.jobId).eq("role", "electrician").eq("active", true).maybeSingle();
+    if (!assigned?.business_id) throw new WorkflowError("No REC business is assigned to this job.");
+    const { data: cards } = await admin.from("rate_cards").select("id,rate_card_items(code,description)").eq("business_id", assigned.business_id).eq("kind", "electrical").eq("is_active", true).order("version", { ascending: false }).limit(1);
+    const approved = (cards?.[0]?.rate_card_items as { code: string; description: string }[] | undefined)?.find((item) => item.code === data.rateCode);
+    if (!approved) throw new WorkflowError("That item is not on the assigned REC's approved rate card.");
+    await admin.from("rectification_items").insert({ job_id: data.jobId, rate_code: approved.code, description: approved.description, quantity: data.quantity, is_other: false, explanation: data.explanation ?? null, added_by: context.userId });
+    await logEvent(data.jobId, context.userId, "rectification_approved_item_added", `Approved rectification item added: ${approved.description}`, { rate_code: approved.code, quantity: data.quantity });
+    if (stage === "awaiting_owner_rectification_approval") await generateRectificationQuote(data.jobId, context.userId);
+    return { ok: true };
+  });
+
 export const removeRectItem = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ itemId: uuid }).parse(d))
   .handler(async ({ data, context }) => {

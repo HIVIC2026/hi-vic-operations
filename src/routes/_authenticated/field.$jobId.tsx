@@ -16,7 +16,7 @@ import { MeasurementDetails, MeasurementForm, MeasurementReadOnly, useJobScope, 
 import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { InstallerJourney } from "@/components/portal/installer-journey";
-import { addOtherRectItem, completeAssessment, completeInstallation, recordPiesa, removeRectItem, saveAssessment, submitForApReview } from "@/lib/portal.functions";
+import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment, submitForApReview } from "@/lib/portal.functions";
 import { aud } from "@/lib/workflow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -157,11 +157,15 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
 
 function OtherItems({ jobId, editable }: { jobId: string; editable: boolean }) {
   const add = useAction(addOtherRectItem);
+  const addApproved = useAction(addApprovedRectItem);
   const remove = useAction(removeRectItem);
   const { data } = useQuery({ queryKey: ["rect", jobId], queryFn: async () => (await supabase.from("rectification_items").select("*").eq("job_id", jobId).neq("status", "removed")).data ?? [] });
+  const { data: approvedRates = [] } = useQuery({ queryKey: ["assigned-rec-rates", jobId], queryFn: () => getAssignedRecRates({ data: { jobId } }) });
   const [o, setO] = useState({ description: "", quantity: "1", price: "", explanation: "" });
+  const [approved, setApproved] = useState({ code: "", quantity: "1" });
   return (
     <Section title="4 · Rectification items">
+      {editable && approvedRates.length > 0 && <div className="mb-4 rounded-lg border p-3"><p className="mb-2 text-sm font-semibold">Add from your approved rate schedule</p><div className="grid gap-2 sm:grid-cols-[1fr_7rem_auto]"><select className="h-12 rounded-lg border bg-background px-3 text-sm" value={approved.code} onChange={(e) => setApproved((x) => ({ ...x, code: e.target.value }))}><option value="">Choose an item</option>{approvedRates.map((rate) => <option key={rate.code} value={rate.code}>{rate.description} · {rate.display_unit || rate.unit}</option>)}</select><Input className="h-12" type="number" min="0.01" step="0.01" aria-label="Quantity" value={approved.quantity} onChange={(e) => setApproved((x) => ({ ...x, quantity: e.target.value }))} /><Button disabled={!approved.code || !(Number(approved.quantity) > 0)} onClick={() => addApproved({ jobId, rateCode: approved.code, quantity: Number(approved.quantity) }, "Approved rectification item added")}>Add</Button></div></div>}
       <p className="mb-2 text-xs text-muted-foreground">Standard items (downlights, RCDs, switchboard, fan clearances) are priced automatically from your answers above.</p>
       <ul className="mb-3 space-y-1 text-sm">
         {data?.map((i) => <li key={i.id} className="flex items-center justify-between gap-2"><span>{i.description} × {Number(i.quantity)}{i.is_other && ` @ ${aud(i.other_unit_price_inc_gst)}`}</span>{i.is_other && editable && <Button size="sm" variant="ghost" onClick={() => remove({ itemId: i.id })}>Remove</Button>}</li>)}
