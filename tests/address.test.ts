@@ -54,7 +54,7 @@ test("drops rows from other states", () => {
   expect(found).toEqual([]);
 });
 
-test("drops rows without a postcode, street or suburb", () => {
+test("needs a suburb and a real postcode", () => {
   const found = parseNominatimSuggestions(
     [
       row({ ...VIC, road: "Smith Street", suburb: "Fitzroy", postcode: "30" }),
@@ -63,9 +63,9 @@ test("drops rows without a postcode, street or suburb", () => {
     ],
     "smith street",
   );
-  // The second and third each have one half of what we need, so they survive as
-  // suburb-only or street-only rows; nothing with a broken postcode does.
-  expect(found.map((s) => s.full)).toEqual(["Fitzroy VIC 3065", "Smith Street VIC 3065"]);
+  // A broken postcode and a street with no suburb are both useless to us — the
+  // whole point of the search is that the suburb and postcode come out right.
+  expect(found.map((s) => s.full)).toEqual(["Fitzroy VIC 3065"]);
 });
 
 test("uses the suburb field, not the city, so Bundoora never reads as Melbourne", () => {
