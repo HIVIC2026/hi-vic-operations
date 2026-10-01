@@ -1,40 +1,60 @@
-/** Pure Step 3 follow-up renderers (3-day unopened, 3-day engaged, 7-day). No data access or delivery. */
-import { escape, likelyShell, validEstimateUrl, validReferralUrl, validTrackingUrl, type EstimateEmail } from "./estimate-email";
+/** Pure Step 3 follow-up renderers (3-day unopened, 3-day engaged, 7-day). No data access or delivery.
+ * Uses the approved outcome-email theme (V2_THEME) so reminders match the likely/onsite/ineligible emails. */
+import { escape, V2_THEME, validEstimateUrl, validReferralUrl, validTrackingUrl, type EstimateEmail } from "./estimate-email";
 import type { FollowupKind } from "./engagement.core";
-import { CUSTOMER_BRAND, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_VISUAL_SYSTEM } from "./customer-quote-system";
 
 export type FollowupEmailInput = { kind: FollowupKind; estimateUrl: string; trackingClickUrl?: string | null; trackingPixelUrl?: string | null; referralUrl?: string | null };
 
-const INCLUDED = CUSTOMER_READY_CHECK_EMAIL_ACTION.sentence;
-const COPY: Record<FollowupKind, { subject: string; preview: string; heading: string; paras: string[]; bullets?: string[]; cta: string; hash?: string }> = {
+const SERVICE = "Free Insulation Measure-Up & Eligibility Check";
+const PIESA = "The mandatory electrical safety assessment (PIESA) is a separate paid step, completed later by a licensed electrician, close to installation.";
+const REASSURE = "No payment required. No obligation to proceed with installation.";
+const DEMAND = "Demand is high. Installer availability is limited.";
+const HELPER = "Your secure estimate link is personal to your property.";
+
+type Copy = { subject: string; preview: string; badge: string; heading: string; intro: string; listTitle: string; ticks: string[]; listNote?: string; actionTitle: string; actionBody: string; demand?: boolean; cta: string; hash?: string };
+const COPY: Record<FollowupKind, Copy> = {
   estimate_unopened_3d: {
     subject: "Just checking you received your Home Insulation Victoria estimate",
-    preview: "Your personalised Home Insulation Victoria insulation estimate is ready whenever you are.",
-    heading: "Just checking you received your Home Insulation Victoria estimate",
-    paras: ["We prepared a personalised preliminary estimate for your home a few days ago, including your estimated VEU / VEEC discount and what's included.", INCLUDED],
-    cta: "VIEW MY ESTIMATE",
+    preview: "Your preliminary ceiling insulation estimate is ready whenever you are.",
+    badge: "Your estimate",
+    heading: "Just checking you received your estimate",
+    intro: "We prepared a preliminary ceiling insulation estimate for your home a few days ago, including your estimated VEU rebate and what’s included.",
+    listTitle: "What your estimate shows",
+    ticks: ["Your estimated VEU rebate", "Your estimated cost, including GST", "What the quote includes", `Your next step: a ${SERVICE}`],
+    actionTitle: "Take a look when it suits you",
+    actionBody: "Your estimate is saved and ready. Open it any time to review the details.",
+    cta: "View my estimate →",
   },
   estimate_engaged_no_booking_3d: {
-    subject: "Ready to book your Home Insulation Ready Check?",
-    preview: "Your free Ready Check turns your estimate into a measured Home Insulation Victoria project estimate.",
-    heading: "Ready to book your Home Insulation Ready Check?",
-    paras: ["Thanks for taking a look at your preliminary estimate.", INCLUDED, "The Ready Check is not the mandatory PIESA. Your PIESA is completed later by a licensed electrician, close to installation."],
-    cta: "BOOK MY READY CHECK", hash: "#confirm",
+    subject: `Ready for your ${SERVICE}?`,
+    preview: "Your free measure-up & eligibility check confirms the details so we can update your estimate.",
+    badge: "Next step",
+    heading: "Ready for your free measure-up & eligibility check?",
+    intro: "Thanks for taking a look at your preliminary estimate. Your free measure-up & eligibility check confirms ceiling size, existing insulation and access so we can update your estimate.",
+    listTitle: "What the free visit covers",
+    ticks: ["Ceiling measurements", "Existing insulation, removal and access", "Eligibility evidence and site photos", "An updated estimate for you to review"],
+    listNote: PIESA,
+    actionTitle: `Your free measure-up & eligibility check`,
+    actionBody: "An installer from our pre-vetted panel will contact you to arrange a time.",
+    demand: true,
+    cta: "Arrange my free measure-up & eligibility check →", hash: "#confirm",
   },
   estimate_second_reminder_7d: {
     subject: "Your Home Insulation Victoria estimate is still here for you",
-    preview: "A warmer, cooler, more efficient home — your estimate is ready when you are.",
-    heading: "Your estimate is still here when you're ready",
-    paras: ["A quick, final reminder about your personalised Home Insulation Victoria preliminary estimate. There's no pressure — it's there whenever suits you."],
-    bullets: ["Warmer in winter and cooler in summer", "PIESA by a licensed electrician employed by a REC; installation by an EEC Certified Insulation Installer (CII)", "Transparent Home Insulation Victoria pricing — partner trades do not decide what you pay"],
-    cta: "VIEW MY ESTIMATE",
+    preview: "Your preliminary ceiling insulation estimate is ready when you are.",
+    badge: "Your estimate",
+    heading: "Your estimate is still here when you’re ready",
+    intro: "A quick, final reminder about your preliminary ceiling insulation estimate. There’s no pressure — it’s there whenever suits you.",
+    listTitle: "Why homeowners upgrade",
+    ticks: ["Warmer in winter and cooler in summer", "PIESA by a licensed electrician employed by a REC; installation by an EEC Certified Insulation Installer (CII)", "Transparent Home Insulation Victoria pricing — partner trades do not decide what you pay"],
+    actionTitle: "Pick up where you left off",
+    actionBody: "Your estimate is saved. Open it to review the details or arrange your free measure-up & eligibility check.",
+    cta: "View my estimate →",
   },
 };
 
-const F = CUSTOMER_BRAND.font;
-const B = CUSTOMER_BRAND.colors.blue, G = CUSTOMER_BRAND.colors.green, N = CUSTOMER_BRAND.colors.navy;
-const p = (c: string, extra = "") => `<p class="hiv-body" style="margin:0 0 12px;font-family:${F};font-size:13px;line-height:1.6;color:${N};${extra}">${c}</p>`;
-const row = (content: string, pad: string, cls = "hiv-pad") => `<tr><td class="${cls}" style="padding:${pad};font-family:${F};">${content}</td></tr>`;
+const { F, FH, colors: C } = V2_THEME;
+const tick = (t: string) => `<tr><td valign="top" width="24" style="width:24px;padding:0 0 9px;font-family:Arial,Helvetica,sans-serif;color:${C.GREEN};font-size:16px;line-height:20px;font-weight:800;">✓</td><td valign="top" style="padding:0 0 9px;${F}color:${C.INK};font-size:14px;line-height:20px;font-weight:700;">${escape(t)}</td></tr>`;
 
 export function renderFollowupEmail(input: FollowupEmailInput): EstimateEmail {
   const c = COPY[input.kind];
@@ -44,12 +64,20 @@ export function renderFollowupEmail(input: FollowupEmailInput): EstimateEmail {
   const target = validTrackingUrl(input.trackingClickUrl, "click") ?? (c.hash ? `${base}${c.hash}` : link.toString());
   const pixel = validTrackingUrl(input.trackingPixelUrl, "pixel");
   const referral = validReferralUrl(input.referralUrl);
-  const bullets = c.bullets ? c.bullets.map((b) => p(`<span style="color:${G};font-weight:800;">✓</span>&nbsp; ${escape(b)}`, "margin:0 0 8px;")).join("") : "";
-  const card = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="width:100%;border-collapse:separate;border-spacing:0;background-color:#FFFFFF;border:1px solid ${CUSTOMER_VISUAL_SYSTEM.softBlueBorder};border-radius:${CUSTOMER_VISUAL_SYSTEM.secondaryRadiusPx}px;"><tr><td class="hiv-secondary-pad" style="padding:${CUSTOMER_VISUAL_SYSTEM.secondaryPaddingPx}px;font-family:${F};">${c.paras.map((x) => p(escape(x))).join("")}${bullets}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${G}" style="width:100%;margin-top:6px;border-collapse:separate;border-spacing:0;background-color:${G};border-radius:12px;"><tr><td style="padding:0 4px 4px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${B}" style="width:100%;border-collapse:separate;border-spacing:0;background-color:${B};border-radius:12px;"><tr><td align="center"><a class="hiv-cta" href="${escape(target)}" style="display:block;padding:15px 16px;color:#FFFFFF;font-family:${F};text-decoration:none;font-size:14px;line-height:1.3;font-weight:800;letter-spacing:1px;">${escape(c.cta)} →</a></td></tr></table></td></tr></table>${p("Your secure estimate link is personal to your property.", "margin:10px 0 0;font-size:11px;text-align:center;")}</td></tr></table>`;
-  const hero = `<p style="margin:0 0 10px;color:#93F3B6;font-family:${F};font-size:11px;line-height:1.35;font-weight:800;letter-spacing:1.8px;">YOUR PRELIMINARY VEU INSULATION ESTIMATE</p><div class="hiv-hero-title" role="heading" aria-level="1" style="margin:0;color:#FFFFFF;font-family:${F};font-size:30px;line-height:32px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:-1.2px;text-transform:uppercase;">${escape(c.heading)}</div>`;
-  const refer = referral ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${CUSTOMER_VISUAL_SYSTEM.paleGreen}" style="width:100%;border-collapse:separate;border-spacing:0;background-color:${CUSTOMER_VISUAL_SYSTEM.paleGreen};border:1px solid ${CUSTOMER_VISUAL_SYSTEM.softGreenBorder};border-radius:${CUSTOMER_VISUAL_SYSTEM.secondaryRadiusPx}px;"><tr><td class="hiv-secondary-pad" style="padding:${CUSTOMER_VISUAL_SYSTEM.secondaryPaddingPx}px;font-family:${F};"><p style="margin:0 0 6px;color:${B};font-family:${F};font-size:13px;font-weight:800;">KNOW SOMEONE WHO MIGHT QUALIFY?</p>${p("Share Home Insulation Victoria with a friend or family member. They’ll enter their own Victorian property address and details so we can check their eligibility and calculate an estimate using the correct local VEU settings.")}<a href="${escape(referral)}" style="color:${B};font-family:${F};font-size:12px;font-weight:800;text-decoration:underline;">REFER A FRIEND →</a></td></tr></table>` : "";
-  const footer = `<p style="margin:0 0 5px;color:${B};font-size:12px;font-weight:800;">Home Insulation Victoria</p><p style="margin:0;color:${N};font-size:10px;line-height:1.55;">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria<br><a href="https://homeinsulationvictoria.com.au/privacy" style="color:${B};text-decoration:underline;">Privacy</a> &nbsp;·&nbsp; <a href="https://homeinsulationvictoria.com.au/contact" style="color:${B};text-decoration:underline;">Contact</a> &nbsp;·&nbsp; A secure unsubscribe link appears below.</p>`;
-  const html = likelyShell(`${row(`<img class="hiv-logo" src="${CUSTOMER_BRAND.logoUrl}" alt="${CUSTOMER_BRAND.name}" width="187" height="80" style="display:block;width:187px;height:auto;max-width:100%;border:0;">`, "24px 32px 20px", "hiv-logo-wrap hiv-pad")}${row(hero, "26px 32px 28px", "hiv-hero hiv-pad").replace("<tr><td", `<tr bgcolor="${B}" style="background-color:${B};"><td bgcolor="${B}"`)}${row(card, "24px 32px 16px")}${refer ? row(refer, "0 32px 12px") : ""}${row(footer, "12px 32px 16px", "hiv-footer hiv-pad").replace("<tr><td", `<tr bgcolor="#F1F8F3" style="background-color:#F1F8F3;border-top:3px solid ${G};"><td bgcolor="#F1F8F3"`)}`, c.preview, pixel);
-  const plainText = `${c.heading}\n\n${c.paras.join("\n\n")}\n${c.bullets ? `\n${c.bullets.map((b) => `✓ ${b}`).join("\n")}\n` : ""}\n${c.cta}: ${target}\nYour secure estimate link is personal to your property.${referral ? `\n\nKNOW SOMEONE WHO MIGHT QUALIFY?\nShare Home Insulation Victoria with a friend or family member. They’ll enter their own Victorian property address and details so we can check their eligibility and calculate an estimate using the correct local VEU settings.\nREFER A FRIEND: ${referral}` : ""}\n\nHome Insulation Victoria\nDC Construction Solutions Pty Ltd trading as Home Insulation Victoria\nPrivacy: https://homeinsulationvictoria.com.au/privacy · Contact: https://homeinsulationvictoria.com.au/contact\nA secure unsubscribe link appears below.`;
+  const row = (content: string, pad: string) => `<tr><td class="lx-pad" style="padding:${pad};${F}">${content}</td></tr>`;
+  const hero = `<p style="margin:0 0 8px;${F}color:${C.TEXT_GREEN};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">Your preliminary estimate</p><h1 class="lx-h1 hiv-hero-title" style="margin:0 0 14px;${FH}color:${C.INK};font-size:34px;line-height:39px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:0;">${escape(c.heading)}</h1><p class="lx-body" style="margin:0;${F}color:${C.INK};font-size:15px;line-height:1.6;">${escape(c.intro)}</p>`;
+  const list = `<table data-followup-list="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${C.MIST}" style="width:100%;border-collapse:separate;background-color:${C.MIST};border-radius:18px;"><tr><td class="lx-result-pad" style="padding:20px 20px 12px;${F}"><p style="margin:0 0 12px;${FH}color:${C.INK};font-size:17px;line-height:1.3;font-weight:800;">${escape(c.listTitle)}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">${c.ticks.map(tick).join("")}</table>${c.listNote ? `<p style="margin:4px 0 8px;padding-top:10px;border-top:1px solid ${C.LINE};${F}color:${C.INK};font-size:12.5px;line-height:1.5;">${escape(c.listNote)}</p>` : ""}</td></tr></table>`;
+  const action = `<table data-followup-action="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${C.BLUSH}" style="width:100%;border-collapse:separate;background-color:${C.BLUSH};border-radius:20px;"><tr><td style="padding:22px 22px;${F}"><h2 style="margin:0 0 10px;${FH}color:${C.INK};font-size:23px;line-height:1.2;font-weight:800;letter-spacing:0;">${escape(c.actionTitle)}</h2><p class="lx-body" style="margin:0 0 14px;${F}color:${C.INK};font-size:14px;line-height:1.55;">${escape(c.actionBody)}</p>${c.demand ? `<p style="margin:0 0 12px;${F}color:${C.TEXT_GREEN};font-size:14px;line-height:1.45;font-weight:800;">${DEMAND}</p>` : ""}${V2_THEME.button(target, escape(c.cta))}<p style="margin:10px 0 0;${F}color:${C.INK};font-size:13px;line-height:1.5;text-align:center;">${HELPER}</p><p style="margin:6px 0 0;${F}color:${C.INK};font-size:13px;line-height:1.5;text-align:center;font-weight:700;">${REASSURE}</p></td></tr></table>`;
+  const refer = referral ? `<p data-followup-referral="true" style="margin:0;${F}color:${C.INK};font-size:13.5px;line-height:1.55;text-align:center;">Know someone else thinking about ceiling insulation? They can check their own eligibility. <a href="${escape(referral)}" style="color:${C.BLUE};font-weight:800;text-decoration:underline;white-space:nowrap;">Refer&nbsp;a&nbsp;friend&nbsp;→</a></p>` : "";
+  const reason = "You’re receiving this because you requested a ceiling insulation estimate.";
+  const html = V2_THEME.shell(`${row(V2_THEME.header(c.badge), "22px 36px 18px")}${row(hero, "8px 36px 24px")}${row(list, "0 28px 18px")}${row(action, "0 28px 18px")}${refer ? row(refer, "4px 36px 24px") : ""}${V2_THEME.footerRow(V2_THEME.footer(null, referral, reason))}`, c.preview, pixel);
+  const plainText = [
+    c.heading, "", c.intro, "",
+    c.listTitle.toUpperCase(), ...c.ticks.map((t) => `✓ ${t}`), ...(c.listNote ? [c.listNote] : []), "",
+    c.actionTitle.toUpperCase(), c.actionBody, ...(c.demand ? [DEMAND] : []),
+    `${c.cta.replace(/ →$/, "")}: ${target}`, HELPER, REASSURE,
+    ...(referral ? ["", "Know someone else thinking about ceiling insulation? They can check their own eligibility.", `Refer a friend: ${referral}`] : []), "",
+    ...V2_THEME.footerPlain(null, referral, reason),
+  ].join("\n");
   return { subject: c.subject, previewText: c.preview, html, plainText };
 }

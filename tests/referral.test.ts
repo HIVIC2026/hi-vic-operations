@@ -90,7 +90,7 @@ describe("customer payload + emails", () => {
   test("follow-ups carry a small referral line only when supplied", () => {
     const url = referralShareUrl(newReferralToken());
     const a = renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl, referralUrl: url });
-    expect(a.html).toContain("KNOW SOMEONE WHO MIGHT QUALIFY?");
+    expect(a.html).toContain("Know someone else thinking about ceiling insulation?");
     expect(a.plainText).toContain(url);
     expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl }).html).not.toContain("Know someone else");
   });

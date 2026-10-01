@@ -193,9 +193,9 @@ describe("email renderers", () => {
       expect(m.plainText).toContain(clickUrl(tok));
     }
     expect(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: link }).subject).toContain("Just checking you received your Home Insulation Victoria estimate");
-    expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).html).toContain("Ready to book your Home Insulation Ready Check?");
-    expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).plainText).toContain("Your free Ready Check confirms the ceiling measurements and eligibility details");
-    expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).html).toContain("BOOK MY READY CHECK →");
+    expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).html).toContain("Ready for your free measure-up &amp; eligibility check?");
+    expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).plainText).toContain("confirms ceiling size, existing insulation and access");
+    expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).html).toContain("Arrange my free measure-up &amp; eligibility check →");
     expect(renderFollowupEmail({ kind: "estimate_second_reminder_7d", estimateUrl: link }).plainText).not.toMatch(/\$400|indicative/);
     const seven = renderFollowupEmail({ kind: "estimate_second_reminder_7d", estimateUrl: link }).plainText;
     expect(seven).toContain("Warmer in winter");

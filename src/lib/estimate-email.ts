@@ -436,3 +436,9 @@ export function renderIneligibleOutcomeEmail(input: IneligibleOutcomeEmailInput)
   ].join("\n");
   return { subject, previewText, html, plainText };
 }
+
+/** Shared approved theme kit for other customer emails (follow-ups, service updates). Read-only re-export; does not alter outcome emails. */
+export const V2_THEME = {
+  shell: likelyV2Shell, header: v2Header, button: v2Button, footer: v2Footer, footerPlain: v2FooterPlain, footerRow: v2FooterRow, neutralItem,
+  F, FH, colors: { BLUE, GREEN, INK, TEXT_GREEN, MIST, MINT, BLUSH, LINE, WHITE }, site: SITE,
+} as const;
