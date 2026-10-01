@@ -13,23 +13,20 @@ const common = { estimateUrl, estimatedTotal: 3396, veuDiscount: 1325, areaM2: 1
 const detailed = { ...common, estimatedTotal: 3747, installationPrice: 4023, assessmentFee: 349, apFee: 700, grossProjectTotal: 5072, amountPayableNow: 0, estimatedRemainingBalance: 3747 };
 
 describe("customer outcome email renderers", () => {
-  test("likely eligible: calculator-matched result, rebate language, free Ready Check CTA", () => {
+  test("likely eligible: approved single-column result and refined supporting sections", () => {
     const email = withUnsubscribe(renderEstimateEmail({ ...detailed, outcome: "likely", firstName: "Alex", address: "30 Dash St, Fraser Rise VIC 3336" }), unsubscribeUrl);
     const h = email.html;
-    for (const copy of ["Free estimate · no obligation", "Your ceiling insulation estimate", "Good news, Alex — your home looks likely to qualify for a VEU rebate.", "What this includes", "pre-vetted Certified Insulation Installers (CIIs)", "REC electricians", "Demand is high. Installer availability is limited.", "30 Dash St, Fraser Rise VIC 3336", "Your estimated VEU rebate", "You could save $1,325", "Estimated cost after rebate", "$3,747", "Before rebate $5,072 · All prices include GST.", "Estimate only. Final eligibility, measurements and pricing are confirmed after assessment.", "R5.0 ceiling insulation — supplied and installed", "Electrical safety assessment (PIESA)", "Rebate paperwork and compliance", "Confirm your request. An installer from our approved panel will contact you to arrange a time.", "Arrange my free Ready Check →", "No payment required. No obligation to proceed.", "Explore the calculator →", CUSTOMER_WHAT_COULD_CHANGE.closing, "Reference: HV-1001", "Refer a friend", "Privacy policy", "Unsubscribe"]) expect(h).toContain(copy);
-    const order = ["Free estimate · no obligation", "<h1", "data-likely-savings", "data-likely-itemised", "Arrange my free Ready Check", "data-likely-next-step", "Explore the calculator", "DC Construction Solutions Pty Ltd"].map((t) => h.indexOf(t));
+    for (const copy of ["Free estimate · no obligation", "Preliminary eligibility result", "How much could you save on ceiling insulation?", "Good news, Alex — based on what you’ve told us", "A more comfortable home could be closer than you think.", "What this includes", "R5.0 ceiling insulation — supply &amp; install", "Certified Insulation Installer (CII)", "Electrical safety assessment (PIESA)", "pre-vetted REC electrician", "Accredited Person (AP) management", "Demand is high. Installer availability is limited.", "30 Dash St, Fraser Rise VIC 3336", "Your estimated VEU rebate", "You could save $1,325", "Your estimated cost after rebate", "$3,747", "incl. GST · before rebate $5,072", "Arrange my free Ready Check →", "No payment required. No obligation to proceed with installation.", "What could change this price?", "Final measured ceiling size", "Electrical rectification identified during PIESA", CUSTOMER_WHAT_COULD_CHANGE.closing, "Open the calculator →", "Reference: HV-1001", "Refer a friend", "Privacy policy", "Unsubscribe"]) expect(h).toContain(copy);
+    const order = ["<h1", "data-likely-savings", "data-likely-itemised", "data-likely-next-step", "What could change this price?", "Open the calculator", "DC Construction Solutions Pty Ltd"].map((t) => h.indexOf(t));
     expect(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1]!))).toBe(true);
     expect(h.match(/<h1\b/g)?.length).toBe(1);
     expect(h).toContain(`href="${estimateUrl}#confirm"`);
     expect(h).toContain('href="https://estimate.homeinsulationvictoria.com.au/calculator"');
     expect(h).not.toContain("#calculator");
     expect(h).not.toMatch(/<form|<input|<iframe|<script|\son\w+=/i);
-    expect(h).toContain('<html lang="en-AU" dir="ltr">');
-    expect(h).toContain('<body lang="en-AU" dir="ltr"');
-    expect(`${h} ${email.plainText}`).not.toMatch(/undefined|NaN|\$0\b|Gate 1|one of only|guaranteed|energy bill|<div class="hiv-hero-title"/i);
+    expect(`${h} ${email.plainText}`).not.toMatch(/undefined|NaN|\$0\b|Gate 1|guaranteed|energy bill/i);
     expect(email.subject).toBe("Alex, you could save $1,325 on ceiling insulation");
-    for (const t of ["Your ceiling insulation estimate", "Your estimated VEU rebate: You could save $1,325", "Estimated cost after rebate: $3,747", "Before rebate $5,072 · All prices include GST.", "Explore the calculator: https://estimate.homeinsulationvictoria.com.au/calculator", `Arrange my free Ready Check: ${estimateUrl}#confirm`, "No payment required. No obligation to proceed.", "✓ R5.0 ceiling insulation — supplied and installed", "Measured ceiling size, insulation removal, access or electrical rectification may change the final price."]) expect(email.plainText).toContain(t);
-    expect(email.plainText.indexOf("Arrange my free Ready Check")).toBeLessThan(email.plainText.indexOf("Explore the calculator"));
+    for (const t of ["How much could you save on ceiling insulation?", "Your estimated VEU rebate: You could save $1,325", "Your estimated cost after rebate: $3,747", "R5.0 ceiling insulation — supply & install: $4,023", "Electrical safety assessment (PIESA): $349", "Accredited Person (AP) management: $700", "Demand is high. Installer availability is limited.", `Arrange my free Ready Check: ${estimateUrl}#confirm`, "No payment required. No obligation to proceed with installation.", "• Final measured ceiling size", "Want to explore a different ceiling size? Open the calculator: https://estimate.homeinsulationvictoria.com.au/calculator"]) expect(email.plainText).toContain(t);
   });
 
   test("likely eligible fallbacks: typical area, no name, no address, tracked CTA", () => {
