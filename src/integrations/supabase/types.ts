@@ -1092,6 +1092,69 @@ export type Database = {
           },
         ]
       }
+      calculator_interests: {
+        Row: {
+          address_line: string
+          admin_notes: string | null
+          ceiling_m2: number
+          consent_version: string
+          consented_at: string
+          created_at: string
+          email: string
+          followed_up_at: string | null
+          followed_up_by: string | null
+          full_name: string
+          id: string
+          insulation_declared: string
+          mobile: string
+          postcode: string
+          source: string
+          status: string
+          suburb: string
+          updated_at: string
+        }
+        Insert: {
+          address_line: string
+          admin_notes?: string | null
+          ceiling_m2: number
+          consent_version: string
+          consented_at?: string
+          created_at?: string
+          email: string
+          followed_up_at?: string | null
+          followed_up_by?: string | null
+          full_name: string
+          id?: string
+          insulation_declared: string
+          mobile: string
+          postcode: string
+          source?: string
+          status?: string
+          suburb?: string
+          updated_at?: string
+        }
+        Update: {
+          address_line?: string
+          admin_notes?: string | null
+          ceiling_m2?: number
+          consent_version?: string
+          consented_at?: string
+          created_at?: string
+          email?: string
+          followed_up_at?: string | null
+          followed_up_by?: string | null
+          full_name?: string
+          id?: string
+          insulation_declared?: string
+          mobile?: string
+          postcode?: string
+          source?: string
+          status?: string
+          suburb?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ceiling_measurements: {
         Row: {
           accepted_at: string | null
@@ -8553,6 +8616,10 @@ export type Database = {
       bump_referral_counter: {
         Args: { _field: string; _id: string }
         Returns: undefined
+      }
+      calculator_interest_is_duplicate: {
+        Args: { _email: string; _mobile: string }
+        Returns: boolean
       }
       can_access_job: { Args: { _job: string }; Returns: boolean }
       claim_customer_followups: {
