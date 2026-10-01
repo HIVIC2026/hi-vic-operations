@@ -322,7 +322,7 @@ export function parseAudit(audit: Any) {
   const setInt = (k: keyof AssessmentPatch, aliases: string[]) => { const e = find(entries, aliases, { withValue: true }); const n = note(count(e?.value ?? null, e?.label ?? aliases[0]!)); if (n != null) (patch as Any)[k] = n; };
   setInt("downlights_upgrade_qty", ["Downlights requiring upgrade", "Downlights to upgrade", "Downlight upgrade qty"]);
   // Per-area downlight counts ("How many?") are summed; whole-job aliases cover legacy forms.
-  const perAreaDownlights = rooms.length ? rooms.reduce((s, r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); const n = count(val(kids, ["How many?"])); return s + (n ?? 0); }, 0) : 0;
+  const perAreaDownlights = rooms.length ? rooms.reduce((s, r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); const n = count(val(kids, ["How many?"]), "How many?"); return s + (n.value ?? 0); }, 0) : 0;
   if (perAreaDownlights > 0) patch.downlights_qty = perAreaDownlights;
   else setInt("downlights_qty", ["Total number of luminaires", "Number of downlights", "Downlights qty", "Downlight count", "Downlights"]);
   setInt("exhaust_fans_clearance_qty", ["Exhaust fans requiring clearance", "Exhaust fan clearance", "Exhaust fans needing clearance"]);
