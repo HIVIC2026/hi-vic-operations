@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { validAbn, validPhone, validBusinessEmail, stepErrors, firstIncompleteStep, applyMaterialReset, agreementText, scheduleText, visibleSteps, effectiveElectricians, parseRecSampleStep, recDraftRole, ACKNOWLEDGEMENTS, type RecData } from "../src/lib/rec-onboarding.core";
+import { validAbn, validPhone, validBusinessEmail, stepErrors, firstIncompleteStep, applyMaterialReset, agreementText, scheduleText, visibleSteps, effectiveElectricians, parseRecSampleStep, recDraftRole, isRecRevisionTimestamp, ACKNOWLEDGEMENTS, type RecData } from "../src/lib/rec-onboarding.core";
 
 const full: RecData = {
   works_under_rec: false,
@@ -77,7 +77,15 @@ describe("rec onboarding", () => {
   test("material change resets review", () => {
     expect(applyMaterialReset(full, { ...full, assessment_rate: 350 }).agreement_reviewed).toBe(false);
     expect(applyMaterialReset(full, { ...full, public_liability_cover_amount: 20_000_000 }).agreement_reviewed).toBe(false);
-    expect(applyMaterialReset(full, { ...full, primary_contact_name: "Other" }).agreement_reviewed).toBe(true);
+    expect(applyMaterialReset(full, { ...full, primary_contact_name: "Other" }).agreement_reviewed).toBe(false);
+    expect(applyMaterialReset(full, { ...full, business_address: "2 Main St, Melton VIC 3337" }).agreement_reviewed).toBe(false);
+    expect(applyMaterialReset(full, { ...full, licence_number: "A999" }).agreement_reviewed).toBe(false);
+  });
+  test("database revision timestamps accept PostgREST offsets", () => {
+    expect(isRecRevisionTimestamp("2026-10-01T11:29:00+00:00")).toBe(true);
+    expect(isRecRevisionTimestamp("2026-10-01T21:29:00.123456+10:00")).toBe(true);
+    expect(isRecRevisionTimestamp("2026-10-01T11:29:00Z")).toBe(true);
+    expect(isRecRevisionTimestamp("not-a-timestamp")).toBe(false);
   });
   test("bank details are required and excluded from the agreement text", () => {
     expect(stepErrors("bank", { ...full, bank_bsb: "123" })).toContain("Enter a valid 6-digit BSB.");

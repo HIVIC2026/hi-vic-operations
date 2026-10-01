@@ -274,12 +274,17 @@ export function firstIncompleteStep(d: RecData, now = new Date()): StepKey | nul
 }
 
 export const MATERIAL_FIELDS = [
-  "legal_entity_name", "trading_name", "abn", "rec_registration_number", "business_email", "service_origin", "travel_radius_km",
+  "legal_entity_name", "trading_name", "abn", "rec_registration_number", "business_address", "primary_contact_name", "business_phone", "business_email", "licence_number", "service_origin", "travel_radius_km",
   "excluded_areas", "typical_days", "normal_attendance_speed", "capacity_band", "services_all_confirmed",
   "assessment_rate", "installation_attendance_rate", "rectification_rates", "custom_rectification_rates", "coes_fee_choice", "coes_fee", "gst_registered", "electricians",
   "works_under_rec", "host_rec_name", "host_rec_number",
   "insurer", "insurance_policy_number", "public_liability_cover_amount", "public_liability_expiry", "insurance_uploaded",
 ] as const;
+
+/** Accept the ISO timestamps returned by PostgREST, including explicit UTC offsets. */
+export function isRecRevisionTimestamp(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
+}
 
 /** If anything that appears in the agreement schedules changed, the review must be redone. */
 export function applyMaterialReset(prev: RecData, next: RecData): RecData {

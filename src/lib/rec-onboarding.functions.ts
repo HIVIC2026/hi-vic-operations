@@ -5,7 +5,7 @@ import { z } from "zod";
 import { withRequestMeta } from "./request-meta";
 import {
   acknowledgementsFor, REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, agreementText, applyMaterialReset,
-  effectiveElectricians, firstIncompleteStep, validBusinessEmail, type RecData,
+  effectiveElectricians, firstIncompleteStep, isRecRevisionTimestamp, validBusinessEmail, type RecData,
 } from "./rec-onboarding.core";
 
 async function sha256(s: string) {
@@ -73,7 +73,7 @@ export const loadRecOnboarding = createServerFn({ method: "POST" })
   .handler(async ({ data }) => publicView((await findApp(data.token)).app));
 
 export const saveRecOnboarding = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ token: tokenSchema, step_key: z.string().max(40), data: dataSchema, base_updated_at: z.string().datetime().nullable().optional() }).parse(d))
+  .inputValidator((d) => z.object({ token: tokenSchema, step_key: z.string().max(40), data: dataSchema, base_updated_at: z.string().refine(isRecRevisionTimestamp, "Invalid draft revision.").nullable().optional() }).parse(d))
   .handler(async ({ data }) => {
     const { db, app } = await findApp(data.token);
     if (app.status !== "draft") throw new Error("This application has already been signed and submitted.");
@@ -109,10 +109,11 @@ export const confirmInsuranceUpload = createServerFn({ method: "POST" })
     const name = data.path.slice(prefix.length);
     const { data: list } = await db.storage.from("partner-files").list(prefix.slice(0, -1), { search: name });
     if (!list?.some((f) => f.name === name)) throw new Error("Upload not found. Please try again.");
-    await db.from("rec_onboarding_applications").update({ insurance_certificate_path: data.path }).eq("id", app.id);
+    const { data: updated, error: updateError } = await db.from("rec_onboarding_applications").update({ insurance_certificate_path: data.path }).eq("id", app.id).eq("status", "draft").select("updated_at").single();
+    if (updateError || !updated) throw new Error("Could not attach the certificate. Please try again.");
     const { extractInsurance } = await import("./insurance-extract.server");
     const extracted = await extractInsurance(db as never, data.path);
-    return { ok: true, extracted };
+    return { ok: true, extracted, updated_at: String(updated.updated_at) };
   });
 
 export const getRecAgreement = createServerFn({ method: "POST" })
