@@ -18,8 +18,6 @@ const CATALOG = [
   ["onsite_estimate", "Needs onsite confirmation estimate", "Explains what the installer must confirm during the free Ready Check.", "1 · Enquiry", "None – preliminary estimate only", true],
   ["ineligible_result", "Ineligible result", "No quote or Ready Check action; offers result review only.", "1 · Enquiry", "None", true],
   ["estimate_unopened_3d", "Estimate not opened reminder", "Manual-first follow-up after three days.", "1 · Enquiry", "None", false],
-  ["estimate_engaged_no_booking_3d", "Ready Check reminder", "Manual-first follow-up when the estimate was viewed but no Ready Check was requested.", "1 · Enquiry", "None", false],
-  ["estimate_second_reminder_7d", "Final estimate reminder", "Manual-first final reminder after seven days.", "1 · Enquiry", "None", false],
   ["area_unavailable", "No partner in service area", "Used only after both REC and installer coverage are conclusively checked.", "1 · Enquiry", "None", false],
   ["measured_quote", "Measured quote (after Ready Check)", "Sends the measured quote for one electronic acceptance.", "2 · Quote", "Customer Acceptance · VEU Consumer Factsheet · Consumer rights & Home Insulation Victoria terms · Code of Conduct / dispute information", true],
   ["booking_consent", "Booking confirmation + ESC consent", "Confirms the install date and requests electronic Reg 23A consent.", "3 · Booked", "ESC Owner Consent (Reg 23A) – signed ≥24h before work", false],

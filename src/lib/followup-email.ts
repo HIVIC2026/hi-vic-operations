@@ -1,18 +1,15 @@
-/** Pure Step 3 follow-up renderers (3-day unopened, 3-day engaged, 7-day). No data access or delivery.
+/** Pure Step 3 unopened three-day follow-up renderer. No data access or delivery.
  * Uses the approved outcome-email theme (V2_THEME) so reminders match the likely/onsite/ineligible emails. */
 import { escape, V2_THEME, validEstimateUrl, validReferralUrl, validTrackingUrl, type EstimateEmail } from "./estimate-email";
-import type { FollowupKind } from "./engagement.core";
+import type { ActiveFollowupKind } from "./engagement.core";
 
-export type FollowupEmailInput = { kind: FollowupKind; estimateUrl: string; trackingClickUrl?: string | null; trackingPixelUrl?: string | null; referralUrl?: string | null };
+export type FollowupEmailInput = { kind: ActiveFollowupKind; estimateUrl: string; trackingClickUrl?: string | null; trackingPixelUrl?: string | null; referralUrl?: string | null };
 
-const SERVICE = "Free Insulation Measure-Up & Eligibility Check";
-const PIESA = "The mandatory electrical safety assessment (PIESA) is a separate paid step, completed later by a licensed electrician, close to installation.";
 const REASSURE = "No payment required. No obligation to proceed with installation.";
-const DEMAND = "Demand is high. Installer availability is limited.";
 const HELPER = "Your secure estimate link is personal to your property.";
 
 type Copy = { subject: string; preview: string; badge: string; heading: string; intro: string; listTitle: string; ticks: string[]; listNote?: string; actionTitle: string; actionBody: string; demand?: boolean; cta: string; hash?: string };
-const COPY: Record<FollowupKind, Copy> = {
+const COPY: Record<ActiveFollowupKind, Copy> = {
   estimate_unopened_3d: {
     subject: "Just checking you received your Home Insulation Victoria estimate",
     preview: "Your preliminary ceiling insulation estimate is ready whenever you are.",
@@ -23,32 +20,6 @@ const COPY: Record<FollowupKind, Copy> = {
     ticks: ["Your estimated VEU rebate", "Your estimated cost, including GST", "What the quote includes", `Your next step: a ${SERVICE}`],
     actionTitle: "Take a look when it suits you",
     actionBody: "Your estimate is saved and ready. Open it any time to review the details.",
-    cta: "View my estimate →",
-  },
-  estimate_engaged_no_booking_3d: {
-    subject: `Ready for your ${SERVICE}?`,
-    preview: "Your free measure-up & eligibility check confirms the details so we can update your estimate.",
-    badge: "Next step",
-    heading: "Ready for your free measure-up & eligibility check?",
-    intro: "Thanks for taking a look at your preliminary estimate. Your free measure-up & eligibility check confirms ceiling size, existing insulation and access so we can update your estimate.",
-    listTitle: "What the free visit covers",
-    ticks: ["Ceiling measurements", "Existing insulation, removal and access", "Eligibility evidence and site photos", "An updated estimate for you to review"],
-    listNote: PIESA,
-    actionTitle: `Your free measure-up & eligibility check`,
-    actionBody: "An installer from our pre-vetted panel will contact you to arrange a time.",
-    demand: true,
-    cta: "Arrange my free measure-up & eligibility check →", hash: "#confirm",
-  },
-  estimate_second_reminder_7d: {
-    subject: "Your Home Insulation Victoria estimate is still here for you",
-    preview: "Your preliminary ceiling insulation estimate is ready when you are.",
-    badge: "Your estimate",
-    heading: "Your estimate is still here when you’re ready",
-    intro: "A quick, final reminder about your preliminary ceiling insulation estimate. There’s no pressure — it’s there whenever suits you.",
-    listTitle: "Why homeowners upgrade",
-    ticks: ["Warmer in winter and cooler in summer", "PIESA by a licensed electrician employed by a REC; installation by an EEC Certified Insulation Installer (CII)", "Transparent Home Insulation Victoria pricing — partner trades do not decide what you pay"],
-    actionTitle: "Pick up where you left off",
-    actionBody: "Your estimate is saved. Open it to review the details or arrange your free measure-up & eligibility check.",
     cta: "View my estimate →",
   },
 };
