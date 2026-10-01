@@ -163,7 +163,7 @@ export function AddressCombobox({ id, value, onChange, onPick, placeholder, clas
           } ${tone === "dark" ? "placeholder:font-normal focus-visible:outline-none" : "placeholder:font-normal placeholder:text-estimate-navy/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"}`}
         />
         {busy && (
-          <Loader2 aria-hidden="true" className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-estimate-blue" />
+          <Loader2 aria-hidden="true" className={`absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin ${tone === "dark" ? "text-white" : "text-estimate-blue"}`} />
         )}
       </div>
 
@@ -196,7 +196,7 @@ export function AddressCombobox({ id, value, onChange, onPick, placeholder, clas
       )}
 
       {open && items.length === 0 && note && (
-        <p role="status" className="mt-1.5 text-xs leading-relaxed font-semibold text-estimate-navy/85">
+        <p role="status" className={`mt-1.5 text-xs leading-relaxed font-semibold ${tone === "dark" ? "text-white/80" : "text-estimate-navy/85"}`}>
           {note}
         </p>
       )}
