@@ -25,6 +25,7 @@ import { Route as AuthenticatedAdminBusinessesRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminCommunicationsRouteImport } from './routes/_authenticated/admin.communications'
 import { Route as AuthenticatedAdminComplianceRouteImport } from './routes/_authenticated/admin.compliance'
 import { Route as AuthenticatedAdminCoverageRouteImport } from './routes/_authenticated/admin.coverage'
+import { Route as AuthenticatedAdminInterestsRouteImport } from './routes/_authenticated/admin.interests'
 import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authenticated/admin.partners'
 import { Route as AuthenticatedAdminTeamUpsRouteImport } from './routes/_authenticated/admin.team-ups'
 import { Route as AuthenticatedAdminTestCentreRouteImport } from './routes/_authenticated/admin.test-centre'
@@ -132,6 +133,12 @@ const AuthenticatedAdminCoverageRoute =
   AuthenticatedAdminCoverageRouteImport.update({
     id: '/admin/coverage',
     path: '/admin/coverage',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminInterestsRoute =
+  AuthenticatedAdminInterestsRouteImport.update({
+    id: '/admin/interests',
+    path: '/admin/interests',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminPartnersRoute =
@@ -288,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
+  '/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -330,6 +338,7 @@ export interface FileRoutesByTo {
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
+  '/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -374,6 +383,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/_authenticated/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/_authenticated/admin/coverage': typeof AuthenticatedAdminCoverageRoute
+  '/_authenticated/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/_authenticated/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/_authenticated/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -418,6 +428,7 @@ export interface FileRouteTypes {
     | '/admin/communications'
     | '/admin/compliance'
     | '/admin/coverage'
+    | '/admin/interests'
     | '/admin/partners'
     | '/admin/team-ups'
     | '/admin/test-centre'
@@ -460,6 +471,7 @@ export interface FileRouteTypes {
     | '/admin/communications'
     | '/admin/compliance'
     | '/admin/coverage'
+    | '/admin/interests'
     | '/admin/partners'
     | '/admin/team-ups'
     | '/admin/test-centre'
@@ -503,6 +515,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/communications'
     | '/_authenticated/admin/compliance'
     | '/_authenticated/admin/coverage'
+    | '/_authenticated/admin/interests'
     | '/_authenticated/admin/partners'
     | '/_authenticated/admin/team-ups'
     | '/_authenticated/admin/test-centre'
@@ -665,6 +678,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/coverage'
       fullPath: '/admin/coverage'
       preLoaderRoute: typeof AuthenticatedAdminCoverageRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/interests': {
+      id: '/_authenticated/admin/interests'
+      path: '/admin/interests'
+      fullPath: '/admin/interests'
+      preLoaderRoute: typeof AuthenticatedAdminInterestsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/partners': {
@@ -851,6 +871,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminCommunicationsRoute: typeof AuthenticatedAdminCommunicationsRoute
   AuthenticatedAdminComplianceRoute: typeof AuthenticatedAdminComplianceRoute
   AuthenticatedAdminCoverageRoute: typeof AuthenticatedAdminCoverageRoute
+  AuthenticatedAdminInterestsRoute: typeof AuthenticatedAdminInterestsRoute
   AuthenticatedAdminPartnersRoute: typeof AuthenticatedAdminPartnersRoute
   AuthenticatedAdminTeamUpsRoute: typeof AuthenticatedAdminTeamUpsRoute
   AuthenticatedAdminTestCentreRoute: typeof AuthenticatedAdminTestCentreRoute
@@ -876,6 +897,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminCommunicationsRoute: AuthenticatedAdminCommunicationsRoute,
   AuthenticatedAdminComplianceRoute: AuthenticatedAdminComplianceRoute,
   AuthenticatedAdminCoverageRoute: AuthenticatedAdminCoverageRoute,
+  AuthenticatedAdminInterestsRoute: AuthenticatedAdminInterestsRoute,
   AuthenticatedAdminPartnersRoute: AuthenticatedAdminPartnersRoute,
   AuthenticatedAdminTeamUpsRoute: AuthenticatedAdminTeamUpsRoute,
   AuthenticatedAdminTestCentreRoute: AuthenticatedAdminTestCentreRoute,

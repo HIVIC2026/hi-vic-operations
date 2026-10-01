@@ -38,6 +38,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
           <Link to="/admin" search={{ tab: "quotes" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><FileCheck2 className="h-4 w-4" /> Pending quote approval</Link>
           <Link to="/admin" search={{ tab: "enquiries" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><LayoutDashboard className="h-4 w-4" /> Enquiries</Link>
           <Link to="/admin" search={{ tab: "ineligible" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><X className="h-4 w-4" /> Ineligible</Link>
+          <Link to="/admin/interests" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Registered interest</Link>
           <Link to="/admin/veec" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Calculator className="h-4 w-4" /> VEECs</Link>
           <Link to="/admin/coverage" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><MapPinned className="h-4 w-4" /> Service coverage</Link>
           <Link to="/admin/team-ups" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Users className="h-4 w-4" /> Electrician team-ups</Link>

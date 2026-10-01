@@ -28,6 +28,10 @@
 - [ ] Browser-verify owner/electrician/installer job views as those roles
 - [ ] Confirm: $349 one total vs each; $220 inc/ex GST; own-electrician price + AP fee combination
 - [x] Public client calculator page (light one-screen, live cost, no sign-in) — built; needs publishing to give clients the permanent link
+- [ ] Calculator: fix the bottom of the page — user says it looks horrible at their window size (898px wide)
+- [ ] Calculator: question labels and hints are too light — darken for readability
+- [ ] Calculator: "What this includes" panel — Ready Check $0 and its value, electrical safety assessment + PIESA by a licensed electrician, install by an EEC-certified installer, Home Insulation Victoria as Accredited Person handling paperwork and rebate claim
+- [ ] Calculator: "Register my interest" lead capture (name, mobile, email, address, ceiling size) stored in the database with consent — no messages sent, no job created
 
 
 
@@ -54,3 +58,8 @@
 - [x] Company profile + worker job links (company lists workers, office approves, per-job magic link with form, timeline and owner messages)
 - [ ] Worker link: photo/evidence upload directly on the link page (today photos go through the Mitti form)
 - [ ] Worker link: send by text/email automatically once communications are switched on
+
+- [x] Calculator: change heading font and colour, add more blue and green
+- [x] Calculator: insulation question options as clear labelled boxes
+- [x] Register form: name, mobile, email only; address prefilled from the calculator
+- Calculator heading font: apply the brand display font (Space Grotesk) + DM Sans body
