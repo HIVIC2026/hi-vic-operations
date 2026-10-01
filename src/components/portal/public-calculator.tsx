@@ -99,7 +99,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
   return (
     <div className="estimate-brand min-h-screen bg-gradient-to-b from-estimate-blush via-estimate-canvas to-estimate-canvas">
       <div className="mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-4 pb-24 sm:px-6 lg:pb-3">
-        <header className="flex flex-wrap items-center justify-between gap-3 py-3">
+        <header className="flex flex-wrap items-center justify-between gap-3 py-2.5">
           <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-9 w-auto sm:h-10" />
           <p className="text-xs font-extrabold uppercase tracking-wider text-estimate-green">Free instant estimate · no obligation</p>
         </header>
