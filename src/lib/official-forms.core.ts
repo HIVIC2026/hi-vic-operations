@@ -22,7 +22,8 @@ export type TemplateRecord = {
   key: OfficialKey; title: string; issuingAuthority: string;
   sourceUrl: string | null; sourceUrlStatus: "NEEDS CONFIRMATION" | "confirmed";
   retrievalDate: string | null; retrievalDateStatus: "NEEDS CONFIRMATION" | "confirmed";
-  receivedInPortal: string; publication: string; formVersion: string | null;
+  /** Date the uploaded original was inspected here — NOT official provenance. */ dateInspected: string; publication: string;
+  /** Printed in the document: no separate version number or effective date is printed. */ formVersion: "not printed"; effectiveDatePrinted: "not printed";
   sha256: string; originalFile: string; mappingVersion: string;
   approved: false | { by: string; at: string }; superseded: boolean; effectiveFrom: string | null;
 };
@@ -31,7 +32,7 @@ export const OFFICIAL_TEMPLATES: Record<OfficialKey, TemplateRecord> = {
   piesa: {
     key: "piesa", title: "VEU pre-installation electrical safety assessment form", issuingAuthority: "Department of Energy, Environment and Climate Action (DEECA), State of Victoria",
     sourceUrl: null, sourceUrlStatus: "NEEDS CONFIRMATION", retrievalDate: null, retrievalDateStatus: "NEEDS CONFIRMATION",
-    receivedInPortal: "2026-10-02", publication: "© DEECA March 2026", formVersion: null,
+    dateInspected: "2026-10-02", publication: "© DEECA March 2026", formVersion: "not printed", effectiveDatePrinted: "not printed",
     sha256: "2a89d21c1f2c8fef916954d070449bd3175590d90b9a514d4a8d7625f3a299ac",
     originalFile: "docs/official-forms/VEU-pre-installation-electrical-safety-assessment-form_1.docx",
     mappingVersion: "piesa-map-2.0.0", approved: false, superseded: false, effectiveFrom: null,
@@ -39,7 +40,7 @@ export const OFFICIAL_TEMPLATES: Record<OfficialKey, TemplateRecord> = {
   piisa: {
     key: "piisa", title: "VEU pre-installation installer safety assessment form", issuingAuthority: "Department of Energy, Environment and Climate Action (DEECA), State of Victoria",
     sourceUrl: null, sourceUrlStatus: "NEEDS CONFIRMATION", retrievalDate: null, retrievalDateStatus: "NEEDS CONFIRMATION",
-    receivedInPortal: "2026-10-02", publication: "© DEECA March 2026", formVersion: null,
+    dateInspected: "2026-10-02", publication: "© DEECA March 2026", formVersion: "not printed", effectiveDatePrinted: "not printed",
     sha256: "bea62330fa766d3da29137a494d01f9e3e80a883cb5126b2fffb6fa07ad46dea",
     originalFile: "docs/official-forms/VEU-pre-installation-installer-safety-assessment-form-_3.docx",
     mappingVersion: "piisa-map-2.0.0", approved: false, superseded: false, effectiveFrom: null,
