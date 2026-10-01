@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { validAbn, validPhone, validBusinessEmail, stepErrors, firstIncompleteStep, applyMaterialReset, agreementText, visibleSteps, effectiveElectricians, ACKNOWLEDGEMENTS, type RecData } from "../src/lib/rec-onboarding.core";
+import { validAbn, validPhone, validBusinessEmail, stepErrors, firstIncompleteStep, applyMaterialReset, agreementText, scheduleText, visibleSteps, effectiveElectricians, ACKNOWLEDGEMENTS, type RecData } from "../src/lib/rec-onboarding.core";
 
 const full: RecData = {
   works_under_rec: false,
@@ -24,7 +24,7 @@ describe("rec onboarding", () => {
     // an explicit legacy list always wins
     expect(effectiveElectricians({ ...full, electricians: [{ full_legal_name: "Other", licence_number: "B9", mobile: "0400000000", email: "o@x.com" }] })[0].full_legal_name).toBe("Other");
   });
-  test("services: rectification and install day attendance are required, PIESA optional", () => {
+  test("services: all three electrical services are mandatory", () => {
     expect(stepErrors("services", {})).toContain("Rectification work and install day attendance are required — tick both to continue.");
     expect(stepErrors("services", {})).toContain("Confirm your REC can provide all three electrical services.");
     expect(stepErrors("services", { service_piesa: false, service_rectification: false, service_installation_isolation: false })).toContain("Confirm your REC can provide all three electrical services.");
