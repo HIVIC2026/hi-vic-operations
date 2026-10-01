@@ -274,7 +274,7 @@ function RecOnboarding() {
   return shell(
     <div style={card}>
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
-      {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Nice one, {firstName(d)} — {steps[idx]?.title?.toLowerCase()} next.</div>}
+      {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Nice one, {firstName(d)} — next up: {steps[idx]?.title?.toLowerCase()}.</div>}
       {!firstName(d) && <div style={{ marginBottom: 12 }} />}
       <StepBody step={step} d={d} up={up} token={token!} setError={setError} />
       {step === "sign" && <SignStep d={d} token={token!} onSigned={() => setStatus("submitted")} />}
