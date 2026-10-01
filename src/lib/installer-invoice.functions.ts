@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
 import { installerLedOwnerPrice, piesaChargeIncGst, type ElectricianChoice } from "./installer-led.core";
+import { apFeeOverrideBlocker, canChangeApFee, resolveApFeeAllowedIds } from "./ap-fee.core";
 
 // Admin-only co-branded invoice preview for installer-led jobs. Read-only: never creates a Xero invoice.
 export const getInstallerLedInvoice = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -35,17 +36,26 @@ export const getInstallerLedInvoice = createServerFn({ method: "POST" }).middlew
     return {
       installerLed: job.installer_led, quote, piesa, standardApFee, apFee,
       override: override == null ? null : { amount: override, reason: job.ap_fee_override_reason, at: job.ap_fee_override_at },
+      // C04: computed here, not in the browser, so the screen can't be talked into showing the editor.
+      canChangeApFee: canChangeApFee(context.userId, resolveApFeeAllowedIds(process.env["AP_FEE_OVERRIDE_USER_IDS"])),
       price,
     };
   });
 
-// Admin-only: set (or clear with amount=null) a per-job AP fee. Reason required; permanently logged.
+// C04: the Home Insulation Victoria owner alone may set (or clear with amount=null) a per-job AP fee.
+// Reason required; permanently logged.
 export const setApFeeOverride = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     jobId: z.string().uuid(), amount: z.number().min(0).max(100000).nullable(), reason: z.string().trim().min(3).max(500),
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
+    const block = apFeeOverrideBlocker({
+      actorId: context.userId,
+      allowedUserIds: resolveApFeeAllowedIds(process.env["AP_FEE_OVERRIDE_USER_IDS"]),
+      reason: data.reason,
+    });
+    if (block) throw new Error(block);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { logEvent } = await import("./workflow.server");
     const { data: acceptedQuote, error: quoteError } = await admin.from("quotes")

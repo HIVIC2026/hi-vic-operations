@@ -32,8 +32,8 @@ export const COMMERCIAL_DECISIONS: readonly CommercialDecision[] = [
   },
   {
     code: "C03",
-    question: "Any lead fee on the installer's payout?",
-    decided: "No lead fee. There is no such charge on any active surface, for our leads or the installer's own customers; historic signed records stay as they are. Wording approved 2 Oct 2026.",
+    question: "C03 — no lead fee: should anything be charged for supplying a lead?",
+    decided: "No. There is no such charge on any active surface, for our leads or the installer's own customers; historic signed records stay as they are. Wording approved 2 Oct 2026.",
     decidedAt: "2026-10-01",
     enforcedBy: "profit.core.ts, tests/no-lead-fee.test.ts",
     status: "decided",
