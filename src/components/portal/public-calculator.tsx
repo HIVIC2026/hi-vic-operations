@@ -273,15 +273,48 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
 
           <div className="bg-estimate-mist px-5 py-6 sm:px-8 sm:py-8 lg:border-l lg:border-estimate-line">
             {!priced ? (
-              <div className="flex h-full min-h-16 items-center lg:min-h-[240px]">
-                <p className="text-sm leading-relaxed text-estimate-navy/85">
-                  <span className="font-extrabold text-estimate-navy">Your price will show here.</span> Add your address and ceiling size above.
-                </p>
+              <div className="flex h-full min-h-16 items-center justify-center text-center lg:min-h-[240px]">
+                <div>
+                  <span aria-hidden="true" className="mx-auto grid size-12 place-items-center rounded-2xl bg-estimate-white shadow-[0_10px_30px_-20px_rgba(34,55,107,0.35)]">
+                    <PiggyBank className="size-6 text-estimate-green" />
+                  </span>
+                  <p className="mt-3 text-sm leading-relaxed text-estimate-navy/85">
+                    <span className="block font-extrabold text-estimate-navy">Your savings will show here.</span>
+                    Answer the three questions — it takes seconds.
+                  </p>
+                </div>
               </div>
             ) : (
               <div data-testid="public-calculator-result">
-                <p className="text-[0.7rem] font-extrabold uppercase tracking-[0.14em] text-estimate-navy/70">Your estimated cost</p>
-                <dl className="mt-3 space-y-1.5 text-xs">
+                {/* Savings hero — the number the page promises. */}
+                <div className="rounded-2xl border-2 border-estimate-green bg-estimate-mint px-5 py-4 text-center" data-testid="public-calculator-discount-highlight">
+                  <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-estimate-navy/70">Your estimated VEU rebate</p>
+                  <p className="mt-1 text-[2rem] font-extrabold leading-none text-estimate-green sm:text-[2.4rem]">You could save {dollars(standard.applied_discount)}</p>
+                </div>
+
+                {/* The number they actually pay. */}
+                <div className="mt-4 text-center">
+                  <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-estimate-navy/70">Your estimated cost after rebate</p>
+                  <p className="mt-1 text-[2.6rem] font-extrabold leading-none tracking-tight text-estimate-blue sm:text-[3rem]" data-testid="public-calculator-final">
+                    {dollars(standard.estimated_customer_total)}
+                  </p>
+                  <p className="mt-1 text-xs font-bold text-estimate-navy/70">incl. GST · before rebate {dollars(standard.pre_discount_total)}</p>
+                  <p className="mx-auto mt-2 max-w-[300px] text-[0.7rem] leading-relaxed text-estimate-navy/75">
+                    Estimate only. Eligibility, measurements and final pricing confirmed after assessment.
+                  </p>
+                  {standard.copayment_capped && <p className="mt-2 text-xs leading-relaxed">The discount is limited so your contribution meets the program minimum.</p>}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={scrollToRegister}
+                  className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-estimate-green px-4 text-base font-extrabold text-estimate-white shadow-lg shadow-estimate-green/25 transition hover:bg-estimate-accent active:scale-[0.99]"
+                >
+                  Register my interest
+                  <ArrowDown aria-hidden="true" className="size-4" />
+                </button>
+
+                <dl className="mt-4 space-y-1.5 border-t border-estimate-line pt-3.5 text-xs">
                   {[
                     { label: "Property", value: suburb ? `${suburb} ${postcode}` : postcode, onChange: changeAddress },
                     { label: "Ceiling", value: `${m2} m²`, onChange: changeArea },
@@ -298,19 +331,16 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                     </div>
                   ))}
                 </dl>
-                <div
-                  className="mt-3.5 [&_[data-testid=quote-discount-band]]:rounded-2xl [&_[data-testid=quote-discount-band]]:border-2 [&_[data-testid=quote-discount-band]]:border-estimate-green [&_[data-testid=quote-discount-band]]:bg-estimate-mint [&_[data-testid=quote-discount-band]]:py-4 [&_[data-testid=quote-discount-band]_dd]:text-2xl [&_[data-testid=quote-discount-band]_dt]:text-estimate-navy"
-                  data-testid="public-calculator-discount-highlight"
-                >
-                  <QuoteBreakdown
-                    rows={customerQuoteRows({ piesa: settings.piesa_assessment_inc_gst, installation: standard.installation, apManagement: settings.ap_management_inc_gst })}
-                    gross={standard.pre_discount_total}
-                    discount={standard.applied_discount}
-                    final={standard.estimated_customer_total}
-                    ids={{ final: "public-calculator-final" }}
-                  />
-                </div>
-                {standard.copayment_capped && <p className="mt-2 text-xs leading-relaxed">The discount is limited so your contribution meets the program minimum.</p>}
+
+                {/* Full transparent itemisation — same computed rows, below the headline. */}
+                <dl className="mt-3.5 space-y-1.5 border-t border-estimate-line pt-3.5 text-xs">
+                  {customerQuoteRows({ piesa: settings.piesa_assessment_inc_gst, installation: standard.installation, apManagement: settings.ap_management_inc_gst }).map((row) => (
+                    <div key={row.key} className="flex items-center justify-between gap-3">
+                      <dt className="text-estimate-navy/85">{row.label}</dt>
+                      <dd className="font-extrabold text-estimate-navy">{dollars(row.amount)}</dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
             )}
           </div>
