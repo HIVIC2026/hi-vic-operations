@@ -248,18 +248,28 @@ export function parseAudit(audit: Any) {
     gross: ["Gross ceiling area", "Gross area"],
     excl: ["Excluded area", "Excluded ceiling area"],
   };
-  // Group per-room fields by their repeat-instance parent so each room's m2/removal/insulation stay together.
-  const roomParents = new Set(entries.filter((e) => !e.header && e.norm === norm("Measured area m2") && e.value != null).map((e) => e.parent ?? e.id));
+  // Group per-area fields by their repeat-instance parent so each area's m2/removal/insulation stay together.
+  // New A1/A2 forms capture "Length (m)" × "Width (m)" per area (portal computes m2); legacy forms used "Measured area m2".
+  const isAreaKid = (e: Any) => !e.header && [norm("Measured area m2"), norm("Length (m)")].includes(e.norm) && e.value != null;
+  const roomParents = new Set(entries.filter(isAreaKid).map((e) => e.parent ?? e.id));
   const rooms = [...roomParents].map((p) => {
     const kids = entries.filter((e) => (e.parent ?? e.id) === p);
     const m2e = kids.find((e) => e.norm === norm("Measured area m2"));
-    const m2 = physical(m2e?.value ?? null, m2e?.label ?? "Measured area m2");
+    let m2 = physical(m2e?.value ?? null, m2e?.label ?? "Measured area m2");
+    if (m2.value == null) {
+      const len = physical(val(kids, ["Length (m)"]), "Length (m)");
+      const wid = physical(val(kids, ["Width (m)"]), "Width (m)");
+      if (len.issue) issues.push(len.issue);
+      if (wid.issue) issues.push(wid.issue);
+      if (len.value != null && len.value > 0 && wid.value != null && wid.value > 0) m2 = { value: r2(len.value * wid.value), issue: null } as typeof m2;
+    }
     if (m2.issue) issues.push(m2.issue);
-    const state = norm(val(kids, ["Existing insulation"]));
-    const action = norm(val(kids, ["What happens to the existing insulation"]));
-    const removal = /must be removed/.test(action) ? true : /can be topped up/.test(action) ? false : yesNo(val(kids, ["Removal required"]));
-    if (/not sure/.test(action)) issues.push("A room's existing insulation is marked 'Not sure – needs office review'.");
-    const removalType = val(kids, ["Existing insulation type", "Insulation type to remove"]);
+    const present = yesNo(val(kids, ["Is there existing insulation?"]));
+    const state = norm(val(kids, ["Existing insulation"])) || (present === true ? "under-insulated" : present === false ? "uninsulated" : "");
+    const action = norm(val(kids, ["What needs to happen to it?", "What happens to the existing insulation"]));
+    const removal = /^(remove|must be removed)/.test(action) ? true : /^(top up|can be topped up)/.test(action) ? false : yesNo(val(kids, ["Removal required"]));
+    if (/not sure/.test(action)) issues.push("A ceiling area's existing insulation is marked 'Not sure' – office review required.");
+    const removalType = val(kids, ["Insulation type (tick all that apply)", "Existing insulation type", "Insulation type to remove"]);
     return { m2: m2.value, state, removal, removalType };
   });
   if (rooms.length > 0) {
