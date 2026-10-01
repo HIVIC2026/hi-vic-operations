@@ -1,7 +1,7 @@
 // Engagement persistence (service role). Records signals and suppresses follow-ups. Never delivers anything.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { LINK_PURPOSE, isWellFormedToken, linkUsable } from "./estimatelink.core";
-import { TRACKING_TTL_DAYS, areaBand, dedupe, isTrackingToken, newTrackingToken, safeMetadata, summarize, uaClass, PREFETCH_WINDOW_MS, type EventType } from "./engagement.core";
+import { TRACKING_TTL_DAYS, dedupe, isTrackingToken, newTrackingToken, safeMetadata, summarize, uaClass, PREFETCH_WINDOW_MS, type EventType } from "./engagement.core";
 
 export async function recordEngagement(e: { jobId: string; linkId?: string | null; type: EventType; source?: string; metadata?: Record<string, unknown>; dedupeKey?: string | null; at?: string }) {
   const { error } = await admin.from("customer_engagement_events").insert({
