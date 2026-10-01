@@ -5,7 +5,7 @@ import type { RetailSettings } from "@/lib/estimate.core";
 
 // Public standalone calculator for clients. Local-only what-if: no server calls, writes, payments or communications.
 const settings: RetailSettings = {
-  id: "public-calculator-v2", version: 2, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 15,
+  id: "public-calculator-v3", version: 3, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 0,
   piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349,
   access_standard_multiplier: 1, access_moderate_multiplier: 1.1, access_difficult_multiplier: 1.25,
   indicative_veec_value: 70, veec_value_source_label: "Current settings example",

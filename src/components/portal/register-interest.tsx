@@ -140,8 +140,7 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
           Thanks {done} — we&apos;ve got your details.
         </p>
         <p className="mt-1 text-xs leading-relaxed text-estimate-navy/85">
-          Someone from Home Insulation Victoria will be in touch to discuss your estimate and next steps, and to
-          arrange your free Ready Check. Nothing has been booked and no payment is due.
+          We&apos;ll contact you about your estimate and book your free Ready Check. Nothing has been booked and no payment is due.
         </p>
       </div>
     );

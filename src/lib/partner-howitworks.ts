@@ -14,7 +14,7 @@ export const OPTION_OWN_CUSTOMER: { title: string; tagline: string; steps: HowSt
     { n: 1, title: "Submit the job", body: "Owner name, address, contact, your quote, and any measurements and photos you already have — all in the portal." },
     { n: 2, title: "Measure-up", body: "If your measure-up and photos are complete, nothing is repeated. If they're partial, you only capture what's missing. If you have none, you do the free Ready Check yourself using our app." },
     { n: 3, title: "We contact the owner", body: "As the Accredited Person, the law makes us responsible for the owner's eligibility, consent, the electrical safety check and the VEEC assignment. We must hear it from the owner directly — we can't take it second-hand." },
-    { n: 4, title: "Electrical safety check (PIESA)", body: "Your electrician at your agreed onboarding price, or ours at $349 inc GST." },
+    { n: 4, title: "Electrical safety assessment (PIESA)", body: "The owner is charged our standard $349 inc GST electrical assessment fee. We pay the approved electrician the supplier rate agreed at onboarding." },
     { n: 5, title: "One co-branded quote", body: "Your branding plus ours, showing your price, the safety check, our Accredited Person fee and the VEU discount. The owner e-signs it in their portal." },
     { n: 6, title: "We invoice and chase payment", body: "Including the 50% deposit before any work is scheduled. You never chase money." },
     { n: 7, title: "You install", body: "Submit your photos and installer declaration through the app the same day. We do the Accredited Person review and lodge the VEECs." },
@@ -31,7 +31,7 @@ export const OPTION_OUR_LEAD: { title: string; tagline: string; steps: HowStep[]
     { n: 2, title: "You get the job offer", body: "It appears in your portal with the suburb, property type and what we know. Accept or decline — no penalty for declining." },
     { n: 3, title: "You do the free Ready Check", body: "The measure-up and photos, using our app. It tells you exactly what to capture, in order." },
     { n: 4, title: "We quote the owner", body: "At our set customer price. We handle the safety check, the quote, invoicing and payment chasing. You're paid the rate we agreed with you at onboarding." },
-    { n: 5, title: "Lead fee — only if the owner accepts", body: "A $220 lead fee applies only when the owner accepts the quote, and it's deducted from your payout. If the owner doesn't accept, or the lead turns out ineligible or is cancelled, you pay nothing." },
+    { n: 5, title: "Lead fee — only on completed approved work", body: "A $220 inc GST lead fee is deducted from your payout only after the job is installed and the required paperwork is approved. If the owner doesn't accept, or the lead is ineligible, declined or cancelled before completion, you pay nothing." },
     { n: 6, title: "You install", body: "Submit evidence on the day through the app; we review and lodge." },
   ],
   footer: "On our leads you must message the owner in the portal within 24 hours of accepting the offer — see the 24-hour rule below.",
@@ -45,7 +45,7 @@ export const ELECTRICIAN_FLEXIBILITY = {
     "Always use the Home Insulation Victoria electrician list",
     "Ask me each job",
   ],
-  pricing: "Price: your electrician at their agreed onboarding price, or ours at $349 inc GST.",
+  pricing: "The owner is charged the standard $349 inc GST electrical assessment fee. We pay the approved electrician the supplier rate agreed at onboarding.",
 };
 
 export const PAYMENT_TERMS = {
@@ -84,20 +84,20 @@ export const AP_WORKLOAD = {
   items: [
     "Eligibility checks on every property and owner",
     "Owner consent and permission, captured legally and directly",
-    "Electrical safety check (PIESA) coordination",
-    "Official forms (PIESA and PIISA) filled, signed and stored",
+    "VEU pre-installation electrical safety assessment coordination",
+    "Official electrical and installer safety assessment forms completed, signed and stored",
     "24-hour notices to the regulator before every install",
     "The quote and the invoice, issued correctly",
     "Deposit and balance chasing",
     "Evidence review against the Activity 48 requirements",
     "VEEC creation and lodgement",
-    "Six years of record keeping, and standing behind every audit",
+    "Six years of record keeping after VEEC registration, and standing behind every audit",
   ],
 };
 
 export const WHY_349 = {
   title: "Our fees, plainly",
-  body: "Two separate charges, each $349 inc GST, both paid by the owner on the one co-branded invoice — never by you. (1) The pre-install electrical safety check (PIESA): $349 when done by our electrician, or your own onboarded electrician's agreed price instead. (2) Our Accredited Person fee: $349 on every job, always the same — it covers eligibility, owner consent, official forms, 24-hour notices, the quote and invoice, payment chasing, evidence review, VEEC creation and lodgement, six years of records and audits. Each part is legally required before a single VEEC can be created.",
+  body: "Two separate charges, each $349 inc GST, both paid by the owner on the one co-branded invoice — never by you. (1) The VEU pre-installation electrical safety assessment (PIESA): the owner charge is $349 whether the approved electrician is yours or ours; we pay the electrician their agreed supplier rate. (2) Our Accredited Person fee: $349 on every job — it covers eligibility, owner consent, official forms, required notices, the quote and invoice, payment chasing, evidence review, VEEC creation and lodgement, and audit records. Both charges are separate and clearly shown.",
 };
 
 export const ELECTRICIAN_JOB_FLOW: { title: string; tagline: string; steps: HowStep[]; footer: string } = {
@@ -106,20 +106,20 @@ export const ELECTRICIAN_JOB_FLOW: { title: string; tagline: string; steps: HowS
   steps: [
     { n: 1, title: "You get the job offer", body: "It appears in your portal with the suburb, property type and what's needed. Accept or decline — no penalty for declining." },
     { n: 2, title: "Book the visit in the portal", body: "You propose times, the owner accepts, it's locked in. Everyone — you, the installer and our office — sees the same timeline." },
-    { n: 3, title: "Do the PIESA on the day", body: "Our app walks you through every photo and reading needed, in order, so the assessment is complete on the day — no revisits." },
+    { n: 3, title: "Complete the electrical assessment", body: "Complete and sign the current official VEU pre-installation electrical safety assessment no earlier than 30 days before installation. Our app walks you through the required photos and readings." },
     { n: 4, title: "Submit the result before you leave", body: "The PIESA result and your rectification quote (or confirmation none is needed) go in through the portal on the day. The job can't move forward without it." },
     { n: 5, title: "Rectification, if approved", body: "If the owner approves rectification, it's booked in the portal and you do the work at your agreed rates." },
     { n: 6, title: "You get paid", body: "At the rate we agreed with you at onboarding, once the owner's invoice is paid. We chase the money — you never do." },
   ],
-  footer: "The 30-day window from PIESA to installation is tracked on every job, and you can see it in the portal.",
+  footer: "The assessment must be no more than 30 days old when installation starts. Its completed signed form must reach the owner and installer at least 24 hours before installation.",
 };
 
 export const ELECTRICIAN_SAME_DAY = {
   title: "The same-day rule",
   points: [
-    "The PIESA result and any rectification quote (or confirmation none is needed) must be submitted through the portal on the day of each assessment.",
+    "The completed signed VEU pre-installation electrical safety assessment and any mandatory rectification quote (or confirmation none is needed) must be submitted through the portal on the day of the assessment.",
     "Our office can't quote the owner until your result is in — the whole job waits on it.",
-    "Installation must happen within 30 days of the PIESA. The countdown is shown on every job so nothing expires quietly.",
+    "Installation must start within 30 days of the electrical assessment. The countdown is shown on every job so nothing expires quietly.",
   ],
 };
 
@@ -167,11 +167,11 @@ export const PARTNER_FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: "The owner turns out ineligible — what happens to my time and fees?",
-    a: "On your own customers there's never a fee either way. On our leads, the lead fee only exists if the owner accepts a quote — an ineligible or cancelled lead costs you nothing.",
+    a: "On your own customers there's never a lead fee. On leads we supply, the fee is deducted only after installation and paperwork approval — an ineligible, declined or cancelled lead costs you nothing.",
   },
   {
-    q: "When is the $220 lead fee charged, and when isn't it?",
-    a: "Only on leads we give you, and only when the owner accepts the quote. It's deducted from your payout. Never on your own customers, never on declined, ineligible or cancelled leads.",
+    q: "When is the $220 inc GST lead fee charged, and when isn't it?",
+    a: "Only on leads we give you, after installation and the required paperwork is approved. It's deducted from your payout. Never on your own customers, and never on declined, ineligible or cancelled jobs that do not reach that point.",
   },
   {
     q: "I have my own electrician, or I work with another installer — how do we team up?",

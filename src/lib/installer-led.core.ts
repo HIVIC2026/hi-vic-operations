@@ -5,10 +5,9 @@ import { FORMS, type QuotedPrice } from "./mitti-forms.core";
 export const HIVIC_PIESA_INC_GST = 349;
 export type ElectricianChoice = "installer_own" | "hivic_matched" | "installer_own_hivic_books";
 
-/** PIESA owner charge: $349 with a Home Insulation Victoria electrician, otherwise the installer's REC's agreed onboarding price. Null = not agreed (fail closed). */
-export function piesaChargeIncGst(choice: ElectricianChoice | null, ownRecPiesaIncGst: number | null): number | null {
-  if (choice === "hivic_matched") return HIVIC_PIESA_INC_GST;
-  if (choice === "installer_own" || choice === "installer_own_hivic_books") return ownRecPiesaIncGst != null && ownRecPiesaIncGst > 0 ? ownRecPiesaIncGst : null;
+/** Owner charge is the standard $349 for every approved electrician choice; an own REC's agreed rate is an internal supplier cost only. */
+export function piesaChargeIncGst(choice: ElectricianChoice | null, _ownRecPiesaIncGst: number | null): number | null {
+  if (choice === "hivic_matched" || choice === "installer_own" || choice === "installer_own_hivic_books") return HIVIC_PIESA_INC_GST;
   return null;
 }
 

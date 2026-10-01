@@ -4,7 +4,7 @@ import { A48_SPEC, V25_LOCATIONS, ghgEquivalentReduction, lookupLocation } from 
 import { CALC_QUICK, DEFAULT_ESTIMATED_AREA_M2, FEE_LABEL, benchmarkNote, needsRemovalScenario, parseAssumption, whatIfEstimate, computeEstimate, customerCanSee, displayModeFor, estimateSignature, pickArea, type RetailSettings } from "../src/lib/estimate.core";
 
 const S: RetailSettings = {
-  id: "s1", version: 1, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 15, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349,
+  id: "s1", version: 1, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 0, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349,
   access_standard_multiplier: 1, access_moderate_multiplier: 1.1, access_difficult_multiplier: 1.25, indicative_veec_value: 70,
   veec_value_source_label: "DEECA webinar", veec_value_source_url: "https://www.energy.vic.gov.au/x", veec_value_checked_at: "2026-09-29",
   minimum_customer_copayment_inc_gst: 200, spec_version: "25.0", spec_source_url: A48_SPEC.sourceUrl,
@@ -38,9 +38,9 @@ describe("3058 / 134.1 m² sample", () => {
     expect(t.estimated_customer_total).toBeCloseTo(134.1 * 30 + 698 - disc, 2);
     expect(none.scenarios.length).toBe(1);
   });
-  test("full removal adds area × $15 before discount", () => {
+  test("removal is not priced before the Ready Check", () => {
     expect(pres.scenarios.map((s) => s.key)).toEqual(["can_remain", "full_removal"]);
-    expect(pres.scenarios[1]!.by_access.standard.pre_discount_total - pres.scenarios[0]!.by_access.standard.pre_discount_total).toBeCloseTo(134.1 * 15, 2);
+    expect(pres.scenarios[1]!.by_access.standard.pre_discount_total - pres.scenarios[0]!.by_access.standard.pre_discount_total).toBe(0);
   });
   test("access loads install component only", () => {
     expect(none.access_adjustment.moderate).toBeCloseTo(134.1 * 30 * 0.1, 2);
@@ -148,8 +148,8 @@ describe("Step 3 v2 refinement", () => {
     const [cr, fr] = e.scenarios;
     expect(cr!.by_access.standard.pre_discount_total).toBeCloseTo(4721, 2);
     expect(cr!.by_access.standard.estimated_customer_total).toBeCloseTo(3396.31, 2);
-    expect(fr!.by_access.standard.pre_discount_total).toBeCloseTo(6732.5, 2);
-    expect(fr!.by_access.standard.estimated_customer_total).toBeCloseTo(5407.81, 2);
+    expect(fr!.by_access.standard.pre_discount_total).toBeCloseTo(4721, 2);
+    expect(fr!.by_access.standard.estimated_customer_total).toBeCloseTo(3396.31, 2);
     expect(e.access_adjustment).toEqual({ moderate: 402.3, difficult: 1005.75 });
   });
   test("wording: benchmark not market price; fee not government-mandated", () => {

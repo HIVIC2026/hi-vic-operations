@@ -4,7 +4,7 @@ import { whatIfEstimate } from "../src/lib/estimate.core";
 import { acceptSelectedAddress, locationBasisLine, resolveWhatIfLocation, WHATIF_ADDRESS_COPY, type SelectedAddress } from "../src/lib/whatif-location";
 const sel = (postcode: string): SelectedAddress => ({ label: `1 Test St VIC ${postcode}`, postcode, state: "VIC", latitude: null, longitude: null });
 
-const settings = { id: "t", version: 2, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 15, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349, access_standard_multiplier: 1, access_moderate_multiplier: 1.1, access_difficult_multiplier: 1.25, indicative_veec_value: 70, minimum_customer_copayment_inc_gst: 200 } as never;
+const settings = { id: "t", version: 2, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 0, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349, access_standard_multiplier: 1, access_moderate_multiplier: 1.1, access_difficult_multiplier: 1.25, indicative_veec_value: 70, minimum_customer_copayment_inc_gst: 200 } as never;
 const original = lookupLocation("3336")!;
 const disc = (loc: typeof original) => whatIfEstimate(150, loc, "none" as never, settings)!.scenarios[0]!.by_access.standard.applied_discount;
 

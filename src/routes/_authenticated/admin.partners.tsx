@@ -196,7 +196,7 @@ function LeadFeeCard() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-sm font-semibold">Lead fee on leads we send installers</div>
-          <div className="text-sm text-muted-foreground"><span className="text-lg font-bold text-foreground">${data?.leadFee ?? "…"}</span> inc GST · deducted from payout only when the owner accepts. Never charged on installers' own customers.</div>
+          <div className="text-sm text-muted-foreground"><span className="text-lg font-bold text-foreground">${data?.leadFee ?? "…"}</span> inc GST · deducted from payout only after installation and paperwork approval. Never charged on installers&apos; own customers.</div>
         </div>
         {!editing && <Button size="sm" variant="outline" onClick={() => { setFee(String(data?.leadFee ?? 220)); setEditing(true); }}>Change fee</Button>}
       </div>

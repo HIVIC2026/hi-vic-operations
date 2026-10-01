@@ -28,9 +28,9 @@ export function jobProfit(i: ProfitInput, spot: number | null) {
   return { customerExGst, veecs, veecRevenue, veecMargin, profit };
 }
 
-// Installer referral: the installer is paid a referral fee (inc GST) only when an
-// installer-sourced job proceeds with an accepted quote. It is a cost to Home Insulation Victoria.
-export const INSTALLER_REFERRAL_FEE_INC_GST = 220;
+// Home Insulation Victoria lead fee: deducted from the installer payout only after
+// installation and AP paperwork approval. Never applies to an installer's own customer.
+export const HIVIC_LEAD_FEE_INC_GST = 220;
 
 export type MarginInput = {
   installerCostExGst: number; // what Home Insulation Victoria pays the installer (rate card)
@@ -38,8 +38,9 @@ export type MarginInput = {
   apFeeExGst: number; // PIESA / Accredited Person fee charged to the owner ($349 inc GST → 317.27 ex)
   electricalCostExGst: number; // what Home Insulation Victoria pays the electrician/REC for rectification (pass-through)
   electricalChargeExGst: number; // what the customer is charged for electrical work (pass-through → markup 0)
-  installerSourced: boolean; // $220 referral fee applies when the job proceeds
-  installerLed?: boolean; // installer brought their own customer: never a referral fee
+  installerSourced: boolean; // legacy name: true means Home Insulation Victoria supplied the customer
+  installerLed?: boolean; // installer brought their own customer: never a lead fee
+  leadFeeEarned?: boolean; // installation complete and required paperwork approved
   veecDiscountIncGst: number; // owner's discount → VEEC count at $70 each
   piesaRecCostExGst: number | null; // negotiated lower set rate paid to the REC for the PIESA; null = not agreed/recorded yet
   veecLodgementFeeExGst: number | null; // ESC fee per VEEC created/registered; null = not set
@@ -54,7 +55,7 @@ export function jobMargin(i: MarginInput, spot: number | null) {
   const piesaRecPaidEx = i.piesaRecCostExGst == null ? null : r2(i.piesaRecCostExGst);
   const piesaMarginEx = piesaRecPaidEx == null ? null : r2(i.apFeeExGst - i.piesaRecCostExGst!);
   const electricalMarkup = r2(i.electricalChargeExGst - i.electricalCostExGst); // upgrades pass through at the agreed rate card
-  const referralFeeEx = i.installerSourced && !i.installerLed ? r2(INSTALLER_REFERRAL_FEE_INC_GST / 1.1) : 0;
+  const referralFeeEx = i.installerSourced && !i.installerLed && i.leadFeeEarned === true ? r2(HIVIC_LEAD_FEE_INC_GST / 1.1) : 0;
   const veecs = i.veecDiscountIncGst / OWNER_VEEC_RATE;
   const veecMargin = spot != null ? r2(veecs * (spot - OWNER_VEEC_RATE)) : null;
   const lodgementFeeEx = i.veecLodgementFeeExGst == null ? null : r2(veecs * i.veecLodgementFeeExGst);
