@@ -332,11 +332,16 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       return <InsuranceStep d={d} up={up} token={token} setError={setError} />;
     case "services":
       return <>
-        <div style={infoCard}><strong>I would like to receive referrals from Home Insulation Victoria for:</strong></div>
-        <Check checked={d.service_piesa === true} onChange={(v) => up({ service_piesa: v })}>PIESA — pre-insulation electrical safety assessment (includes the ceiling measure-up)</Check>
-        <Check checked={d.service_rectification === true} onChange={(v) => up({ service_rectification: v })}>Electrical rectification work <span style={{ color: MUTED }}>(required)</span></Check>
-        <Check checked={d.service_installation_isolation === true} onChange={(v) => up({ service_installation_isolation: v })}>Install day attendance <span style={{ color: MUTED }}>(required)</span></Check>
-        <p style={{ fontSize: 13, color: MUTED }}>Every Home Insulation Victoria electrician takes rectification work and install day attendance — both are required. PIESA assessments are optional: tick it if you want us to send you assessment work too.</p>
+        <div style={infoCard}>
+          <strong>Every Home Insulation Victoria REC partner provides all three electrical services:</strong>
+          <ol style={{ margin: "8px 0 0", paddingLeft: 20, lineHeight: 1.6 }}>
+            <li><strong>PIESA</strong> — the pre-installation electrical safety assessment.</li>
+            <li><strong>Electrical rectification</strong> — completing required electrical work after approval.</li>
+            <li><strong>Installation-day electrical attendance</strong> — attending when required for the job.</li>
+          </ol>
+          <p style={{ margin: "8px 0 0", fontSize: 13, color: MUTED }}>Rectification and installation-day attendance happen when a job requires them. The insulation installer does the ceiling measure-up — you don't measure the ceiling.</p>
+        </div>
+        <Check checked={d.services_all_confirmed === true} onChange={(v) => up({ services_all_confirmed: v })}>I confirm our REC can provide all three electrical services listed above, as required for each job.</Check>
       </>;
     case "coverage":
       return <>
@@ -367,7 +372,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
         <div style={infoCard}>{d.gst_registered === false ? "Not GST registered: enter your total rate." : "GST registered: enter rates including GST."} These are proposed supplier rates — Home Insulation Victoria reviews them before they apply.</div>
         <div style={infoCard}><strong>Be competitive.</strong> We send steady volume to the electricians with the sharpest rates — the more competitive your pricing, the more jobs you'll win.</div>
         <Field label={`Pre-Insulation Electrical Safety Assessment (PIESA) visit (${unit})`} required hint="Formal electrical safety assessment and PIESA only. The installer completes the separate eligibility measure-up."><Money value={d.assessment_rate} onChange={(v) => up({ assessment_rate: v })} unit="visit" /></Field>
-        {d.service_installation_isolation && <Field label={`Installation-day attendance (${unit})`} required><Money value={d.installation_attendance_rate} onChange={(v) => up({ installation_attendance_rate: v })} unit="visit" /></Field>}
+        {<Field label={`Installation-day attendance (${unit})`} required><Money value={d.installation_attendance_rate} onChange={(v) => up({ installation_attendance_rate: v })} unit="visit" /></Field>}
       </>;
     }
     case "rectification_pricing": {
