@@ -46,7 +46,7 @@ describe("create & assign", () => {
     const { api, calls } = fake();
     const r = await createOrReuseAudit(api, ctx());
     expect(r).toMatchObject({ auditId: "audit_1", reused: false, mittiUserId: "user_77", prefillCount: 9 });
-    expect(calls.map((c) => c.path)).toEqual(["/users/search", `/templates/${MITTI_TEMPLATE_ID}`, "/audits", "/audits/audit_1/share"]);
+    expect(calls.map((c) => c.path)).toEqual(["/users/search", `/templates/v1/templates/${MITTI_TEMPLATE_ID}`, "/audits", "/audits/audit_1/share"]);
     expect(calls[0].body).toEqual({ email: ["sparky@hivic.test"] });
     const body = calls[2].body as { template_id: string; header_items: { item_id: string; responses: Record<string, string> }[]; items: { item_id: string }[] };
     expect(body.template_id).toBe(MITTI_TEMPLATE_ID);
