@@ -52,10 +52,10 @@ describe("autoAdvance", () => {
     expect(r.to).toBe("awaiting_deposit_payment");
     expect(r.stoppedBecause).toContain("PIESA");
   });
-  test("no-rect job with complete site requirements auto-generates quotes -> awaiting_quote_acceptance", async () => {
+  test("retired assessment_booked never auto-advances, even with complete site requirements", async () => {
     const x = fake("assessment_booked", {}, { site: true });
     const r = await runAutoAdvance(x.deps);
-    expect(r.to).toBe("awaiting_quote_acceptance");
+    expect(r.to).toBe("assessment_booked");
     expect(x.gens()).toBe(1);
     expect(r.stoppedBecause).toContain("Owner must accept");
   });
