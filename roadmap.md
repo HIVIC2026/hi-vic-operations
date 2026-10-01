@@ -94,3 +94,6 @@
 - [ ] Customer web address (estimate.homeinsulationvictoria.com.au): bare address opens the calculator only; staff sign-in moves to /home; hide the "Edit with Lovable" badge so nothing says Lovable on customer pages
 
 - [x] Confirm public portal access boundaries and provide the published app URL.
+- [ ] Align REC clauses 4, 5, 12, 24, 26 and 27; increment agreement version and reconciliation.
+- [ ] Complete remaining REC UI/save checks and no-write address-proxy proof.
+- [ ] Save viewable 1280/390 REC screenshots as embedded JSON and run focused verification.
