@@ -26,7 +26,7 @@ describe("customer outcome email renderers", () => {
     expect(h).not.toMatch(/<form|<input|<iframe|<script|\son\w+=/i);
     expect(h).toContain('<html lang="en-AU" dir="ltr">');
     expect(h).toContain('<body lang="en-AU" dir="ltr"');
-    expect(`${h} ${email.plainText}`).not.toMatch(/undefined|NaN|\$0\b|VEECs?\b(?! discount)|AP Management|Gate 1|high demand|limited|one of only|guarantee|bill/i.source.includes("VEEC") ? /undefined|NaN|\$0\b|Gate 1|high demand|one of only|guaranteed|energy bill/i : /x/);
+    expect(`${h} ${email.plainText}`).not.toMatch(/undefined|NaN|\$0\b|Gate 1|AP Management|high demand|one of only|guaranteed|energy bill|<div class="hiv-hero-title"/i);
     expect(email.subject).toBe("Alex, your home could qualify for an estimated $1,325 VEU insulation discount");
     for (const t of ["Hi Alex,", "A more comfortable home starts here.", "Your estimated VEU discount: $1,325", "Estimated cost after discount: $3,747", "Explore your savings: https://estimate.homeinsulationvictoria.com.au/calculator", `Arrange my free Ready Check: ${estimateUrl}#confirm`, "Free Ready Check. No obligation to proceed.", "R5.0 ceiling insulation — supply & install: $4,023", "Estimated VEU / VEEC discount: −$1,325", CUSTOMER_WHAT_COULD_CHANGE.intro]) expect(email.plainText).toContain(t);
     expect(email.plainText.indexOf("Explore your savings")).toBeLessThan(email.plainText.indexOf("Arrange my free Ready Check"));
