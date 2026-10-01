@@ -16,6 +16,19 @@ describe("rec onboarding", () => {
   test("ABN checksum", () => { expect(validAbn("51 824 753 556")).toBe(true); expect(validAbn("51824753557")).toBe(false); });
   test("phone + email", () => { expect(validPhone("0412 345 678")).toBe(true); expect(validPhone("12345")).toBe(false); expect(validBusinessEmail("x@privaterelay.appleid.com")).toBe(false); });
   test("complete application has no incomplete step", () => expect(firstIncompleteStep(full)).toBeNull());
+  test("howitworks acknowledgement required", () => {
+    expect(stepErrors("howitworks", {})).toContain("Confirm you've read how jobs work, the same-day rule and the payment terms.");
+    expect(stepErrors("howitworks", { how_it_works_acknowledged: true })).toEqual([]);
+  });
+  test("worker under another REC: no ABN/REC/insurance needed, host REC required", () => {
+    const under: RecData = { ...full, works_under_rec: true, abn: undefined, rec_registration_number: undefined, host_rec_name: "Host Electrical Pty Ltd", host_rec_number: "REC 999" };
+    expect(stepErrors("business", under)).toEqual([]);
+    expect(visibleSteps(under).some((s) => s.key === "insurance")).toBe(false);
+    expect(stepErrors("insurance", { ...under, insurance_uploaded: false, insurer: undefined })).toEqual([]);
+    expect(firstIncompleteStep(under)).toBeNull();
+    expect(stepErrors("business", { ...under, host_rec_name: undefined })).toContain("Enter the REC business you work under.");
+    expect(stepErrors("business", { works_under_rec: null })).toContain("Tell us if you run your own REC business or work under another REC.");
+  });
   test("insurance under $5M and expired rejected", () => {
     expect(stepErrors("insurance", { ...full, public_liability_cover_amount: 4_999_999 }).length).toBe(1);
     expect(stepErrors("insurance", { ...full, public_liability_expiry: "2000-01-01" }).length).toBe(1);
