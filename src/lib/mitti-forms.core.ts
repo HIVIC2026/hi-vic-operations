@@ -45,13 +45,12 @@ export const PIESA_OUTCOMES = [
   "Electrical rectification work is not possible prior to insulation being installed or upgraded under parts 2 and 3",
 ];
 
-/** Pricing section — installer-sourced jobs only (Form A1). Repeat one line per item; lines drop straight into the co-branded owner quote. */
+/** Pricing section — installer-sourced jobs only (Form A1). Tick what's included, describe Other, ONE total price. */
 export const PRICE_ITEMS = ["R5.0 supply and install", "Removal of existing insulation", "Difficult access", "Tile lift", "Metal sheet access", "Other"] as const;
 export const PRICING_FIELDS: FormField[] = [
-  { label: "Item", type: "choice", required: true, perPriceLine: true, choices: [...PRICE_ITEMS], source: "portal – quote line; exactly one 'R5.0 supply and install' line required" },
-  { label: "Describe the item", type: "text", required: true, perPriceLine: true, when: "Other", source: "portal – required only when the item is Other" },
-  { label: "Price $", type: "number", required: true, perPriceLine: true, source: "portal – quote line, customer-facing prices are always incl GST" },
-  { label: "Total quoted price $", type: "number", required: true, source: "portal – must equal the sum of the lines; mismatches go to office review, never guessed" },
+  { label: "What's included in your price (tick all that apply)", type: "multichoice", required: true, choices: [...PRICE_ITEMS], source: "portal – 'R5.0 supply and install' must be ticked; Removal ticked only when an area says Remove" },
+  { label: "Describe the other item", type: "text", required: true, when: "Other is ticked", source: "portal – required only when Other is ticked" },
+  { label: "Total quoted price $", type: "number", required: true, source: "portal – one total incl GST; becomes the installer line on the owner's co-branded quote" },
   { label: "Price already agreed with the owner?", type: "choice", required: true, choices: ["Yes", "No"], source: "portal – if Yes, their price stays and our fees go on top, less the VEU discount" },
 ];
 
@@ -300,7 +299,8 @@ export function mittiAiPrompt(key: FormKey): string {
     "- Photo/video fields must allow the camera and multiple files.",
     "- Signature fields must capture the signer's name.",
     perArea.length ? `- Ask "How many separate ceiling areas are there?" first, then open that many repeating sections called "Ceiling area" (Area 1, Area 2, ...). These fields go inside the repeating section: ${perArea.map((x) => `"${x.label}"`).join(", ")}. All other fields are NOT repeated.` : "",
-    perPriceLine.length ? `- Put these fields in a repeatable section called "Quoted price line" (one repeat per line item of the installer's quote): ${perPriceLine.map((x) => `"${x.label}"`).join(", ")}. The "Total quoted price $" and "Price already agreed with the owner?" fields are NOT repeated.` : "",
+    perPriceLine.length ? `- Put these fields in a repeatable section called "Quoted price line": ${perPriceLine.map((x) => `"${x.label}"`).join(", ")}.` : "",
+    key === "ready_check_priced" ? `- Price section: ONE multiple-choice question where the installer ticks everything included, then ONE total price. Do NOT add a price box per item and do NOT repeat the price section. Build "What's included in your price (tick all that apply)" as a SINGLE question with all 6 options (not separate checkboxes). Show "Describe the other item" only when "Other" is ticked. All prices incl GST.` : "",
     key === "ready_check" || key === "ready_check_priced" ? `- For "Upgrade area diagram or floor plan": allow the installer to DRAW the diagram inside the form (sketch/drawing input), photograph a paper sketch, or upload a plan. Help text: "Rough is fine. Draw the house shape, split it into the areas you measured, write the length and width on each, take a photo, done."` : "",
     key === "piesa" ? "- Section C and the rectification electrician fields are completed on the return visit after rectification. Put them in a section called \"Section C – Rectification completion\" shown only when \"B1 Assessment outcome\" is \"Electrical rectification work is required before insulation is installed or upgraded.\"" : "",
     key === "piesa" || key === "piisa" ? "- If \"Is anyone at this property dependent on life support?\" is Yes, the consent/medical-plan question and attachment are required; if neither was received, the assessment must not proceed (add an instruction saying: STOP – do not start the assessment. Call the Home Insulation Victoria office.)." : "",
@@ -318,56 +318,45 @@ export function readyCheckVariant(channel: string | null | undefined): "ready_ch
   return channel === "installer_sourced" ? "ready_check_priced" : "ready_check";
 }
 
-export type QuotedPriceLine = { item: string; description: string; priceIncGst: number };
 export type QuotedPrice = {
-  lines: QuotedPriceLine[];
+  included: string[];
+  otherDescription: string;
   totalIncGst: number;
   agreedWithOwner: boolean;
 };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
-const R50 = "r5.0 supply and install";
-const REMOVAL = "removal of existing insulation";
 
 /**
  * Validates an installer's quoted price from the priced Ready Check (Form A1). Fails closed:
  * any problem returns an issue list and the quote goes to office review — a price is never guessed.
- * Checks: exactly one R5.0 line; a Removal line is required when any ceiling area says Remove and
- * not allowed when none do; "Other" lines need a description; the total must equal the sum of the lines.
+ * Checks: R5.0 ticked; Removal ticked iff any ceiling area says Remove; Other needs a description; one positive total.
  */
 export function validateQuotedPrice(input: {
-  lines: { item?: string | null; description?: string | null; priceIncGst?: number | null }[];
+  included: (string | null | undefined)[];
+  otherDescription?: string | null;
   totalIncGst?: number | null;
   agreedWithOwner?: boolean | null;
   removalRequired?: boolean | null;
 }): { ok: boolean; issues: string[]; price: QuotedPrice | null } {
   const issues: string[] = [];
-  const lines: QuotedPriceLine[] = [];
-  if (!input.lines.length) issues.push("No quoted price lines — at least one line is required.");
-  input.lines.forEach((l, i) => {
-    const where = `Line ${i + 1}`;
-    const item = (l.item ?? "").trim().toLowerCase();
-    const matched = (PRICE_ITEMS as readonly string[]).find((p) => p.toLowerCase() === item);
-    if (!matched) { issues.push(`${where}: item must be one of ${PRICE_ITEMS.join(", ")}.`); return; }
-    const description = (l.description ?? "").trim();
-    if (matched === "Other" && !description) issues.push(`${where}: describe the item (required for Other).`);
-    const priceIncGst = Number(l.priceIncGst);
-    if (!Number.isFinite(priceIncGst) || priceIncGst <= 0) issues.push(`${where}: price must be a number greater than 0.`);
-    else lines.push({ item: matched, description, priceIncGst: r2(priceIncGst) });
-  });
-  const r50 = lines.filter((l) => l.item.toLowerCase() === R50);
-  if (r50.length !== 1) issues.push(r50.length === 0 ? "Missing the 'R5.0 supply and install' line — exactly one is required." : "More than one 'R5.0 supply and install' line — exactly one is required.");
-  const removalLines = lines.filter((l) => l.item.toLowerCase() === REMOVAL);
-  if (input.removalRequired === true && removalLines.length === 0) issues.push("A ceiling area is marked Remove, but there is no 'Removal of existing insulation' price line.");
-  if (input.removalRequired === false && removalLines.length > 0) issues.push("A 'Removal of existing insulation' price line was given, but no ceiling area is marked Remove — office must review.");
+  const included: string[] = [];
+  for (const raw of input.included) {
+    const v = (raw ?? "").trim().toLowerCase();
+    if (!v) continue;
+    const m = (PRICE_ITEMS as readonly string[]).find((p) => p.toLowerCase() === v);
+    if (!m) issues.push(`Unknown included item "${raw}".`);
+    else if (!included.includes(m)) included.push(m);
+  }
+  if (!included.includes("R5.0 supply and install")) issues.push("'R5.0 supply and install' must be ticked as included.");
+  const removal = included.includes("Removal of existing insulation");
+  if (input.removalRequired === true && !removal) issues.push("A ceiling area is marked Remove, but removal isn't ticked as included in the price.");
+  if (input.removalRequired === false && removal) issues.push("Removal is ticked as included, but no ceiling area is marked Remove — office must review.");
+  const otherDescription = (input.otherDescription ?? "").trim();
+  if (included.includes("Other") && !otherDescription) issues.push("Other is ticked — describe the other item.");
   const totalIncGst = Number(input.totalIncGst);
   if (!Number.isFinite(totalIncGst) || totalIncGst <= 0) issues.push("Total quoted price is missing or not a positive number.");
   if (input.agreedWithOwner == null) issues.push("'Price already agreed with the owner?' was not answered.");
-  if (lines.length && Number.isFinite(totalIncGst) && totalIncGst > 0) {
-    const sum = r2(lines.reduce((a, l) => a + l.priceIncGst, 0));
-    if (Math.abs(sum - r2(totalIncGst)) > 0.01)
-      issues.push(`Total quoted price ($${r2(totalIncGst).toFixed(2)}) does not equal the sum of the lines ($${sum.toFixed(2)}) — office must review before quoting the owner.`);
-  }
   if (issues.length) return { ok: false, issues, price: null };
-  return { ok: true, issues: [], price: { lines, totalIncGst: r2(totalIncGst), agreedWithOwner: input.agreedWithOwner === true } };
+  return { ok: true, issues: [], price: { included, otherDescription, totalIncGst: r2(totalIncGst), agreedWithOwner: input.agreedWithOwner === true } };
 }
