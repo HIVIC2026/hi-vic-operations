@@ -41,6 +41,7 @@ import { Route as AuthenticatedPartnerIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedPartnerImportRouteImport } from './routes/_authenticated/partner.import'
 import { Route as AuthenticatedPartnerProfileRouteImport } from './routes/_authenticated/partner.profile'
 import { Route as AuthenticatedPartnerWorkersRouteImport } from './routes/_authenticated/partner.workers'
+import { Route as ApiPublicAddressSearchRouteImport } from './routes/api/public/address-search'
 import { Route as ApiPublicEnquiryRouteImport } from './routes/api/public/enquiry'
 import { Route as ApiPublicPartnerEnquiryRouteImport } from './routes/api/public/partner-enquiry'
 import { Route as ApiPublicUnsubscribeRouteImport } from './routes/api/public/unsubscribe'
@@ -224,6 +225,11 @@ const AuthenticatedPartnerWorkersRoute =
     path: '/partner/workers',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicAddressSearchRoute = ApiPublicAddressSearchRouteImport.update({
+  id: '/api/public/address-search',
+  path: '/api/public/address-search',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicEnquiryRoute = ApiPublicEnquiryRouteImport.update({
   id: '/api/public/enquiry',
   path: '/api/public/enquiry',
@@ -308,6 +314,7 @@ export interface FileRoutesByFullPath {
   '/partner/import': typeof AuthenticatedPartnerImportRoute
   '/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/partner/workers': typeof AuthenticatedPartnerWorkersRoute
+  '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
@@ -351,6 +358,7 @@ export interface FileRoutesByTo {
   '/partner/import': typeof AuthenticatedPartnerImportRoute
   '/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/partner/workers': typeof AuthenticatedPartnerWorkersRoute
+  '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
@@ -396,6 +404,7 @@ export interface FileRoutesById {
   '/_authenticated/partner/import': typeof AuthenticatedPartnerImportRoute
   '/_authenticated/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/_authenticated/partner/workers': typeof AuthenticatedPartnerWorkersRoute
+  '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
@@ -441,6 +450,7 @@ export interface FileRouteTypes {
     | '/partner/import'
     | '/partner/profile'
     | '/partner/workers'
+    | '/api/public/address-search'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/api/public/unsubscribe'
@@ -484,6 +494,7 @@ export interface FileRouteTypes {
     | '/partner/import'
     | '/partner/profile'
     | '/partner/workers'
+    | '/api/public/address-search'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/api/public/unsubscribe'
@@ -528,6 +539,7 @@ export interface FileRouteTypes {
     | '/_authenticated/partner/import'
     | '/_authenticated/partner/profile'
     | '/_authenticated/partner/workers'
+    | '/api/public/address-search'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/api/public/unsubscribe'
@@ -555,6 +567,7 @@ export interface RootRouteChildren {
   TestCustomerEstimateRoute: typeof TestCustomerEstimateRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
   WTokenRoute: typeof WTokenRoute
+  ApiPublicAddressSearchRoute: typeof ApiPublicAddressSearchRoute
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
   ApiPublicPartnerEnquiryRoute: typeof ApiPublicPartnerEnquiryRoute
   ApiPublicUnsubscribeRoute: typeof ApiPublicUnsubscribeRoute
@@ -792,6 +805,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPartnerWorkersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/address-search': {
+      id: '/api/public/address-search'
+      path: '/api/public/address-search'
+      fullPath: '/api/public/address-search'
+      preLoaderRoute: typeof ApiPublicAddressSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/enquiry': {
       id: '/api/public/enquiry'
       path: '/api/public/enquiry'
@@ -931,6 +951,7 @@ const rootRouteChildren: RootRouteChildren = {
   TestCustomerEstimateRoute: TestCustomerEstimateRoute,
   EstimateTokenRoute: EstimateTokenRoute,
   WTokenRoute: WTokenRoute,
+  ApiPublicAddressSearchRoute: ApiPublicAddressSearchRoute,
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
   ApiPublicPartnerEnquiryRoute: ApiPublicPartnerEnquiryRoute,
   ApiPublicUnsubscribeRoute: ApiPublicUnsubscribeRoute,

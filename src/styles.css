@@ -325,13 +325,14 @@
   }
 }
 
-/* Public calculator: brand display headings (Space Grotesk) over DM Sans body */
+/* Public calculator: Syne display headings over Plus Jakarta Sans body */
 .estimate-brand {
-  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Figtree", ui-sans-serif, system-ui, sans-serif;
 }
 .estimate-brand h1,
 .estimate-brand h2,
 .estimate-brand h3 {
-  font-family: "Space Grotesk", "Outfit", ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: -0.015em;
+  font-family: "Outfit", "Figtree", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  font-weight: 800;
 }

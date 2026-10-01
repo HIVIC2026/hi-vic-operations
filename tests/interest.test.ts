@@ -73,8 +73,20 @@ describe("parseInterest", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("accepts a lead with just name, mobile and email (no address, no size)", () => {
+  it("requires a property address", () => {
     const result = parseInterest({ ...base, addressLine: "", suburb: "", ceilingM2: 0 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.addressLine ?? "").toContain("property address");
+  });
+
+  it("accepts a lead with a full address and no ceiling size", () => {
+    const result = parseInterest({
+      ...base,
+      addressLine: "34 Watsons Road, Bundoora VIC 3757",
+      suburb: "Bundoora",
+      postcode: "3757",
+      ceilingM2: 0,
+    });
     expect(result.ok).toBe(true);
   });
 

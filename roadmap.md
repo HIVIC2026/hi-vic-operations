@@ -66,3 +66,7 @@
 - Calculator: property question = full address with type-ahead autofill (not postcode); register band carries that address down
 - Calculator heading font: Space Grotesk rejected by Joannah - pick a new display font
 - Calculator: darken remaining light grey text (placeholders, hints, suffixes)
+- Calculator: "Register my interest" wording check + client-ready link (high demand - do not wait)
+- Calculator heading: Jo says something is wrong with it - inspect live preview and fix
+- Calculator: button wording "Demand is high - register your interest" (AP-safe: no rebate promise, no fake deadline)
+- Address search "playing up" - diagnose and fix (typed house number, stale/empty results, click selection)
