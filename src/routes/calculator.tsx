@@ -20,7 +20,7 @@ const description =
 
 export const Route = createFileRoute("/calculator")({
   ssr: false,
-  headers: () => ({ "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" }),
+  headers: () => ({ "Cache-Control": "no-store" }),
   head: () => ({
     meta: [
       { title },
@@ -28,13 +28,15 @@ export const Route = createFileRoute("/calculator")({
       { property: "og:title", content: title },
       { property: "og:description", content: description },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://estimate.homeinsulationvictoria.com.au/" },
       { property: "og:image", content: CUSTOMER_BRAND.logoUrl },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: title },
       { name: "twitter:description", content: description },
       { name: "twitter:image", content: CUSTOMER_BRAND.logoUrl },
-      { name: "robots", content: "noindex, nofollow" },
+      { name: "robots", content: "index, follow" },
     ],
+    links: [{ rel: "canonical", href: "https://estimate.homeinsulationvictoria.com.au/" }],
   }),
   component: PublicCalculatorPage,
 });
