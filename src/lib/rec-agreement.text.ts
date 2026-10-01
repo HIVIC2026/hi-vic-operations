@@ -32,8 +32,8 @@ export const REC_AGREEMENT_SECTIONS: { n: number; title: string; paras: string[]
   "n": 4,
   "title": "Scope of services",
   "paras": [
-   "The REC will provide the services selected in Schedule 2 and any job-specific scope accepted in Home Insulation Victoria. Every approved REC must be capable of completing the formal PIESA and any allocated electrical work. The insulation installer, not the REC, completes the separate eligibility measure-up.",
-   "Electrical rectification and installation-day attendance are included only where the REC has opted into those services and the job has been specifically allocated or approved.",
+   "Every approved REC must provide all three electrical services listed in Schedule 2 — the pre-installation electrical safety assessment (PIESA), electrical rectification after approval, and installation-day electrical attendance — as required for each job, together with any job-specific scope accepted in Home Insulation Victoria. The REC does not measure the ceiling: the insulation installer completes the ceiling measure-up and eligibility measure-up.",
+   "Electrical rectification and installation-day attendance are mandatory capabilities, not optional services. They are performed when a job requires them and has been specifically allocated or approved through Home Insulation Victoria.",
    "The REC must not perform additional chargeable work for a Home Insulation Victoria customer outside the approved job scope without the customer's approval through the Home Insulation Victoria workflow or Home Insulation Victoria's written authority."
   ]
  },

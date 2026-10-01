@@ -2,7 +2,7 @@
 // No I/O. Used by the public form (live validation) and the server (authoritative checks).
 import { REC_AGREEMENT_SECTIONS } from "./rec-agreement.text";
 
-export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-1.7-2026-10-01";
+export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-1.8-2026-10-01";
 export const REC_AGREEMENT_TITLE = "Activity 48 Registered Electrical Contractor Partner Agreement";
 export const AP_ENTITY = "DC Construction Solutions Pty Ltd ABN 44 671 613 979 trading as Home Insulation Victoria";
 export const MIN_PL_COVER = 5_000_000;
@@ -59,7 +59,10 @@ export type RecData = {
   licence_number?: string;
   insurer?: string; insurance_policy_number?: string; public_liability_cover_amount?: number | null; public_liability_expiry?: string; insurance_uploaded?: boolean;
   electricians?: Electrician[];
+  /** Legacy per-service flags — ignored. All three services are mandatory for every REC. */
   service_piesa?: boolean; service_rectification?: boolean; service_installation_isolation?: boolean;
+  /** "I confirm our REC can provide all three electrical services listed above, as required for each job." */
+  services_all_confirmed?: boolean;
   service_origin?: string; travel_radius_km?: number | null; excluded_areas?: string;
   typical_days?: string[]; normal_attendance_speed?: string;
   capacity_band?: string; accepting_jobs?: boolean;
@@ -110,11 +113,10 @@ export type StepKey = (typeof STEPS)[number]["key"];
 
 export function visibleSteps(d: RecData) {
   return STEPS.filter((s) =>
-    (s.key !== "rectification_pricing" || d.service_rectification === true) &&
     (s.key !== "insurance" || d.works_under_rec !== true) &&
     (s.key !== "bank" || d.works_under_rec !== true) &&
     (s.key !== "assessment_pricing" || d.works_under_rec !== true) &&
-    (s.key !== "rectification_pricing" || (d.works_under_rec !== true && d.service_rectification === true)));
+    (s.key !== "rectification_pricing" || d.works_under_rec !== true));
 }
 
 export function validAbn(abn: string | undefined): boolean {
@@ -174,7 +176,7 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d.public_liability_expiry ?? "") || (d.public_liability_expiry as string) < melbourneToday(now)) e.push("Insurance expiry must be today or later.");
       break;
     case "services":
-      if (d.service_rectification !== true || d.service_installation_isolation !== true) e.push("Rectification work and install day attendance are required — tick both to continue.");
+      if (d.services_all_confirmed !== true) e.push("Confirm your REC can provide all three electrical services.");
       break;
     case "coverage":
       if (!txt(d.service_origin)) e.push("Enter your service starting location.");
@@ -190,12 +192,11 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
     case "assessment_pricing":
       if (d.works_under_rec === true) break; // rates agreed with the host REC
       if (typeof d.gst_registered !== "boolean") e.push("Tell us if you're GST registered.");
-      if (d.service_piesa !== false && !pos(d.assessment_rate)) e.push("Enter your PIESA visit rate.");
-      if (d.service_installation_isolation && !pos(d.installation_attendance_rate)) e.push("Enter your installation-day attendance rate.");
+      if (!pos(d.assessment_rate)) e.push("Enter your PIESA visit rate.");
+      if (!pos(d.installation_attendance_rate)) e.push("Enter your installation-day attendance rate.");
       break;
     case "rectification_pricing":
       if (d.works_under_rec === true) break; // rates agreed with the host REC
-      if (!d.service_rectification) break;
       for (const it of RECT_ITEMS) if (!pos(d.rectification_rates?.[it.key] ?? null)) e.push(`Enter a rate for ${it.label}.`);
       if (d.coes_fee_choice !== "included" && d.coes_fee_choice !== "separate") e.push("Choose how the Certificate of Electrical Safety is charged.");
       if (d.coes_fee_choice === "separate" && !pos(d.coes_fee)) e.push("Enter the Certificate of Electrical Safety fee.");
@@ -223,7 +224,7 @@ export function firstIncompleteStep(d: RecData, now = new Date()): StepKey | nul
 
 export const MATERIAL_FIELDS = [
   "legal_entity_name", "trading_name", "abn", "rec_registration_number", "business_email", "service_origin", "travel_radius_km",
-  "excluded_areas", "typical_days", "normal_attendance_speed", "capacity_band", "service_rectification", "service_installation_isolation",
+  "excluded_areas", "typical_days", "normal_attendance_speed", "capacity_band", "services_all_confirmed",
   "assessment_rate", "installation_attendance_rate", "rectification_rates", "coes_fee_choice", "coes_fee", "gst_registered", "electricians",
   "works_under_rec", "host_rec_name", "host_rec_number",
 ] as const;
@@ -252,17 +253,18 @@ export function scheduleText(d: RecData): string {
   lines.push("", "Nominated electricians:");
   effectiveElectricians(d).forEach((x, i) => lines.push(`${i + 1}. ${x.full_legal_name} — licence ${x.licence_number}`));
   lines.push("", "SCHEDULE 2 — SERVICES, COVERAGE AND CAPACITY");
-  lines.push(`Pre-insulation electrical safety assessment (PIESA): ${d.service_piesa === false ? "no" : "yes"}`);
-  lines.push(`Electrical rectification: ${d.service_rectification ? "yes" : "no"}`, `Installation-day electrical attendance: ${d.service_installation_isolation ? "yes" : "no"}`);
+  lines.push("Required electrical services (all three, as required for each job):",
+    "- Pre-installation electrical safety assessment (PIESA)",
+    "- Electrical rectification (completing required electrical work after approval)",
+    "- Installation-day electrical attendance (when required for the job)",
+    "Ceiling measure-up and eligibility measure-up: completed by the insulation installer, not the REC");
   lines.push(`Service origin: ${d.service_origin ?? ""}; radius: ${d.travel_radius_km === 9999 ? "anywhere in Victoria" : `${d.travel_radius_km} km`}${d.excluded_areas ? `; excluded: ${d.excluded_areas}` : ""}`);
   lines.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}; weekly assessments: ${d.capacity_band ?? ""}`);
   lines.push("", `SCHEDULE 3 — PROPOSED SUPPLIER RATES (${gst}; not binding until accepted by Home Insulation Victoria under clause 17)`);
   lines.push(`Pre-insulation electrical safety assessment (PIESA): ${money(d.assessment_rate)} / visit`);
-  if (d.service_installation_isolation) lines.push(`Installation-day attendance: ${money(d.installation_attendance_rate)} / visit`);
-  if (d.service_rectification) {
-    for (const it of RECT_ITEMS) lines.push(`${it.label}: ${money(d.rectification_rates?.[it.key] ?? null)} / ${it.unit}`);
-    lines.push(`Certificate of Electrical Safety: ${d.coes_fee_choice === "separate" ? `${money(d.coes_fee)} separate fee` : "included"}`);
-  }
+  lines.push(`Installation-day attendance: ${money(d.installation_attendance_rate)} / visit`);
+  for (const it of RECT_ITEMS) lines.push(`${it.label}: ${money(d.rectification_rates?.[it.key] ?? null)} / ${it.unit}`);
+  lines.push(`Certificate of Electrical Safety: ${d.coes_fee_choice === "separate" ? `${money(d.coes_fee)} separate fee` : "included"}`);
   return lines.join("\n");
 }
 
