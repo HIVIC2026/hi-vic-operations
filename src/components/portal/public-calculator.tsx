@@ -181,7 +181,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
               {raw.trim() !== "" && m2 == null && <p role="alert" className="mt-2 text-xs font-bold text-danger">Please enter an area between {CALC_MIN_M2} and {CALC_MAX_M2} m².</p>}
             </Field>
 
-            <Field id="calc-insulation" icon={Layers} label="Any insulation already up there?" hint="This tells us whether old insulation may need to come out first.">
+            <Field id="calc-insulation" icon={Layers} label="Any insulation already up there?">
               <div id="calc-insulation" className="grid grid-cols-3 gap-1.5 rounded-xl border border-estimate-line bg-estimate-mist p-1.5">
                 {INSULATION_OPTIONS.map((o) => {
                   const on = insulation === o.value;
