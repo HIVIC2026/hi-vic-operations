@@ -45,9 +45,11 @@ function responseValue(it: Any): string | null {
 
 /** Flatten header_items + nested items; section = normalized labels of all ancestors. */
 export function flatten(doc: Any): Entry[] {
+  // Audit docs carry header_items/items at the root; v1 template definitions wrap them under `template`.
+  const root = doc?.template ?? doc;
   const raw: { it: Any; header: boolean }[] = [
-    ...((doc?.header_items ?? []) as Any[]).map((it) => ({ it, header: true })),
-    ...((doc?.items ?? []) as Any[]).map((it) => ({ it, header: false })),
+    ...((root?.header_items ?? []) as Any[]).map((it) => ({ it, header: true })),
+    ...((root?.items ?? []) as Any[]).map((it) => ({ it, header: false })),
   ];
   // Support nested children arrays as well as flat parent_id lists.
   const all: { it: Any; header: boolean; parent: string | null }[] = [];
