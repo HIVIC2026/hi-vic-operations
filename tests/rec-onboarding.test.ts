@@ -57,7 +57,7 @@ describe("rec onboarding", () => {
     expect(stepErrors("insurance", { ...full, public_liability_cover_amount: 4_999_999 }).length).toBe(1);
     expect(stepErrors("insurance", { ...full, public_liability_expiry: "2000-01-01" }).length).toBe(1);
   });
-  test("PIESA rate not required when PIESA referrals declined", () => {
+  test("PIESA rate always required", () => {
     expect(stepErrors("assessment_pricing", { ...full, service_piesa: false, installation_attendance_rate: 150, assessment_rate: undefined })).toContain("Enter your PIESA visit rate.");
   });
   test("rectification pricing step is always shown and requires all rates", () => {
@@ -75,7 +75,7 @@ describe("rec onboarding", () => {
   });
   test("agreement text includes markup clause, schedules and all 8 acknowledgements", () => {
     const t = agreementText(full);
-    expect(t).toContain("HI-VIC-A48-REC-1.7-2026-10-01");
+    expect(t).toContain("HI-VIC-A48-REC-1.8-2026-10-01");
     expect(t).toContain("is not the customer-facing price");
     expect(t).toContain("does not depend on Home Insulation Victoria receiving payment from the customer");
     expect(t).toContain("Pre-insulation electrical safety assessment (PIESA): $300.00 / visit");
