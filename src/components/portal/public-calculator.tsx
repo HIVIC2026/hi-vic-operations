@@ -235,7 +235,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
             </Field>
 
             <Field id="calc-insulation" icon={Layers} label="Any insulation already up there?">
-              <div id="calc-insulation" className="grid gap-2 sm:grid-cols-3">
+               <div id="calc-insulation" className="grid grid-cols-3 gap-1.5 sm:gap-2">
                 {INSULATION_OPTIONS.map((o) => {
                   const on = insulation === o.value;
                   return (
@@ -245,17 +245,17 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                        variant="outline"
                       aria-pressed={on}
                       onClick={() => setInsulation(o.value)}
-                       className={`flex h-auto min-h-[3.75rem] flex-col items-start gap-0.5 whitespace-normal rounded-lg border-2 px-3 py-2.5 text-left ${
+                       className={`flex h-auto min-h-12 flex-col items-start justify-center gap-0.5 whitespace-normal rounded-lg border-2 px-2 py-2 text-left sm:min-h-[3.75rem] sm:px-3 sm:py-2.5 ${
                         on
                            ? "border-estimate-green bg-estimate-mint"
                           : "border-estimate-line bg-estimate-white hover:border-estimate-blue/45 hover:bg-estimate-mist"
                       }`}
                     >
-                      <span className="flex w-full items-center justify-between gap-2 text-sm font-extrabold text-estimate-navy">
+                       <span className="flex w-full items-center justify-between gap-1 text-xs font-extrabold text-estimate-navy sm:text-sm">
                         {o.label}
                         {on && <Check aria-hidden="true" className="size-4 shrink-0 text-estimate-green" strokeWidth={3} />}
                       </span>
-                      <span className="text-[0.7rem] leading-snug text-estimate-navy/90">{INSULATION_HELP[String(o.value)]}</span>
+                       <span className="hidden text-[0.7rem] leading-snug text-estimate-navy/90 sm:block">{INSULATION_HELP[String(o.value)]}</span>
                      </Button>
                   );
                 })}
