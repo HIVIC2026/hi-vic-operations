@@ -35,7 +35,7 @@ describe("customer outcome email renderers", () => {
   test("likely eligible fallbacks: typical area, no name, no address, tracked CTA", () => {
     const tracked = `https://quote.homeinsulationvictoria.com.au/t/e/${"T".repeat(43)}`;
     const e = renderEstimateEmail({ ...common, outcome: "likely", areaIsTypical: true, trackingClickUrl: tracked });
-    expect(e.html).toContain("Good news — based on the information");
+    expect(e.html).toContain("Good news — based on what you’ve told us");
     expect(e.html).not.toContain("Property:");
     expect(e.html).toContain("134.1 m² (typical-home assumption)");
     expect(e.html).toContain(`href="${tracked}"`);
