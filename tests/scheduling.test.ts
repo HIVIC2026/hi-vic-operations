@@ -51,10 +51,15 @@ describe("24/48h responsiveness", () => {
     expect(s.canRequestAnother).toBe(false);
     expect(s.message).toBe("No response for 24 hours — Home Insulation Victoria is monitoring this");
   });
-  test("48h without booking = exception, reassignment allowed", () => {
-    const s = appointmentSla({ assigned_at: at(49), first_response_at: at(40) }, now);
+  test("48h without meaningful contact = exception, reassignment allowed", () => {
+    const s = appointmentSla({ assigned_at: at(49) }, now);
     expect(s.canRequestAnother).toBe(true);
-    expect(s.message).toBe("No booking agreed after 48 hours — request another electrician");
+    expect(s.message).toBe("No meaningful contact after 48 hours — request another electrician");
+  });
+  test("meaningful first contact stops the first-contact clock without requiring a booking", () => {
+    const s = appointmentSla({ assigned_at: at(49), first_response_at: at(40) }, now);
+    expect(s.canRequestAnother).toBe(false);
+    expect(s.message).toBe("Electrician made contact");
   });
   test("cannot attend = immediate eligibility", () => {
     const s = appointmentSla({ assigned_at: at(2), cannot_attend_at: at(1) }, now);

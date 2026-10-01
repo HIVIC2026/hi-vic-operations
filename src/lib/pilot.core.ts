@@ -300,9 +300,9 @@ export function appointmentSla(a: SlaInput, now = new Date()) {
   const since = (now.getTime() - Date.parse(a.assigned_at)) / 3_600_000;
   const responded = !!a.first_response_at;
   if (a.cannot_attend_at) return { state: "exception" as const, hours: since, canRequestAnother: true, message: "Electrician can't attend in time — request another electrician" };
-  if (since >= SLA_BREACH_H) return { state: "exception" as const, hours: since, canRequestAnother: true, message: responded ? "No booking agreed after 48 hours — request another electrician" : "No response after 48 hours — request another electrician" };
+  if (since >= SLA_BREACH_H && !responded) return { state: "exception" as const, hours: since, canRequestAnother: true, message: "No meaningful contact after 48 hours — request another electrician" };
   if (since >= SLA_WARN_H && !responded) return { state: "attention" as const, hours: since, canRequestAnother: false, message: "No response for 24 hours — Home Insulation Victoria is monitoring this" };
-  return { state: "ok" as const, hours: since, canRequestAnother: false, message: responded ? "Agreeing a time" : "Waiting for electrician" };
+  return { state: "ok" as const, hours: since, canRequestAnother: false, message: responded ? "Electrician made contact" : "Waiting for electrician" };
 }
 
 /**

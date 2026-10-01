@@ -401,7 +401,7 @@ export const requestAnotherElectrician = createServerFn({ method: "POST" }).midd
     const { data: a } = await admin.from("job_assignments").select("*").eq("job_id", data.jobId).eq("role", "electrician").eq("active", true).maybeSingle();
     if (!a) throw new WorkflowError("No electrician is assigned.");
     const sla = appointmentSla(a);
-    if (role !== "admin" && !sla.canRequestAnother) throw new WorkflowError("You can request another electrician after 48 hours without a confirmed time, or if the electrician says they cannot attend.");
+    if (role !== "admin" && !sla.canRequestAnother) throw new WorkflowError("You can request another electrician after 48 hours without meaningful contact, or if the electrician says they cannot attend.");
     const now = new Date().toISOString();
     await admin.from("job_assignments").update({ active: false, ended_at: now, end_reason: `replacement requested by ${role}: ${data.reason}` }).eq("id", a.id);
     await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", data.jobId).in("kind", ["assessment", "rectification"]).eq("status", "proposed");

@@ -2,7 +2,7 @@
 // No I/O. Used by the public form (live validation) and the server (authoritative checks).
 import { REC_AGREEMENT_SECTIONS } from "./rec-agreement.text";
 
-export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-2.2-2026-10-01";
+export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-2.3-2026-10-01";
 export const REC_AGREEMENT_TITLE = "Activity 48 Registered Electrical Contractor Partner Agreement";
 export const AP_ENTITY = "DC Construction Solutions Pty Ltd ABN 44 671 613 979 trading as Home Insulation Victoria";
 export const MIN_PL_COVER = 5_000_000;
@@ -13,8 +13,8 @@ export const ACKNOWLEDGEMENTS = [
   { key: "personnel", text: "The REC will ensure every nominated electrician and staff member on Home Insulation Victoria jobs complies with the obligations that apply to them." },
   { key: "compliance", text: "I understand the REC and its personnel must comply with current VEU, Code of Conduct, PIESA, electrical-safety and Home Insulation Victoria requirements." },
   { key: "records", text: "I confirm the REC will provide truthful records and evidence and cooperate with Home Insulation Victoria, ESC and ESV compliance checks." },
-  { key: "no_bypass", text: "I understand that rectification, electrical upgrades, attendance and other work identified through or required for a Home Insulation Victoria Activity 48 job must be quoted, approved, scheduled and completed through the Home Insulation Victoria workflow and must not be taken off-platform or dealt with directly." },
-  { key: "customer_owner", text: "I understand the customer is Home Insulation Victoria's customer. I will not quote, invoice or accept payment from them separately for any work connected to a Home Insulation Victoria job, and I will not approach them for other work. All communication goes through the Home Insulation Victoria portal." },
+  { key: "no_bypass", text: "I understand that rectification, electrical upgrades, attendance and other work identified through or required for a Home Insulation Victoria Activity 48 job must be quoted, approved by the owner, scheduled and completed through the Home Insulation Victoria workflow and must not be taken off-platform or dealt with directly, except for the minimum work lawfully necessary to make an immediate danger safe." },
+  { key: "customer_owner", text: "I understand the customer is Home Insulation Victoria's customer. I will not quote, invoice or accept payment from them separately for any work connected to a Home Insulation Victoria job, and I will not approach them for other work. Routine communication goes through the Home Insulation Victoria portal, subject only to the agreement's narrow immediate-safety and legally required exceptions." },
   { key: "same_day", text: "I understand PIESA results and any rectification quote (or confirmation that none is required) must be submitted through the Home Insulation Victoria portal on the day of each assessment." },
   { key: "pricing", text: "I understand our approved rates are supplier rates, Home Insulation Victoria sets the customer price independently and may include its own margin, and Home Insulation Victoria does not have to disclose that margin to us. I will not share our rates with customers." },
   { key: "electronic_signature", text: "I agree to electronic execution and to the signed agreement, exact wording, version and audit record being stored by Home Insulation Victoria." },
