@@ -95,11 +95,11 @@ function EmailPreview() {
   const srcDoc = sample.html.replace(/(<a\b[^>]*?)\s+href="[^"]*"/g, "$1");
   const outcomeTestUrl = outcome === "ineligible" ? "https://homeinsulationvictoria.com.au/homeowner" : `${estimateUrl}#confirm`;
   const width = view === "desktop" ? 640 : view === "mobile" ? 390 : undefined;
-  const brand = { fontFamily: CUSTOMER_BRAND.font, background: CUSTOMER_BRAND.colors.offWhite, color: CUSTOMER_BRAND.colors.navy };
+  const brand = { fontFamily: "Figtree, Arial, Helvetica, sans-serif", background: CUSTOMER_BRAND.colors.offWhite, color: CUSTOMER_BRAND.colors.navy };
   const pill = (active: boolean) => ({ fontFamily: brand.fontFamily, background: active ? CUSTOMER_BRAND.colors.blue : CUSTOMER_BRAND.colors.white, color: active ? CUSTOMER_BRAND.colors.white : CUSTOMER_BRAND.colors.blue, border: `2px solid ${CUSTOMER_BRAND.colors.blue}`, boxShadow: active ? `3px 3px 0 ${CUSTOMER_BRAND.colors.green}` : "none" });
   const btn = "ep-btn min-h-11 px-3 py-2 text-xs font-extrabold uppercase tracking-wider";
   return <main className="min-h-screen px-3 py-6 sm:px-6" style={brand}>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700;800&family=Outfit:wght@700;800&display=swap" />
     <style>{`.ep-btn:focus-visible{outline:3px solid #07BF61;outline-offset:2px}`}</style>
     <div className="mx-auto max-w-[760px]">
        <p className="estimate-action-card mb-4 text-sm font-bold">SAMPLE EMAIL PREVIEW ONLY. Buttons are disabled here; nothing is sent, saved or paid.</p>
@@ -121,7 +121,7 @@ function EmailPreview() {
       {previewKind === "email" && <><p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p><p className="mb-6 text-sm"><strong>Preheader:</strong> {sample.previewText}</p></>}
        {previewKind === "email" && <div className="mb-4 flex flex-wrap items-center gap-3 text-xs font-bold">
           {outcome === "onsite" && <button type="button" onClick={() => setPreviewKind("calculator")} className="underline" style={{ color: "#3C51C4" }}>Test OPEN THE INTERACTIVE CALCULATOR →</button>}
-          {outcome === "likely" && <a href={PUBLIC_CALCULATOR_URL} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test Explore your savings → (opens the public calculator)</a>}
+           {outcome === "likely" && <a href={PUBLIC_CALCULATOR_URL} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test Open the calculator → (opens the public calculator)</a>}
          {outcome === "ineligible"
            ? <a href={outcomeTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test REVIEW MY RESULT →</a>
            : <button type="button" onClick={() => setPreviewKind("confirm")} className="underline" style={{ color: "#067A45" }}>{outcome === "likely" ? "Test Arrange my free Ready Check →" : "Test BOOK MY READY CHECK →"}</button>}
@@ -134,7 +134,7 @@ function EmailPreview() {
        <section aria-label={`${outcome} ${previewKind} preview`} className="min-w-0">
         <h2 className="mb-3 text-sm font-extrabold uppercase" style={{ color: "#3C51C4" }}>{view === "fit" ? "Responsive fit" : view === "desktop" ? "Desktop · 640px" : "Mobile · 390px"}</h2>
           {previewKind === "measured" ? <div className="mx-auto max-w-full" style={{ width: width ?? "100%" }}><MeasuredQuoteSample insulation={SAMPLE_INSTALL} piesa={PIESA_FEE} ap={AP_FEE} discount={SAMPLE_DISCOUNT} existingInsulation={hasExistingInsulation} piesaCase={piesaCase} /></div> : previewKind === "email" ? <div className="estimate-quote-card mx-auto max-w-full overflow-x-auto p-1 sm:p-3" style={width ? { width: width + 30 } : undefined}>
-            <iframe title={`${outcome} email`} srcDoc={srcDoc} sandbox="" className="block h-[2400px] max-w-full border-0" style={{ width: width ?? "100%", background: "#FBFCFA" }} />
+            <iframe title={`${outcome} email`} srcDoc={srcDoc} sandbox="" className="block h-[2650px] max-w-full border-0" style={{ width: width ?? "100%", background: "#FBFCFA" }} />
             </div> : previewKind === "calculator" && previewLocation ? <div className="estimate-brand mx-auto max-w-full overflow-hidden bg-estimate-canvas" style={{ width: width ?? "100%" }}><EstimateHeader /><div className="px-4 pb-10"><AreaCalculator calc={{ location: previewLocation, insulation: hasExistingInsulation ? "present" : "none", settings: previewSettings }} initial={150} fees={{ piesa: PIESA_FEE, ap: AP_FEE, minCopay: 200 }} propertyAddress="30 Dash St, Fraser Rise VIC 3336" preview /></div></div> : <div className="estimate-brand mx-auto max-w-full overflow-hidden bg-estimate-canvas" style={{ width: width ?? "100%" }}><EstimateHeader /><div className="px-4 pb-10"><ConfirmQuote estimatedPrice={SAMPLE_CUSTOMER} assessmentFee={PIESA_FEE} preview testMode state={previewAcceptance} onAccept={() => setTestState("accepted")} onBack={() => setPreviewKind("email")} /></div></div>}
          {previewKind === "confirm" && outcome !== "ineligible" && <div className="mb-4 flex flex-wrap gap-2" aria-label="Test request state">{(["unaccepted", "accepted"] as const).map((item) => <button key={item} type="button" className={btn} aria-pressed={testState === item} style={pill(testState === item)} onClick={() => setTestState(item)}>{item}</button>)}</div>}
        {outcome !== "ineligible" && <div className="mb-4 flex flex-wrap gap-2" aria-label="Existing insulation sample">
