@@ -19,7 +19,7 @@ describe("template records", () => {
     test(`${k}: stored original matches its SHA-256`, () => expect(createHash("sha256").update(readFileSync(OFFICIAL_TEMPLATES[k].originalFile)).digest("hex")).toBe(OFFICIAL_TEMPLATES[k].sha256));
     test(`${k}: not approved, source unconfirmed, blocked from use`, () => {
       const t = OFFICIAL_TEMPLATES[k];
-      expect(t.approved).toBe(false); expect(t.sourceUrlStatus).toBe("NEEDS CONFIRMATION");
+      expect(t.approved).toBe(false); expect(t.sourceUrlStatus).toBe("NEEDS CONFIRMATION"); expect(t.retrievalDateStatus).toBe("UNKNOWN"); expect(t.retrievalDate).toBeNull(); expect(t.publication).toBe("© DEECA March 2026"); expect(t.sourceUrl).toBeNull();
       expect(officialFormUseBlocker(k)).not.toBeNull();
       expect(officialFormUseBlocker(k, { ...t, sourceUrl: "https://x", sourceUrlStatus: "confirmed", retrievalDate: "2026-10-02", retrievalDateStatus: "confirmed" })).toMatch(/approved/);
       expect(officialFormUseBlocker(k, { ...t, sourceUrl: "https://x", sourceUrlStatus: "confirmed", retrievalDate: "2026-10-02", retrievalDateStatus: "confirmed", approved: { by: "jo", at: "x" } })).toBeNull();
@@ -216,13 +216,16 @@ describe("PIISA installation-day gate", () => {
     expect(evaluatePiesa(pe).blockers.find((b) => b.rule === "P7-NOT-EFFECTIVE")?.message).toBe(HAZARD_UNRESOLVED);
     expect(base({ piesa: copy("piesa", pe, "2026-10-01") }).blockers).toContain(HAZARD_UNRESOLVED);
     expect(evaluatePiesa(pe, { hazardResolution: { kind: "authorised_review", reviewId: "r" } }).blockers.some((b) => b.rule === "P7-NOT-EFFECTIVE")).toBe(true);
-    expect(evaluatePiesa(pe, { hazardResolution: { kind: "verified_rectification", rectificationId: "x" } }).blockers.some((b) => b.rule === "P7-NOT-EFFECTIVE")).toBe(false);
+    expect(evaluatePiesa(pe, { hazardResolution: { kind: "verified_rectification", resolvedHazards: ["appliance#0"] } }).blockers.some((b) => b.rule === "P7-NOT-EFFECTIVE")).toBe(false);
+    expect(evaluatePiesa(pe, { hazardResolution: { kind: "verified_rectification", resolvedHazards: ["appliance#1"] } }).blockers.some((b) => b.rule === "P7-NOT-EFFECTIVE")).toBe(true);
   });
   test("rule B: conductivity blank is never No; needs answer and evidence", () => {
     const a = { ...piisaPass(), "p8.date": "2026-10-10", "p6.present": "Yes", "p6.height": 50, "p6.treatment": ["Removed"], "p6.suitable": "Yes" };
     const p = copy("piisa", a, "2026-10-10");
     expect(base({ piisa: p, conductiveExistingInsulation: null }).blockers.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(true);
-    expect(base({ piisa: p, conductivityEvidence: null }).blockers.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(true);
+    const noPhoto = base({ piisa: p, conductivityEvidence: null }).blockers;
+       expect(noPhoto.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(false); // the Yes/No answer is recorded
+       expect(noPhoto.some((b) => b.includes("HI VIC supporting evidence"))).toBe(true); // separate HI VIC photo requirement
     expect(base({ piisa: p }).blockers.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(false);
   });
   test("storage missing fails closed", () => expect(base({ storageUnavailable: true }).due).toBe("blocked"));
