@@ -207,7 +207,7 @@ export function buildPrefill(template: Any, ctx: PrefillCtx) {
       const opt = choiceOption(template, e.id, vStr);
       if (!opt) { if (f.mandatory) missing.push(`${f.aliases[0]} option "${vStr}"`); continue; } // never guess an option
       type = "question"; responses = { selected: [opt] };
-    } else if (/^site$/i.test(e.type)) { missing.push(`${f.aliases[0]} (Mitti "Site" fields can't be prefilled – change it to a text answer)`); continue; }
+    } else if (/^site$/i.test(e.type)) { missing.push(`${e.label} (Mitti "Site" fields can't be prefilled – change it to a text answer)`); continue; }
     else if (/^address$/i.test(e.type)) responses = { location_text: vStr };
     else responses = { text: vStr };
     const row = { item_id: e.id, label: e.label, type, responses };
