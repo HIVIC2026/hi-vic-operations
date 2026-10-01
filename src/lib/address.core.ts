@@ -78,12 +78,28 @@ function stateShort(value: unknown): string {
  * When the person has typed a suburb, suggestions from other suburbs are
  * dropped so "Smith Street, Fitzroy" can't offer a Collingwood street.
  */
+/** The address fields we care about, exactly as the service sends them. */
+type NominatimAddress = {
+  state?: unknown;
+  postcode?: unknown;
+  house_number?: unknown;
+  road?: unknown;
+  pedestrian?: unknown;
+  footway?: unknown;
+  suburb?: unknown;
+  quarter?: unknown;
+  town?: unknown;
+  municipality?: unknown;
+  city?: unknown;
+  county?: unknown;
+};
+
 export function parseNominatimSuggestions(payload: unknown, typed = ""): AddressSuggestion[] {
   if (!Array.isArray(payload)) return [];
   const out: AddressSuggestion[] = [];
   const seen = new Set<string>();
   for (const item of payload) {
-    const a = (item as { address?: Record<string, unknown> })?.address;
+    const a = (item as { address?: NominatimAddress })?.address;
     if (!a) continue;
     const stateRaw = asText(a.state);
     if (stateRaw && stateRaw.trim().toLowerCase() !== "victoria") continue;
