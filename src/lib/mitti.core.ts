@@ -139,7 +139,8 @@ export function melbourneDay(v: string | null): string | null {
 // ---------- prefill ----------
 export type PrefillCtx = {
   jobNumber: string; address: string; ownerName: string; ownerEmail?: string | null; ownerPhone?: string | null;
-  assessorName: string; assessmentAt?: string | null; estimatedAreaM2?: number | null; occupancy?: string | null; lifeSupport?: string | null;
+  assessorName: string; assessmentAt?: string | null; estimatedAreaM2?: number | null; occupancy?: string | null;
+  lifeSupport?: string | null; propertyType?: string | null;
 };
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
   { key: "jobNumber", aliases: ["Portal Job Number"], mandatory: true },
@@ -151,8 +152,20 @@ const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; 
   { key: "assessmentAt", aliases: ["Assessment date/time", "Assessment date time", "Booked assessment date"], datetime: true },
   { key: "estimatedAreaM2", aliases: ["Office estimated ceiling area", "Estimated ceiling area"] },
   { key: "occupancy", aliases: ["Occupancy"] },
-  { key: "lifeSupport", aliases: ["Life support status", "Office life support status"] },
+  { key: "lifeSupport", aliases: ["Life support status", "Office life support result", "Office life support status"] },
+  { key: "propertyType", aliases: ["Property type"] },
 ];
+
+const PROPERTY_TYPE_OPTIONS = ["House", "Townhouse", "Unit or apartment"] as const;
+/** Pure: maps a declared property type to a Ready Check option. Unknown values return null — never invented. */
+export function propertyTypeOption(v: string | null | undefined): string | null {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return null;
+  if (s === "house") return "House";
+  if (s === "townhouse") return "Townhouse";
+  if (s.startsWith("unit") || s.includes("apartment") || s.includes("flat")) return "Unit or apartment";
+  return null;
+}
 
 export function buildPrefill(template: Any, ctx: PrefillCtx) {
   const entries = flatten(template);
