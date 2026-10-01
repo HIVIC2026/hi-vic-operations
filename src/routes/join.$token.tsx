@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getWorkerInvite, submitWorkerInvite } from "@/lib/worker-invite.functions";
+import { workerDeclarations } from "@/lib/worker-invite.core";
 
 export const Route = createFileRoute("/join/$token")({
   head: () => ({ meta: [
@@ -28,8 +29,17 @@ function Join() {
   const [ticks, setTicks] = useState<string[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
-  useEffect(() => { load({ data: { token } }).then((r) => { setInv(r); if (r.ok) setF((x) => ({ ...x, full_legal_name: r.inviteeName })); }).catch(() => setInv({ ok: false, message: "We couldn't open this invite. Please try again." })); }, [token]);
+  const previewTrade = token === "sample-electrician" ? "electrician" as const : token === "sample-installer" ? "installer" as const : null;
+  const preview = previewTrade !== null;
+  const [done, setDone] = useState(() => preview && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("receipt") === "1");
+  useEffect(() => {
+    if (previewTrade) {
+      const businessName = previewTrade === "electrician" ? "Sample Electrical" : "Sample Insulation";
+      const sample = { ok: true as const, inviteeName: previewTrade === "electrician" ? "Sample electrician" : "Sample installer", trade: previewTrade, businessName, declarations: workerDeclarations(previewTrade, businessName) };
+      setInv(sample); setF((x) => ({ ...x, full_legal_name: sample.inviteeName, mobile: "0400 000 000", email: "sample@example.com", licence_number: previewTrade === "electrician" ? "ESV SAMPLE" : "", qualification: previewTrade === "installer" ? "Sample insulation qualification" : "" })); return;
+    }
+    load({ data: { token } }).then((r) => { setInv(r); if (r.ok) setF((x) => ({ ...x, full_legal_name: r.inviteeName })); }).catch(() => setInv({ ok: false, message: "We couldn't open this invite. Please try again." }));
+  }, [load, previewTrade, token]);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
 
   const wrap = (c: React.ReactNode) => <div className="min-h-screen bg-background px-4 py-8"><main className="mx-auto max-w-xl rounded-2xl border bg-card p-6 shadow-sm"><div className="mb-2 text-xs font-bold uppercase tracking-wide text-success">Home Insulation Victoria</div>{c}</main></div>;
@@ -40,10 +50,12 @@ function Join() {
   return wrap(<form onSubmit={async (e) => {
     e.preventDefault(); setBusy(true); setErrors([]);
     try {
+      if (preview) { setErrors(["Sample preview only — no worker details were submitted."]); return; }
       const r = await submit({ data: { token, ...f, accepted: ticks } });
       if (r.ok) setDone(true); else { setErrors(r.errors); window.scrollTo({ top: 0 }); }
     } catch { setErrors(["Something went wrong. Please try again."]); } finally { setBusy(false); }
   }}>
+    {preview && <div role="status" className="mb-3 rounded-xl bg-secondary p-3 text-sm font-bold">Sample preview only — no data is saved and this invitation cannot be submitted.</div>}
     <h1 className="mb-1 text-2xl font-bold">You're joining {inv.businessName}</h1>
     <p className="mb-5 text-sm text-muted-foreground">Your boss has already set up the business with Home Insulation Victoria. We just need your own details and your sign-off — no ABN, insurance, rates or bank details.</p>
     {errors.length > 0 && <div className="mb-4 rounded-xl border border-danger bg-danger-soft p-3 text-sm text-danger">{errors.map((x) => <div key={x}>• {x}</div>)}</div>}
@@ -65,6 +77,6 @@ function Join() {
       ))}
     </div>
     <label className="mt-5 block text-sm font-medium">Type your full name to sign<Input value={f.signed_name} onChange={set("signed_name")} className="mt-1 h-12" /></label>
-    <Button type="submit" size="field" className="mt-5 w-full" disabled={busy}>{busy ? "Saving…" : "Sign and register"}</Button>
+    <Button type="submit" size="field" className="mt-5 w-full" disabled={busy || preview}>{preview ? "Preview only — submission disabled" : busy ? "Saving…" : "Sign and register"}</Button>
   </form>);
 }

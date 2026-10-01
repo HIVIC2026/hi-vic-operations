@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
-  acknowledgementsFor, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION,
-  firstName, stepErrors, firstIncompleteStep, validAbn, visibleSteps, type RecData, type StepKey,
+  acknowledgementsFor, agreementText, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION,
+  firstName, parseRecSampleStep, stepErrors, firstIncompleteStep, validAbn, visibleSteps, type RecData, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
@@ -125,6 +125,10 @@ function Choice<T extends string | number | boolean>({ options, value, onChange 
 }
 
 function RecOnboarding() {
+  const rawSample = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("sample") : null;
+  const sampleStep = parseRecSampleStep(rawSample);
+  const sampleMode = rawSample !== null;
+  const invalidSample = sampleMode && sampleStep === null;
   const [token, setToken] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [started, setStarted] = useState(false);
@@ -139,12 +143,14 @@ function RecOnboarding() {
   const [invite, setInvite] = useState<string | null>(null);
   const [inviteInfo, setInviteInfo] = useState<Awaited<ReturnType<typeof loadTeamInvite>> | null>(null);
   useEffect(() => {
+    if (sampleMode) return;
     const i = new URLSearchParams(window.location.search).get("invite");
     if (!i) return;
     setInvite(i);
     loadTeamInvite({ data: { invite: i } }).then(setInviteInfo).catch((e) => setError(e instanceof Error ? e.message : "Invitation not found."));
-  }, []);
+  }, [sampleMode]);
   async function answerInvite(accept: boolean) {
+    if (sampleMode) return;
     if (!invite) return;
     setBusy(true); setError(null);
     try {
@@ -157,6 +163,14 @@ function RecOnboarding() {
   }
 
   useEffect(() => {
+    if (invalidSample) { setLoaded(true); return; }
+    if (sampleStep) {
+      setD(SAMPLE_REC_DATA); setToken("sample-preview-token"); setTestMode(false);
+      if (sampleStep === "welcome") { setStarted(false); setStatus("draft"); }
+      else if (sampleStep === "submitted") { setStarted(true); setStatus("submitted"); }
+      else { setStarted(true); setStatus("draft"); setStep(sampleStep); }
+      setLoaded(true); return;
+    }
     if (new URLSearchParams(window.location.search).get("reset") === "1") { localStorage.removeItem(TOKEN_KEY); setLoaded(true); return; }
     const t = localStorage.getItem(TOKEN_KEY);
     if (!t) { setLoaded(true); return; }
@@ -166,7 +180,7 @@ function RecOnboarding() {
       const first = firstIncompleteStep(r.data as RecData);
       setStep(r.status === "submitted" ? "sign" : ((first ?? r.step_key ?? "about") as StepKey));
     }).catch(() => localStorage.removeItem(TOKEN_KEY)).finally(() => setLoaded(true));
-  }, []);
+  }, [invalidSample, sampleStep]);
 
   const steps = useMemo(() => visibleSteps(d), [d]);
   const idx = Math.max(0, steps.findIndex((s) => s.key === step));
@@ -174,6 +188,7 @@ function RecOnboarding() {
   const up = (patch: Partial<RecData>) => setD((x) => ({ ...x, ...patch }));
 
   async function begin() {
+    if (sampleMode) { setD(SAMPLE_REC_DATA); setToken("sample-preview-token"); setStep("about"); setStarted(true); setError(null); return; }
     setBusy(true); setError(null);
     try {
       const { token: t } = await startRecOnboarding({ data: { test: testMode } });
@@ -181,6 +196,7 @@ function RecOnboarding() {
     } catch (e) { setError(e instanceof Error ? e.message : "Could not start."); } finally { setBusy(false); }
   }
   async function persist(nextStep: StepKey) {
+    if (sampleMode) return;
     if (!token) return;
     const { insurance_uploaded: _u, ...data } = d;
     const r = await saveRecOnboarding({ data: { token, step_key: nextStep, data: data as never } });
@@ -189,7 +205,7 @@ function RecOnboarding() {
   async function go(delta: 1 | -1) {
     setError(null);
     if (delta === 1 && d.works_under_rec === true) return; // workers join via the boss's invite link
-    if (delta === 1 && errs.length && !testMode) { setShowErrors(true); return; }
+    if (delta === 1 && errs.length && !testMode && !sampleMode) { setShowErrors(true); return; }
     setShowErrors(false);
     const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "about";
     setBusy(true);
@@ -219,6 +235,8 @@ function RecOnboarding() {
   );
 
   if (!loaded) return shell(<p>Loading…</p>);
+  if (invalidSample) return shell(<div style={card}><h1 style={{ fontSize: 24, fontWeight: 800, color: BLUE }}>That sample step is not available</h1><p style={{ color: MUTED }}>No data has been loaded or saved.</p><a href="/electrician-onboarding?sample=welcome" style={{ color: BLUE, fontWeight: 700 }}>Open the welcome sample →</a></div>);
+  const previewBanner = sampleMode ? <div role="status" style={{ background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#7A5A00", marginBottom: 14 }}>SAMPLE PREVIEW — no data is saved and no application, invitation or signature is submitted.</div> : null;
 
   if (invite && inviteInfo && !inviteInfo.answered) return shell(
     <div style={card}>
@@ -240,6 +258,7 @@ function RecOnboarding() {
     <div style={{ ...card, padding: 0, overflow: "hidden" }}>
       <div style={{ height: 6, background: `linear-gradient(90deg, ${GREEN}, ${BLUE})` }} />
       <div style={{ padding: 24 }}>
+        {previewBanner}
         <div style={{ fontSize: 13, fontWeight: 700, color: GREEN, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: DISPLAY }}>Home Insulation Victoria</div>
         <h1 style={{ fontSize: 28, fontWeight: 800, margin: "8px 0 10px", color: NAVY }}>Welcome to our Trade Partner Network</h1>
         <p style={{ fontSize: 15, lineHeight: 1.6, color: MUTED }}>We're really pleased to have you here and can't wait to work with you. Home Insulation Victoria keeps jobs, communication and assessments simple — all in one place.</p>
@@ -258,6 +277,7 @@ function RecOnboarding() {
 
   if (status === "submitted") return shell(
     <div style={{ ...card, textAlign: "center" }}>
+      {previewBanner}
       <div style={{ width: 56, height: 56, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 28, lineHeight: "56px", margin: "0 auto 16px" }}>✓</div>
       <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — we've got everything.</h1>
       <p style={{ color: MUTED, lineHeight: 1.6 }}>Your application and signed agreement are now with the Home Insulation Victoria team. We'll review your details, check your REC registration, licences and insurance, and be in touch if we need anything else.</p>
@@ -278,12 +298,13 @@ function RecOnboarding() {
 
   return shell(
     <div style={card}>
-      {testMode && <div style={{ background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#7A5A00", marginBottom: 14 }}>TEST MODE — nothing is mandatory, so you can click straight through. This application is marked as a test and won't count as a real applicant.</div>}
+      {previewBanner}
+      {testMode && !sampleMode && <div style={{ background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#7A5A00", marginBottom: 14 }}>TEST MODE — nothing is mandatory, so you can click straight through. This application is marked as a test and won't count as a real applicant.</div>}
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
       {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Nice one, {firstName(d)} — next up: {steps[idx]?.title?.toLowerCase()}.</div>}
       {!firstName(d) && <div style={{ marginBottom: 12 }} />}
-      <StepBody step={step} d={d} up={up} token={token!} setError={setError} />
-      {step === "sign" && <SignStep d={d} token={token!} onSigned={() => setStatus("submitted")} />}
+      <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} />
+      {step === "sign" && <SignStep d={d} token={token ?? ""} onSigned={() => setStatus("submitted")} preview={sampleMode} />}
       {showErrors && errs.length > 0 && (
         <div style={{ background: "#FDECEA", border: "1px solid #F5C2BE", borderRadius: 12, padding: "10px 14px", color: "#8C1D18", fontSize: 14, marginTop: 8 }}>
           {errs.map((e) => <div key={e}>• {e}</div>)}
@@ -295,7 +316,7 @@ function RecOnboarding() {
   );
 }
 
-function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void }) {
+function StepBody({ step, d, up, token, setError, preview }: { step: StepKey; d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void; preview: boolean }) {
   const t = (k: keyof RecData, upper = false) => ({ value: (d[k] as string) ?? "", onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => up({ [k]: upper ? e.target.value.toUpperCase() : e.target.value } as Partial<RecData>) });
   switch (step) {
     case "about":
@@ -332,7 +353,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
         {d.works_under_rec !== true && <Check checked={d.authorised_to_register === true} onChange={(v) => up({ authorised_to_register: v })}>I'm authorised to set up this REC.</Check>}
       </>;
     case "insurance":
-      return <InsuranceStep d={d} up={up} token={token} setError={setError} />;
+      return <InsuranceStep d={d} up={up} token={token} setError={setError} preview={preview} />;
     case "services":
       return <>
         <div style={infoCard}>
@@ -396,19 +417,20 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
         <Field label="Account number" required><input style={input} inputMode="numeric" autoComplete="off" {...t("bank_account_number")} /></Field>
       </>;
     case "review":
-      return <ReviewStep d={d} up={up} token={token} />;
+      return <ReviewStep d={d} up={up} token={token} preview={preview} />;
     default:
       return null;
   }
 }
 
-function InsuranceStep({ d, up, token, setError }: { d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void }) {
+function InsuranceStep({ d, up, token, setError, preview }: { d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void; preview: boolean }) {
   const [uploading, setUploading] = useState(false);
   const [checking, setChecking] = useState(false);
   const [found, setFound] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   async function onFile(f: File | undefined) {
     if (!f) return;
+    if (preview) { setError("Sample preview only — certificate upload is disabled."); return; }
     setError(null);
     if (!["application/pdf", "image/jpeg", "image/png"].includes(f.type)) { setError("Upload a PDF, JPG or PNG."); return; }
     if (f.size > 20 * 1024 * 1024) { setError("File must be 20 MB or smaller."); return; }
@@ -444,7 +466,7 @@ function InsuranceStep({ d, up, token, setError }: { d: RecData; up: (p: Partial
   }
   return <>
     {d.insurance_uploaded
-      ? <div style={{ ...infoCard }}>✓ Certificate uploaded. It's stored privately — only the Home Insulation Victoria office can view it. <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label></div>
+      ? <div style={{ ...infoCard }}>✓ Certificate uploaded. It's stored privately — only the Home Insulation Victoria office can view it. {!preview && <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label>}</div>
       : <Field label="Certificate of Currency" required hint="PDF, JPG or PNG, up to 20 MB">
           <label style={{ ...btn(false, uploading), display: "inline-flex", alignItems: "center" }}>{checking ? "Checking certificate…" : uploading ? "Uploading…" : "Upload certificate"}<input type="file" hidden disabled={uploading} accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label>
         </Field>}
@@ -458,13 +480,14 @@ function InsuranceStep({ d, up, token, setError }: { d: RecData; up: (p: Partial
   </>;
 }
 
-function ReviewStep({ d, up, token }: { d: RecData; up: (p: Partial<RecData>) => void; token: string }) {
+function ReviewStep({ d, up, token, preview }: { d: RecData; up: (p: Partial<RecData>) => void; token: string; preview: boolean }) {
   const [text, setText] = useState<string | null>(null);
   const [version, setVersion] = useState("");
   useEffect(() => {
+    if (preview) { setText(agreementText(d)); setVersion(REC_AGREEMENT_VERSION); return; }
     // Save first so the schedules reflect the latest answers, then load the exact text.
     getRecAgreement({ data: { token } }).then((a) => { setText(a.text); setVersion(a.version); }).catch(() => setText("Could not load the agreement. Please go back and try again."));
-  }, [token]);
+  }, [d, preview, token]);
   return <>
     <div style={{ fontSize: 12, fontWeight: 800, color: GREEN, textTransform: "uppercase", letterSpacing: 0.8 }}>Activity 48 · VEU</div>
     <div style={{ fontSize: 13, color: MUTED, marginBottom: 6 }}>Version {version}</div>
@@ -475,7 +498,7 @@ function ReviewStep({ d, up, token }: { d: RecData; up: (p: Partial<RecData>) =>
   </>;
 }
 
-function SignStep({ d, token, onSigned }: { d: RecData; token: string; onSigned: () => void }) {
+function SignStep({ d, token, onSigned, preview }: { d: RecData; token: string; onSigned: () => void; preview: boolean }) {
   const [acks, setAcks] = useState<Record<string, boolean>>({});
   const [name, setName] = useState(d.primary_contact_name ?? "");
   const [position, setPosition] = useState("");
@@ -485,6 +508,7 @@ function SignStep({ d, token, onSigned }: { d: RecData; token: string; onSigned:
   const ackList = acknowledgementsFor(d);
   const ready = ackList.every((a) => acks[a.key]) && name.trim().length > 1 && position.trim().length > 1 && email.includes("@");
   async function sign() {
+    if (preview) { setErr("Sample preview only — no agreement was signed or submitted."); return; }
     setBusy(true); setErr(null);
     try {
       await signRecAgreement({ data: { token, signer_name: name, signer_position: position, signer_email: email, acknowledgements: acks, agreement_version: REC_AGREEMENT_VERSION } });
@@ -498,6 +522,7 @@ function SignStep({ d, token, onSigned }: { d: RecData; token: string; onSigned:
     <Field label="Position / title" required><input style={input} placeholder="e.g. Director" value={position} onChange={(e) => setPosition(e.target.value)} /></Field>
     <Field label="Signer email" required><input style={input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
     {err && <p style={{ color: "#B3261E", fontSize: 14 }}>{err}</p>}
-    <button style={{ ...btn(true, !ready || busy), width: "100%" }} disabled={!ready || busy} onClick={sign}>{busy ? "Signing…" : "Sign agreement & submit"}</button>
+    <button style={{ ...btn(true, !ready || busy), width: "100%" }} disabled={!ready || busy || preview} onClick={sign}>{busy ? "Signing…" : preview ? "Preview only — signing disabled" : "Sign agreement & submit"}</button>
   </>;
 }
+

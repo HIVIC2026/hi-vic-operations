@@ -5,14 +5,15 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createWorkerInvite, listWorkerInvites, revokeWorkerInvite } from "@/lib/worker-invite.functions";
+import { workerInviteQueryKey } from "@/lib/worker-invite.core";
 
 const LABEL: Record<string, string> = { active: "Waiting for them", used: "Registered", revoked: "Cancelled", expired: "Expired" };
 
-export function WorkerInvites({ businessId }: { businessId: string }) {
+export function WorkerInvites({ businessId, sample = false }: { businessId: string; sample?: boolean }) {
   const list = useServerFn(listWorkerInvites);
   const create = useServerFn(createWorkerInvite);
   const revoke = useServerFn(revokeWorkerInvite);
-  const { data, refetch } = useQuery({ queryKey: ["worker-invites", businessId], queryFn: () => list({ data: { businessId } }) });
+  const { data, error, refetch } = useQuery({ queryKey: workerInviteQueryKey(businessId, sample), queryFn: () => sample ? Promise.resolve([]) : list({ data: { businessId } }), initialData: sample ? [] : undefined });
   const [f, setF] = useState({ name: "", contact: "", trade: "electrician" as "electrician" | "installer" });
   const [link, setLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -24,6 +25,7 @@ export function WorkerInvites({ businessId }: { businessId: string }) {
       <form className="grid gap-3 sm:grid-cols-2" onSubmit={async (e) => {
         e.preventDefault(); setBusy(true);
         try {
+          if (sample) return;
           const r = await create({ data: { businessId, name: f.name, contact: f.contact || null, trade: f.trade } });
           setLink(`${window.location.origin}/join/${r.token}`); setF({ ...f, name: "", contact: "" }); refetch();
         } catch (er) { toast.error(er instanceof Error ? er.message : "Could not create invite"); } finally { setBusy(false); }
@@ -33,7 +35,7 @@ export function WorkerInvites({ businessId }: { businessId: string }) {
         </div>
         <label className="text-sm font-medium">Their name<Input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="mt-1 h-12" /></label>
         <label className="text-sm font-medium">Their mobile or email (optional)<Input value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} className="mt-1 h-12" /></label>
-        <Button type="submit" size="field" disabled={busy} className="sm:col-span-2">{busy ? "Creating…" : "Create invite link"}</Button>
+        <Button type="submit" size="field" disabled={busy || sample} className="sm:col-span-2">{sample ? "Preview only — invitations disabled" : busy ? "Creating…" : "Create invite link"}</Button>
       </form>
       {link && (
         <div className="mt-3 rounded-lg bg-success-soft p-3 text-sm">
@@ -43,12 +45,13 @@ export function WorkerInvites({ businessId }: { businessId: string }) {
           <p className="mt-1 text-xs text-muted-foreground">You won't see this link again — create a new one if it gets lost.</p>
         </div>
       )}
+      {error && <p role="alert" className="mt-3 text-sm text-danger">Invites could not be loaded. Please try again.</p>}
       {!!data?.length && (
         <ul className="mt-4 space-y-2 text-sm">
           {data.map((i) => (
             <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2">
               <span><strong>{i.invitee_name}</strong> · {i.trade_role === "electrician" ? "Electrician" : "Installer"} · {LABEL[i.state]}</span>
-              {i.state === "active" && <Button size="sm" variant="outline" onClick={async () => { await revoke({ data: { id: i.id } }); refetch(); }}>Cancel</Button>}
+              {!sample && i.state === "active" && <Button size="sm" variant="outline" onClick={async () => { await revoke({ data: { id: i.id } }); refetch(); }}>Cancel</Button>}
             </li>
           ))}
         </ul>
