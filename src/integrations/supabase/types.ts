@@ -4337,6 +4337,8 @@ export type Database = {
           internal: boolean
           job_id: string
           sender_id: string | null
+          sender_label: string | null
+          worker_id: string | null
         }
         Insert: {
           body: string
@@ -4346,6 +4348,8 @@ export type Database = {
           internal?: boolean
           job_id: string
           sender_id?: string | null
+          sender_label?: string | null
+          worker_id?: string | null
         }
         Update: {
           body?: string
@@ -4355,6 +4359,8 @@ export type Database = {
           internal?: boolean
           job_id?: string
           sender_id?: string | null
+          sender_label?: string | null
+          worker_id?: string | null
         }
         Relationships: [
           {
@@ -4383,6 +4389,13 @@ export type Database = {
             columns: ["sender_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "partner_workers"
             referencedColumns: ["id"]
           },
         ]
@@ -5446,6 +5459,10 @@ export type Database = {
       partner_workers: {
         Row: {
           account_status: string
+          added_by: string | null
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
           business_id: string
           created_at: string
           email: string
@@ -5457,12 +5474,18 @@ export type Database = {
           mobile: string | null
           profile_id: string | null
           qualification: string | null
+          rejection_reason: string | null
+          removed_at: string | null
           source_application_id: string | null
           trade_role: Database["public"]["Enums"]["assignment_role"]
           updated_at: string
         }
         Insert: {
           account_status?: string
+          added_by?: string | null
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
           business_id: string
           created_at?: string
           email: string
@@ -5474,12 +5497,18 @@ export type Database = {
           mobile?: string | null
           profile_id?: string | null
           qualification?: string | null
+          rejection_reason?: string | null
+          removed_at?: string | null
           source_application_id?: string | null
           trade_role: Database["public"]["Enums"]["assignment_role"]
           updated_at?: string
         }
         Update: {
           account_status?: string
+          added_by?: string | null
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
           business_id?: string
           created_at?: string
           email?: string
@@ -5491,11 +5520,27 @@ export type Database = {
           mobile?: string | null
           profile_id?: string | null
           qualification?: string | null
+          rejection_reason?: string | null
+          removed_at?: string | null
           source_application_id?: string | null
           trade_role?: Database["public"]["Enums"]["assignment_role"]
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "partner_workers_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_workers_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "partner_workers_business_id_fkey"
             columns: ["business_id"]
@@ -7894,6 +7939,101 @@ export type Database = {
           source_version?: string
         }
         Relationships: []
+      }
+      worker_job_links: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          job_id: string
+          last_opened_at: string | null
+          open_count: number
+          revoked_at: string | null
+          revoked_by: string | null
+          token_hash: string
+          worker_id: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          job_id: string
+          last_opened_at?: string | null
+          open_count?: number
+          revoked_at?: string | null
+          revoked_by?: string | null
+          token_hash: string
+          worker_id: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          job_id?: string
+          last_opened_at?: string | null
+          open_count?: number
+          revoked_at?: string | null
+          revoked_by?: string | null
+          token_hash?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_job_links_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worker_job_links_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worker_job_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worker_job_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "worker_job_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worker_job_links_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worker_job_links_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "partner_workers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       workflow_events: {
         Row: {

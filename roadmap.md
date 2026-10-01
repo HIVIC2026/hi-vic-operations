@@ -49,3 +49,7 @@
 - [x] Connect Mitti A1 template_01ee0428be6d4435b34d8b738935f099 + validate
 - [ ] Mitti forms: send with a direct open link + clear assignment so the person is notified (not clunky)
 - [ ] Email domain setup for homeinsulationvictoria.com.au (blocker: user DNS records) — then scaffold app email templates and wire the installer "Ready Check ready" notification email
+
+- [x] Company profile + worker job links (company lists workers, office approves, per-job magic link with form, timeline and owner messages)
+- [ ] Worker link: photo/evidence upload directly on the link page (today photos go through the Mitti form)
+- [ ] Worker link: send by text/email automatically once communications are switched on

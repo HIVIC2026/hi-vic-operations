@@ -1,0 +1,211 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAdmin, logEvent } from "./workflow.server";
+import { myBusinesses, requireMember } from "./pilot.server";
+import { assignBlocker, firstName, hashToken, isTokenShape, linkExpiry, linkState, needsReapproval, newToken, senderLabel } from "./worker-links.core";
+
+const uuid = z.string().uuid();
+const workerInput = z.object({
+  full_legal_name: z.string().trim().min(2).max(200),
+  email: z.string().trim().toLowerCase().email().max(254),
+  mobile: z.string().trim().min(8).max(30),
+  trade_role: z.enum(["electrician", "installer"]),
+  licence_number: z.string().trim().max(60).optional().nullable(),
+  qualification: z.string().trim().max(200).optional().nullable(),
+});
+const WORKER_COLS = "id, business_id, full_legal_name, email, mobile, trade_role, licence_number, qualification, approval_status, approved_at, rejection_reason, removed_at, created_at";
+
+async function isAdminCaller(sb: Parameters<typeof requireAdmin>[0]) {
+  const { data } = await sb.rpc("is_admin");
+  return data === true;
+}
+
+// ---------- Company: manage own workers ----------
+export const listMyWorkers = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const mine = await myBusinesses(context.userId);
+    const bizId = [...mine.keys()][0];
+    if (!bizId) return null;
+    const [{ data: biz, error: e1 }, { data: workers, error: e2 }] = await Promise.all([
+      admin.from("businesses").select("id, name, trading_name").eq("id", bizId).maybeSingle(),
+      admin.from("partner_workers").select(WORKER_COLS).eq("business_id", bizId).is("removed_at", null).order("created_at"),
+    ]);
+    if (e1 || e2) throw new Error(`Could not load workers: ${(e1 ?? e2)!.message}`);
+    return { business: biz, canManage: mine.get(bizId) === "business_admin", workers: workers ?? [] };
+  });
+
+export const saveWorker = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => workerInput.extend({ id: uuid.optional(), business_id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const office = await isAdminCaller(context.supabase);
+    if (!office) await requireMember(context.userId, data.business_id, true);
+    if (data.trade_role === "electrician" && !data.licence_number) throw new Error("Add the electrician's licence number.");
+    if (data.trade_role === "installer" && !data.qualification) throw new Error("Add the installer's qualification (e.g. Cert III or 'Experienced installer').");
+    const { id, ...rest } = data;
+    const fields = { ...rest, licence_number: rest.licence_number ?? null, qualification: rest.qualification ?? null };
+    if (id) {
+      const { data: before, error } = await admin.from("partner_workers").select("*").eq("id", id).eq("business_id", data.business_id).maybeSingle();
+      if (error || !before) throw new Error("Worker not found.");
+      const reapprove = !office && needsReapproval(before as Record<string, unknown>, fields);
+      const { error: ue } = await admin.from("partner_workers").update({ ...fields, ...(reapprove ? { approval_status: "pending", approved_at: null, approved_by: null } : {}) }).eq("id", id);
+      if (ue) throw new Error(ue.message);
+      return { ok: true, pending: reapprove || before.approval_status === "pending" };
+    }
+    const { error } = await admin.from("partner_workers").insert({ ...fields, added_by: context.userId, approval_status: office ? "approved" : "pending", ...(office ? { approved_by: context.userId, approved_at: new Date().toISOString() } : {}) });
+    if (error) throw new Error(error.code === "23505" ? "A worker with that email is already listed." : error.message);
+    return { ok: true, pending: !office };
+  });
+
+export const removeWorker = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: w } = await admin.from("partner_workers").select("id, business_id").eq("id", data.id).maybeSingle();
+    if (!w) throw new Error("Worker not found.");
+    if (!(await isAdminCaller(context.supabase))) await requireMember(context.userId, w.business_id, true);
+    const now = new Date().toISOString();
+    await admin.from("partner_workers").update({ removed_at: now }).eq("id", w.id);
+    await admin.from("worker_job_links").update({ revoked_at: now, revoked_by: context.userId }).eq("worker_id", w.id).is("revoked_at", null);
+    return { ok: true };
+  });
+
+// ---------- Office: approvals ----------
+export const listWorkerApprovals = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await admin.from("partner_workers").select(`${WORKER_COLS}, businesses(name)`).is("removed_at", null).order("created_at", { ascending: false });
+    if (error) throw new Error(`Could not load workers: ${error.message}`);
+    return data ?? [];
+  });
+
+export const decideWorker = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: uuid, approve: z.boolean(), reason: z.string().trim().max(500).optional().nullable() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    if (!data.approve && !data.reason) throw new Error("Give a reason for rejecting this worker.");
+    const now = new Date().toISOString();
+    const { error } = await admin.from("partner_workers").update(data.approve
+      ? { approval_status: "approved", approved_by: context.userId, approved_at: now, rejection_reason: null }
+      : { approval_status: "rejected", approved_by: context.userId, approved_at: now, rejection_reason: data.reason ?? null }).eq("id", data.id);
+    if (error) throw new Error(error.message);
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: data.approve ? "worker_approved" : "worker_rejected", summary: data.approve ? "Worker approved" : `Worker rejected: ${data.reason}`, details: { worker_id: data.id, reason: data.reason ?? null } });
+    if (!data.approve) await admin.from("worker_job_links").update({ revoked_at: now, revoked_by: context.userId }).eq("worker_id", data.id).is("revoked_at", null);
+    return { ok: true };
+  });
+
+// ---------- Job links ----------
+async function jobBusinesses(jobId: string) {
+  const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+  const { data } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("active", true).not("business_id", "is", null);
+  return [...new Set((data ?? []).map((r) => r.business_id!))];
+}
+
+export const jobWorkerLinks = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const office = await isAdminCaller(context.supabase);
+    const assigned = await jobBusinesses(data.jobId);
+    const mine = office ? assigned : [...(await myBusinesses(context.userId)).keys()].filter((b) => assigned.includes(b));
+    if (!office && !mine.length) return { workers: [], links: [], assignedBusinesses: 0 };
+    const none = ["00000000-0000-0000-0000-000000000000"];
+    const [{ data: workers }, { data: links }] = await Promise.all([
+      admin.from("partner_workers").select(`${WORKER_COLS}, businesses(name)`).in("business_id", mine.length ? mine : none).is("removed_at", null),
+      admin.from("worker_job_links").select("id, worker_id, business_id, created_at, expires_at, revoked_at, last_opened_at, open_count, partner_workers(full_legal_name, trade_role)").eq("job_id", data.jobId).in("business_id", mine.length ? mine : none).order("created_at", { ascending: false }),
+    ]);
+    const now = Date.now();
+    return {
+      assignedBusinesses: assigned.length,
+      workers: (workers ?? []).map((w) => ({ ...w, blocker: assignBlocker(w, assigned) })),
+      links: (links ?? []).map((l) => ({ ...l, state: linkState(l, now) })),
+    };
+  });
+
+export const createWorkerJobLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, workerId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: w } = await admin.from("partner_workers").select("id, business_id, full_legal_name, approval_status, removed_at").eq("id", data.workerId).maybeSingle();
+    if (!w) throw new Error("Worker not found.");
+    if (!(await isAdminCaller(context.supabase))) await requireMember(context.userId, w.business_id);
+    const block = assignBlocker(w, await jobBusinesses(data.jobId));
+    if (block) throw new Error(block);
+    const now = Date.now();
+    await admin.from("worker_job_links").update({ revoked_at: new Date(now).toISOString(), revoked_by: context.userId }).eq("worker_id", w.id).eq("job_id", data.jobId).is("revoked_at", null);
+    const token = newToken();
+    const { error } = await admin.from("worker_job_links").insert({ worker_id: w.id, business_id: w.business_id, job_id: data.jobId, token_hash: await hashToken(token), created_by: context.userId, expires_at: linkExpiry(now) });
+    if (error) throw new Error(error.message);
+    await logEvent(data.jobId, context.userId, "worker_link_created", `Job link created for ${w.full_legal_name}`, { worker_id: w.id });
+    // Token is returned once; only its hash is stored. Nothing is sent until communications are switched on.
+    return { token, path: `/w/${token}` };
+  });
+
+export const revokeWorkerJobLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ linkId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: l } = await admin.from("worker_job_links").select("id, business_id, job_id").eq("id", data.linkId).maybeSingle();
+    if (!l) throw new Error("Link not found.");
+    if (!(await isAdminCaller(context.supabase))) await requireMember(context.userId, l.business_id);
+    await admin.from("worker_job_links").update({ revoked_at: new Date().toISOString(), revoked_by: context.userId }).eq("id", l.id).is("revoked_at", null);
+    await logEvent(l.job_id, context.userId, "worker_link_revoked", "Worker job link revoked", { link_id: l.id });
+    return { ok: true };
+  });
+
+// ---------- Public: the worker's job page (token is the only credential) ----------
+async function resolveLink(token: string) {
+  if (!isTokenShape(token)) throw new Error("This link isn't valid.");
+  const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+  const { data: l } = await admin.from("worker_job_links").select("id, job_id, worker_id, business_id, expires_at, revoked_at, open_count").eq("token_hash", await hashToken(token)).maybeSingle();
+  if (!l) throw new Error("This link isn't valid.");
+  const st = linkState(l, Date.now());
+  if (st !== "active") throw new Error(st === "revoked" ? "This link has been switched off. Ask your company for a new one." : "This link has expired. Ask your company for a new one.");
+  const [{ data: w }, { data: b }] = await Promise.all([
+    admin.from("partner_workers").select("full_legal_name, trade_role, approval_status, removed_at").eq("id", l.worker_id).maybeSingle(),
+    admin.from("businesses").select("name, trading_name").eq("id", l.business_id).maybeSingle(),
+  ]);
+  if (!w || w.removed_at || w.approval_status !== "approved") throw new Error("This link has been switched off. Ask your company for a new one.");
+  if (!(await jobBusinesses(l.job_id)).includes(l.business_id)) throw new Error("Your company is no longer on this job.");
+  return { admin, l, w, bizName: b?.trading_name || b?.name || null };
+}
+
+export const getWorkerJobView = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: z.string().max(100) }).parse(d))
+  .handler(async ({ data }) => {
+    const { admin, l, w, bizName } = await resolveLink(data.token);
+    await admin.from("worker_job_links").update({ last_opened_at: new Date().toISOString(), open_count: (l.open_count ?? 0) + 1 }).eq("id", l.id);
+    const [{ data: j }, { data: events }, { data: msgs }, { data: a }, { data: m }, { data: books }] = await Promise.all([
+      admin.from("job_overview").select("job_number, stage, next_action, property_address, owner_name, piesa_date, install_deadline, days_remaining, life_support").eq("id", l.job_id).maybeSingle(),
+      admin.from("workflow_events").select("summary, created_at").eq("job_id", l.job_id).eq("internal", false).order("created_at", { ascending: false }).limit(15),
+      admin.from("messages").select("id, body, created_at, sender_label, worker_id, sender_id, profiles(full_name)").eq("job_id", l.job_id).eq("internal", false).order("created_at"),
+      admin.from("assessments").select("external_mitti_id").eq("job_id", l.job_id).maybeSingle(),
+      admin.from("ceiling_measurements").select("external_id, external_source").eq("job_id", l.job_id).eq("is_current", true).maybeSingle(),
+      admin.from("bookings").select("kind, scheduled_start, status").eq("job_id", l.job_id).in("status", ["proposed", "confirmed"]).order("scheduled_start"),
+    ]);
+    if (!j) throw new Error("This job is no longer available.");
+    const mittiId = w.trade_role === "electrician" ? a?.external_mitti_id : (m?.external_source === "mitti" ? m.external_id : null) ?? a?.external_mitti_id;
+    return {
+      worker: { name: w.full_legal_name, firstName: firstName(w.full_legal_name), role: w.trade_role, business: bizName },
+      job: { ...j, owner_first_name: firstName(j.owner_name), owner_name: undefined },
+      mittiUrl: mittiId ? `https://app.au.mitti.com/inspections/${mittiId}` : null,
+      bookings: books ?? [],
+      timeline: events ?? [],
+      messages: (msgs ?? []).map((x) => ({ id: x.id, body: x.body, created_at: x.created_at, mine: x.worker_id === l.worker_id, from: x.sender_label ?? (x.profiles as { full_name: string | null } | null)?.full_name ?? "Home Insulation Victoria" })),
+    };
+  });
+
+export const postWorkerMessage = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: z.string().max(100), body: z.string().trim().min(1).max(2000) }).parse(d))
+  .handler(async ({ data }) => {
+    const { admin, l, w, bizName } = await resolveLink(data.token);
+    const { maskContactDetails } = await import("./messaging.core");
+    const { error } = await admin.from("messages").insert({ job_id: l.job_id, sender_id: null, worker_id: l.worker_id, sender_label: senderLabel(w.full_legal_name, bizName), body: maskContactDetails(data.body).body, internal: false, channel: "portal" });
+    if (error) throw new Error("Couldn't send your message. Try again.");
+    await admin.from("jobs").update({ last_activity_at: new Date().toISOString() }).eq("id", l.job_id);
+    return { ok: true };
+  });

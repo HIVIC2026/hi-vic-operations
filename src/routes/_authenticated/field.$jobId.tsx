@@ -9,6 +9,7 @@ import { AppShell } from "@/components/portal/AppShell";
 import { Pill, StageBadge, UrgencyBadge } from "@/components/portal/badges";
 import { JobJourney } from "@/components/portal/journey";
 import { ClearTimeline, WhoHasTheBall } from "@/components/portal/waiting";
+import { WorkerLinksPanel } from "@/components/portal/workers";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, Section, useJob } from "@/components/portal/panels";
 import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { MeasurementDetails, MeasurementForm, MeasurementReadOnly, useJobScope, useMeasurements } from "@/components/portal/requirements";
@@ -53,6 +54,7 @@ function FieldJob() {
         {(role === "installer" || role === "electrician") && ["assessment_booking", "assessment_booked"].includes(job.stage!) && <AppointmentPanel jobId={jobId} />}
         {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage!} />}
         {role === "installer" && ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(job.stage!) && <PartnerProposalForm jobId={jobId} />}
+        <WorkerLinksPanel jobId={jobId} />
         <MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" || role === "installer" ? { role } : {})} />
       </div>
     </AppShell>
