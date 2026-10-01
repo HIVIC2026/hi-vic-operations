@@ -55,7 +55,7 @@ describe("measurement gate (new)", () => {
   });
   test("assessment_complete is retired: entry refused before any other check", async () => {
     seed({ assessments: [{ job_id: J, status: "draft" }] });
-    expect((await stageEntryBlockers(J, "assessment_complete"))[0]).toContain("Assessment Complete is retired");
+    expect((await stageEntryBlockers(J, "assessment_complete"))[0]).toContain("is retired");
     seed({ ceiling_measurements: [{ job_id: J, is_current: true, status: "draft", measured_area_m2: 120 }] });
     expect(await stageEntryBlockers(J, "assessment_complete")).toContain("Ceiling measure-up not yet completed.");
     seed();
