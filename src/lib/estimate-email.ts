@@ -1,6 +1,6 @@
 import { READY_CHECK_FEE } from "./readycheck.core";
 /** Pure customer outcome email renderers: no data access, delivery, or side effects. */
-import { CUSTOMER_ASSESSMENT_ACTION, CUSTOMER_ONSITE_HERO, CUSTOMER_LIKELY_HERO, CUSTOMER_INELIGIBLE_COPY, CUSTOMER_BRAND, CUSTOMER_CALCULATOR_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_VISUAL_SYSTEM, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows, CUSTOMER_DISCOUNT_TREATMENT, discountAmount, CUSTOMER_PIESA_NOTE, CUSTOMER_READY_CHECK } from "./customer-quote-system";
+import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE } from "./customer-quote-system";
 
 export type CustomerOutcome = "likely" | "onsite" | "ineligible";
 export type EstimateEmailInput = {
@@ -30,8 +30,6 @@ const BLUE = CUSTOMER_BRAND.colors.blue;
 const GREEN = CUSTOMER_BRAND.colors.green;
 const ACCENT = CUSTOMER_BRAND.colors.accent;
 const INK = CUSTOMER_BRAND.colors.navy;
-const PALE_BLUE = "#EEF0FC";
-const PALE_GREEN = CUSTOMER_VISUAL_SYSTEM.paleGreen;
 const OUTER = CUSTOMER_BRAND.colors.offWhite;
 const WHITE = CUSTOMER_BRAND.colors.white;
 
@@ -55,14 +53,6 @@ const customerSafeOnsiteReasons = (reasons: string[] | null | undefined) => {
     });
   });
 };
-const body = (text: string, color: string = INK) => `<p style="margin:0;color:${color};font-size:15px;line-height:1.55;font-weight:400;">${text}</p>`;
-const label = (text: string, color: string = BLUE) => `<p style="margin:0 0 9px;color:${color};font-size:11px;line-height:1.3;font-weight:800;letter-spacing:1px;">${text}</p>`;
-const title = (text: string, color: string = BLUE, size = 28) => `<h2 style="margin:0 0 16px;color:${color};font-size:${size}px;line-height:1.1;font-weight:800;letter-spacing:-.5px;">${text}</h2>`;
-const section = (content: string, pad = "0 28px 32px") => `<tr><td style="padding:${pad};">${content}</td></tr>`;
-const card = (content: string, bg: string = WHITE, border: string = BLUE, radius = 18) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${bg}" style="width:100%;border-collapse:separate;border-spacing:0;background-color:${bg};border:3px solid ${border};border-radius:${radius}px;"><tr><td style="padding:24px 22px;">${content}</td></tr></table>`;
-// Outer accent cell remains visible even in clients that ignore CSS box-shadow.
-const offset = (content: string, accent: string = ACCENT) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${accent}" style="width:100%;border-collapse:separate;border-spacing:0;background-color:${accent};border-radius:20px;"><tr><td style="padding:0 6px 6px 0;">${content}</td></tr></table>`;
-const cta = (url: string, text = "CONTINUE WITH HOME INSULATION VICTORIA →") => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUE}" style="border-collapse:separate;border-spacing:0;background-color:${BLUE};border-radius:12px;"><tr><td align="center" style="padding:0;"><a href="${escape(url)}" style="display:block;padding:19px 16px;color:${WHITE};font-size:14px;line-height:1.35;font-weight:800;text-decoration:none;letter-spacing:.2px;">${text}</a></td></tr></table>`;
 
 /** Tracked Home Insulation Victoria URLs only: /t/e/<token> and /t/o/<token>.gif. */
 export function validTrackingUrl(u: string | null | undefined, kind: "click" | "pixel"): string | null {
@@ -86,70 +76,12 @@ export function validReferralUrl(u: string | null | undefined): string | null {
 }
 export const pixelTag = (u: string | null) => (u ? `<img src="${escape(u)}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;opacity:0;">` : "");
 
-function logo() {
-  return section(`<img src="${LOGO_URL}" alt="Home Insulation Victoria" width="230" height="98" style="display:block;width:230px;height:auto;max-width:100%;border:0;">`, "30px 28px 20px");
-}
 /** Hidden inbox preview text. Wrapped in a non-MSO conditional so Outlook desktop never receives it. */
 export function preheader(preview: string) {
   return `<!--[if !mso]><!--><div style="display:none!important;visibility:hidden;mso-hide:all;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${escape(preview)}</div><!--<![endif]-->`;
 }
 /** Manual QA marker: test-only banners are injected here, inside the visible 640px body before the logo row. Renders nothing. */
 export const TEST_BANNER_SLOT = "<!-- HIV_TEST_BANNER_SLOT -->";
-function shell(content: string, preview: string, pixel: string | null, fixedLayout = false) {
-  return `<!doctype html><html lang="en-AU"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(preview)}</title></head><body style="margin:0;padding:0;background-color:${OUTER};font-family:'Open Sans',Arial,Helvetica,sans-serif;color:${INK};">${preheader(preview)}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${OUTER}" style="width:100%;border-collapse:collapse;background-color:${OUTER};"><tr><td align="center" style="padding:18px 8px 36px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${WHITE}" style="width:100%;max-width:640px;border-collapse:collapse;background-color:${WHITE};${fixedLayout ? "table-layout:fixed;" : ""}">${TEST_BANNER_SLOT}${content}</table>${pixelTag(pixel)}</td></tr></table></body></html>`;
-}
-
-const OPEN_SANS = CUSTOMER_BRAND.font;
-export function likelyShell(content: string, preview: string, pixel: string | null) {
-  const brandedContent = content.replace(/<(table|td|p|h1|h2|a)([^>]*?)style="/g, `<$1$2style="font-family:${OPEN_SANS};`);
-  const responsive = `<style type="text/css">
-body,table,td,p,h1,h2,a,span{font-family:${OPEN_SANS};}
-.hiv-main{table-layout:fixed}.hiv-logo{width:187px;height:auto}.hiv-hero-title{font-size:38px;line-height:40px;mso-line-height-rule:exactly;letter-spacing:-1.9px}.hiv-heading{font-size:26px;line-height:.98;letter-spacing:-1.04px}.hiv-pad{padding-left:32px!important;padding-right:32px!important}.hiv-card-pad{padding:28px 26px!important}.hiv-price{font-size:44px!important}.hiv-discount{font-size:28px!important}.hiv-payment{font-size:34px!important}
-@media only screen and (max-width:480px){.hiv-outer{padding:0!important}.hiv-main{width:100%!important}.hiv-pad{padding-left:18px!important;padding-right:18px!important}.hiv-logo-wrap{padding:20px 18px 16px!important}.hiv-logo{width:112px!important;height:auto!important}.hiv-hero{padding-top:24px!important;padding-bottom:26px!important}.hiv-hero-title{font-size:24px!important;line-height:25px!important;letter-spacing:-1.2px!important}.hiv-heading{font-size:20px!important;line-height:.98!important;letter-spacing:-.8px!important}.hiv-card-pad{padding:20px 18px!important}.hiv-price{font-size:38px!important}.hiv-discount{font-size:24px!important}.hiv-payment{font-size:30px!important}.hiv-quote-label{font-size:12.5px!important;line-height:1.45!important}.hiv-quote-amount{width:82px!important;font-size:14px!important}.hiv-body{font-size:12.5px!important;line-height:1.55!important}.hiv-cta{font-size:11px!important;padding:12px 10px!important}.hiv-footer{padding:14px 18px 16px!important}}
-</style>`;
-  return `<!doctype html><html lang="en-AU"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(preview)}</title><!--[if !mso]><!--><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"><!--<![endif]--><!--[if mso]><style type="text/css">body,table,td,p,h1,h2,a,span{font-family:Arial,Helvetica,sans-serif!important}</style><![endif]-->${responsive}</head><body style="margin:0;padding:0;background-color:${OUTER};font-family:${OPEN_SANS};color:${INK};">${preheader(preview)}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${OUTER}" style="width:100%;border-collapse:collapse;background-color:${OUTER};font-family:${OPEN_SANS};"><tr><td class="hiv-outer" align="center" style="padding:18px 0 36px;font-family:${OPEN_SANS};"><table class="hiv-main" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${WHITE}" style="width:100%;max-width:640px;table-layout:fixed;border-collapse:collapse;background-color:${WHITE};font-family:${OPEN_SANS};">${TEST_BANNER_SLOT}${brandedContent}</table>${pixelTag(pixel)}</td></tr></table></body></html>`;
-}
-function packageSection() {
-  const items: Array<[string, string, string]> = [
-    ["01", "ELIGIBILITY", "A guided VEU pathway for your home."],
-    ["02", "MEASURE", "The eligible ceiling area checked onsite."],
-    ["03", "ELECTRICAL", "PIESA through a licensed electrician and REC."],
-    ["04", "INSTALLATION", "R5.0 insulation for the confirmed area."],
-    ["05", "COMPLIANCE", "Required checks and evidence managed."],
-    ["06", "DISCOUNT", "VEEC processing by the Accredited Person."],
-  ];
-  const cells = items.map(([icon, name, copy]) => `<td width="50%" valign="top" style="width:50%;padding:0 5px 10px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${OUTER}" style="width:100%;border-collapse:collapse;background-color:${OUTER};border-radius:12px;"><tr><td style="padding:16px 12px;vertical-align:top;"><span style="display:inline-block;padding:8px 7px;background-color:${GREEN};border-radius:50%;color:${WHITE};font-size:12px;line-height:1;font-weight:800;">${icon}</span><p style="margin:12px 0 4px;color:${BLUE};font-size:13px;font-weight:800;line-height:1.25;">${name}</p><p style="margin:0;color:${INK};font-size:12px;line-height:1.5;">${copy}</p></td></tr></table></td>`);
-  return `${label("THE FULL PACKAGE")}${title("THIS ISN'T JUST AN<br>INSULATION QUOTE.")}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;table-layout:fixed;"><tr>${cells.slice(0, 2).join("")}</tr><tr>${cells.slice(2, 4).join("")}</tr><tr>${cells.slice(4).join("")}</tr></table>`;
-}
-function apStatement(apCount?: number | null) {
-  const verified = typeof apCount === "number" && Number.isInteger(apCount) && apCount > 0;
-  return verified
-    ? `Home Insulation Victoria is one of only ${apCount} Accredited Person${apCount === 1 ? "" : "s"} currently approved for VEU Activity 48 in Victoria.`
-    : "Home Insulation Victoria is an Accredited Person approved for this VEU activity.";
-}
-function trust(apCount?: number | null, compact = false) {
-  const blocks: Array<[string, string]> = [
-    ["ACCREDITED PERSON", apStatement(apCount)],
-    ["VETTED TRADE NETWORK", "Electrical work through appropriately licensed electricians and Registered Electrical Contractors; insulation providers appropriately EEC-certified."],
-  ];
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUE}" style="width:100%;border-collapse:collapse;background-color:${BLUE};border-radius:18px;"><tr><td style="padding:27px 23px;">${label("THE HOME INSULATION VICTORIA DIFFERENCE", ACCENT)}${title("YOU'RE IN THE<br>RIGHT HANDS.", WHITE, compact ? 24 : 30)}${blocks.map(([name, copy]) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border-top:1px solid ${ACCENT};"><tr><td style="padding:13px 0;"><p style="margin:0 0 5px;color:${ACCENT};font-size:11px;line-height:1.3;font-weight:800;letter-spacing:.6px;">${name}</p>${body(escape(copy), WHITE)}</td></tr></table>`).join("")}</td></tr></table>`;
-}
-function benefits(discount: number) {
-  const items: Array<[string, string]> = [
-    ["WARMER IN WINTER", "Help retain warmth when temperatures fall."],
-    ["COOLER IN SUMMER", "Help slow heat entering through the ceiling."],
-    ["LESS HEATING & COOLING DEMAND", "Enjoy year-round comfort with less reliance on mechanical heating and cooling."],
-  ];
-  return `${label("COMFORT, ALL YEAR ROUND")}${title("A BETTER FEELING HOME.")}${items.map(([name, copy]) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border-bottom:1px solid ${PALE_BLUE};"><tr><td width="34" valign="top" style="padding:13px 9px 13px 0;color:${GREEN};font-size:19px;font-weight:800;">✳</td><td style="padding:13px 0;"><p style="margin:0 0 4px;color:${BLUE};font-size:14px;font-weight:800;">${name}</p>${body(copy)}</td></tr></table>`).join("")}${card(`${label("AND THE BEST PART?", GREEN)}<p style="margin:0;color:${INK};font-size:20px;line-height:1.3;font-weight:800;">THE VEU PROGRAM COULD CONTRIBUTE <span style="color:${GREEN};">${escape(money(discount))}</span>.</p><p style="margin:10px 0 0;color:${INK};font-size:12px;line-height:1.5;">Estimated only; your final eligible area, discount and price are confirmed after your Ready Check.</p>`, PALE_GREEN, GREEN)}`;
-}
-function referral(url: string | null) {
-  if (!url) return "";
-  return section(offset(card(`${label("PASS IT ON", GREEN)}${title("KNOW SOMEONE WITH A<br>FREEZING HOUSE? ✳", BLUE, 24)}<p style="margin:0 0 18px;color:${INK};font-size:17px;line-height:1.3;font-weight:800;">DON'T KEEP THE DISCOUNT TO YOURSELF.</p>${body("Share Home Insulation Victoria. They can check their own eligibility; you don't have to share anyone's details.")}<p style="margin:17px 0 0;"><a href="${escape(url)}" style="color:${BLUE};font-size:14px;font-weight:800;text-decoration:underline;">REFER A FRIEND →</a></p>`, PALE_GREEN)), "0 28px 34px");
-}
-function footer(reference?: string | null, kind: "estimate" | "result" = "estimate") {
-  const ref = reference?.trim() ? `<br>Reference: ${escape(reference.trim())}` : "";
-  return section(`<p style="margin:0 0 12px;color:${BLUE};font-size:14px;font-weight:800;">Home Insulation Victoria</p><p style="margin:0;color:${INK};font-size:11px;line-height:1.7;">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria<br>You are receiving this because you requested a Home Insulation Victoria ${kind === "result" ? "eligibility result" : "eligibility result or estimate"}.${ref}<br><a href="${SITE}/privacy" style="color:${BLUE};text-decoration:underline;">Privacy</a> &nbsp;·&nbsp; <a href="${SITE}/contact" style="color:${BLUE};text-decoration:underline;">Contact</a><br>A secure unsubscribe link appears directly below this footer.</p>`, `23px 28px 28px;border-top:1px solid ${PALE_BLUE};`);
-}
 
 /** Shared link + arithmetic validation for the likely and onsite renderers. Throws rather than rendering $0/undefined. */
 function validateQuoteInput(input: EstimateEmailInput) {
