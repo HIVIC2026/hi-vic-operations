@@ -18,9 +18,8 @@ type Any = any;
 
 export function mittiApi(call: MittiCall) {
   return {
-    /** Full template definition (SafetyCulture v1 route) – used only to validate form structure. */
+    /** Full template definition (v1 route) – used for form validation AND label-based prefill. */
     getTemplateDefinition: (id: string) => call("GET", `/templates/v1/templates/${encodeURIComponent(id)}`) as Promise<Any>,
-    getTemplate: (id: string) => call("GET", `/templates/${encodeURIComponent(id)}`) as Promise<Any>,
     searchUsers: (email: string) => call("POST", "/users/search", { email: [email] }) as Promise<Any>,
     createAudit: (body: { template_id: string; header_items?: unknown[]; items?: unknown[] }) => call("POST", "/audits", body) as Promise<Any>,
     shareAudit: (auditId: string, userId: string) =>
@@ -44,11 +43,21 @@ function responseValue(it: Any): string | null {
   return null;
 }
 
+const TYPE_KEYS = ["textsingle", "textmulti", "question", "list", "checkbox", "media", "signature", "datetime", "number", "drawing", "site", "switch"] as const;
+/** Mitti items often carry their type as a type-named key (e.g. `question`) rather than a `type` field. */
+export function mittiItemType(it: Any): string {
+  const direct = String(it?.type ?? "").trim();
+  if (direct) return direct;
+  return TYPE_KEYS.find((k) => it?.[k] != null) ?? "";
+}
+
 /** Flatten header_items + nested items; section = normalized labels of all ancestors. */
 export function flatten(doc: Any): Entry[] {
+  // Audit docs carry header_items/items at the root; v1 template definitions wrap them under `template`.
+  const root = doc?.template ?? doc;
   const raw: { it: Any; header: boolean }[] = [
-    ...((doc?.header_items ?? []) as Any[]).map((it) => ({ it, header: true })),
-    ...((doc?.items ?? []) as Any[]).map((it) => ({ it, header: false })),
+    ...((root?.header_items ?? []) as Any[]).map((it) => ({ it, header: true })),
+    ...((root?.items ?? []) as Any[]).map((it) => ({ it, header: false })),
   ];
   // Support nested children arrays as well as flat parent_id lists.
   const all: { it: Any; header: boolean; parent: string | null }[] = [];
@@ -62,7 +71,7 @@ export function flatten(doc: Any): Entry[] {
     const chain: string[] = [];
     let p = parent, guard = 0;
     while (p && guard++ < 20) { const x = byId.get(String(p)); if (!x) break; chain.unshift(norm(x.it.label)); p = x.parent; }
-    return { id: String(it.item_id ?? it.id ?? ""), label: String(it.label ?? ""), norm: norm(it.label), type: String(it.type ?? ""), value: responseValue(it), parent: parent ? String(parent) : null, section: chain.join(" / "), header };
+    return { id: String(it.item_id ?? it.id ?? ""), label: String(it.label ?? ""), norm: norm(it.label), type: mittiItemType(it), value: responseValue(it), parent: parent ? String(parent) : null, section: chain.join(" / "), header };
   });
 }
 
@@ -140,7 +149,8 @@ export function melbourneDay(v: string | null): string | null {
 // ---------- prefill ----------
 export type PrefillCtx = {
   jobNumber: string; address: string; ownerName: string; ownerEmail?: string | null; ownerPhone?: string | null;
-  assessorName: string; assessmentAt?: string | null; estimatedAreaM2?: number | null; occupancy?: string | null; lifeSupport?: string | null;
+  assessorName: string; assessmentAt?: string | null; estimatedAreaM2?: number | null; occupancy?: string | null;
+  lifeSupport?: string | null; propertyType?: string | null;
 };
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
   { key: "jobNumber", aliases: ["Portal Job Number"], mandatory: true },
@@ -152,8 +162,20 @@ const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; 
   { key: "assessmentAt", aliases: ["Assessment date/time", "Assessment date time", "Booked assessment date"], datetime: true },
   { key: "estimatedAreaM2", aliases: ["Office estimated ceiling area", "Estimated ceiling area"] },
   { key: "occupancy", aliases: ["Occupancy"] },
-  { key: "lifeSupport", aliases: ["Life support status", "Office life support status"] },
+  { key: "lifeSupport", aliases: ["Life support status", "Office life support result", "Office life support status"] },
+  { key: "propertyType", aliases: ["Property type"] },
 ];
+
+const PROPERTY_TYPE_OPTIONS = ["House", "Townhouse", "Unit or apartment"] as const;
+/** Pure: maps a declared property type to a Ready Check option. Unknown values return null — never invented. */
+export function propertyTypeOption(v: string | null | undefined): string | null {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return null;
+  if (s === "house") return "House";
+  if (s === "townhouse") return "Townhouse";
+  if (s.startsWith("unit") || s.includes("apartment") || s.includes("flat")) return "Unit or apartment";
+  return null;
+}
 
 export function buildPrefill(template: Any, ctx: PrefillCtx) {
   const entries = flatten(template);
@@ -166,7 +188,10 @@ export function buildPrefill(template: Any, ctx: PrefillCtx) {
     if (!r.entry) { if (r.ambiguous) ambiguous.push(f.aliases[0]!); else if (f.mandatory) missing.push(f.aliases[0]!); continue; }
     const e = r.entry;
     if (empty) continue;
-    const row = { item_id: e.id, label: e.label, type: e.type, responses: f.datetime ? { datetime: String(v) } : { text: String(v) } };
+    const vStr = String(v);
+    const choiceLike = /choice|question|switch|list/i.test(e.type);
+    const responses = f.datetime ? { datetime: vStr } : choiceLike ? { selected: [{ label: vStr }] } : { text: vStr };
+    const row = { item_id: e.id, label: e.label, type: e.type, responses };
     (e.header ? header_items : items).push(row);
   }
   return { header_items, items, count: header_items.length + items.length, missing, ambiguous, blank };
@@ -204,8 +229,8 @@ export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise
   }
   const blankRequired = (["jobNumber", "address", "ownerName", "assessorName"] as const).filter((k) => String(ctx.prefill[k] ?? "").trim() === "");
   if (blankRequired.length) throw new MittiError(`Required office details are blank: ${blankRequired.join(", ")}. Fill them in before creating the Mitti assessment.`);
-  const template = await api.getTemplate(templateId);
-  const tid = template?.template_id ?? template?.id;
+  const template = await api.getTemplateDefinition(templateId);
+  const tid = template?.template?.template_id ?? template?.template_id ?? template?.id;
   if (tid && tid !== templateId) throw new MittiError("Mitti returned an unexpected template.");
   const p = buildPrefill(template, ctx.prefill);
   if (p.ambiguous.length) throw new MittiError(`The Mitti template has ambiguous office fields (more than one match): ${p.ambiguous.join(", ")}.`);
