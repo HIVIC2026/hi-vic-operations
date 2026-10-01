@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Now
+- [ ] Delete obsolete old-brand email templates and old calculator code; preserve approved current templates and customer calculator
 - [x] Point customer email calculator links to the built calculator at the customer-domain home address
 - [x] Retire viewed and seven-day estimate reminders; suppress legacy queued rows; clarify free measure-up visit copy and verify previews
 - [x] Boss signs up business; workers join via personal invite link (/join)
