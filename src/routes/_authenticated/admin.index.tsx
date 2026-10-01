@@ -196,17 +196,17 @@ function Pipeline() {
       {pipelinePending ? (
         <div role="status" className="rounded-md border bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">Loading enquiries…</div>
       ) : (
-         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase).map((j: JobRow) => {
-           const coverage = coverageByJob.get(j.id ?? "");
-           return <div key={j.id} className={`relative rounded-lg ${selected.has(j.id!) ? "ring-2 ring-primary" : ""}`}><div className="absolute right-2 top-2 z-10 rounded bg-card p-1 shadow-sm"><Checkbox checked={selected.has(j.id!)} onCheckedChange={() => toggle(j.id!)} aria-label={`Select job ${j.job_number ?? ""}`} /></div><JobCard job={j} to="/admin/jobs/$jobId" {...(coverage ? { coverage } : {})} /></div>;
-         })}{shownInterests.map((i) => (
+         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{shownInterests.map((i) => (
            <Link key={`interest-${i.id}`} to="/admin/interests" className="block rounded-lg border bg-card p-4 shadow-sm transition hover:border-primary">
              <span className="inline-flex rounded-full bg-workspace-blush px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-dark">Registered interest</span>
              <p className="mt-2 font-bold">{i.full_name}</p>
              <p className="text-sm text-muted-foreground">{[i.address_line, i.suburb, i.postcode].filter(Boolean).join(", ")}</p>
              <p className="mt-2 text-xs text-muted-foreground">{i.ceiling_m2} m² · {i.status === "new" ? "New" : i.status === "contacted" ? "Contacted" : "Booked"} · {new Date(i.created_at).toLocaleDateString("en-AU")}</p>
            </Link>
-         ))}{filtered.length === 0 && shownInterests.length === 0 && <div className="col-span-full rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">No records in this view.</div>}</div>
+         ))}{filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase).map((j: JobRow) => {
+           const coverage = coverageByJob.get(j.id ?? "");
+           return <div key={j.id} className={`relative rounded-lg ${selected.has(j.id!) ? "ring-2 ring-primary" : ""}`}><div className="absolute right-2 top-2 z-10 rounded bg-card p-1 shadow-sm"><Checkbox checked={selected.has(j.id!)} onCheckedChange={() => toggle(j.id!)} aria-label={`Select job ${j.job_number ?? ""}`} /></div><JobCard job={j} to="/admin/jobs/$jobId" {...(coverage ? { coverage } : {})} /></div>;
+         })}{filtered.length === 0 && shownInterests.length === 0 && <div className="col-span-full rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">No records in this view.</div>}</div>
       )}
     </AppShell>
   );
