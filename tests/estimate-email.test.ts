@@ -13,11 +13,11 @@ const common = { estimateUrl, estimatedTotal: 3396, veuDiscount: 1325, areaM2: 1
 const detailed = { ...common, estimatedTotal: 3747, installationPrice: 4023, assessmentFee: 349, apFee: 700, grossProjectTotal: 5072, amountPayableNow: 0, estimatedRemainingBalance: 3747 };
 
 describe("customer outcome email renderers", () => {
-  test("likely eligible: premium proposal order, live savings module, free Ready Check CTA", () => {
+  test("likely eligible: calculator-matched result, rebate language, free Ready Check CTA", () => {
     const email = withUnsubscribe(renderEstimateEmail({ ...detailed, outcome: "likely", firstName: "Alex", address: "30 Dash St, Fraser Rise VIC 3336" }), unsubscribeUrl);
     const h = email.html;
-    for (const copy of ["Preliminary eligibility result", "Hi Alex,", "A more comfortable home starts here.", "Good news, Alex — based on the information you’ve provided, your home looks likely to qualify for a VEU ceiling insulation discount.", "We’ll coordinate the installer, electrical safety checks and rebate paperwork, so you have one team guiding the process.", "30 Dash St, Fraser Rise VIC 3336", "Your estimated VEU discount", "$1,325", "Estimated cost after discount", "$3,747", "134.1 m² — based on your enquiry", "These are preliminary estimates, subject to eligibility and onsite checks.", "Explore your savings", "What we take care of", "Free measure-up by a certified installer", "Your next step is free.", "A certified insulation installer confirms the ceiling measurements", "Arrange my free Ready Check", "Free Ready Check. No obligation to proceed.", "Your itemised estimate", "Home Insulation Ready Check", "Free", CUSTOMER_QUOTE_LABELS.piesa, "R5.0 ceiling insulation — supply &amp; install", "Home Insulation Victoria — Accredited Person Management", "$5,072", "$700", "−$1,325", CUSTOMER_WHAT_COULD_CHANGE.closing, "All prices include GST.", "Reference: HV-1001", "Refer a friend", "Privacy policy", "Unsubscribe"]) expect(h).toContain(copy);
-    const order = ["Preliminary eligibility result", "<h1", "data-likely-savings", "Explore your savings", "What we take care of", "data-likely-next-step", "Arrange my free Ready Check", "data-likely-itemised", "DC Construction Solutions Pty Ltd"].map((t) => h.indexOf(t));
+    for (const copy of ["Free estimate · no obligation", "Preliminary eligibility result", "How much could you save on ceiling insulation?", "Good news, Alex — based on what you’ve told us, your home looks likely to qualify for a VEU ceiling insulation rebate.", "A more comfortable home could be closer than you think.", "30 Dash St, Fraser Rise VIC 3336", "Your estimated VEU rebate", "You could save $1,325", "Your estimated cost after rebate", "$3,747", "incl. GST · before rebate $5,072", "Estimate only. Eligibility, measurements and final pricing confirmed after assessment.", "Want to try a different ceiling size?", "Open the calculator →", "What this includes", "Free Home Insulation Ready Check", "R5.0 ceiling insulation — supply &amp; install", "Mandatory PIESA", "Demand is high. Installer availability is limited.", "Arrange my free Ready Check →", "Free Ready Check. No obligation to proceed.", "Your estimate breakdown", "Home Insulation Ready Check", "Free", CUSTOMER_QUOTE_LABELS.piesa, "Home Insulation Victoria — Accredited Person Management", "$5,072", "$700", "−$1,325", CUSTOMER_WHAT_COULD_CHANGE.closing, "All prices include GST.", "Reference: HV-1001", "Refer a friend", "Privacy policy", "Unsubscribe"]) expect(h).toContain(copy);
+    const order = ["Free estimate · no obligation", "<h1", "data-likely-savings", "Open the calculator", "What this includes", "data-likely-next-step", "Arrange my free Ready Check", "data-likely-itemised", "DC Construction Solutions Pty Ltd"].map((t) => h.indexOf(t));
     expect(order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1]!))).toBe(true);
     expect(h.match(/<h1\b/g)?.length).toBe(1);
     expect(h).toContain(`href="${estimateUrl}#confirm"`);
@@ -26,24 +26,23 @@ describe("customer outcome email renderers", () => {
     expect(h).not.toMatch(/<form|<input|<iframe|<script|\son\w+=/i);
     expect(h).toContain('<html lang="en-AU" dir="ltr">');
     expect(h).toContain('<body lang="en-AU" dir="ltr"');
-    expect(`${h} ${email.plainText}`).not.toMatch(/undefined|NaN|\$0\b|Gate 1|AP Management|high demand|one of only|guaranteed|energy bill|<div class="hiv-hero-title"/i);
-    expect(email.subject).toBe("Alex, your home could qualify for an estimated $1,325 VEU insulation discount");
-    for (const t of ["Hi Alex,", "A more comfortable home starts here.", "Your estimated VEU discount: $1,325", "Estimated cost after discount: $3,747", "Explore your savings: https://estimate.homeinsulationvictoria.com.au/calculator", `Arrange my free Ready Check: ${estimateUrl}#confirm`, "Free Ready Check. No obligation to proceed.", "R5.0 ceiling insulation — supply & install: $4,023", "Estimated VEU / VEEC discount: −$1,325", CUSTOMER_WHAT_COULD_CHANGE.intro]) expect(email.plainText).toContain(t);
-    expect(email.plainText.indexOf("Explore your savings")).toBeLessThan(email.plainText.indexOf("Arrange my free Ready Check"));
+    expect(`${h} ${email.plainText}`).not.toMatch(/undefined|NaN|\$0\b|Gate 1|one of only|guaranteed|energy bill|<div class="hiv-hero-title"/i);
+    expect(email.subject).toBe("Alex, you could save $1,325 on ceiling insulation");
+    for (const t of ["How much could you save on ceiling insulation?", "Your estimated VEU rebate: You could save $1,325", "Your estimated cost after rebate: $3,747", "incl. GST · before rebate $5,072", "Open the calculator: https://estimate.homeinsulationvictoria.com.au/calculator", `Arrange my free Ready Check: ${estimateUrl}#confirm`, "Free Ready Check. No obligation to proceed.", "R5.0 ceiling insulation — supply & install: $4,023", "Estimated VEU / VEEC discount: −$1,325", "WHAT COULD CHANGE THIS PRICE?"]) expect(email.plainText).toContain(t);
+    expect(email.plainText.indexOf("Open the calculator")).toBeLessThan(email.plainText.indexOf("Arrange my free Ready Check"));
   });
 
   test("likely eligible fallbacks: typical area, no name, no address, tracked CTA", () => {
     const tracked = `https://quote.homeinsulationvictoria.com.au/t/e/${"T".repeat(43)}`;
     const e = renderEstimateEmail({ ...common, outcome: "likely", areaIsTypical: true, trackingClickUrl: tracked });
-    expect(e.html).toContain("Hello,");
     expect(e.html).toContain("Good news — based on the information");
     expect(e.html).not.toContain("Property:");
-    expect(e.html).toContain("134.1 m² — based on a typical Victorian home");
+    expect(e.html).toContain("134.1 m² (typical-home assumption)");
     expect(e.html).toContain(`href="${tracked}"`);
     expect(e.html).not.toContain("#confirm");
-    expect(e.subject).toBe("Your home could qualify for an estimated $1,325 VEU insulation discount");
-    expect(likelySubjectLine(null, null).subject).toBe("Good news — your home looks likely to qualify for a VEU insulation discount");
-    expect(likelySubjectLine("Sam", undefined).subject).toBe("Sam, good news — your home looks likely to qualify for a VEU insulation discount");
+    expect(e.subject).toBe("You could save $1,325 on ceiling insulation");
+    expect(likelySubjectLine(null, null).subject).toBe("Your preliminary ceiling insulation estimate is ready");
+    expect(likelySubjectLine("Sam", undefined).subject).toBe("Sam, your preliminary ceiling insulation estimate is ready");
     expect(likelySubjectLine("Sam", 0).subject).not.toContain("$0");
     expect(`${e.html}${e.plainText}`).not.toMatch(/undefined|NaN/);
     expect(renderEstimateEmail({ ...common, firstName: "<b>x</b>" }).html).toContain("&lt;b&gt;x&lt;/b&gt;");
@@ -145,7 +144,7 @@ describe("customer outcome email renderers", () => {
     expect(`${email.html} ${email.plainText}`).not.toContain("Pleased to meet you");
   });
 
-  test("uses email-safe markup, loads Open Sans for likely, and remains a pure renderer", () => {
+  test("uses email-safe markup, loads calculator fonts for likely, and remains a pure renderer", () => {
     const source = readFileSync("src/lib/estimate-email.ts", "utf8");
     const preview = readFileSync("src/routes/step3-email-preview.tsx", "utf8");
     for (const email of [renderEstimateEmail(common), renderIneligibleOutcomeEmail({ referralUrl, reasons: ["Fixture reason"] })]) {
@@ -155,7 +154,8 @@ describe("customer outcome email renderers", () => {
       for (const colour of ["#3C51C4", "#07BF61"]) expect(email.html).toContain(colour);
     }
     const likely = renderEstimateEmail(common).html;
-    expect(likely).toContain("fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800");
+    expect(likely).toContain("family=Figtree:wght@400;600;700;800&amp;family=Outfit:wght@700;800");
+    expect(likely).toContain("font-family:'Outfit','Figtree',Arial,Helvetica,sans-serif");
     expect(likely).toContain("<!--[if !mso]><!-->");
     expect(likely).toContain("<!--[if mso]>");
     expect(likely).toContain("@media only screen and (max-width:480px)");
