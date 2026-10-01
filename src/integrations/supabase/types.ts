@@ -7501,6 +7501,7 @@ export type Database = {
           signer_position: string | null
           status: string
           step_key: string | null
+          test_mode: boolean
           updated_at: string
         }
         Insert: {
@@ -7524,6 +7525,7 @@ export type Database = {
           signer_position?: string | null
           status?: string
           step_key?: string | null
+          test_mode?: boolean
           updated_at?: string
         }
         Update: {
@@ -7547,6 +7549,7 @@ export type Database = {
           signer_position?: string | null
           status?: string
           step_key?: string | null
+          test_mode?: boolean
           updated_at?: string
         }
         Relationships: [
