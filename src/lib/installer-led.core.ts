@@ -71,6 +71,22 @@ export function readyCheckCoverage(e: SuppliedEvidence): Coverage {
   return { status, missing, hardFail };
 }
 
+/**
+ * C02 (Jo, 2 Oct 2026): Ready Check items the installer didn't supply are collected with the PIISA on
+ * installation day — except answers that decide eligibility or price, which must be settled first,
+ * because the PIISA is signed on the day and can't reopen eligibility. Pure: nothing is stored and
+ * the office still reviews; the split never lets a job progress by itself.
+ */
+const BEFORE_QUOTE_MARKERS = ["built in the last 5 years", "at least one measured area", "area name", "uninsulated or under-insulated", "measured m", "existing r-value", "removal required"];
+export type CarryOver = { beforeQuote: string[]; atPiisa: string[] };
+
+/** Splits a Ready Check gap list without dropping anything. */
+export function piisaCarryOver(missing: string[]): CarryOver {
+  const beforeQuote: string[] = [], atPiisa: string[] = [];
+  for (const label of missing) (BEFORE_QUOTE_MARKERS.some((k) => label.toLowerCase().includes(k)) ? beforeQuote : atPiisa).push(label);
+  return { beforeQuote, atPiisa };
+}
+
 export type JourneyStep = "submit" | "eligibility" | "measure_up" | "electrician" | "piesa" | "quote" | "pre_install" | "install" | "completion" | "veecs";
 export const JOURNEY: { key: JourneyStep; label: string }[] = [
   { key: "submit", label: "Job submitted" }, { key: "eligibility", label: "Eligibility" }, { key: "measure_up", label: "Measure-up" },
