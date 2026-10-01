@@ -79,9 +79,25 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
       setError("Please include your postcode in the address, for example 34 Watsons Road, Bundoora VIC 3757.");
       return;
     }
+    if (fullName.trim().length < 2) {
+      setError("Please enter your name so we know who to ask for.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    if (mobile.replace(/\D/g, "").length < 9) {
+      setError("Please enter a valid mobile number.");
+      return;
+    }
+    if (!consent) {
+      setError("Please tick the box so we can contact you.");
+      return;
+    }
     setBusy(true);
     try {
-      await register({
+      const result = await register({
         data: {
           fullName,
           mobile,
@@ -95,6 +111,11 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
           honeypot,
         },
       });
+      if (!result.ok) {
+        const first = Object.values(result.errors).find(Boolean);
+        setError(first || "We couldn't save that — please check the details and try again.");
+        return;
+      }
       setDone(fullName.trim().split(/\s+/)[0] || "there");
     } catch (err) {
       setError(
