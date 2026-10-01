@@ -36,13 +36,13 @@ const CHANGE_FACTORS = [
 
 function Field({ id, icon: Icon, label, hint, children }: { id: string; icon: typeof MapPin; label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div className="border-t border-estimate-line px-5 py-2 first:border-t-0">
+    <div className="border-t border-estimate-line px-4 py-2.5 first:border-t-0 sm:px-5">
       <label htmlFor={id} className="flex items-center gap-2 text-[0.7rem] font-extrabold uppercase tracking-wider text-estimate-navy">
         <Icon aria-hidden="true" className="size-3.5 text-estimate-green" />
         {label}
       </label>
-      {hint && <p className="mt-1 text-xs leading-relaxed text-estimate-navy/85">{hint}</p>}
-      <div className="mt-2">{children}</div>
+      {hint && <p className="mt-0.5 text-[0.7rem] leading-relaxed text-estimate-navy/85">{hint}</p>}
+      <div className="mt-1.5">{children}</div>
     </div>
   );
 }
@@ -148,11 +148,11 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
           <p className="rounded-full bg-workspace-blush px-2 py-1 text-[0.6rem] font-extrabold uppercase text-task-eligibility-foreground sm:px-3 sm:text-xs">Free estimate · no obligation</p>
         </header>
 
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
-            <h1 className="text-2xl font-extrabold leading-tight text-estimate-blue sm:text-[1.7rem]">What would ceiling insulation cost?</h1>
-            <p className="mt-1 max-w-[780px] text-[0.82rem] leading-relaxed text-estimate-navy/85">
-              Enter your address and ceiling size to see your estimate and potential VEU discount.
+            <h1 className="text-[1.35rem] font-extrabold leading-tight text-estimate-blue sm:text-[1.7rem]">What would ceiling insulation cost?</h1>
+            <p className="mt-1 max-w-[780px] text-[0.8rem] leading-relaxed text-estimate-navy/85">
+              Three quick answers — your estimate and VEU discount appear instantly.
             </p>
           </div>
           {touched && (
@@ -235,7 +235,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
             </Field>
 
             <Field id="calc-insulation" icon={Layers} label="Any insulation already up there?">
-               <div id="calc-insulation" className="grid grid-cols-3 gap-1.5 sm:gap-2">
+               <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                 {INSULATION_OPTIONS.map((o) => {
                   const on = insulation === o.value;
                   return (
@@ -273,13 +273,13 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
 
           </div>
 
-          <div className="border-t border-estimate-line bg-estimate-mist px-5 py-4 lg:border-l lg:border-t-0">
+          <div className="border-t border-estimate-line px-4 py-3 lg:border-l lg:border-t-0 lg:bg-estimate-mist lg:px-5 lg:py-4">
             {!priced ? (
-               <div className="flex h-full min-h-16 flex-col justify-center lg:min-h-[200px]">
-                <p className="text-sm leading-relaxed text-estimate-navy/85">
-                   <span className="font-extrabold text-estimate-navy">Your price will show here.</span> Add a Victorian address and ceiling size to see it update.
-                </p>
-              </div>
+               <div className="flex h-full min-h-12 flex-col justify-center lg:min-h-[200px]">
+                 <p className="text-sm leading-relaxed text-estimate-navy/85">
+                    <span className="font-extrabold text-estimate-navy">Your price will show here.</span> Add your address and ceiling size above.
+                 </p>
+               </div>
             ) : (
               <div data-testid="public-calculator-result">
                 <p className="text-[0.7rem] font-extrabold uppercase tracking-wider text-estimate-green">Your estimated cost</p>
