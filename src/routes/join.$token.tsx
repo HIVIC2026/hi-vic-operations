@@ -9,9 +9,9 @@ import { workerDeclarations } from "@/lib/worker-invite.core";
 export const Route = createFileRoute("/join/$token")({
   head: () => ({ meta: [
     { title: "Join your team – Home Insulation Victoria" },
-    { name: "description", content: "Register as a worker under your business with Home Insulation Victoria." },
+    { name: "description", content: "Register as a staff member under your business with Home Insulation Victoria." },
     { property: "og:title", content: "Join your team – Home Insulation Victoria" },
-    { property: "og:description", content: "Register as a worker under your business with Home Insulation Victoria." },
+    { property: "og:description", content: "Register as a staff member under your business with Home Insulation Victoria." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
     { name: "robots", content: "noindex" },
   ] }),
@@ -50,7 +50,7 @@ function Join() {
   return wrap(<form onSubmit={async (e) => {
     e.preventDefault(); setBusy(true); setErrors([]);
     try {
-      if (preview) { setErrors(["Sample preview only — no worker details were submitted."]); return; }
+      if (preview) { setErrors(["Sample preview only — no staff details were submitted."]); return; }
       const r = await submit({ data: { token, ...f, accepted: ticks } });
       if (r.ok) setDone(true); else { setErrors(r.errors); window.scrollTo({ top: 0 }); }
     } catch { setErrors(["Something went wrong. Please try again."]); } finally { setBusy(false); }

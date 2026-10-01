@@ -20,8 +20,8 @@ export function WorkerInvites({ businessId, sample = false }: { businessId: stri
 
   return (
     <section className="mb-6 rounded-xl border bg-card p-4">
-      <h2 className="text-lg font-bold">Invite someone who works for you</h2>
-      <p className="mb-3 text-sm text-muted-foreground">They get their own link to fill in their details and licence and sign for themselves. The link works once and lasts 14 days. Copy it and send it by text or email.</p>
+      <h2 className="text-lg font-bold">Invite a staff member</h2>
+      <p className="mb-3 text-sm text-muted-foreground">Each person gets a private, single-use link to provide their own details and sign their declarations. Electricians provide their personal licence; installers provide their relevant qualification. The link lasts 14 days.</p>
       <form className="grid gap-3 sm:grid-cols-2" onSubmit={async (e) => {
         e.preventDefault(); setBusy(true);
         try {

@@ -11,7 +11,9 @@ import { WorkerInvites } from "@/components/portal/worker-invites";
 import { workerListQueryKey } from "@/lib/worker-invite.core";
 
 export const Route = createFileRoute("/_authenticated/partner/workers")({
-    { title: "Your staff – Home Insulation Victoria" }, { name: "description", content: "Add the electricians and installers who work under your company." }, { property: "og:title", content: "Your staff – Home Insulation Victoria" }, { property: "og:description", content: "Add the electricians and installers who work under your company." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({ meta: [
+    { title: "Your staff – Home Insulation Victoria" }, { name: "description", content: "Invite and manage staff who work under your company." }, { property: "og:title", content: "Your staff – Home Insulation Victoria" }, { property: "og:description", content: "Invite and manage staff who work under your company." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
+  ] }),
   component: Workers,
 });
 
@@ -29,9 +31,9 @@ function Workers() {
     <AppShell>
       <Link to="/partner" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" /> Dashboard</Link>
       <h1 className="text-2xl font-bold">Your staff</h1>
-      <p className="mb-4 text-sm text-muted-foreground">One account for {data.business?.trading_name || data.business?.name}. List the people who do the work — they don't need their own login. When they're on a job, they get a private link to just that job: the form to fill in, the timeline, and messages with the owner. Home Insulation Victoria approves each new worker once.</p>
+      <p className="mb-4 text-sm text-muted-foreground">One business profile for {data.business?.trading_name || data.business?.name}. Invite each staff member using their own link. They provide their own details and declarations, and our office must approve them before they can access assigned jobs. Staff cannot see business rates or bank details.</p>
       {data.canManage && data.business && <WorkerInvites businessId={data.business.id} sample={sample} />}
-      {!sample && data.canManage && editing !== "new" && <Button className="mb-4" size="field" variant="outline" onClick={() => setEditing("new")}>+ Add worker myself (incl. me, if I do the work)</Button>}
+      {!sample && data.canManage && editing !== "new" && <Button className="mb-4" size="field" variant="outline" onClick={() => setEditing("new")}>+ Add staff member manually</Button>}
       {!sample && editing === "new" && <div className="mb-4"><WorkerForm businessId={data.business!.id} onDone={done} /></div>}
       <ul className="space-y-2">
         {data.workers.map((w) => !sample && editing === w.id ? <li key={w.id}><WorkerForm businessId={data.business!.id} worker={w} onDone={done} /></li> : (
