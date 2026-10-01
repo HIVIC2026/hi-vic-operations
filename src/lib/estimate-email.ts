@@ -295,7 +295,7 @@ function renderLikelyEligibleEmail(input: EstimateEmailInput): EstimateEmail {
   };
 
   // 1. Header
-  const header = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;"><tr><td valign="middle" style="padding:0;"><img class="hiv-logo lx-logo" src="${LOGO_URL}" alt="Home Insulation Victoria" width="160" height="68" style="display:block;width:160px;height:auto;max-width:100%;border:0;"></td><td class="lx-label" align="right" valign="middle" style="padding:0;${F}"><span style="display:inline-block;padding:6px 12px;background-color:${MINT};border-radius:999px;color:${TEXT_GREEN};font-size:13px;line-height:1.3;font-weight:700;">Preliminary eligibility result</span></td></tr></table>`;
+  const header = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;"><tr><td valign="middle" style="padding:0;"><img class="lx-logo hiv-logo" src="${LOGO_URL}" alt="Home Insulation Victoria" width="160" height="68" style="display:block;width:160px;height:auto;max-width:100%;border:0;"></td><td class="lx-label" align="right" valign="middle" style="padding:0;${F}"><span style="display:inline-block;padding:6px 12px;background-color:${MINT};border-radius:999px;color:${TEXT_GREEN};font-size:13px;line-height:1.3;font-weight:700;">Preliminary eligibility result</span></td></tr></table>`;
 
   // 2. Hero
   const greeting = name ? `Hi ${escape(name)},` : "Hello,";
