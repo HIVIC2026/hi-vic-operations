@@ -3,7 +3,12 @@
 ## Now
 - [x] Restore-point check guide for applying 0071–0073 (report only)
 - [x] Launch fixes in test copy (booking atomic, licence guard, Ready Check order proof); pricing questions shown verbatim
+- [x] Migrations 0071, 0072, 0073 applied to live with checks
+- [x] 0074 staged in throwaway database with undo script tested; live apply waiting on Jo
 - [ ] Pricing questions C01–C04: waiting on Jo to confirm which are settled
+- [ ] Old electrician-visit path: waiting on Jo's decision (Ready Check not guaranteed before PIESA on it)
+- [ ] Official PIESA/PIISA form comparison: blocked — official site refuses our download; needs Jo to upload the forms
+- [ ] Launch-fix app code re-test on a rebuilt merged copy (test copy was cleared)
 - [x] Provide safe no-write onboarding links for an external AI audit
 - [x] Prevent cancelled preview page requests from surfacing an AbortError and blanking the screen
 - [x] Complete authorized REC refinements: fix save/navigation races; verified AU/VIC addresses; exact service/availability/rates copy; staff links; assigned-REC standard/custom rates; agreement v2.3 source reconciliation and official $5m insurance override; terminology sweep; focused tests, provider/browser checks, viewable screenshots and audit
