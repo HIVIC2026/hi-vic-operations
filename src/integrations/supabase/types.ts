@@ -5519,6 +5519,81 @@ export type Database = {
           },
         ]
       }
+      partner_worker_invites: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          declarations: Json | null
+          expires_at: string
+          id: string
+          invitee_contact: string | null
+          invitee_name: string
+          is_test: boolean
+          revoked_at: string | null
+          signed_ip: string | null
+          signed_name: string | null
+          signed_user_agent: string | null
+          token_hash: string
+          trade_role: Database["public"]["Enums"]["assignment_role"]
+          used_at: string | null
+          worker_id: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          declarations?: Json | null
+          expires_at: string
+          id?: string
+          invitee_contact?: string | null
+          invitee_name: string
+          is_test?: boolean
+          revoked_at?: string | null
+          signed_ip?: string | null
+          signed_name?: string | null
+          signed_user_agent?: string | null
+          token_hash: string
+          trade_role: Database["public"]["Enums"]["assignment_role"]
+          used_at?: string | null
+          worker_id?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          declarations?: Json | null
+          expires_at?: string
+          id?: string
+          invitee_contact?: string | null
+          invitee_name?: string
+          is_test?: boolean
+          revoked_at?: string | null
+          signed_ip?: string | null
+          signed_name?: string | null
+          signed_user_agent?: string | null
+          token_hash?: string
+          trade_role?: Database["public"]["Enums"]["assignment_role"]
+          used_at?: string | null
+          worker_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_worker_invites_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_worker_invites_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "partner_workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       partner_workers: {
         Row: {
           account_status: string

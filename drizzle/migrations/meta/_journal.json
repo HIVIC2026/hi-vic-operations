@@ -484,6 +484,13 @@
       "when": 1790832806551,
       "tag": "0068_partner_lead_fee_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1790838701186,
+      "tag": "0069_partner_worker_invites",
+      "breakpoints": true
     }
   ]
 }
