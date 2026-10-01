@@ -29,7 +29,9 @@ We fix this one form first, get your sign-off, then move to the next. The old A1
    The form then opens that many sections: "Area 1", "Area 2", ...
    Each area asks the same questions:
    - Where is this area?                   text, e.g. "Main house", "Rear extension"   MANDATORY
-   - Area measured (m2)                    number              MANDATORY
+   - Length (m)                            number              MANDATORY
+   - Width (m)                             number              MANDATORY
+     (the portal works out the m2; for odd shapes, split them into extra areas)
    - Is there existing insulation?         Yes / No            MANDATORY
      If Yes:
      - Type (tick all that apply)          Batts / Loose fill  MANDATORY
@@ -46,8 +48,13 @@ We fix this one form first, get your sign-off, then move to the next. The old A1
    If they pick 6+, they can keep adding areas.
 
 4. WHOLE JOB
-   - How was the ceiling measured?         Laser / Tape / Floor plan / Other   MANDATORY
-   - Measurement notes                     text                MANDATORY only if Floor plan or Other
+   - How was the ceiling measured?         Laser in the ceiling space / Tape in the ceiling space /
+                                           Scaled from floor plan / Other     MANDATORY
+   - Explain the method                    text                MANDATORY only if Floor plan or Other
+   - Upgrade area diagram or floor plan    photo/upload        MANDATORY
+     (a sketch showing each area with its length and width; required evidence for the regulator)
+   The portal saves a measurement record for each job: method, who measured it, date/time,
+   dimensions for each area, calculated m2 and the diagram.
    - Was the ceiling or roof built or replaced in the last 5 years?  Yes / No / Not sure  MANDATORY
 
 5. YOUR QUOTED PRICE (A1 only, all prices inc GST)
