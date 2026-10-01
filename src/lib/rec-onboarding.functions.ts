@@ -33,6 +33,8 @@ async function findApp(token: string) {
 const s = (m: number) => z.string().max(m).optional();
 const n = z.number().finite().min(0).max(1_000_000_000).nullable().optional();
 const dataSchema = z.object({
+  how_it_works_acknowledged: z.boolean().optional(),
+  works_under_rec: z.boolean().nullable().optional(), host_rec_name: s(200), host_rec_number: s(50),
   legal_entity_name: s(200), trading_name: s(200), abn: s(20), rec_registration_number: s(50),
   business_address: s(300), primary_contact_name: s(200), business_phone: s(30), business_email: s(320), authorised_to_register: z.boolean().optional(),
   insurer: s(200), insurance_policy_number: s(100), public_liability_cover_amount: n, public_liability_expiry: s(10),
