@@ -36,3 +36,14 @@
 - [ ] Ready Check: per-room insulation type multi-select (batts AND loose fill) + remove-vs-top-up choice instead of bare removal yes/no
 - [x] Full audit of Mitti Form A (Ready Check) vs portal/quoting/ESC needs; corrected paste-ready brief v3 delivered
 - [x] Ready Check two variants: A1 installer-sourced with quoted-price section (lines/total/includes/agreed), A2 evidence-only; portal picks by job channel; validateQuotedPrice fails closed on mismatches
+- [ ] Refine partner onboarding screens (walk as installer/electrician, fix gaps)
+- [ ] Redesign all customer-facing email templates (brand, HIV wording)
+- [ ] Onboarding invite email explaining what we do
+- [ ] Multiple full dummy job run-throughs (6 scenarios)
+- [ ] Verify automations (To action, next-step rule, overdue flags)
+- [ ] Email sending domain setup
+- [ ] Xero invoice design + preflight approval
+- [ ] Owner portal walkthrough
+- [ ] Mobile check on trade screens
+- [ ] Final security/RLS pass
+- [x] Connect Mitti A1 template_01ee0428be6d4435b34d8b738935f099 + validate
