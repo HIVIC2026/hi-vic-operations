@@ -1,5 +1,10 @@
 # Roadmap
 
+## Now
+- [x] Boss signs up business; workers join via personal invite link (/join)
+- [ ] Installer agreement audit: payment timing contradiction (step 2/cl.27 vs cl.17); free Ready Check mandatory (remove step 8 "No"); customer-contact rule for installer-supplied customers vs cl.28; "your customer, your price" vs HIV pricing; PIESA booking/payment order; separate EEC Certified Insulation Installer certification from training
+
+
 ## In progress (approved plan: installer onboarding overhaul)
 - [ ] Name-first step on installer + electrician onboarding; greet by first name throughout; invites prefill invitee name + inviter business
 - [ ] Shared "How we work with you" content module (Option 1 own customer / Option 2 our lead), portal help page, FAQ

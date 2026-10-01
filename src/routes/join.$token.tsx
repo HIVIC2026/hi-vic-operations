@@ -1,0 +1,70 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { getWorkerInvite, submitWorkerInvite } from "@/lib/worker-invite.functions";
+
+export const Route = createFileRoute("/join/$token")({
+  head: () => ({ meta: [
+    { title: "Join your team – Home Insulation Victoria" },
+    { name: "description", content: "Register as a worker under your business with Home Insulation Victoria." },
+    { property: "og:title", content: "Join your team – Home Insulation Victoria" },
+    { property: "og:description", content: "Register as a worker under your business with Home Insulation Victoria." },
+    { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
+    { name: "robots", content: "noindex" },
+  ] }),
+  component: Join,
+});
+
+type Invite = Awaited<ReturnType<typeof getWorkerInvite>>;
+
+function Join() {
+  const { token } = Route.useParams();
+  const load = useServerFn(getWorkerInvite);
+  const submit = useServerFn(submitWorkerInvite);
+  const [inv, setInv] = useState<Invite | null>(null);
+  const [f, setF] = useState({ full_legal_name: "", mobile: "", email: "", licence_number: "", qualification: "", signed_name: "" });
+  const [ticks, setTicks] = useState<string[]>([]);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  useEffect(() => { load({ data: { token } }).then((r) => { setInv(r); if (r.ok) setF((x) => ({ ...x, full_legal_name: r.inviteeName })); }).catch(() => setInv({ ok: false, message: "We couldn't open this invite. Please try again." })); }, [token]);
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+
+  const wrap = (c: React.ReactNode) => <div className="min-h-screen bg-background px-4 py-8"><main className="mx-auto max-w-xl rounded-2xl border bg-card p-6 shadow-sm"><div className="mb-2 text-xs font-bold uppercase tracking-wide text-success">Home Insulation Victoria</div>{c}</main></div>;
+  if (!inv) return wrap(<p className="text-muted-foreground">Loading…</p>);
+  if (!inv.ok) return wrap(<><h1 className="mb-2 text-2xl font-bold">Invite link problem</h1><p className="text-muted-foreground">{inv.message}</p></>);
+  if (done) return wrap(<><h1 className="mb-2 text-2xl font-bold">Thanks, {f.full_legal_name.split(" ")[0]} — you're registered.</h1><p className="text-muted-foreground">{inv.businessName} and Home Insulation Victoria will check your details. Once you're approved, your boss can send you to jobs — you'll get a private link for each job.</p></>);
+
+  return wrap(<form onSubmit={async (e) => {
+    e.preventDefault(); setBusy(true); setErrors([]);
+    try {
+      const r = await submit({ data: { token, ...f, accepted: ticks } });
+      if (r.ok) setDone(true); else { setErrors(r.errors); window.scrollTo({ top: 0 }); }
+    } catch { setErrors(["Something went wrong. Please try again."]); } finally { setBusy(false); }
+  }}>
+    <h1 className="mb-1 text-2xl font-bold">You're joining {inv.businessName}</h1>
+    <p className="mb-5 text-sm text-muted-foreground">Your boss has already set up the business with Home Insulation Victoria. We just need your own details and your sign-off — no ABN, insurance, rates or bank details.</p>
+    {errors.length > 0 && <div className="mb-4 rounded-xl border border-danger bg-danger-soft p-3 text-sm text-danger">{errors.map((x) => <div key={x}>• {x}</div>)}</div>}
+    <div className="grid gap-3">
+      <label className="text-sm font-medium">Your full legal name<Input value={f.full_legal_name} onChange={set("full_legal_name")} className="mt-1 h-12" /></label>
+      <label className="text-sm font-medium">Your mobile<Input inputMode="tel" value={f.mobile} onChange={set("mobile")} className="mt-1 h-12" /></label>
+      <label className="text-sm font-medium">Your email<Input type="email" value={f.email} onChange={set("email")} className="mt-1 h-12" /></label>
+      {inv.trade === "electrician"
+        ? <label className="text-sm font-medium">Your Victorian electrician licence number (ESV)<Input value={f.licence_number} onChange={(e) => setF({ ...f, licence_number: e.target.value.toUpperCase() })} className="mt-1 h-12" /></label>
+        : <label className="text-sm font-medium">Your training or qualification<Input placeholder="e.g. Cert III, or Experienced installer" value={f.qualification} onChange={set("qualification")} className="mt-1 h-12" /></label>}
+    </div>
+    <h2 className="mb-2 mt-6 text-lg font-bold">Please read and tick each one</h2>
+    <div className="grid gap-2">
+      {inv.declarations.map((d) => (
+        <label key={d.key} className="flex min-h-12 cursor-pointer gap-3 rounded-xl border p-3 text-sm">
+          <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" checked={ticks.includes(d.key)} onChange={(e) => setTicks(e.target.checked ? [...ticks, d.key] : ticks.filter((k) => k !== d.key))} />
+          <span>{d.text}</span>
+        </label>
+      ))}
+    </div>
+    <label className="mt-5 block text-sm font-medium">Type your full name to sign<Input value={f.signed_name} onChange={set("signed_name")} className="mt-1 h-12" /></label>
+    <Button type="submit" size="field" className="mt-5 w-full" disabled={busy}>{busy ? "Saving…" : "Sign and register"}</Button>
+  </form>);
+}

@@ -1,3 +1,4 @@
+import { WorkerStop } from "@/components/portal/worker-stop";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -173,6 +174,7 @@ function InstallerOnboarding() {
   }
   async function go(delta: 1 | -1) {
     setError(null);
+    if (delta === 1 && d.works_for_business === true) return; // workers join via the boss's invite link
     if (delta === 1 && errs.length && !testMode) { setShowErrors(true); return; }
     setShowErrors(false);
     const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "about";
@@ -272,6 +274,10 @@ function StepBody({ step, d, up, token, setError, leadFee }: { step: StepKey; d:
         <Field label="Your name" required><input style={input} autoFocus placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
         <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
         <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
+        <Field label="Do you run the business, or work for someone?" required hint="The boss sets up the business here. People who work for them join with a personal invite link from the boss.">
+          <Choice options={[{ v: false as boolean, l: "I run the business" }, { v: true as boolean, l: "I work for an installation business" }]} value={d.works_for_business ?? null} onChange={(v) => up({ works_for_business: v })} />
+        </Field>
+        {d.works_for_business === true && <WorkerStop who="business" />}
       </>;
     case "business":
       return <>

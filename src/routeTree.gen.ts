@@ -19,6 +19,7 @@ import { Route as InstallerOnboardingRouteImport } from './routes/installer-onbo
 import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
+import { Route as JoinTokenRouteImport } from './routes/join.$token'
 import { Route as WTokenRouteImport } from './routes/w.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminBusinessesRouteImport } from './routes/_authenticated/admin.businesses'
@@ -100,6 +101,11 @@ const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
 const EstimateTokenRoute = EstimateTokenRouteImport.update({
   id: '/estimate/$token',
   path: '/estimate/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JoinTokenRoute = JoinTokenRouteImport.update({
+  id: '/join/$token',
+  path: '/join/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WTokenRoute = WTokenRouteImport.update({
@@ -296,6 +302,7 @@ export interface FileRoutesByFullPath {
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
+  '/join/$token': typeof JoinTokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
@@ -340,6 +347,7 @@ export interface FileRoutesByTo {
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
+  '/join/$token': typeof JoinTokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
@@ -386,6 +394,7 @@ export interface FileRoutesById {
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/estimate/$token': typeof EstimateTokenRoute
+  '/join/$token': typeof JoinTokenRoute
   '/w/$token': typeof WTokenRoute
   '/_authenticated/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/_authenticated/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
@@ -432,6 +441,7 @@ export interface FileRouteTypes {
     | '/step3-email-preview'
     | '/home'
     | '/estimate/$token'
+    | '/join/$token'
     | '/w/$token'
     | '/admin/businesses'
     | '/admin/communications'
@@ -476,6 +486,7 @@ export interface FileRouteTypes {
     | '/step3-email-preview'
     | '/home'
     | '/estimate/$token'
+    | '/join/$token'
     | '/w/$token'
     | '/admin/businesses'
     | '/admin/communications'
@@ -521,6 +532,7 @@ export interface FileRouteTypes {
     | '/step3-email-preview'
     | '/_authenticated/home'
     | '/estimate/$token'
+    | '/join/$token'
     | '/w/$token'
     | '/_authenticated/admin/businesses'
     | '/_authenticated/admin/communications'
@@ -566,6 +578,7 @@ export interface RootRouteChildren {
   InstallerOnboardingRoute: typeof InstallerOnboardingRoute
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
+  JoinTokenRoute: typeof JoinTokenRoute
   WTokenRoute: typeof WTokenRoute
   ApiPublicAddressSearchRoute: typeof ApiPublicAddressSearchRoute
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
@@ -649,6 +662,13 @@ declare module '@tanstack/react-router' {
       path: '/estimate/$token'
       fullPath: '/estimate/$token'
       preLoaderRoute: typeof EstimateTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/join/$token': {
+      id: '/join/$token'
+      path: '/join/$token'
+      fullPath: '/join/$token'
+      preLoaderRoute: typeof JoinTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/w/$token': {
@@ -950,6 +970,7 @@ const rootRouteChildren: RootRouteChildren = {
   InstallerOnboardingRoute: InstallerOnboardingRoute,
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
   EstimateTokenRoute: EstimateTokenRoute,
+  JoinTokenRoute: JoinTokenRoute,
   WTokenRoute: WTokenRoute,
   ApiPublicAddressSearchRoute: ApiPublicAddressSearchRoute,
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
