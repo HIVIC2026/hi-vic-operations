@@ -79,7 +79,9 @@ export function visibleSteps(d: RecData) {
   return STEPS.filter((s) =>
     (s.key !== "rectification_pricing" || d.service_rectification === true) &&
     (s.key !== "insurance" || d.works_under_rec !== true) &&
-    (s.key !== "bank" || d.works_under_rec !== true));
+    (s.key !== "bank" || d.works_under_rec !== true) &&
+    (s.key !== "assessment_pricing" || d.works_under_rec !== true) &&
+    (s.key !== "rectification_pricing" || (d.works_under_rec !== true && d.service_rectification === true)));
 }
 
 export function validAbn(abn: string | undefined): boolean {
