@@ -25,6 +25,24 @@ describe("customer journey stages", () => {
     expect(done).not.toMatch(/booked for|assigned to/i);
   });
 
+  test("free check confirmation: preview falls back to test banner; explicit testMode wins", () => {
+    expect(renderToStaticMarkup(<ConfirmQuote onBack={noop} preview />)).toContain("no live booking");
+    expect(renderToStaticMarkup(<ConfirmQuote onBack={noop} preview testMode={false} />)).not.toContain("no live booking");
+    expect(renderToStaticMarkup(<ConfirmQuote onBack={noop} />)).not.toContain("no live booking");
+  });
+
+  test("free check confirmation: stale/error alerts visible once when accepted", () => {
+    const C = FREE_CHECK_CONFIRM_COPY;
+    const html = renderToStaticMarkup(<ConfirmQuote onBack={noop} state={{ paymentStatus: "accepted", stale: true } as never} error="Network failed" />);
+    expect(html).toContain('data-testid="ready-check-success"');
+    expect(html.split(C.stale.replace(/&/g, "&amp;")).length - 1).toBe(1);
+    expect(html.split("Network failed").length - 1).toBe(1);
+    expect(html.split('role="alert"').length - 1).toBe(2);
+    expect(html).not.toContain('type="checkbox"');
+    const pending = renderToStaticMarkup(<ConfirmQuote onBack={noop} error="Network failed" />);
+    expect(pending.split("Network failed").length - 1).toBe(1);
+  });
+
   test("measured estimate: shared order, green discount and strongest total", () => {
     const html = renderToStaticMarkup(<MeasuredQuoteView insulation={4500} removal={2250} access={300} allowance={allowance} piesa={349} ap={349} discount={1481.76} />);
     const order = [CUSTOMER_QUOTE_LABELS.piesa, CUSTOMER_QUOTE_LABELS.insulation, "Existing insulation removal", "Access adjustment", "Preliminary electrical allowance", CUSTOMER_QUOTE_LABELS.apManagement, CUSTOMER_QUOTE_LABELS.projectTotal, CUSTOMER_QUOTE_LABELS.discount, CUSTOMER_MEASURED_QUOTE.labels.finalCost, CUSTOMER_MEASURED_QUOTE.stillChangeHeading, CUSTOMER_APPROVAL_REASSURANCE];

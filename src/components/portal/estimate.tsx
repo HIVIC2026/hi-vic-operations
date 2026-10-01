@@ -94,6 +94,10 @@ export function ConfirmQuote({ onBack, preview = false, testMode = preview, stat
         <div className="mx-3 mt-4 rounded-[14px] bg-estimate-mist px-5 py-4 sm:mx-7"><p className="text-[13px] font-bold leading-relaxed" data-testid="approval-reassurance">{CUSTOMER_APPROVAL_REASSURANCE}</p></div>
         <div className="h-6" />
       </>}
+      {(state?.stale || error) && <div className="space-y-3 px-5 pb-6 sm:px-9" data-testid="confirm-alerts">
+        {state?.stale && <p className="border-l-4 border-danger bg-danger-soft px-4 py-3 text-sm font-bold" role="alert">{C.stale}</p>}
+        {error && <p className="text-sm font-bold text-danger" role="alert">{error}</p>}
+      </div>}
     </div>
     <button type="button" className="mt-4 min-h-12 w-full rounded-xl text-sm font-bold text-estimate-blue underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-estimate-blue" onClick={onBack}>← Back to my estimate</button>
   </div>;
