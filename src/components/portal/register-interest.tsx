@@ -112,6 +112,12 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
         },
       });
       if (!result.ok) {
+        // A filled honeypot means a bot (or a browser autofill glitch) — never
+        // show a raw error for it; just stay quiet so real people aren't blocked.
+        if (result.errors.honeypot) {
+          setError("We couldn't save that — please check the details and try again, or call us and we'll register you over the phone.");
+          return;
+        }
         const first = Object.values(result.errors).find(Boolean);
         setError(first || "We couldn't save that — please check the details and try again.");
         return;
@@ -292,9 +298,9 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
 
       <input
         type="text"
-        name="company"
+        name="hp_ref_x9"
         tabIndex={-1}
-        autoComplete="off"
+        autoComplete="new-password"
         aria-hidden="true"
         value={honeypot}
         onChange={(event) => setHoneypot(event.target.value)}

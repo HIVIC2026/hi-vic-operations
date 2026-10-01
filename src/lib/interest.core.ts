@@ -138,7 +138,7 @@ export function parseInterest(input: InterestDraft): InterestParse {
   }
   if (!parsed.data.consent)
     return { ok: false, errors: { consent: "Please tick the box so we can contact you." } };
-  if (parsed.data.honeypot.trim() !== "") return { ok: false, errors: { honeypot: "Spam refused." } };
+  if (parsed.data.honeypot.trim() !== "") return { ok: false, errors: { honeypot: "SPAM_REFUSED" } };
   const mobile = tidyMobile(parsed.data.mobile);
   if (!mobile) return { ok: false, errors: { mobile: "Please enter a valid Australian mobile number." } };
   return {
