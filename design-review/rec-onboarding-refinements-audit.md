@@ -26,7 +26,7 @@ Date: 1 October 2026
 
 ## Verification
 
-- 63 focused onboarding, activation, pilot, scheduling and staff-link checks passed.
+- The final focused REC onboarding, scheduling and staff-link run passed 37 checks with 140 assertions and no failures.
 - Type checking passed.
 - Preview build reported OK with no runtime errors.
 - Mock browser checks cover true 1280px and 390px widths; viewable embedded evidence is stored in `rec-onboarding-refinements.json`, including measurements for services, availability and rectification pricing.

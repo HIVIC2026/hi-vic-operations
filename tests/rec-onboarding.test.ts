@@ -101,6 +101,7 @@ describe("rec onboarding", () => {
     expect(t).toContain("is not the customer-facing price");
     expect(t).toContain("does not depend on Home Insulation Victoria receiving payment from the customer");
     expect(t).toContain("does not itself commence this agreement");
+    expect(t).toContain("Home Insulation Victoria, as the Accredited Person (AP)");
     expect(t).toContain("within 48 elapsed hours after the allocation is made available and notified to the REC");
     expect(t).toContain("there is no automatic cancellation");
     expect(t).toContain("Home Insulation Victoria's written authority does not replace the owner's required approval");
