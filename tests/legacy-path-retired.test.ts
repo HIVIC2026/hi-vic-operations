@@ -74,7 +74,7 @@ describe("legacy electrician-assessment path retired", () => {
 
   test("assessment appointments and bookings are refused server-side", () => {
     expect(src("src/lib/pilot.functions.ts")).toContain('if (data.kind === "assessment") throw new WorkflowError("Assessment appointments are retired.');
-    expect(src("src/lib/booking.server.ts")).toContain('if (kind === "assessment") throw new WorkflowError("Assessment bookings are retired.');
+    expect(src("src/lib/booking.server.ts")).toContain('if ((kind as string) === "assessment") throw new WorkflowError("Assessment bookings are retired.');
   });
 
   test("Mitti PIESA forms are created only in the Ready Check-first PIESA stages", () => {
