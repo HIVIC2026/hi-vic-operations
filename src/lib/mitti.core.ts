@@ -157,8 +157,8 @@ export type PrefillCtx = {
   lifeSupport?: string | null; propertyType?: string | null;
 };
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
-  { key: "jobNumber", aliases: ["Portal Job Number"], mandatory: true },
-  { key: "address", aliases: ["Property Address", "Site address", "Site Address"], mandatory: true },
+  { key: "jobNumber", aliases: ["Portal Job Number", "Job Reference ID"], mandatory: true },
+  { key: "address", aliases: ["Property Address", "Site address", "Site Address", "Address including postcode"], mandatory: true },
   { key: "ownerName", aliases: ["Owner name", "Owner full name", "Client name", "Property owner name"], mandatory: true },
   { key: "ownerEmail", aliases: ["Owner email"] },
   { key: "ownerPhone", aliases: ["Owner phone", "Owner mobile"] },
@@ -396,7 +396,7 @@ export function parseAudit(audit: Any) {
   if (ls != null) patch.life_support_confirmed = ls;
 
   // Imported B1 "No rectification required" is a preliminary result only – it never establishes a PIESA pass.
-  const po = norm(val(entries, ["B1 Assessment outcome", "PIESA outcome", "PIESA result", "Rectification outcome", "Rectification required"]));
+  const po = norm(val(entries, ["B1 Assessment outcome", "Check ONE option only", "PIESA outcome", "PIESA result", "Rectification outcome", "Rectification required"]));
   // Official B1 wording: "...is not required..." / "...is required..." / "...is not possible...".
   if (/no rectification required|rectification work is not required/.test(po)) issues.push("Mitti reports no rectification required (preliminary B1 only) – PIESA clearance stays pending until confirmed in the portal.");
   else if (/rectification required|rectification work is required|rectification work is not possible/.test(po)) patch.piesa_outcome = "fail";
@@ -433,7 +433,7 @@ export function parseAudit(audit: Any) {
   return {
     auditId, patch, issues, others, completed,
     templateId: String(audit?.template_id ?? audit?.audit_data?.template_id ?? ""),
-    jobNumber: val(entries, ["Portal Job Number"]),
+    jobNumber: val(entries, ["Portal Job Number", "Job Reference ID"]),
     modifiedAt: audit?.modified_at ?? audit?.audit_data?.date_modified ?? null,
     snapshot: entries.filter((e) => e.label).map((e) => ({ id: e.id, label: e.label, section: e.section, value: e.value })),
   };
