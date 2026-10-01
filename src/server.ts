@@ -53,9 +53,31 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
+// The customer web address is a marketing entry point, not a portal door: the bare
+// address must land on the calculator. Staff reach the portal at /home on any address.
+const CUSTOMER_HOSTS = new Set(["estimate.homeinsulationvictoria.com.au"]);
+
+function customerEntryPoint(request: Request): Response | undefined {
+  const host = (request.headers.get("host") ?? "").toLowerCase().split(":")[0];
+  if (!CUSTOMER_HOSTS.has(host)) return undefined;
+  let pathname = "";
+  try {
+    pathname = new URL(request.url).pathname;
+  } catch {
+    return undefined;
+  }
+  if (pathname !== "/" && pathname !== "") return undefined;
+  return new Response(null, {
+    status: 302,
+    headers: { location: "/calculator", "cache-control": "no-store" },
+  });
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const entryPoint = customerEntryPoint(request);
+      if (entryPoint) return entryPoint;
       const handler = await getServerEntry();
       const c = ctx as { waitUntil?: (p: Promise<unknown>) => void } | undefined;
       const waitUntil = typeof c?.waitUntil === "function" ? c.waitUntil.bind(c) : undefined;
