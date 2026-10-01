@@ -70,7 +70,8 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
   const standard = primary?.by_access.standard;
   const removal = est?.scenarios.find((s) => s.key === "full_removal");
 
-  const readyToAnswer = trimmed.length === 4 && m2 != null && insulation != null;
+  // Only price when the postcode is one we hold rates for — an unlisted postcode is explained above, not an error.
+  const readyToAnswer = trimmed.length === 4 && location != null && m2 != null && insulation != null;
 
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas">
