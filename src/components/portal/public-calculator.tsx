@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Check, ChevronDown, Info, Layers, MapPin, RotateCcw, Ruler } from "lucide-react";
+import { BadgeDollarSign, Check, ChevronDown, Info, Layers, MapPin, RotateCcw, Ruler } from "lucide-react";
 import { QuoteBreakdown } from "./estimate";
 import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
 import { CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings } from "@/lib/estimate.core";
@@ -257,6 +257,15 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                   );
                 })}
               </div>
+              {insulation !== null && insulation !== "none" && (
+                <div className="mt-2.5 flex items-start gap-2.5 rounded-lg border border-workspace-blush-strong/50 bg-workspace-blush/50 px-3 py-2.5 text-xs leading-relaxed text-estimate-navy/90">
+                  <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-task-eligibility-foreground" />
+                  <p>
+                    <strong className="text-estimate-navy">Your existing insulation may be able to stay.</strong> Your installer will check it and advise you at your free Ready Check. If removal is required, budget an extra{" "}
+                    <strong className="text-estimate-blue">$10–$15 per m² of the area requiring removal</strong>, depending on the insulation type.
+                  </p>
+                </div>
+              )}
             </Field>
 
             <div className="px-5 pb-3">
@@ -292,6 +301,16 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                     </div>
                   ))}
                 </dl>
+                <div className="mt-3 overflow-hidden rounded-xl border-2 border-estimate-green bg-estimate-white shadow-[0_12px_28px_-22px_rgba(7,191,97,0.85)]" data-testid="public-calculator-discount-highlight">
+                  <div className="flex items-center gap-2 bg-estimate-mint px-3.5 py-2 text-[0.7rem] font-extrabold uppercase tracking-wider text-estimate-navy">
+                    <BadgeDollarSign aria-hidden="true" className="size-4 text-estimate-green" />
+                    Your estimated VEU discount
+                  </div>
+                  <div className="flex items-end justify-between gap-4 px-3.5 py-3">
+                    <p className="max-w-[230px] text-xs leading-relaxed text-estimate-navy/85">Already deducted from the estimated cost shown below.</p>
+                    <p className="shrink-0 text-3xl font-extrabold leading-none text-estimate-green">−{dollars(standard.applied_discount)}</p>
+                  </div>
+                </div>
                 <div className="mt-3">
                   <QuoteBreakdown
                     rows={customerQuoteRows({ piesa: settings.piesa_assessment_inc_gst, installation: standard.installation, apManagement: settings.ap_management_inc_gst })}
@@ -302,12 +321,6 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                   />
                 </div>
                 {standard.copayment_capped && <p className="mt-2 text-xs leading-relaxed">The discount is limited so your contribution meets the program minimum.</p>}
-                {insulation !== "none" && (
-                  <p className="mt-3 rounded-lg border border-workspace-blush-strong/40 bg-workspace-blush/50 px-3 py-2.5 text-xs leading-relaxed text-estimate-navy/90">
-                    <strong className="text-estimate-navy">Already have insulation?</strong> In many homes it can stay. If part of yours does need removing, budget an extra{" "}
-                    <strong className="text-estimate-blue">$10–$15 per m² of the area requiring removal</strong>, depending on the insulation type. Your installer will assess it and advise you at your free Ready Check — before you agree to anything.
-                  </p>
-                )}
               </div>
             )}
           </div>
@@ -321,15 +334,17 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
           insulation={insulation ?? "unknown"}
         />
 
-        <div className="mt-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[0.7rem] text-estimate-navy/90">
-          <p>Estimates only — not a quote. Prices include GST. Nothing you type here is saved unless you register your interest.</p>
-          <p className="flex flex-wrap items-center gap-x-2">
-            <span className="font-bold text-estimate-navy/85">Home Insulation Victoria · Accredited Person under the Victorian Energy Upgrades program</span>
-            <a href={ENQUIRY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-estimate-blue underline decoration-estimate-green/60 underline-offset-2 hover:text-estimate-green">
-              homeinsulationvictoria.com.au
-            </a>
-          </p>
-        </div>
+        <footer className="mt-5 border-t border-estimate-line pb-3 pt-3 text-center text-[0.7rem] leading-relaxed text-estimate-navy/85 sm:text-left">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+            <p className="sm:max-w-[460px]">Estimate only, not a quote. Prices include GST. Your entries are only saved if you register your interest.</p>
+            <p className="flex flex-col items-center gap-0.5 sm:items-end">
+              <span className="font-bold text-estimate-navy">Home Insulation Victoria · Accredited Person for Victorian Energy Upgrades</span>
+              <a href={ENQUIRY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-estimate-blue underline decoration-estimate-green/60 underline-offset-2 hover:text-estimate-green">
+                homeinsulationvictoria.com.au
+              </a>
+            </p>
+          </div>
+        </footer>
 
         {priced && (
           <div className="fixed inset-x-0 bottom-0 z-20 border-t border-estimate-line bg-estimate-white/95 px-5 py-3 backdrop-blur lg:hidden">
