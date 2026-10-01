@@ -92,7 +92,7 @@ export const decideWorker = createServerFn({ method: "POST" }).middleware([requi
       ? { approval_status: "approved", approved_by: context.userId, approved_at: now, rejection_reason: null }
       : { approval_status: "rejected", approved_by: context.userId, approved_at: now, rejection_reason: data.reason ?? null }).eq("id", data.id);
     if (error) throw new Error(error.message);
-    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: data.approve ? "worker_approved" : "worker_rejected", details: { worker_id: data.id, reason: data.reason ?? null } } as never);
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: data.approve ? "worker_approved" : "worker_rejected", summary: data.approve ? "Worker approved" : `Worker rejected: ${data.reason}`, details: { worker_id: data.id, reason: data.reason ?? null } });
     if (!data.approve) await admin.from("worker_job_links").update({ revoked_at: now, revoked_by: context.userId }).eq("worker_id", data.id).is("revoked_at", null);
     return { ok: true };
   });
