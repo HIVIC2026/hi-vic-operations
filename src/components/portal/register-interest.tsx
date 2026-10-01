@@ -14,12 +14,15 @@ import { extractPostcode, suburbFromLine } from "@/lib/address.core";
 import type { InsulationDeclared } from "@/lib/estimate.core";
 import { AddressCombobox } from "./address-combobox";
 
+/** The calculator's answer once the person has chosen ("unknown" until then). */
+type InsulationAnswer = Exclude<InsulationDeclared, null>;
+
 type Props = {
   address: string;
   suburb: string;
   postcode: string;
   ceilingM2: number;
-  insulation: string;
+  insulation: InsulationAnswer;
 };
 
 const inputClass =
