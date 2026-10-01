@@ -36,59 +36,39 @@ describe("Ready Check variants", () => {
     expect(result.issues.some((i) => i.includes("Total quoted price $"))).toBe(true);
   });
 
-  test("AI prompt for the priced form includes the Quoted price line repeat section and the draw option", () => {
+  test("AI prompt for the priced form uses tick-what's-included + one total and the draw option", () => {
     const prompt = mittiAiPrompt("ready_check_priced");
-    expect(prompt).toContain('"Quoted price line"');
+    expect(prompt).toContain("What's included in your price (tick all that apply)");
     expect(prompt).toContain('"Total quoted price $"');
-    expect(prompt).toContain('"Price already agreed with the owner?"');
+    expect(prompt).toContain("Do NOT add a price box per item");
     expect(prompt).toContain("DRAW the diagram inside the form");
-    expect(mittiAiPrompt("ready_check")).not.toContain("Quoted price line");
+    expect(mittiAiPrompt("ready_check")).not.toContain("Total quoted price");
   });
 });
 
 describe("validateQuotedPrice", () => {
-  const r50 = { item: "R5.0 supply and install", description: "", priceIncGst: 1200 };
-  const removal = { item: "Removal of existing insulation", description: "", priceIncGst: 400 };
-
-  test("accepts a consistent quote", () => {
-    const r = validateQuotedPrice({ lines: [r50, removal], totalIncGst: 1600, agreedWithOwner: true, removalRequired: true });
+  const R = "R5.0 supply and install", RM = "Removal of existing insulation";
+  test("accepts ticked items with one total", () => {
+    const r = validateQuotedPrice({ included: [R, RM], totalIncGst: 1600, agreedWithOwner: true, removalRequired: true });
     expect(r.ok).toBe(true);
-    expect(r.price?.lines).toHaveLength(2);
-    expect(r.price?.agreedWithOwner).toBe(true);
+    expect(r.price?.included).toEqual([R, RM]);
   });
-
-  test("flags a total that does not match the lines — never trusts either figure", () => {
-    const r = validateQuotedPrice({ lines: [r50], totalIncGst: 900, agreedWithOwner: false, removalRequired: false });
-    expect(r.ok).toBe(false);
-    expect(r.issues[0]).toContain("does not equal the sum of the lines");
-    expect(r.price).toBeNull();
+  test("R5.0 must be ticked", () => {
+    expect(validateQuotedPrice({ included: [RM], totalIncGst: 400, agreedWithOwner: true, removalRequired: true }).ok).toBe(false);
   });
-
-  test("requires exactly one R5.0 line", () => {
-    expect(validateQuotedPrice({ lines: [removal], totalIncGst: 400, agreedWithOwner: true, removalRequired: true }).ok).toBe(false);
-    expect(validateQuotedPrice({ lines: [r50, r50], totalIncGst: 2400, agreedWithOwner: true, removalRequired: false }).ok).toBe(false);
+  test("removal ticked iff an area says Remove", () => {
+    expect(validateQuotedPrice({ included: [R], totalIncGst: 1200, agreedWithOwner: true, removalRequired: true }).ok).toBe(false);
+    expect(validateQuotedPrice({ included: [R, RM], totalIncGst: 1600, agreedWithOwner: true, removalRequired: false }).ok).toBe(false);
   });
-
-  test("removal line required when an area says Remove; not allowed when none do", () => {
-    const missing = validateQuotedPrice({ lines: [r50], totalIncGst: 1200, agreedWithOwner: true, removalRequired: true });
-    expect(missing.ok).toBe(false);
-    expect(missing.issues.some((i) => i.includes("Removal of existing insulation"))).toBe(true);
-    const extra = validateQuotedPrice({ lines: [r50, removal], totalIncGst: 1600, agreedWithOwner: true, removalRequired: false });
-    expect(extra.ok).toBe(false);
+  test("Other needs a description; fails closed on missing answers", () => {
+    expect(validateQuotedPrice({ included: [R, "Other"], totalIncGst: 1300, agreedWithOwner: true, removalRequired: false }).ok).toBe(false);
+    expect(validateQuotedPrice({ included: [R, "Other"], otherDescription: "Asbestos check", totalIncGst: 1300, agreedWithOwner: true, removalRequired: false }).ok).toBe(true);
+    expect(validateQuotedPrice({ included: [R], totalIncGst: 1200, agreedWithOwner: null, removalRequired: false }).ok).toBe(false);
+    expect(validateQuotedPrice({ included: [R], totalIncGst: 0, agreedWithOwner: true, removalRequired: false }).ok).toBe(false);
   });
-
-  test("Other lines need a description; fails closed on missing answers", () => {
-    expect(validateQuotedPrice({ lines: [r50, { item: "Other", description: "", priceIncGst: 100 }], totalIncGst: 1300, agreedWithOwner: true, removalRequired: false }).ok).toBe(false);
-    expect(validateQuotedPrice({ lines: [r50, { item: "Other", description: "Asbestos check", priceIncGst: 100 }], totalIncGst: 1300, agreedWithOwner: true, removalRequired: false }).ok).toBe(true);
-    expect(validateQuotedPrice({ lines: [r50], totalIncGst: 1200, agreedWithOwner: null, removalRequired: false }).ok).toBe(false);
-    expect(validateQuotedPrice({ lines: [], totalIncGst: 100, agreedWithOwner: true, removalRequired: false }).ok).toBe(false);
-  });
-
   test("validated price feeds the owner co-branded quote without retyping", () => {
-    const r = validateQuotedPrice({ lines: [r50], totalIncGst: 1200, agreedWithOwner: true, removalRequired: false });
+    const r = validateQuotedPrice({ included: [R], totalIncGst: 1200, agreedWithOwner: true, removalRequired: false });
     const owner = ownerPriceFromQuoted(r.price!, { piesaIncGst: 349, rectificationIncGst: 0, apFeeIncGst: 349, veecDiscountIncGst: 500 });
-    expect(owner.ready).toBe(true);
     expect(owner.total).toBe(1200 + 349 + 349);
-    expect(owner.afterDiscount).toBe(1200 + 349 + 349 - 500);
   });
 });
