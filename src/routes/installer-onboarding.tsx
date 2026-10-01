@@ -6,7 +6,6 @@ import {
   ACKNOWLEDGEMENTS, CAPACITY_BANDS, CII_STATUSES, DAYS, EXTRA_ITEMS, LEAD_TIMES, RADII, INSTALLER_AGREEMENT_VERSION,
   firstName, stepErrors, firstIncompleteStep, validAbn, visibleSteps, type InstData as RecData, type StepKey,
 } from "@/lib/installer-onboarding.core";
-import { HowItWorks } from "@/components/portal/how-it-works";
 import {
   confirmInstallerInsuranceUpload as confirmInsuranceUpload, getInstallerAgreement as getRecAgreement, installerInsuranceUploadUrl as insuranceUploadUrl,
   loadInstallerOnboarding as loadRecOnboarding, saveInstallerOnboarding as saveRecOnboarding, signInstallerAgreement as signRecAgreement, startInstallerOnboarding as startRecOnboarding,
