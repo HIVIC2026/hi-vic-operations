@@ -6,9 +6,10 @@ When the owner picks "Some there" or "Not sure", show a plain note under the pri
 ```text
 Good to know: some existing insulation can stay, and yours may not need
 to come out at all. If removal is needed, it's a discretionary extra of
-$10–$15 per m² depending on the insulation type — and it only goes ahead
-with your approval. We'll confirm exactly what's needed at your free
-Ready Check, before you agree to anything.
+$10–$15 per m² of the area removed — not your whole ceiling — depending
+on the insulation type, and it only goes ahead with your approval.
+We'll confirm exactly what's needed at your free Ready Check, before
+you agree to anything.
 ```
 
 - Just a note — no priced add-on, no live calculation, headline price unchanged.
