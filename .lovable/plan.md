@@ -1,22 +1,21 @@
-# Calculator: insulation removal, clearer register button, includes order
+# Calculator: insulation removal note, clearer register button, includes order
 
 ## 1. Homes that already have insulation
-When the owner picks "Some there" or "Not sure", show a clear note right under the price:
+When the owner picks "Some there" or "Not sure", show a plain note under the price (replaces the current removal paragraph):
 
 ```text
-Existing insulation may need to come out
-If removal is needed: + $2,250 (150 m² x $15/m² removal)
-Your total would then be about $X. We confirm at the free Ready Check — before you agree to anything.
+If your existing insulation needs to be removed, budget $10–$15 per m²
+depending on the insulation type. Removal needs approval, and it may not
+need to come out at all — we confirm this at your free Ready Check.
 ```
 
-- The "+ $X" is the extra cost (removal total minus the standard total), worked out live from their ceiling size and the existing $15/m² removal rate — it updates as they change the size.
-- Soft pink card with a bold amount so it is easy to spot; hidden when they choose "None".
-- The headline price stays the standard (no-removal) price — removal is shown as a possible add-on, never assumed.
+- Just a note — no priced add-on, no live calculation, headline price unchanged.
+- Soft pink card so it is easy to spot; hidden when they choose "None".
 - Their insulation answer is already saved with their registration, so staff see it in Registered interest.
 
 ## 2. Clearer "Demand is high" register button
-- Add a small pink badge above the form: "Demand is high — limited Ready Check spots".
-- Make the button bigger, full width on phones, green, reading "Register my interest".
+- Small pink badge above the form: "Demand is high — limited Ready Check spots".
+- Bigger button, full width on phones, green, reading "Register my interest".
 - One line under it: "No cost, no obligation. We'll call to confirm your price and book your free Ready Check."
 - Wording stays truthful — no rebate promises.
 
@@ -28,6 +27,6 @@ Your total would then be about $X. We confirm at the free Ready Check — before
 
 ## Technical details
 - Reorder `INTEREST_INCLUDED` in `src/lib/interest.core.ts`.
-- In `public-calculator.tsx`, replace the existing removal paragraph with the new card using `removal.by_access.standard.estimated_customer_total - standard.estimated_customer_total`; show only when insulation is `present` or `unknown`. Locked `QuoteBreakdown` untouched.
+- In `public-calculator.tsx`, replace the existing removal paragraph with the plain note; show only when insulation is `present` or `unknown`. Locked `QuoteBreakdown` untouched; the removal scenario calc stays unused.
 - `register-interest.tsx`: badge + restyled button + reassurance line.
 - Verify with tests and a browser check at 898x578 and 390x844.
