@@ -21,20 +21,20 @@ export type InterestStatus = (typeof INTEREST_STATUSES)[number];
  */
 export const INTEREST_INCLUDED = [
   {
-    label: "R5.0 ceiling insulation — supply & install",
-    detail: "Fitted by an EEC-certified installer we have checked and approved.",
+    label: "Home Insulation Ready Check — free",
+    detail: "$0. We confirm your ceiling size, access and what is needed before anyone is booked — no surprises, no second visits.",
   },
   {
     label: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)",
     detail: "Carried out by a licensed electrician we have checked and approved, close to installation day.",
   },
   {
-    label: "Home Insulation Victoria — Accredited Person Management",
-    detail: "We hold the program compliance, handle the paperwork and claim the rebate.",
+    label: "R5.0 ceiling insulation — supply & install",
+    detail: "Fitted by an EEC-certified installer we have checked and approved.",
   },
   {
-    label: "Home Insulation Ready Check — free",
-    detail: "$0. We confirm your ceiling size, access and what is needed before anyone is booked — no surprises, no second visits.",
+    label: "Home Insulation Victoria — Accredited Person Management",
+    detail: "We hold the program compliance, handle the paperwork and claim the rebate.",
   },
 ] as const;
 
