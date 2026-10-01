@@ -25,7 +25,7 @@ function fake(opts: { users?: { id: string; email: string }[]; template?: unknow
   let n = 0;
   const call: MittiCall = async (method, path, body) => {
     calls.push({ method, path, body });
-    if (path === "/users/search") return { users: opts.users ?? [{ id: "user_77", email: "sparky@hivic.test" }] };
+    if (path.startsWith("/users/search")) return { users: opts.users ?? [{ id: "user_77", email: "sparky@hivic.test" }] };
     if (path.startsWith("/templates/")) return opts.template ?? TEMPLATE;
     if (path === "/audits") return { audit_id: `audit_${++n}`, created_at: "2026-09-28T01:00:00Z" };
     if (path.endsWith("/share")) return {};
