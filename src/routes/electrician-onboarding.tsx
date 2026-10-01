@@ -228,10 +228,16 @@ function RecOnboarding() {
   async function persist(nextStep: StepKey) {
     if (sampleMode) return;
     if (!token) return;
-    const { insurance_uploaded: _u, ...data } = d;
+    const submitted = d;
+    const { insurance_uploaded: _u, ...data } = submitted;
     const r = await saveRecOnboarding({ data: { token, step_key: nextStep, data: data as never, base_updated_at: baseUpdatedAt } });
     setBaseUpdatedAt(r.updated_at);
-    setD(r.data as RecData);
+    setD((current) => {
+      const server = r.data as RecData;
+      const concurrent = Object.fromEntries(Object.keys(current).filter((key) => JSON.stringify(current[key as keyof RecData]) !== JSON.stringify(submitted[key as keyof RecData])).map((key) => [key, current[key as keyof RecData]])) as Partial<RecData>;
+      const merged = applyMaterialReset(server, { ...server, ...concurrent });
+      return { ...merged, agreement_reviewed: server.agreement_reviewed === false ? false : merged.agreement_reviewed };
+    });
   }
   async function go(delta: 1 | -1) {
     if (navigationLock.current) return;
