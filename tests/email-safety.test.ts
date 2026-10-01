@@ -71,7 +71,7 @@ describe("unsubscribe", () => {
   });
   test("opt-in footer slot receives one real link while standard emails keep the fallback", () => {
     const slotted = withUnsubscribe({ html: `<html><body><footer>${UNSUBSCRIBE_LINK_SLOT}</footer></body></html>`, plainText: "Footer" }, url);
-    expect(slotted.html.match(new RegExp(`href="${url}"`, "g"))?.length).toBe(1);
+    expect(slotted.html.split(`href="${url}"`).length - 1).toBe(1);
     expect(slotted.html).not.toContain(UNSUBSCRIBE_LINK_SLOT);
     expect(slotted.html).not.toContain("Don’t want these emails?");
     const standard = withUnsubscribe({ html: "<html><body>Standard</body></html>", plainText: "Standard" }, url);
