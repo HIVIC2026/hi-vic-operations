@@ -152,7 +152,7 @@ function PriceResult({ est, area, fees, onReadyCheck }: { est: Est; area: number
   return <section className="estimate-quote-card px-5 py-7 sm:px-8 sm:py-9" aria-label="Your estimated home upgrade">
     <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Your estimated home upgrade</p>
     <p className="mt-3 text-sm leading-relaxed text-estimate-navy/80">Based on an estimated {area} m² ceiling area{est.scenarios.some((s) => s.key === "full_removal") ? ", assuming your existing insulation can remain" : ""}.</p>
-    <div className="mt-4"><QuoteBreakdown rows={customerQuoteRows({ piesa: fees.piesa, installation: standard.installation, apManagement: fees.ap })} gross={standard.pre_discount_total} discount={standard.applied_discount} final={standard.estimated_customer_total} ids={{ final: assumption ? "calculator-total-can_remain" : "total-can_remain" }} /></div>
+    <div className="mt-4"><QuoteBreakdown rows={customerQuoteRows({ piesa: fees.piesa, installation: standard.installation, apManagement: fees.ap })} gross={standard.pre_discount_total} discount={standard.applied_discount} final={standard.estimated_customer_total} ids={{ final: "total-can_remain" }} /></div>
     {standard.copayment_capped && <p className="mt-3 text-sm">The discount is limited so your contribution meets the program minimum.</p>}
     <QuoteCardReadyCheckClose href="#confirm" {...(onReadyCheck ? { onSelect: onReadyCheck } : {})} />
   </section>;
