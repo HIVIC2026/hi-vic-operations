@@ -106,7 +106,7 @@ export const STEPS = [
   { key: "about", title: "About you" },
   { key: "business", title: "Business details" },
   { key: "contact", title: "Contact details" },
-  { key: "insurance", title: "Public liability insurance" },
+  { key: "insurance", title: "Product and public liability insurance" },
   { key: "services", title: "Home Insulation Victoria work" },
   { key: "coverage", title: "Where you work" },
   { key: "availability", title: "When you're available to work" },
