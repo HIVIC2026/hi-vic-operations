@@ -5,7 +5,7 @@ import { z } from "zod";
 import { withRequestMeta } from "./request-meta";
 import {
   ACKNOWLEDGEMENTS, REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, agreementText, applyMaterialReset,
-  firstIncompleteStep, validBusinessEmail, type RecData,
+  effectiveElectricians, firstIncompleteStep, validBusinessEmail, type RecData,
 } from "./rec-onboarding.core";
 
 async function sha256(s: string) {
