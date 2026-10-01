@@ -132,7 +132,7 @@ function VeecPage() {
 
     {profit && <section className="mt-10">
       <h2 className="text-2xl font-bold">Markup by job – accepted jobs</h2>
-      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">What Home Insulation Victoria charges versus what we pay each trade. Installer work is marked up and carries the Accredited Person fee. The owner is charged the standard $349 electrical assessment fee while the REC is paid its agreed supplier rate. The $220 inc GST lead fee applies only to customers we supply, after installation and paperwork approval.</p>
+      <p className="mt-1 max-w-3xl text-sm text-muted-foreground">What Home Insulation Victoria charges versus what we pay each trade. Installer work is marked up and carries the Accredited Person fee. The owner is charged the standard $349 electrical assessment fee while the REC is paid its agreed supplier rate. Home Insulation Victoria does not charge installers or electricians a lead fee.</p>
       {profit.rows.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">No accepted jobs yet — this table fills in as quotes are accepted.</p> : <>
       <div className="mt-3 overflow-x-auto rounded-md border bg-card">
         <table className="w-full text-sm"><thead className="bg-muted text-left text-xs uppercase">
@@ -174,7 +174,7 @@ function VeecPage() {
           })()}
         </table>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">Electrical upgrades pass through at the agreed electrical rate card — no markup. The VEU pre-installation electrical safety assessment is charged at $349 inc GST ($317.27 ex GST); the REC is paid its negotiated supplier rate. The $220 lead fee appears only after installation and paperwork approval. Profit also deducts the ESC $4.35 per VEEC lodgement fee. "—" means a figure is not recorded yet.</p>
+      <p className="mt-2 text-xs text-muted-foreground">Electrical upgrades pass through at the agreed electrical rate card — no markup. The VEU pre-installation electrical safety assessment is charged at $349 inc GST ($317.27 ex GST); the REC is paid its negotiated supplier rate. Profit also deducts the ESC $4.35 per VEEC lodgement fee. "—" means a figure is not recorded yet.</p>
       </>}
     </section>}
   </AppShell>;

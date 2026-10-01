@@ -63,7 +63,7 @@ export function HowItWorks() {
         <div style={{ fontSize: 13, color: MUTED }}>{ELECTRICIAN_FLEXIBILITY.pricing}</div>
       </Panel>
       <Panel accent={GREENA} title={PAYMENT_TERMS.title}>
-        <ul style={{ margin: 0, paddingLeft: 20 }}>{PAYMENT_TERMS.points.map((p) => <li key={p}>{f(p)}</li>)}</ul>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>{PAYMENT_TERMS.points.map((p) => <li key={p}>{p}</li>)}</ul>
       </Panel>
       <Panel accent={BLUEA} title={PORTAL_ONLY_COMMS.title}>
         <ul style={{ margin: 0, paddingLeft: 20 }}>{PORTAL_ONLY_COMMS.points.map((p) => <li key={p}>{p}</li>)}</ul>
@@ -83,8 +83,8 @@ export function HowItWorks() {
       <div style={{ display: "grid", gap: 8 }}>
         {PARTNER_FAQ.map((q) => (
           <details key={q.q} style={{ border: "1px solid #E4E8F0", borderRadius: 12, padding: "10px 14px", background: "#fff" }}>
-            <summary style={{ fontWeight: 700, fontSize: 14, color: NAVY, cursor: "pointer" }}>{f(q.q)}</summary>
-            <p style={{ fontSize: 14, lineHeight: 1.55, color: MUTED, margin: "8px 0 2px" }}>{f(q.a)}</p>
+            <summary style={{ fontWeight: 700, fontSize: 14, color: NAVY, cursor: "pointer" }}>{q.q}</summary>
+            <p style={{ fontSize: 14, lineHeight: 1.55, color: MUTED, margin: "8px 0 2px" }}>{q.a}</p>
           </details>
         ))}
       </div>
