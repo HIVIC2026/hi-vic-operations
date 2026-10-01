@@ -274,13 +274,6 @@ function StepBody({ step, d, up, token, setError, leadFee }: { step: StepKey; d:
         <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
         <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
       </>;
-    case "howitworks":
-      return <>
-        <HowItWorks leadFee={leadFee} />
-        <div style={{ marginTop: 16 }}>
-          <Check checked={d.how_it_works_acknowledged === true} onChange={(v) => up({ how_it_works_acknowledged: v })}>I've read how the two options work, the fees, the payment terms and the portal-only communication rule.</Check>
-        </div>
-      </>;
     case "business":
       return <>
         <Field label="Legal entity name" required><input style={input} {...t("legal_entity_name")} /></Field>
