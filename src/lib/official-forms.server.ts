@@ -5,6 +5,7 @@ import { buildSignedSnapshot, documentSha, officialFormUseBlocker, OFFICIAL_TEMP
 import { answersFromDocument, evaluatePiesa, HAZARD_UNRESOLVED } from "./official-forms.core";
 import { piisaGate, type MaterialFacts, type PiisaPanel, type StoredCopy } from "./piisa-workflow.core";
 import { evaluateHazardRectifications, rectFingerprint, type HazardStatus, type HazardVerification } from "./hazard-rectification.core";
+import { evidenceFromRecords, piisaCarryOver, readyCheckCoverage, type CarryOver, type MeasurementRecord } from "./installer-led.core";
 
 export const OFFICIAL_BUCKET = "official-form-copies";
 // The table is not in the generated types until 0075 is applied; keep the untyped access in one place.
@@ -72,9 +73,10 @@ export async function materialFacts(jobId: string, piesa: StoredCopy | null): Pr
   };
 }
 
-export async function piisaPanel(jobId: string, today: string): Promise<PiisaPanel & { hazards: HazardStatus[] }> {
+export async function piisaPanel(jobId: string, today: string): Promise<PiisaPanel & { hazards: HazardStatus[]; readyCheckCarryOver: CarryOver }> {
+  const carryOver = await readyCheckCarryOver(jobId);
   const [pe, pi] = await Promise.all([currentCopy(jobId, "piesa"), currentCopy(jobId, "piisa")]);
-  if (pe.unavailable || pi.unavailable) return { ...piisaGate({ today, installDate: null, piisa: null, piesa: null, facts: {}, piesaReceivedAt: null, conductiveExistingInsulation: null, conductivityEvidence: null, hazardResolution: null, storageUnavailable: true }), hazards: [] };
+  if (pe.unavailable || pi.unavailable) return { ...piisaGate({ today, installDate: null, piisa: null, piesa: null, facts: {}, piesaReceivedAt: null, conductiveExistingInsulation: null, conductivityEvidence: null, hazardResolution: null, storageUnavailable: true }), hazards: [], readyCheckCarryOver: carryOver };
   const { facts, installDate } = await materialFacts(jobId, pe.copy);
   let piesaReceivedAt: string | null = null;
   if (pe.copy) {
@@ -92,7 +94,30 @@ export async function piisaPanel(jobId: string, today: string): Promise<PiisaPan
     conductivityEvidence: ans["supp.conductiveEvidence"] ? String(ans["supp.conductiveEvidence"]) : null,
     hazardResolution: hz.resolution,
   });
-  return { ...gate, hazards: hz.hazards };
+  return { ...gate, hazards: hz.hazards, readyCheckCarryOver: carryOver };
+}
+
+/**
+ * C02: Ready Check items the installer hasn't supplied, split into what must be settled before quoting
+ * and what the lead installer brings with the PIISA on installation day. Installer-led jobs only.
+ * Read-only and fails soft — the PIISA panel must still load if these records can't be read.
+ */
+export async function readyCheckCarryOver(jobId: string): Promise<CarryOver> {
+  try {
+    const [{ data: m }, { data: ev }, { data: job }] = await Promise.all([
+      db().from("ceiling_measurements").select("measured_area_m2, supplied_area_m2, insulation_present, existing_r_value, removal_required, raw_snapshot").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+      db().from("evidence_requirements").select("category").eq("job_id", jobId).in("status", ["uploaded", "verified"]),
+      db().from("jobs").select("installer_led, eligibility_outcome").eq("id", jobId).maybeSingle(),
+    ]);
+    if (!job?.installer_led) return { beforeQuote: [], atPiisa: [] };
+    const outcome = (job.eligibility_outcome as string | null) ?? null;
+    const eligible = outcome === "does_not_appear_eligible" ? false : !!outcome;
+    const cats = ((ev ?? []) as { category: string }[]).map((r) => r.category);
+    const coverage = readyCheckCoverage(evidenceFromRecords((m as MeasurementRecord | null) ?? null, cats, eligible === true ? false : null));
+    return piisaCarryOver(coverage.missing);
+  } catch {
+    return { beforeQuote: [], atPiisa: [] };
+  }
 }
 
 /** PIESA Part 7 hazards for the current signed PIESA and their verified-rectification state. Fails closed

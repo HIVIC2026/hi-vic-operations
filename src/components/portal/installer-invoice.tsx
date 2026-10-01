@@ -63,14 +63,20 @@ export function InstallerLedInvoicePanel({ jobId }: { jobId: string }) {
           AP fee: <strong>{money(d.apFee)}</strong>{" "}
           {d.override ? <span className="text-muted-foreground">(changed for this job — standard {money(d.standardApFee)}; reason: {d.override.reason})</span> : <span className="text-muted-foreground">(standard)</span>}
         </p>
-        <div className="grid gap-2 sm:grid-cols-[140px_1fr]">
-          <div><Label htmlFor="apfee">New AP fee</Label><Input id="apfee" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" /></div>
-          <div><Label htmlFor="apreason">Reason (required)</Label><Input id="apreason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why this job has a different fee" /></div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" disabled={busy} onClick={() => submit(false)}>Use this fee</Button>
-          {d.override && <Button size="sm" variant="outline" disabled={busy} onClick={() => submit(true)}>Reset to standard</Button>}
-        </div>
+        {d.canChangeApFee ? (
+          <>
+            <div className="grid gap-2 sm:grid-cols-[140px_1fr]">
+              <div><Label htmlFor="apfee">New AP fee</Label><Input id="apfee" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" /></div>
+              <div><Label htmlFor="apreason">Reason (required)</Label><Input id="apreason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why this job has a different fee" /></div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" disabled={busy} onClick={() => submit(false)}>Use this fee</Button>
+              {d.override && <Button size="sm" variant="outline" disabled={busy} onClick={() => submit(true)}>Reset to standard</Button>}
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">Only the Home Insulation Victoria owner can change the Accredited Person fee. Ask them if this job needs a different fee.</p>
+        )}
       </div>
     </section>
   );
