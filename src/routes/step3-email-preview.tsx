@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { renderFollowupEmail } from "@/lib/followup-email";
+import { renderCoverageUnavailableEmail } from "@/lib/coverage-email";
 import { renderEstimateEmail, renderIneligibleOutcomeEmail, PUBLIC_CALCULATOR_URL } from "@/lib/estimate-email";
 import { withUnsubscribe } from "@/lib/emailsafety.core";
 import { AreaCalculator, ConfirmQuote } from "@/components/portal/estimate";
@@ -63,7 +65,12 @@ const samples = {
     reasons: ["The information supplied indicates this property does not meet the preliminary requirements for this offer."],
     reference: "SAMPLE-1001",
   }), unsubscribeUrl),
+  reminder3: withUnsubscribe(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl, referralUrl }), unsubscribeUrl),
+  reminderEngaged: withUnsubscribe(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl, referralUrl }), unsubscribeUrl),
+  reminder7: withUnsubscribe(renderFollowupEmail({ kind: "estimate_second_reminder_7d", estimateUrl, referralUrl }), unsubscribeUrl),
+  coverage: withUnsubscribe(renderCoverageUnavailableEmail({ firstName: "Alex", suburb: "Fraser Rise", postcode: "3336", missing: ["installer"], reference: "SAMPLE-1001" }), unsubscribeUrl),
 };
+const OUTCOME_LABELS = { likely: "Likely eligible", onsite: "Needs onsite confirmation", ineligible: "Does not appear eligible", reminder3: "Reminder: 3 days, unopened", reminderEngaged: "Reminder: viewed, not booked", reminder7: "Reminder: 7 days", coverage: "Service availability update" } as const;
 
 export const Route = createFileRoute("/step3-email-preview")({
   headers: () => ({ "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" }),
@@ -88,7 +95,8 @@ function EmailPreview() {
   const [testState, setTestState] = useState<"unaccepted" | "accepted">("unaccepted");
   const [emailHeight, setEmailHeight] = useState(2050);
   const previewAcceptance: ReadyCheckAcceptanceState | null = testState === "unaccepted" ? null : { acceptanceId: "preview-acceptance", estimateId: "preview-estimate", acceptedAt: "2026-09-29T00:00:00Z", paymentId: null, paymentStatus: "accepted", amountIncGst: 0, estimatedRemainingBalanceIncGst: SAMPLE_CUSTOMER, paidAt: null, stale: false };
-  const sample = outcome === "ineligible" ? samples.ineligible : withUnsubscribe(renderEstimateEmail({
+  const isQuote = outcome === "likely" || outcome === "onsite";
+  const sample = !isQuote ? samples[outcome] : withUnsubscribe(renderEstimateEmail({
     ...quote,
     outcome,
     existingInsulationPresent: hasExistingInsulation,
@@ -110,20 +118,20 @@ function EmailPreview() {
         <span style={{ color: CUSTOMER_BRAND.colors.blue }}>Sample values only:</span><span>Alex</span><span>150 m²</span><span>{CUSTOMER_QUOTE_LABELS.projectTotal} ${SAMPLE_GROSS.toLocaleString("en-AU")}</span><span style={{ color: CUSTOMER_BRAND.colors.green }}>{CUSTOMER_QUOTE_LABELS.discount} −${SAMPLE_DISCOUNT.toLocaleString("en-AU")}</span><span>{CUSTOMER_QUOTE_LABELS.finalCost} ${SAMPLE_CUSTOMER.toLocaleString("en-AU")}</span>
       </div>
        <div className="mb-4 flex flex-wrap gap-2" aria-label="Email outcome">
-          {(["likely", "onsite", "ineligible"] as const).map((item) => <button key={item} type="button" aria-pressed={outcome === item} className={btn} style={pill(outcome === item)} onClick={() => { setOutcome(item); if (item === "ineligible") setPreviewKind("email"); }}>{item === "likely" ? "Likely eligible" : item === "onsite" ? "Needs onsite confirmation" : "Does not appear eligible"}</button>)}
+          {(Object.keys(OUTCOME_LABELS) as Array<keyof typeof OUTCOME_LABELS>).map((item) => <button key={item} type="button" aria-pressed={outcome === item} className={btn} style={pill(outcome === item)} onClick={() => { setOutcome(item); if (item !== "likely" && item !== "onsite") setPreviewKind("email"); }}>{OUTCOME_LABELS[item]}</button>)}
        </div>
        <div className="mb-4 flex flex-wrap gap-2" aria-label="Preview screen">
          <button type="button" aria-pressed={previewKind === "email"} className={btn} style={pill(previewKind === "email")} onClick={() => setPreviewKind("email")}>Email</button>
           {outcome === "onsite" && <button type="button" aria-pressed={previewKind === "calculator"} className={btn} style={pill(previewKind === "calculator")} onClick={() => setPreviewKind("calculator")}>Calculator</button>}
-           {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "confirm"} className={btn} style={pill(previewKind === "confirm")} onClick={() => setPreviewKind("confirm")}>Free Insulation Measure-Up & Eligibility Check (test)</button>}
-          {outcome !== "ineligible" && <button type="button" aria-pressed={previewKind === "measured"} className={btn} style={pill(previewKind === "measured")} onClick={() => setPreviewKind("measured")}>Measured quote + PIESA (test)</button>}
+           {isQuote && <button type="button" aria-pressed={previewKind === "confirm"} className={btn} style={pill(previewKind === "confirm")} onClick={() => setPreviewKind("confirm")}>Free Insulation Measure-Up & Eligibility Check (test)</button>}
+          {isQuote && <button type="button" aria-pressed={previewKind === "measured"} className={btn} style={pill(previewKind === "measured")} onClick={() => setPreviewKind("measured")}>Measured quote + PIESA (test)</button>}
        </div>
       {previewKind === "measured" && <div className="mb-4 flex flex-wrap gap-2" aria-label="PIESA state">
         {([["before", "PIESA: before"], ["none", "PIESA: no rectification"], ["same", "PIESA: same"], ["lower", "PIESA: lower"], ["higher", "PIESA: higher"]] as const).map(([k, l]) => <button key={k} type="button" aria-pressed={piesaCase === k} className={btn} style={pill(piesaCase === k)} onClick={() => setPiesaCase(k)}>{l}</button>)}
       </div>}
       {previewKind === "email" && <><p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p><p className="mb-6 text-sm"><strong>Preheader:</strong> {sample.previewText}</p></>}
        {previewKind === "email" && <div className="mb-4 flex flex-wrap items-center gap-3 text-xs font-bold">
-           {outcome !== "ineligible" && <a href={PUBLIC_CALCULATOR_URL} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test Open the calculator → (opens the public calculator)</a>}
+           {isQuote && <a href={PUBLIC_CALCULATOR_URL} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test Open the calculator → (opens the public calculator)</a>}
          {outcome === "ineligible"
            ? <a href={outcomeTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test Review my result →</a>
            : <button type="button" onClick={() => setPreviewKind("confirm")} className="underline" style={{ color: "#067A45" }}>Test Arrange my free measure-up & eligibility check →</button>}
@@ -138,8 +146,8 @@ function EmailPreview() {
           {previewKind === "measured" ? <div className="mx-auto max-w-full" style={{ width: width ?? "100%" }}><MeasuredQuoteSample insulation={SAMPLE_INSTALL} piesa={PIESA_FEE} ap={AP_FEE} discount={SAMPLE_DISCOUNT} existingInsulation={hasExistingInsulation} piesaCase={piesaCase} /></div> : previewKind === "email" ? <div className="mx-auto max-w-full overflow-x-auto" style={width ? { width } : undefined}>
              <iframe key={`${outcome}-${view}-${hasExistingInsulation}`} title={`${outcome} email`} srcDoc={srcDoc} sandbox="allow-same-origin" onLoad={(event) => { const frame = event.currentTarget; const doc = frame.contentDocument; const measure = () => { const measured = doc?.querySelector(".hiv-main")?.getBoundingClientRect().bottom; if (measured) setEmailHeight(Math.ceil(measured) + 38); }; measure(); for (const ms of [250, 900, 2000]) window.setTimeout(measure, ms); doc?.fonts?.ready.then(measure).catch(() => {}); doc?.querySelectorAll("img").forEach((img) => img.addEventListener("load", measure, { once: true })); }} className="block max-w-full border-0" style={{ width: width ?? "100%", height: emailHeight, background: "#FBFCFA" }} />
             </div> : previewKind === "calculator" && previewLocation ? <div className="estimate-brand mx-auto max-w-full overflow-hidden bg-estimate-canvas" style={{ width: width ?? "100%" }}><EstimateHeader /><div className="px-4 pb-10"><AreaCalculator calc={{ location: previewLocation, insulation: hasExistingInsulation ? "present" : "none", settings: previewSettings }} initial={150} fees={{ piesa: PIESA_FEE, ap: AP_FEE, minCopay: 200 }} propertyAddress="30 Dash St, Fraser Rise VIC 3336" preview /></div></div> : <div className="estimate-brand mx-auto max-w-full overflow-hidden bg-estimate-canvas" style={{ width: width ?? "100%" }}><EstimateHeader /><div className="px-4 pb-10"><ConfirmQuote key={testState} estimatedPrice={SAMPLE_CUSTOMER} assessmentFee={PIESA_FEE} preview testMode state={previewAcceptance} onAccept={() => setTestState("accepted")} onBack={() => setPreviewKind("email")} /></div></div>}
-         {previewKind === "confirm" && outcome !== "ineligible" && <div className="mb-4 flex flex-wrap gap-2" aria-label="Test request state">{(["unaccepted", "accepted"] as const).map((item) => <button key={item} type="button" className={btn} aria-pressed={testState === item} style={pill(testState === item)} onClick={() => setTestState(item)}>{item}</button>)}</div>}
-       {outcome !== "ineligible" && <div className="mb-4 flex flex-wrap gap-2" aria-label="Existing insulation sample">
+         {previewKind === "confirm" && isQuote && <div className="mb-4 flex flex-wrap gap-2" aria-label="Test request state">{(["unaccepted", "accepted"] as const).map((item) => <button key={item} type="button" className={btn} aria-pressed={testState === item} style={pill(testState === item)} onClick={() => setTestState(item)}>{item}</button>)}</div>}
+       {isQuote && <div className="mb-4 flex flex-wrap gap-2" aria-label="Existing insulation sample">
          <button type="button" aria-pressed={!hasExistingInsulation} className={btn} style={pill(!hasExistingInsulation)} onClick={() => setHasExistingInsulation(false)}>No existing insulation</button>
          <button type="button" aria-pressed={hasExistingInsulation} className={btn} style={pill(hasExistingInsulation)} onClick={() => setHasExistingInsulation(true)}>Existing insulation: yes</button>
        </div>}
