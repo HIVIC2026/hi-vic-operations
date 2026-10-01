@@ -130,7 +130,12 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
       onSubmit={submit}
       className="relative mt-3 rounded-xl border border-estimate-line bg-estimate-white px-4 py-3.5 shadow-[0_18px_45px_-30px_rgba(34,55,107,0.45)]"
     >
-      <h2 className="text-[0.95rem] font-extrabold text-estimate-navy">Register my interest</h2>
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-[0.95rem] font-extrabold text-estimate-navy">Register my interest</h2>
+        <span className="rounded-full bg-workspace-blush px-2.5 py-1 text-[0.65rem] font-extrabold uppercase tracking-wide text-estimate-navy">
+          Demand is high — limited Ready Check spots
+        </span>
+      </div>
       <p className="mt-0.5 text-xs leading-relaxed text-estimate-navy/85">
         No obligation and no payment — we&apos;ll confirm your price and arrange the free Ready Check.
       </p>
@@ -239,16 +244,18 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
         </p>
       )}
 
-      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[0.7rem] text-estimate-navy/85">We&apos;ll only use these details to confirm your price.</p>
+      <div className="mt-2.5">
         <button
           type="submit"
           disabled={busy}
-          className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-estimate-blue px-4 text-sm font-extrabold text-estimate-white transition hover:bg-estimate-green disabled:opacity-60"
+          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-estimate-green px-4 text-base font-extrabold text-estimate-white transition hover:bg-estimate-blue disabled:opacity-60"
         >
           {busy && <Loader2 aria-hidden="true" className="size-4 animate-spin" />}
-          Demand is high — register your interest
+          Register my interest
         </button>
+        <p className="mt-1.5 text-center text-[0.7rem] text-estimate-navy/85">
+          No cost, no obligation. We&apos;ll call to confirm your price and book your free Ready Check.
+        </p>
       </div>
 
       <input

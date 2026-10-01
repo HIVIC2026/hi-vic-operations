@@ -115,7 +115,6 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
   const est = whatIfEstimate(m2, location, insulation, settings);
   const primary = est?.scenarios[0];
   const standard = primary?.by_access.standard;
-  const removal = est?.scenarios.find((s) => s.key === "full_removal");
   const priced = standard != null && primary != null;
   const touched = addressText !== "" || raw !== "" || insulation != null;
 
