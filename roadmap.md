@@ -75,4 +75,5 @@
 - [x] Calculator phone usability: show live price before supporting details, shorten prompts, and verify answer-to-result flow at phone and desktop sizes
 - [x] Blank-screen recovery: a page load that drops part-way now shows "This page needs a refresh" with a working refresh action
 - [x] Calculator visual refinement — calm redesign applied (v1 direction), urgency copy added
-- [ ] Audit + refine installer onboarding (name-first, pathways, evidence, copy)
+- [x] Audit installer onboarding — copy fixes (payment details, capacity labels, measure-up note)
+- [x] Fix $220 lead-fee contradiction per Jo: OUR leads only; agreement clause corrected, INST version bumped to 1.6 (prior signers must re-sign)
