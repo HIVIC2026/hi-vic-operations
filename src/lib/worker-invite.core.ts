@@ -34,10 +34,11 @@ export function workerDeclarations(trade: "electrician" | "installer", businessN
   ];
 }
 
+type Opt<T> = T | undefined;
 export type WorkerSubmission = {
-  full_legal_name?: string; mobile?: string; email?: string;
-  licence_number?: string; qualification?: string;
-  accepted?: string[]; signed_name?: string;
+  full_legal_name?: Opt<string>; mobile?: Opt<string>; email?: Opt<string>;
+  licence_number?: Opt<string>; qualification?: Opt<string>;
+  accepted?: Opt<string[]>; signed_name?: Opt<string>;
 };
 
 const txt = (s?: string | null) => !!s && s.trim().length > 0;
