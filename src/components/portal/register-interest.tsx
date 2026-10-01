@@ -132,12 +132,12 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
     >
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-[0.95rem] font-extrabold text-estimate-navy">Register my interest</h2>
-        <span className="rounded-full bg-workspace-blush px-2.5 py-1 text-[0.65rem] font-extrabold uppercase tracking-wide text-estimate-navy">
-          Demand is high — limited Ready Check spots
+        <span className="rounded-full bg-workspace-blush px-2.5 py-0.5 text-[0.6rem] font-extrabold uppercase tracking-wide text-estimate-navy">
+          High demand
         </span>
       </div>
       <p className="mt-0.5 text-xs leading-relaxed text-estimate-navy/85">
-        No obligation and no payment — we&apos;ll confirm your price and arrange the free Ready Check.
+        Free and no obligation — we&apos;ll confirm your price and book your free Ready Check.
       </p>
 
       <div className="mt-2.5 rounded-lg border-2 border-estimate-line bg-estimate-canvas px-3 py-2">

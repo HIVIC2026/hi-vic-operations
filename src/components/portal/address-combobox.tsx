@@ -38,10 +38,16 @@ export function AddressCombobox({ id, value, onChange, onPick, placeholder, clas
   const boxRef = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controller = useRef<AbortController | null>(null);
+  /** Set when a pick fills the input — that value change must not re-search. */
+  const justPicked = useRef(false);
 
   useEffect(() => {
     const q = value.trim();
     if (timer.current) clearTimeout(timer.current);
+    if (justPicked.current) {
+      justPicked.current = false;
+      return;
+    }
     if (q.length < MIN_CHARS) {
       setItems([]);
       setOpen(false);
@@ -96,6 +102,7 @@ export function AddressCombobox({ id, value, onChange, onPick, placeholder, clas
   }, []);
 
   const choose = (suggestion: AddressSuggestion) => {
+    justPicked.current = true;
     onPick(mergeTypedNumber(value, suggestion));
     setOpen(false);
     setItems([]);
