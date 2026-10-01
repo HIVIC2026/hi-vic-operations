@@ -120,7 +120,7 @@ export function parseNominatimSuggestions(payload: unknown, typed = ""): Address
       streetNumber: asText(a.house_number),
       street,
       suburb,
-      state: stateShort(a.state) || "VIC",
+      state: "VIC",
       postcode,
     };
     const full = formatAddress(parts);
