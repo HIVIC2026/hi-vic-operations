@@ -40,7 +40,6 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   await admin.from("bookings").insert({ job_id: jobId, kind, contractor_id: contractor.user_id, assignment_id: contractor.id, business_id: contractor.business_id, scheduled_start: start, booked_by: actorId, notes: notes ?? null, status: "confirmed" });
   const nowIso = new Date().toISOString();
   await admin.from("job_assignments").update({ booking_confirmed_at: nowIso }).eq("id", contractor.id).is("booking_confirmed_at", null);
-  await admin.from("job_assignments").update({ first_response_at: nowIso }).eq("id", contractor.id).is("first_response_at", null);
   if (kind === "installation") {
     await setInstallDueDate(jobId, start, actorId);
     const { regenerateEscNotification } = await import("./esc.server");
