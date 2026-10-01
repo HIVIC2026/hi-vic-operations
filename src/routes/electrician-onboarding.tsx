@@ -13,6 +13,7 @@ import {
 import { loadTeamInvite, respondTeamInvite } from "@/lib/teaming.functions";
 import { defaultAddressProvider } from "@/lib/address-provider";
 import type { AddressSuggestion } from "@/lib/whatif-location";
+import { TradeOnboardingFooter, TradeOnboardingShell } from "@/components/portal/trade-onboarding-shell";
 
 // Public REC (electrician) onboarding + partner agreement signing. Progress is saved
 // server-side against an opaque resume token kept in this browser.
@@ -40,14 +41,8 @@ export const Route = createFileRoute("/electrician-onboarding")({
 const input: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #D7DCE8", fontSize: 15, fontFamily: "inherit", color: NAVY, background: "#fff", boxSizing: "border-box", minHeight: 48 };
 const card: React.CSSProperties = { background: "#fff", borderRadius: 24, padding: 24, border: `1px solid ${BLUE}1A`, boxShadow: "0 10px 30px -18px rgba(34,55,107,.35)" };
 const DISPLAY = "'Outfit', 'Figtree', system-ui, sans-serif";
-const ACCENTS: Array<{ bg: string; fg: string }> = [
-  { bg: "oklch(0.93 0.06 345)", fg: "oklch(0.43 0.13 345)" },
-  { bg: "oklch(0.92 0.055 250)", fg: "oklch(0.4 0.14 255)" },
-  { bg: "oklch(0.93 0.07 145)", fg: "oklch(0.38 0.1 150)" },
-  { bg: "oklch(0.94 0.075 85)", fg: "oklch(0.42 0.1 70)" },
-];
 const infoCard: React.CSSProperties = { background: "#EAF8F0", border: `1px solid ${GREEN}55`, borderRadius: 14, padding: "12px 14px", fontSize: 14, color: NAVY, lineHeight: 1.5, marginBottom: 18 };
-const btn = (primary: boolean, disabled = false): React.CSSProperties => ({ minHeight: 48, padding: "0 20px", borderRadius: 12, border: primary ? "none" : `1px solid #D7DCE8`, background: primary ? (disabled ? "#9AA6D8" : BLUE) : "#fff", color: primary ? "#fff" : NAVY, fontWeight: 800, fontSize: 14, letterSpacing: 0.6, textTransform: "uppercase", cursor: disabled ? "default" : "pointer", fontFamily: "inherit" });
+const btn = (primary: boolean, disabled = false): React.CSSProperties => ({ minHeight: 48, padding: "0 20px", borderRadius: 12, border: primary ? "none" : `1px solid #D7DCE8`, background: primary ? (disabled ? "#8FDCAF" : GREEN) : "#fff", color: primary ? NAVY : BLUE, fontWeight: 800, fontSize: 14, cursor: disabled ? "default" : "pointer", fontFamily: "inherit" });
 
 function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
   return (
@@ -135,6 +130,7 @@ function RecOnboarding() {
   const [error, setError] = useState<string | null>(null);
   const [showErrors, setShowErrors] = useState(false);
   const [testMode, setTestMode] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("test") === "1");
+  const [entryRole, setEntryRole] = useState<"business" | "worker" | null>(null);
 
   const [invite, setInvite] = useState<string | null>(null);
   const [inviteInfo, setInviteInfo] = useState<Awaited<ReturnType<typeof loadTeamInvite>> | null>(null);
@@ -197,26 +193,7 @@ function RecOnboarding() {
     catch (e) { setError(e instanceof Error ? e.message : "Could not save."); } finally { setBusy(false); }
   }
 
-  const shell = (children: React.ReactNode, footer?: React.ReactNode) => (
-    <div style={{ minHeight: "100vh", background: "radial-gradient(circle at top, #fff 0%, #f5f8f5 45%, #eef2f0 100%)", fontFamily: "'Figtree', system-ui, sans-serif", color: NAVY }}>
-      <style>{`h1,h2,h3{font-family:${DISPLAY}}`}</style>
-      <header style={{ position: "sticky", top: 0, zIndex: 10, background: "rgba(255,255,255,.92)", backdropFilter: "blur(8px)", borderBottom: `1px solid ${BLUE}14` }}>
-        <div style={{ maxWidth: 672, margin: "0 auto", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <img src={logo.url} alt="Home Insulation Victoria" style={{ height: 40 }} />
-          {started && status === "draft" && <span style={{ fontSize: 13, fontWeight: 700, color: MUTED }}>{idx + 1} of {steps.length}</span>}
-        </div>
-        {started && status === "draft" && (
-          <div style={{ maxWidth: 672, margin: "0 auto", padding: "0 20px 10px" }}>
-            <div style={{ height: 6, borderRadius: 99, background: "#E4E8F0", overflow: "hidden" }}>
-              <div style={{ width: `${((idx + 1) / steps.length) * 100}%`, height: "100%", background: `linear-gradient(90deg, ${GREEN}, ${BLUE})`, transition: "width .3s" }} />
-            </div>
-          </div>
-        )}
-      </header>
-      <main style={{ maxWidth: 672, margin: "0 auto", padding: "24px 20px 120px" }}>{children}</main>
-      {footer}
-    </div>
-  );
+  const shell = (children: React.ReactNode, footer?: React.ReactNode) => <TradeOnboardingShell progress={started && status === "draft" ? { current: idx + 1, total: steps.length, label: steps[idx]?.title ?? "Application" } : undefined} footer={footer ?? <TradeOnboardingFooter />}>{children}</TradeOnboardingShell>;
 
   if (!loaded) return shell(<p>Loading…</p>);
 
@@ -236,33 +213,34 @@ function RecOnboarding() {
   );
   if (invite && inviteInfo?.answered === "declined") return shell(<div style={card}><h1 style={{ color: BLUE }}>Thanks for letting us know</h1><p style={{ color: MUTED }}>We've told Home Insulation Victoria you'd rather not team up. You can still join our trade network any time from this page.</p></div>);
 
-  if (!started) return shell(
-    <div style={{ ...card, padding: 0, overflow: "hidden" }}>
-      <div style={{ height: 6, background: `linear-gradient(90deg, ${GREEN}, ${BLUE})` }} />
-      <div style={{ padding: 24 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: GREEN, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: DISPLAY }}>Home Insulation Victoria</div>
-        <h1 style={{ fontSize: 28, fontWeight: 800, margin: "8px 0 10px", color: NAVY }}>Welcome to our Trade Partner Network</h1>
-        <p style={{ fontSize: 15, lineHeight: 1.6, color: MUTED }}>We're really pleased to have you here and can't wait to work with you. Home Insulation Victoria keeps jobs, communication and assessments simple — all in one place.</p>
-        <div style={{ fontWeight: 700, margin: "18px 0 10px", fontFamily: DISPLAY }}>Have these handy</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 22 }}>
-          {["REC + ABN details (only if you run your own REC)", "Public liability insurance (only for your own REC)", "Electrician details + licence numbers", "Your proposed rates"].map((t, i) => (
-            <div key={t} style={{ background: ACCENTS[i % 4]!.bg, color: ACCENTS[i % 4]!.fg, borderRadius: 14, padding: "12px 14px", fontSize: 14, fontWeight: 600 }}><span style={{ fontWeight: 800 }}>✓ </span>{t}</div>
-          ))}
-        </div>
-        <p style={{ fontSize: 13, color: MUTED }}>Your progress saves as you go on this device.</p>
-        {error && <p style={{ color: "#B3261E" }}>{error}</p>}
-        <button style={{ ...btn(true, busy), width: "100%", minHeight: 52, borderRadius: 16 }} disabled={busy} onClick={begin}>{busy ? "Starting…" : "Get started →"}</button>
+  if (!started) return shell(<div style={card}>
+    <p className="text-xs font-extrabold uppercase tracking-[1.2px] text-estimate-green">REC partner onboarding</p>
+    <h1 className="mt-2 text-[30px] leading-tight text-estimate-navy sm:text-[36px]">Join our electrician network</h1>
+    <p className="mt-4 text-[15px] leading-relaxed">Set up your REC business once. Then invite the licensed electricians who work with you.</p>
+    <div className="mt-6 rounded-[18px] bg-estimate-mist p-4 sm:p-5">
+      <h2 className="text-lg text-estimate-navy">Which describes you?</h2>
+      <div className="mt-3 grid gap-3">
+        <button type="button" aria-pressed={entryRole === "business"} onClick={() => setEntryRole("business")} className={`min-h-16 rounded-xl border-2 p-4 text-left text-sm font-bold leading-relaxed ${entryRole === "business" ? "border-estimate-blue bg-estimate-white" : "border-estimate-line bg-estimate-white"}`}>I’m setting up an REC business<br /><span className="font-normal">I’m authorised to provide its REC registration, ABN, insurance, rates and payment details.</span></button>
+        <button type="button" aria-pressed={entryRole === "worker"} onClick={() => setEntryRole("worker")} className={`min-h-16 rounded-xl border-2 p-4 text-left text-sm font-bold leading-relaxed ${entryRole === "worker" ? "border-estimate-blue bg-estimate-white" : "border-estimate-line bg-estimate-white"}`}>I work for an REC business<br /><span className="font-normal">I need a personal invitation link from the business administrator.</span></button>
       </div>
-    </div>,
-  );
+    </div>
+    {entryRole === "business" && <>
+      <ul className="mt-6 space-y-3 text-sm leading-relaxed">{["One business profile for REC registration, ABN, insurance, coverage, proposed supplier rates and payment details.", "Clear job scope, agreed rates and central job records with Home Insulation Victoria coordination.", "After office approval, invite each staff electrician to provide their own licence details and declarations."].map((t) => <li key={t} className="flex gap-3"><span className="font-bold text-estimate-green">✓</span><span>{t}</span></li>)}</ul>
+      <p className="mt-5 text-xs leading-relaxed text-estimate-navy/70">Progress is saved on this device. No invitation or application is sent automatically.</p>
+      {error && <p role="alert" className="mt-3 text-sm font-bold text-danger">{error}</p>}
+      <button className="mt-5 min-h-14 w-full rounded-xl bg-estimate-green px-5 py-3 text-base font-extrabold text-estimate-navy disabled:opacity-50" disabled={busy} onClick={async () => { setD((x) => ({ ...x, works_under_rec: false })); await begin(); }}>{busy ? "Starting…" : "Set up my REC business →"}</button>
+    </>}
+    {entryRole === "worker" && <div className="mt-6 rounded-[18px] bg-estimate-blush p-5"><h2 className="text-lg text-estimate-navy">Ask your REC administrator for your link</h2><p className="mt-2 text-sm leading-relaxed">They create and copy a personal invitation from their Home Insulation Victoria portal. You then enter your own contact and Victorian electrical licence details and sign your declarations. The office must approve you before you can access assigned jobs.</p><p className="mt-3 text-sm font-bold">You do not need a separate business account or a shared company password.</p></div>}
+  </div>);
 
   if (status === "submitted") return shell(
     <div style={{ ...card, textAlign: "center" }}>
       <div style={{ width: 56, height: 56, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 28, lineHeight: "56px", margin: "0 auto 16px" }}>✓</div>
       <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — we've got everything.</h1>
       <p style={{ color: MUTED, lineHeight: 1.6 }}>Your application and signed agreement are now with the Home Insulation Victoria team. We'll review your details, check your REC registration, licences and insurance, and be in touch if we need anything else.</p>
-      <p style={{ color: MUTED, lineHeight: 1.6 }}>Once you're approved and your rates are agreed, you'll start receiving job offers through the portal. {d.works_under_rec ? <>Your work is paid through {d.host_rec_name || "the business you work under"} — nothing more to set up.</> : <>Your payment details are already on file — you're paid once each job's invoice is paid in full.</>}</p>
-      <div style={{ ...infoCard, textAlign: "left", marginTop: 8 }}><strong>What happens next:</strong> review and verification → rates confirmed → welcome aboard. Keep an eye on {d.business_email || "your email"} — that's where we'll contact you.</div>
+       <p style={{ color: MUTED, lineHeight: 1.6 }}>The office will review the REC registration, insurance and application, then agree supplier rates before approving portal access. Approval and work are not guaranteed.</p>
+       <div style={{ ...infoCard, textAlign: "left", marginTop: 8 }}><strong>What happens next:</strong> office review and rates agreed → business portal access arranged → invite each staff electrician → office approves each worker before job access. A REC owner who performs electrical work must also be listed and approved as a worker.</div>
+       <p style={{ color: MUTED, lineHeight: 1.6 }}>Invitation links are created and copied in the portal; they are not sent automatically.</p>
       <p style={{ color: MUTED, fontSize: 13 }}>Agreement version {REC_AGREEMENT_VERSION} · A copy of everything you've submitted is kept on your file.</p>
     </div>,
   );
@@ -279,8 +257,9 @@ function RecOnboarding() {
   return shell(
     <div style={card}>
       {testMode && <div style={{ background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#7A5A00", marginBottom: 14 }}>TEST MODE — nothing is mandatory, so you can click straight through. This application is marked as a test and won't count as a real applicant.</div>}
-      <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
-      {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Nice one, {firstName(d)} — next up: {steps[idx]?.title?.toLowerCase()}.</div>}
+      <p className="text-xs font-extrabold uppercase tracking-[1.2px] text-estimate-green">REC business application</p>
+      <h1 style={{ fontSize: 26, fontWeight: 800, margin: "6px 0 4px", color: NAVY }}>{steps[idx]?.title}</h1>
+      {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Application for {d.trading_name || d.legal_entity_name || `${firstName(d)}'s REC business`}.</div>}
       {!firstName(d) && <div style={{ marginBottom: 12 }} />}
       <StepBody step={step} d={d} up={up} token={token!} setError={setError} />
       {step === "sign" && <SignStep d={d} token={token!} onSigned={() => setStatus("submitted")} />}
@@ -300,15 +279,12 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
   switch (step) {
     case "about":
       return <>
-        <div style={infoCard}>First things first — so we know who we're talking to. We'll use your name throughout.</div>
-        <Field label="Your name" required><input style={input} autoFocus placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
-        <Field label="Your Victorian electrician licence number" required hint="Your personal ESV licence — you're the electrician, so this is you"><input style={input} {...t("licence_number", true)} /></Field>
+        <div style={infoCard}><strong>Business representative and nominated electrician</strong><br />This application currently requires the authorised business representative to also provide their own Victorian electrical licence. If the authorised business contact is not a licensed electrician, the office must assist rather than using another person's licence.</div>
+        <Field label="Authorised representative's name" required><input style={input} autoFocus placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
+        <Field label="Your personal Victorian electrical licence number" required hint="This is your individual ESV electrical licence, not the business REC registration number."><input style={input} {...t("licence_number", true)} /></Field>
         <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
         <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
-        <Field label="Are you the REC, or do you work under a REC?" required hint="The REC is the registered electrical contractor business — the director/boss sets that up here. People who work for them join with a personal invite link from the boss.">
-          <Choice options={[{ v: false as boolean, l: "I am the REC — I run the registered business" }, { v: true as boolean, l: "I work under a REC" }]} value={d.works_under_rec ?? null} onChange={(v) => up({ works_under_rec: v })} />
-        </Field>
-        {d.works_under_rec === true && <WorkerStop who="REC" />}
+        <div style={infoCard}>You are setting up the <strong>REC business profile</strong>. Staff electricians join later through personal invitation links.</div>
       </>;
     case "business":
       return <>
@@ -373,7 +349,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       return <>
         <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
         <div style={infoCard}>{d.gst_registered === false ? "Not GST registered: enter your total rate." : "GST registered: enter rates including GST."} These are proposed supplier rates — Home Insulation Victoria reviews them before they apply.</div>
-        <div style={infoCard}><strong>Be competitive.</strong> We send steady volume to the electricians with the sharpest rates — the more competitive your pricing, the more jobs you'll win.</div>
+         <div style={infoCard}>Enter your proposed supplier rates. Home Insulation Victoria reviews and agrees rates with the business before they are used. These are not the customer-facing prices and no volume of work is promised.</div>
         <Field label={`Pre-Insulation Electrical Safety Assessment (PIESA) visit (${unit})`} required hint="Formal electrical safety assessment and PIESA only. The installer completes the separate eligibility measure-up."><Money value={d.assessment_rate} onChange={(v) => up({ assessment_rate: v })} unit="visit" /></Field>
         {<Field label={`Installation-day attendance (${unit})`} required><Money value={d.installation_attendance_rate} onChange={(v) => up({ installation_attendance_rate: v })} unit="visit" /></Field>}
       </>;
