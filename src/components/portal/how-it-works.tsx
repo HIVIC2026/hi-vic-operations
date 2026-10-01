@@ -1,7 +1,8 @@
 // Renders the shared "How we work together" content (partner-howitworks.ts) as coloured cards.
 // Used by installer onboarding and the partner help page so wording lives in one place.
 import {
-  AP_WORKLOAD, APP_PITCH, ELECTRICIAN_FLEXIBILITY, LEAD_24H_RULE, OPTION_OWN_CUSTOMER, OPTION_OUR_LEAD,
+  AP_WORKLOAD, APP_PITCH, ELECTRICIAN_FAQ, ELECTRICIAN_FLEXIBILITY, ELECTRICIAN_JOB_FLOW, ELECTRICIAN_PAY, ELECTRICIAN_SAME_DAY,
+  LEAD_24H_RULE, OPTION_OWN_CUSTOMER, OPTION_OUR_LEAD,
   PARTNER_FAQ, PAYMENT_TERMS, PORTAL_ONLY_COMMS, WHY_349, type HowStep,
 } from "@/lib/partner-howitworks";
 
@@ -80,6 +81,39 @@ export function HowItWorks() {
       <div style={{ ...h, fontWeight: 800, fontSize: 15, margin: "16px 0 8px" }}>Common questions</div>
       <div style={{ display: "grid", gap: 8 }}>
         {PARTNER_FAQ.map((f) => (
+          <details key={f.q} style={{ border: "1px solid #E4E8F0", borderRadius: 12, padding: "10px 14px", background: "#fff" }}>
+            <summary style={{ fontWeight: 700, fontSize: 14, color: NAVY, cursor: "pointer" }}>{f.q}</summary>
+            <p style={{ fontSize: 14, lineHeight: 1.55, color: MUTED, margin: "8px 0 2px" }}>{f.a}</p>
+          </details>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Electrician-facing "How we work together" — job flow, same-day rule, pay, comms. */
+export function HowItWorksElectrician() {
+  return (
+    <div>
+      <Panel accent={GREENA} title="One app, every job">
+        <p style={{ margin: 0 }}>{APP_PITCH}</p>
+      </Panel>
+      <div style={{ marginBottom: 14 }}><OptionCard accent={BLUEA} {...ELECTRICIAN_JOB_FLOW} /></div>
+      <Panel accent={YELLOW} title={ELECTRICIAN_SAME_DAY.title}>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>{ELECTRICIAN_SAME_DAY.points.map((p) => <li key={p}>{p}</li>)}</ul>
+      </Panel>
+      <Panel accent={GREENA} title={ELECTRICIAN_PAY.title}>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>{ELECTRICIAN_PAY.points.map((p) => <li key={p}>{p}</li>)}</ul>
+      </Panel>
+      <Panel accent={BLUEA} title={PORTAL_ONLY_COMMS.title}>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>{PORTAL_ONLY_COMMS.points.map((p) => <li key={p}>{p}</li>)}</ul>
+      </Panel>
+      <Panel accent={PINK} title={LEAD_24H_RULE.title}>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>{LEAD_24H_RULE.points.map((p) => <li key={p}>{p}</li>)}</ul>
+      </Panel>
+      <div style={{ ...h, fontWeight: 800, fontSize: 15, margin: "16px 0 8px" }}>Common questions</div>
+      <div style={{ display: "grid", gap: 8 }}>
+        {ELECTRICIAN_FAQ.map((f) => (
           <details key={f.q} style={{ border: "1px solid #E4E8F0", borderRadius: 12, padding: "10px 14px", background: "#fff" }}>
             <summary style={{ fontWeight: 700, fontSize: 14, color: NAVY, cursor: "pointer" }}>{f.q}</summary>
             <p style={{ fontSize: 14, lineHeight: 1.55, color: MUTED, margin: "8px 0 2px" }}>{f.a}</p>

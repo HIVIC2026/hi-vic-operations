@@ -22,7 +22,7 @@
 - Portal-only communication; 24h no-contact rule on our leads
 
 ## Still open from before
-- [ ] Electrician team-up worker path (under someone else's REC: skip REC/insurance, collect licence + supervising REC)
+- [x] Electrician team-up worker path (under someone else's REC: name + licence + host REC only; no ABN, insurance, rates or bank — head company owns those)
 - [ ] Chase service areas from 6 installers; partner/postcode coverage follow-ups
 - [ ] Mitti form IDs from user — now FOUR: A1 (installer-sourced, with quoted price), A2 (our leads, no pricing), B (PIESA), C (PIISA); briefs in Mitti_template_briefs_v4.md
 - [ ] Browser-verify owner/electrician/installer job views as those roles

@@ -100,6 +100,54 @@ export const WHY_349 = {
   body: "Two separate charges, each $349 inc GST, both paid by the owner on the one co-branded invoice — never by you. (1) The pre-install electrical safety check (PIESA): $349 when done by our electrician, or your own onboarded electrician's agreed price instead. (2) Our Accredited Person fee: $349 on every job, always the same — it covers eligibility, owner consent, official forms, 24-hour notices, the quote and invoice, payment chasing, evidence review, VEEC creation and lodgement, six years of records and audits. Each part is legally required before a single VEEC can be created.",
 };
 
+export const ELECTRICIAN_JOB_FLOW: { title: string; tagline: string; steps: HowStep[]; footer: string } = {
+  title: "What a job looks like for you",
+  tagline: "Steady electrical safety work, booked and paid through one place.",
+  steps: [
+    { n: 1, title: "You get the job offer", body: "It appears in your portal with the suburb, property type and what's needed. Accept or decline — no penalty for declining." },
+    { n: 2, title: "Book the visit in the portal", body: "You propose times, the owner accepts, it's locked in. Everyone — you, the installer and our office — sees the same timeline." },
+    { n: 3, title: "Do the PIESA on the day", body: "Our app walks you through every photo and reading needed, in order, so the assessment is complete on the day — no revisits." },
+    { n: 4, title: "Submit the result before you leave", body: "The PIESA result and your rectification quote (or confirmation none is needed) go in through the portal on the day. The job can't move forward without it." },
+    { n: 5, title: "Rectification, if approved", body: "If the owner approves rectification, it's booked in the portal and you do the work at your agreed rates." },
+    { n: 6, title: "You get paid", body: "At the rate we agreed with you at onboarding, once the owner's invoice is paid. We chase the money — you never do." },
+  ],
+  footer: "The 30-day window from PIESA to installation is tracked on every job, and you can see it in the portal.",
+};
+
+export const ELECTRICIAN_SAME_DAY = {
+  title: "The same-day rule",
+  points: [
+    "The PIESA result and any rectification quote (or confirmation none is needed) must be submitted through the portal on the day of each assessment.",
+    "Our office can't quote the owner until your result is in — the whole job waits on it.",
+    "Installation must happen within 30 days of the PIESA. The countdown is shown on every job so nothing expires quietly.",
+  ],
+};
+
+export const ELECTRICIAN_PAY = {
+  title: "Payment",
+  points: [
+    "You're paid the supplier rate we agreed with you at onboarding.",
+    "The owner gets one invoice from us — we handle the deposit, the balance and all chasing.",
+    "You're paid once the owner's invoice is paid in full.",
+    "Your rates are never shown to customers.",
+  ],
+};
+
+export const ELECTRICIAN_FAQ: Array<{ q: string; a: string }> = [
+  {
+    q: "Do I need my own insurance?",
+    a: "Only if you run your own REC business. If you work under another REC, their business holds the insurance — you just tell us who they are and we verify with them.",
+  },
+  {
+    q: "What if I find something unsafe at the property?",
+    a: "Stop, make it safe, and record it in the portal straight away. Safety always comes before the job — the office is notified immediately and decides the next step with you.",
+  },
+  {
+    q: "Can I deal with the owner directly?",
+    a: "No — all contact happens in the portal so everyone can see where the job is up to, and it's our shared legal record. Work taken off-platform breaches the partner agreement.",
+  },
+];
+
 export const PARTNER_FAQ: Array<{ q: string; a: string }> = [
   {
     q: "I already agreed a price with the owner — what happens?",

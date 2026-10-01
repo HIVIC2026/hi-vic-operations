@@ -33,6 +33,8 @@ async function findApp(token: string) {
 const s = (m: number) => z.string().max(m).optional();
 const n = z.number().finite().min(0).max(1_000_000_000).nullable().optional();
 const dataSchema = z.object({
+  how_it_works_acknowledged: z.boolean().optional(),
+  works_under_rec: z.boolean().nullable().optional(), host_rec_name: s(200), host_rec_number: s(50),
   legal_entity_name: s(200), trading_name: s(200), abn: s(20), rec_registration_number: s(50),
   business_address: s(300), primary_contact_name: s(200), business_phone: s(30), business_email: s(320), authorised_to_register: z.boolean().optional(),
   insurer: s(200), insurance_policy_number: s(100), public_liability_cover_amount: n, public_liability_expiry: s(10),
@@ -55,7 +57,7 @@ function publicView(app: { status: string; step_key: string | null; data: unknow
 export const startRecOnboarding = createServerFn({ method: "POST" }).handler(async () => {
   const token = newToken();
   const db = await admin();
-  const { error } = await db.from("rec_onboarding_applications").insert({ resume_token_hash: await sha256(token), step_key: "business" });
+  const { error } = await db.from("rec_onboarding_applications").insert({ resume_token_hash: await sha256(token), step_key: "about" });
   if (error) throw new Error("Could not start onboarding. Please try again.");
   return { token };
 });
@@ -142,7 +144,7 @@ export const signRecAgreement = createServerFn({ method: "POST" })
       source_system: "portal_form", enquiry_type: "electrician_rec", submission_id: `portal-rec-onboarding-${app.id}`,
       source: "portal_rec_onboarding", name: d.primary_contact_name ?? null, email: d.business_email ?? null, phone: d.business_phone ?? null,
       company: d.trading_name || d.legal_entity_name || null, service_areas: [d.service_origin, d.travel_radius_km === 9999 ? "Anywhere in Victoria" : `${d.travel_radius_km} km radius`].filter(Boolean) as string[],
-      rec_registration_number: (d.rec_registration_number ?? "").toUpperCase(), esv_licensed_electricians_confirmed: (d.electricians ?? []).length > 0,
+      rec_registration_number: ((d.works_under_rec === true ? d.host_rec_number : d.rec_registration_number) ?? "").toUpperCase(), esv_licensed_electricians_confirmed: (d.electricians ?? []).length > 0,
       services, estimated_piesa_fee_inc_gst: d.assessment_rate ?? null, booking_lead_time: d.normal_attendance_speed ?? null, weekly_capacity: d.capacity_band ?? null,
       source_created_at: app.created_at, source_updated_at: signedAt,
       raw_payload: { rec_onboarding_id: app.id, agreement_version: REC_AGREEMENT_VERSION, agreement_sha256: hash, signed_at: signedAt, signer: { name: data.signer_name, position: data.signer_position, email: data.signer_email } } as never,
