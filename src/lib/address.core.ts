@@ -101,8 +101,10 @@ export function parseNominatimSuggestions(payload: unknown, typed = ""): Address
   for (const item of payload) {
     const a = (item as { address?: NominatimAddress })?.address;
     if (!a) continue;
-    const stateRaw = asText(a.state);
-    if (stateRaw && stateRaw.trim().toLowerCase() !== "victoria") continue;
+    const stateRaw = asText(a.state).trim().toLowerCase();
+    // Victorian properties only. A row that does not name its state is not proof
+    // of anything, so it is dropped rather than guessed as VIC.
+    if (stateRaw !== "victoria") continue;
     const postcode = asText(a.postcode);
     if (!/^\d{4}$/.test(postcode)) continue;
     const street = asText(a.road) || asText(a.pedestrian) || asText(a.footway);
