@@ -8193,6 +8193,7 @@ export type Database = {
           mitti_piisa_template_id: string | null
           mitti_ready_check_priced_template_id: string | null
           mitti_ready_check_template_id: string | null
+          partner_lead_fee_inc_gst: number
           piesa_install_window_days: number
           updated_at: string
           urgency_amber_days: number
@@ -8221,6 +8222,7 @@ export type Database = {
           mitti_piisa_template_id?: string | null
           mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
+          partner_lead_fee_inc_gst?: number
           piesa_install_window_days?: number
           updated_at?: string
           urgency_amber_days?: number
@@ -8249,6 +8251,7 @@ export type Database = {
           mitti_piisa_template_id?: string | null
           mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
+          partner_lead_fee_inc_gst?: number
           piesa_install_window_days?: number
           updated_at?: string
           urgency_amber_days?: number

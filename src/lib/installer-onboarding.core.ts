@@ -210,11 +210,21 @@ export function scheduleText(d: InstData): string {
   return L.join("\n");
 }
 
-export function agreementText(d: InstData): string {
+/** Default partner lead fee (inc GST); the live value is `workflow_settings.partner_lead_fee_inc_gst`. */
+export const DEFAULT_LEAD_FEE = 220;
+export function formatLeadFee(fee: number): string {
+  return `$${Number.isInteger(fee) ? fee : fee.toFixed(2)}`;
+}
+/** Swap the default "$220" in shared partner copy for the office-configured lead fee. */
+export function applyLeadFee(text: string, fee: number = DEFAULT_LEAD_FEE): string {
+  return text.split("$220").join(formatLeadFee(fee));
+}
+
+export function agreementText(d: InstData, leadFee: number = DEFAULT_LEAD_FEE): string {
   return [
     INSTALLER_AGREEMENT_TITLE, `Version: ${INSTALLER_AGREEMENT_VERSION}`,
     `Between: ${AP_ENTITY}, acting as an Accredited Person for Victorian Energy Upgrades (VEU) Activity 48, and the insulation installation business (Installer) identified in Schedule 1.`, "",
-    ...INSTALLER_AGREEMENT_SECTIONS.flatMap((s) => [`${s.n}. ${s.title}`, ...s.paras, ""]),
+    ...INSTALLER_AGREEMENT_SECTIONS.flatMap((s) => [`${s.n}. ${s.title}`, ...s.paras.map((p) => applyLeadFee(p, leadFee)), ""]),
     scheduleText(d), "", "ACKNOWLEDGEMENTS",
     ...ACKNOWLEDGEMENTS.map((a, i) => `${i + 1}. ${a.text}`),
   ].join("\n");
