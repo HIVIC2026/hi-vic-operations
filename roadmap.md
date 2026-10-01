@@ -8,7 +8,7 @@
 - [ ] Partial evidence: one upload box, AI-suggested requirement matching, staff verify, have/missing list
 - [ ] Install-day "Before you start" checklist auto-built from missing allowed items; feeds Mitti/PIISA
 - [ ] Per-requirement capture-stage settings (before quote / before install start / after install) per ESC table; verify against full Obligations & Program Guide annexure before enabling
-- [ ] Shared gate timeline for staff/installer/electrician with countdowns (PIESA 30-day validity, ESC notification 24h–5d, PIESA copy 24h, same-day rectification quote)
+- [x] Shared gate timeline for staff/installer/electrician with countdowns (PIESA 30-day validity, ESC notification 24h–5d, PIESA copy 24h, same-day rectification quote)
 - [ ] 24-hour rule on our leads: owner offered choice of different installer/electrician after 24h no contact
 - [ ] Installer agreement new version with Option 1/2 + portal-only communication wording; re-sign flag
 - [ ] Referred jobs: owner quoted at our set customer price; installer paid agreed onboarding rate; $220 lead fee deducted from payout only when owner accepts; installer paid once owner invoice fully paid
