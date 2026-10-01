@@ -189,7 +189,7 @@ export function buildPrefill(template: Any, ctx: PrefillCtx) {
     const e = r.entry;
     if (empty) continue;
     const vStr = String(v);
-    const choiceLike = /choice|question|switch/i.test(e.type);
+    const choiceLike = /choice|question|switch|list/i.test(e.type);
     const responses = f.datetime ? { datetime: vStr } : choiceLike ? { selected: [{ label: vStr }] } : { text: vStr };
     const row = { item_id: e.id, label: e.label, type: e.type, responses };
     (e.header ? header_items : items).push(row);
