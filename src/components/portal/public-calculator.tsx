@@ -337,15 +337,6 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                   ))}
                 </dl>
 
-                {/* Full transparent itemisation — same computed rows, below the headline. */}
-                <dl className="mt-3.5 space-y-1.5 border-t border-estimate-line pt-3.5 text-xs">
-                  {customerQuoteRows({ piesa: settings.piesa_assessment_inc_gst, installation: standard.installation, apManagement: settings.ap_management_inc_gst }).map((row) => (
-                    <div key={row.key} className="flex items-center justify-between gap-3">
-                      <dt className="text-estimate-navy/85">{row.label}</dt>
-                      <dd className="font-extrabold text-estimate-navy">{dollars(row.amount)}</dd>
-                    </div>
-                  ))}
-                </dl>
               </div>
             )}
           </div>
