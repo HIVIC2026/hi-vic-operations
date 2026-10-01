@@ -36,7 +36,7 @@ export function formatAddress(parts: AddressParts): string {
 export function extractPostcode(text: string): string {
   const runs = text.match(/(?:^|\D)(\d{4})(?=\D|$)/g);
   if (!runs?.length) return "";
-  const last = runs[runs.length - 1].match(/(\d{4})/);
+  const last = (runs[runs.length - 1] ?? "").match(/(\d{4})/);
   return last?.[1] ?? "";
 }
 
