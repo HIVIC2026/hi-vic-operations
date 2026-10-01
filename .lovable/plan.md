@@ -4,10 +4,10 @@
 When the owner picks "Some there" or "Not sure", show a plain note under the price (replaces the current removal paragraph):
 
 ```text
-Already have insulation? It may not need to come out at all. If removal
-is needed, budget an extra $10–$15 per m² of the area removed, depending
-on the insulation type. Your installer will check and advise you at your
-free Ready Check — before you agree to anything.
+Already have insulation? In many homes it can stay. If part of yours
+does need removing, budget an extra $10–$15 per m² of the area requiring
+removal, depending on the insulation type. Your installer will assess it
+and advise you at your free Ready Check — before you agree to anything.
 ```
 
 - Just a note — no priced add-on, no live calculation, headline price unchanged.
