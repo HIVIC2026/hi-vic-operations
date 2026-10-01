@@ -55,31 +55,33 @@ function isH3SwallowedErrorBody(body: string): boolean {
 }
 
 // The customer web address is a marketing entry point, not a portal door: the bare
-// address must land on the calculator. Staff reach the portal at /home on any address.
-function customerEntryRedirect(request: Request): Response | undefined {
-  let pathname = "";
+// address must SHOW the calculator at "/" itself (an internal rewrite, not a redirect),
+// so the calculator genuinely is the home page of that address and search engines see
+// one canonical URL. Staff reach the portal at /home on any address.
+function customerEntryRewrite(request: Request): Request | undefined {
+  let url: URL;
   try {
-    pathname = new URL(request.url).pathname;
+    url = new URL(request.url);
   } catch {
     return undefined;
   }
-  const target = customerEntryPoint(request.headers.get("host"), pathname);
+  const target = customerEntryPoint(request.headers.get("host"), url.pathname);
   if (!target) return undefined;
-  return new Response(null, {
-    status: 302,
-    headers: { location: target, "cache-control": "no-store" },
-  });
+  url.pathname = target;
+  return new Request(url.toString(), request);
 }
+
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
-      const entryRedirect = customerEntryRedirect(request);
-      if (entryRedirect) return entryRedirect;
+      const rewritten = customerEntryRewrite(request);
+      const incoming = rewritten ?? request;
       const handler = await getServerEntry();
       const c = ctx as { waitUntil?: (p: Promise<unknown>) => void } | undefined;
       const waitUntil = typeof c?.waitUntil === "function" ? c.waitUntil.bind(c) : undefined;
-      const response = await requestContext.run({ waitUntil }, () => handler.fetch(request, env, ctx));
+      const response = await requestContext.run({ waitUntil }, () => handler.fetch(incoming, env, ctx));
+
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {
       if (isConnectionTeardown(error)) {
