@@ -188,6 +188,14 @@ describe("email renderers", () => {
     expect(m.subject).toContain("Just checking you received your Home Insulation Victoria estimate");
     expect(src("src/lib/followup-email.ts")).not.toMatch(/estimate_engaged_no_booking_3d|estimate_second_reminder_7d/);
   });
+  test("worker suppresses retired queue rows before delivery", () => {
+    const worker = src("src/lib/followups.server.ts");
+    const guard = worker.indexOf('f.slot !== "3d" || !isActiveFollowupKind(f.kind)');
+    const delivery = worker.indexOf("await deliverTracked(", guard);
+    expect(guard).toBeGreaterThan(-1);
+    expect(worker.slice(guard, delivery)).toContain('suppression_reason: "retired_followup_kind"');
+    expect(delivery).toBeGreaterThan(guard);
+  });
   test("sample preview never calls live tracking", () => {
     const p = src("src/routes/step3-email-preview.tsx");
     expect(p).not.toMatch(/tracking(Click|Pixel)Url|\/t\/e\/|\/t\/o\//);
