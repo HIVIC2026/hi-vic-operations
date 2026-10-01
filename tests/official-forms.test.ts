@@ -127,7 +127,7 @@ const piisaPass = (): OfficialAnswers => ({ jobRef: "HV-1", address: "1 Test St"
   "p2.installDate": "2026-10-10", "p2.ap": "DC", "p2.company": "Co", "p2.lead": "Lead", "p2.leadEec": "E1", "p3.swms": "Yes", "p3.table1": "Yes", "p3.isolated": "Yes", "p4.present": "No",
   "p5.reviewed": "Yes", "p5.electricianPresent": "N/A", "p5.recessed": "No", "p5.icConfirmed": "Yes", "p5.safeToCover": "Yes", "p5.rcd": "Yes", "p5.tps": "Yes", "p5.basic": "Yes", "p5.noAccess": "Yes",
   "p6.present": "Yes", "p6.height": 50, "p6.treatment": ["Removed"], "p6.suitable": "Yes", "p7.products": "Brand R5.0", "p8.declaration": true, "p8.signature": "Lead", "p8.name": "Lead", "p8.date": "2026-10-10" });
-const ctx = { piesaCompletionDate: "2026-10-01", piesaReceivedAt: "2026-10-02T00:00:00Z", conductiveExistingInsulation: false };
+const ctx = { piesaCompletionDate: "2026-10-01", piesaReceivedAt: "2026-10-02T00:00:00Z", conductiveExistingInsulation: false, conductivityEvidence: "file-1" };
 
 describe("PIISA printed rules", () => {
   test("a clean form passes", () => expect(evaluatePiisa(piisaPass(), ctx).blockers).toEqual([]));
