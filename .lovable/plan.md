@@ -1,43 +1,49 @@
-# Perfect launch by TOMORROW — Friday 2 October
+# Launch plan — onboarding, emails, dummy run-throughs, automations
 
-## The goal
+## 1. Partner onboarding — refined and verified
 
-By Friday: onboarding links sent and partners signing up, owners linked with their installers and electricians, Ready Checks going out to installers, and the enquiry backlog moving through the pipeline.
+- Walk the full installer and electrician onboarding in the browser exactly as they see it, screen by screen, and fix anything unclear or ugly.
+- Confirm it covers everything: name-first step, business details, insurance/REC (head of business only, not workers under someone else's REC), service areas, rates, the two ways we work together (you bring the customer / we bring the customer), electrician preference and team-up invites, portal-only communication rule, 24-hour response rule, agreement signing.
+- Onboarding invite goes out with an email that explains who we are, what we do as the Accredited Person, and what they're signing up for.
 
-## Today (Thursday) — my side
+## 2. Customer-facing emails — full redesign
 
-1. **All four Mitti briefs delivered**: A1 v6 (installer-sourced, priced), A2 (our leads), B (PIESA), C (PIISA) — all with downlights Yes=red / No=green, prefilled office fields, draw-in-form diagram.
-2. **Onboarding invites ready to send**: installer + electrician onboarding links work today (they don't need Mitti). Name-first step, team-up invites, agreement signing — already built; I verify the full path in the browser.
-3. **Owner linking**: verify owner↔installer↔electrician linking on jobs works end to end.
-4. **Shared gate timeline** for installers/electricians with the 30-day PIESA countdown.
-5. **To action tab** verified against live data.
-6. **Dress rehearsal**: full dummy journey in the browser — enquiry → Gate 1 → Ready Check → quote → acceptance → invoice preview → deposit gate → install → PIISA → VEEC. Fix anything wrong on the spot.
-7. **Full regression**: tests, build, security, mobile screens.
+- Redesign every email the portal sends (onboarding invites, owner updates, quote, booking confirmations, nudges) in the Home Insulation Victoria brand: blue/green/navy, Outfit/Figtree, "Home Insulation Victoria" wording throughout.
+- Each email is plain-language: what happened, what they need to do, one clear button.
+- Nothing sends until live communications are switched on with your approval — redesign is safe to do now.
 
-## Today (Thursday) — your side
+## 3. Dummy job run-throughs — every scenario
 
-1. **Paste each brief into Mitti as I deliver it** (A1 first), eyeball against the brief, send me the four template IDs. I connect and test each within minutes. **A1 is built: template_01ee0428be6d4435b34d8b738935f099 — I connect and validate it first.**
-2. **Send the onboarding links** to your installers and electricians — this can start as soon as I confirm the invite path (this morning).
-3. **Three quick decisions**: (a) hazard photo per area or one description, (b) "Not sure" allowed on remove/top-up?, (c) $220 lead fee inc or ex GST.
-4. **Approve the invoice design** when I show you the preflight.
+Run full end-to-end dummy jobs in the browser, fixing anything wrong on the spot:
 
-## Friday morning — go-live
+1. Website enquiry → Gate 1 → Ready Check → quote → acceptance → invoice → deposit gate → install → PIISA → VEEC.
+2. Installer-brings-the-customer job with complete measure-up (skips Ready Check).
+3. Installer job with partial measure-up (only missing items requested).
+4. Our-lead job: installer offer, 24-hour rule, free Ready Check, $220 lead fee on acceptance.
+5. Rectification path: PIESA fails → rectification quote same day → deposit gate → rectification → install.
+6. Overdue/exception paths: no response, missed windows, To action cards appear correctly.
 
-1. All four Mitti IDs connected; sync proven on a dummy job.
-2. Final checks green: tests, build, security, no stage/action mismatches, invoice preflight approved.
-3. **You say "go"** → live communications switch on.
-4. Ready Checks go out to installers; the team works the enquiry backlog oldest-first via the To action tab.
-5. First real Xero invoice: you action it, we reconcile together before any more are created.
+## 4. Automations — agreed set only
 
-## What could slip it — and the fallback
+Safe automations that don't send anything externally without approval:
 
-- **Mitti forms not built/connected today** → launch still happens Friday, but Ready Check/PIESA/PIISA data entry uses the portal's own screens until Mitti is connected. Not silent — shown in To action.
-- **Any go-live check red** → that piece launches in manual mode with a visible To action card, never silently broken.
-- **Live communications** stay off until your explicit approval — deliberate lock, won't be bypassed.
+- To action tab stays live and accurate (already built — verify against live data).
+- Automatic stage/next-step text from the single shared rule (already built — verify).
+- Overdue flags: PIESA 30-day countdown, 24h/48h trade response, owner reminders — visible in To action.
+- Anything that emails or writes externally stays behind the launch lock until you say go.
+
+## 5. Mitti
+
+- A1 is built (template_01ee0428be6d4435b34d8b738935f099) — I connect it and run the portal's checks against it first.
+- You build A2, B and C from the briefs in Files as I finalise them; I connect and validate each.
+
+## Go-live gate
+
+Launch only when: all dummy run-throughs pass, Mitti forms connected and validated, emails approved by you, tests/build/security green. Then you say "go" and live communications switch on.
 
 ## Technical details
 
 - Locked Step 1 (Base44 handoff) and Gate 1 rules untouched.
 - Test jobs stay flagged `qa_test`, excluded from live totals.
-- Briefs generated from `src/lib/mitti-forms.core.ts` so labels can't drift; `validateTemplate` refuses drifted Mitti forms.
-- Timeline extends `src/lib/waiting.core.ts` + the job journey strip to installer/electrician views.
+- Email templates live in `src/lib/email-templates/`; sends stay server-side only.
+- No automation retries or bypasses provider errors; external sends remain gated.
