@@ -43,6 +43,14 @@ function responseValue(it: Any): string | null {
   return null;
 }
 
+const TYPE_KEYS = ["textsingle", "textmulti", "question", "list", "checkbox", "media", "signature", "datetime", "number", "drawing", "site", "switch"] as const;
+/** Mitti items often carry their type as a type-named key (e.g. `question`) rather than a `type` field. */
+export function mittiItemType(it: Any): string {
+  const direct = String(it?.type ?? "").trim();
+  if (direct) return direct;
+  return TYPE_KEYS.find((k) => it?.[k] != null) ?? "";
+}
+
 /** Flatten header_items + nested items; section = normalized labels of all ancestors. */
 export function flatten(doc: Any): Entry[] {
   // Audit docs carry header_items/items at the root; v1 template definitions wrap them under `template`.
@@ -63,7 +71,7 @@ export function flatten(doc: Any): Entry[] {
     const chain: string[] = [];
     let p = parent, guard = 0;
     while (p && guard++ < 20) { const x = byId.get(String(p)); if (!x) break; chain.unshift(norm(x.it.label)); p = x.parent; }
-    return { id: String(it.item_id ?? it.id ?? ""), label: String(it.label ?? ""), norm: norm(it.label), type: String(it.type ?? ""), value: responseValue(it), parent: parent ? String(parent) : null, section: chain.join(" / "), header };
+    return { id: String(it.item_id ?? it.id ?? ""), label: String(it.label ?? ""), norm: norm(it.label), type: mittiItemType(it), value: responseValue(it), parent: parent ? String(parent) : null, section: chain.join(" / "), header };
   });
 }
 
