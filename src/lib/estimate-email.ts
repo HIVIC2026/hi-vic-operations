@@ -151,8 +151,8 @@ function footer(reference?: string | null, kind: "estimate" | "result" = "estima
   return section(`<p style="margin:0 0 12px;color:${BLUE};font-size:14px;font-weight:800;">Home Insulation Victoria</p><p style="margin:0;color:${INK};font-size:11px;line-height:1.7;">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria<br>You are receiving this because you requested a Home Insulation Victoria ${kind === "result" ? "eligibility result" : "eligibility result or estimate"}.${ref}<br><a href="${SITE}/privacy" style="color:${BLUE};text-decoration:underline;">Privacy</a> &nbsp;·&nbsp; <a href="${SITE}/contact" style="color:${BLUE};text-decoration:underline;">Contact</a><br>A secure unsubscribe link appears directly below this footer.</p>`, `23px 28px 28px;border-top:1px solid ${PALE_BLUE};`);
 }
 
-/** Editorial likely-eligible email: one money card, one trust band, no card grids. */
-function renderLikelyEmail(input: EstimateEmailInput): EstimateEmail {
+/** Shared link + arithmetic validation for the likely and onsite renderers. Throws rather than rendering $0/undefined. */
+function validateQuoteInput(input: EstimateEmailInput) {
   const link = validEstimateUrl(input.estimateUrl);
   const trackedTarget = validTrackingUrl(input.trackingClickUrl, "click");
   const confirmTarget = trackedTarget ?? `${link.toString().replace(/\/$/, "")}#confirm`;
@@ -184,6 +184,12 @@ function renderLikelyEmail(input: EstimateEmailInput): EstimateEmail {
     if (!closeEnough(customer - payableNow, remaining)) throw new Error("Estimated customer price less the amount payable now must equal the remaining balance.");
     if (rate != null && (!Number.isFinite(rate) || rate < 0)) throw new Error("The installation rate must be a finite non-negative value.");
   }
+  return { confirmTarget, calculatorTarget, pixel, referralUrl, customer, discount, area, packagePrice, hasBreakdown, installation, assessment, apFee, gross };
+}
+
+/** Editorial preliminary-quote email. Now serves the onsite outcome only; likely uses renderLikelyEligibleEmail. */
+function renderLikelyEmail(input: EstimateEmailInput): EstimateEmail {
+  const { confirmTarget, calculatorTarget, pixel, referralUrl, customer, discount, area, packagePrice, hasBreakdown, installation, assessment, apFee, gross } = validateQuoteInput(input);
   const onsite = input.outcome === "onsite";
   const subject = onsite ? "Good news — your preliminary Home Insulation Victoria quote is ready" : "Good news — your home looks likely to qualify for a VEU insulation discount";
   const previewText = `Your estimated cost after discount is ${money(customer)}, including an estimated VEU / VEEC discount of ${money(discount)}.`;
