@@ -78,5 +78,5 @@
 - [x] Audit installer onboarding — copy fixes (payment details, capacity labels, measure-up note)
 - [x] Fix $220 lead-fee contradiction per Jo: OUR leads only; agreement clause corrected, INST version bumped to 1.6 (prior signers must re-sign)
 - [x] Test mode (?test=1, no mandatory fields) on electrician onboarding to match installer — for dummy run-throughs
-- [ ] Electrician onboarding services step: 'I would like to receive referrals from Home Insulation Victoria for' + ticks (PIESA, rectification, install-day attendance)
+- [x] Electrician onboarding: removed add-electrician + how-we-work steps; services step = "receive referrals" ticks; competitive-pricing note added; install-day rate verified conditional on tick
 - [ ] Electrician onboarding pricing step: add 'be competitive — higher chance of winning volume' note
