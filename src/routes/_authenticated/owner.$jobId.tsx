@@ -1,6 +1,5 @@
 import { OwnerEstimateCard } from "@/components/portal/estimate";
 import { nextStep } from "@/lib/nextstep.core";
-import { AppointmentPanel } from "@/components/portal/partner";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
