@@ -15,7 +15,8 @@ export const CUSTOMER_ENTRY_PATH = "/calculator";
 /** Bare hostname from a Host header: lower-cased, no port, no trailing dot. */
 export function normalizeHost(header: string | null | undefined): string {
   if (!header) return "";
-  return header.trim().toLowerCase().split(":")[0].replace(/\.$/, "");
+  const [name = ""] = header.trim().toLowerCase().split(":");
+  return name.replace(/\.$/, "");
 }
 
 export function isCustomerHost(header: string | null | undefined): boolean {
