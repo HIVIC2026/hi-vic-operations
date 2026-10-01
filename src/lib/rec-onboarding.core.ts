@@ -158,7 +158,7 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d.public_liability_expiry ?? "") || (d.public_liability_expiry as string) < melbourneToday(now)) e.push("Insurance expiry must be today or later.");
       break;
     case "services":
-      if (d.service_piesa !== true && d.service_rectification !== true && d.service_installation_isolation !== true) e.push("Tick at least one type of work you'd like referrals for.");
+      if (d.service_rectification !== true || d.service_installation_isolation !== true) e.push("Rectification work and install day attendance are required — tick both to continue.");
       break;
     case "coverage":
       if (!txt(d.service_origin)) e.push("Enter your service starting location.");
