@@ -70,3 +70,4 @@
 - Calculator heading: Jo says something is wrong with it - inspect live preview and fix
 - Calculator: button wording "Demand is high - register your interest" (AP-safe: no rebate promise, no fake deadline)
 - Address search "playing up" - diagnose and fix (typed house number, stale/empty results, click selection)
+- Calculator address search: NEVER show a non-Victorian address (Canberra house appeared as VIC) — require an explicit Victorian state, no VIC default
