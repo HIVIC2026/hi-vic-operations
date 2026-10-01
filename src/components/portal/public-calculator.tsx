@@ -253,7 +253,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
           </div>
         </div>
 
-        <p className="mt-3 text-[0.7rem] leading-relaxed text-estimate-navy/65">
+        <p className="mt-2.5 text-[0.7rem] leading-relaxed text-estimate-navy/65">
           Estimates only — not a quote. Prices include GST. Nothing you type is saved, sent or shared. Licensed electrician for the safety assessment · EEC certified installer · we manage the paperwork and the rebate claim as the Accredited Person under the Victorian Energy Upgrades program.{" "}
           <a href={ENQUIRY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-estimate-blue underline decoration-estimate-green/60 underline-offset-2 hover:text-estimate-green">
             homeinsulationvictoria.com.au
