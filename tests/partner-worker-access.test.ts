@@ -9,7 +9,7 @@ const migration = readFileSync("drizzle/migrations/0052_partner_worker_profiles.
 describe("partner worker access", () => {
   test("activation creates one business-linked record for every nominated worker", () => {
     expect(activation).toContain('admin.from("partner_workers").upsert(workers');
-    expect(activation).toContain("(application as RecData).electricians");
+    expect(activation).toContain("activationWorkers(type, application");
     expect(activation).toContain("(application as InstData).installers");
   });
 

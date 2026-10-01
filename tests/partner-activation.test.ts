@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { activationBlockers, approvedRateItems } from "../src/lib/partner-activation.core";
+import { activationBlockers, activationWorkers, approvedRateItems } from "../src/lib/partner-activation.core";
 import { REC_AGREEMENT_VERSION, type RecData } from "../src/lib/rec-onboarding.core";
 import { INSTALLER_AGREEMENT_VERSION, type InstData } from "../src/lib/installer-onboarding.core";
 
@@ -13,6 +13,14 @@ describe("partner activation", () => {
     const data = { gst_registered: true, assessment_rate: 330 } as RecData;
     expect(activationBlockers("rec", { ...data, public_liability_expiry: "2099-01-01" }, REC_AGREEMENT_VERSION, "2026-09-30")).toEqual([]);
     expect(approvedRateItems("rec", data).find((x) => x.code === "PIESA")?.unit_price_ex_gst).toBe(300);
+  });
+
+  test("derives the REC applicant worker before activation side effects", () => {
+    const data = { primary_contact_name: "Sam Spark", licence_number: "A123", business_phone: "0412345678", business_email: "SAM@SPARK.COM.AU" } as RecData;
+    expect(activationWorkers("rec", data, "business-1", "application-1")).toEqual([{
+      business_id: "business-1", trade_role: "electrician", full_legal_name: "Sam Spark", email: "sam@spark.com.au",
+      mobile: "0412345678", licence_number: "A123", qualification: null, source_application_id: "application-1",
+    }]);
   });
 
   test("creates separate installer supply and removal rate lines", () => {

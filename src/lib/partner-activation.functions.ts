@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Json } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, WorkflowError } from "./workflow.server";
-import { activationBlockers, approvedRateItems, type PartnerType } from "./partner-activation.core";
+import { activationBlockers, activationWorkers, approvedRateItems, type PartnerType } from "./partner-activation.core";
 import type { RecData } from "./rec-onboarding.core";
 import type { InstData } from "./installer-onboarding.core";
 
@@ -43,27 +43,7 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
       business = created;
     }
     const now = new Date().toISOString();
-    const workers = type === "rec"
-      ? ((application as RecData).electricians ?? []).map((worker) => ({
-          business_id: business.id,
-          trade_role: "electrician" as const,
-          full_legal_name: worker.full_legal_name?.trim() ?? "",
-          email: worker.email?.trim().toLowerCase() ?? "",
-          mobile: worker.mobile?.trim() || null,
-          licence_number: worker.licence_number?.trim() || null,
-          qualification: null,
-          source_application_id: app.id,
-        }))
-      : ((application as InstData).installers ?? []).map((worker) => ({
-          business_id: business.id,
-          trade_role: "installer" as const,
-          full_legal_name: worker.full_legal_name?.trim() ?? "",
-          email: worker.email?.trim().toLowerCase() ?? "",
-          mobile: worker.mobile?.trim() || null,
-          licence_number: null,
-          qualification: worker.qualification?.trim() || null,
-          source_application_id: app.id,
-        }));
+    const workers = activationWorkers(type, application, business.id, app.id);
     if (!workers.length || workers.some((worker) => !worker.full_legal_name || !worker.email)) throw new WorkflowError("Every nominated worker needs a complete profile before approval.");
     const { error: workersError } = await admin.from("partner_workers").upsert(workers as never, { onConflict: "business_id,email" });
     if (workersError) throw new WorkflowError(workersError.message);

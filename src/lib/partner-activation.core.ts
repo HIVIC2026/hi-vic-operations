@@ -1,7 +1,22 @@
 import { INSTALLER_AGREEMENT_VERSION, type InstData, EXTRA_ITEMS } from "./installer-onboarding.core";
-import { REC_AGREEMENT_VERSION, type RecData, RECT_ITEMS, melbourneToday } from "./rec-onboarding.core";
+import { REC_AGREEMENT_VERSION, type RecData, RECT_ITEMS, effectiveElectricians, melbourneToday } from "./rec-onboarding.core";
 
 export type PartnerType = "rec" | "installer";
+
+export function activationWorkers(type: PartnerType, application: RecData | InstData, businessId: string, applicationId: string) {
+  if (type === "rec") return effectiveElectricians(application as RecData).map((worker) => ({
+    business_id: businessId, trade_role: "electrician" as const,
+    full_legal_name: worker.full_legal_name?.trim() ?? "", email: worker.email?.trim().toLowerCase() ?? "",
+    mobile: worker.mobile?.trim() || null, licence_number: worker.licence_number?.trim() || null,
+    qualification: null, source_application_id: applicationId,
+  }));
+  return ((application as InstData).installers ?? []).map((worker) => ({
+    business_id: businessId, trade_role: "installer" as const,
+    full_legal_name: worker.full_legal_name?.trim() ?? "", email: worker.email?.trim().toLowerCase() ?? "",
+    mobile: worker.mobile?.trim() || null, licence_number: null,
+    qualification: worker.qualification?.trim() || null, source_application_id: applicationId,
+  }));
+}
 
 export function activationBlockers(type: PartnerType, data: RecData | InstData, agreementVersion: string | null, signedAt: string | null, now = new Date()) {
   const expected = type === "rec" ? REC_AGREEMENT_VERSION : INSTALLER_AGREEMENT_VERSION;
