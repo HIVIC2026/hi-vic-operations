@@ -59,15 +59,13 @@
 - [ ] Worker link: photo/evidence upload directly on the link page (today photos go through the Mitti form)
 - [ ] Worker link: send by text/email automatically once communications are switched on
 
-- [x] Calculator: change heading font and colour, add more blue and green
-- [x] Calculator: insulation question options as clear labelled boxes
-- [x] Register form: name, mobile, email only; address prefilled from the calculator
-- Calculator heading font: apply the brand display font (Space Grotesk) + DM Sans body
-- Calculator: property question = full address with type-ahead autofill (not postcode); register band carries that address down
-- Calculator heading font: Space Grotesk rejected by Joannah - pick a new display font
-- Calculator: darken remaining light grey text (placeholders, hints, suffixes)
-- Calculator: "Register my interest" wording check + client-ready link (high demand - do not wait)
-- Calculator heading: Jo says something is wrong with it - inspect live preview and fix
-- Calculator: button wording "Demand is high - register your interest" (AP-safe: no rebate promise, no fake deadline)
-- Address search "playing up" - diagnose and fix (typed house number, stale/empty results, click selection)
-- Calculator address search: NEVER show a non-Victorian address (Canberra house appeared as VIC) — require an explicit Victorian state, no VIC default
+## Public calculator (client-facing)
+- [x] Heading font and colour changed; more blue and green
+- [x] Insulation question options as clear labelled boxes
+- [x] Register form: full name, mobile, email only; address carried down from the calculator
+- [x] Heading font: Space Grotesk and Syne both rejected — now Outfit 800, the portal's own heading font
+- [x] Property question = full address with type-ahead autofill (not postcode)
+- [x] Darkened remaining light grey text (placeholders, hints, suffixes, footer)
+- [x] Button wording "Demand is high — register your interest" (AP-safe: no rebate promise, no fake deadline)
+- [x] Address search returns Victorian properties only — no state guessing, so Canberra/NSW rows can never appear as VIC
+- [ ] Give clients the permanent link (published URL 404s and the preview needs sign-in until the site is published)
