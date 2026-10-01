@@ -8,6 +8,7 @@ import { INTEREST_INCLUDED } from "@/lib/interest.core";
 import { RegisterInterest } from "./register-interest";
 import { extractPostcode, suburbFromLine, type AddressSuggestion } from "@/lib/address.core";
 import { AddressCombobox } from "./address-combobox";
+import { Button } from "@/components/ui/button";
 
 /** The public site lives in Base44 — this page only ever points there. */
 const ENQUIRY_URL = "https://homeinsulationvictoria.com.au";
@@ -46,7 +47,7 @@ function Field({ id, icon: Icon, label, hint, children }: { id: string; icon: ty
   );
 }
 
-/** Kept in the question column so opening it never pushes the price out of view. */
+/** Supporting detail lives after the price, never between an answer and its result. */
 function WhatCouldChange() {
   return (
     <details className="group mt-2 overflow-hidden rounded-lg border border-estimate-line bg-estimate-white">
@@ -142,29 +143,29 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
   return (
     <div className="estimate-brand min-h-screen bg-gradient-to-b from-estimate-blush via-estimate-canvas to-estimate-canvas">
       <div className="mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-4 pb-24 sm:px-6 lg:pb-4">
-        <header className="flex flex-wrap items-center justify-between gap-3 py-2.5">
+        <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-2.5">
           <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-9 w-auto sm:h-10" />
-          <p className="rounded-full bg-workspace-blush px-3 py-1.5 text-xs font-extrabold uppercase tracking-wider text-task-eligibility-foreground">Free instant estimate · no obligation</p>
+          <p className="rounded-full bg-workspace-blush px-2 py-1 text-[0.6rem] font-extrabold uppercase text-task-eligibility-foreground sm:px-3 sm:text-xs">Free estimate · no obligation</p>
         </header>
 
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-extrabold leading-tight text-estimate-blue sm:text-[1.7rem]">What would ceiling insulation cost?</h1>
             <p className="mt-1 max-w-[780px] text-[0.82rem] leading-relaxed text-estimate-navy/85">
-              Three quick questions — your estimated price updates as you go, including the VEU discount your home is likely to qualify for.
+              Enter your address and ceiling size to see your estimate and potential VEU discount.
             </p>
           </div>
           {touched && (
-            <button type="button" onClick={startAgain} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-estimate-line bg-estimate-white px-2.5 text-[0.7rem] font-extrabold text-estimate-navy/85 hover:border-estimate-green/50 hover:text-estimate-blue">
+            <Button type="button" variant="outline" onClick={startAgain} className="min-h-8 gap-1.5 border-estimate-line bg-estimate-white px-2.5 text-[0.7rem] font-extrabold text-estimate-navy/85 hover:border-estimate-green/50 hover:text-estimate-blue">
               <RotateCcw aria-hidden="true" className="size-3.5" />
               Start again
-            </button>
+            </Button>
           )}
         </div>
 
-        <div className="estimate-offset mt-2 grid overflow-hidden rounded-2xl border border-estimate-line bg-estimate-white shadow-[0_18px_45px_-28px_rgba(34,55,107,0.45)] lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+        <div className="estimate-offset mt-3 grid overflow-hidden rounded-lg border border-estimate-line bg-estimate-white lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
           <div>
-            <Field id="calc-address" icon={MapPin} label="Where is the property?" hint="Start typing your street address and we'll autofill it. The price updates instantly.">
+            <Field id="calc-address" icon={MapPin} label="Where is the property?" hint="Start typing your Victorian address.">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="w-full sm:max-w-[380px]">
                   <AddressCombobox
@@ -197,15 +198,16 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                 {CALC_QUICK.map((q) => {
                   const on = raw === String(q);
                   return (
-                    <button
+                     <Button
                       key={q}
                       type="button"
+                       variant="outline"
                       aria-pressed={on}
                       onClick={() => setRaw(String(q))}
-                      className={`min-h-9 rounded-lg border px-3 text-xs font-extrabold transition ${on ? "border-estimate-green bg-estimate-mint text-estimate-navy" : "border-estimate-line bg-estimate-white text-estimate-navy/90 hover:border-estimate-green/50"}`}
+                       className={`min-h-9 rounded-lg px-3 text-xs font-extrabold ${on ? "border-estimate-green bg-estimate-mint text-estimate-navy" : "border-estimate-line bg-estimate-white text-estimate-navy/90 hover:border-estimate-green/50"}`}
                     >
                       {q} m²
-                    </button>
+                     </Button>
                   );
                 })}
                 <div className="relative w-full sm:w-[104px]">
@@ -227,7 +229,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
               </div>
               <p className="mt-2 flex items-start gap-2 rounded-lg border-l-2 border-workspace-blush-strong bg-workspace-blush/50 px-3 py-2 text-xs leading-relaxed text-estimate-navy/90">
                 <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-task-eligibility-foreground" />
-                <span>A typical Victorian home is around 150 m². The closer your number is to the real thing, the closer this price is to your final quote.</span>
+                 <span>Not sure? Try 150 m². A closer estimate of your ceiling size means a more accurate price.</span>
               </p>
               {raw.trim() !== "" && m2 == null && <p role="alert" className="mt-2 text-xs font-bold text-danger">Please enter an area between {CALC_MIN_M2} and {CALC_MAX_M2} m².</p>}
             </Field>
@@ -237,14 +239,15 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                 {INSULATION_OPTIONS.map((o) => {
                   const on = insulation === o.value;
                   return (
-                    <button
+                     <Button
                       key={String(o.value)}
                       type="button"
+                       variant="outline"
                       aria-pressed={on}
                       onClick={() => setInsulation(o.value)}
-                      className={`flex min-h-[3.75rem] flex-col items-start gap-0.5 rounded-xl border-2 px-3 py-2.5 text-left transition ${
+                       className={`flex h-auto min-h-[3.75rem] flex-col items-start gap-0.5 whitespace-normal rounded-lg border-2 px-3 py-2.5 text-left ${
                         on
-                          ? "border-estimate-green bg-estimate-mint shadow-[0_12px_24px_-20px_rgba(7,191,97,0.9)]"
+                           ? "border-estimate-green bg-estimate-mint"
                           : "border-estimate-line bg-estimate-white hover:border-estimate-blue/45 hover:bg-estimate-mist"
                       }`}
                     >
@@ -253,7 +256,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                         {on && <Check aria-hidden="true" className="size-4 shrink-0 text-estimate-green" strokeWidth={3} />}
                       </span>
                       <span className="text-[0.7rem] leading-snug text-estimate-navy/90">{INSULATION_HELP[String(o.value)]}</span>
-                    </button>
+                     </Button>
                   );
                 })}
               </div>
@@ -268,17 +271,13 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
               )}
             </Field>
 
-            <div className="px-5 pb-3">
-              <WhatIsIncluded />
-              <WhatCouldChange />
-            </div>
           </div>
 
           <div className="border-t border-estimate-line bg-estimate-mist px-5 py-4 lg:border-l lg:border-t-0">
             {!priced ? (
-              <div className="flex h-full min-h-[200px] flex-col justify-center">
+               <div className="flex h-full min-h-16 flex-col justify-center lg:min-h-[200px]">
                 <p className="text-sm leading-relaxed text-estimate-navy/85">
-                  <span className="font-extrabold text-estimate-navy">Your price will show here.</span> Answer the three questions and it appears instantly — change any answer and it updates on the spot.
+                   <span className="font-extrabold text-estimate-navy">Your price will show here.</span> Add a Victorian address and ceiling size to see it update.
                 </p>
               </div>
             ) : (
@@ -294,9 +293,9 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                       <dt className="text-estimate-navy/85">{row.label}</dt>
                       <dd className="flex items-center gap-2 font-extrabold text-estimate-navy">
                         {row.value}
-                        <button type="button" onClick={row.onChange} className="font-bold text-estimate-blue underline decoration-estimate-green/60 underline-offset-2 hover:text-estimate-green">
+                         <Button type="button" variant="link" onClick={row.onChange} className="h-auto p-0 text-xs font-bold text-estimate-blue underline decoration-estimate-green/60 underline-offset-2 hover:text-estimate-green">
                           Change
-                        </button>
+                         </Button>
                       </dd>
                     </div>
                   ))}
@@ -317,6 +316,11 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <WhatIsIncluded />
+          <WhatCouldChange />
         </div>
 
         <RegisterInterest
