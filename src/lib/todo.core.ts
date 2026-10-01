@@ -21,6 +21,7 @@ export type TodoInput = {
   installBookings?: { id: string; job_id: string; scheduled_start: string | null }[];
   piesaDeliveries?: { job_id: string; recipient: string }[];
   onboarding?: { id: string; signer_name: string | null; partner_type: string | null; updated_at: string | null }[];
+  pendingWorkers?: { id: string; full_legal_name: string; business: string | null; created_at: string | null }[];
   electricianJobs?: Set<string>;
   acceptedQuoteJobs?: Set<string>;
   now: number;
@@ -93,6 +94,8 @@ export function buildTodos(i: TodoInput): TodoItem[] {
     if (missing.length) push(b.job_id, { key: `piesa-copy:${b.id}`, category: "Compliance", title: "PIESA copy not delivered", action: `Send the signed PIESA to the ${missing.join(" and ")} and record delivery on the PIESA tab — it must be at least 24h before install.`, tab: "piesa", since: b.scheduled_start, urgent: hrs < 30 });
   }
   for (const o of i.onboarding ?? []) push(null, { key: `onb:${o.id}`, category: "Partners", title: `Review onboarding application${o.signer_name ? ` – ${o.signer_name}` : ""}`, action: `${o.partner_type ?? "Partner"} application submitted. Check licence, insurance and rates, then approve or decline on Partner applications.`, tab: null, since: o.updated_at, urgent: older(o.updated_at, 2, i.now) });
+
+  for (const w of i.pendingWorkers ?? []) push(null, { key: `worker:${w.id}`, category: "Partners", title: `Approve worker – ${w.full_legal_name}`, action: `${w.business ?? "A partner company"} added this worker. Check their licence, then approve or reject on Worker approvals.`, tab: null, since: w.created_at, urgent: older(w.created_at, 1, i.now) });
 
   return out.sort((a, b) => Number(b.urgent) - Number(a.urgent) || (a.since ?? "").localeCompare(b.since ?? ""));
 }

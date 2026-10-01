@@ -12,7 +12,7 @@ export const getTodos = createServerFn({ method: "GET" }).middleware([requireSup
       if (r.error) throw new Error(`Could not load ${what}: ${r.error.message}`);
       return (r.data ?? []) as T;
     };
-    const [jobs, invoices, invStatus, rect, meas, reas, penq, esc, books, pdel, onb, elecA, accQ] = await Promise.all([
+    const [jobs, invoices, invStatus, rect, meas, reas, penq, esc, books, pdel, onb, elecA, accQ, pw] = await Promise.all([
       admin.from("job_overview").select("id, job_number, property_address, stage, source, eligibility_review_required, eligibility_outcome").not("stage", "in", "(complete,cancelled)"),
       admin.from("invoices").select("id, job_id, xero_invoice_id, xero_invoice_number, deposit_request_raised_at, deposit_amount, status, last_sync_error, xero_update_pending, created_at"),
       admin.from("invoice_status").select("id, deposit_cleared, effective_status"),
@@ -26,6 +26,7 @@ export const getTodos = createServerFn({ method: "GET" }).middleware([requireSup
       admin.from("rec_onboarding_applications").select("id, signer_name, partner_type, updated_at").eq("status", "submitted"),
       admin.from("job_assignments").select("job_id").eq("role", "electrician").eq("active", true),
       admin.from("quotes").select("job_id").eq("kind", "installation").eq("status", "accepted"),
+      admin.from("partner_workers").select("id, full_legal_name, created_at, businesses(name)").eq("approval_status", "pending").is("removed_at", null),
     ]);
     const jobRows = ok(jobs, "jobs").filter((j) => j.source !== "qa_test");
     const cleared = new Map(ok(invStatus, "payment status").map((s) => [s.id, s]));
@@ -42,6 +43,7 @@ export const getTodos = createServerFn({ method: "GET" }).middleware([requireSup
       piesaDeliveries: ok(pdel, "PIESA deliveries"),
       onboarding: ok(onb, "onboarding applications"),
       electricianJobs: new Set(ok(elecA, "electrician assignments").map((r) => r.job_id)),
+      pendingWorkers: ok(pw, "pending workers").map((w) => ({ id: w.id, full_legal_name: w.full_legal_name, created_at: w.created_at, business: (w.businesses as { name: string } | null)?.name ?? null })),
       acceptedQuoteJobs: new Set(ok(accQ, "accepted quotes").map((r) => r.job_id)),
     });
     return { items, checkedAt: new Date().toISOString() };

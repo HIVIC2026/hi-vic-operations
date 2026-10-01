@@ -6,7 +6,7 @@ import { ClipboardList, HeartPulse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { getWorkerJobView, postWorkerMessage } from "@/lib/worker-links.functions";
-import logo from "@/assets/hiv-logo.png";
+import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 export const Route = createFileRoute("/w/$token")({
   ssr: false,
@@ -88,7 +88,7 @@ function WorkerJob() {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card px-4 py-3"><img src={logo} alt="Home Insulation Victoria" className="h-9" /></header>
+      <header className="border-b bg-card px-4 py-3"><img src={logo.url} alt="Home Insulation Victoria" className="h-9" /></header>
       <main className="mx-auto max-w-xl p-4">{children}</main>
     </div>
   );

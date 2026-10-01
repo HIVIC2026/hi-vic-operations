@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { PaymentBadge, Pill, SourceBadge, StageBadge, UrgencyBadge } from "@/components/portal/badges";
 import { AdminAssignmentPanel, AssignmentStatusInline } from "@/components/portal/assignment";
+import { WorkerLinksPanel } from "@/components/portal/workers";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, PaymentsPanel, QuotesPanel, Section, TimelinePanel, useJob } from "@/components/portal/panels";
 import { MittiCard, PriceItemForm } from "@/components/portal/mitti";
 import { RequirementCards } from "@/components/portal/requirements";
@@ -103,7 +104,7 @@ function JobDetail() {
         <TabsContent value="installation" className="space-y-4"><EscInstallPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /><SectionDocuments jobId={jobId} categories={["Installation"]} /></TabsContent>
         <TabsContent value="evidence" className="space-y-4"><EvidencePanel jobId={jobId} role="admin" /><SectionDocuments jobId={jobId} categories={["Evidence"]} /></TabsContent>
         <TabsContent value="veec" className="space-y-4"><ComplianceRecords jobId={jobId} /><Compliance jobId={jobId} /><Veec jobId={jobId} /><SectionDocuments jobId={jobId} categories={["ESC / VEEC"]} /></TabsContent>
-        <TabsContent value="messages" className="space-y-4"><MessagesPanel jobId={jobId} isAdmin /><Correspondence jobId={jobId} /></TabsContent>
+        <TabsContent value="messages" className="space-y-4"><WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin /><Correspondence jobId={jobId} /></TabsContent>
         <TabsContent value="history" className="space-y-4"><JobTimeline jobId={jobId} /><details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Raw workflow history</summary><div className="mt-3"><TimelinePanel jobId={jobId} /></div></details></TabsContent>
         <TabsContent value="documents" className="space-y-4"><AllDocuments jobId={jobId} /><ExportJobPack jobId={jobId} /></TabsContent>
       </Tabs>

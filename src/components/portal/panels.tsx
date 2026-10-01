@@ -171,7 +171,7 @@ export function MessagesPanel({ jobId, isAdmin, role }: { jobId: string; isAdmin
           return (
             <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${m.internal ? "bg-warning-soft" : mine ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                <div className={`text-[11px] ${mine && !m.internal ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{mine ? "You" : (m.profiles as { full_name: string | null } | null)?.full_name ?? "System"} · {fmtDateTime(m.created_at)}{m.internal && " · internal"}</div>
+                <div className={`text-[11px] ${mine && !m.internal ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{mine ? "You" : m.sender_label ?? (m.profiles as { full_name: string | null } | null)?.full_name ?? "System"} · {fmtDateTime(m.created_at)}{m.internal && " · internal"}</div>
                 <div className="whitespace-pre-wrap">{m.body}</div>
               </div>
             </div>
