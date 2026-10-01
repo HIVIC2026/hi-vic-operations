@@ -68,5 +68,6 @@
 - [x] Darkened remaining light grey text (placeholders, hints, suffixes, footer)
 - [x] Button wording "Demand is high — register your interest" (AP-safe: no rebate promise, no fake deadline)
 - [x] Address search returns Victorian properties only — no state guessing, so Canberra/NSW rows can never appear as VIC
-- [ ] Give clients the permanent link (published URL 404s and the preview needs sign-in until the site is published)
+- [x] Give clients the permanent link — live and public at https://hi-vic-operations.lovable.app/calculator (no sign-in)
+- [x] Portal menu "Customer calculator" was opening the old test page — now opens the new calculator
 - [x] Calculator: removal note ($10-$15/m² of area requiring removal, installer advises at Ready Check), demand-high badge + green register button, includes order Ready Check → PIESA → install → AP
