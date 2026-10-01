@@ -38,9 +38,11 @@ export type RecData = {
   works_under_rec?: boolean | null; host_rec_name?: string; host_rec_number?: string;
   legal_entity_name?: string; trading_name?: string; abn?: string; rec_registration_number?: string;
   business_address?: string; primary_contact_name?: string; business_phone?: string; business_email?: string; authorised_to_register?: boolean;
+  /** The applicant's own Victorian electrician licence — the person signing up IS the electrician. */
+  licence_number?: string;
   insurer?: string; insurance_policy_number?: string; public_liability_cover_amount?: number | null; public_liability_expiry?: string; insurance_uploaded?: boolean;
   electricians?: Electrician[];
-  service_rectification?: boolean; service_installation_isolation?: boolean;
+  service_piesa?: boolean; service_rectification?: boolean; service_installation_isolation?: boolean;
   service_origin?: string; travel_radius_km?: number | null; excluded_areas?: string;
   typical_days?: string[]; normal_attendance_speed?: string;
   capacity_band?: string; accepting_jobs?: boolean;
@@ -56,13 +58,27 @@ export function firstName(d: { primary_contact_name?: string }): string {
   return (d.primary_contact_name ?? "").trim().split(/\s+/)[0] || "";
 }
 
+/**
+ * The licensed electricians on this application. The person signing up IS the
+ * electrician, so when no explicit list exists we derive it from their own
+ * details. An explicit list (legacy applications) always wins.
+ */
+export function effectiveElectricians(d: RecData): Electrician[] {
+  if ((d.electricians ?? []).length > 0) return d.electricians!;
+  if (!txt(d.primary_contact_name) || !txt(d.licence_number)) return [];
+  return [{
+    full_legal_name: (d.primary_contact_name ?? "").trim(),
+    licence_number: (d.licence_number ?? "").trim().toUpperCase(),
+    mobile: (d.business_phone ?? "").trim(),
+    email: (d.business_email ?? "").trim().toLowerCase(),
+  }];
+}
+
 export const STEPS = [
   { key: "about", title: "About you" },
-  { key: "howitworks", title: "How we work together" },
   { key: "business", title: "Business details" },
   { key: "contact", title: "Contact details" },
   { key: "insurance", title: "Public liability insurance" },
-  { key: "electricians", title: "Licensed electricians" },
   { key: "services", title: "Home Insulation Victoria work" },
   { key: "coverage", title: "Where you work" },
   { key: "availability", title: "When you work" },
@@ -110,11 +126,9 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
   switch (step) {
     case "about":
       if (!txt(d.primary_contact_name)) e.push("Enter your name.");
+      if (!txt(d.licence_number)) e.push("Enter your Victorian electrician licence number.");
       if (!validPhone(d.business_phone)) e.push("Enter a valid Australian mobile.");
       if (!validBusinessEmail(d.business_email)) e.push("Enter a real email address.");
-      break;
-    case "howitworks":
-      if (d.how_it_works_acknowledged !== true) e.push("Confirm you've read how jobs work, the same-day rule and the payment terms.");
       break;
     case "business":
       if (d.works_under_rec == null) e.push("Tell us if you run your own REC business or work under another REC.");
@@ -142,19 +156,8 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (!(typeof d.public_liability_cover_amount === "number" && d.public_liability_cover_amount >= MIN_PL_COVER)) e.push("Public liability cover must be at least $5,000,000.");
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d.public_liability_expiry ?? "") || (d.public_liability_expiry as string) < melbourneToday(now)) e.push("Insurance expiry must be today or later.");
       break;
-    case "electricians": {
-      const list = d.electricians ?? [];
-      if (list.length < 1) e.push("Add at least one licensed electrician.");
-      list.forEach((x, i) => {
-        if (!txt(x.full_legal_name) || !txt(x.licence_number) || !validPhone(x.mobile) || !validBusinessEmail(x.email)) e.push(`Electrician ${i + 1}: complete name, licence number, a valid mobile and email.`);
-      });
-      const emails = list.map((x) => (x.email ?? "").trim().toLowerCase()).filter(Boolean);
-      const lic = list.map((x) => (x.licence_number ?? "").trim().toUpperCase()).filter(Boolean);
-      if (new Set(emails).size !== emails.length) e.push("Each electrician needs a different email.");
-      if (new Set(lic).size !== lic.length) e.push("Each electrician needs a different licence number.");
-      break;
-    }
     case "services":
+      if (d.service_piesa !== true && d.service_rectification !== true && d.service_installation_isolation !== true) e.push("Tick at least one type of work you'd like referrals for.");
       break;
     case "coverage":
       if (!txt(d.service_origin)) e.push("Enter your service starting location.");
@@ -170,7 +173,7 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
     case "assessment_pricing":
       if (d.works_under_rec === true) break; // rates agreed with the host REC
       if (typeof d.gst_registered !== "boolean") e.push("Tell us if you're GST registered.");
-      if (!pos(d.assessment_rate)) e.push("Enter your PIESA visit rate.");
+      if (d.service_piesa !== false && !pos(d.assessment_rate)) e.push("Enter your PIESA visit rate.");
       if (d.service_installation_isolation && !pos(d.installation_attendance_rate)) e.push("Enter your installation-day attendance rate.");
       break;
     case "rectification_pricing":
@@ -230,9 +233,9 @@ export function scheduleText(d: RecData): string {
       ? `Public liability: held by host REC (${d.host_rec_name ?? ""}, REC ${d.host_rec_number ?? ""})`
       : `Public liability: ${d.insurer ?? ""} policy ${d.insurance_policy_number ?? ""}, cover ${money(d.public_liability_cover_amount)}, expires ${d.public_liability_expiry ?? ""}`);
   lines.push("", "Nominated electricians:");
-  (d.electricians ?? []).forEach((x, i) => lines.push(`${i + 1}. ${x.full_legal_name} — licence ${x.licence_number}`));
+  effectiveElectricians(d).forEach((x, i) => lines.push(`${i + 1}. ${x.full_legal_name} — licence ${x.licence_number}`));
   lines.push("", "SCHEDULE 2 — SERVICES, COVERAGE AND CAPACITY");
-  lines.push("Pre-insulation electrical safety assessment (PIESA): included");
+  lines.push(`Pre-insulation electrical safety assessment (PIESA): ${d.service_piesa === false ? "no" : "yes"}`);
   lines.push(`Electrical rectification: ${d.service_rectification ? "yes" : "no"}`, `Installation-day electrical attendance: ${d.service_installation_isolation ? "yes" : "no"}`);
   lines.push(`Service origin: ${d.service_origin ?? ""}; radius: ${d.travel_radius_km === 9999 ? "anywhere in Victoria" : `${d.travel_radius_km} km`}${d.excluded_areas ? `; excluded: ${d.excluded_areas}` : ""}`);
   lines.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}; weekly assessments: ${d.capacity_band ?? ""}`);

@@ -10,7 +10,6 @@ import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
 } from "@/lib/rec-onboarding.functions";
 import { loadTeamInvite, respondTeamInvite } from "@/lib/teaming.functions";
-import { HowItWorksElectrician } from "@/components/portal/how-it-works";
 import { defaultAddressProvider } from "@/lib/address-provider";
 import type { AddressSuggestion } from "@/lib/whatif-location";
 
@@ -301,15 +300,9 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       return <>
         <div style={infoCard}>First things first — so we know who we're talking to. We'll use your name throughout.</div>
         <Field label="Your name" required><input style={input} autoFocus placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
+        <Field label="Your Victorian electrician licence number" required hint="Your personal ESV licence — you're the electrician, so this is you"><input style={input} {...t("licence_number", true)} /></Field>
         <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
         <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
-      </>;
-    case "howitworks":
-      return <>
-        <HowItWorksElectrician />
-        <div style={{ marginTop: 16 }}>
-          <Check checked={d.how_it_works_acknowledged === true} onChange={(v) => up({ how_it_works_acknowledged: v })}>I've read how jobs work, the same-day rule and the payment terms.</Check>
-        </div>
       </>;
     case "business":
       return <>
@@ -337,30 +330,13 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       </>;
     case "insurance":
       return <InsuranceStep d={d} up={up} token={token} setError={setError} />;
-    case "electricians": {
-      const list = d.electricians ?? [];
-      const set = (i: number, p: Partial<NonNullable<RecData["electricians"]>[number]>) => up({ electricians: list.map((x, j) => (j === i ? { ...x, ...p } : x)) });
-      return <>
-        <div style={infoCard}>You only need to add ONE electrician to continue. Add more only if they may attend Home Insulation Victoria jobs.</div>
-        {list.map((x, i) => (
-          <div key={i} style={{ border: "1px solid #E4E8F0", borderRadius: 14, padding: 14, marginBottom: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><strong>Electrician {i + 1}</strong>
-              <button type="button" onClick={() => up({ electricians: list.filter((_, j) => j !== i) })} style={{ border: "none", background: "none", color: "#B3261E", cursor: "pointer", fontWeight: 700 }}>Remove</button></div>
-            <Field label="Full legal name" required><input style={input} value={x.full_legal_name ?? ""} onChange={(e) => set(i, { full_legal_name: e.target.value })} /></Field>
-            <Field label="Victorian licence number" required><input style={input} value={x.licence_number ?? ""} onChange={(e) => set(i, { licence_number: e.target.value.toUpperCase() })} /></Field>
-            <Field label="Mobile" required><input style={input} type="tel" value={x.mobile ?? ""} onChange={(e) => set(i, { mobile: e.target.value })} /></Field>
-            <Field label="Email" required><input style={input} type="email" value={x.email ?? ""} onChange={(e) => set(i, { email: e.target.value })} /></Field>
-          </div>
-        ))}
-        <button type="button" style={btn(false)} onClick={() => up({ electricians: [...list, {}] })}>+ Add electrician</button>
-      </>;
-    }
     case "services":
       return <>
-        <div style={infoCard}><strong>Included for all electrical partners:</strong> Initial onsite assessment + ceiling measure-up + PIESA</div>
+        <div style={infoCard}><strong>I would like to receive referrals from Home Insulation Victoria for:</strong></div>
+        <Check checked={d.service_piesa === true} onChange={(v) => up({ service_piesa: v })}>PIESA — pre-insulation electrical safety assessment (includes the ceiling measure-up)</Check>
         <Check checked={d.service_rectification === true} onChange={(v) => up({ service_rectification: v })}>Electrical rectification work</Check>
-        <Check checked={d.service_installation_isolation === true} onChange={(v) => up({ service_installation_isolation: v })}>Installation-day electrical attendance</Check>
-        <p style={{ fontSize: 13, color: MUTED }}>Optional. Leave either service off if you don't want that type of work.</p>
+        <Check checked={d.service_installation_isolation === true} onChange={(v) => up({ service_installation_isolation: v })}>Install day attendance</Check>
+        <p style={{ fontSize: 13, color: MUTED }}>Tick every type of work you want us to send you. You'll only ever be offered the work you tick.</p>
       </>;
     case "coverage":
       return <>
@@ -389,6 +365,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       return <>
         <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
         <div style={infoCard}>{d.gst_registered === false ? "Not GST registered: enter your total rate." : "GST registered: enter rates including GST."} These are proposed supplier rates — Home Insulation Victoria reviews them before they apply.</div>
+        <div style={infoCard}><strong>Be competitive.</strong> We send steady volume to the electricians with the sharpest rates — the more competitive your pricing, the more jobs you'll win.</div>
         <Field label={`Pre-Insulation Electrical Safety Assessment (PIESA) visit (${unit})`} required hint="Formal electrical safety assessment and PIESA only. The installer completes the separate eligibility measure-up."><Money value={d.assessment_rate} onChange={(v) => up({ assessment_rate: v })} unit="visit" /></Field>
         {d.service_installation_isolation && <Field label={`Installation-day attendance (${unit})`} required><Money value={d.installation_attendance_rate} onChange={(v) => up({ installation_attendance_rate: v })} unit="visit" /></Field>}
       </>;
