@@ -32,10 +32,10 @@ What the worker never sees: ABN, insurance, bank details, pricing, the business 
 5. **Approval.** Office approves workers in the existing worker approvals list. Changing a licence after approval puts them back to waiting (already how it works).
 6. **Test mode.** `?test=1&reset=1` keeps working for both boss sign-ups, plus a test invite link for the worker form.
 
-## Things to confirm with you
+## Confirmed
 
-- Should the worker also tick the "customer belongs to Home Insulation Victoria, don't quote/invoice them separately" box? (Plan assumes yes.)
-- Is 14 days right for the invite link to expire?
+- Workers also tick the "customer belongs to Home Insulation Victoria, don't quote/invoice them separately" box.
+- Invite links expire after 14 days.
 
 ## Technical details
 
