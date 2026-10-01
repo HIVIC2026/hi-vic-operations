@@ -56,8 +56,8 @@ describe("autoAdvance", () => {
     const x = fake("assessment_booked", {}, { site: true });
     const r = await runAutoAdvance(x.deps);
     expect(r.to).toBe("assessment_booked");
-    expect(x.gens()).toBe(1);
-    expect(r.stoppedBecause).toContain("Owner must accept");
+    expect(x.gens()).toBe(0);
+    expect(r.stoppedBecause).toContain("Retired legacy stage");
   });
   test("missing rate-card config stops safely at ready_for_installer_quotes", async () => {
     const x = fake("ready_for_installer_quotes", {}, { gen: () => { throw new Error("No active installer rate card"); } });
