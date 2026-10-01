@@ -1,5 +1,6 @@
 import "./lib/error-capture";
 import { requestContext } from "./lib/background.server";
+import { customerEntryPoint } from "./lib/customer-entry.core";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage, renderReloadPage } from "./lib/error-page";
