@@ -21,7 +21,7 @@ Date: 1 October 2026
 - Standard rectification inputs map to the exact quoting codes; custom Schedule 3 items persist with a normalised calculation unit and their own display unit.
 - Electrical quote generation requires the assigned REC business's active rate card and cannot fall back to another business.
 - Approved custom items are available on the actual `/w/$token` electrician job path, require an approved active staff/job link, and lock once the quote is issued for owner approval.
-- Agreement version `HI-VIC-A48-REC-2.0-2026-10-01` retains 27 clauses and electrical measurements; it covers personal access, portal-only communication, safety/legal exceptions, mandatory rectification, no owner quotes/invoices/payments, no-poaching, mutually accepted rate revisions and the 48-hour replacement outcome without cancelling the job.
+- Agreement version `HI-VIC-A48-REC-2.1-2026-10-01` retains 27 coherent REC clauses and electrical measurements, incorporates all 19 sections of the supplied Business Partner and Installer Terms and Conditions vF.0, and is mapped clause-by-clause in `rec-agreement-source-reconciliation.md`. It covers REC-only $10m product/public liability, personal access, portal-only communication, safety/legal exceptions, mandatory rectification, no owner quotes/invoices/payments, no-poaching, mutually accepted rate revisions and the 48-hour replacement outcome without cancelling the job.
 - The separate regulatory 24-hour PIESA/notification controls remain unchanged.
 
 ## Verification
