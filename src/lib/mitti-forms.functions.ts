@@ -18,6 +18,11 @@ export const connectMittiForm = createServerFn({ method: "POST" }).middleware([r
   .inputValidator((d) => z.object({ key: z.enum(["ready_check", "ready_check_priced", "piesa", "piisa"]), templateId: z.string().trim().regex(/^template_[a-f0-9]{32}$/, "Mitti form IDs look like template_ followed by 32 letters/numbers.") }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
+    if (data.key === "piesa" || data.key === "piisa") {
+      const { officialFormUseBlocker } = await import("./official-forms.core");
+      const blocked = officialFormUseBlocker(data.key);
+      if (blocked) return { ok: false, issues: [blocked] };
+    }
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { realMittiCall } = await import("./mitti.server");
     const { mittiApi } = await import("./mitti.core");

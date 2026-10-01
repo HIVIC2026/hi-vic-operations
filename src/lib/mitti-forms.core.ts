@@ -150,7 +150,7 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
     if (hits.some((h) => !TYPE_ALIASES[f.type].includes(String(h.type).toLowerCase()))) issues.push(`Wrong type: ${f.label} (expected ${f.type})`);
   }
   // Role guard: installer forms must never contain PIESA conclusions.
-  if (FORMS[key].role === "installer" && [...byLabel.keys()].some((l) => l.includes("b1 assessment outcome") || l.includes("certificate of electrical safety"))) {
+  if (FORMS[key].role === "installer" && [...byLabel.keys()].some((l) => l.includes("b1 assessment outcome") || l.includes("check one option only") || l.includes("certificate of electrical safety"))) {
     issues.push("Installer form must not contain PIESA outcome or CoES fields.");
   }
   return { ok: issues.length === 0, issues };
