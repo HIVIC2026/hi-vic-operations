@@ -16,7 +16,9 @@ export const Route = createFileRoute("/_authenticated/partner/workers")({
 
 function Workers() {
   const load = useServerFn(listMyWorkers);
-  const { data, refetch } = useQuery({ queryKey: ["my-workers"], queryFn: () => load() });
+  const sample = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("sample") === "1";
+  const sampleData = { business: { id: "00000000-0000-0000-0000-000000000000", name: "Sample Electrical", trading_name: "Sample Electrical" }, canManage: true, workers: [] };
+  const { data, refetch } = useQuery({ queryKey: ["my-workers"], queryFn: () => load(), enabled: !sample, ...(sample ? { initialData: sampleData } : {}) });
   const [editing, setEditing] = useState<string | "new" | null>(null);
   if (data === undefined) return <AppShell><div className="rounded-lg border bg-card p-6"><p className="font-display text-xl font-bold">Loading your staff records…</p><p className="mt-2 text-sm text-muted-foreground">Checking your business link and invitations.</p></div></AppShell>;
   if (data === null) return <AppShell><div className="rounded-lg border bg-card p-6"><h1 className="font-display text-2xl font-bold">Business access is not linked yet</h1><p className="mt-2 text-sm leading-relaxed text-muted-foreground">The office must link your approved REC business to your portal account before you can create staff invitations. Contact Home Insulation Victoria if your business has already been approved.</p></div></AppShell>;

@@ -172,13 +172,6 @@ function RecOnboarding() {
   const errs = stepErrors(step, d);
   const up = (patch: Partial<RecData>) => setD((x) => ({ ...x, ...patch }));
 
-  async function begin() {
-    setBusy(true); setError(null);
-    try {
-      const { token: t } = await startRecOnboarding({ data: { test: testMode } });
-      localStorage.setItem(TOKEN_KEY, t); setToken(t); setStarted(true);
-    } catch (e) { setError(e instanceof Error ? e.message : "Could not start."); } finally { setBusy(false); }
-  }
   async function beginBusiness() {
     setBusy(true); setError(null);
     try {
