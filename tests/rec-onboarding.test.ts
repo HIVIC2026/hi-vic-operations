@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { validAbn, validPhone, validBusinessEmail, stepErrors, firstIncompleteStep, applyMaterialReset, agreementText, visibleSteps, ACKNOWLEDGEMENTS, type RecData } from "../src/lib/rec-onboarding.core";
 
 const full: RecData = {
+  how_it_works_acknowledged: true, works_under_rec: false,
   legal_entity_name: "Spark Pty Ltd", abn: "51824753556", rec_registration_number: "REC 12345",
   business_address: "1 Main St, Melton VIC", primary_contact_name: "Sam", business_phone: "0412345678", business_email: "sam@spark.com.au", authorised_to_register: true,
   insurance_uploaded: true, insurer: "QBE", insurance_policy_number: "P1", public_liability_cover_amount: 10_000_000, public_liability_expiry: "2099-01-01",
