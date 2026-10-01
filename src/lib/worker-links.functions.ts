@@ -44,7 +44,8 @@ export const saveWorker = createServerFn({ method: "POST" }).middleware([require
     if (!office) await requireMember(context.userId, data.business_id, true);
     if (data.trade_role === "electrician" && !data.licence_number) throw new Error("Add the electrician's licence number.");
     if (data.trade_role === "installer" && !data.qualification) throw new Error("Add the installer's qualification (e.g. Cert III or 'Experienced installer').");
-    const { id, ...fields } = data;
+    const { id, ...rest } = data;
+    const fields = { ...rest, licence_number: rest.licence_number ?? null, qualification: rest.qualification ?? null };
     if (id) {
       const { data: before, error } = await admin.from("partner_workers").select("*").eq("id", id).eq("business_id", data.business_id).maybeSingle();
       if (error || !before) throw new Error("Worker not found.");
