@@ -177,3 +177,36 @@ test("reads the suburb back out of a full address line", () => {
   expect(suburbFromLine("34 Watsons Road, Bundoora 3757")).toBe("Bundoora");
   expect(suburbFromLine("34 Watsons Road")).toBe("");
 });
+
+test("drops a Canberra address that matches the street", () => {
+  const found = parseNominatimSuggestions(
+    [
+      row({
+        state: "Australian Capital Territory",
+        country: "Australia",
+        countrycode: "au",
+        road: "London Circuit",
+        suburb: "Acton",
+        postcode: "2601",
+      }),
+    ],
+    "12 london circuit acton",
+  );
+  expect(found).toEqual([]);
+});
+
+test("drops a row that does not name its state instead of guessing VIC", () => {
+  const found = parseNominatimSuggestions(
+    [row({ road: "London Circuit", suburb: "Acton", postcode: "2601" })],
+    "london circuit",
+  );
+  expect(found).toEqual([]);
+});
+
+test("drops a New South Wales address", () => {
+  const found = parseNominatimSuggestions(
+    [row({ state: "New South Wales", road: "George Street", suburb: "Parramatta", postcode: "2150" })],
+    "100 george street parramatta",
+  );
+  expect(found).toEqual([]);
+});
