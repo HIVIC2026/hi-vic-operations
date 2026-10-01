@@ -142,7 +142,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
 
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas">
-      <div className="mx-auto w-full max-w-[1080px] px-4 pb-24 pt-3 sm:px-6 lg:pb-8">
+      <div className="mx-auto w-full max-w-[1080px] px-4 pb-8 pt-3 sm:px-6">
         <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 pb-4">
           <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-9 w-auto sm:h-10" />
           <p className="rounded-full bg-estimate-blush px-3 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-wide text-estimate-navy sm:text-[0.7rem]">Free estimate · no obligation</p>
@@ -339,15 +339,6 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
           </div>
         </footer>
 
-        {priced && (
-          <div className="fixed inset-x-0 bottom-0 z-20 border-t border-estimate-line bg-estimate-white/95 px-5 py-3 backdrop-blur lg:hidden">
-            <div className="mx-auto flex max-w-[560px] items-baseline justify-between gap-3">
-              <span className="text-[0.7rem] font-extrabold uppercase tracking-wider text-estimate-navy/85">Estimated cost</span>
-              <span className="hidden text-[0.65rem] text-estimate-navy/80 sm:inline">Includes GST · not a quote</span>
-              <span className="text-2xl font-extrabold leading-none text-estimate-blue">{dollars(standard.estimated_customer_total)}</span>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
