@@ -241,7 +241,7 @@ function RecOnboarding() {
         <p style={{ fontSize: 15, lineHeight: 1.6, color: MUTED }}>We're really pleased to have you here and can't wait to work with you. Home Insulation Victoria keeps jobs, communication and assessments simple — all in one place.</p>
         <div style={{ fontWeight: 700, margin: "18px 0 10px", fontFamily: DISPLAY }}>Have these handy</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 22 }}>
-          {["REC + ABN details", "Public liability insurance (Certificate of Currency)", "Electrician details + licence numbers", "Your proposed rates"].map((t, i) => (
+          {["REC + ABN details (only if you run your own REC)", "Public liability insurance (only for your own REC)", "Electrician details + licence numbers", "Your proposed rates"].map((t, i) => (
             <div key={t} style={{ background: ACCENTS[i % 4]!.bg, color: ACCENTS[i % 4]!.fg, borderRadius: 14, padding: "12px 14px", fontSize: 14, fontWeight: 600 }}><span style={{ fontWeight: 800 }}>✓ </span>{t}</div>
           ))}
         </div>
