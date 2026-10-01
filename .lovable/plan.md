@@ -85,7 +85,7 @@ We fix this one form first, get your sign-off, then move to the next. The old A1
 - If anything is marked "Not sure", it raises a To action item.
 
 ## Decisions for you
-1. Per room: one "Area (m2)" number, or length × width with the portal working out the m2?
+1. Decided: length × width for each area, with the portal working out the m2, plus a required area diagram.
 2. Does a hazard in one room get its own photo, or is one description enough?
 3. Should "Not sure" on remove or top up be allowed, or must the installer decide onsite?
 
