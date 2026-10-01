@@ -5,7 +5,7 @@ import { electricianStepErrors, type ElectricianChoice, type PreferredElectricia
 import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, DAYS, LEAD_TIMES, RADII } from "./rec-onboarding.core";
 
 export { DAYS, LEAD_TIMES, RADII, validAbn };
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.5-2026-10-01";
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.6-2026-10-01";
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
