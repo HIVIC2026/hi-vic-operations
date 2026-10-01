@@ -261,7 +261,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
         </p>
 
         {priced && (
-          <div className="fixed inset-x-0 bottom-0 z-20 border-t border-estimate-line bg-estimate-white/95 px-4 py-3 backdrop-blur lg:hidden">
+          <div className="fixed inset-x-0 bottom-0 z-20 border-t border-estimate-line bg-estimate-white/95 px-5 py-3 backdrop-blur lg:hidden">
             <div className="mx-auto flex max-w-[420px] items-baseline justify-between gap-3">
               <span className="text-[0.7rem] font-extrabold uppercase tracking-wider text-estimate-navy/65">Estimated cost after discount</span>
               <span className="text-2xl font-extrabold leading-none text-estimate-blue">{dollars(standard.estimated_customer_total)}</span>
