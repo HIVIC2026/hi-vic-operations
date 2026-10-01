@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { getInstallerLedInvoice, setApFeeOverride } from "@/lib/installer-invoice.functions";
+import { AP_FEE_LOCKED_MESSAGE, apFeeEditorView } from "@/lib/ap-fee.core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,7 +64,9 @@ export function InstallerLedInvoicePanel({ jobId }: { jobId: string }) {
           AP fee: <strong>{money(d.apFee)}</strong>{" "}
           {d.override ? <span className="text-muted-foreground">(changed for this job — standard {money(d.standardApFee)}; reason: {d.override.reason})</span> : <span className="text-muted-foreground">(standard)</span>}
         </p>
-        {d.canChangeApFee ? (
+        {apFeeEditorView({ canChange: d.canChangeApFee, locked: d.apFeeLocked }) === "locked" ? (
+          <p className="text-sm font-medium">{AP_FEE_LOCKED_MESSAGE}</p>
+        ) : d.canChangeApFee ? (
           <>
             <div className="grid gap-2 sm:grid-cols-[140px_1fr]">
               <div><Label htmlFor="apfee">New AP fee</Label><Input id="apfee" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" /></div>
