@@ -269,8 +269,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
               </div>
               {insulation !== null && insulation !== "none" && (
                 <p className="rounded-xl bg-estimate-blush px-3.5 py-2.5 text-xs leading-relaxed text-estimate-navy/90">
-                  <strong className="text-estimate-navy">Your existing insulation may be able to stay.</strong> Your installer will check it and advise you at your free Ready Check. If removal is required, budget an extra{" "}
-                  <strong className="text-estimate-blue">$10–$15 per m² of the area requiring removal</strong>, depending on the insulation type.
+                  <strong className="text-estimate-navy">Your existing insulation may be able to stay.</strong> Your installer will check it at your free Ready Check and confirm whether any removal is needed. Removal is not included in this estimate and will be priced only if required.
                 </p>
               )}
             </Question>

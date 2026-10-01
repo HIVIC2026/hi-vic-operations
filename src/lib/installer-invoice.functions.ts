@@ -48,6 +48,10 @@ export const setApFeeOverride = createServerFn({ method: "POST" }).middleware([r
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { logEvent } = await import("./workflow.server");
+    const { data: acceptedQuote, error: quoteError } = await admin.from("quotes")
+      .select("id").eq("job_id", data.jobId).eq("kind", "installation").eq("status", "accepted").limit(1).maybeSingle();
+    if (quoteError) throw new Error("The accepted quote could not be checked. Please try again.");
+    if (acceptedQuote) throw new Error("The Accredited Person fee is locked because the owner has accepted the quote.");
     const amount = data.amount == null ? null : Math.round(data.amount * 100) / 100;
     const { error } = await admin.from("jobs").update({
       ap_fee_override_inc_gst: amount, ap_fee_override_reason: amount == null ? null : data.reason,

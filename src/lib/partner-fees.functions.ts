@@ -1,5 +1,5 @@
 // Office-configurable partner lead fee (inc GST). Charged only on Home Insulation Victoria-sourced leads,
-// deducted from the installer payout when the owner accepts. Read publicly (onboarding shows it); edited by admins only.
+// deducted from the installer payout after installation and paperwork approval. Read publicly; edited by staff only.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
