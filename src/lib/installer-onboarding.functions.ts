@@ -46,6 +46,7 @@ const dataSchema = z.object({
   extra_rates: z.record(z.string().max(40), n).optional(),
   bank_account_name: s(200), bank_bsb: s(7), bank_account_number: s(10),
   agreement_reviewed: z.boolean().optional(),
+  how_it_works_acknowledged: z.boolean().optional(),
   electrician_choice: z.enum(["have", "match", "later"]).nullable().optional(),
   preferred_electricians: z.array(z.object({ name: s(200), email: s(320), mobile: s(30), business_name: s(200), licence_number: s(50), rec_number: s(50), is_primary: z.boolean().optional() })).max(5).optional(),
   electrician_contact_consent: z.boolean().optional(),
