@@ -80,8 +80,6 @@ export async function piisaPanel(jobId: string, today: string): Promise<PiisaPan
     piesaReceivedAt = data?.delivered_at ?? null;
   }
   // Conductivity is portal evidence outside the official form: explicit answer + file, never inferred from a blank.
-  const supp = (pi.copy?.snapshot ? null : null) as null;
-  void supp;
   const { data: row } = pi.copy ? await db().from("official_form_signed_copies").select("answers").eq("id", pi.copy.id).single() : { data: null };
   const ans = (row?.answers ?? {}) as Record<string, unknown>;
   const c = String(ans["supp.conductive"] ?? "");
