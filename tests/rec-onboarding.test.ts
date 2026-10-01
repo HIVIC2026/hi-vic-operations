@@ -25,8 +25,12 @@ describe("rec onboarding", () => {
     expect(stepErrors("business", under)).toEqual([]);
     expect(visibleSteps(under).some((s) => s.key === "insurance")).toBe(false);
     expect(visibleSteps(under).some((s) => s.key === "bank")).toBe(false);
+    expect(visibleSteps(under).some((s) => s.key === "assessment_pricing")).toBe(false);
+    expect(visibleSteps(under).some((s) => s.key === "rectification_pricing")).toBe(false);
     expect(stepErrors("insurance", { ...under, insurance_uploaded: false, insurer: undefined })).toEqual([]);
     expect(stepErrors("bank", { ...under, bank_account_name: undefined })).toEqual([]);
+    expect(stepErrors("assessment_pricing", { ...under, assessment_rate: undefined })).toEqual([]);
+    expect(stepErrors("rectification_pricing", { ...under, service_rectification: true })).toEqual([]);
     expect(firstIncompleteStep(under)).toBeNull();
     expect(stepErrors("business", { ...under, host_rec_name: undefined })).toContain("Enter the REC business you work under.");
     expect(stepErrors("business", { works_under_rec: null })).toContain("Tell us if you run your own REC business or work under another REC.");

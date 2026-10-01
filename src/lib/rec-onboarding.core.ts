@@ -168,11 +168,13 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (!CAPACITY_BANDS.some((b) => b.v === d.capacity_band)) e.push("Choose your weekly capacity.");
       break;
     case "assessment_pricing":
+      if (d.works_under_rec === true) break; // rates agreed with the host REC
       if (typeof d.gst_registered !== "boolean") e.push("Tell us if you're GST registered.");
       if (!pos(d.assessment_rate)) e.push("Enter your PIESA visit rate.");
       if (d.service_installation_isolation && !pos(d.installation_attendance_rate)) e.push("Enter your installation-day attendance rate.");
       break;
     case "rectification_pricing":
+      if (d.works_under_rec === true) break; // rates agreed with the host REC
       if (!d.service_rectification) break;
       for (const it of RECT_ITEMS) if (!pos(d.rectification_rates?.[it.key] ?? null)) e.push(`Enter a rate for ${it.label}.`);
       if (d.coes_fee_choice !== "included" && d.coes_fee_choice !== "separate") e.push("Choose how the Certificate of Electrical Safety is charged.");
