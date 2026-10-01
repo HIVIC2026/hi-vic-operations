@@ -221,7 +221,7 @@ function InstallerOnboarding() {
       <div style={{ width: 56, height: 56, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 28, lineHeight: "56px", margin: "0 auto 16px" }}>✓</div>
       <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — we've got everything.</h1>
       <p style={{ color: MUTED, lineHeight: 1.6 }}>Your application and signed agreement are now with the Home Insulation Victoria team. We'll review your details, check your CII training / certification, installers and insurance, and be in touch if we need anything else.</p>
-      <p style={{ color: MUTED, lineHeight: 1.6 }}>Once you're approved and your rates are agreed, you'll start receiving job offers through the portal. We'll also reach out then to collect your payment details.</p>
+      <p style={{ color: MUTED, lineHeight: 1.6 }}>Once you're approved and your rates are agreed, you'll start receiving job offers through the portal. Your payment details are already on file — you're paid once each owner's invoice is paid in full.</p>
       <div style={{ ...infoCard, textAlign: "left", marginTop: 8 }}><strong>What happens next:</strong> review and verification → rates confirmed → welcome aboard. Keep an eye on {d.business_email || "your email"} — that's where we'll contact you.</div>
       <p style={{ color: MUTED, fontSize: 13 }}>Agreement version {INSTALLER_AGREEMENT_VERSION} · A copy of everything you've submitted is kept on your file.</p>
     </div>,
@@ -360,7 +360,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
     }
     case "capacity":
       return <>
-        <Field label="Weekly installations" required><Choice options={CAPACITY_BANDS.map((b) => ({ v: b.v as string, l: b.v }))} value={d.capacity_band} onChange={(v) => up({ capacity_band: v })} /></Field>
+        <Field label="Weekly installations" required><Choice options={CAPACITY_BANDS.map((b) => ({ v: b.v as string, l: `${b.v} a week` }))} value={d.capacity_band} onChange={(v) => up({ capacity_band: v })} /></Field>
         <Check checked={d.accepting_jobs === true} onChange={(v) => up({ accepting_jobs: v })}>Accepting new Home Insulation Victoria work now</Check>
       </>;
     case "install_pricing": {
