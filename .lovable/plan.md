@@ -52,7 +52,14 @@ We fix this one form first, get your sign-off, then move to the next. The old A1
                                            Scaled from floor plan / Other     MANDATORY
    - Explain the method                    text                MANDATORY only if Floor plan or Other
    - Upgrade area diagram or floor plan    photo/upload        MANDATORY
-     (a sketch showing each area with its length and width; required evidence for the regulator)
+     (required evidence for the regulator: a simple sketch showing each area with its length and width)
+     Make it easy, pick whichever suits:
+       * Photograph a quick pen-and-paper sketch, any rough drawing is fine
+       * Mark up a photo of the house plans
+       * Upload a floor plan if they already have one
+     The form shows one example sketch so they can copy the idea, and help text:
+     "Rough is fine. Draw the house shape, split it into the areas you measured, write the
+     length and width on each, take a photo, done."
    The portal saves a measurement record for each job: method, who measured it, date/time,
    dimensions for each area, calculated m2 and the diagram.
    - Was the ceiling or roof built or replaced in the last 5 years?  Yes / No / Not sure  MANDATORY
