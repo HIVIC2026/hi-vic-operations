@@ -98,7 +98,7 @@ export function HowItWorksElectrician() {
       <Panel accent={GREENA} title="One app, every job">
         <p style={{ margin: 0 }}>{APP_PITCH}</p>
       </Panel>
-      <StepsCard title={ELECTRICIAN_JOB_FLOW.title} tagline={ELECTRICIAN_JOB_FLOW.tagline} steps={ELECTRICIAN_JOB_FLOW.steps} footer={ELECTRICIAN_JOB_FLOW.footer} tone="blue" />
+      <div style={{ marginBottom: 14 }}><OptionCard accent={BLUEA} {...ELECTRICIAN_JOB_FLOW} /></div>
       <Panel accent={YELLOW} title={ELECTRICIAN_SAME_DAY.title}>
         <ul style={{ margin: 0, paddingLeft: 20 }}>{ELECTRICIAN_SAME_DAY.points.map((p) => <li key={p}>{p}</li>)}</ul>
       </Panel>
