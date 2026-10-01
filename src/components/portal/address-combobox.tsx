@@ -26,6 +26,8 @@ type Props = {
   onPick: (suggestion: AddressSuggestion) => void;
   placeholder?: string;
   className?: string;
+  /** "dark" renders the input and status note legibly on the navy register panel. */
+  tone?: "light" | "dark";
   ariaLabel?: string;
 };
 
