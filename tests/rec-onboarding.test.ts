@@ -59,9 +59,9 @@ describe("rec onboarding", () => {
   test("PIESA rate not required when PIESA referrals declined", () => {
     expect(stepErrors("assessment_pricing", { ...full, service_piesa: false, service_installation_isolation: true, installation_attendance_rate: 150, assessment_rate: undefined })).toEqual([]);
   });
-  test("rectification step only when opted in, and requires all rates", () => {
-    expect(visibleSteps(full).some((s) => s.key === "rectification_pricing")).toBe(false);
-    expect(firstIncompleteStep({ ...full, service_rectification: true })).toBe("rectification_pricing");
+  test("rectification pricing step is always shown and requires all rates", () => {
+    expect(visibleSteps(full).some((s) => s.key === "rectification_pricing")).toBe(true);
+    expect(firstIncompleteStep({ ...full, rectification_rates: undefined })).toBe("rectification_pricing");
   });
   test("material change resets review", () => {
     expect(applyMaterialReset(full, { ...full, assessment_rate: 350 }).agreement_reviewed).toBe(false);
