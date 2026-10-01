@@ -29,7 +29,7 @@ Activation creates the approved business and worker records, but it does not aut
 
 ## Verification
 
-- Focused test results are refreshed below after the final regression pass.
+- Focused tests: **33 passed, 0 failed, 111 expectations** across REC onboarding, activation, partner access, worker invitations, sample-cache isolation and worker job links.
 - Type check: **passed**.
 - Production build: **passed**.
 - Browser review: true **390px** and **640px** viewports for welcome/role choice, representative details, insurance, services and rates, review/sign, submitted receipt, staff invitation, staff join and staff receipt.
