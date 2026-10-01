@@ -48,6 +48,16 @@ describe("customer outcome email renderers", () => {
     expect(renderEstimateEmail({ ...common, firstName: "<b>x</b>" }).html).toContain("&lt;b&gt;x&lt;/b&gt;");
   });
 
+  test("likely eligible AP count is conditional (business-supplied figure)", () => {
+    const withCount = renderEstimateEmail({ ...common, outcome: "likely", apCount: 2 });
+    expect(withCount.html).toContain("One of only 2 Accredited Persons currently approved for VEU ceiling insulation in Victoria.");
+    expect(withCount.plainText).toContain("One of only 2 Accredited Persons currently approved for VEU ceiling insulation in Victoria.");
+    const without = renderEstimateEmail({ ...common, outcome: "likely" });
+    expect(without.html).not.toMatch(/One of only/i);
+    expect(without.plainText).not.toMatch(/One of only/i);
+    expect(without.html).toContain("Our Accredited Person (AP) accreditation gives eligible customers access to VEU ceiling insulation rebates");
+  });
+
   test("onsite confirmation remains positive and renders dynamic reasons", () => {
     const email = renderEstimateEmail({ ...detailed, outcome: "onsite", reasons: ["existing_insulation_unknown", "Existing insulation needs confirmation.", "roof_access_review", "eligible_ceiling_area_unverified"] });
     for (const copy of ["IT'S LOOKING GOOD SO FAR.", "WE JUST NEED TO CHECK", "Existing insulation — confirm what is currently installed and whether removal is required.", "Ceiling access — confirm access conditions and whether any access adjustment applies.", "Ceiling area — confirm the measured eligible ceiling area.", "$1,325", "$3,747", CUSTOMER_QUOTE_LABELS.piesa, "Accredited Person Management", "CHANGE →", "WANT TO CHECK THE NUMBERS FIRST?", "OPEN THE INTERACTIVE CALCULATOR →", "NEXT STEP", "BOOK YOUR HOME INSULATION READY CHECK", "BOOK MY READY CHECK →", "See exactly what’s included on the next page."]) expect(email.html).toContain(copy);
