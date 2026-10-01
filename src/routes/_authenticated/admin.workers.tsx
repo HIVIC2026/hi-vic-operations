@@ -36,7 +36,7 @@ function Row({ w, onDone }: { w: { id: string; full_legal_name: string; trade_ro
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const act = async (approve: boolean) => {
-    try { await decide({ data: { id: w.id, approve, reason: approve ? null : reason } }); toast.success(approve ? "Worker approved" : "Worker rejected"); onDone(); } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
+    try { await decide({ data: { id: w.id, approve, reason: approve ? null : reason } }); toast.success(approve ? "Staff member approved" : "Staff member rejected"); onDone(); } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
   };
   return (
     <li className="rounded-xl border bg-card p-3 text-sm">
