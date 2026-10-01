@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 
 const activation = readFileSync("src/lib/partner-activation.functions.ts", "utf8");
+const activationCore = readFileSync("src/lib/partner-activation.core.ts", "utf8");
 const access = readFileSync("src/lib/pilot.functions.ts", "utf8");
 const team = readFileSync("src/components/portal/business.tsx", "utf8");
 const migration = readFileSync("drizzle/migrations/0052_partner_worker_profiles.sql", "utf8");
@@ -10,7 +11,7 @@ describe("partner worker access", () => {
   test("activation creates one business-linked record for every nominated worker", () => {
     expect(activation).toContain('admin.from("partner_workers").upsert(workers');
     expect(activation).toContain("activationWorkers(type, application");
-    expect(activation).toContain("(application as InstData).installers");
+    expect(activationCore).toContain("(application as InstData).installers");
   });
 
   test("trade access must match the approved onboarding email and role", () => {
