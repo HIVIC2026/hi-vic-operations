@@ -239,7 +239,7 @@ function InstallerOnboarding() {
   return shell(
     <div style={card}>
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
-      {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Nice one, {firstName(d)} — {steps[idx]?.title?.toLowerCase()} next.</div>}
+      {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Nice one, {firstName(d)} — next up: {steps[idx]?.title?.toLowerCase()}.</div>}
       {!firstName(d) && <div style={{ marginBottom: 12 }} />}
       <StepBody step={step} d={d} up={up} token={token!} setError={setError} />
       {step === "sign" && <SignStep d={d} token={token!} onSigned={() => setStatus("submitted")} />}
@@ -311,7 +311,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       const set = (i: number, p: Partial<NonNullable<RecData["preferred_electricians"]>[number]>) => up({ preferred_electricians: list.map((x, j) => (j === i ? { ...x, ...p } : p.is_primary ? { ...x, is_primary: false } : x)) });
       return <>
         <Field label="Do you have a preferred electrician, or one who works with or under you?" required>
-          <Choice options={[{ v: "have", l: "Yes – add them" }, { v: "match", l: "No – match me with an Home Insulation Victoria electrician" }, { v: "later", l: "Not sure yet" }]} value={d.electrician_choice ?? null}
+          <Choice options={[{ v: "have", l: "Yes – add them" }, { v: "match", l: "No – match me with a Home Insulation Victoria electrician" }, { v: "later", l: "Not sure yet" }]} value={d.electrician_choice ?? null}
             onChange={(v) => up({ electrician_choice: v as "have" | "match" | "later", preferred_electricians: v === "have" && list.length === 0 ? [{ is_primary: true }] : list })} />
         </Field>
         {d.electrician_choice === "have" && <>
