@@ -87,7 +87,7 @@ function TodoPage() {
               </div>
               <div className="mt-4 flex justify-start border-t pt-3">
                 {t.key.startsWith("worker:") ? (
-                  <Button asChild size="sm" variant="outline"><Link to="/admin/workers">Open worker approvals</Link></Button>
+                  <Button asChild size="sm" variant="outline"><Link to="/admin/workers">Open staff approvals</Link></Button>
                 ) : t.jobId ? (
                   <Button asChild size="sm"><Link to="/admin/jobs/$jobId" params={{ jobId: t.jobId }}>Open job</Link></Button>
                 ) : (

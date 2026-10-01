@@ -17,12 +17,13 @@ async function activePricing() {
   return data;
 }
 
-async function activeRateCard(kind: "installer" | "electrical", businessId?: string | null) {
+async function activeRateCard(kind: "installer" | "electrical", businessId?: string | null, allowFallback = true) {
   let q = admin.from("rate_cards").select("*, rate_card_items(*)").eq("kind", kind).eq("is_active", true);
   if (businessId) q = q.eq("business_id", businessId);
   const { data } = await q.order("version", { ascending: false }).limit(1);
   if (data?.[0]) return data[0];
-  if (businessId) return activeRateCard(kind, null);
+  if (businessId && !allowFallback) throw new WorkflowError(`The assigned business has no active ${kind} rate card.`);
+  if (businessId) return activeRateCard(kind, null, allowFallback);
   const { data: any } = await admin
     .from("rate_cards")
     .select("*, rate_card_items(*)")
@@ -178,7 +179,7 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
   const settings = await activePricing();
   const { data: rec } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
   if (!rec?.business_id) throw new WorkflowError("Assign an approved REC business before generating the rectification quote.");
-  const card = await activeRateCard("electrical", rec.business_id);
+  const card = await activeRateCard("electrical", rec.business_id, false);
   const rates = card.rate_card_items as { code: string; description: string; unit: string; display_unit?: string | null; unit_price_ex_gst: number }[];
   const { data: items } = await admin.from("rectification_items").select("*").eq("job_id", jobId).eq("status", "required");
   if (!items?.length) throw new WorkflowError("No rectification items.");

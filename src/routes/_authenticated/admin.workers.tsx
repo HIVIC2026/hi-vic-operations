@@ -10,7 +10,7 @@ import { WorkerStatus } from "@/components/portal/workers";
 import { decideWorker, listWorkerApprovals } from "@/lib/worker-links.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/workers")({
-  head: () => ({ meta: [{ title: "Worker approvals – Home Insulation Victoria Operations" }, { name: "description", content: "Approve workers listed under partner companies before they get job links." }, { property: "og:title", content: "Worker approvals – Home Insulation Victoria Operations" }, { property: "og:description", content: "Approve workers listed under partner companies before they get job links." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({ meta: [{ title: "Staff approvals – Home Insulation Victoria Operations" }, { name: "description", content: "Approve staff listed under partner companies before they get job links." }, { property: "og:title", content: "Staff approvals – Home Insulation Victoria Operations" }, { property: "og:description", content: "Approve staff listed under partner companies before they get job links." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: Approvals,
 });
 
@@ -21,11 +21,11 @@ function Approvals() {
   const rest = (data ?? []).filter((w) => w.approval_status !== "pending");
   return (
     <AppShell wide>
-      <h1 className="text-2xl font-bold">Worker approvals</h1>
-      <p className="mb-4 text-sm text-muted-foreground">Workers listed by partner companies. Check the licence, then approve — only approved workers can be given job links.</p>
+      <h1 className="text-2xl font-bold">Staff approvals</h1>
+      <p className="mb-4 text-sm text-muted-foreground">Staff listed by partner companies. Check the licence or qualification, then approve — only approved staff can receive job links.</p>
       <h2 className="mb-2 font-semibold">Waiting for approval ({pending.length})</h2>
       <ul className="mb-6 space-y-2">{pending.map((w) => <Row key={w.id} w={w} onDone={refetch} />)}{!pending.length && <li className="text-sm text-muted-foreground">Nothing waiting.</li>}</ul>
-      <h2 className="mb-2 font-semibold">All workers</h2>
+      <h2 className="mb-2 font-semibold">All staff</h2>
       <ul className="space-y-2">{rest.map((w) => <Row key={w.id} w={w} onDone={refetch} />)}</ul>
     </AppShell>
   );
@@ -36,7 +36,7 @@ function Row({ w, onDone }: { w: { id: string; full_legal_name: string; trade_ro
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const act = async (approve: boolean) => {
-    try { await decide({ data: { id: w.id, approve, reason: approve ? null : reason } }); toast.success(approve ? "Worker approved" : "Worker rejected"); onDone(); } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
+    try { await decide({ data: { id: w.id, approve, reason: approve ? null : reason } }); toast.success(approve ? "Staff member approved" : "Staff member rejected"); onDone(); } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
   };
   return (
     <li className="rounded-xl border bg-card p-3 text-sm">

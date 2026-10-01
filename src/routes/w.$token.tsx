@@ -5,7 +5,7 @@ import { useState } from "react";
 import { ClipboardList, HeartPulse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { getWorkerJobView, postWorkerMessage } from "@/lib/worker-links.functions";
+import { addWorkerApprovedRectificationItem, getWorkerApprovedRectificationRates, getWorkerJobView, postWorkerMessage } from "@/lib/worker-links.functions";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 export const Route = createFileRoute("/w/$token")({
@@ -24,6 +24,10 @@ function WorkerJob() {
   const { data, error, refetch } = useQuery({ queryKey: ["worker-job", token], queryFn: () => load({ data: { token } }), retry: false, refetchInterval: 20000 });
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  const rates = useServerFn(getWorkerApprovedRectificationRates);
+  const addRate = useServerFn(addWorkerApprovedRectificationItem);
+  const { data: approvedRates = [], refetch: refetchRates } = useQuery({ queryKey: ["worker-approved-rates", token], queryFn: () => rates({ data: { token } }), retry: false });
+  const [approved, setApproved] = useState({ code: "", quantity: "1", error: "", saved: "" });
   if (error) return <Shell><div className="rounded-xl border bg-card p-6 text-center"><p className="font-semibold">{error.message}</p></div></Shell>;
   if (!data) return <Shell><p className="text-muted-foreground">Loading your job…</p></Shell>;
   const { job, worker } = data;
@@ -39,6 +43,18 @@ function WorkerJob() {
         {data.bookings.map((b, i) => <p key={i} className="mt-2 text-sm"><span className="font-semibold capitalize">{String(b.kind).replace(/_/g, " ")}</span> · {fmt(b.scheduled_start)} {b.status === "proposed" && <span className="text-muted-foreground">(proposed)</span>}</p>)}
         {job.install_deadline && <p className="mt-2 text-sm">Install must happen by <span className="font-semibold">{fmtDay(job.install_deadline)}</span>{job.days_remaining != null && ` (${job.days_remaining} days left)`} — 30 days from the PIESA.</p>}
       </div>
+
+      {worker.role === "electrician" && approvedRates.length > 0 && (
+        <div className="mb-4 rounded-xl border bg-card p-4">
+          <h2 className="mb-1 font-semibold">Mandatory safety rectification</h2>
+          <p className="mb-3 text-sm text-muted-foreground">Add only an item identified by the assessment and listed on your REC business's approved supplier rate schedule.</p>
+          <select className="mb-2 h-12 w-full rounded-md border bg-background px-3 text-sm" value={approved.code} onChange={(e) => setApproved((x) => ({ ...x, code: e.target.value, error: "", saved: "" }))}><option value="">Choose an approved item</option>{approvedRates.map((rate) => <option key={rate.code} value={rate.code}>{rate.description} · {rate.display_unit || rate.unit}</option>)}</select>
+          <input className="mb-2 h-12 w-full rounded-md border bg-background px-3" aria-label="Quantity" type="number" min="0.01" step="0.01" value={approved.quantity} onChange={(e) => setApproved((x) => ({ ...x, quantity: e.target.value, error: "", saved: "" }))} />
+          <Button className="h-12 w-full" disabled={!approved.code || !(Number(approved.quantity) > 0)} onClick={async () => { try { await addRate({ data: { token, rateCode: approved.code, quantity: Number(approved.quantity) } }); setApproved({ code: "", quantity: "1", error: "", saved: "Item added." }); void refetchRates(); } catch (e) { setApproved((x) => ({ ...x, error: e instanceof Error ? e.message : "Item could not be added.", saved: "" })); } }}>Add approved item</Button>
+          {approved.error && <p role="alert" className="mt-2 text-sm text-destructive">{approved.error}</p>}
+          {approved.saved && <p role="status" className="mt-2 text-sm text-success">{approved.saved}</p>}
+        </div>
+      )}
 
       <div className="mb-4 rounded-xl border bg-card p-4">
         <h2 className="mb-2 flex items-center gap-2 font-semibold"><ClipboardList className="h-4 w-4" /> Your form</h2>

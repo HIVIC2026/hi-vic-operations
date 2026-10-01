@@ -199,6 +199,34 @@ export const getWorkerJobView = createServerFn({ method: "POST" })
     };
   });
 
+export const getWorkerApprovedRectificationRates = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: z.string().max(100) }).parse(d))
+  .handler(async ({ data }) => {
+    const { admin, l, w } = await resolveLink(data.token);
+    if (w.trade_role !== "electrician") return [];
+    const { data: card } = await admin.from("rate_cards").select("id").eq("business_id", l.business_id).eq("kind", "electrical").eq("is_active", true).order("version", { ascending: false }).limit(1).maybeSingle();
+    if (!card) return [];
+    const { data: rates, error } = await admin.from("rate_card_items").select("code,description,unit,display_unit").eq("rate_card_id", card.id).eq("category", "electrical").like("code", "CUSTOM_%").order("sort");
+    if (error) throw new Error("Your approved rectification rates could not be loaded.");
+    return rates ?? [];
+  });
+
+export const addWorkerApprovedRectificationItem = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: z.string().max(100), rateCode: z.string().regex(/^CUSTOM_[A-Z0-9]{1,33}$/), quantity: z.number().positive().max(1000), explanation: z.string().trim().max(2000).optional() }).parse(d))
+  .handler(async ({ data }) => {
+    const { admin, l, w } = await resolveLink(data.token);
+    if (w.trade_role !== "electrician") throw new Error("Only approved electrician staff can add electrical rectification items.");
+    const { data: job } = await admin.from("jobs").select("stage").eq("id", l.job_id).maybeSingle();
+    if (!job || !["assessment_booked", "assessment_booking", "assessment_complete", "rectification_required"].includes(job.stage)) throw new Error("Approved items can only be added before the rectification quote is issued for owner approval.");
+    const { data: cards } = await admin.from("rate_cards").select("id,rate_card_items(code,description)").eq("business_id", l.business_id).eq("kind", "electrical").eq("is_active", true).order("version", { ascending: false }).limit(1);
+    const approved = (cards?.[0]?.rate_card_items as { code: string; description: string }[] | undefined)?.find((item) => item.code === data.rateCode);
+    if (!approved) throw new Error("That item is not on your REC business's approved rate card.");
+    const { error } = await admin.from("rectification_items").insert({ job_id: l.job_id, rate_code: approved.code, description: approved.description, quantity: data.quantity, is_other: false, explanation: data.explanation ?? null, added_by: null });
+    if (error) throw new Error("The approved rectification item could not be added.");
+    await logEvent(l.job_id, null, "rectification_approved_item_added", `Approved rectification item added by ${w.full_legal_name}: ${approved.description}`, { rate_code: approved.code, quantity: data.quantity, worker_id: l.worker_id });
+    return { ok: true };
+  });
+
 export const postWorkerMessage = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ token: z.string().max(100), body: z.string().trim().min(1).max(2000) }).parse(d))
   .handler(async ({ data }) => {
