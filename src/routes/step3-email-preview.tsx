@@ -91,6 +91,7 @@ function EmailPreview() {
     ...quote,
     outcome,
     existingInsulationPresent: hasExistingInsulation,
+    ...(outcome === "likely" ? { apCount: 2 } : {}), // business-owner supplied current figure (1 Oct 2026), not registry-verified
     ...(outcome === "onsite" ? { reasons: ["The existing insulation and eligible ceiling area need to be confirmed onsite.", "Roof access and electrical safety need to be checked."] } : {}),
   }), unsubscribeUrl);
   const srcDoc = sample.html.replace(/(<a\b[^>]*?)\s+href="[^"]*"/g, "$1");
