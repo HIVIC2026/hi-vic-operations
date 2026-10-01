@@ -40,6 +40,53 @@ function useStageDates(jobId?: string | null) {
   });
 }
 
+type DeadlineJob = { stage?: string | null; piesa_date?: string | null; install_deadline?: string | null; days_remaining?: number | null; piesa_expired?: boolean | null };
+const DAY = 86_400_000;
+const daysUntil = (iso: string) => Math.ceil((new Date(iso).getTime() - Date.now()) / DAY);
+
+/** Countdowns everyone on the job sees: PIESA 30-day window, PIESA copy 24h before install, same-day rectification quote. */
+function KeyDeadlines({ job, jobId }: { job: DeadlineJob; jobId?: string | null | undefined }) {
+  const install = useQuery({
+    queryKey: ["journey-install", jobId], enabled: !!jobId, staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("bookings").select("scheduled_start").eq("job_id", jobId!).eq("kind", "installation").neq("status", "cancelled").order("scheduled_start", { ascending: false }).limit(1).maybeSingle();
+      if (error) throw error;
+      return data?.scheduled_start ?? null;
+    },
+  });
+  const items: { label: string; detail: string; tone: "good" | "warn" | "bad" }[] = [];
+  if (job.install_deadline) {
+    const d = job.days_remaining ?? daysUntil(job.install_deadline);
+    items.push({
+      label: job.piesa_expired || d < 0 ? "PIESA window expired" : `${d} day${d === 1 ? "" : "s"} left to install`,
+      detail: `PIESA ${fmt(job.piesa_date) ?? "done"} · install by ${fmt(job.install_deadline)} (PIESA + 30 days)`,
+      tone: job.piesa_expired || d < 0 ? "bad" : d <= 7 ? "warn" : "good",
+    });
+  }
+  if (install.data) {
+    const due = new Date(new Date(install.data).getTime() - DAY);
+    const h = Math.floor((due.getTime() - Date.now()) / 3_600_000);
+    items.push({
+      label: h < 0 ? "PIESA copy deadline passed" : h < 48 ? `PIESA copy due in ${h}h` : `PIESA copy due in ${Math.ceil(h / 24)} days`,
+      detail: `Owner must have their PIESA copy by ${fmt(due.toISOString())} (24h before install on ${fmt(install.data)})`,
+      tone: h < 0 ? "bad" : h < 48 ? "warn" : "good",
+    });
+  }
+  if (job.stage === "assessment_booked") items.push({ label: "Rectification quote due on the day", detail: "Electrician submits priced rectification items — or confirms none — in the portal on assessment day.", tone: "warn" });
+  if (!items.length) return null;
+  const toneCls = { good: "border-success/40 bg-success-soft", warn: "border-warning/50 bg-warning-soft", bad: "border-danger bg-danger-soft text-danger" };
+  return (
+    <div className="mb-3 grid gap-2 sm:grid-cols-2" aria-label="Key deadlines">
+      {items.map((i) => (
+        <div key={i.label} className={`rounded-lg border p-2.5 ${toneCls[i.tone]}`}>
+          <div className="text-sm font-bold">{i.label}</div>
+          <div className="text-xs text-muted-foreground">{i.detail}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** The job's full route, in order: done (with dates), YOU ARE HERE, and exactly what comes next. */
 export function JobJourney({ input, isTest, compact, jobId }: { input: JourneyInput; isTest?: boolean; compact?: boolean; jobId?: string | null }) {
   const j = buildJourney(input);
@@ -66,6 +113,7 @@ export function JobJourney({ input, isTest, compact, jobId }: { input: JourneyIn
       </div>
 
       {j.mismatches.length > 0 && <div role="alert" className="mb-3 rounded-lg border border-danger bg-danger-soft p-3 text-sm text-danger"><b>Stage doesn't match records:</b> {j.mismatches.join(" ")}</div>}
+      <KeyDeadlines job={input as DeadlineJob} jobId={jobId} />
       {j.exception && <div role="status" className="mb-3 rounded-lg border border-danger bg-danger-soft p-3 text-sm text-danger"><b>{j.headline}.</b> {j.next}</div>}
 
       {/* Colour progress bar */}
