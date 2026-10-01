@@ -20,9 +20,9 @@ describe("Outlook compatibility", () => {
       const body = html.slice(i);
       expect(body).toMatch(/^<body[^>]*><!--\[if !mso\]><!--><div style="display:none!important;visibility:hidden;mso-hide:all;[^"]*">[^<]*<\/div><!--<!\[endif\]-->/);
     });
-    test(`${name}: hero is Outlook-safe, no h1, exactly once`, () => {
-      expect(html).not.toContain("<h1");
-      const heroes = html.match(/<div class="hiv-hero-title"[^>]*>/g) ?? [];
+    test(`${name}: hero is Outlook-safe, single heading, exactly once`, () => {
+      expect((html.match(/<h1\b/g) ?? []).length).toBe(name === "likely" ? 1 : 0);
+      const heroes = html.match(/<(?:div|h1) class="[^"]*hiv-hero-title[^"]*"[^>]*>/g) ?? [];
       expect(heroes.length).toBe(1);
       expect(heroes[0]).toContain("mso-line-height-rule:exactly");
       expect(heroes[0]).toMatch(/line-height:\d+px/);

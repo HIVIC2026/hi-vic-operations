@@ -58,7 +58,7 @@ describe("presentation lock", () => {
       expect(src).toContain("CUSTOMER_DISCOUNT_TREATMENT.bandBackground");
       void onsite; void T; void W; void L;
     }
-    expect(readFileSync("src/lib/estimate-email.ts", "utf8")).not.toMatch(/ESTIMATED VEU DISCOUNT|no other standard fees/i);
+    expect(readFileSync("src/lib/estimate-email.ts", "utf8")).not.toMatch(/(?<!Your )ESTIMATED VEU DISCOUNT|no other standard fees/i);
     void renderEstimateEmail; void renderIneligibleEmail;
   });
 });
