@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
 
-const templateKey = z.enum(["likely_estimate", "onsite_estimate", "ineligible_result", "estimate_unopened_3d", "estimate_engaged_no_booking_3d", "estimate_second_reminder_7d", "area_unavailable", "measured_quote", "booking_consent", "pre_install_pack", "assignment_signing", "completion_pack"]);
+const templateKey = z.enum(["likely_estimate", "onsite_estimate", "ineligible_result", "estimate_unopened_3d", "area_unavailable", "measured_quote", "booking_consent", "pre_install_pack", "assignment_signing", "completion_pack"]);
 const draftInput = z.object({ id: z.string().uuid().optional(), templateKey, version: z.string().trim().min(1).max(40), subject: z.string().trim().min(3).max(200), bodyMarkdown: z.string().trim().min(10).max(30000), sourceNote: z.string().trim().max(500).optional() });
 
 export const listCustomerCommunicationTemplates = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {

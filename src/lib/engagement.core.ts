@@ -6,14 +6,17 @@ export const CUSTOMER_BASE = "https://quote.homeinsulationvictoria.com.au";
 export const TRACKING_TTL_DAYS = 60;
 export const PREFETCH_WINDOW_MS = 2 * 60_000; // opens this soon after send are treated as likely privacy prefetch
 export const FOLLOWUP_3D_MS = 3 * 86_400_000;
-export const FOLLOWUP_7D_MS = 7 * 86_400_000;
 export const FOLLOWUP_STALE_MS = 7 * 86_400_000; // never send a reminder more than 7 days late
 export const OPEN_PRIVACY_NOTE = "Email opens can be affected by mailbox privacy features; clicks and estimate activity are stronger signals.";
 
 export type EventType = "email_sent" | "email_delivered" | "email_opened" | "email_clicked" | "estimate_viewed" | "calculator_used" | "booking_started" | "booking_completed" | "followup_queued" | "followup_sent" | "followup_suppressed" | "email_bounced" | "email_failed";
 export type EngagementEvent = { event_type: EventType | string; occurred_at: string; metadata?: Record<string, unknown> | null };
 export type Tier = "no_email" | "sent_unopened" | "opened" | "clicked" | "estimate_viewed" | "calculator_engaged" | "booked";
-export type FollowupKind = "estimate_unopened_3d" | "estimate_engaged_no_booking_3d" | "estimate_second_reminder_7d";
+export type ActiveFollowupKind = "estimate_unopened_3d";
+/** Retained only to recognize and suppress historical queue rows. */
+export type RetiredFollowupKind = "estimate_engaged_no_booking_3d" | "estimate_second_reminder_7d";
+export type FollowupKind = ActiveFollowupKind | RetiredFollowupKind;
+export const isActiveFollowupKind = (kind: string): kind is ActiveFollowupKind => kind === "estimate_unopened_3d";
 
 export const newTrackingToken = newToken;
 export const isTrackingToken = isWellFormedToken;
@@ -92,19 +95,11 @@ export function tierOf(s: Omit<Summary, "tier">): Tier {
 
 export const strongEngagement = (s: Summary) => !!(s.firstClick || s.firstView || s.firstCalc);
 
-/** Two follow-ups after a successful initial send; none when already booked. */
+/** One unopened follow-up after a successful initial send; none when already booked. */
 export function planInitialFollowups(sentAt: string, s: Summary) {
   if (s.bookingCompleted) return [];
   const t = Date.parse(sentAt);
-  return [
-    { slot: "3d" as const, kind: "estimate_unopened_3d" as FollowupKind, due_at: new Date(t + FOLLOWUP_3D_MS).toISOString() },
-    { slot: "7d" as const, kind: "estimate_second_reminder_7d" as FollowupKind, due_at: new Date(t + FOLLOWUP_7D_MS).toISOString() },
-  ];
-}
-
-/** At due time the 3-day row branches between unopened and engaged-no-booking. */
-export function threeDayKind(s: Summary): FollowupKind {
-  return !strongEngagement(s) && !s.reliableOpen ? "estimate_unopened_3d" : "estimate_engaged_no_booking_3d";
+  return [{ slot: "3d" as const, kind: "estimate_unopened_3d" as ActiveFollowupKind, due_at: new Date(t + FOLLOWUP_3D_MS).toISOString() }];
 }
 
 export type SendGates = { commsEnabled: boolean; consent: boolean; activeLink: boolean; eligibilityOk: boolean; providerConfigured: boolean; alreadySent: boolean };
@@ -120,15 +115,17 @@ export function sendBlocker(g: SendGates): string | null {
 }
 
 export type FollowupRow = { slot: "3d" | "7d"; kind: FollowupKind; status: string; due_at: string };
-export type FollowupPlan = { action: "suppress"; reason: string } | { action: "block"; reason: string } | { action: "send"; kind: FollowupKind };
+export type FollowupPlan = { action: "suppress"; reason: string } | { action: "block"; reason: string } | { action: "send"; kind: ActiveFollowupKind };
 export function planFollowup(f: FollowupRow, s: Summary, g: Omit<SendGates, "alreadySent">, now = Date.now()): FollowupPlan {
   if (f.status === "sent" || f.status === "suppressed") return { action: "suppress", reason: "already_final" };
+  if (f.slot !== "3d" || !isActiveFollowupKind(f.kind)) return { action: "suppress", reason: "retired_followup_kind" };
   if (s.bookingCompleted) return { action: "suppress", reason: "booking_completed" };
+  if (strongEngagement(s) || s.reliableOpen) return { action: "suppress", reason: "estimate_already_engaged" };
   if (!g.eligibilityOk) return { action: "suppress", reason: "eligibility_not_permitted" };
   if (now - Date.parse(f.due_at) > FOLLOWUP_STALE_MS) return { action: "suppress", reason: "expired_unsent" };
   const b = sendBlocker({ ...g, alreadySent: false });
   if (b) return { action: "block", reason: b };
-  return { action: "send", kind: f.slot === "3d" ? threeDayKind(s) : "estimate_second_reminder_7d" };
+  return { action: "send", kind: "estimate_unopened_3d" };
 }
 
 /** Retry schedule for blocked/failed attempts. */

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
-import { CUSTOMER_BASE, PIXEL_GIF, clickUrl, dedupe, estimateUrl, newTrackingToken, pixelResponse, pixelToken, pixelUrl, planFollowup, planInitialFollowups, redirectResponse, safeMetadata, sendBlocker, summarize, threeDayKind, type EngagementEvent } from "../src/lib/engagement.core";
+import { CUSTOMER_BASE, PIXEL_GIF, clickUrl, dedupe, estimateUrl, newTrackingToken, pixelResponse, pixelToken, pixelUrl, planFollowup, planInitialFollowups, redirectResponse, safeMetadata, sendBlocker, summarize, type EngagementEvent } from "../src/lib/engagement.core";
 import { base44BridgeConfig } from "../src/lib/delivery.core";
 import { renderEstimateEmail } from "../src/lib/estimate-email";
 import { renderFollowupEmail } from "../src/lib/followup-email";
@@ -102,27 +102,22 @@ describe("engagement summary", () => {
 
 describe("follow-ups", () => {
   const sent = summarize([ev("email_sent", 0)]);
-  test("initial send creates 3d + 7d; none when booked", () => {
+  test("initial send creates only the unopened 3d reminder; none when booked", () => {
     const p = planInitialFollowups(at(0), sent);
-    expect(p.map((x) => x.slot)).toEqual(["3d", "7d"]);
+    expect(p.map((x) => x.slot)).toEqual(["3d"]);
     expect(Date.parse(p[0]!.due_at) - T0).toBe(3 * 86_400_000);
-    expect(Date.parse(p[1]!.due_at) - T0).toBe(7 * 86_400_000);
     expect(planInitialFollowups(at(0), summarize([ev("email_sent", 0), ev("booking_completed", 1)]))).toEqual([]);
-  });
-  test("3-day branch: unopened vs engaged", () => {
-    expect(threeDayKind(sent)).toBe("estimate_unopened_3d");
-    expect(threeDayKind(summarize([ev("email_sent", 0), ev("email_opened", 20_000)]))).toBe("estimate_unopened_3d"); // prefetch only
-    expect(threeDayKind(summarize([ev("email_sent", 0), ev("email_opened", 3_600_000)]))).toBe("estimate_engaged_no_booking_3d");
-    expect(threeDayKind(summarize([ev("email_sent", 0), ev("estimate_viewed", 10)]))).toBe("estimate_engaged_no_booking_3d");
   });
   const row3 = { slot: "3d" as const, kind: "estimate_unopened_3d" as const, status: "queued", due_at: at(3 * 86_400_000) };
   const row7 = { slot: "7d" as const, kind: "estimate_second_reminder_7d" as const, status: "queued", due_at: at(7 * 86_400_000) };
-  test("booking suppresses; 7d sends second reminder; stale reminders suppressed", () => {
+  test("booking, engagement, stale rows and retired kinds are suppressed", () => {
     const booked = summarize([ev("email_sent", 0), ev("booking_completed", 10)]);
     expect(planFollowup(row3, booked, allGates, T0 + 3 * 86_400_000)).toEqual({ action: "suppress", reason: "booking_completed" });
-    expect(planFollowup(row7, booked, allGates, T0 + 7 * 86_400_000)).toEqual({ action: "suppress", reason: "booking_completed" });
-    expect(planFollowup(row7, sent, allGates, T0 + 7 * 86_400_000)).toEqual({ action: "send", kind: "estimate_second_reminder_7d" });
-    expect(planFollowup(row7, sent, allGates, T0 + 15 * 86_400_000)).toEqual({ action: "suppress", reason: "expired_unsent" });
+    expect(planFollowup(row3, summarize([ev("email_sent", 0), ev("email_opened", 3_600_000)]), allGates, T0 + 3 * 86_400_000)).toEqual({ action: "suppress", reason: "estimate_already_engaged" });
+    expect(planFollowup(row3, summarize([ev("email_sent", 0), ev("estimate_viewed", 10)]), allGates, T0 + 3 * 86_400_000)).toEqual({ action: "suppress", reason: "estimate_already_engaged" });
+    expect(planFollowup(row7, sent, allGates, T0 + 7 * 86_400_000)).toEqual({ action: "suppress", reason: "retired_followup_kind" });
+    expect(planFollowup({ ...row3, kind: "estimate_engaged_no_booking_3d" }, sent, allGates, T0 + 3 * 86_400_000)).toEqual({ action: "suppress", reason: "retired_followup_kind" });
+    expect(planFollowup(row3, sent, allGates, T0 + 11 * 86_400_000)).toEqual({ action: "suppress", reason: "expired_unsent" });
     expect(planFollowup({ ...row3, status: "sent" }, sent, allGates)).toEqual({ action: "suppress", reason: "already_final" });
   });
   test("gates are rechecked at send time; missing provider never marks sent", () => {
@@ -184,22 +179,22 @@ describe("email renderers", () => {
     expect(tracked.plainText).toContain(clickUrl(tok));
     expect(() => renderEstimateEmail({ estimateUrl: link, trackingClickUrl: "https://evil.example/t/e/x", ...quote })).toThrow();
   });
-  test("follow-ups: branded, same domain, $349 included, no provider branding", () => {
-    for (const kind of ["estimate_unopened_3d", "estimate_engaged_no_booking_3d", "estimate_second_reminder_7d"] as const) {
-      const m = renderFollowupEmail({ kind, estimateUrl: link, trackingClickUrl: clickUrl(tok), trackingPixelUrl: pixelUrl(tok) });
-      expect(m.html).toContain("#3C51C4");
-      expect(m.html).toContain(clickUrl(tok));
-      expect(m.html).not.toMatch(/lovable\.app|<script|\bresend\b/i);
-      expect(m.plainText).toContain(clickUrl(tok));
-    }
-    expect(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: link }).subject).toContain("Just checking you received your Home Insulation Victoria estimate");
-    expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).html).toContain("Ready for your free measure-up &amp; eligibility check?");
-    expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).plainText).toContain("confirms ceiling size, existing insulation and access");
-    expect(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl: link }).html).toContain("Arrange my free measure-up &amp; eligibility check →");
-    expect(renderFollowupEmail({ kind: "estimate_second_reminder_7d", estimateUrl: link }).plainText).not.toMatch(/\$400|indicative/);
-    const seven = renderFollowupEmail({ kind: "estimate_second_reminder_7d", estimateUrl: link }).plainText;
-    expect(seven).toContain("Warmer in winter");
-    expect(seven).toContain("Transparent Home Insulation Victoria pricing");
+  test("only the unopened three-day follow-up remains renderable", () => {
+    const m = renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: link, trackingClickUrl: clickUrl(tok), trackingPixelUrl: pixelUrl(tok) });
+    expect(m.html).toContain("#3C51C4");
+    expect(m.html).toContain(clickUrl(tok));
+    expect(m.html).not.toMatch(/lovable\.app|<script|\bresend\b/i);
+    expect(m.plainText).toContain(clickUrl(tok));
+    expect(m.subject).toContain("Just checking you received your Home Insulation Victoria estimate");
+    expect(src("src/lib/followup-email.ts")).not.toMatch(/estimate_engaged_no_booking_3d|estimate_second_reminder_7d/);
+  });
+  test("worker suppresses retired queue rows before delivery", () => {
+    const worker = src("src/lib/followups.server.ts");
+    const guard = worker.indexOf('f.slot !== "3d" || !isActiveFollowupKind(f.kind)');
+    const delivery = worker.indexOf("await deliverTracked(", guard);
+    expect(guard).toBeGreaterThan(-1);
+    expect(worker.slice(guard, delivery)).toContain('suppression_reason: "retired_followup_kind"');
+    expect(delivery).toBeGreaterThan(guard);
   });
   test("sample preview never calls live tracking", () => {
     const p = src("src/routes/step3-email-preview.tsx");

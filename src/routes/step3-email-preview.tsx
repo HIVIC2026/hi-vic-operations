@@ -66,11 +66,9 @@ const samples = {
     reference: "SAMPLE-1001",
   }), unsubscribeUrl),
   reminder3: withUnsubscribe(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl, referralUrl }), unsubscribeUrl),
-  reminderEngaged: withUnsubscribe(renderFollowupEmail({ kind: "estimate_engaged_no_booking_3d", estimateUrl, referralUrl }), unsubscribeUrl),
-  reminder7: withUnsubscribe(renderFollowupEmail({ kind: "estimate_second_reminder_7d", estimateUrl, referralUrl }), unsubscribeUrl),
   coverage: withUnsubscribe(renderCoverageUnavailableEmail({ firstName: "Alex", suburb: "Fraser Rise", postcode: "3336", missing: ["installer"], reference: "SAMPLE-1001" }), unsubscribeUrl),
 };
-const OUTCOME_LABELS = { likely: "Likely eligible", onsite: "Needs onsite confirmation", ineligible: "Does not appear eligible", reminder3: "Reminder: 3 days, unopened", reminderEngaged: "Reminder: viewed, not booked", reminder7: "Reminder: 7 days", coverage: "Service availability update" } as const;
+const OUTCOME_LABELS = { likely: "Likely eligible", onsite: "Needs onsite confirmation", ineligible: "Does not appear eligible", reminder3: "Reminder: 3 days, unopened", coverage: "Service availability update" } as const;
 
 export const Route = createFileRoute("/step3-email-preview")({
   headers: () => ({ "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" }),

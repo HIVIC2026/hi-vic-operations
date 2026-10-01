@@ -40,8 +40,8 @@ export const FREE_CHECK_CONFIRM_COPY = {
   name: "Free Insulation Measure-Up & Eligibility Check",
   intro: "Confirm your request below. An installer from our panel will contact you to arrange a time.",
   free: "FREE · No payment required",
-  checklistHeading: "What happens at the visit",
-  checklist: ["Ceiling measurements", "Existing insulation, any removal needed, and ceiling access", "Eligibility evidence and site photos", "An updated estimate for you to review"],
+  checklistHeading: "What happens at your visit",
+  checklist: ["Measure your ceiling area.", "Assess any existing insulation and confirm whether it can stay or needs to be removed.", "Confirm whether your home meets the rebate eligibility requirements.", "Prepare the job scope so we can confirm your quote."],
   installer: "Carried out by a pre-vetted Certified Insulation Installer (CII) from our panel.",
   piesa: "The mandatory electrical safety assessment (PIESA) is a separate paid step, completed later by a licensed electrician, close to installation.",
   reassurance: "No payment required. No obligation to proceed with installation.",
@@ -50,7 +50,7 @@ export const FREE_CHECK_CONFIRM_COPY = {
   stale: "Your estimate changed. Please review it and confirm your free measure-up & eligibility check again.",
   successHeading: "We’ve received your request",
   successBody: "An installer from our panel will contact you to arrange a suitable time for your Free Insulation Measure-Up & Eligibility Check.",
-  successNext: "What they measure on the day will be used to update your estimate for you to review.",
+  successNext: "They’ll measure your ceiling, assess any existing insulation, confirm eligibility and prepare the job scope so we can confirm your quote.",
 } as const;
 
 export function ConfirmQuote({ onBack, preview = false, testMode = preview, state = null, busy = false, error = null, onAccept }: { estimatedPrice?: number; assessmentFee?: number; onBack: () => void; preview?: boolean; testMode?: boolean; state?: ReadyCheckAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; onTestPayment?: (outcome: "success" | "failure") => void }) {

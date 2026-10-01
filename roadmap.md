@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Now
+- [x] Retire viewed and seven-day estimate reminders; suppress legacy queued rows; clarify free measure-up visit copy and verify previews
 - [x] Boss signs up business; workers join via personal invite link (/join)
 - [ ] Installer agreement audit: payment timing contradiction (step 2/cl.27 vs cl.17); free Ready Check mandatory (remove step 8 "No"); customer-contact rule for installer-supplied customers vs cl.28; "your customer, your price" vs HIV pricing; PIESA booking/payment order; separate EEC Certified Insulation Installer certification from training
 
