@@ -79,7 +79,7 @@ describe("rec onboarding", () => {
     expect(t).toContain("does not depend on Home Insulation Victoria receiving payment from the customer");
     expect(t).toContain("Pre-insulation electrical safety assessment (PIESA): $300.00 / visit");
     expect(t).toContain("1. Sam Smith — licence A123");
-    expect(ACKNOWLEDGEMENTS.length).toBe(8);
+    expect(ACKNOWLEDGEMENTS.length).toBe(9);
     for (const a of ACKNOWLEDGEMENTS) expect(t).toContain(a.text);
   });
 });
