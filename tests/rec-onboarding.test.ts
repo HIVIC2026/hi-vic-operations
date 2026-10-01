@@ -25,7 +25,6 @@ describe("rec onboarding", () => {
     expect(effectiveElectricians({ ...full, electricians: [{ full_legal_name: "Other", licence_number: "B9", mobile: "0400000000", email: "o@x.com" }] })[0].full_legal_name).toBe("Other");
   });
   test("services: all three electrical services are mandatory", () => {
-    expect(stepErrors("services", {})).toContain("Rectification work and install day attendance are required — tick both to continue.");
     expect(stepErrors("services", {})).toContain("Confirm your REC can provide all three electrical services.");
     expect(stepErrors("services", { service_piesa: false, service_rectification: false, service_installation_isolation: false })).toContain("Confirm your REC can provide all three electrical services.");
     expect(stepErrors("services", { services_all_confirmed: true })).toEqual([]);
