@@ -119,10 +119,10 @@ describe("static separation / UI", () => {
     expect(ui).not.toContain("AP management &amp; compliance");
     expect(ui).toContain("Step 3 · Indicative estimate");
     expect(ui).not.toContain("<NextStep"); expect(ui).not.toContain("<EstimateDetails");
-    expect(ui.match(/<QuoteCardReadyCheckClose /g)?.length).toBe(2);
-    expect(ui.match(/<QuoteCardReadyCheckClose href="#confirm" \{\.\.\.\(onReadyCheck \? \{ onSelect: onReadyCheck \} : \{\}\)\} \/>/g)?.length).toBe(2);
+    expect(ui.match(/<QuoteCardReadyCheckClose /g)?.length).toBe(1);
+    expect(ui.match(/<QuoteCardReadyCheckClose href="#confirm" \{\.\.\.\(onReadyCheck \? \{ onSelect: onReadyCheck \} : \{\}\)\} \/>/g)?.length).toBe(1);
     expect(ui).not.toContain("<QuoteCardReadyCheckClose inert />");
-    expect(ui).toContain("TRY ANOTHER PROPERTY OR CEILING SIZE");
+    expect(ui).not.toContain("TRY ANOTHER PROPERTY OR CEILING SIZE");
     expect(ui).toContain("*Victorian Government estimates/averages. Actual savings vary");
     expect(ui).toContain("Up to 20%*");
     expect(ui).toContain("$400+ / year*");
@@ -175,25 +175,12 @@ describe("Step 3 v2 refinement", () => {
     // official consumer example: 150 m² metro/mild ≈ $1,482
     expect(whatIfEstimate(150, loc, "none", S)!.raw_estimated_discount).toBeCloseTo(1481.76, 2);
   });
-  test("calculator is client-only and never persisted", () => {
+  test("estimate calculations are never persisted from the customer view", () => {
     const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
-    const calc = ui.slice(ui.indexOf("function AreaCalculator"), ui.indexOf("export function OwnerEstimateCard"));
-    expect(calc).not.toMatch(/useServerFn|supabase|fetch\(|useMutation|useAction/);
-    expect(calc).toContain('useState(initial == null ? "" : String(initial))');
-    expect(calc).toContain("Other / custom");
-    expect(calc).toContain("This is a what-if calculator only. It does not change the property details you submitted.");
+    expect(ui).not.toContain("AreaCalculator");
     const srv = readFileSync("src/lib/estimate.server.ts", "utf8");
     expect(srv).not.toMatch(/from\("(jobs|ceiling_measurements|property_area_estimates)"\)\.(update|insert|upsert)/);
     expect(srv).not.toMatch(/assumption/i);
-  });
-  test("calculator uses the approved quote hierarchy and payment-safe copy", () => {
-    const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
-    const calc = ui.slice(ui.indexOf("function CalculatorQuoteResult"), ui.indexOf("export function OwnerEstimateCard"));
-    for (const text of ["TRY ANOTHER PROPERTY OR CEILING SIZE", "Estimated ceiling size", "CUSTOMER_QUOTE_LABELS", '<QuoteCardReadyCheckClose href="#confirm" {...(onReadyCheck ? { onSelect: onReadyCheck } : {})} />', "CUSTOMER_EXISTING_INSULATION_NOTE"]) expect(calc).toContain(text);
-    expect(calc).toContain('existingInsulation={calc.insulation === "present"}');
-    expect(ui).toContain("CUSTOMER_WHAT_COULD_CHANGE.closing");
-    expect(ui.indexOf("CUSTOMER_WHAT_COULD_CHANGE.gst", ui.indexOf("function QuoteCardReadyCheckClose"))).toBeLessThan(ui.indexOf("CUSTOMER_READY_CHECK.cta", ui.indexOf("function QuoteCardReadyCheckClose")));
-    expect(calc).toContain("what-if calculator only");
   });
   test.each([100, 125, 150, 175, 200])("calculator %i m² reconciles every displayed amount", (m2) => {
     const e = whatIfEstimate(m2, lookupLocation("3336"), "none", S)!;

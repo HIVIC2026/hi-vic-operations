@@ -64,22 +64,17 @@ describe("pixel + redirect responses", () => {
 });
 
 describe("dedupe keys bound repeats", () => {
-  test("opens/clicks/views collapse within the hour; calculator within the day", () => {
+  test("opens, clicks and views collapse within the hour", () => {
     expect(dedupe.open("t", T0)).toBe(dedupe.open("t", T0 + 59 * 60_000));
     expect(dedupe.open("t", T0)).not.toBe(dedupe.open("t", T0 + 61 * 60_000));
     expect(dedupe.click("t", T0)).toBe(dedupe.click("t", T0 + 1000));
     expect(dedupe.view("l", T0)).toBe(dedupe.view("l", T0 + 1000));
-    expect(dedupe.calc("l", T0)).toBe(dedupe.calc("l", T0 + 12 * 3_600_000));
     expect(dedupe.bookingCompleted("j")).toBe(dedupe.bookingCompleted("j"));
   });
-  test("estimate view and calculator use are logged server-side with dedupe", () => {
+  test("estimate views are logged server-side with dedupe", () => {
     const s = src("src/lib/engagement.server.ts");
     expect(s).toMatch(/type: "estimate_viewed".*dedupe\.view/);
-    expect(s).toMatch(/type: "calculator_used".*dedupe\.calc/);
     expect(src("src/lib/estimatelink.server.ts")).toContain("recordEstimateView(l.job_id, l.id)");
-    const calc = src("src/components/portal/estimate.tsx");
-    expect(calc).toContain("reported.current = true");
-    expect(calc).toContain("setTimeout");
   });
 });
 

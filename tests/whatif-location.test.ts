@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
 import { lookupLocation, V25_LOCATIONS } from "../src/lib/activity48.core";
 import { whatIfEstimate } from "../src/lib/estimate.core";
 import { acceptSelectedAddress, locationBasisLine, resolveWhatIfLocation, WHATIF_ADDRESS_COPY, type SelectedAddress } from "../src/lib/whatif-location";
@@ -43,24 +42,5 @@ describe("address-aware what-if calculator", () => {
     expect(acceptSelectedAddress({ label: "x", postcode: null, state: "VIC" }).ok).toBe(false);
     expect(acceptSelectedAddress(null).ok).toBe(false);
     expect(locationBasisLine(original)).toBe("VEU estimate based on postcode 3336.");
-  });
-  test("UI wiring: local only, never persisted or sent via onUse; referral copy updated", () => {
-    const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
-    const calc = ui.slice(ui.indexOf("export function AreaCalculator"), ui.indexOf("export function OwnerEstimateCard"));
-    for (const t of ["WHATIF_ADDRESS_COPY.change", "WHATIF_ADDRESS_COPY.revert", "WHATIF_ADDRESS_COPY.notice", "WHATIF_ADDRESS_COPY.unlisted", "locationBasisLine(activeLocation)", "VictorianAddressAutocomplete", "TRY ANOTHER PROPERTY OR CEILING SIZE"]) expect(calc).toContain(t);
-    expect(calc).not.toMatch(/Postcode<|inputMode="numeric"|postcodeFromAddress|CHECK ANOTHER CEILING SIZE/);
-    const ac = readFileSync("src/components/portal/VictorianAddressAutocomplete.tsx", "utf8");
-    for (const t of ['role="combobox"', 'role="listbox"', "aria-selected", "ArrowDown", "Escape", "min-h-11", "onSelect(null)"]) expect(ac).toContain(t);
-    const proxy = readFileSync("src/lib/address-search.functions.ts", "utf8");
-    expect(proxy).not.toMatch(/supabase|upsert|\.insert\(|\.update\(|GOOGLE_[A-Z_]*KEY|process\.env/);
-    expect(calc).toContain("onUse(m2)");
-    expect(calc).not.toMatch(/onUse\([^)]*(altPostcode|altAddress|activeLocation)/);
-    expect(calc).not.toMatch(/useServerFn|supabase|fetch\(/);
-    expect(calc).not.toMatch(/climate_region|climate_zone|metropolitan_or_regional/);
-    expect(WHATIF_ADDRESS_COPY.notice).toBe("This address is used only for this calculator comparison. It does not change the property on your enquiry.");
-    const share = readFileSync("src/components/portal/ReferralShare.tsx", "utf8");
-    expect(share).toContain("property address so");
-    expect(share).toContain("correct local VEU settings");
-    expect(share).not.toContain("HI VIC with");
   });
 });

@@ -31,13 +31,11 @@ export function pixelToken(file: string): string | null {
 }
 
 const hour = (at: Date | number) => new Date(at).toISOString().slice(0, 13);
-const day = (at: Date | number) => new Date(at).toISOString().slice(0, 10);
 /** Dedupe keys: bounded repeats instead of runaway duplicates. */
 export const dedupe = {
   open: (tokenId: string, at: Date | number = Date.now()) => `open:${tokenId}:${hour(at)}`,
   click: (tokenId: string, at: Date | number = Date.now()) => `click:${tokenId}:${hour(at)}`,
   view: (linkId: string, at: Date | number = Date.now()) => `view:${linkId}:${hour(at)}`,
-  calc: (linkId: string, at: Date | number = Date.now()) => `calc:${linkId}:${day(at)}`,
   sent: (key: string) => `sent:${key}`,
   bookingStarted: (jobId: string) => `booking_started:${jobId}`,
   bookingCompleted: (jobId: string) => `booking_completed:${jobId}`,
@@ -51,7 +49,6 @@ export function safeMetadata(m: Record<string, unknown> = {}): Record<string, st
   for (const [k, v] of Object.entries(m)) if (META_KEYS.has(k) && (typeof v === "string" || typeof v === "number" || typeof v === "boolean")) out[k] = typeof v === "string" ? v.slice(0, 80) : v;
   return out;
 }
-export const areaBand = (m2: number) => (m2 < 100 ? "<100" : m2 < 150 ? "100-149" : m2 < 200 ? "150-199" : "200+");
 export function uaClass(ua: string | null): string {
   if (!ua) return "unknown";
   if (/GoogleImageProxy/i.test(ua)) return "gmail_proxy";
