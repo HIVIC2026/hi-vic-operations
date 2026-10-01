@@ -41,11 +41,17 @@ export function emailSuppression(x: SafetyInput): string | null {
 
 export const unsubscribeUrl = (token: string) => `${CUSTOMER_BASE}/api/public/unsubscribe?t=${encodeURIComponent(token)}`;
 
+/** Opt-in slot for renderers that place the secure unsubscribe link inside their own footer. */
+export const UNSUBSCRIBE_LINK_SLOT = "<!--HIV_SECURE_UNSUBSCRIBE_LINK-->";
+
 /** Adds a functional unsubscribe footer + List-Unsubscribe-ready URL to any rendered email. */
 export function withUnsubscribe<T extends { html: string; plainText: string }>(mail: T, url: string): T {
   if (!/^https:\/\/[^/]+\/api\/public\/unsubscribe\?t=[A-Za-z0-9_-]{20,}$/.test(url)) throw new Error("Invalid unsubscribe URL");
+  const inlineLink = `<a href="${escape(url)}" style="color:#3C51C4;text-decoration:underline;">Unsubscribe</a>`;
   const foot = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:14px 12px 24px;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.5;color:#5A6785;">Don’t want these emails? <a href="${escape(url)}" style="color:#3C51C4;text-decoration:underline;">Unsubscribe</a></td></tr></table>`;
-  const html = mail.html.includes("</body>") ? mail.html.replace("</body>", `${foot}</body>`) : mail.html + foot;
+  const html = mail.html.includes(UNSUBSCRIBE_LINK_SLOT)
+    ? mail.html.replace(UNSUBSCRIBE_LINK_SLOT, inlineLink)
+    : mail.html.includes("</body>") ? mail.html.replace("</body>", `${foot}</body>`) : mail.html + foot;
   return { ...mail, html, plainText: `${mail.plainText}\n\nUnsubscribe: ${url}` };
 }
 

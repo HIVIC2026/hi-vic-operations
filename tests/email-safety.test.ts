@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "fs";
-import { emailSuppression, isTestRecipient, reservationAllowed, statusAfterDelivery, unsubscribeUrl, withUnsubscribe, type SafetyInput } from "../src/lib/emailsafety.core";
+import { emailSuppression, isTestRecipient, reservationAllowed, statusAfterDelivery, UNSUBSCRIBE_LINK_SLOT, unsubscribeUrl, withUnsubscribe, type SafetyInput } from "../src/lib/emailsafety.core";
 import { renderFollowupEmail } from "../src/lib/followup-email";
 import { renderIneligibleEmail } from "../src/lib/ineligible-email";
 
@@ -68,6 +68,15 @@ describe("unsubscribe", () => {
       expect(w.html).toContain(`href="${url}"`); expect(w.plainText).toContain(`Unsubscribe: ${url}`);
       expect(w.html.indexOf("Unsubscribe")).toBeLessThan(w.html.indexOf("</body>"));
     }
+  });
+  test("opt-in footer slot receives one real link while standard emails keep the fallback", () => {
+    const slotted = withUnsubscribe({ html: `<html><body><footer>${UNSUBSCRIBE_LINK_SLOT}</footer></body></html>`, plainText: "Footer" }, url);
+    expect(slotted.html.split(`href="${url}"`).length - 1).toBe(1);
+    expect(slotted.html).not.toContain(UNSUBSCRIBE_LINK_SLOT);
+    expect(slotted.html).not.toContain("Don’t want these emails?");
+    const standard = withUnsubscribe({ html: "<html><body>Standard</body></html>", plainText: "Standard" }, url);
+    expect(standard.html).toContain("Don’t want these emails?");
+    expect(standard.html).toContain(`href="${url}"`);
   });
   test("bad URLs rejected", () => { expect(() => withUnsubscribe({ html: "", plainText: "" }, "https://evil.example/x")).toThrow(); });
   test("route: GET never opts out, POST does; opt-out closes consent + follow-ups", () => {

@@ -326,11 +326,11 @@ function renderLikelyEligibleEmail(input: EstimateEmailInput): EstimateEmail {
   const estimate = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MIST}" style="width:100%;border-collapse:separate;background-color:${MIST};border-radius:14px;"><tr><td style="padding:17px 18px;${F}"><p style="margin:0 0 10px;${FH}color:${INK};font-size:17px;line-height:1.3;font-weight:800;">What could change this price?</p>${changeItems}<p style="margin:12px 0 0;padding-top:12px;border-top:1px solid ${LINE};${F}color:${INK};font-size:13px;line-height:1.5;font-weight:700;">${escape(CUSTOMER_WHAT_COULD_CHANGE.closing)}</p></td></tr></table>`;
 
   // 7. Footer
-  const ref = input.reference?.trim() ? ` · Reference: ${escape(input.reference.trim())}` : "";
-  const footer = `<p style="margin:0 0 5px;${F}color:${INK};font-size:13px;line-height:1.4;font-weight:800;">Home Insulation Victoria</p><p style="margin:0;${F}color:${INK};font-size:11px;line-height:1.65;">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria${ref}<br>You’re receiving this because you requested an eligibility result or estimate.<br><a href="${SITE}/privacy" style="color:${BLUE};text-decoration:underline;">Privacy policy</a> &nbsp;·&nbsp; <a href="${SITE}/contact" style="color:${BLUE};text-decoration:underline;">Contact us</a>${referralUrl ? ` &nbsp;·&nbsp; <a href="${escape(referralUrl)}" style="color:${BLUE};text-decoration:underline;">Refer a friend</a>` : ""}<br>A secure unsubscribe link appears below.</p>`;
+  const footerLinks = `<span style="display:inline-block;white-space:nowrap;"><a href="${SITE}/contact" style="color:${BLUE};text-decoration:underline;">Contact us</a></span><span style="display:inline-block;white-space:nowrap;">&nbsp;·&nbsp;<a href="${SITE}/privacy" style="color:${BLUE};text-decoration:underline;">Privacy</a></span>${referralUrl ? `<span style="display:inline-block;white-space:nowrap;">&nbsp;·&nbsp;<a href="${escape(referralUrl)}" style="color:${BLUE};text-decoration:underline;">Refer a friend</a></span>` : ""}<span style="display:inline-block;white-space:nowrap;">&nbsp;·&nbsp;<!--HIV_SECURE_UNSUBSCRIBE_LINK--></span>`;
+  const footer = `<p style="margin:0 0 5px;${F}color:${INK};font-size:14px;line-height:1.4;font-weight:800;text-align:center;">Home Insulation Victoria</p><p style="margin:0;${F}color:#5A6785;font-size:12px;line-height:1.5;text-align:center;">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.</p><p style="margin:5px 0 9px;${F}color:#5A6785;font-size:12px;line-height:1.5;text-align:center;">You’re receiving this because you requested an insulation estimate.</p><p style="margin:0;${F}color:${BLUE};font-size:12px;line-height:1.7;text-align:center;">${footerLinks}</p>${input.reference?.trim() ? `<p style="margin:7px 0 0;${F}color:#5A6785;font-size:10.5px;line-height:1.4;text-align:center;">Reference: ${escape(input.reference.trim())}</p>` : ""}`;
 
   const html = likelyV2Shell(
-    `${row(header, "22px 36px 18px")}${row(hero, "8px 36px 24px")}${row(savings, "0 28px 22px")}${row(nextStep, "0 28px 18px")}${row(estimate, "0 28px 18px")}${row(calc, "0 36px 24px")}${row(footer, "20px 36px 22px", `background-color:${MINT};border-top:1px solid ${LINE};border-radius:0 0 24px 24px;`)}`,
+    `${row(header, "22px 36px 18px")}${row(hero, "8px 36px 24px")}${row(savings, "0 28px 22px")}${row(nextStep, "0 28px 18px")}${row(estimate, "0 28px 18px")}${row(calc, "0 36px 24px")}${row(footer, "20px 36px", `background-color:${WHITE};border-top:1px solid ${LINE};border-radius:0 0 24px 24px;`)}`,
     previewText, pixel,
   );
 
@@ -360,9 +360,10 @@ ${description}`),
     CUSTOMER_WHAT_COULD_CHANGE.closing, "",
     `Want to explore a different ceiling size? Open the calculator: ${PUBLIC_CALCULATOR_URL}`, "",
     "Home Insulation Victoria",
-    `DC Construction Solutions Pty Ltd trading as Home Insulation Victoria${input.reference?.trim() ? ` · Reference: ${input.reference.trim()}` : ""}`,
-    `Privacy: ${SITE}/privacy · Contact: ${SITE}/contact${referralUrl ? ` · Refer a friend: ${referralUrl}` : ""}`,
-    "A secure unsubscribe link appears below.",
+    "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.",
+    "You’re receiving this because you requested an insulation estimate.",
+    `Contact us: ${SITE}/contact · Privacy: ${SITE}/privacy${referralUrl ? ` · Refer a friend: ${referralUrl}` : ""}`,
+    ...(input.reference?.trim() ? [`Reference: ${input.reference.trim()}`] : []),
   ].join("\n");
   return { subject, previewText, html, plainText };
 }
