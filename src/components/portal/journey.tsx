@@ -45,7 +45,7 @@ const DAY = 86_400_000;
 const daysUntil = (iso: string) => Math.ceil((new Date(iso).getTime() - Date.now()) / DAY);
 
 /** Countdowns everyone on the job sees: PIESA 30-day window, PIESA copy 24h before install, same-day rectification quote. */
-function KeyDeadlines({ job, jobId }: { job: DeadlineJob; jobId?: string | null }) {
+function KeyDeadlines({ job, jobId }: { job: DeadlineJob; jobId?: string | null | undefined }) {
   const install = useQuery({
     queryKey: ["journey-install", jobId], enabled: !!jobId, staleTime: 30_000,
     queryFn: async () => {
