@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { isRecoverableTransportError } from "@/lib/page-recovery.core";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 function NotFoundComponent() {
