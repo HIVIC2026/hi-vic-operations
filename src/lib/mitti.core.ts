@@ -177,6 +177,17 @@ export function propertyTypeOption(v: string | null | undefined): string | null 
   return null;
 }
 
+/** Find the Mitti option ID for a choice answer (v1 definitions keep options in template.response_sets). */
+function choiceOption(template: Any, itemId: string, label: string): { id: string; label: string } | null {
+  const root = template?.template ?? template;
+  let rsId: string | null = null;
+  const walk = (x: Any) => { if (!x || typeof x !== "object" || rsId) return; if (x.id === itemId && x.question?.response_set_id) { rsId = x.question.response_set_id; return; } for (const v of Object.values(x)) walk(v); };
+  walk(root?.items);
+  const sets: Any[] = [...(root?.response_sets ?? []), ...(root?.global_response_sets ?? [])];
+  const opt = (sets.find((s) => s.id === rsId)?.responses ?? []).find((o: Any) => norm(String(o.label)) === norm(label));
+  return opt ? { id: String(opt.id), label: String(opt.label) } : null;
+}
+
 export function buildPrefill(template: Any, ctx: PrefillCtx) {
   const entries = flatten(template);
   const header_items: Any[] = [], items: Any[] = [], missing: string[] = [], ambiguous: string[] = [], blank: string[] = [];
@@ -190,8 +201,15 @@ export function buildPrefill(template: Any, ctx: PrefillCtx) {
     if (empty) continue;
     const vStr = String(v);
     const choiceLike = /choice|question|switch|list/i.test(e.type);
-    const responses = f.datetime ? { datetime: vStr } : choiceLike ? { selected: [{ label: vStr }] } : { text: vStr };
-    const row = { item_id: e.id, label: e.label, type: e.type, responses };
+    let type = e.type, responses: Any;
+    if (f.datetime) responses = { datetime: vStr };
+    else if (choiceLike) {
+      const opt = choiceOption(template, e.id, vStr);
+      if (!opt) { if (f.mandatory) missing.push(`${f.aliases[0]} option "${vStr}"`); continue; } // never guess an option
+      type = "question"; responses = { selected: [opt] };
+    } else if (/^(site|address)$/i.test(e.type)) { type = "address"; responses = { location_text: vStr }; } // Mitti only prefills addresses as "address"
+    else responses = { text: vStr };
+    const row = { item_id: e.id, label: e.label, type, responses };
     (e.header ? header_items : items).push(row);
   }
   return { header_items, items, count: header_items.length + items.length, missing, ambiguous, blank };
