@@ -14,7 +14,7 @@ const settings: RetailSettings = {
   spec_version: "25.0", spec_source_url: "https://www.energy.vic.gov.au/",
 };
 
-const title = "Ceiling insulation cost calculator — Home Insulation Victoria";
+const title = "Ceiling insulation rebate calculator Victoria (VEU) — Home Insulation Victoria";
 const description =
   "Work out an indicative price for ceiling insulation in your Victorian home — including the VEU discount you're likely to qualify for. Free, no obligation, nothing saved.";
 
