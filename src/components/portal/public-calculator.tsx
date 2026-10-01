@@ -141,6 +141,11 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
     setRaw("");
     areaRef.current?.focus();
   };
+  const scrollToRegister = () => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document.getElementById("register-interest")?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    window.setTimeout(() => document.getElementById("ri-name")?.focus({ preventScroll: true }), reduce ? 50 : 600);
+  };
 
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas">
