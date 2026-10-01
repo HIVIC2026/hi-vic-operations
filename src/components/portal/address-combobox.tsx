@@ -71,7 +71,7 @@ export function AddressCombobox({ id, value, onChange, onPick, placeholder, clas
           setNote(
             found.length
               ? ""
-              : "We couldn't autofill that one — keep typing your full address, including the postcode.",
+              : "We couldn't find a Victorian match — we only work with Victorian properties. Keep typing, or type your full address including the postcode.",
           );
         })
         .catch((err: unknown) => {
