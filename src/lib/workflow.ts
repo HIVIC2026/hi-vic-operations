@@ -46,7 +46,7 @@ export const STAGE_LABEL: Record<Stage, string> = {
   preliminary_estimate_ready: "Preliminary Estimate Ready",
   ready_check_awaiting_acceptance: "Ready Check – Awaiting Acceptance",
   ready_check_awaiting_payment: "Ready Check – Legacy Payment Record",
-  ready_check_ready_to_schedule: "Ready Check – Ready to Schedule",
+  ready_check_ready_to_schedule: "Book Ready Check",
   ready_check_scheduled: "Ready Check Scheduled",
   ready_check_complete: "Ready Check Complete",
   measured_estimate_ready: "Measured Estimate Ready",
