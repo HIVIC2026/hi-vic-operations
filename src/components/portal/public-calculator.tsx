@@ -43,18 +43,22 @@ function WhatCouldChange() {
         What could change this price?
         <ChevronDown aria-hidden="true" className="size-4 shrink-0 transition group-open:rotate-180" />
       </summary>
-      <div className="border-t border-estimate-line px-3 py-3 text-xs leading-relaxed">
-        <p>Based on what you&apos;ve told us. Your final scope and price are confirmed after we check:</p>
-        <ul className="mt-2 space-y-1.5">
-          {CHANGE_FACTORS.map((f) => (
-            <li key={f} className="flex items-start gap-2">
-              <Check aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-estimate-green" />
-              <span>{f}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 font-bold">{CUSTOMER_WHAT_COULD_CHANGE.closing}</p>
-        <p className="mt-2 font-bold">{CUSTOMER_WHAT_COULD_CHANGE.gst}</p>
+      <div className="grid gap-x-5 gap-y-2 border-t border-estimate-line px-3 py-3 text-xs leading-relaxed sm:grid-cols-2">
+        <div>
+          <p>Based on what you&apos;ve told us. Your final scope and price are confirmed after we check:</p>
+          <ul className="mt-2 space-y-1.5">
+            {CHANGE_FACTORS.map((f) => (
+              <li key={f} className="flex items-start gap-2">
+                <Check aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-estimate-green" />
+                <span>{f}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="sm:pt-6">
+          <p className="font-bold">{CUSTOMER_WHAT_COULD_CHANGE.closing}</p>
+          <p className="mt-2 font-bold">{CUSTOMER_WHAT_COULD_CHANGE.gst}</p>
+        </div>
       </div>
     </details>
   );
