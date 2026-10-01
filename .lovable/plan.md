@@ -23,8 +23,12 @@ We fix this one form first, get your sign-off, then move to the next. The old A1
    - How easy is the ceiling access?       Easy / Moderate / Difficult    MANDATORY
    - Photo of the ceiling access point     photo               MANDATORY
 
-3. EACH ROOM (one repeat per ceiling area)
-   - Room / area name                      text                MANDATORY
+3. CEILING AREAS
+   - How many separate ceiling areas are there?   1 / 2 / 3 / 4 / 5 / 6+   MANDATORY
+     (e.g. main roof, extension, garage-side section)
+   The form then opens that many sections: "Area 1", "Area 2", ...
+   Each area asks the same questions:
+   - Where is this area?                   text, e.g. "Main house", "Rear extension"   MANDATORY
    - Area measured (m2)                    number              MANDATORY
    - Is there existing insulation?         Yes / No            MANDATORY
      If Yes:
@@ -35,10 +39,11 @@ We fix this one form first, get your sign-off, then move to the next. The old A1
      - Area to remove (m2)                 number              MANDATORY only if Remove
      If No:
      - Photo of the empty ceiling space    photo               MANDATORY
-   - Recessed downlights in this room?     Yes / No            MANDATORY
+   - Recessed downlights in this area?     Yes / No            MANDATORY
    - How many?                             number              MANDATORY only if Yes
-   - Hazards in this room?                 Yes / No            MANDATORY
+   - Hazards in this area?                 Yes / No            MANDATORY
    - Describe them and add a photo         text + photo        MANDATORY only if Yes
+   If they pick 6+, they can keep adding areas.
 
 4. WHOLE JOB
    - How was the ceiling measured?         Laser / Tape / Floor plan / Other   MANDATORY
