@@ -52,17 +52,19 @@ const dataSchema = z.object({
   electrician_contact_consent: z.boolean().optional(),
 }).strict();
 
-function publicView(app: { status: string; step_key: string | null; data: unknown; insurance_certificate_path: string | null; signed_at: string | null; agreement_version: string | null }) {
-  return { status: app.status, step_key: app.step_key, data: { ...(app.data as InstData), insurance_uploaded: !!app.insurance_certificate_path }, signed_at: app.signed_at, agreement_version: app.agreement_version };
+function publicView(app: { status: string; step_key: string | null; data: unknown; insurance_certificate_path: string | null; signed_at: string | null; agreement_version: string | null; test_mode?: boolean | null }) {
+  return { status: app.status, step_key: app.step_key, data: { ...(app.data as InstData), insurance_uploaded: !!app.insurance_certificate_path }, signed_at: app.signed_at, agreement_version: app.agreement_version, test_mode: !!app.test_mode };
 }
 
-export const startInstallerOnboarding = createServerFn({ method: "POST" }).handler(async () => {
-  const token = newToken();
-  const db = await admin();
-  const { error } = await db.from("rec_onboarding_applications").insert({ resume_token_hash: await sha256(token), step_key: "business", partner_type: "installer" });
-  if (error) throw new Error("Could not start onboarding. Please try again.");
-  return { token };
-});
+export const startInstallerOnboarding = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ test: z.boolean().optional() }).parse(d ?? {}))
+  .handler(async ({ data }) => {
+    const token = newToken();
+    const db = await admin();
+    const { error } = await db.from("rec_onboarding_applications").insert({ resume_token_hash: await sha256(token), step_key: "business", partner_type: "installer", test_mode: !!data.test });
+    if (error) throw new Error("Could not start onboarding. Please try again.");
+    return { token };
+  });
 
 export const loadInstallerOnboarding = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ token: tokenSchema }).parse(d))
@@ -132,7 +134,8 @@ export const signInstallerAgreement = createServerFn({ method: "POST" })
     if (!validBusinessEmail(data.signer_email)) throw new Error("Enter a real business email for the signer.");
     for (const a of ACKNOWLEDGEMENTS) if (data.acknowledgements[a.key] !== true) throw new Error("Tick every acknowledgement to sign.");
     const d: InstData = { ...(app.data as InstData), insurance_uploaded: !!app.insurance_certificate_path };
-    const missing = firstIncompleteStep(d);
+    // Test applications skip mandatory-field checks so staff can run the flow end to end.
+    const missing = app.test_mode ? null : firstIncompleteStep(d);
     if (missing) throw new Error(`Please complete the "${missing.replace(/_/g, " ")}" step before signing.`);
 
     const text = agreementText(d);
@@ -144,7 +147,7 @@ export const signInstallerAgreement = createServerFn({ method: "POST" })
     const services = ["supply_install", d.service_batts_removal && "batts_removal", d.service_loose_fill_removal && "loose_fill_removal"].filter(Boolean) as string[];
     const { data: pe, error: peErr } = await db.from("partner_enquiries").insert({
       source_system: "portal_form", enquiry_type: "installer", submission_id: `portal-installer-onboarding-${app.id}`,
-      source: "portal_installer_onboarding", name: d.primary_contact_name ?? null, email: d.business_email ?? null, phone: d.business_phone ?? null,
+      source: app.test_mode ? "portal_installer_onboarding_test" : "portal_installer_onboarding", name: d.primary_contact_name ?? null, email: d.business_email ?? null, phone: d.business_phone ?? null,
       company: d.trading_name || d.legal_entity_name || null, service_areas: [d.service_origin, d.travel_radius_km === 9999 ? "Anywhere in Victoria" : `${d.travel_radius_km} km radius`].filter(Boolean) as string[],
       cii_certification_status: d.cii_status ?? null, cii_certification_details: d.cii_details ?? null,
       services, estimated_r5_install_rate_per_sqm_inc_gst: d.r5_rate ?? null,

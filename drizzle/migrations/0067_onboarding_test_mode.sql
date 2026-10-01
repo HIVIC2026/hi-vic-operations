@@ -1,0 +1,1 @@
+ALTER TABLE public.rec_onboarding_applications ADD COLUMN IF NOT EXISTS test_mode boolean NOT NULL DEFAULT false;
