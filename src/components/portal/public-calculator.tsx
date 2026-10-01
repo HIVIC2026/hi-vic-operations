@@ -1,8 +1,7 @@
 // ============= Full file contents =============
 
 import { useRef, useState } from "react";
-import { Check, ChevronDown, Info, RotateCcw } from "lucide-react";
-import { QuoteBreakdown } from "./estimate";
+import { ArrowDown, Check, ChevronDown, Info, PiggyBank, RotateCcw } from "lucide-react";
 import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows } from "@/lib/customer-quote-system";
 import { CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings } from "@/lib/estimate.core";
 import { lookupLocation } from "@/lib/activity48.core";
@@ -36,10 +35,13 @@ const CHANGE_FACTORS = [
   "Any electrical rectification found during the mandatory PIESA",
 ];
 
-function Question({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
+function Question({ id, n, label, children }: { id: string; n: number; label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
-      <label htmlFor={id} className="block text-[0.7rem] font-extrabold uppercase tracking-[0.14em] text-estimate-navy/70">
+      <label htmlFor={id} className="flex items-center gap-2.5 text-[0.7rem] font-extrabold uppercase tracking-[0.14em] text-estimate-navy/70">
+        <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-estimate-blue text-[0.7rem] font-extrabold text-estimate-white">
+          {n}
+        </span>
         {label}
       </label>
       {children}
