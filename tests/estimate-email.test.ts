@@ -173,7 +173,8 @@ describe("customer outcome email renderers", () => {
     expect(CUSTOMER_BRAND).toEqual({ name: "Home Insulation Victoria", logoUrl: "https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png", colors: { blue: "#3C51C4", green: "#07BF61", accent: "#52C875", offWhite: "#FBFCFA", navy: "#22376B", white: "#FFFFFF" }, font: "'Open Sans',Arial,Helvetica,sans-serif" });
     for (const outcome of ["likely", "onsite"] as const) {
       const email = renderEstimateEmail({ ...detailed, outcome });
-      const indexes = CUSTOMER_QUOTE_ORDER.slice(0, outcome === "likely" ? 5 : 6).map((label) => email.plainText.indexOf(label));
+      const quoteText = outcome === "likely" ? email.plainText.slice(email.plainText.indexOf("YOUR ESTIMATE BREAKDOWN")) : email.plainText;
+      const indexes = CUSTOMER_QUOTE_ORDER.slice(0, outcome === "likely" ? 5 : 6).map((label) => quoteText.indexOf(label));
       expect(indexes.every((index, position) => index >= 0 && (position === 0 || index > indexes[position - 1]!))).toBe(true);
       expect(`${email.html} ${email.plainText}`).not.toMatch(/\bHI VIC\b/);
     }
