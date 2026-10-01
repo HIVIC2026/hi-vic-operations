@@ -28,7 +28,7 @@ function fake(opts: { users?: { id: string; email: string }[]; template?: unknow
     if (path.startsWith("/users/search")) return { users: opts.users ?? [{ id: "user_77", email: "sparky@hivic.test" }] };
     if (path.startsWith("/templates/")) return opts.template ?? TEMPLATE;
     if (path === "/audits") return { audit_id: `audit_${++n}`, created_at: "2026-09-28T01:00:00Z" };
-    if (path.endsWith("/share")) return {};
+    if (path.endsWith("/share") || path.endsWith("/owner")) return {};
     if (path.startsWith("/audits/")) return opts.audit;
     throw new Error("unexpected " + path);
   };
@@ -46,7 +46,8 @@ describe("create & assign", () => {
     const { api, calls } = fake();
     const r = await createOrReuseAudit(api, ctx());
     expect(r).toMatchObject({ auditId: "audit_1", reused: false, mittiUserId: "user_77", prefillCount: 9 });
-    expect(calls.map((c) => c.path)).toEqual(["/users/search", `/templates/v1/templates/${MITTI_TEMPLATE_ID}`, "/audits", "/audits/audit_1/share"]);
+    expect(calls.map((c) => c.path)).toEqual(["/users/search", `/templates/v1/templates/${MITTI_TEMPLATE_ID}`, "/audits", "/audits/audit_1/share", "/inspections/v1/inspections/audit_1/owner"]);
+    expect(calls[4]).toMatchObject({ method: "PUT", body: { owner_id: "user_77" } });
     expect(calls[0].body).toEqual({ email: ["sparky@hivic.test"] });
     const body = calls[2].body as { template_id: string; header_items: { item_id: string; responses: Record<string, string> }[]; items: { item_id: string }[] };
     expect(body.template_id).toBe(MITTI_TEMPLATE_ID);

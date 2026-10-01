@@ -11,7 +11,7 @@ export const MITTI_ASSIGN_STAGES = ["assessment_booking", "assessment_booked"] a
 
 export class MittiError extends Error {}
 
-export type MittiCall = (method: "GET" | "POST", path: string, body?: unknown) => Promise<unknown>;
+export type MittiCall = (method: "GET" | "POST" | "PUT", path: string, body?: unknown) => Promise<unknown>;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
@@ -24,6 +24,9 @@ export function mittiApi(call: MittiCall) {
     createAudit: (body: { template_id: string; header_items?: unknown[]; items?: unknown[] }) => call("POST", "/audits", body) as Promise<Any>,
     shareAudit: (auditId: string, userId: string) =>
       call("POST", `/audits/${encodeURIComponent(auditId)}/share`, { shares: [{ id: userId, permission: "edit" }] }),
+    /** Make the assignee the owner so the form sits in THEIR Inspections list (sharing alone leaves it hidden). */
+    setAuditOwner: (auditId: string, userId: string) =>
+      call("PUT", `/inspections/v1/inspections/${encodeURIComponent(auditId)}/owner`, { owner_id: userId }),
     getAudit: (auditId: string) => call("GET", `/audits/${encodeURIComponent(auditId)}`) as Promise<Any>,
   };
 }
@@ -244,6 +247,7 @@ export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise
 
   if (ctx.existingAuditId) {
     await api.shareAudit(ctx.existingAuditId, String(userId));
+    await api.setAuditOwner(ctx.existingAuditId, String(userId));
     return { auditId: ctx.existingAuditId, reused: true, mittiUserId: String(userId), assigneeEmail: email, prefillCount: null, createdAt: null };
   }
   const blankRequired = (["jobNumber", "address", "ownerName", "assessorName"] as const).filter((k) => String(ctx.prefill[k] ?? "").trim() === "");
@@ -259,6 +263,7 @@ export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise
   const auditId = audit?.audit_id ?? audit?.id;
   if (!auditId) throw new MittiError("Mitti did not return an audit ID.");
   await api.shareAudit(String(auditId), String(userId));
+  await api.setAuditOwner(String(auditId), String(userId));
   return { auditId: String(auditId), reused: false, mittiUserId: String(userId), assigneeEmail: email, prefillCount: p.count, createdAt: audit?.created_at ?? audit?.audit_data?.date_started ?? null };
 }
 
