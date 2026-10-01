@@ -252,30 +252,31 @@ export function renderEstimateEmail(input: EstimateEmailInput): EstimateEmail {
 
 /** Clean public calculator (no customer data in the URL). */
 export const PUBLIC_CALCULATOR_URL = "https://estimate.homeinsulationvictoria.com.au/calculator";
-/** AA-contrast green for text on white (brand green #07BF61 is reserved for fills/accents). */
 const TEXT_GREEN = "#067A45";
-const MINT = "#E9F8EF";
-const SOFT_BLUE = "#F3F5FD";
+const MIST = "#F3F6FF";
+const MINT = "#EDFAF2";
+const BLUSH = "#FDF2F6";
+const LINE = "#E4E9F5";
+const FIGTREE = "'Figtree',Arial,Helvetica,sans-serif";
+const OUTFIT = "'Outfit','Figtree',Arial,Helvetica,sans-serif";
 
 export function likelySubjectLine(firstName: string | null | undefined, discount: number | null | undefined) {
   const name = firstName?.trim().replace(/\s+/g, " ").slice(0, 60);
   const amount = typeof discount === "number" && Number.isFinite(discount) && discount > 0 ? money(discount) : null;
   const subject = amount
-    ? `${name ? `${name}, your` : "Your"} home could qualify for an estimated ${amount} VEU insulation discount`
-    : `${name ? `${name}, good news` : "Good news"} — your home looks likely to qualify for a VEU insulation discount`;
-  const previewText = amount
-    ? `See your preliminary estimate, then arrange your free Ready Check — no obligation to proceed.`
-    : "Your preliminary eligibility result is ready. Your next step is a free Ready Check — no obligation to proceed.";
+    ? `${name ? `${name}, you` : "You"} could save ${amount} on ceiling insulation`
+    : `${name ? `${name}, your` : "Your"} preliminary ceiling insulation estimate is ready`;
+  const previewText = "See your estimated VEU rebate, then arrange your free Ready Check — no obligation to proceed.";
   return { subject, previewText };
 }
 
 function likelyV2Shell(content: string, preview: string, pixel: string | null) {
   const css = `<style type="text/css">
-body,table,td,p,h1,h2,a,span{font-family:${OPEN_SANS};}
+body,table,td,p,a,span{font-family:${FIGTREE};}h1,h2,h3{font-family:${OUTFIT};font-weight:800}
 a{text-decoration:none}
-@media only screen and (max-width:480px){.lx-pad{padding-left:20px!important;padding-right:20px!important}.lx-h1{font-size:28px!important;line-height:34px!important}.lx-stack{display:block!important;width:100%!important;box-sizing:border-box}.lx-stack-gap{padding:0 0 12px 0!important}.lx-big{font-size:32px!important;line-height:38px!important}.lx-logo{width:132px!important}.lx-label{display:none!important}.lx-row-amt{width:84px!important}}
+@media only screen and (max-width:480px){.lx-outer{padding:0!important}.lx-main{border-radius:0!important}.lx-pad{padding-left:18px!important;padding-right:18px!important}.lx-h1{font-size:28px!important;line-height:32px!important}.lx-saving{font-size:32px!important;line-height:36px!important}.lx-cost{font-size:40px!important;line-height:44px!important}.lx-logo{width:124px!important}.lx-badge{font-size:9px!important;padding:6px 9px!important}.lx-result-pad{padding:18px 14px!important}.lx-row-amt{width:80px!important;font-size:13px!important}.lx-button{font-size:14px!important;padding:14px 12px!important}.lx-body{font-size:14px!important}.lx-footer{padding-top:20px!important;padding-bottom:22px!important}}
 </style>`;
-  return `<!doctype html><html lang="en-AU" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${escape(preview)}</title><!--[if !mso]><!--><link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"><!--<![endif]--><!--[if mso]><style type="text/css">body,table,td,p,h1,h2,a,span{font-family:Arial,Helvetica,sans-serif!important}</style><![endif]-->${css}</head><body lang="en-AU" dir="ltr" style="margin:0;padding:0;background-color:${OUTER};font-family:${OPEN_SANS};color:${INK};">${preheader(preview)}<table role="presentation" lang="en-AU" dir="ltr" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${OUTER}" style="width:100%;border-collapse:collapse;background-color:${OUTER};"><tr><td align="center" style="padding:20px 0 36px;"><table class="hiv-main" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${WHITE}" style="width:100%;max-width:640px;border-collapse:collapse;background-color:${WHITE};border-radius:18px;">${TEST_BANNER_SLOT}${content}</table>${pixelTag(pixel)}</td></tr></table></body></html>`;
+  return `<!doctype html><html lang="en-AU" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${escape(preview)}</title><!--[if !mso]><!--><link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700;800&amp;family=Outfit:wght@700;800&amp;display=swap" rel="stylesheet"><!--<![endif]--><!--[if mso]><style type="text/css">body,table,td,p,a,span{font-family:Arial,Helvetica,sans-serif!important}h1,h2,h3{font-family:Arial,Helvetica,sans-serif!important;font-weight:bold!important}</style><![endif]-->${css}</head><body lang="en-AU" dir="ltr" style="margin:0;padding:0;background-color:${OUTER};font-family:${FIGTREE};color:${INK};">${preheader(preview)}<table role="presentation" lang="en-AU" dir="ltr" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${OUTER}" style="width:100%;border-collapse:collapse;background-color:${OUTER};"><tr><td class="lx-outer" align="center" style="padding:20px 0 36px;"><table class="hiv-main lx-main" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${WHITE}" style="width:100%;max-width:640px;border-collapse:separate;border-spacing:0;background-color:${WHITE};border-radius:24px;box-shadow:0 30px 70px -45px rgba(34,55,107,.45);">${TEST_BANNER_SLOT}${content}</table>${pixelTag(pixel)}</td></tr></table></body></html>`;
 }
 
 function renderLikelyEligibleEmail(input: EstimateEmailInput): EstimateEmail {
@@ -283,84 +284,82 @@ function renderLikelyEligibleEmail(input: EstimateEmailInput): EstimateEmail {
   const name = input.firstName?.trim().replace(/\s+/g, " ").slice(0, 60) || null;
   const address = input.address?.trim().replace(/\s+/g, " ").slice(0, 180) || null;
   const { subject, previewText } = likelySubjectLine(name, discount);
-  const F = `font-family:${OPEN_SANS};`;
-  const row = (content: string, pad = "0 40px 28px", extra = "") => `<tr><td class="lx-pad" style="padding:${pad};${F}${extra}">${content}</td></tr>`;
-  const p = (t: string, s = "") => `<p style="margin:0;${F}color:${INK};font-size:16px;line-height:1.6;${s}">${t}</p>`;
-  const h2 = (t: string, s = "") => `<h2 style="margin:0 0 12px;${F}color:${INK};font-size:22px;line-height:1.25;font-weight:800;letter-spacing:-.3px;${s}">${t}</h2>`;
-  const button = (href: string, text: string, kind: "primary" | "secondary") => {
-    const bg = kind === "primary" ? GREEN : WHITE;
-    const fg = kind === "primary" ? INK : BLUE;
-    const border = kind === "primary" ? GREEN : BLUE;
-    return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="border-collapse:separate;margin:0 auto;"><tr><td align="center" bgcolor="${bg}" style="background-color:${bg};border:2px solid ${border};border-radius:12px;mso-padding-alt:14px 28px;${kind === "primary" ? "box-shadow:0 8px 20px -8px rgba(7,191,97,.55);" : ""}"><a href="${escape(href)}" style="display:inline-block;min-height:20px;padding:14px 28px;${F}color:${fg};font-size:16px;line-height:20px;font-weight:800;text-decoration:none;border-radius:12px;">${text}</a></td></tr></table>`;
-  };
+  const F = `font-family:${FIGTREE};`;
+  const FH = `font-family:${OUTFIT};`;
+  const row = (content: string, pad = "0 36px 28px", extra = "") => `<tr><td class="lx-pad" style="padding:${pad};${F}${extra}">${content}</td></tr>`;
+  const p = (t: string, s = "") => `<p class="lx-body" style="margin:0;${F}color:${INK};font-size:15px;line-height:1.6;${s}">${t}</p>`;
+  const h2 = (t: string) => `<h2 style="margin:0 0 12px;${FH}color:${INK};font-size:23px;line-height:1.2;font-weight:800;letter-spacing:0;">${t}</h2>`;
+  const button = (href: string, text: string, primary: boolean) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;"><tr><td align="center" bgcolor="${primary ? GREEN : WHITE}" style="background-color:${primary ? GREEN : WHITE};border:${primary ? "0" : `2px solid ${BLUE}`};border-radius:12px;mso-padding-alt:15px 18px;${primary ? "box-shadow:0 10px 24px -12px rgba(7,191,97,.55);" : ""}"><a class="lx-button" href="${escape(href)}" style="display:block;padding:15px 18px;${F}color:${primary ? WHITE : BLUE};font-size:16px;line-height:20px;font-weight:800;text-decoration:none;border-radius:12px;">${text}</a></td></tr></table>`;
 
   // 1. Header
-  const header = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;"><tr><td valign="middle" style="padding:0;"><img class="lx-logo hiv-logo" src="${LOGO_URL}" alt="Home Insulation Victoria" width="160" height="68" style="display:block;width:160px;height:auto;max-width:100%;border:0;"></td><td class="lx-label" align="right" valign="middle" style="padding:0;${F}"><span style="display:inline-block;padding:6px 12px;background-color:${MINT};border-radius:999px;color:${TEXT_GREEN};font-size:13px;line-height:1.3;font-weight:700;">Preliminary eligibility result</span></td></tr></table>`;
+  const header = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;"><tr><td valign="middle"><img class="lx-logo hiv-logo" src="${LOGO_URL}" alt="Home Insulation Victoria" width="142" height="61" style="display:block;width:142px;height:auto;max-width:100%;border:0;"></td><td align="right" valign="middle"><span class="lx-badge" style="display:inline-block;padding:7px 11px;background-color:${BLUSH};border-radius:999px;${F}color:${INK};font-size:10px;line-height:1.2;font-weight:800;letter-spacing:.7px;text-transform:uppercase;">Free estimate · no obligation</span></td></tr></table>`;
 
   // 2. Hero
-  const greeting = name ? `Hi ${escape(name)},` : "Hello,";
   const goodNews = name ? `Good news, ${escape(name)} — based` : "Good news — based";
-  const hero = `<p style="margin:0 0 14px;${F}color:${INK};font-size:16px;line-height:1.5;font-weight:600;">${greeting}</p><h1 class="lx-h1 hiv-hero-title" style="margin:0 0 16px;${F}color:${BLUE};font-size:36px;line-height:42px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:-.8px;">A more comfortable home starts here.</h1>${p(`${goodNews} on the information you’ve provided, your home looks likely to qualify for a VEU ceiling insulation discount.`)}${p("We’ll coordinate the installer, electrical safety checks and rebate paperwork, so you have one team guiding the process.", "margin-top:12px;")}${address ? `<p style="margin:16px 0 0;${F}color:${INK};font-size:14px;line-height:1.5;"><span style="color:${TEXT_GREEN};font-weight:700;">Property:</span> ${escape(address)}</p>` : ""}`;
+  const hero = `<p style="margin:0 0 8px;${F}color:${TEXT_GREEN};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">Preliminary eligibility result</p><h1 class="lx-h1 hiv-hero-title" style="margin:0 0 14px;${FH}color:${INK};font-size:34px;line-height:39px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:0;">How much could you save on ceiling insulation?</h1>${p(`${goodNews} on what you’ve told us, your home looks likely to qualify for a VEU ceiling insulation rebate.`)}${p("A more comfortable home could be closer than you think. We’ll coordinate the installer, electrical checks and paperwork.", "margin-top:8px;")}`;
 
   // 3. Savings module (echoes the standalone calculator)
-  const areaNote = input.areaIsTypical ? `${escape(number(area))} m² — based on a typical Victorian home` : `${escape(number(area))} m² — based on your enquiry`;
-  const stat = (labelText: string, value: string, color: string, cls: string, pad: string) => `<td class="lx-stack ${cls}" width="50%" valign="top" style="width:50%;padding:${pad};"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${WHITE}" style="width:100%;border-collapse:separate;background-color:${WHITE};border:1px solid ${CUSTOMER_VISUAL_SYSTEM.softGreenBorder};border-radius:14px;"><tr><td style="padding:18px 18px 16px;${F}"><p style="margin:0 0 6px;${F}color:${INK};font-size:14px;line-height:1.35;font-weight:600;">${labelText}</p><p class="lx-big" style="margin:0;${F}color:${color};font-size:34px;line-height:40px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:-.8px;white-space:nowrap;">${value}</p></td></tr></table></td>`;
-  const savings = `<table data-likely-savings="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MINT}" style="width:100%;border-collapse:separate;background-color:${MINT};border-radius:20px;box-shadow:0 14px 32px -18px rgba(7,191,97,.55);"><tr><td style="padding:24px 22px 22px;${F}"><p style="margin:0 0 14px;${F}color:${INK};font-size:18px;line-height:1.3;font-weight:800;">Your preliminary estimate</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;"><tr>${stat("Your estimated VEU discount", escape(money(discount)), TEXT_GREEN, "lx-stack-gap", "0 6px 0 0")}${stat("Estimated cost after discount", escape(money(customer)), BLUE, "lx-stack-gap", "0 0 0 6px")}</tr></table><p style="margin:14px 0 0;${F}color:${INK};font-size:15px;line-height:1.5;"><strong>Estimated ceiling area:</strong> ${areaNote}</p><p style="margin:6px 0 18px;${F}color:${INK};font-size:14px;line-height:1.5;">These are preliminary estimates, subject to eligibility and onsite checks. Prices include GST.</p>${button(PUBLIC_CALCULATOR_URL, "Explore your savings", "secondary")}<p style="margin:10px 0 0;${F}color:${INK};font-size:14px;line-height:1.5;text-align:center;">Open our online calculator to adjust the ceiling size and compare estimates.</p></td></tr></table>`;
+  const areaNote = input.areaIsTypical ? `${escape(number(area))} m² (typical-home assumption)` : `${escape(number(area))} m²`;
+  const summary = `${address ? `<tr><td style="padding:4px 0;${F}color:${INK};font-size:13px;">Property</td><td align="right" style="padding:4px 0 4px 12px;${F}color:${INK};font-size:13px;font-weight:800;">${escape(address)}</td></tr>` : ""}<tr><td style="padding:4px 0;${F}color:${INK};font-size:13px;">Ceiling</td><td align="right" style="padding:4px 0 4px 12px;${F}color:${INK};font-size:13px;font-weight:800;">${areaNote}</td></tr>`;
+  const savings = `<table data-likely-savings="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MIST}" style="width:100%;border-collapse:separate;background-color:${MIST};border-radius:22px;"><tr><td class="lx-result-pad" style="padding:22px 20px;${F}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MINT}" style="width:100%;border-collapse:separate;background-color:${MINT};border:2px solid ${GREEN};border-radius:18px;"><tr><td align="center" style="padding:18px 12px;${F}"><p style="margin:0;${F}color:${INK};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;">Your estimated VEU rebate</p><p class="lx-saving" style="margin:5px 0 0;${FH}color:${GREEN};font-size:38px;line-height:42px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:0;">You could save ${escape(money(discount))}</p></td></tr></table><div style="text-align:center;padding:18px 0 12px;"><p style="margin:0;${F}color:${INK};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;">Your estimated cost after rebate</p><p class="lx-cost" style="margin:5px 0 0;${FH}color:${BLUE};font-size:46px;line-height:50px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:0;">${escape(money(customer))}</p><p style="margin:4px 0 0;${F}color:${INK};font-size:12px;line-height:1.4;font-weight:700;">incl. GST · before rebate ${escape(money(hasBreakdown ? gross : packagePrice))}</p><p style="margin:8px auto 0;max-width:390px;${F}color:${INK};font-size:11px;line-height:1.5;">Estimate only. Eligibility, measurements and final pricing confirmed after assessment.</p></div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;border-top:1px solid ${LINE};">${summary}</table><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${WHITE}" style="width:100%;margin-top:16px;border-collapse:separate;background-color:${WHITE};border-radius:14px;"><tr><td style="padding:16px;${F}"><p style="margin:0 0 4px;${FH}color:${INK};font-size:17px;line-height:1.3;font-weight:800;">Want to try a different ceiling size?</p><p style="margin:0 0 12px;${F}color:${INK};font-size:13px;line-height:1.5;">Change the ceiling size or property details and see your estimate update instantly.</p>${button(PUBLIC_CALCULATOR_URL, "Open the calculator →", false)}</td></tr></table></td></tr></table>`;
 
   // 4. What we take care of
   const benefits: Array<[string, string]> = [
-    ["Free measure-up by a certified installer", "A certified insulation installer measures your ceiling and checks the details needed for your quote."],
-    ["Installation, arranged for you", "We coordinate a vetted installer for your R5.0 ceiling insulation."],
-    ["Electrical safety checks", "A licensed electrician completes the required pre-installation safety assessment."],
-    ["Paperwork and your VEU discount", "We prepare the required documentation and process your discount, so it comes off your price."],
+    ["Free Home Insulation Ready Check", "A certified insulation installer confirms the ceiling size, access and existing insulation."],
+    ["R5.0 ceiling insulation — supply & install", "Fitted by a vetted EEC-certified insulation installer."],
+    ["Mandatory PIESA", "A licensed electrician completes this paid safety assessment close to installation."],
+    ["Paperwork and rebate", "Home Insulation Victoria handles the required paperwork and VEU rebate processing."],
   ];
-  const care = `${h2("What we take care of")}${benefits.map(([t, c]) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;"><tr><td width="40" valign="top" style="width:40px;padding:4px 0 16px;"><span style="display:inline-block;width:26px;height:26px;background-color:${MINT};border-radius:13px;color:${TEXT_GREEN};font-size:15px;line-height:26px;font-weight:800;text-align:center;">✓</span></td><td valign="top" style="padding:0 0 16px;${F}"><p style="margin:0 0 2px;${F}color:${INK};font-size:16px;line-height:1.4;font-weight:700;">${t}</p><p style="margin:0;${F}color:${INK};font-size:15px;line-height:1.55;">${c}</p></td></tr></table>`).join("")}`;
+  const care = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${WHITE}" style="width:100%;border-collapse:separate;background-color:${WHITE};border:1px solid ${LINE};border-radius:18px;"><tr><td style="padding:22px 20px;">${h2("What this includes")}${benefits.map(([t, c]) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;"><tr><td width="32" valign="top" style="width:32px;padding:2px 0 12px;color:${GREEN};font-size:16px;font-weight:800;">✓</td><td valign="top" style="padding:0 0 12px;${F}"><p style="margin:0 0 2px;${F}color:${INK};font-size:14px;line-height:1.4;font-weight:800;">${t}</p><p style="margin:0;${F}color:${INK};font-size:13px;line-height:1.5;">${c}</p></td></tr></table>`).join("")}</td></tr></table>`;
 
   // 5. Primary conversion
-  const nextStep = `<table data-likely-next-step="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${INK}" style="width:100%;border-collapse:separate;background-color:${INK};border-radius:20px;"><tr><td align="center" style="padding:30px 26px;${F}"><h2 style="margin:0 0 10px;${F}color:${WHITE};font-size:26px;line-height:1.2;font-weight:800;letter-spacing:-.4px;">Your next step is free.</h2><p style="margin:0 0 22px;${F}color:${WHITE};font-size:16px;line-height:1.6;">A certified insulation installer confirms the ceiling measurements and eligibility details at your free Ready Check.</p>${button(confirmTarget, "Arrange my free Ready Check", "primary")}<p style="margin:14px 0 0;${F}color:#D9F7E5;font-size:14px;line-height:1.5;font-weight:600;">Free Ready Check. No obligation to proceed.</p></td></tr></table>`;
+  const nextStep = `<table data-likely-next-step="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUSH}" style="width:100%;border-collapse:separate;background-color:${BLUSH};border-radius:20px;"><tr><td style="padding:24px 22px;${F}"><p style="margin:0 0 7px;${F}color:${TEXT_GREEN};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;">High demand</p>${h2("Demand is high. Installer availability is limited.")}${p("Arrange your free Ready Check so we can confirm your ceiling size and discuss availability in your area.")}<div style="height:16px;line-height:16px;">&nbsp;</div>${button(confirmTarget, "Arrange my free Ready Check →", true)}<p style="margin:10px 0 0;${F}color:${INK};font-size:12px;line-height:1.5;font-weight:700;text-align:center;">Free Ready Check. No obligation to proceed.</p></td></tr></table>`;
 
   // 6. Itemised estimate
   const line = (t: string, amt: string, opts: { note?: string; bold?: boolean; color?: string; top?: boolean } = {}) => `<tr><td valign="top" style="padding:10px 12px 10px 0;${opts.top ? `border-top:1px solid ${CUSTOMER_VISUAL_SYSTEM.softBlueBorder};` : ""}${F}color:${INK};font-size:15px;line-height:1.45;font-weight:${opts.bold ? 800 : 400};">${t}${opts.note ? `<br><span style="${F}font-size:13px;line-height:1.45;font-weight:400;color:${INK};">${opts.note}</span>` : ""}</td><td class="lx-row-amt" width="104" align="right" valign="top" style="width:104px;padding:10px 0;${opts.top ? `border-top:1px solid ${CUSTOMER_VISUAL_SYSTEM.softBlueBorder};` : ""}${F}color:${opts.color ?? INK};font-size:15px;line-height:1.45;font-weight:${opts.bold ? 800 : 600};white-space:nowrap;">${amt}</td></tr>`;
   const items = hasBreakdown ? customerQuoteRows({ piesa: assessment, installation, apManagement: apFee }).map(({ key, label: l, amount }, i) => line(escape(l), escape(money(amount)), { ...(key === "piesa" ? { note: escape(CUSTOMER_PIESA_NOTE) } : {}), top: i === 0 })).join("") : "";
-  const estimate = `${h2("Your itemised estimate")}<table data-likely-itemised="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">${line(`${escape(CUSTOMER_READY_CHECK.name)}`, "Free", { note: "Not part of the project estimate below.", color: TEXT_GREEN, bold: true })}${items}${line(escape(CUSTOMER_QUOTE_LABELS.projectTotal), escape(money(hasBreakdown ? gross : packagePrice)), { bold: true, top: true })}${line(escape(CUSTOMER_QUOTE_LABELS.discount), escape(discountAmount(discount)), { color: TEXT_GREEN, bold: true })}${line("Estimated cost after discount", escape(money(customer)), { bold: true, color: BLUE, top: true })}</table><p style="margin:14px 0 0;${F}color:${INK};font-size:14px;line-height:1.55;">${escape(CUSTOMER_WHAT_COULD_CHANGE.intro)}</p><p style="margin:10px 0 0;${F}color:${INK};font-size:14px;line-height:1.55;font-weight:700;">${escape(CUSTOMER_WHAT_COULD_CHANGE.closing)} ${escape(CUSTOMER_WHAT_COULD_CHANGE.gst)}</p>`;
+  const changes = ["Final measured ceiling size", "Existing insulation or removal", "Ceiling access", "Electrical rectification identified during PIESA"];
+  const estimate = `${h2("Your estimate breakdown")}<table data-likely-itemised="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">${line(`${escape(CUSTOMER_READY_CHECK.name)}`, "Free", { note: "Separate from the paid project estimate below.", color: TEXT_GREEN, bold: true })}${items}${line(escape(CUSTOMER_QUOTE_LABELS.projectTotal), escape(money(hasBreakdown ? gross : packagePrice)), { bold: true, top: true })}${line(escape(CUSTOMER_QUOTE_LABELS.discount), escape(discountAmount(discount)), { color: TEXT_GREEN, bold: true })}${line("Estimated cost after rebate", escape(money(customer)), { bold: true, color: BLUE, top: true })}</table><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MIST}" style="width:100%;margin-top:18px;border-collapse:separate;background-color:${MIST};border-radius:14px;"><tr><td style="padding:16px;${F}"><p style="margin:0 0 8px;${FH}color:${INK};font-size:16px;line-height:1.3;font-weight:800;">What could change this price?</p>${changes.map((change) => `<p style="margin:4px 0;${F}color:${INK};font-size:13px;line-height:1.45;"><span style="color:${GREEN};font-weight:800;">✓</span>&nbsp; ${change}</p>`).join("")}<p style="margin:10px 0 0;${F}color:${INK};font-size:13px;line-height:1.5;font-weight:700;">${escape(CUSTOMER_WHAT_COULD_CHANGE.closing)} ${escape(CUSTOMER_WHAT_COULD_CHANGE.gst)}</p></td></tr></table>`;
 
   // 7. Footer
   const ref = input.reference?.trim() ? ` · Reference: ${escape(input.reference.trim())}` : "";
-  const footer = `<p style="margin:0 0 6px;${F}color:${INK};font-size:14px;line-height:1.4;font-weight:800;">Home Insulation Victoria</p><p style="margin:0;${F}color:${INK};font-size:13px;line-height:1.6;">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria${ref}<br>You’re receiving this because you requested an eligibility result or estimate.<br><a href="${SITE}/privacy" style="color:${BLUE};text-decoration:underline;">Privacy policy</a> &nbsp;·&nbsp; <a href="${SITE}/contact" style="color:${BLUE};text-decoration:underline;">Contact us</a>${referralUrl ? ` &nbsp;·&nbsp; <a href="${escape(referralUrl)}" style="color:${BLUE};text-decoration:underline;">Refer a friend</a>` : ""}<br>A secure unsubscribe link appears below.</p>`;
+  const footer = `<p style="margin:0 0 5px;${F}color:${INK};font-size:13px;line-height:1.4;font-weight:800;">Home Insulation Victoria</p><p style="margin:0;${F}color:${INK};font-size:11px;line-height:1.65;">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria${ref}<br>You’re receiving this because you requested an eligibility result or estimate.<br><a href="${SITE}/privacy" style="color:${BLUE};text-decoration:underline;">Privacy policy</a> &nbsp;·&nbsp; <a href="${SITE}/contact" style="color:${BLUE};text-decoration:underline;">Contact us</a>${referralUrl ? ` &nbsp;·&nbsp; <a href="${escape(referralUrl)}" style="color:${BLUE};text-decoration:underline;">Refer a friend</a>` : ""}<br>A secure unsubscribe link appears below.</p>`;
 
   const html = likelyV2Shell(
-    `${row(header, "26px 40px 22px")}${row(hero, "6px 40px 28px")}${row(savings, "0 32px 32px")}${row(care, "4px 40px 16px")}${row(nextStep, "0 32px 32px")}${row(estimate, "4px 40px 30px")}${row(footer, "22px 40px 24px", `background-color:#F1F8F3;border-top:3px solid ${GREEN};border-radius:0 0 18px 18px;`)}`,
+    `${row(header, "22px 36px 18px")}${row(hero, "8px 36px 24px")}${row(savings, "0 28px 26px")}${row(care, "0 28px 20px")}${row(nextStep, "0 28px 24px")}${row(estimate, "4px 36px 28px")}${row(footer, "20px 36px 22px", `background-color:${MINT};border-top:1px solid ${LINE};border-radius:0 0 24px 24px;`)}`,
     previewText, pixel,
   );
 
   const plainItems = hasBreakdown ? customerQuoteRows({ piesa: assessment, installation, apManagement: apFee }).map(({ key, label: l, amount }) => `${l}: ${money(amount)}${key === "piesa" ? `\n  (${CUSTOMER_PIESA_NOTE})` : ""}`).join("\n") + "\n" : "";
   const plainText = [
     subject, "",
-    name ? `Hi ${name},` : "Hello,", "",
-    "A more comfortable home starts here.", "",
-    `${name ? `Good news, ${name} — based` : "Good news — based"} on the information you’ve provided, your home looks likely to qualify for a VEU ceiling insulation discount.`,
-    "We’ll coordinate the installer, electrical safety checks and rebate paperwork, so you have one team guiding the process.",
-    ...(address ? [`Property: ${address}`] : []), "",
-    "YOUR PRELIMINARY ESTIMATE",
-    `Your estimated VEU discount: ${money(discount)}`,
-    `Estimated cost after discount: ${money(customer)}`,
-    `Estimated ceiling area: ${number(area)} m² — ${input.areaIsTypical ? "based on a typical Victorian home" : "based on your enquiry"}`,
-    "These are preliminary estimates, subject to eligibility and onsite checks. Prices include GST.",
-    `Explore your savings: ${PUBLIC_CALCULATOR_URL}`,
-    "Open our online calculator to adjust the ceiling size and compare estimates.", "",
-    "WHAT WE TAKE CARE OF",
+    "How much could you save on ceiling insulation?", "",
+    `${name ? `Good news, ${name} — based` : "Good news — based"} on what you’ve told us, your home looks likely to qualify for a VEU ceiling insulation rebate.`,
+    "A more comfortable home could be closer than you think. We’ll coordinate the installer, electrical checks and paperwork.", "",
+    "YOUR ESTIMATE",
+    `Your estimated VEU rebate: You could save ${money(discount)}`,
+    `Your estimated cost after rebate: ${money(customer)}`,
+    `incl. GST · before rebate ${money(hasBreakdown ? gross : packagePrice)}`,
+    "Estimate only. Eligibility, measurements and final pricing confirmed after assessment.",
+    ...(address ? [`Property: ${address}`] : []),
+    `Ceiling: ${number(area)} m²${input.areaIsTypical ? " (typical-home assumption)" : ""}`, "",
+    "Want to try a different ceiling size?",
+    "Change the ceiling size or property details and see your estimate update instantly.",
+    `Open the calculator: ${PUBLIC_CALCULATOR_URL}`, "",
+    "WHAT THIS INCLUDES",
     ...benefits.map(([t, c]) => `✓ ${t} — ${c}`), "",
-    "YOUR NEXT STEP IS FREE.",
-    "A certified insulation installer confirms the ceiling measurements and eligibility details at your free Ready Check.",
+    "Demand is high. Installer availability is limited.",
+    "Arrange your free Ready Check so we can confirm your ceiling size and discuss availability in your area.",
     `Arrange my free Ready Check: ${confirmTarget}`,
     "Free Ready Check. No obligation to proceed.", "",
-    "YOUR ITEMISED ESTIMATE",
-    `${CUSTOMER_READY_CHECK.name}: Free (not part of the project estimate below)`,
+    "YOUR ESTIMATE BREAKDOWN",
+    `${CUSTOMER_READY_CHECK.name}: Free (separate from the paid project estimate below)`,
     `${plainItems}${CUSTOMER_QUOTE_LABELS.projectTotal}: ${money(hasBreakdown ? gross : packagePrice)}`,
     `${CUSTOMER_QUOTE_LABELS.discount}: ${discountAmount(discount)}`,
-    `Estimated cost after discount: ${money(customer)}`,
+    `Estimated cost after rebate: ${money(customer)}`,
     "",
-    CUSTOMER_WHAT_COULD_CHANGE.intro,
+    "WHAT COULD CHANGE THIS PRICE?",
+    ...changes.map((change) => `• ${change}`),
     `${CUSTOMER_WHAT_COULD_CHANGE.closing} ${CUSTOMER_WHAT_COULD_CHANGE.gst}`, "",
     "Home Insulation Victoria",
     `DC Construction Solutions Pty Ltd trading as Home Insulation Victoria${input.reference?.trim() ? ` · Reference: ${input.reference.trim()}` : ""}`,
