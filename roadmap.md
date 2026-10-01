@@ -7,7 +7,8 @@
 - [x] 0074 staged in throwaway database with undo script tested; live apply waiting on Jo
 - [ ] Pricing questions C01–C04: waiting on Jo to confirm which are settled
 - [ ] Old electrician-visit path: waiting on Jo's decision (Ready Check not guaranteed before PIESA on it)
-- [ ] Official PIESA/PIISA form comparison: blocked — official site refuses our download; needs Jo to upload the forms
+- [ ] Official PIESA/PIISA forms Parts 1–4: correct both forms, printed-rule checks, template records, re-run comparison (keep blocked until Jo approves + source URLs confirmed)
+- [ ] C03 (no lead fee): read back verbatim + list every affected place; implement only after Jo confirms
 - [ ] Launch-fix app code re-test on a rebuilt merged copy (test copy was cleared)
 - [x] Provide safe no-write onboarding links for an external AI audit
 - [x] Prevent cancelled preview page requests from surfacing an AbortError and blanking the screen
