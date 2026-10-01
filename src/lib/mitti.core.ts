@@ -219,8 +219,8 @@ export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise
   }
   const blankRequired = (["jobNumber", "address", "ownerName", "assessorName"] as const).filter((k) => String(ctx.prefill[k] ?? "").trim() === "");
   if (blankRequired.length) throw new MittiError(`Required office details are blank: ${blankRequired.join(", ")}. Fill them in before creating the Mitti assessment.`);
-  const template = await api.getTemplate(templateId);
-  const tid = template?.template_id ?? template?.id;
+  const template = await api.getTemplateDefinition(templateId);
+  const tid = template?.template?.template_id ?? template?.template_id ?? template?.id;
   if (tid && tid !== templateId) throw new MittiError("Mitti returned an unexpected template.");
   const p = buildPrefill(template, ctx.prefill);
   if (p.ambiguous.length) throw new MittiError(`The Mitti template has ambiguous office fields (more than one match): ${p.ambiguous.join(", ")}.`);
