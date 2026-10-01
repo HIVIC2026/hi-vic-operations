@@ -29,7 +29,7 @@ describe("customer outcome email renderers", () => {
     expect(`${h} ${email.plainText}`).not.toMatch(/undefined|NaN|\$0\b|Gate 1|one of only|guaranteed|energy bill|<div class="hiv-hero-title"/i);
     expect(email.subject).toBe("Alex, you could save $1,325 on ceiling insulation");
     for (const t of ["Your ceiling insulation estimate", "Your estimated VEU rebate: You could save $1,325", "Estimated cost after rebate: $3,747", "Before rebate $5,072 · All prices include GST.", "Explore the calculator: https://estimate.homeinsulationvictoria.com.au/calculator", `Arrange my free Ready Check: ${estimateUrl}#confirm`, "No payment required. No obligation to proceed.", "✓ R5.0 ceiling insulation — supplied and installed", "Measured ceiling size, insulation removal, access or electrical rectification may change the final price."]) expect(email.plainText).toContain(t);
-    expect(email.plainText.indexOf("Arrange my free Ready Check")).toBeLessThan(email.plainText.indexOf("Open the calculator"));
+    expect(email.plainText.indexOf("Arrange my free Ready Check")).toBeLessThan(email.plainText.indexOf("Explore the calculator"));
   });
 
   test("likely eligible fallbacks: typical area, no name, no address, tracked CTA", () => {
