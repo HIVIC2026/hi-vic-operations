@@ -11,6 +11,7 @@ import { Check, Loader2, MapPin } from "lucide-react";
 import { registerInterest } from "@/lib/interest.functions";
 import { INTEREST_CONSENT_STATEMENT } from "@/lib/interest.core";
 import { extractPostcode, suburbFromLine } from "@/lib/address.core";
+import type { InsulationDeclared } from "@/lib/estimate.core";
 import { AddressCombobox } from "./address-combobox";
 
 type Props = {
