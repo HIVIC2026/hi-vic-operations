@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as CalculatorRouteImport } from './routes/calculator'
 import { Route as ElectricianOnboardingRouteImport } from './routes/electrician-onboarding'
 import { Route as InstallerOnboardingRouteImport } from './routes/installer-onboarding'
 import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
@@ -62,6 +63,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalculatorRoute = CalculatorRouteImport.update({
+  id: '/calculator',
+  path: '/calculator',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ElectricianOnboardingRoute = ElectricianOnboardingRouteImport.update({
@@ -270,6 +276,7 @@ const ApiPublicReferralsTrackClickRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/calculator': typeof CalculatorRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
@@ -311,6 +318,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/calculator': typeof CalculatorRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
@@ -354,6 +362,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/calculator': typeof CalculatorRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
@@ -397,6 +406,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/calculator'
     | '/electrician-onboarding'
     | '/installer-onboarding'
     | '/step3-email-preview'
@@ -438,6 +448,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/calculator'
     | '/electrician-onboarding'
     | '/installer-onboarding'
     | '/step3-email-preview'
@@ -480,6 +491,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/calculator'
     | '/electrician-onboarding'
     | '/installer-onboarding'
     | '/step3-email-preview'
@@ -523,6 +535,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  CalculatorRoute: typeof CalculatorRoute
   ElectricianOnboardingRoute: typeof ElectricianOnboardingRoute
   InstallerOnboardingRoute: typeof InstallerOnboardingRoute
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
@@ -561,6 +574,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calculator': {
+      id: '/calculator'
+      path: '/calculator'
+      fullPath: '/calculator'
+      preLoaderRoute: typeof CalculatorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/electrician-onboarding': {
@@ -882,6 +902,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  CalculatorRoute: CalculatorRoute,
   ElectricianOnboardingRoute: ElectricianOnboardingRoute,
   InstallerOnboardingRoute: InstallerOnboardingRoute,
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
