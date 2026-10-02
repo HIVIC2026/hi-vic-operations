@@ -6,7 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Archive, Ban, CheckCircle2, FlaskConical, Plus, Search, Workflow } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
-import { JobCard, type JobRow } from "@/components/portal/JobCard";
+import { type JobRow } from "@/components/portal/JobCard";
+import { StaffJobRow } from "@/components/portal/StaffJobRow";
 import { PIPELINE_PHASES, phaseForStage, type Phase } from "@/lib/workflow";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -135,23 +136,17 @@ function Pipeline() {
           <Button type="button" variant="outline" size="sm" className="ml-3" onClick={() => void refetchPipeline()}>Try again</Button>
         </div>
       )}
-      <div className="mb-5 flex flex-wrap items-start gap-4 border-b pb-5">
+      <div className="mb-4 flex flex-wrap items-start gap-4 border-b pb-4">
         <div>
            <p className="text-xs font-bold uppercase text-primary">Home Insulation Victoria</p>
-           <h1 className="mt-1 text-4xl font-bold">{TAB_TITLE[tab]}</h1>
+           <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{TAB_TITLE[tab]}</h1>
            <p className="mt-2 text-sm text-muted-foreground">Active enquiries first. Ineligible, finalised, cancelled and test records stay safely filed.</p>
         </div>
          <div className="ml-auto flex items-center gap-2"><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${comms?.enabled === true ? "border-success/30 bg-success-soft text-success" : "border-workspace-sun-strong/40 bg-workspace-sun text-foreground"}`}><span className={`h-2 w-2 rounded-full ${comms?.enabled === true ? "bg-success" : "bg-warning"}`} />Customer messages {comms?.enabled === true ? "on" : "off"}</span><NewEnquiry /></div>
       </div>
-      <section aria-label="What each view means" className="mb-3 rounded-xl border border-workspace-blush-strong/50 bg-card/80 p-3 shadow-sm">
-        <ul className="flex flex-wrap items-center gap-2">
-          <li className="mr-1 text-[11px] font-bold uppercase tracking-[0.1em] text-brand-dark">Key</li>
-          {CARDS.map((item) => <li key={item.key} className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${item.chip}`}><span className="h-2 w-2 shrink-0 rounded-full bg-current opacity-60" /><span>{item.label}</span><b className="text-sm tabular-nums">{cardCount(item.key)}</b><span className="hidden font-normal opacity-75 xl:inline">— {item.meaning}</span></li>)}
-        </ul>
-        <p className="mt-2 text-xs text-muted-foreground">{groups.all.length} live = {activeCount} in progress + {groups.review.length} needs review + {groups.ineligible.length} ineligible/hold + {groups.finalised.length} finalised + {groups.cancelled.length} cancelled ({groups.test.length} test records filed separately)</p>
-      </section>
+      <p className="mb-2 text-xs text-muted-foreground">{groups.all.length} live = {activeCount} in progress + {groups.review.length} needs review + {groups.ineligible.length} ineligible/hold + {groups.finalised.length} finalised + {groups.cancelled.length} cancelled ({groups.test.length} test records filed separately)</p>
        <section className="mb-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-7" aria-label="Work files">
-          {CARDS.map((item) => <button key={item.key} type="button" onClick={() => { setWorkView(item.key); setPhase("all"); }} aria-pressed={workView === item.key} className={`rounded-md border p-3 text-left transition hover:border-primary hover:shadow-sm ${workView === item.key ? item.active : "bg-card"}`}><div className="flex items-center justify-between"><span className="text-xs font-semibold text-muted-foreground">{item.label}</span><item.icon className={`h-4 w-4 ${item.text}`} /></div><div className={`mt-1 text-xl font-bold tabular-nums ${item.text}`}>{cardCount(item.key)}{item.key === "active" && activeHere !== activeCount && <span className="ml-1 text-xs font-normal text-muted-foreground">on this page</span>}</div></button>)}
+          {CARDS.map((item) => <button key={item.key} type="button" onClick={() => { setWorkView(item.key); setPhase("all"); }} aria-pressed={workView === item.key} title={item.meaning} className={`rounded-md border p-3 text-left transition hover:border-primary hover:shadow-sm ${workView === item.key ? item.active : "bg-card"}`}><div className="flex items-center justify-between"><span className="text-xs font-semibold text-muted-foreground">{item.label}</span><item.icon className={`h-4 w-4 ${item.text}`} /></div><div className={`mt-1 text-xl font-bold tabular-nums ${item.text}`}>{cardCount(item.key)}{item.key === "active" && activeHere !== activeCount && <span className="ml-1 text-xs font-normal text-muted-foreground">on this page</span>}</div></button>)}
       </section>
       {workView === "active" && tab !== "ineligible" && activeHere !== activeCount && <p data-testid="active-split" className="mb-3 text-xs text-muted-foreground">{activeCount} records are in progress in total: {activeByTab.enquiries} at enquiry stage, {activeByTab.quotes} at quote stage, {activeByTab.jobs} at job stage. {tab !== "enquiries" && activeByTab.enquiries > 0 && <Link to="/admin" search={{ tab: "enquiries" }} className="font-semibold text-primary underline">View the {activeByTab.enquiries} enquiries</Link>}</p>}
       {(q || source !== "all" || phase !== "all") && <div data-testid="active-filters" className="mb-3 flex flex-wrap items-center gap-2 text-xs"><span className="font-semibold">Filters on:</span>{q && <Badge variant="outline">Search “{q}”</Badge>}{source !== "all" && <Badge variant="outline">{source === "hivic_sourced" ? "Home Insulation Victoria-sourced" : "Installer-sourced"}</Badge>}{phase !== "all" && <Badge variant="outline">Phase: {PIPELINE_PHASES.find((p) => p.key === phase)?.label ?? phase}</Badge>}<Button type="button" size="sm" variant="ghost" onClick={() => { setQ(""); setSource("all"); setPhase("all"); }}>Clear filters</Button></div>}
@@ -160,7 +155,7 @@ function Pipeline() {
       {comms?.enabled !== true && <p className="mb-3 text-xs text-muted-foreground">Pre-launch safety is active: no email, SMS or notification is sent to customers or trades.</p>}
       {intakeHealth && <div data-testid="post-intake-health" className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-card px-4 py-2 text-xs text-muted-foreground"><span className="font-semibold text-foreground">Enquiry intake</span><span>Queued <b className="text-foreground">{intakeHealth.counts.queued}</b></span><span>Running <b className="text-foreground">{intakeHealth.counts.running}</b></span><span className={intakeHealth.counts.stale > 0 ? "font-semibold text-warning" : ""}>Stale <b>{intakeHealth.counts.stale}</b></span><span className={intakeHealth.counts.failed > 0 ? "font-semibold text-danger" : ""}>Failed <b>{intakeHealth.counts.failed}</b></span></div>}
       <div className="mb-5 flex flex-wrap items-center gap-2 rounded-md border bg-card p-3 shadow-sm">
-          <div className="relative min-w-64 flex-1"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search job number, address or person" className="pl-8" /></div>
+          <div className="relative min-w-0 basis-full sm:min-w-64 sm:basis-auto sm:flex-1"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search job number, address or person" className="pl-8" /></div>
           <select aria-label="Job source" className="h-9 rounded-md border bg-background px-2 text-sm" value={source} onChange={(e) => setSource(e.target.value as typeof source)}>
             <option value="all">All sources</option><option value="hivic_sourced">Home Insulation Victoria-sourced</option><option value="installer_sourced">Installer-sourced</option>
           </select>
