@@ -5,7 +5,7 @@ import { electricianStepErrors, type ElectricianChoice, type PreferredElectricia
 import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, DAYS, LEAD_TIMES, RADII } from "./rec-onboarding.core";
 
 export { DAYS, LEAD_TIMES, RADII, validAbn };
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.9-2026-10-02";
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.10-2026-10-02";
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
@@ -14,7 +14,7 @@ export const ACKNOWLEDGEMENTS = [
   { key: "compliance", text: "I understand the Installer and its personnel must comply with current VEU, Code of Conduct, Activity 48, AS 3999, safety and Home Insulation Victoria requirements, and must not install without a current signed VEU pre-installation electrical safety assessment and Home Insulation Victoria ready-to-install confirmation." },
   { key: "records", text: "I confirm the Installer will provide truthful measurements, records and evidence and cooperate with Home Insulation Victoria, ESC and regulator compliance checks." },
   { key: "no_bypass", text: "I understand that removal, access, extras and other work identified through a Home Insulation Victoria Activity 48 job must be quoted, approved, scheduled and completed through the Home Insulation Victoria workflow and must not be taken off-platform or dealt with directly." },
-  { key: "pricing", text: "I understand our approved rates are supplier rates, on Home Insulation Victoria-sourced jobs Home Insulation Victoria sets the customer price and may include its own margin (on our own customers we set our price and Home Insulation Victoria's fees are added on top), and Home Insulation Victoria does not have to disclose that margin to us. I will not share our rates with customers." },
+  { key: "pricing", text: "I understand our approved rates are supplier rates, not customer prices. On Home Insulation Victoria-sourced jobs, Home Insulation Victoria sets the customer price and may include its own margin, which it is not required to disclose to us. On jobs we bring in ourselves, we set our own price and Home Insulation Victoria adds no lead fee and no margin — the only Home Insulation Victoria fee on those jobs is its $349 Accredited Person fee (the $349 electrical safety assessment is shown separately in the quote). I will not share our rates with customers." },
   { key: "same_day", text: "I understand the signed VEU pre-installation installer safety assessment and install-day evidence must be submitted through the Home Insulation Victoria portal on the day of each installation." },
   { key: "electronic_signature", text: "I agree to electronic execution and to the signed agreement, exact wording, version and audit record being stored by Home Insulation Victoria." },
 ] as const;
