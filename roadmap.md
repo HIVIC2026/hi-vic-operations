@@ -134,3 +134,4 @@
 - [x] PUBLISH THE NARROW ONBOARDING SECURITY RELEASE — published 2026-10-02, site serving
 - [ ] Post-publish live checks: onboarding start works, rate limits clean, forged test mode refused, staff test link once/expiry/revoke, insurance quarantine, installer screens, address close, OCR confirm, partner dialog, Active Jobs link, REC-2.3/INST-1.9 live, no lead fee, 15 controls OFF, no external actions
 - [ ] Jo wants a whole-portal test login to give to someone (2026-10-02) — admin-level access is barred by locked rule; clarifying who it's for and what they must see
+- [ ] Installer pricing acknowledgement reworded + agreement bumped INST-1.9 → INST-1.10 (installer-brought jobs: no lead fee, no margin, only the $349 AP fee) — preview only, awaiting Jo approval to publish
