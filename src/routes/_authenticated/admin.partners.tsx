@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
 import { useAction } from "@/hooks/use-me";
 import { updatePartnerEnquiry } from "@/lib/portal.functions";
@@ -29,6 +29,7 @@ const date = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-AU") 
 
 function Partners() {
   const { enquiry } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const [open, setOpen] = useState<Row | null>(null);
   const [queue, setQueue] = useState<"review" | "approved" | "history">("review");
   const [partnerType, setPartnerType] = useState<PartnerType>("property_manager");
@@ -39,12 +40,15 @@ function Partners() {
   });
   const visible = rows.filter((row) => queue === "review" ? ["new", "contacted", "onboarding"].includes(row.status) : queue === "approved" ? row.status === "approved" : ["declined", "closed"].includes(row.status));
   const of = (t: PartnerType) => visible.filter((r) => r.enquiry_type === t);
+  // Open a linked enquiry once; closing it must not reopen it while the link is being cleared.
+  const autoOpened = useRef<string | null>(null);
   useEffect(() => {
-    if (!enquiry || open) return;
+    if (!enquiry || open || autoOpened.current === enquiry) return;
     const selected = rows.find((row) => row.id === enquiry);
     if (!selected) return;
     setQueue(selected.status === "approved" ? "approved" : ["declined", "closed"].includes(selected.status) ? "history" : "review");
     setPartnerType(selected.enquiry_type as PartnerType);
+    autoOpened.current = enquiry;
     setOpen(selected);
   }, [enquiry, open, rows]);
   return (
@@ -92,7 +96,7 @@ function Partners() {
           </TabsContent>
         ))}
       </Tabs>}
-      {open && <Detail row={rows.find((r) => r.id === open.id) ?? open} onClose={() => setOpen(null)} />}
+      {open && <Detail row={rows.find((r) => r.id === open.id) ?? open} onClose={() => { setOpen(null); if (enquiry) void navigate({ search: { enquiry: undefined }, replace: true }); }} />}
     </AppShell>
   );
 }

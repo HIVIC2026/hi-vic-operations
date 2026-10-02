@@ -1,4 +1,6 @@
 import { WorkerStop } from "@/components/portal/worker-stop";
+import { InsuranceReadReview } from "@/components/onboarding/InsuranceReadReview";
+import type { InsuranceExtract } from "@/lib/insurance-reading.core";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -119,7 +121,8 @@ function RateRow({ label, unit, value, onChange, last = false }: { label: string
 }
 
 /** Australian address lookup. A selected suggestion is resolved before it is accepted. */
-function AddressInput({ value, onChange, onSelect, victoriaOnly = false }: { value: string; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean }) {
+function AddressInput({ value, onChange, onSelect, victoriaOnly = false, id = "address" }: { value: string; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean; id?: string }) {
+  const [announce, setAnnounce] = useState("");
   const [items, setItems] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -129,7 +132,7 @@ function AddressInput({ value, onChange, onSelect, victoriaOnly = false }: { val
   const selectedLabel = useRef<string | null>(null);
   useEffect(() => {
     const q = value.trim();
-    if (selectedLabel.current === value) { selectedLabel.current = null; setItems([]); setOpen(false); return; }
+    if (selectedLabel.current !== null && selectedLabel.current === value) { setItems([]); setOpen(false); return; } // stays suppressed until the person edits
     if (q.length < 4) { setItems([]); setOpen(false); return; }
     const mine = ++seq.current;
     const t = setTimeout(async () => {
@@ -145,7 +148,7 @@ function AddressInput({ value, onChange, onSelect, victoriaOnly = false }: { val
   }, [value]);
   async function choose(s: AddressSuggestion) {
     const mine = ++seq.current;
-    setLoading(true); setNote("");
+    setOpen(false); setItems([]); setActive(-1); setLoading(true); setNote("");
     try {
       const details = await defaultAddressProvider.details(s.id) as ResolvedAddress;
       if (mine !== seq.current) return;
@@ -153,25 +156,26 @@ function AddressInput({ value, onChange, onSelect, victoriaOnly = false }: { val
       if (victoriaOnly && !isVictorianAddress(details)) {
         onSelect(null); setOpen(true); setNote("Sorry, your service area needs to be in Victoria."); return;
       }
-      selectedLabel.current = details.label; onChange(details.label); onSelect(details); setOpen(false); setItems([]);
+      selectedLabel.current = details.label; onChange(details.label); onSelect(details); setOpen(false); setItems([]); setAnnounce(`Selected ${details.label}`);
     } catch { if (mine === seq.current) { onSelect(null); setOpen(true); setNote("We couldn't verify that address. Please choose another result."); } }
     finally { if (mine === seq.current) setLoading(false); }
   }
   return (
     <div style={{ position: "relative" }}>
-      <input style={input} role="combobox" aria-expanded={open} aria-controls="address-options" aria-autocomplete="list" aria-activedescendant={active >= 0 ? `address-option-${active}` : undefined} autoComplete="off" placeholder="Start typing your address…" value={value}
-        onChange={(e) => { seq.current++; selectedLabel.current = null; onChange(e.target.value); onSelect(null); setOpen(true); }} onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onKeyDown={(e) => { if (e.key === "ArrowDown" && items.length) { e.preventDefault(); setActive((x) => (x + 1) % items.length); } else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((x) => (x - 1 + items.length) % items.length); } else if (e.key === "Enter" && open && items[active]) { e.preventDefault(); void choose(items[active]!); } else if (e.key === "Escape") setOpen(false); }} />
+      <input id={id} style={input} role="combobox" aria-expanded={open && items.length > 0} aria-controls={`${id}-options`} aria-autocomplete="list" aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined} autoComplete="off" placeholder="Start typing your address…" value={value}
+        onChange={(e) => { seq.current++; selectedLabel.current = null; setAnnounce(""); onChange(e.target.value); onSelect(null); }} onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown={(e) => { if (e.key === "ArrowDown" && items.length) { e.preventDefault(); setActive((x) => (x + 1) % items.length); } else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((x) => (x - 1 + items.length) % items.length); } else if (e.key === "Enter" && open && items[active]) { e.preventDefault(); void choose(items[active]!); } else if (e.key === "Escape" && open) { e.preventDefault(); setOpen(false); } }} />
       {loading && <div style={{ position: "absolute", right: 14, top: 14, fontSize: 12, color: MUTED }}>Searching…</div>}
-      {open && (
-        <ul id="address-options" role="listbox" style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #D7DCE8", borderRadius: 12, boxShadow: "0 12px 30px -12px rgba(34,55,107,.35)", overflow: "hidden" }}>
+      {open && items.length > 0 && (
+        <ul id={`${id}-options`} role="listbox" aria-label="Address suggestions" style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #D7DCE8", borderRadius: 12, boxShadow: "0 12px 30px -12px rgba(34,55,107,.35)", overflow: "hidden" }}>
           {items.map((s, i) => (
-            <li id={`address-option-${i}`} role="option" aria-selected={active === i} key={s.id} style={{ padding: "12px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F0F2F8", background: active === i ? "#F2F4FC" : "#fff" }}
+            <li id={`${id}-option-${i}`} onMouseEnter={() => setActive(i)} role="option" aria-selected={active === i} key={s.id} style={{ padding: "12px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F0F2F8", background: active === i ? "#F2F4FC" : "#fff" }}
               onMouseDown={(e) => { e.preventDefault(); void choose(s); }}>{s.label}</li>
           ))}
         </ul>
       )}
       {open && note && <div role="status" style={{ marginTop: 5, color: victoriaOnly ? "#8C1D18" : MUTED, fontSize: 12 }}>{note}</div>}
+      <span role="status" aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{announce}</span>
     </div>
   );
 }
@@ -373,10 +377,17 @@ function RecOnboarding() {
     <div style={{ ...card, textAlign: "center" }}>
       {previewBanner}
       <div style={{ width: 56, height: 56, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 28, lineHeight: "56px", margin: "0 auto 16px" }}>✓</div>
-      <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — we've received your application</h1>
-      <p style={{ color: MUTED, lineHeight: 1.6, textAlign: "left" }}>Your signed agreement and business details are with our team. We'll check your REC registration, licences and insurance, review your proposed rates, and contact you if we need anything else.</p>
-      <div style={{ ...infoCard, textAlign: "left", marginTop: 8 }}><strong>What happens next</strong><ol style={{ paddingLeft: 20, marginBottom: 0, lineHeight: 1.7 }}><li>We confirm business approval and agreed rates.</li><li>Your business profile receives portal access.</li><li>Your business administrator invites staff to complete their details and declarations.</li><li>Our office approves each electrician before they can access assigned jobs.</li></ol></div>
-      <p style={{ color: MUTED, fontSize: 13, textAlign: "left" }}>If the business owner will do electrical work, they must also have an approved staff electrician profile. Payments follow the timing in the signed agreement and each accepted job offer.</p>
+      <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — your application is in</h1>
+      <p style={{ color: MUTED, lineHeight: 1.6 }}>Your signed agreement and business details are now with Home Insulation Victoria.</p>
+      <div style={{ ...infoCard, textAlign: "left", marginTop: 8 }}>
+        <strong>What we're checking</strong>
+        <TickList items={["Your REC registration and licences", "Your $5 million public liability insurance", "Your proposed rates"]} />
+      </div>
+      <div style={{ ...infoCard, textAlign: "left", marginTop: 12 }}>
+        <strong>What happens next</strong>
+        <TickList items={["We confirm your approval and agreed rates", "Your business gets access to the portal", "Your administrator invites your electricians to add their details", "We approve each electrician before they can see jobs"]} />
+      </div>
+      <p style={{ color: MUTED, fontSize: 13, textAlign: "left" }}>We'll contact you if we need anything else. If the business owner will do electrical work, they also need their own approved electrician profile. Payments follow the timing in your signed agreement and each accepted job.</p>
       <p style={{ color: MUTED, fontSize: 13 }}>Agreement version {REC_AGREEMENT_VERSION} · A copy of everything you've submitted is kept on your file.</p>
     </div>,
   );
@@ -442,7 +453,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
       </>;
     case "contact":
       return <>
-         <Field label="Australian business address" required hint="Start typing and choose the verified address from the list"><AddressInput value={d.business_address ?? ""} onChange={(v) => up({ business_address: v })} onSelect={(v) => up({ business_address_details: v })} /></Field>
+         <Field label="Australian business address" required hint="Start typing and choose the verified address from the list"><AddressInput id="business-address" value={d.business_address ?? ""} onChange={(v) => up({ business_address: v })} onSelect={(v) => up({ business_address_details: v })} /></Field>
         <div style={{ ...infoCard, marginBottom: 16 }}>Contact: <strong>{d.primary_contact_name}</strong> · {d.business_phone} · {d.business_email} — if any of these are wrong, go back to "About you".</div>
         {d.works_under_rec !== true && <Check checked={d.authorised_to_register === true} onChange={(v) => up({ authorised_to_register: v })}>I'm authorised to set up this REC.</Check>}
       </>;
@@ -462,7 +473,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
       </>;
     case "coverage":
       return <>
-         <Field label="Victorian service starting location" required hint="Choose a verified Victorian address"><AddressInput victoriaOnly value={d.service_origin ?? ""} onChange={(v) => up({ service_origin: v })} onSelect={(v) => up({ service_origin_details: v })} /></Field>
+         <Field label="Victorian service starting location" required hint="Choose a verified Victorian address"><AddressInput id="service-origin" victoriaOnly value={d.service_origin ?? ""} onChange={(v) => up({ service_origin: v })} onSelect={(v) => up({ service_origin_details: v })} /></Field>
          {d.business_address && d.service_origin !== d.business_address && <button type="button" style={{ ...btn(false), marginBottom: 16 }} onClick={() => up({ service_origin: d.business_address ?? "", service_origin_details: d.business_address_details ?? null })}>Use business address</button>}
         <Field label="Travel radius" required><Choice options={RADII.map((r) => ({ v: r.v as number, l: r.l }))} value={d.travel_radius_km ?? null} onChange={(v) => up({ travel_radius_km: v })} /></Field>
         {d.travel_radius_km != null && <div style={infoCard}>You'll be offered jobs {d.travel_radius_km === 9999 ? "anywhere in Victoria" : `within ${d.travel_radius_km} km of your starting location`}.</div>}
@@ -543,12 +554,13 @@ function InsuranceStep({ d, up, token, setError, preview, onRevision }: { d: Rec
   const [checking, setChecking] = useState(false);
   const [found, setFound] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [reading, setReading] = useState<InsuranceExtract | null>(null);
   async function onFile(f: File | undefined) {
     if (!f) return;
     if (preview) { setError("Sample preview only — certificate upload is disabled."); return; }
     setError(null);
     if (!["application/pdf", "image/jpeg", "image/png"].includes(f.type)) { setError("Upload a PDF, JPG or PNG."); return; }
-    if (f.size > 20 * 1024 * 1024) { setError("File must be 20 MB or smaller."); return; }
+    if (f.size > 10 * 1024 * 1024) { setError("File must be 10 MB or smaller."); return; }
     setUploading(true);
     try {
       const u = await insuranceUploadUrl({ data: { token, content_type: f.type as "application/pdf", size: f.size, filename: f.name } });
@@ -561,10 +573,6 @@ function InsuranceStep({ d, up, token, setError, preview, onRevision }: { d: Rec
       const patch: Partial<RecData> = { insurance_uploaded: true };
       const notes: string[] = [];
       if (x) {
-        if (x.insurer) patch.insurer = x.insurer;
-        if (x.policy_number) patch.insurance_policy_number = x.policy_number;
-        if (x.cover_amount) patch.public_liability_cover_amount = x.cover_amount;
-        if (x.expiry) patch.public_liability_expiry = x.expiry;
         const norm = (v?: string | null) => (v ?? "").toLowerCase().replace(/pty|ltd|limited|the|[^a-z0-9]/g, "");
         if (x.insured_name) {
           const n = norm(x.insured_name);
@@ -574,21 +582,23 @@ function InsuranceStep({ d, up, token, setError, preview, onRevision }: { d: Rec
         if (x.is_public_liability === false) notes.push("This doesn't look like a public liability certificate.");
         if (x.cover_amount && x.cover_amount < MIN_REC_PL_COVER) notes.push("Cover shown is under the $5,000,000 minimum.");
         if (x.expiry && x.expiry < new Date().toISOString().slice(0, 10)) notes.push("This certificate appears to have expired.");
-        setFound(x.insured_name ? `We read the certificate for ${x.insured_name} and filled in the details below — please check them.` : "We filled in what we could read below — please check the details.");
+        setFound(x.insured_name ? `We read the certificate for ${x.insured_name}. Check the details below and choose which to use.` : "Check what we could read below and choose which details to use.");
       } else setFound("We couldn't read the certificate automatically — please enter the details below.");
       setWarnings(notes);
+      setReading(x ?? null);
       up(patch);
     } catch (e) { setError(e instanceof Error ? e.message : "Upload failed."); } finally { setUploading(false); setChecking(false); }
   }
   return <>
     {d.insurance_uploaded
       ? <div style={{ ...infoCard }}>✓ Certificate uploaded. It's stored privately — only the Home Insulation Victoria office can view it. {!preview && <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label>}</div>
-      : <Field label="Certificate of Currency" required hint="PDF, JPG or PNG, up to 20 MB">
+      : <Field label="Certificate of Currency" required hint="PDF, JPG or PNG, up to 10 MB">
           <label style={{ ...btn(false, uploading), display: "inline-flex", alignItems: "center" }}>{checking ? "Checking certificate…" : uploading ? "Uploading…" : "Upload certificate"}<input type="file" hidden disabled={uploading} accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label>
         </Field>}
     {checking && <div style={{ ...infoCard }}>Checking your certificate…</div>}
     {found && !checking && <div style={{ ...infoCard }}>{found}</div>}
     {warnings.map((w) => <div key={w} style={{ ...infoCard, borderColor: "#E0A100", background: "#FFF8E6" }}>⚠ {w}</div>)}
+    {reading && !checking && <InsuranceReadReview extracted={reading} accent={BLUE} typed={{ insurer: d.insurer ?? null, insurance_policy_number: d.insurance_policy_number ?? null, public_liability_cover_amount: d.public_liability_cover_amount ?? null, public_liability_expiry: d.public_liability_expiry ?? null }} onAccept={(p) => up(p as Partial<RecData>)} />}
     <Field label="Insurer" required><input style={input} value={d.insurer ?? ""} onChange={(e) => up({ insurer: e.target.value })} /></Field>
     <Field label="Policy number" required><input style={input} value={d.insurance_policy_number ?? ""} onChange={(e) => up({ insurance_policy_number: e.target.value })} /></Field>
     <Field label="Public liability cover" required hint="Minimum $5,000,000"><Money value={d.public_liability_cover_amount} onChange={(v) => up({ public_liability_cover_amount: v })} />

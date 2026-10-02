@@ -1,9 +1,7 @@
 // Reads an uploaded Certificate of Currency with AI and returns the key details.
 // Best-effort only: the partner always reviews/edits the filled fields, office verifies.
-export type InsuranceExtract = {
-  insured_name: string | null; insurer: string | null; policy_number: string | null;
-  cover_amount: number | null; expiry: string | null; is_public_liability: boolean | null;
-};
+import { normaliseExtract, type InsuranceExtract } from "./insurance-reading.core";
+export type { InsuranceExtract };
 
 type Db = { storage: { from: (b: string) => { download: (p: string) => Promise<{ data: Blob | null; error: unknown }> } } };
 
@@ -23,15 +21,15 @@ export async function extractInsurance(db: Db, path: string): Promise<InsuranceE
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [{ role: "user", content: [
-          { type: "text", text: "This should be an Australian insurance Certificate of Currency. Extract the details for the PUBLIC LIABILITY cover. Use null for anything not clearly shown. Never guess." },
+          { type: "text", text: "This should be an Australian insurance Certificate of Currency. Extract the details for the PUBLIC LIABILITY section only. Rules: insurer = the insurance company or underwriter (not the broker or intermediary). cover_amount = the public liability limit of liability per occurrence, copied exactly as printed (e.g. \"$20,000,000\") — not products liability aggregate, professional indemnity, or the excess. expiry = the period of insurance END date copied exactly as printed; Australian dates are day/month/year. policy_number = the public liability policy number. Use null for anything not clearly shown. Never guess or calculate." },
           { type: "image_url", image_url: { url: `data:${mime};base64,${btoa(bin)}` } },
         ] }],
         tools: [{ type: "function", function: { name: "certificate", parameters: { type: "object", properties: {
           insured_name: { type: ["string", "null"], description: "Named insured business" },
           insurer: { type: ["string", "null"], description: "Insurance company / underwriter" },
           policy_number: { type: ["string", "null"] },
-          cover_amount: { type: ["number", "null"], description: "Public liability limit in AUD" },
-          expiry: { type: ["string", "null"], description: "Period of insurance end date, YYYY-MM-DD" },
+          cover_amount: { type: ["string", "null"], description: "Public liability per-occurrence limit exactly as printed" },
+          expiry: { type: ["string", "null"], description: "Period of insurance end date exactly as printed (day/month/year)" },
           is_public_liability: { type: ["boolean", "null"], description: "Does it include public liability cover?" },
         }, required: ["insured_name", "insurer", "policy_number", "cover_amount", "expiry", "is_public_liability"] } } }],
         tool_choice: { type: "function", function: { name: "certificate" } },
@@ -41,13 +39,6 @@ export async function extractInsurance(db: Db, path: string): Promise<InsuranceE
     const j = await res.json();
     const args = j?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
     if (!args) return null;
-    const o = JSON.parse(args) as InsuranceExtract;
-    const str = (v: unknown, m: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, m) : null);
-    return {
-      insured_name: str(o.insured_name, 200), insurer: str(o.insurer, 200), policy_number: str(o.policy_number, 100),
-      cover_amount: typeof o.cover_amount === "number" && Number.isFinite(o.cover_amount) && o.cover_amount > 0 ? o.cover_amount : null,
-      expiry: typeof o.expiry === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.expiry) ? o.expiry : null,
-      is_public_liability: typeof o.is_public_liability === "boolean" ? o.is_public_liability : null,
-    };
+    return normaliseExtract(JSON.parse(args) as Record<string, unknown>);
   } catch { return null; }
 }

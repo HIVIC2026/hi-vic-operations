@@ -1,4 +1,6 @@
 import { WorkerStop } from "@/components/portal/worker-stop";
+import { InsuranceReadReview } from "@/components/onboarding/InsuranceReadReview";
+import type { InsuranceExtract } from "@/lib/insurance-reading.core";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -77,13 +79,18 @@ function Money({ value, onChange, unit }: { value: number | null | undefined; on
   );
 }
 /** Type-ahead Victorian address lookup (same service as the website form). Selection fills the field; editing keeps free text. */
-function AddressInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function AddressInput({ value, onChange, id = "address" }: { value: string; onChange: (v: string) => void; id?: string }) {
   const [items, setItems] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [announce, setAnnounce] = useState("");
   const seq = useRef(0);
+  /** Set by a pick; no new search runs until the person edits the text again. */
+  const picked = useRef<string | null>(null);
   useEffect(() => {
     const q = value.trim();
+    if (picked.current !== null && picked.current === value) { setItems([]); setOpen(false); return; }
     if (q.length < 4) { setItems([]); setOpen(false); return; }
     const mine = ++seq.current;
     const t = setTimeout(async () => {
@@ -91,25 +98,32 @@ function AddressInput({ value, onChange }: { value: string; onChange: (v: string
       try {
         const r = (await defaultAddressProvider.search(q)).slice(0, 6);
         if (mine !== seq.current) return;
-        setItems(r); setOpen(r.length > 0);
+        setItems(r); setActive(r.length ? 0 : -1); setOpen(r.length > 0);
       } catch { if (mine === seq.current) { setItems([]); setOpen(false); } }
       finally { if (mine === seq.current) setLoading(false); }
     }, 300);
     return () => clearTimeout(t);
   }, [value]);
+  const choose = (s: AddressSuggestion) => {
+    seq.current++; picked.current = s.label; setOpen(false); setItems([]); setActive(-1); setLoading(false);
+    setAnnounce(`Selected ${s.label}`); onChange(s.label);
+  };
   return (
     <div style={{ position: "relative" }}>
-      <input style={input} autoComplete="off" placeholder="Start typing your address…" value={value}
-        onChange={(e) => onChange(e.target.value)} onBlur={() => setTimeout(() => setOpen(false), 150)} />
+      <input id={id} style={input} role="combobox" aria-expanded={open} aria-controls={`${id}-options`} aria-autocomplete="list" aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined}
+        autoComplete="off" placeholder="Start typing your address…" value={value}
+        onChange={(e) => { picked.current = null; setAnnounce(""); onChange(e.target.value); }} onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown={(e) => { if (e.key === "ArrowDown" && items.length) { e.preventDefault(); setOpen(true); setActive((x) => (x + 1) % items.length); } else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((x) => (x - 1 + items.length) % items.length); } else if (e.key === "Enter" && open && items[active]) { e.preventDefault(); choose(items[active]!); } else if (e.key === "Escape" && open) { e.preventDefault(); setOpen(false); } }} />
       {loading && <div style={{ position: "absolute", right: 14, top: 14, fontSize: 12, color: MUTED }}>Searching…</div>}
       {open && (
-        <ul style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #D7DCE8", borderRadius: 12, boxShadow: "0 12px 30px -12px rgba(34,55,107,.35)", overflow: "hidden" }}>
-          {items.map((s) => (
-            <li key={s.id} style={{ padding: "12px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F0F2F8" }}
-              onMouseDown={(e) => { e.preventDefault(); onChange(s.label); setOpen(false); setItems([]); seq.current++; }}>{s.label}</li>
+        <ul id={`${id}-options`} role="listbox" aria-label="Address suggestions" style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #D7DCE8", borderRadius: 12, boxShadow: "0 12px 30px -12px rgba(34,55,107,.35)", overflow: "hidden" }}>
+          {items.map((s, i) => (
+            <li id={`${id}-option-${i}`} role="option" aria-selected={active === i} key={s.id} style={{ padding: "12px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F0F2F8", background: active === i ? "#F2F4FC" : "#fff" }}
+              onMouseEnter={() => setActive(i)} onMouseDown={(e) => { e.preventDefault(); choose(s); }}>{s.label}</li>
           ))}
         </ul>
       )}
+      <span role="status" aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{announce}</span>
     </div>
   );
 }
@@ -295,7 +309,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       </>;
     case "contact":
       return <>
-        <Field label="Business address" required hint="Start typing and pick your address from the list"><AddressInput value={d.business_address ?? ""} onChange={(v) => up({ business_address: v })} /></Field>
+        <Field label="Business address" required hint="Start typing and pick your address from the list"><AddressInput id="business-address" value={d.business_address ?? ""} onChange={(v) => up({ business_address: v })} /></Field>
         <div style={{ ...infoCard, marginBottom: 16 }}>Contact: <strong>{d.primary_contact_name}</strong> · {d.business_phone} · {d.business_email} — if any of these are wrong, go back to "About you".</div>
         <Check checked={d.authorised_to_register === true} onChange={(v) => up({ authorised_to_register: v })}>I'm authorised to set up this business.</Check>
       </>;
@@ -356,7 +370,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       </>;
     case "coverage":
       return <>
-        <Field label="Service starting location" required><AddressInput value={d.service_origin ?? ""} onChange={(v) => up({ service_origin: v })} /></Field>
+        <Field label="Service starting location" required><AddressInput id="service-origin" value={d.service_origin ?? ""} onChange={(v) => up({ service_origin: v })} /></Field>
         {d.business_address && d.service_origin !== d.business_address && <button type="button" style={{ ...btn(false), marginBottom: 16 }} onClick={() => up({ service_origin: d.business_address ?? "" })}>Use business address</button>}
         <Field label="Travel radius" required><Choice options={RADII.map((r) => ({ v: r.v as number, l: r.l }))} value={d.travel_radius_km ?? null} onChange={(v) => up({ travel_radius_km: v })} /></Field>
         {d.travel_radius_km != null && <div style={infoCard}>You'll be offered jobs {d.travel_radius_km === 9999 ? "anywhere in Victoria" : `within ${d.travel_radius_km} km of your starting location`}.</div>}
@@ -414,11 +428,12 @@ function InsuranceStep({ d, up, token, setError }: { d: RecData; up: (p: Partial
   const [checking, setChecking] = useState(false);
   const [found, setFound] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [reading, setReading] = useState<InsuranceExtract | null>(null);
   async function onFile(f: File | undefined) {
     if (!f) return;
     setError(null);
     if (!["application/pdf", "image/jpeg", "image/png"].includes(f.type)) { setError("Upload a PDF, JPG or PNG."); return; }
-    if (f.size > 20 * 1024 * 1024) { setError("File must be 20 MB or smaller."); return; }
+    if (f.size > 10 * 1024 * 1024) { setError("File must be 10 MB or smaller."); return; }
     setUploading(true);
     try {
       const u = await insuranceUploadUrl({ data: { token, content_type: f.type as "application/pdf", size: f.size, filename: f.name } });
@@ -430,10 +445,6 @@ function InsuranceStep({ d, up, token, setError }: { d: RecData; up: (p: Partial
       const patch: Partial<RecData> = { insurance_uploaded: true };
       const notes: string[] = [];
       if (x) {
-        if (x.insurer) patch.insurer = x.insurer;
-        if (x.policy_number) patch.insurance_policy_number = x.policy_number;
-        if (x.cover_amount) patch.public_liability_cover_amount = x.cover_amount;
-        if (x.expiry) patch.public_liability_expiry = x.expiry;
         const norm = (v?: string | null) => (v ?? "").toLowerCase().replace(/pty|ltd|limited|the|[^a-z0-9]/g, "");
         if (x.insured_name) {
           const n = norm(x.insured_name);
@@ -443,21 +454,23 @@ function InsuranceStep({ d, up, token, setError }: { d: RecData; up: (p: Partial
         if (x.is_public_liability === false) notes.push("This doesn't look like a public liability certificate.");
         if (x.cover_amount && x.cover_amount < 5_000_000) notes.push("Cover shown is under the $5,000,000 minimum.");
         if (x.expiry && x.expiry < new Date().toISOString().slice(0, 10)) notes.push("This certificate appears to have expired.");
-        setFound(x.insured_name ? `We read the certificate for ${x.insured_name} and filled in the details below — please check them.` : "We filled in what we could read below — please check the details.");
+        setFound(x.insured_name ? `We read the certificate for ${x.insured_name}. Check the details below and choose which to use.` : "Check what we could read below and choose which details to use.");
       } else setFound("We couldn't read the certificate automatically — please enter the details below.");
       setWarnings(notes);
+      setReading(x ?? null);
       up(patch);
     } catch (e) { setError(e instanceof Error ? e.message : "Upload failed."); } finally { setUploading(false); setChecking(false); }
   }
   return <>
     {d.insurance_uploaded
       ? <div style={{ ...infoCard }}>✓ Certificate uploaded. It's stored privately — only the Home Insulation Victoria office can view it. <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label></div>
-      : <Field label="Certificate of Currency" required hint="PDF, JPG or PNG, up to 20 MB">
+      : <Field label="Certificate of Currency" required hint="PDF, JPG or PNG, up to 10 MB">
           <label style={{ ...btn(false, uploading), display: "inline-flex", alignItems: "center" }}>{checking ? "Checking certificate…" : uploading ? "Uploading…" : "Upload certificate"}<input type="file" hidden disabled={uploading} accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label>
         </Field>}
     {checking && <div style={{ ...infoCard }}>Checking your certificate…</div>}
     {found && !checking && <div style={{ ...infoCard }}>{found}</div>}
     {warnings.map((w) => <div key={w} style={{ ...infoCard, borderColor: "#E0A100", background: "#FFF8E6" }}>⚠ {w}</div>)}
+    {reading && !checking && <InsuranceReadReview extracted={reading} accent={BLUE} typed={{ insurer: d.insurer ?? null, insurance_policy_number: d.insurance_policy_number ?? null, public_liability_cover_amount: d.public_liability_cover_amount ?? null, public_liability_expiry: d.public_liability_expiry ?? null }} onAccept={(p) => up(p as Partial<RecData>)} />}
     <Field label="Insurer" required><input style={input} value={d.insurer ?? ""} onChange={(e) => up({ insurer: e.target.value })} /></Field>
     <Field label="Policy number" required><input style={input} value={d.insurance_policy_number ?? ""} onChange={(e) => up({ insurance_policy_number: e.target.value })} /></Field>
     <Field label="Public liability cover" required hint="Minimum $5,000,000"><Money value={d.public_liability_cover_amount} onChange={(v) => up({ public_liability_cover_amount: v })} /></Field>
