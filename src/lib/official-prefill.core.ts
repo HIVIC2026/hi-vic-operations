@@ -30,6 +30,9 @@ export type OfficialPrefillContext = {
   /** File id of the life-support consent/plan attached to the signed PIESA. */ piesaLifeSupportAttachment: string | null;
   /** Current accepted measure-up: was existing insulation recorded? */ measuredInsulationPresent: boolean | null;
   /** Product brand/model/R-value from the accepted quote. */ acceptedQuoteProduct: string | null;
+  /** Owner name on the job (owner's own enquiry details — DECLARED). Optional for older callers. */ ownerName?: string | null;
+  /** Assigned electrician + REC. licence/recNo are set ONLY from office-verified, current credentials. */
+  electrician?: { name: string | null; licence: string | null; recName: string | null; recNo: string | null; phone: string | null } | null;
 };
 
 const txt = (v: unknown) => (v == null ? "" : Array.isArray(v) ? v.join(", ") : String(v)).trim();
@@ -52,8 +55,25 @@ const installDate = (id: string, ctx: OfficialPrefillContext) =>
 const jobRef = (ctx: OfficialPrefillContext) => hint("jobRef", "prefill", blankTo(ctx.jobNumber), "portal_record", "Job number", blankTo(ctx.jobNumber) ? "From the job number." : NO_SOURCE);
 const address = (ctx: OfficialPrefillContext) => hint("address", "prefill", blankTo(ctx.address), "portal_record", "Property address", blankTo(ctx.address) ? "From the property address — check the postcode." : NO_SOURCE);
 
+function electricianHints(ctx: OfficialPrefillContext, sec: "b3" | "c"): PrefillHint[] {
+  const e = ctx.electrician ?? null;
+  const rec = (id: string, v: string | null | undefined, basis: PrefillBasis, from: string, ok: string, none: string) =>
+    hint(`${sec}.${id}`, "prefill", blankTo(v), basis, from, blankTo(v) ? ok : none);
+  return [
+    rec("licence", e?.licence, "verified", "Verified electrical licence", "From the electrician's office-verified, current licence.", "No verified, current electrical licence on file — the electrician must enter it."),
+    rec("name", e?.name, "portal_record", "Assigned electrician profile", "From the assigned electrician's profile.", NO_SOURCE),
+    rec("recName", e?.recName, "portal_record", "Electrician business record", "From the electrician's business record.", NO_SOURCE),
+    rec("recNo", e?.recNo, "verified", "Verified REC registration", "From the office-verified, current REC registration.", "No verified, current REC registration on file — the electrician must enter it."),
+    rec("phone", e?.phone, "portal_record", "Electrician business record", "From the electrician's business phone.", NO_SOURCE),
+  ];
+}
+
 export function piesaPrefill(ctx: OfficialPrefillContext): PrefillHint[] {
-  return [jobRef(ctx), address(ctx), today("inspectionDate", ctx, "electrician"), lifeSupport(ctx, "electrician")];
+  const owner = blankTo(ctx.ownerName);
+  return [jobRef(ctx), address(ctx), today("inspectionDate", ctx, "electrician"), lifeSupport(ctx, "electrician"),
+    ...electricianHints(ctx, "b3"), ...electricianHints(ctx, "c"), today("c.completionDate", ctx, "electrician"),
+    hint("o.name", "prefill", owner, "declared", "Owner on the job (declared)", owner ? "From the owner's details on the job — the owner can change it." : NO_SOURCE),
+    today("o.date", ctx, "owner")];
 }
 
 /** PIESA answer shown beside a PIISA question. Reads only the signed PIESA; never answers the PIISA. */
@@ -72,7 +92,7 @@ export function piisaPrefill(ctx: OfficialPrefillContext): PrefillHint[] {
   const noRect = b1 === B1_OPTIONS[0];
   const ls = lifeSupport(ctx, "installer");
   return [
-    jobRef(ctx), address(ctx), installDate("startDate", ctx), ls,
+    jobRef(ctx), address(ctx), installDate("startDate", ctx), installDate("completionDate", ctx), ls,
     hint("lifeSupportAttachment", "prefill", blankTo(ctx.piesaLifeSupportAttachment), "signed_piesa", "Signed PIESA attachment",
       blankTo(ctx.piesaLifeSupportAttachment) ? "Attached from the signed PIESA on this job — the installer must still check it." : "No consent or medical plan is attached to the signed PIESA — the installer must attach one if life support applies."),
     installDate("p2.installDate", ctx),

@@ -186,7 +186,7 @@ export async function officialPrefillContext(jobId: string, today: string, leadU
   const { AP_LEGAL_ENTITY } = await import("./authority");
   const { declaredLifeSupport } = await import("./official-prefill.core");
   const a = supabaseAdmin;
-  const { data: job } = await a.from("jobs").select("job_number,property_id,life_support_status").eq("id", jobId).single();
+  const { data: job } = await a.from("jobs").select("job_number,property_id,life_support_status,owner_id").eq("id", jobId).single();
   const [{ data: prop }, pe, { facts, installDate }, { data: inst }, { data: agr }] = await Promise.all([
     job?.property_id ? a.from("properties").select("address_line,suburb,state,postcode").eq("id", job.property_id).maybeSingle() : Promise.resolve({ data: null }),
     currentCopy(jobId, "piesa"),
@@ -211,11 +211,33 @@ export async function officialPrefillContext(jobId: string, today: string, leadU
   }
   const piesaAnswers = pe.copy ? answersFromDocument(pe.copy.snapshot.document) : null;
   const att = pe.copy?.snapshot.attachments?.find((x) => x.itemId === "lifeSupportAttachment")?.fileId ?? null;
+  const nowIso = new Date().toISOString();
+  const verifiedNumber = async (kind: string, col: "profile_id" | "business_id", id: string) => {
+    const { data } = await a.from("business_credentials").select("number,expires_at").eq(col, id).eq("kind", kind).eq("verification", "verified").order("verified_at", { ascending: false }).limit(1).maybeSingle();
+    return data && (!data.expires_at || data.expires_at > nowIso) ? data.number ?? null : null;
+  };
+  const [{ data: own }, { data: elecAsg }] = await Promise.all([
+    job?.owner_id ? a.from("owners").select("full_name").eq("id", job.owner_id).maybeSingle() : Promise.resolve({ data: null }),
+    a.from("job_assignments").select("user_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle(),
+  ]);
+  let electrician: import("./official-prefill.core").OfficialPrefillContext["electrician"] = null;
+  if (elecAsg?.user_id) {
+    const { data: ep } = await a.from("profiles").select("full_name,business_id").eq("id", elecAsg.user_id).maybeSingle();
+    const { data: eb } = ep?.business_id ? await a.from("businesses").select("name,legal_name,phone").eq("id", ep.business_id).maybeSingle() : { data: null };
+    electrician = {
+      name: ep?.full_name ?? null,
+      licence: await verifiedNumber("electrical_licence", "profile_id", elecAsg.user_id),
+      recName: eb?.legal_name ?? eb?.name ?? null,
+      recNo: ep?.business_id ? await verifiedNumber("rec_registration", "business_id", ep.business_id) : null,
+      phone: eb?.phone ?? null,
+    };
+  }
   const { data: m } = await a.from("ceiling_measurements").select("insulation_present").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   return {
     today, jobNumber: job?.job_number ?? null, address: prop ? formatPropertyAddress(prop) : null,
     lifeSupportDeclared: declaredLifeSupport(job?.life_support_status), installDate, apName: AP_LEGAL_ENTITY,
     installerBusinessName: businessName, leadInstaller: lead, piesaAnswers, piesaLifeSupportAttachment: att,
     measuredInsulationPresent: m?.insulation_present ?? null, acceptedQuoteProduct: agr?.quoted_product ?? null,
+    ownerName: own?.full_name ?? null, electrician,
   };
 }

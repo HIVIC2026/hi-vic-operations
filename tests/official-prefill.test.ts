@@ -8,7 +8,7 @@ const full: OfficialPrefillContext = {
   installDate: "2026-10-20", apName: "DC Construction Solutions Pty Ltd t/a Home Insulation Victoria", installerBusinessName: "Test Insulation Co",
   leadInstaller: { name: "Sam Lead", eecNumber: "EEC-123", eecVerified: true },
   piesaAnswers: { b1: B1_OPTIONS[0], "p3.present": "Yes", "p6.recessed": "No", "c.tick2": true, "c.tick3": true },
-  piesaLifeSupportAttachment: null, measuredInsulationPresent: true, acceptedQuoteProduct: "Brand X R5.0 batts",
+  piesaLifeSupportAttachment: null, measuredInsulationPresent: true, acceptedQuoteProduct: "Brand X R5.0 batts", ownerName: "Olive Owner", electrician: { name: "Eli Spark", licence: "L-1", recName: "Spark Pty Ltd", recNo: "REC-9", phone: "0400000000" },
 };
 const empty: OfficialPrefillContext = { today: "2026-10-02", jobNumber: null, address: null, lifeSupportDeclared: null, installDate: null, apName: null, installerBusinessName: null, leadInstaller: null, piesaAnswers: null, piesaLifeSupportAttachment: null, measuredInsulationPresent: null, acceptedQuoteProduct: null };
 const by = (h: ReturnType<typeof piisaPrefill>) => Object.fromEntries(h.map((x) => [x.itemId, x]));
@@ -16,16 +16,18 @@ const by = (h: ReturnType<typeof piisaPrefill>) => Object.fromEntries(h.map((x) 
 describe("LR-003 pre-fills", () => {
   test("covers all 26 change requests exactly once", () => {
     const ids = [...piesaPrefill(full).map((h) => `piesa:${h.itemId}`), ...piisaPrefill(full).map((h) => `piisa:${h.itemId}`)];
-    expect(new Set(ids).size).toBe(26);
-    expect(ids.length).toBe(26);
+    expect(new Set(ids).size).toBe(40);
+    expect(ids.length).toBe(40);
   });
   test("PIESA seeds job, address, today and declared life support", () => {
-    expect(seedAnswers(piesaPrefill(full))).toEqual({ jobRef: "HV-1128", address: "1 Test St, Preston VIC 3072", inspectionDate: "2026-10-02", lifeSupport: "No" });
+    expect(seedAnswers(piesaPrefill(full))).toMatchObject({ jobRef: "HV-1128", address: "1 Test St, Preston VIC 3072", inspectionDate: "2026-10-02", lifeSupport: "No", "b3.licence": "L-1", "c.recNo": "REC-9", "c.completionDate": "2026-10-02", "o.name": "Olive Owner", "o.date": "2026-10-02" });
     expect(piesaPrefill(full).find((h) => h.itemId === "lifeSupport")!.basis).toBe("declared");
   });
   test("empty sources stay blank — never No", () => {
     const seed = seedAnswers(piisaPrefill(empty));
     expect(Object.keys(seed).sort()).toEqual(["p8.date"]);
+    expect(Object.keys(seedAnswers(piesaPrefill(empty))).sort()).toEqual(["c.completionDate", "inspectionDate", "o.date"]);
+    expect(seedAnswers(piesaPrefill({ ...full, electrician: { name: "E", licence: null, recName: null, recNo: null, phone: null } }))["b3.licence"]).toBeUndefined();
     expect(seedAnswers(piesaPrefill({ ...empty, lifeSupportDeclared: "unknown" }))["lifeSupport"]).toBeUndefined();
   });
   test("reminders and cross-checks never become answers", () => {
