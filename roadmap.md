@@ -144,4 +144,4 @@
 - [x] Add precise non-mutating action targets and AP evidence jump
 - [x] Remove repeated job status/timeline summaries without losing records
 - [x] Update review notes; run focused checks and isolated mocked visual captures
-- [ ] Replace synthetic captures with actual-component isolated captures and runtime interaction checks
+- [x] Replace synthetic captures with actual-component isolated captures and runtime interaction checks

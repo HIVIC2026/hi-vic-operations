@@ -3,17 +3,18 @@
 ## Implementation result
 - **List density fixed:** primary work views are compact controls; terminal, all non-test, and QA records sit in a secondary selector. Routine intake health is disclosed, while communications lock and critical warnings remain visible. “All non-test records” accurately includes complete/cancelled records. The Exceptions view reports separate Ineligible and On hold counts without changing classification.
 - **Filtering fixed:** one phase-filtered `visibleJobs` collection now drives rows, select-all, and the empty state. A no-match state offers Clear filters.
-- **Status precedence fixed:** required review suppresses a stale eligibility outcome; full address, owner, and next-action text wraps.
+- **Status precedence fixed:** the authoritative next step remains first; required review remains visible behind terminal/hold precedence; stale and duplicate outcome pills are suppressed. Full address, owner, and next-action text wraps.
 - **Gate 1 glance fixed:** every row now separates the stored owner answer, assessment/reason, and basis/provenance. Missing answers are explicit; property state is not presented as an owner answer; declarations remain unverified. Every row links to intake or full evidence, where raw source strings remain available.
-- **Navigation fixed:** consent, deposit request, signing, Gate 1, correspondence, documents, and evidence use precise focus/scroll targets after opening the disclosure. Installer-owned evidence-outstanding remains “Draft a nudge” to correspondence. AP review now has a direct link to the single installation-evidence panel.
+- **Navigation fixed:** consent, deposit request, signing, Gate 1, correspondence, documents, and evidence use precise focus/scroll targets after opening the disclosure. Deposit targeting waits for delayed payment data, prefers the actual admin control, falls back safely, and cancels stale requests. Non-Base44 jobs now have an honest read-only consent evidence panel. Installer-owned evidence-outstanding remains “Draft a nudge” to correspondence. AP review now has a direct link to the single installation-evidence panel.
 - **Repetition reduced:** duplicate stage/payment summary bands were removed. The readable timeline is primary; detailed and raw audit history remain under one disclosure.
 
 ## Verification
 - `tsgo --noEmit`: pass.
-- Focused tests: 16 pass, 0 fail (`portal-presentation`, `admin-pipeline-visibility`, `waiting.core`).
+- Focused tests: 17 pass, 0 fail (`portal-presentation`, `admin-pipeline-visibility`, `waiting.core`).
 - Preview build signal: build OK.
-- Isolated visual check uses synthetic QA-only data in a local, network-blocked source-derived harness. It does not import the authenticated route because that route owns automatic sweep/advance effects. No authenticated `/admin` navigation or live data access occurred.
-- Captures: `portal-brief-audit-admin-desktop.json` and `portal-brief-audit-admin-mobile.json`; each contains list and active-detail PNG bytes plus viewport metadata.
+- Isolated browser checks passed for review plus stale outcome, duplicate ineligible, phase with no matches plus clear/select-all, delayed deposit data focusing the exact admin control, non-Base44 consent, mobile-filter collapse followed by desktop resize, and draft preservation across disclosure collapse/reopen.
+- Captures: `portal-brief-audit-admin-desktop.json` and `portal-brief-audit-admin-mobile.json`; each contains complete list and active-detail PNG bytes plus viewport metadata.
+- **Exact visual limitation:** the captures render the real `StaffJobRow`, `EligibilityGlance`, `RecordDisclosure`, `IntakeSummary`, and `PaymentsPanel` components with synthetic QA-only query responses. The surrounding list/detail fixture is local test JSX, not the authenticated route or full `AppShell`; that avoids its sweep/advance effects. All non-local network was blocked. No authenticated `/admin` navigation, live data access, or mutation occurred.
 
 ## Prior audit record
 
