@@ -138,7 +138,7 @@
 
 ## Launch readiness (restructured per Jo's critique 2026-10-02)
 - [ ] Phase 1 freeze (+ named decider and target date each): AP-fee post-acceptance, old electrician path, PIESA/PIISA mappings, eligibility definitions (Eligible/Likely/Not eligible, declared vs verified), existing-insulation "Yes" = assessment never auto-cross, comms/consent policy, test-login role
-- [ ] Phase 2 identity/access: owner-to-job access, invites/recovery, secure links, RLS, contact masking, token expiry, audit; 253 real jobs — link owners, re-check eligibility vs new definitions, historical statuses unchanged
+- [ ] Phase 2 identity/access: owner-to-job access, invites/recovery, secure links, RLS, contact masking, token expiry, audit; 253 real jobs — owner linking only (Phase 2); eligibility re-check is a separate business-review item after Phase 1 definitions sign-off, with named reviewer and a changed-classification report; historical statuses unchanged
 - [ ] Phase 3 workflow correctness vs dummy data (stages, Ready Check, PIESA timing, gates, 24h rule, overdue, superseded proposals, cancel/reschedule)
 - [ ] Phase 4 communications: SMS workstream (primary alerts, provider, sender ID, callbacks, consent, duplicate protection, AU numbers, Melbourne scheduling, segment costs, mock tests) + email domain + event matrix; compliance check (Spam Act transactional status, privacy, VEU record retention — confirmed properly, not assumed)
 - [ ] Phase 5 onboarding/forms: insurance extraction (failure must never silently accept), quarantine, autocomplete, completion screens, Mitti A2/B/C + A1 regression, signed-copy storage
@@ -148,7 +148,7 @@
 - [ ] Phase 9 post-publish live checks (after deploy, before comms): onboarding start, rate limits, test links, insurance quarantine, 15 controls OFF, no external actions
 - [ ] Publish-approval register entries: INST-1.10, compact staff portal, 0075 signed-copy storage, 0077/0074 hazard wiring
 - [ ] Post-launch running: failed-delivery/error monitoring, single kill switch for external actions, support process (sign-in, wrong booking, missing SMS), named first-week watcher
-- [ ] Launch register with ID/owners/dependencies/acceptance criteria/evidence/status/rollback/approvals; Sev 1 = security breach, wrong-job access, wrong charge, wrong eligibility; Sev 2 = blocked core journey, no workaround; separate deployment vs communications approvals; controls enabled one at a time after approval (b)
+- [ ] Launch register with ID/owners/dependencies/acceptance criteria/evidence/status/rollback/approvals; Sev 1 = security breach, wrong-job access, wrong charge, wrong eligibility, or message to wrong recipient / containing another party's details; Sev 2 = blocked core journey, no workaround; separate deployment vs communications approvals; controls enabled one at a time after approval (b)
 
 ## Portal brief fixes — approved preview-only
 - [x] Compact admin views, filters, diagnostics and accurate retained-record labels

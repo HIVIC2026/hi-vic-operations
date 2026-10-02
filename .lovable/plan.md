@@ -19,7 +19,7 @@ Each open decision gets a named decider and a target date so the plan cannot sta
 - Job numbers, phone numbers and email addresses never grant access by themselves
 - Recovery procedure for owners who cannot sign in
 - Installer/electrician access, role permissions and RLS, contact masking between owners and trades, token expiry/revocation, test-account restrictions, audit logging
-- **Existing data task: the 253 real jobs — link owners, check each job's eligibility classification against the new definitions, leave historical statuses unchanged**
+- **Existing data, split in two:** (a) owner linking for the 253 real jobs stays here in Phase 2; (b) re-checking each job's eligibility classification against the new definitions is a separate business-review item that runs only after the Phase 1 definitions are signed off — named reviewer, and a report of every job whose classification changed. Historical statuses stay unchanged.
 
 ## Phase 3 — Core workflow correctness (against dummy data)
 - Job stages and next actions; Ready Check flow; later electrician path; PIESA timing
@@ -78,8 +78,9 @@ Each test records: expected result, actual result, evidence, pass/fail.
 
 ## Phase 9 — Post-publish live checks (after deployment, before communications go live)
 - Onboarding start works; rate limits clean; forged test mode refused; staff test links once/expiry/revoke; insurance quarantine
-- Installer screens; address close; OCR confirm; partner dialog; Active Jobs link; REC-2.3/INST-1.10 live; no lead fee
-- All 15 external-action controls OFF; no external actions
+- Each shorthand check becomes its own register item with a one-line expected result: address suggestion list closes after selecting; insurance certificate details are read and shown for confirmation; the partner enquiry detail box closes on X; the Active Jobs count matches its list; REC-2.3 and INST-1.10 are the live agreement versions
+- On a live job: eligibility labels match the Phase 1 definitions, and owner/trade contact details are hidden from each other
+- No lead fee anywhere; all 15 external-action controls OFF; no external actions
 
 ## Work waiting for publish approval (each gets its own register entry with evidence and an approval line)
 - INST-1.10 pricing acknowledgement (installer-brought jobs: no lead fee, no margin, only the $349 AP fee)
@@ -95,7 +96,7 @@ Each test records: expected result, actual result, evidence, pass/fail.
 Every item tracked with: ID, workstream, requirement, business owner, technical owner, dependency (e.g. Phase 6 depends on Phase 3 payment gates; Phase 4 email templates depend on domain records), risk level, acceptance criteria, test method, evidence link, current status, blocker, production action required, rollback step, approval required, approval recorded by and when. Controlled statuses only: Not started, In progress, Blocked, Ready for verification, Passed, Approved for production. Until the register exists with real owners, evidence and statuses, every item is effectively Not started.
 
 ## Severity definitions
-- **Sev 1:** security breach, wrong-job access, a wrong charge, or a wrong eligibility outcome
+- **Sev 1:** security breach, wrong-job access, a wrong charge, a wrong eligibility outcome, or a message sent to the wrong recipient or containing another party's contact details
 - **Sev 2:** a blocked core journey with no workaround
 
 ## Go-live gate (measurable)
