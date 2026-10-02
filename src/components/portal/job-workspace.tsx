@@ -54,8 +54,9 @@ export function JobIdentity({ jobId, job, onOpen }: { jobId: string; job: JobRow
       </div>
       <h1 className="mt-0.5 break-words text-xl font-bold leading-tight sm:text-2xl">{job.property_address}</h1>
       <dl className="mt-2 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-4">
-        <div className="min-w-0"><dt className="text-xs text-muted-foreground">Owner</dt><dd className="truncate font-medium">{job.owner_name ?? "—"}</dd></div>
-        <div className="min-w-0"><dt className="text-xs text-muted-foreground">Phone · email (staff only)</dt><dd className="truncate">{job.owner_phone ?? "—"} · <span className="break-all">{job.owner_email ?? "—"}</span></dd></div>
+        <div className="min-w-0"><dt className="text-xs text-muted-foreground">Owner</dt><dd className="break-words font-medium">{job.owner_name ?? "—"}</dd></div>
+        <div className="min-w-0"><dt className="text-xs text-muted-foreground">Phone (staff only)</dt><dd className="break-words">{job.owner_phone ?? "—"}</dd></div>
+        <div className="min-w-0"><dt className="text-xs text-muted-foreground">Email (staff only)</dt><dd className="break-all">{job.owner_email ?? "—"}</dd></div>
         <div className="min-w-0"><dt className="text-xs text-muted-foreground">Contact consent</dt><dd>
           {intake.isPending ? <span className="text-muted-foreground">Checking…</span>
             : intake.error ? <span role="alert" className="text-danger">Couldn't load consent — treat as missing</span>
@@ -114,6 +115,14 @@ const CHECK_LABELS: Record<(typeof CHECK_KEYS)[number], string> = {
   existing_insulation: "Existing insulation meets the Activity 48 criterion",
 };
 const BASIS: Record<string, string> = { verified: "Verified", recorded: "Recorded", declared: "Owner-declared (not verified)", unknown: "Unknown" };
+// Display-only labels for Gate 1 evidence sources; full source strings stay in the Gate 1 evidence audit.
+const SOURCE_LABELS: Record<string, string> = {
+  properties: "Property record", "properties.is_residential": "Property record", "properties.year_built": "Property record",
+  "properties.occupancy": "Property record", "properties.enrichment": "Property research",
+  "jobs.life_support_status": "Job record", "jobs.estimated_area_m2": "Job record",
+  base44: "Homeowner enquiry", "base44.property_research": "Website property research",
+};
+const sourceLabel = (s: string | null | undefined) => (s && SOURCE_LABELS[s]) || "Recorded source — view evidence";
 
 /** Assessment wording never upgrades a declared/recorded pass to "verified". */
 function assessmentOf(result: string | undefined, basis: string | undefined): { l: string; icon: typeof Check; cls: string } {
