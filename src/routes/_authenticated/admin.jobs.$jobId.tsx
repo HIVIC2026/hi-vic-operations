@@ -2,7 +2,7 @@ import { AdminEstimateCard } from "@/components/portal/estimate";
 import { AdminBookingOverride, AdminPartnerPanel, AppointmentPanel } from "@/components/portal/partner";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Fragment, useState } from "react";
+import { Fragment, useCallback, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
@@ -18,7 +18,7 @@ import { Gate1EvidencePanel } from "@/components/portal/gate1";
 import { IntakeSummary } from "@/components/portal/intake";
 import { JobJourney } from "@/components/portal/journey";
 import { ClearTimeline } from "@/components/portal/waiting";
-import { EligibilityGlance, JobIdentity, NextActionBand, PhaseStrip, RecordDisclosure, SubHeading, TARGET_TO_GROUP, type RecordGroup } from "@/components/portal/job-workspace";
+import { EligibilityGlance, JobIdentity, NextActionBand, PhaseStrip, RecordDisclosure, SubHeading, usePortalTargetNavigation, type RecordGroup } from "@/components/portal/job-workspace";
 import { AllDocuments, Correspondence, ExportJobPack, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
 import type { PortalTarget } from "@/lib/portal-presentation.core";
 
@@ -48,20 +48,8 @@ function JobDetail() {
   const { data: job, error, refetch } = useJob(jobId);
   const [open, setOpen] = useState<Set<RecordGroup>>(new Set());
   const toggle = (g: RecordGroup) => setOpen((s) => { const n = new Set(s); if (n.has(g)) n.delete(g); else n.add(g); return n; });
-  /** Open a record group, then focus the precise non-mutating control after its lazy content mounts. */
-  const openTarget = (target: PortalTarget) => {
-    const g = TARGET_TO_GROUP[target];
-    setOpen((s) => new Set(s).add(g));
-    const focus = (attempt = 0) => requestAnimationFrame(() => {
-      const exact = document.getElementById(`target-${target}`);
-      const destination = exact ?? document.getElementById(`records-${g}`);
-      if (!destination && attempt < 4) { focus(attempt + 1); return; }
-      destination?.scrollIntoView({ behavior: "smooth", block: "start" });
-      const focusable = exact?.matches("button,a,input,select,textarea,[tabindex]") ? exact : exact?.querySelector<HTMLElement>("button,a,input,select,textarea,[tabindex]");
-      (focusable ?? document.getElementById(`records-${g}-btn`))?.focus({ preventScroll: true });
-    });
-    focus();
-  };
+  const ensureOpen = useCallback((group: RecordGroup) => setOpen((current) => new Set(current).add(group)), []);
+  const openTarget = usePortalTargetNavigation(ensureOpen);
   if (error) return <AppShell wide><div role="alert" className="rounded-md border border-danger bg-danger-soft p-4 text-sm text-danger">This job could not be loaded. Its records have not been deleted.<Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div></AppShell>;
   if (!job) return <AppShell wide><p role="status" className="text-muted-foreground">Loading…</p></AppShell>;
   const g = (k: RecordGroup) => ({ id: k, open: open.has(k), onToggle: () => toggle(k) });
@@ -94,13 +82,13 @@ function JobDetail() {
         <RecordDisclosure {...g("enquiry")} title="Enquiry" summary="Gate 1 evidence, estimate, eligibility decision, website intake and consent">
           <div id="target-gate1-evidence" tabIndex={-1} className="scroll-mt-4 outline-none"><Gate1EvidencePanel jobId={jobId} /></div><AdminEstimateCard jobId={jobId} /><EligibilityForm jobId={jobId} />
           <SubHeading>Website intake, consent and source audit</SubHeading>
-          <div id="target-intake-consent" tabIndex={-1} className="scroll-mt-4 outline-none"><IntakeSummary jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Property"]} />
+          <div id="panel-intake-consent" className="scroll-mt-4"><IntakeSummary jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Property"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("ready_check")} title="Ready Check" summary="Requirements, appointment, booking, Mitti and measure-up">
           <RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("quote")} title="Quote" summary="Quotes, invoice & deposit, electronic signing">
-          <div id="target-quotes" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} /></div><InstallerLedInvoicePanel jobId={jobId} /><div id="target-deposit-request" tabIndex={-1} className="scroll-mt-4 outline-none"><PaymentsPanel jobId={jobId} isAdmin /></div><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
+          <div id="target-quotes" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} /></div><InstallerLedInvoicePanel jobId={jobId} /><div id="panel-deposit-request" className="scroll-mt-4"><PaymentsPanel jobId={jobId} isAdmin /></div><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
           <SubHeading>Electronic signing</SubHeading>
           <div id="target-electronic-signing" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminAssignmentPanel jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Customer / Consent"]} />
         </RecordDisclosure>

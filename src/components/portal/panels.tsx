@@ -339,7 +339,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
               {isAdmin && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {internals?.xeroAllowed !== false && <Button size="sm" variant="outline" disabled={!!x?.sync_lock_at && Date.now() - Date.parse(x.sync_lock_at) < 120000} onClick={() => sync({ invoiceId: i.id }, "Xero sync finished")}>{x?.xero_invoice_id ? "Sync with Xero" : "Send to Xero (safe retry)"}</Button>}
-                  {internals?.xeroAllowed && x?.xero_invoice_id && !x.deposit_request_raised_at && <Button size="sm" variant="outline" onClick={() => { if (confirm(`Confirm the native Xero 50% deposit request (${aud(i.deposit_amount)}) has been raised in Xero? This does not unlock scheduling.`)) markRaised({ invoiceId: i.id }, "Deposit request recorded"); }}>Mark deposit request raised</Button>}
+                  {internals?.xeroAllowed && x?.xero_invoice_id && !x.deposit_request_raised_at && <Button id="target-deposit-request" data-portal-focus="target" size="sm" variant="outline" onClick={() => { if (confirm(`Confirm the native Xero 50% deposit request (${aud(i.deposit_amount)}) has been raised in Xero? This does not unlock scheduling.`)) markRaised({ invoiceId: i.id }, "Deposit request recorded"); }}>Mark deposit request raised</Button>}
                   {!i.deposit_cleared && <Button size="sm" variant="outline" onClick={() => { const r = prompt("Reason for overriding the deposit gate (required, permanently audited)"); if (r) override({ invoiceId: i.id, reason: r }, "Override recorded"); }}>Override deposit gate</Button>}
                 </div>
               )}

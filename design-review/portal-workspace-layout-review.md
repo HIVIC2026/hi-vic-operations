@@ -70,3 +70,8 @@ Search, source/phase filters, filter chips + Clear, tab views, work-view counter
 - Consent, deposit, signing, evidence, messages, history, and documents have precise non-mutating focus targets. AP review links to the existing installation-evidence instance. Draft-a-nudge behavior is unchanged.
 - Duplicate top status summary and duplicate visible timeline were removed; controls, files, exports, and raw history remain reachable.
 - Verification: `tsgo --noEmit`; 16 focused tests pass; preview build OK. Visual evidence uses an isolated local source-derived harness with synthetic data and all network requests blocked, not authenticated `/admin`.
+
+## Final isolated component verification
+- Real portal components were rendered with synthetic QA-only responses and all non-local network blocked: `StaffJobRow`, `EligibilityGlance`, `RecordDisclosure`, `IntakeSummary`, and `PaymentsPanel`.
+- Runtime checks cover status precedence, phase-empty/clear/select-all, delayed deposit focus, non-Base44 consent focus, mobile-collapse to desktop filters, and disclosure draft retention.
+- The surrounding fixture is not the authenticated route or full shell; this deliberately avoids the route's automatic sweep/advance effects. No live admin page, data, or mutation was used.

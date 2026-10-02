@@ -1,0 +1,1 @@
+export const getJobOverview = Object.assign(() => undefined, { __mockName: "getJobOverview" });

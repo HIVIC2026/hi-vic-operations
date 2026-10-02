@@ -54,7 +54,7 @@ export function ownerAnswerForGate1(key: string, intake: IntakeAnswers | null | 
     return propertyType === "Not answered / unknown" && topFloor === "Not answered / unknown" ? propertyType : `${propertyType}; ${topFloor}`;
   }
   if (key === "ceiling_age") return answer(intake.declared?.over_five_years, { yes: "Owner says over five years", no: "Owner says not over five years" });
-  if (key === "previous_activity") return answer(intake.declared?.previous_upgrade, { yes: "Owner says there was a previous ceiling-insulation upgrade", no: "Owner says no previous ceiling-insulation upgrade" });
+  if (key === "previous_activity") return answer(intake.declared?.previous_upgrade, { yes: "Previous VEU upgrade: Yes", no: "Previous VEU upgrade: No" });
   if (key === "existing_insulation") return answer(intake.declaredExtras?.existing_insulation, { none: "Owner says none", present: "Owner says insulation is present" });
   return "Not answered / unknown";
 }
@@ -63,12 +63,24 @@ export function evidenceSourceLabel(source: string | null | undefined): string {
   if (!source || source === "—") return "No source recorded";
   const value = source.toLowerCase();
   if (value.includes("verified onsite") || value.includes("assessment")) return "Onsite assessment";
-  if (value.includes("base44") || value.includes("owner declaration") || value.includes("answers.")) return "Homeowner enquiry";
+  if (value.includes("base44.property_research") || value.includes("base44.property research")) return "Website property research";
   if (value.includes("property intelligence") || value.includes("property_research")) return "Property research";
+  if (value.includes("base44") || value.includes("owner declaration") || value.includes("answers.")) return "Homeowner enquiry";
   if (value.startsWith("properties")) return value.includes("enrichment") ? "Property research" : "Property record";
   if (value.startsWith("jobs")) return "Job record";
   if (value.includes("rollout")) return "Program calendar";
   return "Other recorded evidence";
+}
+
+export function supplementalEligibilityLabel(input: {
+  eligibility_review_required?: boolean | null;
+  eligibility_outcome?: string | null;
+}, authoritativeLabel: string): "Review required" | "Ineligible" | "Needs onsite confirmation" | "Likely eligible" | null {
+  if (input.eligibility_review_required) return authoritativeLabel === "Review required" ? null : "Review required";
+  const label = input.eligibility_outcome === "does_not_appear_eligible" ? "Ineligible"
+    : input.eligibility_outcome === "needs_onsite_confirmation" ? "Needs onsite confirmation"
+      : input.eligibility_outcome === "likely_eligible" ? "Likely eligible" : null;
+  return label === authoritativeLabel ? null : label;
 }
 
 export function filterVisibleJobs<T extends { stage?: S | null }, S extends string>(jobs: T[], phase: string, phaseFor: (stage: S | null | undefined) => string): T[] {
