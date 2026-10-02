@@ -164,6 +164,7 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
   const labelsOf = (f: FormField) => [norm(f.label), ...(f.aliases ?? []).map(norm)];
   const typeOk = (f: { type: FieldType; types?: FieldType[] }, t: string) => [f.type, ...(f.types ?? [])].some((ty) => TYPE_ALIASES[ty].includes(String(t).toLowerCase()));
   const optional = (f: FormField) => f.required === false || (f.notRequiredIf?.some((l) => (byLabel.get(norm(l)) ?? []).length > 0) ?? false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const checked = new Set<string>();
   for (const f of fields) {
     // anyOf: the question may appear as one multichoice OR as separate checkboxes (e.g. Batts / Loose fill).
