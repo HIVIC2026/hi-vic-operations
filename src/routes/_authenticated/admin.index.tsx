@@ -203,17 +203,17 @@ function Pipeline() {
       {pipelinePending ? (
         <div role="status" className="rounded-md border bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">Loading enquiries…</div>
       ) : (
-         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{shownInterests.map((i) => (
-           <Link key={`interest-${i.id}`} to="/admin/interests" className="block rounded-lg border bg-card p-4 shadow-sm transition hover:border-primary">
-             <span className="inline-flex rounded-full bg-workspace-blush px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-dark">Registered interest</span>
-             <p className="mt-2 font-bold">{i.full_name}</p>
-             <p className="text-sm text-muted-foreground">{i.address_line}</p>
-             <p className="mt-2 text-xs text-muted-foreground">{i.ceiling_m2} m² · {i.status === "new" ? "New" : i.status === "contacted" ? "Contacted" : "Booked"} · {new Date(i.created_at).toLocaleDateString("en-AU")}</p>
-           </Link>
+         <ul aria-label="Records" className="divide-y overflow-hidden rounded-md border bg-card">
+           <li aria-hidden className="hidden grid-cols-[auto_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,0.9fr)] gap-x-3 bg-muted/40 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground lg:grid"><span className="w-4" /><span>Property · job · owner</span><span>Stage · eligibility</span><span>Next action · waiting on</span><span>Coverage · warnings</span></li>
+           {shownInterests.map((i) => (
+           <li key={`interest-${i.id}`} className="relative px-3 py-3 pl-10 hover:bg-muted/40">
+             <Link to="/admin/interests" className="after:absolute after:inset-0"><span className="mr-2 inline-flex rounded bg-workspace-blush px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-brand-dark">Registered interest</span><span className="font-semibold">{i.full_name}</span></Link>
+             <p className="truncate text-xs text-muted-foreground">{i.address_line} · {i.ceiling_m2} m² · {i.status === "new" ? "New" : i.status === "contacted" ? "Contacted" : "Booked"} · {new Date(i.created_at).toLocaleDateString("en-AU")}</p>
+           </li>
          ))}{filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase).map((j: JobRow) => {
            const coverage = coverageByJob.get(j.id ?? "");
-           return <div key={j.id} className={`relative rounded-lg ${selected.has(j.id!) ? "ring-2 ring-primary" : ""}`}><div className="absolute right-2 top-2 z-10 rounded bg-card p-1 shadow-sm"><Checkbox checked={selected.has(j.id!)} onCheckedChange={() => toggle(j.id!)} aria-label={`Select job ${j.job_number ?? ""}`} /></div><JobCard job={j} to="/admin/jobs/$jobId" {...(coverage ? { coverage } : {})} /></div>;
-         })}{filtered.length === 0 && shownInterests.length === 0 && <div className="col-span-full rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">No records in this view.</div>}</div>
+           return <StaffJobRow key={j.id} job={j} {...(coverage ? { coverage } : {})} select={<Checkbox checked={selected.has(j.id!)} onCheckedChange={() => toggle(j.id!)} aria-label={`Select job ${j.job_number ?? ""}`} />} />;
+         })}{filtered.length === 0 && shownInterests.length === 0 && <li className="p-10 text-center text-sm text-muted-foreground">No records in this view.</li>}</ul>
       )}
     </AppShell>
   );
