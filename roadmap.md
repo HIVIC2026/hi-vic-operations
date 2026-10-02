@@ -165,3 +165,6 @@
 - [x] PIISA form obtained (March 2026) — saved to reference/veu-forms/PIISA-installer-safety-assessment-2026-03.md
 - [x] PIESA form obtained (March 2026) — saved to reference/veu-forms/PIESA-electrical-safety-assessment-2026-03.md
 - [ ] LR-003: field-by-field mapping of portal assessment forms against both official forms
+
+- [ ] Auto-fill the official PIESA/PIISA documents (government layout) and save signed copies to the job files (awaiting format decision)
+- [ ] AP evidence at each stage, e.g. geotagged photos (awaiting list from Jo)
