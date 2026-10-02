@@ -38,7 +38,7 @@ export function mittiInviteLine(email: string | null | undefined): string {
 }
 
 /** Full blocker sentence used by the assignment guard. */
-export function mittiAssignBlocker(role: string, name: string | null, email: string | null | undefined, access: MittiAccess): string {
+export function mittiAssignBlocker(role: string, name: string | null | undefined, email: string | null | undefined, access: MittiAccess): string {
   const who = name ? `${name} (${email ?? "no email"})` : `This ${role} (${email ?? "no email"})`;
   const fix = mittiInviteLine(email);
   if (access === "not_found") return `${who} is not in the Home Insulation Victoria Mitti organisation, so they cannot receive the ${role}'s Mitti forms. ${fix}`;
