@@ -159,3 +159,8 @@
 - [x] Remove repeated job status/timeline summaries without losing records
 - [x] Update review notes; run focused checks and isolated mocked visual captures
 - [x] Replace synthetic captures with actual-component isolated captures and runtime interaction checks
+
+## Official VEU form source documents (LR-003)
+- [x] PIISA form obtained (March 2026) — saved to reference/veu-forms/PIISA-installer-safety-assessment-2026-03.md
+- [x] PIESA form obtained (March 2026) — saved to reference/veu-forms/PIESA-electrical-safety-assessment-2026-03.md
+- [ ] LR-003: field-by-field mapping of portal assessment forms against both official forms
