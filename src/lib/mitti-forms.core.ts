@@ -289,6 +289,7 @@ export function validateQuotedPrice(input: {
     const v = (raw ?? "").trim().toLowerCase();
     if (!v) continue;
     const key = PRICE_ALIASES[v] ?? v;
+    if (process.env["MITTI_DEBUG"]) console.log("DEBUG v=", JSON.stringify(v), "MAP=", JSON.stringify(PRICE_ALIASES), "KEY=", JSON.stringify(key));
     const m = (PRICE_ITEMS as readonly string[]).find((p) => p.toLowerCase() === key);
     if (!m) issues.push(`Unknown included item "${raw}".`);
     else if (!included.includes(m)) included.push(m);
