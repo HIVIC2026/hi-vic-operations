@@ -4684,6 +4684,171 @@ export type Database = {
           },
         ]
       }
+      official_form_deliveries: {
+        Row: {
+          channel: string
+          created_at: string
+          delivered_at: string
+          id: string
+          job_id: string
+          recipient_role: string
+          recipient_user_id: string | null
+          recorded_by: string | null
+          signed_copy_id: string
+        }
+        Insert: {
+          channel?: string
+          created_at?: string
+          delivered_at?: string
+          id?: string
+          job_id: string
+          recipient_role: string
+          recipient_user_id?: string | null
+          recorded_by?: string | null
+          signed_copy_id: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          delivered_at?: string
+          id?: string
+          job_id?: string
+          recipient_role?: string
+          recipient_user_id?: string | null
+          recorded_by?: string | null
+          signed_copy_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "official_form_deliveries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "official_form_deliveries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "official_form_deliveries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "official_form_deliveries_signed_copy_id_fkey"
+            columns: ["signed_copy_id"]
+            isOneToOne: false
+            referencedRelation: "official_form_signed_copies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      official_form_signed_copies: {
+        Row: {
+          answers: Json
+          attachments: Json
+          created_at: string
+          document_sha256: string
+          form_key: string
+          id: string
+          invalidated_at: string | null
+          invalidated_by: string | null
+          invalidation_reason: string | null
+          job_facts: Json
+          job_id: string
+          mapping_version: string
+          signature_date: string
+          signer_name: string
+          signer_role: string
+          signer_user_id: string
+          snapshot: Json
+          snapshot_sha256: string
+          source_sha256: string
+          status: string
+          storage_path: string
+          template_publication: string
+          template_title: string
+        }
+        Insert: {
+          answers: Json
+          attachments?: Json
+          created_at?: string
+          document_sha256: string
+          form_key: string
+          id?: string
+          invalidated_at?: string | null
+          invalidated_by?: string | null
+          invalidation_reason?: string | null
+          job_facts?: Json
+          job_id: string
+          mapping_version: string
+          signature_date: string
+          signer_name: string
+          signer_role: string
+          signer_user_id: string
+          snapshot: Json
+          snapshot_sha256: string
+          source_sha256: string
+          status?: string
+          storage_path: string
+          template_publication: string
+          template_title: string
+        }
+        Update: {
+          answers?: Json
+          attachments?: Json
+          created_at?: string
+          document_sha256?: string
+          form_key?: string
+          id?: string
+          invalidated_at?: string | null
+          invalidated_by?: string | null
+          invalidation_reason?: string | null
+          job_facts?: Json
+          job_id?: string
+          mapping_version?: string
+          signature_date?: string
+          signer_name?: string
+          signer_role?: string
+          signer_user_id?: string
+          snapshot?: Json
+          snapshot_sha256?: string
+          source_sha256?: string
+          status?: string
+          storage_path?: string
+          template_publication?: string
+          template_title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "official_form_signed_copies_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "official_form_signed_copies_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "official_form_signed_copies_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       onboarding_authorisation_events: {
         Row: {
           actor: string | null
