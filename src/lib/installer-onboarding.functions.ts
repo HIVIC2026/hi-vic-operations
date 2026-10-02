@@ -150,6 +150,7 @@ export const signInstallerAgreement = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { db, app } = await findApp(data.token);
     if (app.status !== "draft") throw new Error("This application has already been signed.");
+    await (await import("./onboarding-security.server")).purgeQuarantine(db as never, "installer-onboarding", app.id);
     if (data.agreement_version !== INSTALLER_AGREEMENT_VERSION) throw new Error("The agreement has been updated. Please reload and review it again.");
     if (!validBusinessEmail(data.signer_email)) throw new Error("Enter a real business email for the signer.");
     for (const a of ACKNOWLEDGEMENTS) if (data.acknowledgements[a.key] !== true) throw new Error("Tick every acknowledgement to sign.");

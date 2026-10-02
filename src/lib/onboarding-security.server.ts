@@ -67,6 +67,14 @@ export async function enforceContactCap(db: Db, appId: string, trade: Trade, has
 
 const BUCKET = "partner-files";
 
+/** Removes every quarantined (unverified) file for this application. Best effort; never blocks. */
+export async function purgeQuarantine(db: Db, folder: string, appId: string) {
+  const prefix = quarantinePrefix(folder, appId);
+  const { data } = await db.storage.from(BUCKET).list(prefix.slice(0, -1));
+  const paths = (data ?? []).map((f: { name: string }) => prefix + f.name);
+  if (paths.length) await db.storage.from(BUCKET).remove(paths);
+}
+
 /** New quarantine slot; abandoned quarantine files for this application are removed first. */
 export async function quarantineSlot(db: Db, folder: string, appId: string) {
   const prefix = quarantinePrefix(folder, appId);

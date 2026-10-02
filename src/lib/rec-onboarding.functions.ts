@@ -157,6 +157,7 @@ export const signRecAgreement = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { db, app } = await findApp(data.token);
     if (app.status !== "draft") throw new Error("This application has already been signed.");
+    await (await import("./onboarding-security.server")).purgeQuarantine(db as never, "rec-onboarding", app.id);
     if (data.agreement_version !== REC_AGREEMENT_VERSION) throw new Error("The agreement has been updated. Please reload and review it again.");
     if (!validBusinessEmail(data.signer_email)) throw new Error("Enter a real business email for the signer.");
     const d: RecData = { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path };
