@@ -106,7 +106,7 @@ export function effectiveElectricians(d: RecData): Electrician[] {
 export const STEPS = [
   { key: "about", title: "About you" },
   { key: "business", title: "Business details" },
-  { key: "contact", title: "Contact details" },
+  { key: "contact", title: "Business address" },
   { key: "insurance", title: "Public liability insurance" },
   { key: "services", title: "Home Insulation Victoria work" },
   { key: "coverage", title: "Where you work" },
@@ -215,13 +215,15 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
   const e: string[] = [];
   switch (step) {
     case "about":
+      // Business vs staff is asked once, first. Unknown/legacy drafts stay unanswered (never defaulted to business).
+      if (d.works_under_rec == null) { e.push("Tell us if you are registering your REC business or joining as staff."); break; }
+      if (d.works_under_rec === true) { e.push("Staff join Home Insulation Victoria by private invitation from your REC business."); break; }
       if (!txt(d.primary_contact_name)) e.push("Enter your name.");
       // Only licensed electricians may register; old drafts with false/null must be explicitly confirmed again.
       if (d.contact_is_licensed_electrician !== true) e.push("Confirm you are a licensed electrician to continue.");
       if (!txt(d.licence_number)) e.push("Enter your Victorian electrician licence number.");
       if (!validPhone(d.business_phone)) e.push("Enter a valid Australian mobile.");
       if (!validBusinessEmail(d.business_email)) e.push("Enter a real email address.");
-      if (d.works_under_rec == null) e.push("Tell us if you are registering the REC business or joining as staff.");
       break;
     case "business":
       if (!txt(d.legal_entity_name)) e.push(d.works_under_rec === true ? "Enter your full legal name." : "Enter the legal entity / REC registered name.");
@@ -239,7 +241,6 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (!txt(d.primary_contact_name)) e.push("Enter a contact name.");
       if (!validPhone(d.business_phone)) e.push("Enter a valid Australian phone number.");
       if (!validBusinessEmail(d.business_email)) e.push("Enter a real business email address.");
-      if (d.works_under_rec !== true && d.authorised_to_register !== true) e.push("Confirm you're authorised to set up this REC.");
       break;
     case "insurance":
       if (d.works_under_rec === true) break; // host REC holds the insurance

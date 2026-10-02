@@ -4,7 +4,7 @@ import { validAbn, validPhone, validBusinessEmail, stepErrors, firstIncompleteSt
 const full: RecData = {
   works_under_rec: false,
   legal_entity_name: "Spark Pty Ltd", abn: "51824753556", rec_registration_number: "REC 12345",
-  business_address: "1 Main St, Melton VIC 3337", business_address_details: { label: "1 Main St, Melton VIC 3337", state: "VIC", postcode: "3337", country: "AU", provider: "google_places_au" }, primary_contact_name: "Sam Smith", contact_is_licensed_electrician: true, licence_number: "A123", business_phone: "0412345678", business_email: "sam@spark.com.au", authorised_to_register: true,
+  business_address: "1 Main St, Melton VIC 3337", business_address_details: { label: "1 Main St, Melton VIC 3337", state: "VIC", postcode: "3337", country: "AU", provider: "google_places_au" }, primary_contact_name: "Sam Smith", contact_is_licensed_electrician: true, licence_number: "A123", business_phone: "0412345678", business_email: "sam@spark.com.au",
   insurance_uploaded: true, insurer: "QBE", insurance_policy_number: "P1", public_liability_cover_amount: 5_000_000, public_liability_expiry: "2099-01-01",
   services_all_confirmed: true, service_origin: "1 Main St, Melton VIC 3337", service_origin_details: { label: "1 Main St, Melton VIC 3337", state: "VIC", postcode: "3337", country: "AU", provider: "google_places_au" }, travel_radius_km: 50, typical_days: ["Mon"], normal_attendance_speed: "1-2 weeks", capacity_band: "6-10", accepting_jobs: true,
   gst_registered: true, assessment_rate: 300, installation_attendance_rate: 150,
@@ -74,9 +74,21 @@ describe("rec onboarding", () => {
     expect(stepErrors("bank", { ...under, bank_account_name: undefined })).toEqual([]);
     expect(stepErrors("assessment_pricing", { ...under, assessment_rate: undefined })).toEqual([]);
     expect(stepErrors("rectification_pricing", { ...under, service_rectification: true })).toEqual([]);
-    expect(firstIncompleteStep(under)).toBeNull();
+    expect(firstIncompleteStep(under)).toBe("about"); // staff route stops at the invitation guidance
     expect(stepErrors("business", { ...under, host_rec_name: undefined })).toContain("Enter the REC business you work under.");
-    expect(stepErrors("about", { works_under_rec: null, primary_contact_name: "Sam", contact_is_licensed_electrician: true, licence_number: "A12345", business_phone: "0412345678", business_email: "sam@example.com" })).toContain("Tell us if you are registering the REC business or joining as staff.");
+    expect(stepErrors("about", { works_under_rec: null, primary_contact_name: "Sam", contact_is_licensed_electrician: true, licence_number: "A12345", business_phone: "0412345678", business_email: "sam@example.com" })).toContain("Tell us if you are registering your REC business or joining as staff.");
+  });
+  test("business vs staff asked first; staff stops; legacy authority tick not required", () => {
+    expect(stepErrors("about", { works_under_rec: null })).toEqual(["Tell us if you are registering your REC business or joining as staff."]);
+    expect(stepErrors("about", { ...full, works_under_rec: true })).toEqual(["Staff join Home Insulation Victoria by private invitation from your REC business."]);
+    expect(stepErrors("about", { ...full, contact_is_licensed_electrician: null })).toContain("Confirm you are a licensed electrician to continue.");
+    expect(stepErrors("about", { ...full, contact_is_licensed_electrician: false })).toContain("Confirm you are a licensed electrician to continue.");
+    expect(stepErrors("about", { ...full, licence_number: "" })).toContain("Enter your Victorian electrician licence number.");
+    const legacy: RecData = { ...full };
+    delete legacy.authorised_to_register;
+    expect(stepErrors("contact", legacy)).toEqual([]);
+    expect(stepErrors("contact", { ...full, authorised_to_register: false })).toEqual([]);
+    expect(ACKNOWLEDGEMENTS.find((a) => a.key === "authority")?.text).toBe("I am authorised to bind the REC to this agreement.");
   });
   test("REC insurance under $5M and expired rejected", () => {
     expect(stepErrors("insurance", { ...full, public_liability_cover_amount: 4_999_999 })).toContain("Public liability cover must be at least $5,000,000.");
