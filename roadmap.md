@@ -188,5 +188,6 @@
 ## Mitti access as part of trade onboarding (Jo, 3 Oct)
 - [x] Record Mitti membership per person (who is in, checked when, against which email)
 - [x] Pure rule + tests for who counts as in Mitti
-- [ ] Stop a job being assigned to someone not in Mitti, with a recorded office override
-- [ ] Show Mitti status on the job page and the users/trade list, with a Check button
+- [x] Stop a job being assigned to someone not in Mitti, with a recorded office override
+- [x] Show Mitti status on the job page and the users/trade list, with a Check button
+- [ ] Confirm guest seats can complete Ready Check/PIESA (decides whether extra trades cost ~$24-29/seat/month)
