@@ -135,3 +135,12 @@
 - [ ] Post-publish live checks: onboarding start works, rate limits clean, forged test mode refused, staff test link once/expiry/revoke, insurance quarantine, installer screens, address close, OCR confirm, partner dialog, Active Jobs link, REC-2.3/INST-1.9 live, no lead fee, 15 controls OFF, no external actions
 - [ ] Jo wants a whole-portal test login to give to someone (2026-10-02) — admin-level access is barred by locked rule; clarifying who it's for and what they must see
 - [ ] Installer pricing acknowledgement reworded + agreement bumped INST-1.9 → INST-1.10 (installer-brought jobs: no lead fee, no margin, only the $349 AP fee) — preview only, awaiting Jo approval to publish
+
+## Portal brief fixes — approved preview-only
+- [x] Compact admin views, filters, diagnostics and accurate retained-record labels
+- [x] Single visibleJobs path for rows, selection and empty states
+- [x] Fix stale eligibility badge precedence and mobile wrapping
+- [x] Show actual Gate 1 answers, assessments, reasons and meaningful provenance
+- [x] Add precise non-mutating action targets and AP evidence jump
+- [x] Remove repeated job status/timeline summaries without losing records
+- [x] Update review notes; run focused checks and isolated mocked visual captures

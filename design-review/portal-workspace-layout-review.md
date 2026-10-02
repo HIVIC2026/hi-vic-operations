@@ -61,3 +61,12 @@ Search, source/phase filters, filter chips + Clear, tab views, work-view counter
 - EligibilityGlance: raw source paths replaced by display-only labels (properties.* -> Property record / Property research, jobs.* -> Job record, base44 -> Homeowner enquiry, base44.property_research -> Website property research); anything else reads "Recorded source — view evidence". Basis labels and rules unchanged; full source strings remain in Full Gate 1 evidence. Limitation: on HV-1128 every glance row uses the fallback, because its rule sources are not in the mapped list.
 - Screenshots: portal-workspace-desktop.json / portal-workspace-mobile.json now show only the QA job detail page (HV-1128). The job list was not opened again. The counter grid (grid-cols-2 sm:grid-cols-4 lg:grid-cols-7, admin.index.tsx line 148) was checked in the code only.
 - Tests: bun test ./tests/ gives 959 pass and 3 fail. The 3 failures predate this work: the 2 "presentation lock" tests in tests/customer-quote-system.test.ts (estimate.tsx / estimate-email.ts) and the "appointment SLA & reassignment" test in tests/pilot.test.ts:121. No tests/ or src/lib files changed since base f49e7060. Typecheck clean. Nothing published.
+
+## Portal brief fixes (2 Oct 2026)
+- The list now prioritises In progress, Needs review, and Exceptions; all non-test, finalised, cancelled, and QA records remain available from a secondary selector. Exceptions shows separate Ineligible and On hold counts.
+- `visibleJobs` is the sole post-phase list for rows, select-all, and empty-state behavior.
+- Required-review status suppresses stale eligibility; row identity and next action wrap in full.
+- Gate 1 rows show stored owner answers separately from assessment/reason and basis/provenance. Missing answers remain unknown and raw source values remain in full evidence.
+- Consent, deposit, signing, evidence, messages, history, and documents have precise non-mutating focus targets. AP review links to the existing installation-evidence instance. Draft-a-nudge behavior is unchanged.
+- Duplicate top status summary and duplicate visible timeline were removed; controls, files, exports, and raw history remain reachable.
+- Verification: `tsgo --noEmit`; 16 focused tests pass; preview build OK. Visual evidence uses an isolated local source-derived harness with synthetic data and all network requests blocked, not authenticated `/admin`.

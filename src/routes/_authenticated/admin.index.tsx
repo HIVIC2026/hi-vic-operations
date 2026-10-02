@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { listInterests } from "@/lib/interest.functions";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Archive, Ban, CheckCircle2, FlaskConical, Plus, Search, Workflow } from "lucide-react";
+import { AlertTriangle, ChevronDown, Plus, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { type JobRow } from "@/components/portal/JobCard";
@@ -20,6 +20,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getAdminCoverage } from "@/lib/coverage.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { toast } from "sonner";
+import { filterVisibleJobs } from "@/lib/portal-presentation.core";
 
 const ACCEPTANCE_STAGES = ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"];
 type WorkView = "all" | "active" | "review" | "ineligible" | "finalised" | "cancelled" | "test";
@@ -29,16 +30,8 @@ const JOB_STAGES = [...ACCEPTANCE_STAGES, "measured_quote_accepted", "piesa_and_
 const tabOf = (stage: string | null | undefined): Tab => QUOTE_STAGES.includes(stage ?? "") ? "quotes" : JOB_STAGES.includes(stage ?? "") ? "jobs" : "enquiries";
 const TAB_TITLE: Record<Tab, string> = { jobs: "ACTIVE JOBS", quotes: "PENDING QUOTE APPROVAL", enquiries: "ENQUIRIES", ineligible: "INELIGIBLE" };
 
-type CardDef = { key: WorkView; label: string; meaning: string; icon: typeof Workflow; chip: string; text: string; active: string };
-const CARDS: CardDef[] = [
-  { key: "all", label: "All live enquiries", meaning: "every real enquiry in one list", icon: Workflow, chip: "bg-info-soft text-info", text: "text-info", active: "border-info bg-info-soft" },
-  { key: "active", label: "In progress", meaning: "moving — someone's turn is next", icon: Search, chip: "bg-task-scheduling text-task-scheduling-foreground", text: "text-task-scheduling-foreground", active: "border-task-scheduling-foreground/60 bg-task-scheduling" },
-  { key: "review", label: "Needs review", meaning: "eligibility needs a person's decision", icon: AlertTriangle, chip: "bg-task-eligibility text-task-eligibility-foreground", text: "text-task-eligibility-foreground", active: "border-task-eligibility-foreground/60 bg-task-eligibility" },
-  { key: "ineligible", label: "Ineligible / hold", meaning: "not eligible, or parked on hold", icon: Ban, chip: "bg-workspace-sun text-warning", text: "text-warning", active: "border-workspace-sun-strong bg-workspace-sun" },
-  { key: "finalised", label: "Finalised", meaning: "done — kept for the record", icon: CheckCircle2, chip: "bg-success-soft text-success", text: "text-success", active: "border-success/60 bg-success-soft" },
-  { key: "cancelled", label: "Cancelled", meaning: "closed — history kept", icon: Archive, chip: "bg-muted text-muted-foreground", text: "text-muted-foreground", active: "border-muted-foreground/40 bg-muted" },
-  { key: "test", label: "Test records", meaning: "dummy journeys, kept apart from real work", icon: FlaskConical, chip: "bg-task-compliance text-task-compliance-foreground", text: "text-task-compliance-foreground", active: "border-task-compliance-foreground/60 bg-task-compliance" },
-];
+const PRIMARY_VIEWS: { key: WorkView; label: string }[] = [{ key: "active", label: "In progress" }, { key: "review", label: "Needs review" }, { key: "ineligible", label: "Exceptions" }];
+const SECONDARY_VIEWS: { key: WorkView; label: string }[] = [{ key: "all", label: "All non-test records" }, { key: "finalised", label: "Finalised" }, { key: "cancelled", label: "Cancelled" }, { key: "test", label: "Test records" }];
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({ meta: [{ title: "Enquiries – Home Insulation Victoria Portal" }, { name: "description", content: "Home Insulation Victoria active enquiry workspace." }, { property: "og:title", content: "Enquiries – Home Insulation Victoria Portal" }, { property: "og:description", content: "Home Insulation Victoria active enquiry workspace." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -99,6 +92,7 @@ function Pipeline() {
     const s = q.toLowerCase();
     return jobs.filter((j) => source === "all" || j.channel === source).filter((j) => !s || [j.job_number, j.property_address, j.owner_name, j.electrician_name, j.installer_name].some((v) => v?.toLowerCase().includes(s)));
   }, [jobs, q, source]);
+  const visibleJobs = useMemo(() => filterVisibleJobs(filtered, phase, phaseForStage), [filtered, phase]);
   const byPhase = (p: Phase) => filtered.filter((j) => phaseForStage(j.stage) === p);
   const loadInterests = useServerFn(listInterests);
   const { data: interests = [] } = useQuery({ queryKey: ["calculator-interests"], queryFn: () => loadInterests(), staleTime: 30_000 });
@@ -123,6 +117,8 @@ function Pipeline() {
   const activeHere = tab !== "ineligible" ? groups.active.filter((j) => tabOf(j.stage) === tab).length : activeCount;
   const activeByTab = { enquiries: groups.active.filter((j) => tabOf(j.stage) === "enquiries").length, quotes: groups.active.filter((j) => tabOf(j.stage) === "quotes").length, jobs: groups.active.filter((j) => tabOf(j.stage) === "jobs").length };
   const cardCount = (key: keyof typeof groups) => key === "active" ? activeHere : groups[key].length;
+  const ineligibleOnly = groups.ineligible.filter((job) => job.eligibility_outcome === "does_not_appear_eligible").length;
+  const onHoldOnly = groups.ineligible.filter((job) => job.stage === "on_hold" && job.eligibility_outcome !== "does_not_appear_eligible").length;
   const uncounted = useMemo(() => {
     const seen = new Set([...groups.active, ...groups.review, ...groups.ineligible, ...groups.finalised, ...groups.cancelled].map((j) => j.id));
     return groups.all.filter((j) => !seen.has(j.id)).length;
@@ -136,25 +132,28 @@ function Pipeline() {
           <Button type="button" variant="outline" size="sm" className="ml-3" onClick={() => void refetchPipeline()}>Try again</Button>
         </div>
       )}
-      <div className="mb-4 flex flex-wrap items-start gap-4 border-b pb-4">
-        <div>
+      <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b pb-3 sm:flex sm:flex-wrap">
+         <div className="min-w-0 sm:flex-1">
            <p className="text-xs font-bold uppercase text-primary">Home Insulation Victoria</p>
            <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{TAB_TITLE[tab]}</h1>
            <p className="mt-2 text-sm text-muted-foreground">Active enquiries first. Ineligible, finalised, cancelled and test records stay safely filed.</p>
         </div>
-         <div className="ml-auto flex items-center gap-2"><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${comms?.enabled === true ? "border-success/30 bg-success-soft text-success" : "border-workspace-sun-strong/40 bg-workspace-sun text-foreground"}`}><span className={`h-2 w-2 rounded-full ${comms?.enabled === true ? "bg-success" : "bg-warning"}`} />Customer messages {comms?.enabled === true ? "on" : "off"}</span><NewEnquiry /></div>
+         <div className="flex shrink-0 flex-col items-end gap-2 sm:ml-auto sm:flex-row sm:items-center"><span className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-xs font-bold ${comms?.enabled === true ? "border-success/30 bg-success-soft text-success" : "border-workspace-sun-strong/40 bg-workspace-sun text-foreground"}`}><span className={`h-2 w-2 rounded-full ${comms?.enabled === true ? "bg-success" : "bg-warning"}`} />Messages {comms?.enabled === true ? "on" : "off"}</span><NewEnquiry /></div>
       </div>
-      <p className="mb-2 text-xs text-muted-foreground">{groups.all.length} live = {activeCount} in progress + {groups.review.length} needs review + {groups.ineligible.length} ineligible/hold + {groups.finalised.length} finalised + {groups.cancelled.length} cancelled ({groups.test.length} test records filed separately)</p>
-       <section className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7" aria-label="Work files">
-          {CARDS.map((item) => <button key={item.key} type="button" onClick={() => { setWorkView(item.key); setPhase("all"); }} aria-pressed={workView === item.key} title={item.meaning} className={`rounded-md border p-3 text-left transition hover:border-primary hover:shadow-sm ${workView === item.key ? item.active : "bg-card"}`}><div className="flex items-center justify-between"><span className="text-xs font-semibold text-muted-foreground">{item.label}</span><item.icon className={`h-4 w-4 ${item.text}`} /></div><div className={`mt-1 text-xl font-bold tabular-nums ${item.text}`}>{cardCount(item.key)}{item.key === "active" && activeHere !== activeCount && <span className="ml-1 text-xs font-normal text-muted-foreground">on this page</span>}</div></button>)}
+      <section className="mb-2 flex flex-wrap items-center gap-1.5" aria-label="Work views">
+        {PRIMARY_VIEWS.map((item) => <Button key={item.key} type="button" size="sm" variant={workView === item.key ? "default" : "outline"} onClick={() => { setWorkView(item.key); setPhase("all"); }} aria-pressed={workView === item.key}>{item.label} <Badge variant="secondary">{cardCount(item.key)}</Badge></Button>)}
+        <label className="sr-only" htmlFor="retained-view">Retained records view</label><select id="retained-view" aria-label="Retained and complete records" className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm" value={SECONDARY_VIEWS.some((item) => item.key === workView) ? workView : ""} onChange={(e) => { if (e.target.value) { setWorkView(e.target.value as WorkView); setPhase("all"); } }}><option value="">More records…</option>{SECONDARY_VIEWS.map((item) => <option key={item.key} value={item.key}>{item.label} ({cardCount(item.key)})</option>)}</select>
+        <span className="text-xs text-muted-foreground">Ineligible {ineligibleOnly} · On hold {onHoldOnly}</span>
       </section>
       {workView === "active" && tab !== "ineligible" && activeHere !== activeCount && <p data-testid="active-split" className="mb-3 text-xs text-muted-foreground">{activeCount} records are in progress in total: {activeByTab.enquiries} at enquiry stage, {activeByTab.quotes} at quote stage, {activeByTab.jobs} at job stage. {tab !== "enquiries" && activeByTab.enquiries > 0 && <Link to="/admin" search={{ tab: "enquiries" }} className="font-semibold text-primary underline">View the {activeByTab.enquiries} enquiries</Link>}</p>}
       {(q || source !== "all" || phase !== "all") && <div data-testid="active-filters" className="mb-3 flex flex-wrap items-center gap-2 text-xs"><span className="font-semibold">Filters on:</span>{q && <Badge variant="outline">Search “{q}”</Badge>}{source !== "all" && <Badge variant="outline">{source === "hivic_sourced" ? "Home Insulation Victoria-sourced" : "Installer-sourced"}</Badge>}{phase !== "all" && <Badge variant="outline">Phase: {PIPELINE_PHASES.find((p) => p.key === phase)?.label ?? phase}</Badge>}<Button type="button" size="sm" variant="ghost" onClick={() => { setQ(""); setSource("all"); setPhase("all"); }}>Clear filters</Button></div>}
-      {uncounted > 0 && <div role="alert" className="mb-4 rounded-md border-l-4 border-destructive bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">{uncounted} live enquir{uncounted === 1 ? "y is" : "ies are"} not in any group. Open "All live enquiries" to find {uncounted === 1 ? "it" : "them"}.</div>}
+      {uncounted > 0 && <div role="alert" className="mb-3 rounded-md border-l-4 border-destructive bg-destructive/10 px-4 py-2 text-sm font-semibold text-destructive">{uncounted} non-test record{uncounted === 1 ? " is" : "s are"} not in any status group. Open “All non-test records” to find {uncounted === 1 ? "it" : "them"}.</div>}
        {workView === "active" && warnings > 0 && <div className="mb-4 rounded-md border-l-4 border-warning bg-warning-soft px-4 py-3 text-sm"><b>{warnings} active job{warnings === 1 ? "" : "s"} need attention.</b> {[piesaCount && `${piesaCount} PIESA`, paymentCount && `${paymentCount} payment`, acceptanceCount && `${acceptanceCount} agreement`].filter(Boolean).join(" · ")}</div>}
       {comms?.enabled !== true && <p className="mb-3 text-xs text-muted-foreground">Pre-launch safety is active: no email, SMS or notification is sent to customers or trades.</p>}
-      {intakeHealth && <div data-testid="post-intake-health" className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-card px-4 py-2 text-xs text-muted-foreground"><span className="font-semibold text-foreground">Enquiry intake</span><span>Queued <b className="text-foreground">{intakeHealth.counts.queued}</b></span><span>Running <b className="text-foreground">{intakeHealth.counts.running}</b></span><span className={intakeHealth.counts.stale > 0 ? "font-semibold text-warning" : ""}>Stale <b>{intakeHealth.counts.stale}</b></span><span className={intakeHealth.counts.failed > 0 ? "font-semibold text-danger" : ""}>Failed <b>{intakeHealth.counts.failed}</b></span></div>}
-      <div className="mb-5 flex flex-wrap items-center gap-2 rounded-md border bg-card p-3 shadow-sm">
+      {intakeHealth && <details data-testid="post-intake-health" className="mb-2 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground"><summary className="cursor-pointer font-semibold text-foreground">System health {intakeHealth.counts.stale > 0 || intakeHealth.counts.failed > 0 ? `— ${intakeHealth.counts.stale + intakeHealth.counts.failed} need attention` : "— normal"}</summary><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1"><span>Queued <b className="text-foreground">{intakeHealth.counts.queued}</b></span><span>Running <b className="text-foreground">{intakeHealth.counts.running}</b></span><span className={intakeHealth.counts.stale > 0 ? "font-semibold text-warning" : ""}>Stale <b>{intakeHealth.counts.stale}</b></span><span className={intakeHealth.counts.failed > 0 ? "font-semibold text-danger" : ""}>Failed <b>{intakeHealth.counts.failed}</b></span></div></details>}
+      <details className="group mb-3 rounded-md border bg-card" open>
+        <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm font-semibold sm:hidden">Search and filters <ChevronDown className="h-4 w-4 transition group-open:rotate-180" /></summary>
+      <div className="flex flex-wrap items-center gap-2 p-3 max-sm:border-t">
           <div className="relative min-w-0 basis-full sm:min-w-64 sm:basis-auto sm:flex-1"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search job number, address or person" className="pl-8" /></div>
           <select aria-label="Job source" className="h-9 rounded-md border bg-background px-2 text-sm" value={source} onChange={(e) => setSource(e.target.value as typeof source)}>
             <option value="all">All sources</option><option value="hivic_sourced">Home Insulation Victoria-sourced</option><option value="installer_sourced">Installer-sourced</option>
@@ -163,11 +162,11 @@ function Pipeline() {
              <option value="all">All phases</option>{lanes.map((p) => <option key={p.key} value={p.key}>{p.label} ({byPhase(p.key).length})</option>)}
           </select>
       </div>
+      </details>
       {(() => {
-        const visible = filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase);
-        const all = visible.length > 0 && visible.every((j) => selected.has(j.id!));
+        const all = visibleJobs.length > 0 && visibleJobs.every((j) => selected.has(j.id!));
         return <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-          <label className="flex items-center gap-2 font-medium"><Checkbox checked={all} onCheckedChange={() => setSelected(all ? new Set() : new Set(visible.map((j) => j.id!)))} aria-label="Select all shown" />Select all shown</label>
+          <label className="flex items-center gap-2 font-medium"><Checkbox checked={all} onCheckedChange={() => setSelected(all ? new Set() : new Set(visibleJobs.map((j) => j.id!)))} aria-label="Select all shown" />Select all shown</label>
           {selected.size > 0 && <>
             <span className="font-bold">{selected.size} selected</span>
             <Button size="sm" variant="outline" onClick={() => setBulk("hold")}>Put on hold</Button>
@@ -205,10 +204,10 @@ function Pipeline() {
              <Link to="/admin/interests" className="after:absolute after:inset-0"><span className="mr-2 inline-flex rounded bg-workspace-blush px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-brand-dark">Registered interest</span><span className="font-semibold">{i.full_name}</span></Link>
              <p className="truncate text-xs text-muted-foreground">{i.address_line} · {i.ceiling_m2} m² · {i.status === "new" ? "New" : i.status === "contacted" ? "Contacted" : "Booked"} · {new Date(i.created_at).toLocaleDateString("en-AU")}</p>
            </li>
-         ))}{filtered.filter((j) => phase === "all" || phaseForStage(j.stage) === phase).map((j: JobRow) => {
+         ))}{visibleJobs.map((j: JobRow) => {
            const coverage = coverageByJob.get(j.id ?? "");
            return <StaffJobRow key={j.id} job={j} {...(coverage ? { coverage } : {})} select={<Checkbox checked={selected.has(j.id!)} onCheckedChange={() => toggle(j.id!)} aria-label={`Select job ${j.job_number ?? ""}`} />} />;
-         })}{filtered.length === 0 && shownInterests.length === 0 && <li className="p-10 text-center text-sm text-muted-foreground">No records in this view.</li>}</ul>
+         })}{visibleJobs.length === 0 && shownInterests.length === 0 && <li className="p-10 text-center text-sm text-muted-foreground">No records match this view or its filters.{(q || source !== "all" || phase !== "all") && <Button type="button" size="sm" variant="ghost" className="ml-2" onClick={() => { setQ(""); setSource("all"); setPhase("all"); }}>Clear filters</Button>}</li>}</ul>
       )}
     </AppShell>
   );
