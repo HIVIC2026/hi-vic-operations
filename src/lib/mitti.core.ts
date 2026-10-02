@@ -362,6 +362,12 @@ export function parseAudit(audit: Any) {
         if (types.length === 0) issues.push("Insulation type to remove not captured – needed for removal pricing; office follow-up required.");
       }
     }
+    // Per-area R-values (A1): record the lowest; differing values across areas need office review.
+    const rvs = rooms.map((r) => r.rv).filter((v): v is number => v != null && v > 0);
+    if (rvs.length > 0) {
+      patch.existing_r_value = Math.min(...rvs);
+      if (new Set(rvs).size > 1) issues.push("Existing insulation R-values differ between ceiling areas – the lowest was recorded; office review required.");
+    }
   } else {
     const repeated = Object.values(AREA).some((a) => candidates(entries, a).length > 1);
     if (repeated) issues.push("Repeated ceiling area fields found (per-zone values) – whole-house area not taken from Mitti; office review required.");
@@ -383,8 +389,8 @@ export function parseAudit(audit: Any) {
     const remM2 = note(physical(val(entries, ["Total removal area m2", "Removal area", "Removal m2", "Area to remove"]), "Removal area"));
     if (rem && remM2 != null) patch.removal_m2 = remM2;
   }
-  const rv = note(physical(val(entries, ["Existing R-value", "Measured R-value", "Confirmed R-value", "Existing insulation R-value"]), "Existing R-value"));
-  if (rv != null && patch.insulation_present !== false) patch.existing_r_value = rv;
+  const rv = note(physical(val(entries, ["Existing R-value", "Measured R-value", "Confirmed R-value", "Existing insulation R-value", "What is the determined R value of the existing ceiling insulation?"]), "Existing R-value"));
+  if (rv != null && patch.existing_r_value == null && patch.insulation_present !== false) patch.existing_r_value = rv;
   // Measurement provenance: whole-job question (A2) or per-area questions (A1). Aerial/online estimates are never accepted.
   const methodWhole = val(entries, ["How was the ceiling measured?", "How the ceiling was measured", "Measurement method"]);
   const perAreaMethods = rooms.length ? [...new Set(rooms.map((r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); return [val(kids, ["How was this ceiling area measured?", "How was the ceiling measured?"]), val(kids, ["Tell us how you measured it", "Explain the method"])].filter(Boolean).join(" — "); }).filter(Boolean))] : [];
