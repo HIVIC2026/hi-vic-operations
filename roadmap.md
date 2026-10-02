@@ -121,3 +121,6 @@
 - [x] Read-only live readiness check: REC/installer onboarding, worker invites, job links, commercial wording (PASS/FAIL/NOT LIVE with URLs + evidence)
 
 - [x] Narrow installer onboarding release published 2026-10-02 (INST-1.9, no lead-fee wording); unpublished work restored and verified against 81429ac0
+
+- [ ] Onboarding insurance certificate: details not read properly (Jo 2026-10-02) — investigate after security fixes 1-3
+- [ ] Security findings 1-3 (start limits, staff test links, verified insurance uploads) — preview only, 0079 staged

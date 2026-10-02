@@ -2,7 +2,8 @@
 // SHA-256 is stored). Drafts are editable; once signed the record is immutable (DB trigger).
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { withRequestMeta } from "./request-meta";
+import { withRequestMeta, withStartLimitStatus } from "./request-meta";
+import { mayRelaxRequiredSteps } from "./onboarding-security.core";
 import {
   acknowledgementsFor, REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, agreementText, applyMaterialReset,
   blockedMandatoryStep, effectiveElectricians, firstIncompleteStep, isRecRevisionTimestamp, validBusinessEmail, type RecData,
@@ -55,17 +56,36 @@ const dataSchema = z.object({
 }).strict();
 
 function publicView(app: { status: string; step_key: string | null; data: unknown; insurance_certificate_path: string | null; signed_at: string | null; agreement_version: string | null; test_mode?: boolean; updated_at?: string | null }) {
-  return { status: app.status, step_key: app.step_key, data: { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path }, signed_at: app.signed_at, agreement_version: app.agreement_version, test_mode: !!app.test_mode, updated_at: "updated_at" in app ? String(app.updated_at) : null };
+  const relaxed = mayRelaxRequiredSteps({ test_mode: !!app.test_mode, allow_incomplete_sign: (app as { allow_incomplete_sign?: boolean | null }).allow_incomplete_sign ?? null });
+  return { status: app.status, step_key: app.step_key, data: { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path }, signed_at: app.signed_at, agreement_version: app.agreement_version, test_mode: !!app.test_mode, relaxed, updated_at: "updated_at" in app ? String(app.updated_at) : null };
 }
 
+// Public start. The browser supplies its own random resume token (so a replay returns the same draft)
+// and, optionally, a staff-issued link token. It can never choose test mode itself (.strict()).
 export const startRecOnboarding = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ test: z.boolean().optional() }).parse(d ?? {}))
-  .handler(async ({ data }) => {
-    const token = newToken();
+  .middleware([withRequestMeta, withStartLimitStatus])
+  .inputValidator((d) => z.object({ token: tokenSchema, staff_link: tokenSchema.optional() }).strict().parse(d))
+  .handler(async ({ data, context }) => {
     const db = await admin();
-    const { error } = await db.from("rec_onboarding_applications").insert({ resume_token_hash: await sha256(token), step_key: "about", test_mode: !!data.test });
-    if (error) throw new Error("Could not start onboarding. Please try again.");
-    return { token };
+    const hash = await sha256(data.token);
+    const { data: existing } = await db.from("rec_onboarding_applications").select("id, partner_type, status").eq("resume_token_hash", hash).maybeSingle();
+    if (existing) {
+      if (existing.partner_type !== "rec") throw new Error("Could not start onboarding. Please try again.");
+      return { token: data.token };
+    }
+    const sec = await import("./onboarding-security.server");
+    const auth = await sec.consumeAuthorisation(db as never, data.staff_link, "rec");
+    if (!auth) await sec.consumeStart(db as never, context.ip, context.userAgent, "rec");
+    const qa = auth?.purpose === "qa_test";
+    const { error } = await db.from("rec_onboarding_applications").insert({
+      resume_token_hash: hash, step_key: "about", test_mode: qa,
+      ...(auth ? { authorisation_id: auth.id, allow_incomplete_sign: qa && auth.allow_incomplete_sign } : {}),
+    } as never);
+    if (error) {
+      if ((error as { code?: string }).code === "23505") return { token: data.token }; // parallel replay of the same start
+      throw new Error("Could not start onboarding. Please try again.");
+    }
+    return { token: data.token };
   });
 
 export const loadRecOnboarding = createServerFn({ method: "POST" })
@@ -73,13 +93,17 @@ export const loadRecOnboarding = createServerFn({ method: "POST" })
   .handler(async ({ data }) => publicView((await findApp(data.token)).app));
 
 export const saveRecOnboarding = createServerFn({ method: "POST" })
+  .middleware([withStartLimitStatus])
   .inputValidator((d) => z.object({ token: tokenSchema, step_key: z.string().max(40), data: dataSchema, base_updated_at: z.string().refine(isRecRevisionTimestamp, "Invalid draft revision.").nullable().optional() }).parse(d))
   .handler(async ({ data }) => {
     const { db, app } = await findApp(data.token);
     if (app.status !== "draft") throw new Error("This application has already been signed and submitted.");
     const next = applyMaterialReset(app.data as RecData, data.data as RecData);
     if (blockedMandatoryStep(data.step_key, next)) throw new Error("Confirm your REC can provide all three electrical services.");
-    let update = db.from("rec_onboarding_applications").update({ data: next as never, step_key: data.step_key }).eq("id", app.id).eq("status", "draft");
+    const sec = await import("./onboarding-security.server");
+    const contact = app.test_mode ? null : await sec.contactHash(next, "rec");
+    await sec.enforceContactCap(db as never, app.id, "rec", contact);
+    let update = db.from("rec_onboarding_applications").update({ data: next as never, step_key: data.step_key, ...(contact ? { contact_hash: contact } : {}) } as never).eq("id", app.id).eq("status", "draft");
     if (data.base_updated_at) update = update.eq("updated_at", data.base_updated_at);
     const { data: row, error } = await update.select("*").maybeSingle();
     if (!row && !error) throw new Error("Your application changed in another tab. Reload before saving again.");
@@ -88,33 +112,28 @@ export const saveRecOnboarding = createServerFn({ method: "POST" })
     return publicView(row);
   });
 
-const ALLOWED = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png" } as const;
+// Insurance certificate: upload lands in private quarantine; only server-verified bytes are promoted.
 export const insuranceUploadUrl = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ token: tokenSchema, content_type: z.enum(["application/pdf", "image/jpeg", "image/png"]), size: z.number().int().min(1).max(20 * 1024 * 1024) }).parse(d))
+  .inputValidator((d) => z.object({ token: tokenSchema, content_type: z.enum(["application/pdf", "image/jpeg", "image/png"]), size: z.number().int().min(1).max(10 * 1024 * 1024), filename: z.string().max(200) }).parse(d))
   .handler(async ({ data }) => {
     const { db, app } = await findApp(data.token);
     if (app.status !== "draft") throw new Error("Already submitted.");
-    const path = `rec-onboarding/${app.id}/insurance-${crypto.randomUUID()}.${ALLOWED[data.content_type]}`;
-    const { data: signed, error } = await db.storage.from("partner-files").createSignedUploadUrl(path);
-    if (error || !signed) throw new Error("Could not prepare the upload. Please try again.");
-    return { path, token: signed.token };
+    const { safeOriginalName } = await import("./onboarding-security.core");
+    if (!safeOriginalName(data.filename)) throw new Error("Please upload a single PDF, PNG or JPEG file (for example certificate.pdf).");
+    const sec = await import("./onboarding-security.server");
+    return sec.quarantineSlot(db as never, "rec-onboarding", app.id);
   });
 
 export const confirmInsuranceUpload = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ token: tokenSchema, path: z.string().max(300) }).parse(d))
+  .inputValidator((d) => z.object({ token: tokenSchema, path: z.string().max(300), content_type: z.enum(["application/pdf", "image/jpeg", "image/png"]) }).parse(d))
   .handler(async ({ data }) => {
     const { db, app } = await findApp(data.token);
     if (app.status !== "draft") throw new Error("Already submitted.");
-    const prefix = `rec-onboarding/${app.id}/`;
-    if (!data.path.startsWith(prefix) || data.path.includes("..")) throw new Error("Invalid upload.");
-    const name = data.path.slice(prefix.length);
-    const { data: list } = await db.storage.from("partner-files").list(prefix.slice(0, -1), { search: name });
-    if (!list?.some((f) => f.name === name)) throw new Error("Upload not found. Please try again.");
-    const { data: updated, error: updateError } = await db.from("rec_onboarding_applications").update({ insurance_certificate_path: data.path }).eq("id", app.id).eq("status", "draft").select("updated_at").single();
-    if (updateError || !updated) throw new Error("Could not attach the certificate. Please try again.");
+    const sec = await import("./onboarding-security.server");
+    const done = await sec.verifyAndPromote(db as never, "rec-onboarding", app.id, data.path, data.content_type);
     const { extractInsurance } = await import("./insurance-extract.server");
-    const extracted = await extractInsurance(db as never, data.path);
-    return { ok: true, extracted, updated_at: String(updated.updated_at) };
+    const extracted = await extractInsurance(db as never, done.finalPath);
+    return { ok: true, extracted, updated_at: done.updated_at };
   });
 
 export const getRecAgreement = createServerFn({ method: "POST" })
@@ -143,7 +162,8 @@ export const signRecAgreement = createServerFn({ method: "POST" })
     const d: RecData = { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path };
     const ackList = acknowledgementsFor(d);
     for (const a of ackList) if (data.acknowledgements[a.key] !== true) throw new Error("Tick every acknowledgement to sign.");
-    const missing = blockedMandatoryStep("sign", d) ?? (app.test_mode ? null : firstIncompleteStep(d));
+    const relax = mayRelaxRequiredSteps({ test_mode: !!app.test_mode, allow_incomplete_sign: (app as { allow_incomplete_sign?: boolean | null }).allow_incomplete_sign ?? null });
+    const missing = blockedMandatoryStep("sign", d) ?? (relax ? null : firstIncompleteStep(d));
     if (missing) throw new Error(`Please complete the "${missing.replace(/_/g, " ")}" step before signing.`);
 
     const text = agreementText(d);
