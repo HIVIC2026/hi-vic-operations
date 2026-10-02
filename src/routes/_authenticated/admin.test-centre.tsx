@@ -62,6 +62,7 @@ function TestCentre() {
             <div className="mt-4 flex gap-2 border-t pt-3"><Button asChild size="sm"><Link to="/admin/jobs/$jobId" params={{ jobId: job.id! }}>Open journey</Link></Button><Button size="sm" variant="outline" disabled={deleting === job.id} onClick={async () => { setDeleting(job.id!); try { const result = await remove({ data: { jobIds: [job.id!], action: "delete", reason: "Removed from Test Centre" } }); if (result.done) toast.success("Test journey deleted"); else toast.error(result.failed[0]?.error ?? "Could not delete test journey"); await refetch(); } finally { setDeleting(null); } }}><Trash2 className="h-4 w-4" />Delete</Button></div>
           </article>
         ))}</div>}
+      <TestTradeAccounts />
       <OnboardingLinks />
       <OnboardingLimits />
     </AppShell>
