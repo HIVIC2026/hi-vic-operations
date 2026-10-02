@@ -5,7 +5,7 @@ import { z } from "zod";
 import { withRequestMeta } from "./request-meta";
 import {
   acknowledgementsFor, REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, agreementText, applyMaterialReset,
-  effectiveElectricians, firstIncompleteStep, isRecRevisionTimestamp, validBusinessEmail, type RecData,
+  blockedMandatoryStep, effectiveElectricians, firstIncompleteStep, isRecRevisionTimestamp, validBusinessEmail, type RecData,
 } from "./rec-onboarding.core";
 
 async function sha256(s: string) {
@@ -78,6 +78,7 @@ export const saveRecOnboarding = createServerFn({ method: "POST" })
     const { db, app } = await findApp(data.token);
     if (app.status !== "draft") throw new Error("This application has already been signed and submitted.");
     const next = applyMaterialReset(app.data as RecData, data.data as RecData);
+    if (blockedMandatoryStep(data.step_key, next)) throw new Error("Confirm your REC can provide all three electrical services.");
     let update = db.from("rec_onboarding_applications").update({ data: next as never, step_key: data.step_key }).eq("id", app.id).eq("status", "draft");
     if (data.base_updated_at) update = update.eq("updated_at", data.base_updated_at);
     const { data: row, error } = await update.select("*").maybeSingle();
@@ -142,7 +143,7 @@ export const signRecAgreement = createServerFn({ method: "POST" })
     const d: RecData = { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path };
     const ackList = acknowledgementsFor(d);
     for (const a of ackList) if (data.acknowledgements[a.key] !== true) throw new Error("Tick every acknowledgement to sign.");
-    const missing = app.test_mode ? null : firstIncompleteStep(d);
+    const missing = blockedMandatoryStep("sign", d) ?? (app.test_mode ? null : firstIncompleteStep(d));
     if (missing) throw new Error(`Please complete the "${missing.replace(/_/g, " ")}" step before signing.`);
 
     const text = agreementText(d);
