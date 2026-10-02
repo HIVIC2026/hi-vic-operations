@@ -470,6 +470,7 @@ export function splitPatch(patch: AssessmentPatch) {
 
 // ---------- official PIISA / PIESA prefill from LR-003 hints ----------
 /** Mitti template for the official PIISA. Empty = not configured: sending is blocked, never guessed. */
+/** @deprecated The PIISA Mitti form ID is saved in workflow_settings.mitti_piisa_template_id via Compliance → Mitti forms. */
 export const MITTI_PIISA_TEMPLATE_ID = "";
 export type OfficialPrefillItem = { itemId: string; label: string; kind: string; value: string };
 /** Places "prefill" values on the template by official label. Labels the form repeats are matched in form order
