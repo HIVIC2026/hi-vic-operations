@@ -7,6 +7,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { useServerFn } from "@tanstack/react-start";
 import { getAdminUsers } from "@/lib/admin-records.functions";
+import { checkAllTrades, checkMittiAccess } from "@/lib/mitti-membership.functions";
+import { MITTI_ACCESS_LABEL, mittiAccessOf, mittiCheckedLabel } from "@/lib/mitti-membership.core";
 
 export const Route = createFileRoute("/_authenticated/admin/users")({
   head: () => ({ meta: [{ title: "Users – Home Insulation Victoria Portal" }, { name: "description", content: "Manage portal users and roles." }, { property: "og:title", content: "Users – Home Insulation Victoria Portal" }, { property: "og:description", content: "Manage portal users and roles." }] }),
