@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getPiisaPanel } from "@/lib/official-forms.functions";
+import { getOfficialPrefill, getPiisaPanel, sendPiisaToInstaller } from "@/lib/official-forms.functions";
 import { Section } from "@/components/portal/panels";
 
 const DUE: Record<string, string> = {
@@ -55,9 +56,58 @@ export function PiisaPanel({ jobId }: { jobId: string }) {
               )}
             </div>
           )}
+          <PiisaSend jobId={jobId} />
           {data.confirmations.length > 0 && <p className="text-xs text-muted-foreground">Held pending official/legal confirmation: {data.confirmations.join(", ")}.</p>}
         </div>
       )}
     </Section>
+  );
+}
+
+const MODE: Record<string, string> = { prefill: "Filled in", reminder: "Reminder", cross_check: "Cross-check" };
+
+/** Pre-fill preview and the send-to-installer action. Sending stays blocked while the PIISA is locked. */
+function PiisaSend({ jobId }: { jobId: string }) {
+  const loadPrefill = useServerFn(getOfficialPrefill);
+  const send = useServerFn(sendPiisaToInstaller);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const pre = useQuery({ queryKey: ["piisa_prefill", jobId], queryFn: () => loadPrefill({ data: { jobId, key: "piisa" } }), enabled: open });
+  const onSend = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const r = await send({ data: { jobId } });
+      setMsg({ ok: true, text: r.reused ? "Safety form re-shared with the installer." : `Safety form sent to the installer.${r.skipped.length ? ` Not pre-filled: ${r.skipped.join(", ")}.` : ""}` });
+    } catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : "Couldn't send the safety form." }); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className="h-10 rounded-md border px-3 text-sm font-medium" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+          {open ? "Hide pre-filled answers" : "Show pre-filled answers"}
+        </button>
+        <button type="button" className="h-10 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50" onClick={onSend} disabled={busy}>
+          {busy ? "Sending…" : "Send safety form to installer"}
+        </button>
+      </div>
+      {msg && <p className={msg.ok ? "text-sm" : "text-sm text-destructive"} role="status">{msg.text}</p>}
+      {open && (pre.error ? <p className="text-sm text-destructive">Couldn't load the pre-filled answers.</p> : !pre.data ? <p className="text-sm text-muted-foreground">Loading…</p> : (
+        <table className="w-full text-left text-sm">
+          <thead className="text-muted-foreground"><tr><th className="py-1 pr-3 font-normal">Question</th><th className="py-1 pr-3 font-normal">Type</th><th className="py-1 pr-3 font-normal">Value</th><th className="py-1 font-normal">Note</th></tr></thead>
+          <tbody>
+            {pre.data.hints.map((h) => (
+              <tr key={h.itemId} className="border-t align-top">
+                <td className="py-1 pr-3 font-mono text-xs">{h.itemId}</td>
+                <td className="py-1 pr-3">{MODE[h.mode]}</td>
+                <td className="py-1 pr-3">{h.value ?? <span className="text-muted-foreground">Blank — answered onsite</span>}</td>
+                <td className="py-1 text-muted-foreground">{h.note}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ))}
+    </div>
   );
 }

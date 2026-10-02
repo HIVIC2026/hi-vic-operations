@@ -63,3 +63,21 @@ describe("LR-003 pre-fills", () => {
     expect(items.find((i: { item_id: string }) => i.item_id === "l")?.responses).toEqual({ selected: [{ id: "n", label: "No" }] });
   });
 });
+
+import { buildOfficialPrefill } from "../src/lib/mitti.core";
+describe("PIISA Mitti pre-fill", () => {
+  test("repeated labels match in form order; attachments and unknown options are skipped", () => {
+    const template = { template: { items: [
+      { id: "eec1", label: "EEC certification number:", text: {} },
+      { id: "eec2", label: "EEC certification number:", text: {} },
+      { id: "na", label: "If the Pre-installation electrical safety assessment recommends an electrician is present at the start of the installation to ensure the area is electrically safe, has this occurred?", question: { response_set_id: "rs" } },
+    ], response_sets: [{ id: "rs", responses: [{ id: "y", label: "Yes" }, { id: "n", label: "No" }] }] } };
+    const p = buildOfficialPrefill(template, [
+      { itemId: "p2.leadEec", label: "EEC certification number:", kind: "text", value: "EEC-1", occurrence: 0 },
+      { itemId: "p5.electricianPresent", label: template.template.items[2]!.label, kind: "yesno_na", value: "N/A", occurrence: 0 },
+      { itemId: "lifeSupportAttachment", label: "x", kind: "attachment", value: "f", occurrence: 0 },
+    ]);
+    expect(p.items).toEqual([{ item_id: "eec1", label: "EEC certification number:", type: "text", responses: { text: "EEC-1" } }]);
+    expect(p.skipped.length).toBe(2);
+  });
+});
