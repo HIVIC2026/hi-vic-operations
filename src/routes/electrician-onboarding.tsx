@@ -244,7 +244,8 @@ function RecOnboarding() {
     navigationLock.current = true; setError(null);
     try {
       if (delta === 1 && d.works_under_rec === true) return;
-      if (delta === 1 && errs.length && !testMode && !sampleMode) { setShowErrors(true); return; }
+      const underCover = step === "insurance" && d.works_under_rec !== true && typeof d.public_liability_cover_amount === "number" && d.public_liability_cover_amount < MIN_REC_PL_COVER;
+      if (delta === 1 && (underCover || (errs.length && !testMode && !sampleMode))) { setShowErrors(true); return; }
       setShowErrors(false);
       const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "about";
       if (delta === -1) { setStep(target); window.history.pushState({ recStep: target }, ""); window.scrollTo({ top: 0 }); }
