@@ -105,8 +105,6 @@ export const createTestTradeAccounts = createServerFn({ method: "POST" })
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const results: { name: string; role: string; status: "created" | "already existed" }[] = [];
     for (const spec of SPECS) {
-      const { data: existingBiz } = await admin.from("businesses").select("id").eq("name", spec.name).maybeSingle();
-      if (existingBiz) { results.push({ name: spec.name, role: spec.role, status: "already existed" }); continue; }
       let uid: string;
       const { data: existingProfile } = await admin.from("profiles").select("id").eq("email", spec.email).maybeSingle();
       if (existingProfile) {
@@ -122,23 +120,33 @@ export const createTestTradeAccounts = createServerFn({ method: "POST" })
         uid = user.user.id;
       }
       const now = new Date().toISOString();
-      const { data: business, error: bizError } = await admin.from("businesses").insert({
-        name: spec.name, legal_name: spec.name, trading_name: spec.name, business_type: spec.businessType,
-        email: spec.email, phone: spec.phone, commercial_route: "hivic_full_invoice", default_comms_owner: "hivic",
-        onboarding_status: "approved", is_active: true, approved_by: context.userId, approved_at: now,
-        gst_registered: true, onboarding_notes: "Test account created from the Test Centre. Not a real partner.",
-      }).select("id").single();
-      if (bizError || !business) throw new WorkflowError(`Could not create business for ${spec.name}: ${bizError?.message}`);
-      const { error: profileError } = await admin.from("profiles").upsert({ id: uid, full_name: spec.name, email: spec.email, phone: spec.phone, business_id: business.id });
+      let businessId: string;
+      const { data: existingBiz } = await admin.from("businesses").select("id").eq("name", spec.name).maybeSingle();
+      if (existingBiz) {
+        businessId = existingBiz.id;
+      } else {
+        const { data: business, error: bizError } = await admin.from("businesses").insert({
+          name: spec.name, legal_name: spec.name, trading_name: spec.name, business_type: spec.businessType,
+          email: spec.email, phone: spec.phone, commercial_route: "hivic_full_invoice", default_comms_owner: "hivic",
+          onboarding_status: "approved", is_active: true, approved_by: context.userId, approved_at: now,
+          gst_registered: true, onboarding_notes: "Test account created from the Test Centre. Not a real partner.",
+        }).select("id").single();
+        if (bizError || !business) throw new WorkflowError(`Could not create business for ${spec.name}: ${bizError?.message}`);
+        businessId = business.id;
+      }
+      const { error: profileError } = await admin.from("profiles").upsert({ id: uid, full_name: spec.name, email: spec.email, phone: spec.phone, business_id: businessId });
       if (profileError) throw new WorkflowError(`Could not create profile for ${spec.name}: ${profileError.message}`);
-      const { error: roleError } = await admin.from("user_roles").insert({ user_id: uid, role: spec.role });
+      const { error: roleError } = await admin.from("user_roles").upsert({ user_id: uid, role: spec.role }, { onConflict: "user_id,role" });
       if (roleError) throw new WorkflowError(`Could not assign role for ${spec.name}: ${roleError.message}`);
-      const { error: memberError } = await admin.from("business_members").insert({ business_id: business.id, user_id: uid, member_role: "owner", active: true, added_by: context.userId });
+      const { error: memberError } = await admin.from("business_members").upsert({ business_id: businessId, user_id: uid, member_role: "business_admin", active: true, added_by: context.userId }, { onConflict: "business_id,user_id" });
       if (memberError) throw new WorkflowError(`Could not link ${spec.name}: ${memberError.message}`);
-      const { data: card, error: cardError } = await admin.from("rate_cards").insert({ kind: spec.cardKind, business_id: business.id, name: `${spec.name} agreed rates`, version: 1, is_active: true }).select("id").single();
-      if (cardError || !card) throw new WorkflowError(`Could not create rate card for ${spec.name}: ${cardError?.message}`);
-      const { error: itemError } = await admin.from("rate_card_items").insert(spec.items.map((item) => ({ ...item, rate_card_id: card.id })));
-      if (itemError) throw new WorkflowError(`Could not create rates for ${spec.name}: ${itemError.message}`);
+      const { data: existingCard } = await admin.from("rate_cards").select("id").eq("business_id", businessId).eq("is_active", true).maybeSingle();
+      if (!existingCard) {
+        const { data: card, error: cardError } = await admin.from("rate_cards").insert({ kind: spec.cardKind, business_id: businessId, name: `${spec.name} agreed rates`, version: 1, is_active: true }).select("id").single();
+        if (cardError || !card) throw new WorkflowError(`Could not create rate card for ${spec.name}: ${cardError?.message}`);
+        const { error: itemError } = await admin.from("rate_card_items").insert(spec.items.map((item) => ({ ...item, rate_card_id: card.id })));
+        if (itemError) throw new WorkflowError(`Could not create rates for ${spec.name}: ${itemError.message}`);
+      }
       results.push({ name: spec.name, role: spec.role, status: "created" });
     }
     return { results };
