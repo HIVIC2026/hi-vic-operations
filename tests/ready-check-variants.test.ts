@@ -123,3 +123,64 @@ describe("the real Mitti templates", () => {
     expect(d.lines[0]?.unit_price_inc_gst).toBe(2400);
   });
 });
+
+describe("the real own-leads A2 template (HIVIC sourced, downloaded 2026-10-02)", () => {
+  // Exact labels from the live Mitti definition (id dbaf67a2-c9c5-4120-8c69-0f4a43c5bd39).
+  // Multi-line help text after "\n" is what Mitti appends in the template editor.
+  const A2 = [
+    ["Portal Job Number", "textsingle"], ["Site address", "textsingle"], ["Inspection Date and Time", "datetime"],
+    ["Homeowner name", "textsingle"], ["Property type", "textsingle"], ["Life support equipment at property?", "textsingle"],
+    ["Was the ceiling or roof built or replaced in the last 5 years?", "textsingle"], ["Assessor", "textsingle"],
+    ["Are the property details provided above correct?", "question"], ["What needs to be corrected?", "textsingle"],
+    ["What type of roof does the home have? ", "question"], ["Describe the roof type", "textsingle"],
+    ["How would you rate the ceiling access?", "question"], ["Upload a clear photo of the ceiling access point", "media"],
+    ["How many ceiling areas need to be measured separately? \nCount areas separately where they have different roof/ceiling sections or need their own measurements. \nPRESS ON GREEN BOX BELOW TO ADD CEILING DETAILS. ", "list"],
+    ["Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway", "textsingle"],
+    ["How was this ceiling area measured?", "question"], ["Tell us how you measured it ", "textsingle"],
+    ["Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.", "media"],
+    ["Enter the measured ceiling area (m\u00b2)", "textsingle"],
+    ["Is there existing insulation in this ceiling area?", "question"],
+    ["What type of existing insulation is installed? Select all that apply", "list"],
+    ["Please describe the existing insulation type ", "textsingle"],
+    ["What is the measured insulation depth (mm)?", "textsingle"],
+    ["Upload a photo clearly showing the measured insulation depth", "media"],
+    ["What is required for the existing insulation?", "question"],
+    ["How much existing insulation needs to be removed? (m\u00b2)", "textsingle"],
+    ["Upload an overview photo of this ceiling area", "media"],
+    ["Are there recessed downlights in this ceiling area?", "question"], ["How many recessed downlights?", "textsingle"],
+    ["Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards", "question"],
+    ["Describe the issue and add a photo", "media"],
+    ["Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?", "question"],
+    ["Why did the property fail the ready check? Select all that apply", "textsingle"],
+    ["I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.", "signature"],
+  ].map(([label, type]) => ({ label, type }));
+  test("the real own-leads template passes the ready_check validator despite help-text lines", () => {
+    expect(validateTemplate("ready_check", A2).issues).toEqual([]);
+  });
+  test("own-leads form has no pricing section and fails the priced validator with exactly the pricing issues", () => {
+    const r = validateTemplate("ready_check_priced", A2);
+    expect(r.ok).toBe(false);
+    expect(r.issues).toEqual([
+      "Missing: What's included in your quote?", "Missing: What else is included?", "Missing: Total quoted price (inc GST)",
+    ]);
+  });
+  test("A2 wording parses: per-area hazards flag, failed outcome and installer reasons", () => {
+    const audit = {
+      audit_id: "audit_a2", template_id: "template_a2real", modified_at: "2026-10-02T03:00:00Z",
+      audit_data: { template_id: "template_a2real", date_completed: "2026-10-02T03:00:00Z", date_modified: "2026-10-02T03:00:00Z" },
+      header_items: [],
+      items: [
+        { item_id: "ca", label: "Ceiling area", type: "dynamicfield" },
+        { item_id: "a", parent_id: "ca", label: "Enter the measured ceiling area (m\u00b2)", type: "textsingle", responses: { text: "120" } },
+        { item_id: "h", parent_id: "ca", label: "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards", type: "question", responses: { text: "Yes" } },
+        { item_id: "o", label: "Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?", type: "question", responses: { text: "No - Ready Check failed" } },
+        { item_id: "r", label: "Why did the property fail the ready check? Select all that apply", type: "textsingle", responses: { text: "Asbestos suspected in the ceiling space" } },
+      ],
+    };
+    const p = parseAudit(audit as never);
+    expect(p.patch.measured_area_m2).toBe(120);
+    expect(p.issues.some((i) => /Installer flagged hazards/.test(i))).toBe(true);
+    expect(p.issues.some((i) => /Ready Check as failed/.test(i))).toBe(true);
+    expect(p.patch.notes).toContain("installer reasons: Asbestos suspected in the ceiling space");
+  });
+});
