@@ -127,3 +127,4 @@
 - [ ] Address autocomplete: suggestion list stays visible under the field after selecting (Jo 2026-10-02)
 - [ ] Electrician 'application received' screen: stronger wording + green ticks for What happens next (preview only)
 - [ ] Partner enquiry detail box: pressing X reopens instead of closing (preview only)
+- [ ] Active jobs: '179 in progress' count doesn't match the dropdown list (preview only)
