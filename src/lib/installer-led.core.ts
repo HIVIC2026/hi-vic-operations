@@ -1,6 +1,6 @@
 // Installer-led jobs: the installer brings their own customer; Home Insulation Victoria is the AP and invoices the
 // owner with co-branding. Pure rules only.
-import { FORMS, type QuotedPrice } from "./mitti-forms.core";
+import { FORMS, validateQuotedPrice, type QuotedPrice } from "./mitti-forms.core";
 
 export const HIVIC_PIESA_INC_GST = 349;
 export type ElectricianChoice = "installer_own" | "hivic_matched" | "installer_own_hivic_books";
@@ -155,4 +155,52 @@ export function evidenceFromRecords(m: MeasurementRecord, evidenceCategories: st
       depthPhoto: has("existing_insulation_r_value"), beforeVideo: has("before_ceiling_space"),
     }] : [],
   };
+}
+
+// ---------------- Automatic co-branded quote from the priced Ready Check (Form A1) ----------------
+
+const pick = (entries: { label: string; value: string | null }[], label: string) =>
+  entries.find((e) => e.label.trim().toLowerCase() === label.toLowerCase())?.value ?? null;
+
+/** Reads the installer's ticked inclusions + total from the A1 answers, then validates (fails closed). */
+export function quotedPriceFromEntries(entries: { label: string; value: string | null }[], removalRequired: boolean | null) {
+  const inc = pick(entries, "What's included in your price (tick all that apply)");
+  const total = pick(entries, "Total quoted price $");
+  const agreed = pick(entries, "Price already agreed with the owner?");
+  const n = total == null ? null : Number(String(total).replace(/[$,\s]/g, ""));
+  return validateQuotedPrice({
+    included: (inc ?? "").split(/[,;\n|]+/),
+    otherDescription: pick(entries, "Describe the other item"),
+    totalIncGst: n,
+    agreedWithOwner: agreed == null ? null : /^y/i.test(agreed.trim()) ? true : /^n/i.test(agreed.trim()) ? false : null,
+    removalRequired,
+  });
+}
+
+export type InstallerQuoteLine = { code: string; description: string; quantity: number; unit: string; unit_price_inc_gst: number; line_total_inc_gst: number; is_other: boolean; explanation: string | null; sort: number };
+export type InstallerQuoteDraft = { ready: boolean; blockers: string[]; lines: InstallerQuoteLine[]; subtotal: number; discount: number; afterDiscount: number };
+
+/**
+ * Owner quote for an installer-brought job: installer price (with ticked inclusions) + $349 PIESA + AP fee − VEU discount.
+ * Discount = Eq 48.1 reduction for the measured m² × the VEEC value setting (same as the calculator). No lead fee, no margin.
+ */
+export function buildInstallerQuoteDraft(i: {
+  price: ReturnType<typeof quotedPriceFromEntries>; measuredM2: number | null; ghgReduction: number | null; veecValue: number | null;
+  piesaIncGst: number | null; apFeeIncGst: number | null;
+}): InstallerQuoteDraft {
+  const blockers = [...i.price.issues];
+  if (!(i.measuredM2 && i.measuredM2 > 0)) blockers.push("Measured ceiling area is missing.");
+  if (i.ghgReduction == null || i.veecValue == null) blockers.push("VEU discount can't be worked out (postcode or VEEC value missing).");
+  const p = i.price.price;
+  const discount = i.ghgReduction != null && i.veecValue != null ? Math.round(i.ghgReduction * i.veecValue * 100) / 100 : 0;
+  const owner = installerLedOwnerPrice({ installerQuoteIncGst: p?.totalIncGst ?? 0, piesaIncGst: i.piesaIncGst, rectificationIncGst: 0, apFeeIncGst: i.apFeeIncGst, veecDiscountIncGst: discount });
+  for (const b of owner.blockers) if (!blockers.includes(b)) blockers.push(b);
+  const lines: InstallerQuoteLine[] = [];
+  if (p) {
+    const inc = p.included.map((x) => (x === "Other" && p.otherDescription ? `Other: ${p.otherDescription}` : x));
+    lines.push({ code: "INSTALLER_PRICE", description: `Insulation works by your installer — includes: ${inc.join(", ")}`, quantity: 1, unit: "flat", unit_price_inc_gst: p.totalIncGst, line_total_inc_gst: p.totalIncGst, is_other: false, explanation: inc.join("\n"), sort: 0 });
+  }
+  if (i.piesaIncGst != null) lines.push({ code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: i.piesaIncGst, line_total_inc_gst: i.piesaIncGst, is_other: false, explanation: null, sort: 1 });
+  if (i.apFeeIncGst != null && i.apFeeIncGst > 0) lines.push({ code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: i.apFeeIncGst, line_total_inc_gst: i.apFeeIncGst, is_other: false, explanation: null, sort: 2 });
+  return { ready: blockers.length === 0, blockers, lines, subtotal: owner.total, discount, afterDiscount: owner.afterDiscount };
 }

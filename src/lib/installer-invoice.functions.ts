@@ -32,7 +32,7 @@ export const getInstallerLedInvoice = createServerFn({ method: "POST" }).middlew
     const piesa = piesaChargeIncGst((job.electrician_choice as ElectricianChoice | null) ?? null, null);
     const price = installerLedOwnerPrice({
       // The quote already carries an AP_FEE line; strip it so the installer's price isn't counted twice.
-      installerQuoteIncGst: quote ? Number(quote.subtotal_inc_gst) - (quote.quote_items ?? []).filter((i) => i.code === "AP_FEE").reduce((a, i) => a + Number(i.line_total_inc_gst), 0) : 0,
+      installerQuoteIncGst: quote ? Number(quote.subtotal_inc_gst) - (quote.quote_items ?? []).filter((i) => i.code === "AP_FEE" || i.code === "PIESA").reduce((a, i) => a + Number(i.line_total_inc_gst), 0) : 0,
       piesaIncGst: piesa, rectificationIncGst: 0, apFeeIncGst: apFee,
       veecDiscountIncGst: quote ? Number(quote.veec_discount_inc_gst) : 0,
     });

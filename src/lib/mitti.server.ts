@@ -11,6 +11,8 @@ import { readyCheckVariant } from "./mitti-forms.core";
 import { officialFormUseBlocker, answersFromEntries, evaluatePiesa } from "./official-forms.core";
 import { formatPropertyAddress } from "./address";
 import { todayMelbourne } from "./eligibility.server";
+import { draftInstallerQuoteFromReadyCheck } from "./installer-quote.server";
+import { applyCobrand } from "./pilot.server";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
@@ -172,7 +174,7 @@ async function saveMittiReport(jobId: string, actorId: string, auditId: string, 
 
 /** Sync the STORED audit(s) only. Never completes a requirement. */
 export async function syncMittiAssessment(jobId: string, actorId: string, call: MittiCall = realMittiCall) {
-  const { data: job } = await admin.from("jobs").select("job_number,business_unit").eq("id", jobId).single();
+  const { data: job } = await admin.from("jobs").select("job_number,business_unit,channel").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
   if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for Home Insulation Victoria jobs.");
   const { data: a } = await admin.from("assessments").select("id,status,external_mitti_id,mitti_template_id").eq("job_id", jobId).maybeSingle();
@@ -227,7 +229,8 @@ export async function syncMittiAssessment(jobId: string, actorId: string, call: 
   }
 
   if (measureAudit) {
-    const tid = (await templateIds()).readyCheck;
+    const ids = await templateIds();
+    const tid = readyCheckVariant(job.channel) === "ready_check_priced" ? ids.readyCheckPriced : ids.readyCheck;
     if (!tid) throw new WorkflowError(MEASUREUP_TEMPLATE_MISSING);
     let plan;
     try {
@@ -239,6 +242,14 @@ export async function syncMittiAssessment(jobId: string, actorId: string, call: 
       issues = [...issues, ...mIssues, ...(mp.action === "skip" ? [mp.reason] : [])];
       completed = completed || plan.completed;
       if (plan.completed) await saveMittiReport(jobId, actorId, measureAudit, plan.modifiedAt ?? null, "Ready Check", call);
+      // Installer-brought jobs: draft (never send) the co-branded owner quote from the installer's ticked price.
+      if (plan.completed && readyCheckVariant(job.channel) === "ready_check_priced") {
+        try {
+          const d = await draftInstallerQuoteFromReadyCheck(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
+          if (d && !d.ready) issues = [...issues, ...d.blockers.map((b) => `Owner quote: ${b}`)];
+          if (d?.ready) await applyCobrand(jobId);
+        } catch (e) { issues = [...issues, `Owner quote could not be drafted: ${e instanceof Error ? e.message : "error"}`]; }
+      }
       await logEvent(jobId, actorId, "mitti_measureup_synced", plan.completed ? "Mitti measure-up synced (completed in Mitti)" : "Mitti measure-up partial data synced", { audit_id: measureAudit, measurement: mp.action, issues: mIssues });
     }
   }
