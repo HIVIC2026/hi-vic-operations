@@ -429,7 +429,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
     case "extras_pricing": {
       const r = d.extra_rates ?? {};
       return <>
-        <div style={infoCard}>Optional — leave blank if you don't charge for it. {d.gst_registered === false ? "Enter total rates (not GST registered)." : "Enter rates including GST."}</div>
+        <div style={infoCard}>Optional — leave blank if you don't charge for it. {d.gst_registered === false ? "Enter total rates (not GST registered)." : "Enter rates including GST."} Be competitive where you can — sharper rates win more volume.</div>
         {EXTRA_ITEMS.map((it) => <Field key={it.key} label={it.label}><Money value={r[it.key]} onChange={(v) => up({ extra_rates: { ...r, [it.key]: v } })} unit={it.unit} /></Field>)}
         <p style={{ fontSize: 13, color: MUTED }}>Anything outside these standard items is quoted separately on the specific job before owner approval.</p>
       </>;
