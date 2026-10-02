@@ -154,7 +154,7 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
     byLabel.set(full, [...(byLabel.get(full) ?? []), it]);
     // Mitti appends help text after a line break (e.g. "How many ceiling areas need to be measured separately?\nCount areas...").
     // Index the first line too so the required wording still matches while the help text stays visible in Mitti.
-    const first = norm(String(it.label ?? "").split("\n")[0]);
+    const first = norm(String(it.label ?? "").split("\n")[0] ?? "");
     if (first && first !== full) byLabel.set(first, [...(byLabel.get(first) ?? []), it]);
   }
   // Official forms repeat some labels (e.g. "Licence no:" in B3 and Section C): expect exactly that many.
