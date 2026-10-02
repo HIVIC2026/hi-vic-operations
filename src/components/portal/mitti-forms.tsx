@@ -8,11 +8,11 @@ import { Pill } from "@/components/portal/badges";
 import { FORMS, buildSheet, type FormKey } from "@/lib/mitti-forms.core";
 import { connectMittiForm, getMittiForms } from "@/lib/mitti-forms.functions";
 
-const ORDER: { key: FormKey; letter: string; who: string }[] = [
-  { key: "ready_check", letter: "A", who: "Installer · free Ready Check on a Home Insulation Victoria lead (no price)" },
-  { key: "ready_check_priced", letter: "B", who: "Installer · free Ready Check on their own customer (with quoted price)" },
-  { key: "piesa", letter: "C", who: "Licensed electrician · official DEECA PIESA" },
-  { key: "piisa", letter: "D", who: "Lead installer · official DEECA PIISA on install day" },
+const ORDER: { key: FormKey; letter: string; forWho: string; who: string }[] = [
+  { key: "ready_check", letter: "A", forWho: "For a customer WE brought you", who: "Installer · free Ready Check on a Home Insulation Victoria lead (no price)" },
+  { key: "ready_check_priced", letter: "B", forWho: "For a customer THE INSTALLER brought", who: "Installer · free Ready Check on their own customer (with quoted price)" },
+  { key: "piesa", letter: "C", forWho: "For every job that needs electrical work", who: "Licensed electrician · official DEECA PIESA" },
+  { key: "piisa", letter: "D", forWho: "For every installation", who: "Lead installer · official DEECA PIISA on install day" },
 ];
 
 export function MittiFormsSection() {
