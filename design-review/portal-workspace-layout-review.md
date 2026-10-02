@@ -55,3 +55,9 @@ Search, source/phase filters, filter chips + Clear, tab views, work-view counter
 - Browser checks used the real signed-in session and a QA job, not mocks. Opening the list page runs its existing automatic sweep/auto-advance (same as any staff visit); my request filter did not intercept it.
 - Error/empty states verified by code review only (existing retry/alert paths retained), not forced in browser.
 - Integrations (Xero, Mitti, messaging) not exercised.
+
+## Final presentation correction (2 Oct 2026)
+- JobIdentity: owner, phone and email are separate fields; no truncation (break-words / break-all). Verified on QA job HV-1128 at 390px and 1280px.
+- EligibilityGlance: raw source paths replaced by display-only labels (properties.* -> Property record / Property research, jobs.* -> Job record, base44 -> Homeowner enquiry, base44.property_research -> Website property research); anything else reads "Recorded source — view evidence". Basis labels and rules unchanged; full source strings remain in Full Gate 1 evidence. Limitation: on HV-1128 every glance row uses the fallback, because its rule sources are not in the mapped list.
+- Screenshots: portal-workspace-desktop.json / portal-workspace-mobile.json now show only the QA job detail page (HV-1128). The job list was not opened again. The counter grid (grid-cols-2 sm:grid-cols-4 lg:grid-cols-7, admin.index.tsx line 148) was checked in the code only.
+- Tests: bun test ./tests/ gives 959 pass and 3 fail. The 3 failures predate this work: the 2 "presentation lock" tests in tests/customer-quote-system.test.ts (estimate.tsx / estimate-email.ts) and the "appointment SLA & reassignment" test in tests/pilot.test.ts:121. No tests/ or src/lib files changed since base f49e7060. Typecheck clean. Nothing published.
