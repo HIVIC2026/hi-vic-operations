@@ -40,28 +40,3 @@ export const checkAllTrades = createServerFn({ method: "POST" })
     });
     return r;
   });
-
-/** Who is in Mitti among the people a job could be assigned to (admin job page). */
-export const getMittiAccessForRoles = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await requireAdmin(context.supabase);
-    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await admin.from("profiles")
-      .select("id, full_name, email, mitti_user_id, mitti_checked_email, mitti_checked_at")
-      .in("id", (await tradeUserIds(admin)).length ? await tradeUserIds(admin) : ["00000000-0000-0000-0000-000000000000"]);
-    if (error) throw new Error(`Mitti access could not be loaded: ${error.message}`);
-    return (data ?? []).map((p) => ({
-      id: p.id,
-      full_name: p.full_name,
-      email: p.email,
-      access: mittiAccessOf(p),
-      label: MITTI_ACCESS_LABEL[mittiAccessOf(p)],
-      checked: mittiCheckedLabel(p),
-    }));
-  });
-
-async function tradeUserIds(admin: { from: (t: string) => { select: (c: string) => { in: (c: string, v: string[]) => Promise<{ data: { user_id: string }[] | null }> } } }) {
-  const { data } = await admin.from("user_roles").select("user_id").in("role", ["electrician", "installer"]);
-  return [...new Set((data ?? []).map((r) => r.user_id))];
-}
