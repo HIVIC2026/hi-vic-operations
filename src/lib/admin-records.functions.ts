@@ -66,7 +66,7 @@ export const getAdminAssignments = createServerFn({ method: "POST" }).middleware
     const admin = await adminClient();
     const [{ data: assignments, error: assignmentsError }, { data: roles, error: rolesError }, { data: requests, error: requestsError }] = await Promise.all([
       admin.from("job_assignments").select("*, profiles!job_assignments_user_id_fkey(full_name)").eq("job_id", data.jobId).order("assigned_at", { ascending: false }),
-      admin.from("user_roles").select("user_id, role, profiles(full_name)").in("role", ["electrician", "installer"]),
+      admin.from("user_roles").select("user_id, role, profiles(full_name, email, mitti_user_id, mitti_checked_email, mitti_checked_at)").in("role", ["electrician", "installer"]),
       admin.from("reassignment_requests").select("*").eq("job_id", data.jobId).eq("status", "open"),
     ]);
     const error = assignmentsError ?? rolesError ?? requestsError;
