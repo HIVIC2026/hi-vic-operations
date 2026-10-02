@@ -316,9 +316,10 @@ export function parseAudit(audit: Any) {
   // measured m² directly. Legacy forms used "Measured area m2".
   const isAreaKid = (e: Any) => !e.header && [norm("Measured area m2"), norm("Length (m)"), norm("Enter the measured ceiling area (m²)")].includes(e.norm) && e.value != null;
   const roomParents = new Set(entries.filter(isAreaKid).map((e) => e.parent ?? e.id));
+  const areaM2Label = (kids: Entry[]) => kids.find((e) => [norm("Measured area m2"), norm("Enter the measured ceiling area (m²)")].includes(e.norm)) ?? kids.find((e) => e.norm.startsWith(norm("Measured area m2")));
   const rooms = [...roomParents].map((p) => {
     const kids = entries.filter((e) => (e.parent ?? e.id) === p);
-    const m2e = kids.find((e) => e.norm === norm("Measured area m2"));
+    const m2e = areaM2Label(kids);
     let m2 = physical(m2e?.value ?? null, m2e?.label ?? "Measured area m2");
     if (m2.value == null) {
       const len = physical(val(kids, ["Length (m)"]), "Length (m)");
@@ -328,12 +329,15 @@ export function parseAudit(audit: Any) {
       if (len.value != null && len.value > 0 && wid.value != null && wid.value > 0) m2 = { value: r2(len.value * wid.value), issue: null } as typeof m2;
     }
     if (m2.issue) issues.push(m2.issue);
-    const present = yesNo(val(kids, ["Is there existing insulation?"]));
+    const present = yesNo(val(kids, ["Is there existing insulation?", "Is there existing insulation in this ceiling area?"]));
     const state = norm(val(kids, ["Existing insulation"])) || (present === true ? "under-insulated" : present === false ? "uninsulated" : "");
-    const action = norm(val(kids, ["What needs to happen to it?", "What happens to the existing insulation"]));
+    const action = norm(val(kids, ["What needs to happen to it?", "What is required for the existing insulation?", "What happens to the existing insulation"]));
     const removal = /^(remove|must be removed)/.test(action) ? true : /^(top up|can be topped up)/.test(action) ? false : yesNo(val(kids, ["Removal required"]));
     if (/not sure/.test(action)) issues.push("A ceiling area's existing insulation is marked 'Not sure' – office review required.");
-    const removalType = val(kids, ["Insulation type (tick all that apply)", "Existing insulation type", "Insulation type to remove"]);
+    // The insulation type can arrive as one multichoice (A1) or as separate Batts / Loose fill checkboxes (A2).
+    const tickTypes = ["Batts", "Loose fill"].filter((l) => { const e = find(kids, [l]); return e?.value != null && !/^(false|no|n a|na)$/.test(norm(e.value)); });
+    const mc = val(kids, ["Insulation type (tick all that apply)", "What type of existing insulation is installed? Select all that apply", "Existing insulation type", "Insulation type to remove"]);
+    const removalType = [mc, ...tickTypes].filter(Boolean).join(", ") || null;
     return { parent: p, m2: m2.value, state, removal, removalType };
   });
   if (rooms.length > 0) {
