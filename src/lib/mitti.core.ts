@@ -165,14 +165,14 @@ export type PrefillCtx = {
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
   { key: "jobNumber", aliases: ["Portal Job Number", "Job Reference ID"], mandatory: true },
   { key: "address", aliases: ["Property Address", "Site address", "Site Address", "Address including postcode"], mandatory: true },
-  { key: "ownerName", aliases: ["Owner name", "Owner full name", "Client name", "Property owner name"], mandatory: true },
+  { key: "ownerName", aliases: ["Owner name", "Homeowner name", "Owner full name", "Client name", "Property owner name"], mandatory: true },
   { key: "ownerEmail", aliases: ["Owner email"] },
   { key: "ownerPhone", aliases: ["Owner phone", "Owner mobile"] },
   { key: "assessorName", aliases: ["Assigned Electrician", "Assessor", "Assigned Electrician / Assessor", "Full Name (initial assessment)", "Lead installer name"], mandatory: true },
   { key: "assessmentAt", aliases: ["Assessment date/time", "Assessment date time", "Booked assessment date"], datetime: true },
   { key: "estimatedAreaM2", aliases: ["Office estimated ceiling area", "Estimated ceiling area"] },
   { key: "occupancy", aliases: ["Occupancy"] },
-  { key: "lifeSupport", aliases: ["Life support status", "Office life support result", "Office life support status"] },
+  { key: "lifeSupport", aliases: ["Life support status", "Office life support result", "Office life support status", "Life support equipment at property?"] },
   { key: "propertyType", aliases: ["Property type"] },
   { key: "builtLast5Years", aliases: ["Was the ceiling or roof built or replaced in the last 5 years?"] },
   { key: "inspectionDate", aliases: ["Date of inspection"], datetime: true },
@@ -312,12 +312,14 @@ export function parseAudit(audit: Any) {
     excl: ["Excluded area", "Excluded ceiling area"],
   };
   // Group per-area fields by their repeat-instance parent so each area's m2/removal/insulation stay together.
-  // New A1/A2 forms capture "Length (m)" × "Width (m)" per area (portal computes m2); legacy forms used "Measured area m2".
-  const isAreaKid = (e: Any) => !e.header && [norm("Measured area m2"), norm("Length (m)")].includes(e.norm) && e.value != null;
+  // A2 (our leads) captures "Length (m)" × "Width (m)" per area; A1 (installer's own customers) captures the
+  // measured m² directly. Legacy forms used "Measured area m2".
+  const isAreaKid = (e: Any) => !e.header && [norm("Measured area m2"), norm("Length (m)"), norm("Enter the measured ceiling area (m²)")].includes(e.norm) && e.value != null;
   const roomParents = new Set(entries.filter(isAreaKid).map((e) => e.parent ?? e.id));
+  const areaM2Label = (kids: Entry[]) => kids.find((e) => [norm("Measured area m2"), norm("Enter the measured ceiling area (m²)")].includes(e.norm)) ?? kids.find((e) => e.norm.startsWith(norm("Measured area m2")));
   const rooms = [...roomParents].map((p) => {
     const kids = entries.filter((e) => (e.parent ?? e.id) === p);
-    const m2e = kids.find((e) => e.norm === norm("Measured area m2"));
+    const m2e = areaM2Label(kids);
     let m2 = physical(m2e?.value ?? null, m2e?.label ?? "Measured area m2");
     if (m2.value == null) {
       const len = physical(val(kids, ["Length (m)"]), "Length (m)");
@@ -327,12 +329,15 @@ export function parseAudit(audit: Any) {
       if (len.value != null && len.value > 0 && wid.value != null && wid.value > 0) m2 = { value: r2(len.value * wid.value), issue: null } as typeof m2;
     }
     if (m2.issue) issues.push(m2.issue);
-    const present = yesNo(val(kids, ["Is there existing insulation?"]));
+    const present = yesNo(val(kids, ["Is there existing insulation?", "Is there existing insulation in this ceiling area?"]));
     const state = norm(val(kids, ["Existing insulation"])) || (present === true ? "under-insulated" : present === false ? "uninsulated" : "");
-    const action = norm(val(kids, ["What needs to happen to it?", "What happens to the existing insulation"]));
+    const action = norm(val(kids, ["What needs to happen to it?", "What is required for the existing insulation?", "What happens to the existing insulation"]));
     const removal = /^(remove|must be removed)/.test(action) ? true : /^(top up|can be topped up)/.test(action) ? false : yesNo(val(kids, ["Removal required"]));
     if (/not sure/.test(action)) issues.push("A ceiling area's existing insulation is marked 'Not sure' – office review required.");
-    const removalType = val(kids, ["Insulation type (tick all that apply)", "Existing insulation type", "Insulation type to remove"]);
+    // The insulation type can arrive as one multichoice (A1) or as separate Batts / Loose fill checkboxes (A2).
+    const tickTypes = ["Batts", "Loose fill"].filter((l) => { const e = find(kids, [l]); return e?.value != null && !/^(false|no|n a|na)$/.test(norm(e.value)); });
+    const mc = val(kids, ["Insulation type (tick all that apply)", "What type of existing insulation is installed? Select all that apply", "Existing insulation type", "Insulation type to remove"]);
+    const removalType = [mc, ...tickTypes].filter(Boolean).join(", ") || null;
     return { parent: p, m2: m2.value, state, removal, removalType };
   });
   if (rooms.length > 0) {
@@ -345,11 +350,12 @@ export function parseAudit(audit: Any) {
         const remRooms = rooms.filter((r) => r.removal === true);
         // Prefer the per-area "Area to remove (m2)" answer; fall back to the area's full m2.
         const remM2 = remRooms.map((r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); const v = physical(val(kids, ["Area to remove (m2)"]), "Area to remove (m2)"); return v.value != null && v.value > 0 ? v.value : r.m2; });
-        if (remM2.some((m) => m == null || m <= 0)) issues.push("A removal area's size was missing or invalid – removal area not taken from Mitti; office review required.");
+      if (remM2.some((m) => m == null || m <= 0)) issues.push("A removal area's size was missing or invalid – removal area not taken from Mitti; office review required.");
         else patch.removal_m2 = r2(remM2.reduce<number>((s, m) => s + (m ?? 0), 0));
-        const types = [...new Set(remRooms.map((r) => r.removalType).filter(Boolean))] as string[];
-        if (types.length > 0) patch.notes = [patch.notes, `Insulation type to remove: ${types.join(", ")}`].filter(Boolean).join(". ").slice(0, 4000);
-        else issues.push("Insulation type to remove not captured – needed for removal pricing; office follow-up required.");
+        const types = [...new Set(remRooms.flatMap((r) => (r.removalType ?? "").split(/[,;\n]+/)).map((t) => t.trim()).filter(Boolean))];
+        if (types.length > 0) patch.notes = [patch.notes, `Insulation type to remove: ${types.join(", ")}${types.length > 1 ? " (mixed)" : ""}`].filter(Boolean).join(". ").slice(0, 4000);
+        if (types.length > 1) issues.push("More than one existing insulation type was ticked (batts + loose fill) – mixed insulation needs office review.");
+        if (types.length === 0) issues.push("Insulation type to remove not captured – needed for removal pricing; office follow-up required.");
       }
     }
   } else {
@@ -375,24 +381,32 @@ export function parseAudit(audit: Any) {
   }
   const rv = note(physical(val(entries, ["Existing R-value", "Measured R-value", "Confirmed R-value", "Existing insulation R-value"]), "Existing R-value"));
   if (rv != null && patch.insulation_present !== false) patch.existing_r_value = rv;
-  const method = val(entries, ["How was the ceiling measured?", "How the ceiling was measured", "Measurement method"]);
-  if (method) patch.notes = [patch.notes, `Measured by: ${method}`].filter(Boolean).join(". ").slice(0, 4000);
+  // Measurement provenance: whole-job question (A2) or per-area questions (A1). Aerial/online estimates are never accepted.
+  const methodWhole = val(entries, ["How was the ceiling measured?", "How the ceiling was measured", "Measurement method"]);
+  const perAreaMethods = rooms.length ? [...new Set(rooms.map((r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); return [val(kids, ["How was this ceiling area measured?", "How was the ceiling measured?"]), val(kids, ["Tell us how you measured it", "Explain the method"])].filter(Boolean).join(" — "); }).filter(Boolean))] : [];
+  const methodText = methodWhole ? [methodWhole, ...perAreaMethods] : perAreaMethods;
+  if (methodText.length) patch.notes = [patch.notes, `Measured by: ${methodText.join("; ")}`].filter(Boolean).join(". ").slice(0, 4000);
   else if (rooms.length > 0) issues.push("Measurement method not captured – how the ceiling was measured must be documented.");
 
-  const acc = norm(val(entries, ["How easy is the ceiling access?", "Ceiling access", "Access difficulty", "Roof space access"]));
-  if (acc) { const a = /difficult|hard|restricted/.test(acc) ? "difficult" : /moderate|medium/.test(acc) ? "moderate" : /easy|good/.test(acc) ? "easy" : null; if (a) patch.access_difficulty = a; else issues.push("Ceiling access answer not recognised."); }
+  const acc = norm(val(entries, ["How easy is the ceiling access?", "How would you rate the ceiling access?", "Ceiling access", "Access difficulty", "Roof space access"]));
+  if (acc) { const a = /difficult|hard|restricted/.test(acc) ? "difficult" : /moderate|medium|standard/.test(acc) ? "moderate" : /easy|good/.test(acc) ? "easy" : null; if (a) patch.access_difficulty = a; else issues.push("Ceiling access answer not recognised – office review required."); }
 
   const setInt = (k: keyof AssessmentPatch, aliases: string[]) => { const e = find(entries, aliases, { withValue: true }); const n = note(count(e?.value ?? null, e?.label ?? aliases[0]!)); if (n != null) (patch as Any)[k] = n; };
   setInt("downlights_upgrade_qty", ["Downlights requiring upgrade", "Downlights to upgrade", "Downlight upgrade qty"]);
   // Per-area downlight counts ("How many?") are summed; whole-job aliases cover legacy forms.
-  const perAreaDownlights = rooms.length ? rooms.reduce((s, r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); const n = count(val(kids, ["How many?"]), "How many?"); return s + (n.value ?? 0); }, 0) : 0;
+  const perAreaDownlights = rooms.length ? rooms.reduce((s, r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); const n = count(val(kids, ["How many?", "How many recessed downlights?"]), "How many?"); return s + (n.value ?? 0); }, 0) : 0;
   if (perAreaDownlights > 0) patch.downlights_qty = perAreaDownlights;
   else setInt("downlights_qty", ["Total number of luminaires", "Number of downlights", "Downlights qty", "Downlight count", "Downlights"]);
   setInt("exhaust_fans_clearance_qty", ["Exhaust fans requiring clearance", "Exhaust fan clearance", "Exhaust fans needing clearance"]);
   setInt("exhaust_fans_qty", ["Number of exhaust fans", "Exhaust fans qty", "Exhaust fans"]);
   const dt = val(entries, ["Downlight type"]); if (dt) patch.downlights_type = dt.slice(0, 200);
   const hz = val(entries, ["Hazards identified", "Hazards", "Hazards seen in the ceiling space"]); if (hz) patch.hazards = hz.slice(0, 4000);
-  const roof = val(entries, ["Roof type"]); if (roof) patch.notes = [patch.notes, `Roof type: ${roof}`].filter(Boolean).join(". ").slice(0, 4000);
+  // Installer-flagged hazards per ceiling area (both A1 and A2 per-area questions) — flagged jobs go to office review.
+  if (rooms.length && patch.hazards == null) {
+    const flagged = rooms.filter((r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); const a = val(kids, ["Are there any issues that could affect the insulation installation?", "Hazards in this area?"]); return a != null && /^(yes|y|true)\b/.test(norm(a)); });
+    if (flagged.length > 0) { patch.hazards = `Installer flagged hazards in ${flagged.length} ceiling area(s) – confirm details and evidence in office.`; issues.push("Installer flagged hazards in a ceiling area – office review required."); }
+  }
+  const roof = val(entries, ["Roof type", "What type of roof does the home have?"]); if (roof) patch.notes = [patch.notes, `Roof type: ${roof}`].filter(Boolean).join(". ").slice(0, 4000);
   const built5 = val(entries, ["Was the ceiling or roof built or replaced in the last 5 years?", "Ceiling or roof built in the last 5 years", "Relevant ceiling or roof built in the last 5 years"]); if (built5) patch.notes = [patch.notes, `Ceiling/roof built in last 5 years (Ready Check answer, pre-filled from owner's declared enquiry answer): ${built5}`].filter(Boolean).join(". ").slice(0, 4000);
 
   const sbUp = val(entries, ["Switchboard upgrade required"]);
@@ -439,6 +453,14 @@ export function parseAudit(audit: Any) {
       others.push({ external_key: `mitti:${auditId}:${e.id}`, description: `${label} (manual review – no approved rate)`, quantity: n && n > 0 ? n : 1, unit_price_inc_gst: null, explanation: `Mitti: ${e.label}: ${e.value}`.slice(0, 2000), needs_office_pricing: true, unsupported: true });
       issues.push(`${label} has no approved Lovable rate – office review required.`);
     }
+  }
+
+  // Installer's Ready Check outcome (Form A1): a failed check is an office matter, never an auto-rejection.
+  const rcOutcome = norm(val(entries, ["Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?"]));
+  if (/failed|^no\b/.test(rcOutcome)) {
+    issues.push("Installer marked the Ready Check as failed – office review required.");
+    const reason = val(entries, ["Why did the property fail the ready check"]);
+    if (reason) patch.notes = [patch.notes, `Ready Check failed – installer reasons: ${reason}`].filter(Boolean).join(". ").slice(0, 4000);
   }
 
   const readyFlag = yesNo(val(entries, ["Ready for office review"]));

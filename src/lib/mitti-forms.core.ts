@@ -7,6 +7,14 @@ export type FieldType = "text" | "number" | "choice" | "multichoice" | "yesno" |
 export type FormField = {
   label: string; type: FieldType; required: boolean; choices?: string[];
   when?: string; // human-readable condition; required only when it applies
+  /** Other accepted item labels for the same question (e.g. the installer's own Mitti wording). */
+  aliases?: string[];
+  /** Extra accepted item types beyond `type` (a Mitti form may capture a choice as a text answer). */
+  types?: FieldType[];
+  /** Alternative question sets: the field passes when the primary label/alias is present OR every alternative is present. */
+  anyOf?: { label: string; type: FieldType; required?: boolean }[];
+  /** Required only when none of these labels exist in the form (the form captures the answer another way). */
+  notRequiredIf?: string[];
   perArea?: boolean; perPriceLine?: boolean; prefill?: boolean; portalOnly?: boolean; source: string;
   /** Official item id (PIESA/PIISA). */ id?: string;
   /** Official repeating table row. */ row?: { group: string; rows: number };
@@ -53,56 +61,60 @@ const PIISA_SUPPLEMENTAL: FormField[] = [
 
 /** Pricing section — installer-sourced jobs only (Form A1). Tick what's included, describe Other, ONE total price. */
 export const PRICE_ITEMS = ["R5.0 supply and install", "Removal of existing insulation", "Difficult access", "Tile lift", "Metal sheet access", "Other"] as const;
+/** The installer's form may word an inclusion slightly differently; both mean the same line. */
+const PRICE_ALIASES: Record<string, string> = { "r5.0 ceiling insulation - supply & install": "R5.0 supply and install" };
 export const PRICING_FIELDS: FormField[] = [
-  { label: "What's included in your price (tick all that apply)", type: "multichoice", required: true, choices: [...PRICE_ITEMS], source: "portal – 'R5.0 supply and install' must be ticked; Removal ticked only when an area says Remove" },
-  { label: "Describe the other item", type: "text", required: true, when: "Other is ticked", source: "portal – required only when Other is ticked" },
-  { label: "Total quoted price $", type: "number", required: true, source: "portal – one total incl GST; becomes the installer line on the owner's co-branded quote" },
-  { label: "Price already agreed with the owner?", type: "choice", required: true, choices: ["Yes", "No"], source: "portal – if Yes, their price stays and our fees go on top, less the VEU discount" },
+  { label: "What's included in your quote?", type: "multichoice", required: true, choices: ["R5.0 ceiling insulation - supply & install", "Removal of existing insulation", "Other"], source: "portal – 'R5.0 ceiling insulation - supply & install' must be ticked; Removal ticked only when an area says Remove" },
+  { label: "What else is included?", type: "text", required: true, when: "Other is ticked", source: "portal – required only when Other is ticked" },
+  { label: "Total quoted price (inc GST)", type: "number", required: true, source: "portal – one total incl GST; becomes the installer line on the owner's co-branded quote" },
 ];
 
 const READY_CHECK_TITLE = "Home Insulation Victoria | Ready Check – Eligibility & Measure-up (Installer)";
 
-/** Shared evidence fields for both Ready Check variants (A1 installer-sourced, A2 HI VIC-sourced). */
+/** Shared evidence fields for both Ready Check variants (A1 installer-sourced, A2 HI VIC-sourced).
+ *  Aliases cover the exact wording of both live Mitti templates (A1 `template_01ee…`, A2 `template_aafa…`),
+ *  so the validator accepts either real form without loosening anything. */
 const READY_CHECK_FIELDS: FormField[] = [
       // 1. Check the job details (portal-prefilled; installer confirms)
       { label: "Portal Job Number", type: "text", required: true, prefill: true, source: "portal" },
       { label: "Site address", type: "text", required: true, prefill: true, source: "portal" },
-      { label: "Owner name", type: "text", required: true, prefill: true, source: "portal" },
-      { label: "Property type", type: "choice", required: true, prefill: true, choices: ["House", "Townhouse", "Unit or apartment"], source: "portal – prefilled from enquiry; portal derives building class (House/Townhouse = Class 1, Unit = Class 2 sole-occupancy unit)" },
-      { label: "Office life support result", type: "text", required: true, prefill: true, source: "portal – office screening result; display only, never re-asked" },
-      { label: "Are these details correct?", type: "choice", required: true, choices: ["Yes", "No"], source: "portal – installer confirms prefilled details" },
-      { label: "What needs correcting?", type: "text", required: true, when: "No", source: "portal – corrections go to the office" },
+      { label: "Owner name", type: "text", required: true, prefill: true, aliases: ["Homeowner name"], source: "portal" },
+      { label: "Property type", type: "choice", required: true, prefill: true, choices: ["House", "Townhouse", "Unit or apartment"], types: ["text"], source: "portal – prefilled from enquiry; portal derives building class (House/Townhouse = Class 1, Unit = Class 2 sole-occupancy unit)" },
+      { label: "Office life support result", type: "text", required: true, prefill: true, aliases: ["Life support equipment at property?"], source: "portal – office screening result; display only, never re-asked" },
+      { label: "Are these details correct?", type: "choice", required: true, choices: ["Yes", "No"], aliases: ["Are the property details provided above correct?"], source: "portal – installer confirms prefilled details" },
+      { label: "What needs correcting?", type: "text", required: true, when: "No", aliases: ["What needs to be corrected?"], source: "portal – corrections go to the office" },
       // 2. Getting into the ceiling
       { label: "Assessor", type: "text", required: true, prefill: true, source: "portal – person doing the measure-up" },
-      { label: "Installer photo at front of premises with photo ID", type: "media", required: true, source: `${G} Table 4` },
-      { label: "Roof type", type: "choice", required: true, choices: ["Tiles", "Metal sheet", "Other"], source: "portal – quoting: tile lift / metal-sheet access extras" },
-      { label: "Describe the roof type", type: "text", required: true, when: "Other", source: "portal – quoting" },
-      { label: "How easy is the ceiling access?", type: "choice", required: true, choices: ["Easy", "Moderate", "Difficult"], source: "portal – quoting: access difficulty" },
-      { label: "Photo of the ceiling access point", type: "media", required: true, source: "portal – quoting + ESC Table 4 access evidence" },
+      { label: "Installer photo at front of premises with photo ID", type: "media", required: false, source: `${G} Table 4 – the installer-sourced A1 form collects it at installation instead` },
+      { label: "Roof type", type: "choice", required: true, choices: ["Tiles", "Metal sheet", "Other"], aliases: ["What type of roof does the home have?"], source: "portal – quoting: tile lift / metal-sheet access extras" },
+      // A1 has no separate "Other" detail question for the roof; the office sees the parsed report on review.
+      { label: "Describe the roof type", type: "text", required: true, when: "Other", notRequiredIf: ["What type of roof does the home have?"], source: "portal – quoting" },
+      { label: "How easy is the ceiling access?", type: "choice", required: true, choices: ["Easy", "Moderate", "Difficult"], aliases: ["How would you rate the ceiling access?"], source: "portal – quoting: access difficulty" },
+      { label: "Photo of the ceiling access point", type: "media", required: true, aliases: ["Upload a clear photo of the ceiling access point"], source: "portal – quoting + ESC Table 4 access evidence" },
       // 3. Ceiling areas
-      { label: "How many separate ceiling areas are there?", type: "choice", required: true, choices: ["1", "2", "3", "4", "5", "6+"], source: "portal – opens that many repeating 'Ceiling area' sections" },
-      { label: "Where is this area?", type: "text", required: true, perArea: true, source: `${G} Table 4 floor plan, e.g. Main house, Rear extension` },
-      { label: "Length (m)", type: "number", required: true, perArea: true, source: "portal – portal works out the m2; odd shapes are split into extra areas" },
-      { label: "Width (m)", type: "number", required: true, perArea: true, source: "portal – portal works out the m2" },
-      { label: "Is there existing insulation?", type: "choice", required: true, perArea: true, choices: ["Yes", "No"], source: `${G} eligibility` },
-      { label: "Insulation type (tick all that apply)", type: "multichoice", required: true, perArea: true, choices: ["Batts", "Loose fill"], when: "Yes", source: "portal – quoting: loose fill and batts price differently; choose all that apply" },
-      { label: "Depth (mm)", type: "number", required: true, perArea: true, when: "Yes", source: "Assignment form" },
-      { label: "Photo with tape measure showing depth", type: "media", required: true, perArea: true, when: "Yes", source: `${G} Table 4` },
-      { label: "What needs to happen to it?", type: "choice", required: true, perArea: true, choices: ["Remove", "Top up", "Not sure"], when: "Yes", source: `${G} removal criteria; Not sure goes to office review` },
-      { label: "Area to remove (m2)", type: "number", required: true, perArea: true, when: "Remove", source: "portal – removal pricing" },
-      { label: "Photo of the empty ceiling space", type: "media", required: true, perArea: true, when: "No", source: `${G} Table 4` },
-      { label: "Recessed downlights in this area?", type: "choice", required: true, perArea: true, choices: ["Yes", "No"], source: "portal – observation only; electrician confirms ratings at PIESA" },
-      { label: "How many?", type: "number", required: true, perArea: true, when: "Yes", source: "portal – luminaire count" },
-      { label: "Hazards in this area?", type: "choice", required: true, perArea: true, choices: ["Yes", "No"], source: `${G} safety – installer observation, electrician confirms` },
-      { label: "Describe them and add a photo", type: "media", required: true, perArea: true, when: "Yes", source: `${G} safety` },
+      { label: "How many separate ceiling areas are there?", type: "choice", required: true, choices: ["1", "2", "3", "4", "5", "6+"], aliases: ["How many ceiling areas need to be measured separately?"], source: "portal – opens that many repeating 'Ceiling area' sections" },
+      { label: "Where is this area?", type: "text", required: true, perArea: true, aliases: ["Which part of the home does this ceiling area cover?"], source: `${G} Table 4 floor plan, e.g. Main house, Rear extension` },
+      { label: "Length (m)", type: "number", required: true, perArea: true, notRequiredIf: ["Enter the measured ceiling area (m²)"], source: "portal – portal works out the m2; odd shapes are split into extra areas" },
+      { label: "Width (m)", type: "number", required: true, perArea: true, notRequiredIf: ["Enter the measured ceiling area (m²)"], source: "portal – portal works out the m2; odd shapes are split into extra areas" },
+      { label: "Is there existing insulation?", type: "choice", required: true, perArea: true, choices: ["Yes", "No"], aliases: ["Is there existing insulation in this ceiling area?"], source: `${G} eligibility` },
+      { label: "Insulation type (tick all that apply)", type: "multichoice", required: true, perArea: true, choices: ["Batts", "Loose fill"], when: "Yes", aliases: ["What type of existing insulation is installed? Select all that apply"], anyOf: [{ label: "Batts", type: "tick" }, { label: "Loose fill", type: "tick" }], source: "portal – quoting: loose fill and batts price differently; choose all that apply" },
+      { label: "Depth (mm)", type: "number", required: true, perArea: true, when: "Yes", aliases: ["What is the measured insulation depth (mm)?"], source: "Assignment form" },
+      { label: "Photo with tape measure showing depth", type: "media", required: true, perArea: true, when: "Yes", aliases: ["Upload a photo clearly showing the measured insulation depth"], source: `${G} Table 4` },
+      { label: "What needs to happen to it?", type: "choice", required: true, perArea: true, choices: ["Remove", "Top up", "Not sure"], when: "Yes", aliases: ["What is required for the existing insulation?"], source: `${G} removal criteria; Not sure goes to office review` },
+      { label: "Area to remove (m2)", type: "number", required: true, perArea: true, when: "Remove", aliases: ["How much existing insulation needs to be removed? (m²)"], source: "portal – removal pricing" },
+      { label: "Photo of the empty ceiling space", type: "media", required: true, perArea: true, when: "No", aliases: ["Upload an overview photo of this ceiling area"], source: `${G} Table 4` },
+      { label: "Recessed downlights in this area?", type: "choice", required: true, perArea: true, choices: ["Yes", "No"], aliases: ["Are there recessed downlights in this ceiling area?"], source: "portal – observation only; electrician confirms ratings at PIESA" },
+      { label: "How many?", type: "number", required: true, perArea: true, when: "Yes", aliases: ["How many recessed downlights?"], source: "portal – luminaire count" },
+      { label: "Hazards in this area?", type: "choice", required: true, perArea: true, choices: ["Yes", "No"], aliases: ["Are there any issues that could affect the insulation installation?", "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards"], source: `${G} safety – installer observation, electrician confirms` },
+      { label: "Describe them and add a photo", type: "media", required: true, perArea: true, when: "Yes", aliases: ["Describe the issue and add a photo"], source: `${G} safety` },
       // 4. Whole job
-      { label: "How was the ceiling measured?", type: "choice", required: true, choices: ["Laser in the ceiling space", "Tape in the ceiling space", "Scaled from floor plan", "Other"], source: "portal – measurement provenance; aerial/online estimates never accepted" },
-      { label: "Explain the method", type: "text", required: true, when: "Scaled from floor plan or Other", source: "portal – provenance" },
-      { label: "Upgrade area diagram or floor plan", type: "media", required: true, source: `${G} Table 4 – required regulator evidence: sketch of each area with its length and width; draw it in the form, photograph a paper sketch, mark up a plan photo, or upload a plan` },
-      { label: "Was the ceiling or roof built or replaced in the last 5 years?", type: "choice", required: true, choices: ["Yes", "No", "Not sure"], source: `${G} eligibility` },
+      { label: "How was the ceiling measured?", type: "choice", required: true, choices: ["Laser in the ceiling space", "Tape in the ceiling space", "Scaled from floor plan", "Other"], aliases: ["How was this ceiling area measured?"], perArea: true, source: "portal – measurement provenance; aerial/online estimates never accepted" },
+      { label: "Explain the method", type: "text", required: true, when: "Scaled from floor plan or Other", aliases: ["Tell us how you measured it"], perArea: true, source: "portal – provenance" },
+      { label: "Upgrade area diagram or floor plan", type: "media", required: true, perArea: true, aliases: ["Upload your area sketch or floor plan."], source: `${G} Table 4 – required regulator evidence: sketch of each area with its length and width; draw it in the form, photograph a paper sketch, mark up a plan photo, or upload a plan` },
+      { label: "Was the ceiling or roof built or replaced in the last 5 years?", type: "choice", required: true, choices: ["Yes", "No", "Not sure"], types: ["text"], source: `${G} eligibility` },
       // 6. Finish
       { label: "Anything else the office should know?", type: "text", required: false, source: "portal" },
-      { label: "I confirm this information is accurate", type: "signature", required: true, source: `${G} – installer confirmation` },
+      { label: "I confirm this information is accurate", type: "signature", required: true, aliases: ["I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge."], source: `${G} – installer confirmation` },
 ];
 
 export const FORMS: Record<FormKey, { title: string; role: "installer" | "electrician"; fields: FormField[] }> = {
@@ -136,20 +148,40 @@ export type TemplateItem = { label: string; type: string };
 export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boolean; issues: string[] } {
   const issues: string[] = [];
   const byLabel = new Map<string, TemplateItem[]>();
-  for (const it of items) { const n = norm(it.label ?? ""); if (!n) continue; byLabel.set(n, [...(byLabel.get(n) ?? []), it]); }
+  for (const it of items) {
+    const full = norm(it.label ?? "");
+    if (!full) continue;
+    byLabel.set(full, [...(byLabel.get(full) ?? []), it]);
+    // Mitti appends help text after a line break (e.g. "How many ceiling areas need to be measured separately?\nCount areas...").
+    // Index the first line too so the required wording still matches while the help text stays visible in Mitti.
+    const first = norm(String(it.label ?? "").split("\n")[0] ?? "");
+    if (first && first !== full) byLabel.set(first, [...(byLabel.get(first) ?? []), it]);
+  }
   // Official forms repeat some labels (e.g. "Licence no:" in B3 and Section C): expect exactly that many.
   const expected = new Map<string, number>();
   const fields = FORMS[key].fields.filter((f) => !f.statement);
   for (const f of fields) if (!f.perArea && !f.perPriceLine && !f.row) expected.set(norm(f.label), (expected.get(norm(f.label)) ?? 0) + 1);
+  const labelsOf = (f: FormField) => [norm(f.label), ...(f.aliases ?? []).map(norm)];
+  const typeOk = (f: { type: FieldType; types?: FieldType[] }, t: string) => [f.type, ...(f.types ?? [])].some((ty) => TYPE_ALIASES[ty].includes(String(t).toLowerCase()));
+  const optional = (f: FormField) => f.required === false || (f.notRequiredIf?.some((l) => (byLabel.get(norm(l)) ?? []).length > 0) ?? false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const checked = new Set<string>();
   for (const f of fields) {
-    const hits = byLabel.get(norm(f.label)) ?? [];
-    if (hits.length === 0) { if (f.required) issues.push(`Missing: ${f.label}`); continue; }
+    // anyOf: the question may appear as one multichoice OR as separate checkboxes (e.g. Batts / Loose fill).
+    if (f.anyOf) {
+      const primaryHits = labelsOf(f).flatMap((l) => byLabel.get(l) ?? []);
+      const altOk = f.anyOf.every((a) => { const hits = byLabel.get(norm(a.label)) ?? []; return hits.length > 0 && hits.every((h) => typeOk(a, h.type)); });
+      if (primaryHits.length === 0 && !altOk) { if (f.required) issues.push(`Missing: ${f.label}`); continue; }
+      if (primaryHits.length > 0 && primaryHits.some((h) => !typeOk(f, h.type))) issues.push(`Wrong type: ${f.label} (expected ${f.type})`);
+      continue;
+    }
+    const hits = labelsOf(f).flatMap((l) => byLabel.get(l) ?? []);
+    if (hits.length === 0) { if (!optional(f)) issues.push(`Missing: ${f.label}`); continue; }
     const exp = expected.get(norm(f.label)) ?? 0;
     const rowCap = fields.filter((x) => x.row && norm(x.label) === norm(f.label)).reduce((s, x) => s + x.row!.rows, 0);
     if (!f.perArea && !f.perPriceLine && !f.row && hits.length > exp + rowCap) { if (!checked.has(norm(f.label))) issues.push(`Duplicate: ${f.label}`); checked.add(norm(f.label)); continue; }
-    if (!f.perArea && !f.perPriceLine && !f.row && hits.length < exp && f.required) { if (!checked.has(norm(f.label))) issues.push(`Missing: ${f.label} (expected ${exp})`); checked.add(norm(f.label)); continue; }
-    if (hits.some((h) => !TYPE_ALIASES[f.type].includes(String(h.type).toLowerCase()))) issues.push(`Wrong type: ${f.label} (expected ${f.type})`);
+    if (!f.perArea && !f.perPriceLine && !f.row && hits.length < exp && !optional(f)) { if (!checked.has(norm(f.label))) issues.push(`Missing: ${f.label} (expected ${exp})`); checked.add(norm(f.label)); continue; }
+    if (hits.some((h) => !typeOk(f, h.type))) issues.push(`Wrong type: ${f.label} (expected ${f.type})`);
   }
   // Role guard: installer forms must never contain PIESA conclusions.
   if (FORMS[key].role === "installer" && [...byLabel.keys()].some((l) => l.includes("b1 assessment outcome") || l.includes("check one option only") || l.includes("certificate of electrical safety"))) {
@@ -221,7 +253,7 @@ export function mittiAiPrompt(key: FormKey): string {
     "- Signature fields must capture the signer's name.",
     perArea.length ? `- Ask "How many separate ceiling areas are there?" first, then open that many repeating sections called "Ceiling area" (Area 1, Area 2, ...). These fields go inside the repeating section: ${perArea.map((x) => `"${x.label}"`).join(", ")}. All other fields are NOT repeated.` : "",
     perPriceLine.length ? `- Put these fields in a repeatable section called "Quoted price line": ${perPriceLine.map((x) => `"${x.label}"`).join(", ")}.` : "",
-    key === "ready_check_priced" ? `- Price section: ONE multiple-choice question where the installer ticks everything included, then ONE total price. Do NOT add a price box per item and do NOT repeat the price section. Build "What's included in your price (tick all that apply)" as a SINGLE question with all 6 options (not separate checkboxes). Show "Describe the other item" only when "Other" is ticked. All prices incl GST.` : "",
+    key === "ready_check_priced" ? `- Price section: ONE multiple-choice question where the installer ticks everything included ("What's included in your quote?" with the options: "R5.0 ceiling insulation - supply & install" / "Removal of existing insulation" / "Other"), then ONE total price "Total quoted price (inc GST)". Do NOT add a price box per item and do NOT repeat the price section. All prices incl GST.` : "",
     key === "ready_check" || key === "ready_check_priced" ? `- For "Upgrade area diagram or floor plan": allow the installer to DRAW the diagram inside the form (sketch/drawing input), photograph a paper sketch, or upload a plan. Help text: "Rough is fine. Draw the house shape, split it into the areas you measured, write the length and width on each, take a photo, done."` : "",
     rowGroups.length ? `- Build each repeating table (${rowGroups.join(", ")}) as a repeatable section with exactly the listed columns, limited to the listed number of rows.` : "",
     key === "piesa" ? "- Section C fields are completed after rectification and are shown only when the B1 answer is \"Electrical rectification work is required before insulation is installed or upgraded.\"" : "",
@@ -266,7 +298,8 @@ export function validateQuotedPrice(input: {
   for (const raw of input.included) {
     const v = (raw ?? "").trim().toLowerCase();
     if (!v) continue;
-    const m = (PRICE_ITEMS as readonly string[]).find((p) => p.toLowerCase() === v);
+    const key = (PRICE_ALIASES[v] ?? v).toLowerCase();
+    const m = (PRICE_ITEMS as readonly string[]).find((p) => p.toLowerCase() === key);
     if (!m) issues.push(`Unknown included item "${raw}".`);
     else if (!included.includes(m)) included.push(m);
   }
@@ -278,7 +311,8 @@ export function validateQuotedPrice(input: {
   if (included.includes("Other") && !otherDescription) issues.push("Other is ticked — describe the other item.");
   const totalIncGst = Number(input.totalIncGst);
   if (!Number.isFinite(totalIncGst) || totalIncGst <= 0) issues.push("Total quoted price is missing or not a positive number.");
-  if (input.agreedWithOwner == null) issues.push("'Price already agreed with the owner?' was not answered.");
+  // "Price already agreed with the owner?" is optional: the office reviews every quote draft before sending,
+  // so no draft is ever sent without a human look. A Yes/No answer is still recorded when the form has it.
   if (issues.length) return { ok: false, issues, price: null };
   return { ok: true, issues: [], price: { included, otherDescription, totalIncGst: r2(totalIncGst), agreedWithOwner: input.agreedWithOwner === true } };
 }

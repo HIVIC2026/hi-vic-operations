@@ -159,18 +159,20 @@ export function evidenceFromRecords(m: MeasurementRecord, evidenceCategories: st
 
 // ---------------- Automatic co-branded quote from the priced Ready Check (Form A1) ----------------
 
-const pick = (entries: { label: string; value: string | null }[], label: string) =>
-  entries.find((e) => e.label.trim().toLowerCase() === label.toLowerCase())?.value ?? null;
+/** Normalized label match: punctuation/apostrophe differences between portal wording and Mitti wording are ignored. */
+const nrm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const pick = (entries: { label: string; value: string | null }[], labels: string[]) =>
+  entries.find((e) => labels.some((l) => nrm(e.label) === nrm(l)))?.value ?? null;
 
 /** Reads the installer's ticked inclusions + total from the A1 answers, then validates (fails closed). */
 export function quotedPriceFromEntries(entries: { label: string; value: string | null }[], removalRequired: boolean | null) {
-  const inc = pick(entries, "What's included in your price (tick all that apply)");
-  const total = pick(entries, "Total quoted price $");
-  const agreed = pick(entries, "Price already agreed with the owner?");
+  const inc = pick(entries, ["What's included in your quote?", "What's included in your price (tick all that apply)"]);
+  const total = pick(entries, ["Total quoted price (inc GST)", "Total quoted price $"]);
+  const agreed = pick(entries, ["Price already agreed with the owner?"]);
   const n = total == null ? null : Number(String(total).replace(/[$,\s]/g, ""));
   return validateQuotedPrice({
     included: (inc ?? "").split(/[,;\n|]+/),
-    otherDescription: pick(entries, "Describe the other item"),
+    otherDescription: pick(entries, ["What else is included?", "Describe the other item"]),
     totalIncGst: n,
     agreedWithOwner: agreed == null ? null : /^y/i.test(agreed.trim()) ? true : /^n/i.test(agreed.trim()) ? false : null,
     removalRequired,

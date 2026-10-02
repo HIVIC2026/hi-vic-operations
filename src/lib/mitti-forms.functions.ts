@@ -15,7 +15,7 @@ export const getMittiForms = createServerFn({ method: "POST" }).middleware([requ
 
 /** Fetches the Mitti form, checks it against the required list, and saves the ID only if every check passes. */
 export const connectMittiForm = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ key: z.enum(["ready_check", "ready_check_priced", "piesa", "piisa"]), templateId: z.string().trim().regex(/^template_[a-f0-9]{32}$/, "Mitti form IDs look like template_ followed by 32 letters/numbers.") }).parse(d))
+  .inputValidator((d) => z.object({ key: z.enum(["ready_check", "ready_check_priced", "piesa", "piisa"]), templateId: z.string().trim().regex(/^(template_[a-f0-9]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i, "Mitti form IDs look like template_ followed by 32 letters/numbers (or the ID Mitti shows in the form link).") }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     if (data.key === "piesa" || data.key === "piisa") {
