@@ -204,7 +204,10 @@ function RecOnboarding() {
   const [baseUpdatedAt, setBaseUpdatedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showErrors, setShowErrors] = useState(false);
-  const [testMode, setTestMode] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("test") === "1");
+  // Test mode is decided by the server (staff-issued link only); `testMode` = relaxed required steps.
+  const [testMode, setTestMode] = useState(false);
+  const [isTest, setIsTest] = useState(false);
+  const [staffLink] = useState(() => takeStaffLink());
 
   const [invite, setInvite] = useState<string | null>(null);
   const [inviteInfo, setInviteInfo] = useState<Awaited<ReturnType<typeof loadTeamInvite>> | null>(null);
@@ -221,7 +224,7 @@ function RecOnboarding() {
     setBusy(true); setError(null);
     try {
       let t = token;
-      if (accept && !t) { t = (await startRecOnboarding({ data: { test: testMode } })).token; localStorage.setItem(TOKEN_KEY, t); setToken(t); }
+      if (accept && !t) { t = (await startWith()).token; localStorage.setItem(TOKEN_KEY, t); setToken(t); }
       await respondTeamInvite({ data: { invite, accept, recToken: accept ? t ?? undefined : undefined } });
       if (accept && t) { const r = await loadRecOnboarding({ data: { token: t } }); setD(r.data as RecData); setBaseUpdatedAt(r.updated_at); setStatus(r.status as "draft" | "submitted"); setStarted(true); }
       setInviteInfo((x) => (x ? { ...x, answered: accept ? "accepted" : "declined" } : x));
@@ -242,7 +245,7 @@ function RecOnboarding() {
     if (!t) { setLoaded(true); return; }
     loadRecOnboarding({ data: { token: t } }).then((r) => {
       setToken(t); setD(r.data as RecData); setBaseUpdatedAt(r.updated_at); setStatus(r.status as "draft" | "submitted"); setStarted(true);
-      if (r.test_mode) setTestMode(true);
+      setIsTest(!!r.test_mode); setTestMode(!!r.relaxed);
       const first = firstIncompleteStep(r.data as RecData);
       setStep(r.status === "submitted" ? "sign" : ((first ?? r.step_key ?? "about") as StepKey));
     }).catch(() => localStorage.removeItem(TOKEN_KEY)).finally(() => setLoaded(true));
@@ -263,7 +266,7 @@ function RecOnboarding() {
     if (sampleMode) { setD(SAMPLE_REC_DATA); setToken("sample-preview-token"); setStep("about"); setStarted(true); setError(null); return; }
     setBusy(true); setError(null);
     try {
-      const { token: t } = await startRecOnboarding({ data: { test: testMode } });
+      const { token: t } = await startWith();
       localStorage.setItem(TOKEN_KEY, t); setToken(t); setStarted(true);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not start."); } finally { setBusy(false); }
   }
@@ -384,7 +387,7 @@ function RecOnboarding() {
   return shell(
     <div style={card}>
       {previewBanner}
-      {testMode && !sampleMode && <div style={{ background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#7A5A00", marginBottom: 14 }}>TEST MODE — most checks are switched off so you can click straight through, but the services confirmation is still required. This application is marked as a test and won't count as a real applicant.</div>}
+      {isTest && !sampleMode && <div style={{ background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#7A5A00", marginBottom: 14 }}>TEST MODE — staff test link. This application is marked as a test and won't count as a real applicant. The services confirmation is always required.</div>}
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
       {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Nice one, {firstName(d)} — next up: {steps[idx]?.title?.toLowerCase()}.</div>}
       {!firstName(d) && <div style={{ marginBottom: 12 }} />}
@@ -542,11 +545,11 @@ function InsuranceStep({ d, up, token, setError, preview, onRevision }: { d: Rec
     if (f.size > 20 * 1024 * 1024) { setError("File must be 20 MB or smaller."); return; }
     setUploading(true);
     try {
-      const u = await insuranceUploadUrl({ data: { token, content_type: f.type as "application/pdf", size: f.size } });
+      const u = await insuranceUploadUrl({ data: { token, content_type: f.type as "application/pdf", size: f.size, filename: f.name } });
       const { error } = await supabase.storage.from("partner-files").uploadToSignedUrl(u.path, u.token, f, { contentType: f.type });
       if (error) throw new Error("Upload failed. Please try again.");
       setChecking(true);
-      const r = await confirmInsuranceUpload({ data: { token, path: u.path } });
+      const r = await confirmInsuranceUpload({ data: { token, path: u.path, content_type: f.type as "application/pdf" } });
       onRevision?.(r.updated_at);
       const x = r.extracted;
       const patch: Partial<RecData> = { insurance_uploaded: true };

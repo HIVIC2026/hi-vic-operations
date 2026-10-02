@@ -69,7 +69,7 @@ export const startInstallerOnboarding = createServerFn({ method: "POST" })
     const { data: existing } = await db.from("rec_onboarding_applications").select("id, partner_type").eq("resume_token_hash", hash).maybeSingle();
     if (existing) {
       if (existing.partner_type !== "installer") throw new Error("Could not start onboarding. Please try again.");
-      return { token: data.token };
+      return { token: data.token, test_mode: false, relaxed: false };
     }
     const sec = await import("./onboarding-security.server");
     const auth = await sec.consumeAuthorisation(db as never, data.staff_link, "installer");
@@ -80,10 +80,10 @@ export const startInstallerOnboarding = createServerFn({ method: "POST" })
       ...(auth ? { authorisation_id: auth.id, allow_incomplete_sign: qa && auth.allow_incomplete_sign } : {}),
     } as never);
     if (error) {
-      if ((error as { code?: string }).code === "23505") return { token: data.token };
+      if ((error as { code?: string }).code === "23505") return { token: data.token, test_mode: false, relaxed: false };
       throw new Error("Could not start onboarding. Please try again.");
     }
-    return { token: data.token };
+    return { token: data.token, test_mode: qa, relaxed: qa && !!auth?.allow_incomplete_sign };
   });
 
 export const loadInstallerOnboarding = createServerFn({ method: "POST" })

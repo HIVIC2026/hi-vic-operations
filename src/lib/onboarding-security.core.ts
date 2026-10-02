@@ -121,3 +121,22 @@ export function isOwnQuarantinePath(path: string, folder: string, appId: string)
   const p = quarantinePrefix(folder, appId);
   return path.startsWith(p) && /^[0-9a-f-]{36}$/.test(path.slice(p.length));
 }
+
+// ---------- Browser helpers (no secrets) ----------
+
+/** Random resume token generated in the browser, so a replayed start returns the same draft. */
+export function newResumeToken(): string {
+  const b = crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Reads a staff link (?staff=...) once and removes it from the address bar and history. */
+export function takeStaffLink(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  const url = new URL(window.location.href);
+  const v = url.searchParams.get("staff");
+  if (v === null) return undefined;
+  url.searchParams.delete("staff");
+  window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+  return /^[A-Za-z0-9_-]{20,100}$/.test(v) ? v : undefined;
+}
