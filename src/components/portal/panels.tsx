@@ -88,6 +88,14 @@ export function EvidencePanel({ jobId, role, gates, excludeGates }: { jobId: str
 
 type Req = { id: string; label: string; status: string; required: boolean; notes: string | null; responsible_role: string | null; verified_at: string | null; evidence_files: { id: string; file_name: string; uploaded_at: string }[] };
 
+/** Location at the moment of upload. null if the phone refuses or times out — the server then refuses the photo. */
+function currentFix(): Promise<{ lat: number; lng: number; accuracyM: number; capturedAt: string } | null> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) return Promise.resolve(null);
+  return new Promise((res) => navigator.geolocation.getCurrentPosition(
+    (p) => res({ lat: p.coords.latitude, lng: p.coords.longitude, accuracyM: p.coords.accuracy, capturedAt: new Date(p.timestamp).toISOString() }),
+    () => res(null), { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }));
+}
+
 function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean; isAdmin: boolean }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -98,12 +106,13 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
   const onFile = async (f: File) => {
     setBusy(true);
     try {
-      const up = await reqUpload({ requirementId: req.id, fileName: f.name, mimeType: f.type || "application/octet-stream" });
+      const fix = /^(image|video)\//.test(f.type) && !isAdmin ? await currentFix() : null;
+      const up = await reqUpload({ requirementId: req.id, fileName: f.name, mimeType: f.type || "application/octet-stream", fix });
       if (!up) return;
       const { path, token } = up;
       const { error } = await supabase.storage.from("job-files").uploadToSignedUrl(path, token, f, { contentType: f.type });
       if (error) throw error;
-      await confirm({ requirementId: req.id, path, fileName: f.name, mimeType: f.type, size: f.size }, "Uploaded");
+      await confirm({ requirementId: req.id, path, fileName: f.name, mimeType: f.type, size: f.size, fix }, "Uploaded");
     } finally {
       setBusy(false);
     }

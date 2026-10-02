@@ -170,3 +170,10 @@
 - [ ] AP evidence at each stage, e.g. geotagged photos (awaiting list from Jo)
 - [ ] Automate PIESA Section C after rectification: auto-open, reminders, office alert, install blocked until done
 - [ ] Installer-supplied jobs: gap-check uploaded Ready Check evidence; missing items become install-day Mitti tasks (no rejection)
+- [x] Plan step 1: photo/video location rule for portal uploads (refuse missing / >150 m; office uploads exempt)
+- [ ] Plan step 1b: apply the same location rule to photos arriving from Mitti
+- [ ] Plan step 2: new stage evidence items + "Start installation" lock (incl. installer-job catch-up tasks)
+- [ ] Plan step 3: fill official Word forms on signing, save to job files
+- [ ] Plan step 4: automatic PIESA sending + Section C automation (built OFF until LR-006 confirmed)
+- [ ] Plan step 5: AP review tick row
+- [ ] Plan step 6: Mitti build sheets (PIESA evidence section, install day)
