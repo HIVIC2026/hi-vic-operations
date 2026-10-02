@@ -2,6 +2,9 @@
 
 The Ready Check is out of scope; it's already built in Mitti and stays as it is.
 
+## Rule applied throughout
+Never ask the same thing twice. Anything already on the PIESA, PIISA, Ready Check or job record (address, dates, names, licences, isolation, SWMS, insulation, zones) is reused, never asked again. Photo date, time and location are read from the photo automatically.
+
 ## Your decisions
 - Save the **government's official form, filled in**, to the job's files.
 - Refuse any photo with no location, or taken too far from the property. The worker has to retake it onsite.
@@ -17,7 +20,6 @@ The Ready Check is out of scope; it's already built in Mitti and stays as it is.
 ## 2. Electrical form (PIESA) — electrician
 - It only opens after the quote is accepted and the 50% deposit is paid.
 - It's the official PIESA (already pre-filled), plus a short Home Insulation Victoria evidence section:
-  - date, time and location of the visit
   - a front-of-property identity photo of the electrician (with location)
   - switchboard and cable photos
   - isolation arrangements
