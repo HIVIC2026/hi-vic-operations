@@ -2,7 +2,7 @@
 // printed-rule enforcement and signed-snapshot hashing. PURE: no I/O.
 // Every label/statement below is copied verbatim from the uploaded Word forms and is checked against the
 // stored originals (docs/official-forms/) by tests/official-forms.test.ts. Nothing here approves a mapping.
-import { createHash } from "node:crypto";
+import { sha256Hex } from "./sha256.core";
 
 export type OfficialKey = "piesa" | "piisa";
 export type ItemKind = "heading" | "statement" | "text" | "date" | "number" | "yesno" | "yesno_na" | "choice" | "ticks" | "tick" | "signature" | "attachment";
@@ -536,7 +536,7 @@ export type SignedSnapshot = {
   hash: string;
 };
 const canon = (o: unknown): string => JSON.stringify(o, (_k, v) => (v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, v[k]])) : v));
-const sha = (x: string) => createHash("sha256").update(x).digest("hex");
+const sha = (x: string) => sha256Hex(x);
 
 /** Builds the official document in the form's own order (statements verbatim, owner name at the end). */
 export function renderOfficialDocument(key: OfficialKey, a: OfficialAnswers) {
