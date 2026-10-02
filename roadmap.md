@@ -137,15 +137,18 @@
 - [ ] Installer pricing acknowledgement reworded + agreement bumped INST-1.9 → INST-1.10 (installer-brought jobs: no lead fee, no margin, only the $349 AP fee) — preview only, awaiting Jo approval to publish
 
 ## Launch readiness (restructured per Jo's critique 2026-10-02)
-- [ ] Phase 1 freeze: AP-fee post-acceptance, old electrician path, PIESA/PIISA mappings, eligibility definitions, declared-vs-verified, comms/consent policy, test-login role
-- [ ] Phase 2 identity/access: owner-to-job access, invites/recovery, secure links, RLS, contact masking, token expiry, audit
+- [ ] Phase 1 freeze (+ named decider and target date each): AP-fee post-acceptance, old electrician path, PIESA/PIISA mappings, eligibility definitions (Eligible/Likely/Not eligible, declared vs verified), existing-insulation "Yes" = assessment never auto-cross, comms/consent policy, test-login role
+- [ ] Phase 2 identity/access: owner-to-job access, invites/recovery, secure links, RLS, contact masking, token expiry, audit; 253 real jobs — link owners, re-check eligibility vs new definitions, historical statuses unchanged
 - [ ] Phase 3 workflow correctness vs dummy data (stages, Ready Check, PIESA timing, gates, 24h rule, overdue, superseded proposals, cancel/reschedule)
-- [ ] Phase 4 communications: SMS workstream (primary alerts, provider, sender ID, callbacks, consent, duplicate protection, AU numbers, Melbourne scheduling, segment costs, mock tests) + email domain + event matrix
-- [ ] Phase 5 onboarding/forms: insurance extraction, quarantine, autocomplete, completion screens, Mitti A2/B/C + A1 regression, signed-copy storage
-- [ ] Phase 6 Xero controlled test: org, mapping, tax/rounding, layout, VEU discount, duplicate prevention, 50% deposit, refunds/credits, override, payload preflight
-- [ ] Phase 7 UX/public routing: staff portal, owner view, mobile trades, calculator routing, /home sign-in, no dev branding, accessibility, error states
+- [ ] Phase 4 communications: SMS workstream (primary alerts, provider, sender ID, callbacks, consent, duplicate protection, AU numbers, Melbourne scheduling, segment costs, mock tests) + email domain + event matrix; compliance check (Spam Act transactional status, privacy, VEU record retention — confirmed properly, not assumed)
+- [ ] Phase 5 onboarding/forms: insurance extraction (failure must never silently accept), quarantine, autocomplete, completion screens, Mitti A2/B/C + A1 regression, signed-copy storage
+- [ ] Phase 6 Xero controlled test (depends on Phase 3 payment gates): org, mapping, tax/rounding, layout, VEU discount, duplicate prevention, 50% deposit, refunds/credits, override, payload preflight
+- [ ] Phase 7 UX/public routing: job-page redesign + terminology (compact page, ticks/crosses checklist, consistent labels, field/source register), staff portal, owner view, mobile trades, calculator routing, /home sign-in, no dev branding, accessibility, error states
 - [ ] Phase 8 regression + launch rehearsal: six scenarios plus failure modes (conflicts, invalid phone/email, expired links, wrong role, duplicate webhook, Xero down, extraction failure, comms off, rollback)
-- [ ] Launch register with ID/owners/acceptance criteria/evidence/status/rollback/approvals; separate deployment vs communications approvals
+- [ ] Phase 9 post-publish live checks (after deploy, before comms): onboarding start, rate limits, test links, insurance quarantine, 15 controls OFF, no external actions
+- [ ] Publish-approval register entries: INST-1.10, compact staff portal, 0075 signed-copy storage, 0077/0074 hazard wiring
+- [ ] Post-launch running: failed-delivery/error monitoring, single kill switch for external actions, support process (sign-in, wrong booking, missing SMS), named first-week watcher
+- [ ] Launch register with ID/owners/dependencies/acceptance criteria/evidence/status/rollback/approvals; Sev 1 = security breach, wrong-job access, wrong charge, wrong eligibility; Sev 2 = blocked core journey, no workaround; separate deployment vs communications approvals; controls enabled one at a time after approval (b)
 
 ## Portal brief fixes — approved preview-only
 - [x] Compact admin views, filters, diagnostics and accurate retained-record labels
