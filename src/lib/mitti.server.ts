@@ -59,7 +59,9 @@ export async function createAssignMittiAudit(jobId: string, actorId: string, cal
   if (!job) throw new WorkflowError("Job not found.");
   const scope = await jobScope(jobId);
   if (scope.scope === "COMPLETE") throw new WorkflowError("Both site requirements are already complete – no Mitti audit needed.");
-  const measureOnly = scope.scope === "MEASURE_UP_ONLY";
+  // The Ready Check comes before any PIESA, so in Ready Check stages the installer form is sent even though no PIESA exists yet.
+  const readyCheckStage = job.stage === "ready_check_ready_to_schedule" || job.stage === "ready_check_scheduled";
+  const measureOnly = readyCheckStage || scope.scope === "MEASURE_UP_ONLY";
   const role = measureOnly ? "installer" : "electrician";
   // Role-specific forms only; the old combined template is never used for new audits.
   // Ready Check variant: installer-sourced jobs get the priced form (A1), our leads the evidence-only form (A2).
