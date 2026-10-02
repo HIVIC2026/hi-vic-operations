@@ -1,52 +1,81 @@
-# Launch readiness — the exact remaining list
+# Launch readiness — restructured plan
 
-## Goal
-Everything left before the portal is 100% ready for launch, grouped so we can work through it in order. Each item names what I do and what needs you.
+This replaces the earlier list. It follows your critique: phased order, named evidence, acceptance criteria, and a measurable go-live gate. "100% ready" is only claimed when every critical item has a recorded passing result.
 
-## 1. Communications with owners and trades
-- **Message portal** — owner and trade messaging already lives in the job (Correspondence); verify every message type renders and records correctly, with portal-only communication enforced.
-- **Customer email redesign** — all templates in the Home Insulation Victoria brand, plain language, one clear button each.
-- **Email sending domain** — customer emails can't send until DNS records for homeinsulationvictoria.com.au are added. I'll give you the exact records; once in, I verify and wire the templates.
-- **Worker job links by text/email** — sent automatically once communications are switched on.
-- Nothing sends externally until live communications are switched on with your approval.
+## Phase 1 — Freeze rules and decisions (before broader implementation)
+Resolve with you, no silent choices:
+- AP-fee behaviour after quote acceptance (currently locked for everyone)
+- Old electrician-visit path: keep, migrate, or retire
+- Official PIESA/PIISA mappings and source documents
+- Definitions of Eligible / Likely eligible / Not eligible, and declared vs verified evidence
+- Communication and consent policy by channel (see Phase 4 definition)
+- Whole-portal test-login: who it's for, exact role and permissions (admin-level access for an outsider stays barred)
 
-## 2. Automation of the platform
-- Verify the agreed safe set against live data: To action tab, automatic stage/next-step text, overdue flags (PIESA 30-day, 24h/48h trade response, owner reminders).
-- 24-hour rule on our leads: owner offered a different installer/electrician after 24h no contact.
-- Anything that emails or writes externally stays behind the launch lock until you say go — the 15 external-action controls stay OFF.
+## Phase 2 — Identity, access and security (must precede any live customer communication)
+- Owner invitation and account-linking process; existing-job linkage or safe migration
+- Every intended owner can access only the correct job: wrong-user and wrong-job access tests
+- Expired and revoked link behaviour; opening a link performs no booking action
+- Job numbers, phone numbers and email addresses never grant access by themselves
+- Recovery procedure for owners who cannot sign in
+- Installer/electrician access, role permissions and RLS, contact masking between owners and trades, token expiry/revocation, test-account restrictions, audit logging
 
-## 3. Xero
-- **Xero invoice design + preflight** — I design the actual invoice layout (co-branded, all quote lines, VEU discount, Inclusive GST, Home Insulation Victoria business unit) and show it to you for approval before the first real one is created.
-- **Connection check** — confirm the Xero connection is linked and pointed at the right organisation; the 50% deposit gate stays Xero-verified (AmountPaid ≥ 50% or audited override only).
+## Phase 3 — Core workflow correctness (against dummy data)
+- Job stages and next actions; Ready Check flow; later electrician path; PIESA timing
+- Hazard-to-rectification flow; payment and evidence gates; 24-hour allocation rule
+- Overdue logic; superseded proposal behaviour; booking cancellation and rescheduling
+- Test-job exclusion from operational totals
+- Stale or retired paths resolved before notifications are built around them
 
-## 4. Onboarding
-- **Insurance certificate reading** — onboarding uploads aren't being read properly; investigate and fix.
-- **Address autocomplete** — suggestion list stays visible after selecting; fix.
-- **Electrician 'application received' screen** — stronger wording with green ticks for what happens next.
-- **Onboarding invite email** — explains who we are, what we do as the Accredited Person, and what they're signing up for.
-- **Whole-portal test login** — clarify who it's for and what they must see (admin-level access for an outsider is barred by the locked rule).
+## Phase 4 — Communications (mocks before any live delivery)
+**Portal-only communication, defined:** conversation bodies stay in the portal; email and SMS are alerts containing secure links; direct SMS replies are not accepted; direct email replies are not accepted or are safely routed; contact details stay hidden between owners and trades; office users can see delivery failures and correspondence.
 
-## 5. Waiting on your approval to publish (work is done, preview-verified)
-- **Installer pricing acknowledgement (INST-1.10)** — installer-brought jobs: no lead fee, no margin, only the $349 AP fee.
-- **Compact staff portal redesign** — audit fixes complete and verified in preview.
-- **Signed-copy storage (0075) and hazard→rectification wiring (0077/0074)** — staged and throwaway-tested.
+**SMS workstream (primary alert channel):**
+- Owner, installer and electrician notifications; appointment proposals, acceptance, alternatives, cancellation, rescheduling; new portal-message alerts; 24-hour reminders
+- Secure, scoped, expiring job links; provider configuration and approved sender identity
+- Delivery callbacks and failure handling; consent and communication-switch enforcement; duplicate-send protection
+- Australian phone-number handling; Australia/Melbourne scheduling; segment counts and costs
+- End-to-end tests with mock delivery. No paid SMS sending, sender registration or live switch activated automatically.
 
-## 6. Needs something from you (blockers I can't clear)
-- **Mitti forms A2, B, C** — A1 is connected and validated; the other three need building from the briefs in Files, then I connect and validate each.
-- **Official PIESA/PIISA form approval** — filling stays blocked until you approve the mapping and confirm source URLs.
-- **Two open decisions**: AP fee changes after quote acceptance (currently locked for everyone), and the old electrician-visit path (Ready Check not guaranteed before PIESA on it).
-- **Customer web address polish** — bare address opens the calculator only, staff sign-in at /home, no Lovable badge on customer pages.
+**Event matrix (each event also states behaviour when the number/email is missing, invalid or not consented):**
 
-## 7. Final verification pass (before go-live)
-- Full dummy job run-throughs of the six scenarios (website enquiry, installer-brings-customer complete/partial, our-lead with 24-hour rule, rectification path, overdue/exception paths).
-- Owner portal walkthrough exactly as an owner sees it; mobile check on every trade screen.
-- Final security/RLS pass and refreshed security scan.
-- Post-publish live checks (onboarding start, rate limits, test links, insurance quarantine, 15 controls OFF, no external actions).
+| Event | Recipient | Channel | Portal action |
+|---|---|---|---|
+| New portal message | Relevant participant | SMS, email if approved | View and reply |
+| Appointment proposed | Intended responder | SMS, email if approved | Confirm or request another time |
+| Alternative requested | Responsible trade or owner | SMS/email | Propose or review |
+| Booking confirmed | Relevant participants | SMS/email | View booking |
+| Booking cancelled/rescheduled | Relevant participants | SMS/email | Review change |
+| Visit reminder | Relevant participants | SMS if approved | View booking |
 
-## Go-live gate
-Launch only when: sections 1–6 are cleared, all dummy run-throughs pass, Mitti forms connected, emails approved by you, Xero invoice approved, tests/build/security green. Then you say "go" and live communications switch on.
+Plus: customer email templates (brand redesign), verified email domain (DNS records needed from you), global and channel-level launch locks.
 
-## Boundaries
-- Locked Step 1 (Base44 handoff), Gate 1 rules, pricing and payment guards stay untouched.
-- Nothing publishes, sends, charges, or applies to live without your explicit approval on that item.
-- Test jobs stay flagged qa_test, excluded from live totals.
+## Phase 5 — Onboarding and forms
+- Insurance-document extraction — a reading failure must never silently accept an unread or invalid certificate
+- Quarantine and manual-review behaviour; address autocomplete fix; installer and electrician completion screens; invitation content
+- Mitti forms A2, B, C (built from briefs, then connected and validated); A1 regression test
+- PIESA/PIISA mapping validation; signed-copy storage (0075)
+
+## Phase 6 — Xero (non-production or controlled environment first)
+- Correct Xero organisation; contact and item mapping; tax and rounding rules
+- Invoice line layout; VEU discount; Inclusive-GST wording; Home Insulation Victoria business unit
+- Duplicate-invoice prevention; 50% deposit calculation; refund, credit and overpayment behaviour; audited override permissions
+- Preflight shows the exact invoice payload and rendered invoice before any real invoice is created
+
+## Phase 7 — UX and public routing
+- Compact staff portal; owner booking view; installer/electrician mobile screens
+- Correspondence collapsed by default; one clear current status and next action
+- Public homepage and calculator routing; staff sign-in route; no development branding on customer pages
+- Accessibility and keyboard operation; empty, error, expired-link and offline states
+
+## Phase 8 — Full regression and launch rehearsal
+All six scenarios plus: appointment conflict and simultaneous acceptance; cancelled/rescheduled reminder; invalid phone and failed delivery; invalid email and bounced delivery; expired/revoked access link; wrong-role access; duplicate webhook; Xero unavailable; document extraction failure; communication switch disabled; rollback rehearsal.
+Each test records: expected result, actual result, evidence, pass/fail.
+
+## Launch register
+Every item tracked with: ID, workstream, requirement, business owner, technical owner, dependency, risk level, acceptance criteria, test method, evidence link, current status, blocker, production action required, rollback step, approval required, approval recorded by and when. Controlled statuses only: Not started, In progress, Blocked, Ready for verification, Passed, Approved for production.
+
+## Go-live gate (measurable)
+Launch only when every critical item has a named owner, acceptance criteria, evidence and a passing result; no unresolved severity-one or severity-two defect remains; typecheck, lint, automated tests, production build and security checks pass; migrations and rollback have been rehearsed; production secrets and domains are verified; all external-action controls remain off; and you provide **separate explicit approvals** for (a) deployment and (b) live communications — so the portal can deploy safely without sending messages, creating invoices or triggering any external action.
+
+## Boundaries (unchanged)
+Locked Step 1 (Base44 handoff), Gate 1 rules, pricing and payment guards stay untouched. Test jobs stay flagged qa_test and excluded from live totals. No publication, sending, charging or production mutation without explicit approval for that specific action.
