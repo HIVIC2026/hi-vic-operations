@@ -6780,6 +6780,9 @@ export type Database = {
           full_name: string | null
           id: string
           licence_number: string | null
+          mitti_checked_at: string | null
+          mitti_checked_email: string | null
+          mitti_user_id: string | null
           phone: string | null
           updated_at: string
         }
@@ -6790,6 +6793,9 @@ export type Database = {
           full_name?: string | null
           id: string
           licence_number?: string | null
+          mitti_checked_at?: string | null
+          mitti_checked_email?: string | null
+          mitti_user_id?: string | null
           phone?: string | null
           updated_at?: string
         }
@@ -6800,6 +6806,9 @@ export type Database = {
           full_name?: string | null
           id?: string
           licence_number?: string | null
+          mitti_checked_at?: string | null
+          mitti_checked_email?: string | null
+          mitti_user_id?: string | null
           phone?: string | null
           updated_at?: string
         }
