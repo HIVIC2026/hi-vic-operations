@@ -435,7 +435,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
         {d.contact_is_licensed_electrician === false && <div style={infoCard}>No problem — you don't need a licence to register the business. We'll confirm the business's licensed electricians with you before any work is allocated.</div>}
         <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
         <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
-        <Field label="Are you registering the business, or joining as staff?" required hint="A business administrator sets up the Registered Electrical Contractor (REC) profile. Staff join using a personal invitation link from that administrator.">
+        <Field label="Are you registering the business, or joining as staff?" required>
           <Choice options={[{ v: false as boolean, l: "I'm registering the REC business" }, { v: true as boolean, l: "I'm a staff member" }]} value={d.works_under_rec ?? null} onChange={(v) => up({ works_under_rec: v })} />
         </Field>
         {d.works_under_rec === true && <WorkerStop who="REC" />}
