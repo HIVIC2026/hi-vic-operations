@@ -39,10 +39,22 @@ export function normaliseMobile(m: string | null | undefined): string | null {
   return /^04\d{8}$/.test(v) ? v : null;
 }
 
-/** Fingerprint input: IP + user agent + trade. Hashed with a server pepper before storage. */
-export function fingerprintSource(ip: string | null, userAgent: string | null, trade: Trade): string | null {
-  if (!ip) return null;
-  return `${trade}|${ip.trim()}|${(userAgent ?? "").slice(0, 200)}`;
+/** Wider per-network backstop so clearing the visitor cookie can't bypass limits (rolling, never permanent). */
+export const NETWORK_LIMITS = { per15Min: 12, per24h: 20 } as const;
+export const VISITOR_COOKIE = "hv_ob";
+export const FP_KEY_VERSION = "v1";
+export function isVisitorId(v: string | null | undefined): v is string {
+  return typeof v === "string" && /^[A-Za-z0-9_-]{40,64}$/.test(v);
+}
+
+/**
+ * Limiter keys (before HMAC). The visitor key uses the server-issued first-party identifier; the network
+ * key uses the edge-reported IP only when present. Nothing here is stored raw.
+ */
+export function limiterKeys(visitorId: string, ip: string | null, trade: Trade): { kind: "visitor" | "network"; source: string }[] {
+  const keys: { kind: "visitor" | "network"; source: string }[] = [{ kind: "visitor", source: `${FP_KEY_VERSION}|visitor|${trade}|${visitorId}` }];
+  if (ip && ip.trim()) keys.push({ kind: "network", source: `${FP_KEY_VERSION}|network|${trade}|${ip.trim()}` });
+  return keys;
 }
 
 // ---------- Test / office authorisations ----------

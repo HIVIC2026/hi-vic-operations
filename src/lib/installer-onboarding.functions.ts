@@ -2,7 +2,7 @@
 // SHA-256 is stored). Drafts are editable; once signed the record is immutable (DB trigger).
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { withRequestMeta, withStartLimitStatus } from "./request-meta";
+import { withRequestMeta, withStartLimitStatus, withVisitorId } from "./request-meta";
 import { mayRelaxRequiredSteps } from "./onboarding-security.core";
 import { validBusinessEmail } from "./rec-onboarding.core";
 import {
@@ -61,7 +61,7 @@ function publicView(app: { status: string; step_key: string | null; data: unknow
 
 // Public start: browser-supplied random resume token (replay-safe) plus optional staff link; never a test flag.
 export const startInstallerOnboarding = createServerFn({ method: "POST" })
-  .middleware([withRequestMeta, withStartLimitStatus])
+  .middleware([withRequestMeta, withVisitorId, withStartLimitStatus])
   .inputValidator((d) => z.object({ token: tokenSchema, staff_link: tokenSchema.optional() }).strict().parse(d))
   .handler(async ({ data, context }) => {
     const db = await admin();
@@ -73,7 +73,7 @@ export const startInstallerOnboarding = createServerFn({ method: "POST" })
     }
     const sec = await import("./onboarding-security.server");
     const auth = await sec.consumeAuthorisation(db as never, data.staff_link, "installer");
-    if (!auth) await sec.consumeStart(db as never, context.ip, context.userAgent, "installer");
+    if (!auth) await sec.consumeStart(db as never, context.visitorId, context.ip, "installer");
     const qa = auth?.purpose === "qa_test";
     const { error } = await db.from("rec_onboarding_applications").insert({
       resume_token_hash: hash, step_key: "business", partner_type: "installer", test_mode: qa,
@@ -99,7 +99,7 @@ export const saveInstallerOnboarding = createServerFn({ method: "POST" })
     const next = applyMaterialReset(app.data as InstData, data.data as InstData);
     const sec = await import("./onboarding-security.server");
     const contact = app.test_mode ? null : await sec.contactHash(next, "installer");
-    await sec.enforceContactCap(db as never, app.id, "installer", contact);
+    if (!(app as { authorisation_id?: string | null }).authorisation_id) await sec.enforceContactCap(db as never, app.id, "installer", contact); // office/test links are staff-cleared
     const { data: row, error } = await db.from("rec_onboarding_applications").update({ data: next as never, step_key: data.step_key, ...(contact ? { contact_hash: contact } : {}) } as never).eq("id", app.id).eq("status", "draft").select("*").single();
     if (error) throw new Error("Could not save your progress. Please try again.");
     return publicView(row);

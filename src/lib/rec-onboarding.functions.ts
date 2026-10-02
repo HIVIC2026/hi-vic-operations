@@ -2,7 +2,7 @@
 // SHA-256 is stored). Drafts are editable; once signed the record is immutable (DB trigger).
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { withRequestMeta, withStartLimitStatus } from "./request-meta";
+import { withRequestMeta, withStartLimitStatus, withVisitorId } from "./request-meta";
 import { mayRelaxRequiredSteps } from "./onboarding-security.core";
 import {
   acknowledgementsFor, REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, agreementText, applyMaterialReset,
@@ -63,7 +63,7 @@ function publicView(app: { status: string; step_key: string | null; data: unknow
 // Public start. The browser supplies its own random resume token (so a replay returns the same draft)
 // and, optionally, a staff-issued link token. It can never choose test mode itself (.strict()).
 export const startRecOnboarding = createServerFn({ method: "POST" })
-  .middleware([withRequestMeta, withStartLimitStatus])
+  .middleware([withRequestMeta, withVisitorId, withStartLimitStatus])
   .inputValidator((d) => z.object({ token: tokenSchema, staff_link: tokenSchema.optional() }).strict().parse(d))
   .handler(async ({ data, context }) => {
     const db = await admin();
@@ -75,7 +75,7 @@ export const startRecOnboarding = createServerFn({ method: "POST" })
     }
     const sec = await import("./onboarding-security.server");
     const auth = await sec.consumeAuthorisation(db as never, data.staff_link, "rec");
-    if (!auth) await sec.consumeStart(db as never, context.ip, context.userAgent, "rec");
+    if (!auth) await sec.consumeStart(db as never, context.visitorId, context.ip, "rec");
     const qa = auth?.purpose === "qa_test";
     const { error } = await db.from("rec_onboarding_applications").insert({
       resume_token_hash: hash, step_key: "about", test_mode: qa,
@@ -102,7 +102,7 @@ export const saveRecOnboarding = createServerFn({ method: "POST" })
     if (blockedMandatoryStep(data.step_key, next)) throw new Error("Confirm your REC can provide all three electrical services.");
     const sec = await import("./onboarding-security.server");
     const contact = app.test_mode ? null : await sec.contactHash(next, "rec");
-    await sec.enforceContactCap(db as never, app.id, "rec", contact);
+    if (!(app as { authorisation_id?: string | null }).authorisation_id) await sec.enforceContactCap(db as never, app.id, "rec", contact); // office/test links are staff-cleared
     let update = db.from("rec_onboarding_applications").update({ data: next as never, step_key: data.step_key, ...(contact ? { contact_hash: contact } : {}) } as never).eq("id", app.id).eq("status", "draft");
     if (data.base_updated_at) update = update.eq("updated_at", data.base_updated_at);
     const { data: row, error } = await update.select("*").maybeSingle();

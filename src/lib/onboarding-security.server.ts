@@ -1,9 +1,10 @@
 // Server-only enforcement for public onboarding: start limits, staff-issued links, verified insurance files.
 // Pure rules live in onboarding-security.core.ts. Requires staged migration 0079; fails closed without it.
 import {
-  INSURANCE_MIME, SCAN_RESULT_NO_SCANNER, START_LIMIT_MESSAGE, contactDraftAllowed, fingerprintSource,
+  INSURANCE_MIME, SCAN_RESULT_NO_SCANNER, START_LIMIT_MESSAGE, contactDraftAllowed, limiterKeys,
   isOwnQuarantinePath, normaliseEmail, normaliseMobile, quarantinePrefix, verifyInsuranceBytes, type Trade,
 } from "./onboarding-security.core";
+import { FP_KEY_VERSION as FP_KEY_VERSION_CONTACT } from "./onboarding-security.core";
 
 export class StartLimitError extends Error {
   constructor() { super(START_LIMIT_MESSAGE); this.name = "StartLimitError"; }
@@ -22,11 +23,21 @@ type Db = {
   storage: { from: (b: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 };
 
-/** Consumes one start from this visitor's rolling allowance. Fails closed. */
-export async function consumeStart(db: Db, ip: string | null, userAgent: string | null, trade: Trade) {
-  const fp = await sha256Hex(`onboarding-start-v1|${fingerprintSource(ip ?? "unknown", userAgent, trade)}`);
-  const { data, error } = await db.rpc("consume_onboarding_start", { _fp: fp, _trade: trade });
-  if (error || data !== true) throw new StartLimitError();
+/** HMAC-SHA256 with the server-held ONBOARDING_FP_SECRET. Fails closed if the secret is missing. */
+export async function keyedHash(source: string) {
+  const secret = process.env["ONBOARDING_FP_SECRET"];
+  if (!secret || secret.length < 32) throw new StartLimitError();
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(source));
+  return Array.from(new Uint8Array(sig)).map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+/** Consumes one start from the visitor allowance, then the wider network backstop. Fails closed. */
+export async function consumeStart(db: Db, visitorId: string, ip: string | null, trade: Trade) {
+  for (const k of limiterKeys(visitorId, ip, trade)) {
+    const { data, error } = await db.rpc("consume_onboarding_start", { _fp: await keyedHash(k.source), _trade: trade, _kind: k.kind });
+    if (error || data !== true) throw new StartLimitError();
+  }
 }
 
 export type Authorisation = { id: string; purpose: "qa_test" | "office_recovery"; allow_incomplete_sign: boolean };
@@ -43,7 +54,7 @@ export async function consumeAuthorisation(db: Db, raw: string | undefined, trad
 /** Hash of the normalised business email (or mobile) for the per-contact draft cap. */
 export async function contactHash(data: { business_email?: string | null; business_phone?: string | null }, trade: Trade) {
   const key = normaliseEmail(data.business_email) ?? normaliseMobile(data.business_phone);
-  return key ? sha256Hex(`onboarding-contact-v1|${trade}|${key}`) : null;
+  return key ? keyedHash(`${FP_KEY_VERSION_CONTACT}|contact|${trade}|${key}`) : null;
 }
 
 /** Refuses a save that would make a third active draft for the same contact + trade. Same generic message. */
