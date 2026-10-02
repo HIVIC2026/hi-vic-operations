@@ -161,5 +161,6 @@
 - [x] Replace synthetic captures with actual-component isolated captures and runtime interaction checks
 
 ## Official VEU form source documents (LR-003)
-- [ ] PIISA form: VEU-pre-installation-installer-safety-assessment-form-.docx (energy.vic.gov.au) — download blocked by site bot-check, retrying
-- [ ] PIESA form: VEU-pre-installation-electrical-safety-assessment-form.docx (energy.vic.gov.au) — download blocked by site bot-check, retrying
+- [x] PIISA form obtained (March 2026) — saved to reference/veu-forms/PIISA-installer-safety-assessment-2026-03.md
+- [x] PIESA form obtained (March 2026) — saved to reference/veu-forms/PIESA-electrical-safety-assessment-2026-03.md
+- [ ] LR-003: field-by-field mapping of portal assessment forms against both official forms
