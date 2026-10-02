@@ -1,47 +1,39 @@
-# Staff portal audit fixes
+# Launch readiness — the exact remaining list
 
-## Scope
-Update only the authenticated staff admin list and job workspace presentation. Preserve all existing server functions, workflow rules, stored data, permissions, routes, forms, integrations, customer/field pages, emails, calculator, and onboarding. Keep the release preview-only.
+## Goal
+Everything left before the portal is 100% ready for launch, grouped so we can work through it in order. Each item names what I do and what needs you.
 
-## Implementation
-1. **Make the admin list primary**
-   - Replace the seven equally prominent tiles with compact primary views/counts and a secondary retained-records control for all, completed, cancelled, and test records.
-   - Correct labels so “all” includes terminal records and “ineligible” is visibly distinct from “on hold,” without changing classification.
-   - Keep search, source, phase, interests, create, selection, and bulk actions; condense filters behind a mobile disclosure.
-   - Keep urgent warnings visible and place routine intake health inside a disclosure.
+## 1. Waiting on your approval to publish (work is done, preview-verified)
+- **Installer pricing acknowledgement (INST-1.10)** — reworded tick-box: installer-brought jobs have no lead fee and no margin, only the $349 AP fee. Ready to publish on your word.
+- **Compact staff portal redesign** — the audit fixes (list, job workspace, Gate 1 evidence, action targets) are complete and verified in preview. Ready to publish on your word.
+- **Signed-copy storage (0075) and hazard→rectification wiring (0077/0074)** — staged and throwaway-tested; need your go-ahead to apply live and publish.
 
-2. **Unify list filtering and selection**
-   - Derive one phase-filtered `visibleJobs` collection and use it for rows, select-all, and empty-state behavior.
-   - Keep filter semantics unchanged and ensure the empty state offers a usable filter reset when no rows match.
+## 2. Needs something from you (blockers I can't clear)
+- **Email sending domain** — customer emails can't send until DNS records for homeinsulationvictoria.com.au are added. I'll give you the exact records; once they're in, I verify and wire the templates.
+- **Mitti forms A2, B, C** — A1 is connected and validated; the other three need to be built from the briefs in Files, then I connect and validate each.
+- **Official PIESA/PIISA form approval** — filling stays blocked until you approve the mapping and confirm source URLs.
+- **Xero invoice design** — I design the invoice layout (co-branded, all lines, VEU discount) and show it to you for approval before the first real one is created.
+- **Two open decisions**: AP fee changes after quote acceptance (currently locked for everyone), and the old electrician-visit path (Ready Check not guaranteed before PIESA on it).
 
-3. **Correct row status and mobile readability**
-   - Give required-review status precedence over stale eligibility outcomes and prevent duplicate badges.
-   - Preserve the authoritative next action, coverage, communications, and stuck indicators.
-   - Wrap full address, owner, and next-action text instead of silently truncating it.
+## 3. Finishing work I can do now (preview-only until you approve)
+- **Insurance certificate reading** — onboarding uploads aren't being read properly; investigate and fix.
+- **Address autocomplete** — suggestion list stays visible after selecting; fix.
+- **Electrician 'application received' screen** — stronger wording with green ticks for what happens next.
+- **Customer web address polish** — bare address opens the calculator only, staff sign-in at /home, no Lovable badge on customer pages.
+- **Customer email redesign** — all templates in the Home Insulation Victoria brand, plain language, one clear button each. Nothing sends until live comms are switched on.
+- **Worker job links** — photo/evidence upload directly on the link page.
 
-4. **Show honest Gate 1 answers and evidence**
-   - Combine the existing intake summary with Gate 1 evidence so each check shows the owner’s actual answer, system/onsite assessment, reason, basis, and a readable provenance label.
-   - Treat missing answers as unknown, never infer an owner answer from pass/fail, and never label property records as owner declarations.
-   - Keep the previous-upgrade wording generic unless the stored answer is more specific.
-   - Add working links to the relevant intake/evidence location while preserving the full raw source in the audit view.
+## 4. Final verification pass (before go-live)
+- Full dummy job run-throughs of the six scenarios (website enquiry, installer-brings-customer complete/partial, our-lead with 24-hour rule, rectification path, overdue/exception paths).
+- Owner portal walkthrough exactly as an owner sees it.
+- Mobile check on every trade screen.
+- Final security/RLS pass and refreshed security scan.
+- Post-publish live checks list (onboarding start, rate limits, test links, insurance quarantine, 15 controls OFF, no external actions).
 
-5. **Add precise, non-mutating navigation targets**
-   - Open the correct disclosure, then scroll and focus the exact consent, deposit-request, signing, message, eligibility, or evidence control after lazy content mounts.
-   - Preserve the installer-owned `evidence_outstanding` action as “Draft a nudge” to messages.
-   - Add a direct AP-review jump to installation evidence without duplicating that form.
-   - Keep disclosure children mounted after first opening so draft state survives collapse and navigation.
+## Go-live gate
+Launch only when: sections 1–3 are cleared, all dummy run-throughs pass, Mitti forms connected, emails approved by you, tests/build/security green. Then you say "go" and live communications switch on.
 
-6. **Reduce repetition on job detail**
-   - Remove repeated top status summaries while retaining source, urgency, blockers, assigned people, operational controls, and all records.
-   - Keep one readable primary timeline and retain detailed/raw history under disclosures.
-
-7. **Document and verify**
-   - Update the audit and workspace review notes with implemented behavior and exact limitations.
-   - Add focused tests for review precedence, phase-empty/select-all consistency, answer/unknown mapping, exact action targeting, and mounted draft preservation where practical.
-   - Run the focused tests and TypeScript check; rely on the preview build signal for build verification.
-   - Use only an isolated local mocked/component harness with blocked mutation requests for 1280px and 390px checks. Capture list and active-detail PNG evidence as compact base64 JSON files under `design-review/`. Do not access authenticated live `/admin`.
-
-## Technical notes
-- Extract small pure display/filter/target helpers where that enables focused tests; no business-rule helpers will be changed.
-- Existing action handlers and server calls remain attached to their current controls; navigation only opens, scrolls, and focuses.
-- No publishing, database changes, live record access, sweeps, or communications.
+## Boundaries
+- Locked Step 1 (Base44 handoff), Gate 1 rules, pricing and payment guards stay untouched.
+- Nothing publishes, sends, charges, or applies to live without your explicit approval on that item.
+- Test jobs stay flagged qa_test, excluded from live totals.
