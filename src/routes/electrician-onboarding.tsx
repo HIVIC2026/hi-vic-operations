@@ -396,7 +396,7 @@ function RecOnboarding() {
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#fff", borderTop: "1px solid #E4E8F0", padding: "12px 20px", zIndex: 10 }}>
       <div style={{ maxWidth: 672, margin: "0 auto", display: "flex", justifyContent: "space-between", gap: 12 }}>
          <button style={btn(false, busy)} disabled={busy} onClick={() => { if (idx === 0) { setStarted(false); window.scrollTo({ top: 0 }); } else void go(-1); }}>Back</button>
-        {step !== "sign" && <button style={btn(true, busy)} disabled={busy} onClick={() => go(1)}>{busy ? "Saving…" : "Save & continue"}</button>}
+        {step !== "sign" && !(step === "about" && d.works_under_rec === true) && <button style={btn(true, busy)} disabled={busy} onClick={() => go(1)}>{busy ? "Saving…" : "Save & continue"}</button>}
       </div>
     </div>
   );
@@ -426,16 +426,21 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
   switch (step) {
     case "about":
       return <>
-        <div style={infoCard}>First things first — so we know who we're talking to. We'll use your name throughout.</div>
-        <Field label="Your name" required><input style={input} autoFocus placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
-        <Check checked={d.contact_is_licensed_electrician === true} onChange={(v) => up({ contact_is_licensed_electrician: v ? true : null })} required error={showErrors && d.contact_is_licensed_electrician !== true ? "Confirm you are a licensed electrician to continue." : null}>I am a licensed electrician authorised to register this REC business with Home Insulation Victoria.</Check>
-        <Field label="Your Victorian electrician licence number" required hint="Your personal Energy Safe Victoria electrical licence number."><input style={input} {...t("licence_number", true)} /></Field>
-        <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
-        <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
-        <Field label="Are you registering the business, or joining as staff?" required>
-          <Choice options={[{ v: false as boolean, l: "I'm registering the REC business" }, { v: true as boolean, l: "I'm a staff member" }]} value={d.works_under_rec ?? null} onChange={(v) => up({ works_under_rec: v })} />
+        <Field label="What would you like to do?" required>
+          <Choice options={[{ v: false as boolean, l: "Register my REC business" }, { v: true as boolean, l: "Join as staff" }]} value={d.works_under_rec ?? null} onChange={(v) => up({ works_under_rec: v })} />
         </Field>
-        {d.works_under_rec === true && <WorkerStop who="REC" />}
+        {d.works_under_rec === true && <>
+          <WorkerStop who="REC" />
+          <button type="button" style={{ ...btn(false), marginTop: 12 }} onClick={() => up({ works_under_rec: false })}>Register my REC business instead</button>
+        </>}
+        {d.works_under_rec === false && <>
+          <div style={infoCard}>So we know who we're talking to. We'll use your name throughout.</div>
+          <Field label="Your name" required><input style={input} placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
+          <Check checked={d.contact_is_licensed_electrician === true} onChange={(v) => up({ contact_is_licensed_electrician: v ? true : null })} required error={showErrors && d.contact_is_licensed_electrician !== true ? "Confirm you are a licensed electrician to continue." : null}>I am a licensed electrician.</Check>
+          <Field label="Your Victorian electrician licence number" required hint="Your personal Energy Safe Victoria electrical licence number."><input style={input} {...t("licence_number", true)} /></Field>
+          <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
+          <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
+        </>}
       </>;
     case "business":
       return <>
@@ -456,7 +461,6 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
       return <>
          <Field label="Australian business address" required hint="Start typing and choose the verified address from the list"><AddressInput id="business-address" value={d.business_address ?? ""} onChange={(v) => up({ business_address: v })} onSelect={(v) => up({ business_address_details: v })} /></Field>
         <div style={{ ...infoCard, marginBottom: 16 }}>Contact: <strong>{d.primary_contact_name}</strong> · {d.business_phone} · {d.business_email} — if any of these are wrong, go back to "About you".</div>
-        {d.works_under_rec !== true && <Check checked={d.authorised_to_register === true} onChange={(v) => up({ authorised_to_register: v })}>I'm authorised to set up this REC.</Check>}
       </>;
     case "insurance":
       return <InsuranceStep d={d} up={up} token={token} setError={setError} preview={preview} onRevision={onRevision} />;
@@ -499,7 +503,11 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
       const unit = d.gst_registered === false ? "total rate" : "inc GST";
       return <>
         <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
-        <div style={infoCard}>{d.gst_registered === false ? "Enter your total supplier rate." : "Enter your supplier rate including GST."} Home Insulation Victoria reviews proposed rates before they apply. Approved supplier rates are separate from the customer price and do not guarantee work.</div>
+        <div style={infoCard}>{d.gst_registered === false ? "Enter your total supplier rate." : "Enter your supplier rate including GST."} Home Insulation Victoria reviews proposed rates before they apply. Approved supplier rates are separate from the customer price.</div>
+        <div style={{ border: `2px solid ${BLUE}`, background: "#EEF1FB", borderRadius: 12, padding: "12px 14px", margin: "0 0 16px" }}>
+          <strong style={{ color: BLUE, display: "block", marginBottom: 4 }}>Sharper rates can support more work</strong>
+          <span style={{ fontSize: 14, lineHeight: 1.5 }}>Competitive supplier rates help Home Insulation Victoria keep projects affordable and can support more customers proceeding—and more work for your business. Offer your best sustainable rates while maintaining safety and quality. Job volume depends on customer demand, location, availability and performance; no minimum volume is guaranteed.</span>
+        </div>
         <Field label={`Pre-Insulation Electrical Safety Assessment (PIESA) visit (${unit})`} required hint="Formal electrical safety assessment, required tests, evidence and PIESA submission."><Money value={d.assessment_rate} onChange={(v) => up({ assessment_rate: v })} unit="visit" /></Field>
         {<Field label={`Installation-day attendance (${unit})`} required><Money value={d.installation_attendance_rate} onChange={(v) => up({ installation_attendance_rate: v })} unit="visit" /></Field>}
       </>;
@@ -507,6 +515,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
     case "rectification_pricing": {
       const r = d.rectification_rates ?? {};
       return <>
+        <div style={{ ...infoCard, fontWeight: 600 }}>Use the same sharp, sustainable approach for your rectification rates.</div>
         <div style={infoCard}>
           <strong>We provide an assessment app for your PIESA visit.</strong>
           <TickList items={[
