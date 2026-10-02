@@ -155,6 +155,8 @@ export type PrefillCtx = {
   jobNumber: string; address: string; ownerName: string; ownerEmail?: string | null; ownerPhone?: string | null;
   assessorName: string; assessmentAt?: string | null; estimatedAreaM2?: number | null; occupancy?: string | null;
   lifeSupport?: string | null; propertyType?: string | null;
+  /** Official PIESA "Date of inspection" default (today, Melbourne); the electrician can change it. */ inspectionDate?: string | null;
+  /** Official PIESA life-support question, from the owner's DECLARED enquiry answer ("Yes"/"No"); blank when unknown. */ lifeSupportDeclared?: string | null;
 };
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
   { key: "jobNumber", aliases: ["Portal Job Number", "Job Reference ID"], mandatory: true },
@@ -168,6 +170,8 @@ const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; 
   { key: "occupancy", aliases: ["Occupancy"] },
   { key: "lifeSupport", aliases: ["Life support status", "Office life support result", "Office life support status"] },
   { key: "propertyType", aliases: ["Property type"] },
+  { key: "inspectionDate", aliases: ["Date of inspection"], datetime: true },
+  { key: "lifeSupportDeclared", aliases: ["Is anyone at this property dependent on life support?"] },
 ];
 
 const PROPERTY_TYPE_OPTIONS = ["House", "Townhouse", "Unit or apartment"] as const;

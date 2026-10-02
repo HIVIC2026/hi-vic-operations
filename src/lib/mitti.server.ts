@@ -10,6 +10,7 @@ import { jobScope } from "./requirements.server";
 import { readyCheckVariant } from "./mitti-forms.core";
 import { officialFormUseBlocker, answersFromEntries, evaluatePiesa } from "./official-forms.core";
 import { formatPropertyAddress } from "./address";
+import { todayMelbourne } from "./eligibility.server";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
@@ -52,7 +53,7 @@ async function templateIds() {
 }
 
 export async function createAssignMittiAudit(jobId: string, actorId: string, call: MittiCall = realMittiCall) {
-  const { data: job } = await admin.from("jobs").select("id,job_number,business_unit,stage,estimated_area_m2,life_support,property_id,owner_id,channel").eq("id", jobId).single();
+  const { data: job } = await admin.from("jobs").select("id,job_number,business_unit,stage,estimated_area_m2,life_support,life_support_status,property_id,owner_id,channel").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
   const scope = await jobScope(jobId);
   if (scope.scope === "COMPLETE") throw new WorkflowError("Both site requirements are already complete – no Mitti audit needed.");
@@ -89,6 +90,8 @@ export async function createAssignMittiAudit(jobId: string, actorId: string, cal
         assessorName: prof?.full_name || prof?.email || "", assessmentAt: booking?.scheduled_start ?? null,
         estimatedAreaM2: job.estimated_area_m2 != null ? Number(job.estimated_area_m2) : null,
         occupancy: prop?.occupancy ? prop.occupancy.replace("_", " ") : null, lifeSupport: job.life_support ? "Yes – life support recorded" : "None recorded by office",
+        inspectionDate: measureOnly ? null : todayMelbourne(),
+        lifeSupportDeclared: measureOnly ? null : job.life_support_status === "yes" ? "Yes" : job.life_support_status === "no" ? "No" : null,
         propertyType: propertyTypeOption((prop?.enrichment as Any)?.base44?.declared?.property_type ?? null),
       },
     });

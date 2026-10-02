@@ -13,6 +13,19 @@ export const getPiisaPanel = createServerFn({ method: "POST" }).middleware([requ
     return piisaPanel(data.jobId, todayMelbourne());
   });
 
+/** Office preview of the PIESA/PIISA pre-fills, reminders and cross-checks for a job (read-only). */
+export const getOfficialPrefill = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), key: z.enum(["piesa", "piisa"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const { officialPrefillContext } = await import("./official-forms.server");
+    const { todayMelbourne } = await import("./eligibility.server");
+    const { officialPrefill, seedAnswers } = await import("./official-prefill.core");
+    const hints = officialPrefill(data.key, await officialPrefillContext(data.jobId, todayMelbourne(), null));
+    return { hints, seed: seedAnswers(hints) };
+  });
+
 /** Office invalidates a stale signed copy (reason required, permanent). */
 export const invalidateOfficialCopy = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid(), reason: z.string().trim().min(5).max(500) }).parse(d))
