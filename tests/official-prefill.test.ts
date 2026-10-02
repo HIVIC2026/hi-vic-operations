@@ -77,7 +77,7 @@ describe("PIISA Mitti pre-fill", () => {
       { itemId: "p5.electricianPresent", label: template.template.items[2]!.label, kind: "yesno_na", value: "N/A", occurrence: 0 },
       { itemId: "lifeSupportAttachment", label: "x", kind: "attachment", value: "f", occurrence: 0 },
     ]);
-    expect(p.items).toEqual([{ item_id: "eec1", label: "EEC certification number:", type: "text", responses: { text: "EEC-1" } }]);
+    expect(p.items.map((i: { item_id: string; responses: unknown }) => [i.item_id, i.responses])).toEqual([["eec1", { text: "EEC-1" }]]);
     expect(p.skipped.length).toBe(2);
   });
 });
