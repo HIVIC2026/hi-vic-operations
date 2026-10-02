@@ -30,7 +30,7 @@ const JOB_STAGES = [...ACCEPTANCE_STAGES, "measured_quote_accepted", "piesa_and_
 const tabOf = (stage: string | null | undefined): Tab => QUOTE_STAGES.includes(stage ?? "") ? "quotes" : JOB_STAGES.includes(stage ?? "") ? "jobs" : "enquiries";
 const TAB_TITLE: Record<Tab, string> = { jobs: "ACTIVE JOBS", quotes: "PENDING QUOTE APPROVAL", enquiries: "ENQUIRIES", ineligible: "INELIGIBLE" };
 
-const PRIMARY_VIEWS: { key: WorkView; label: string }[] = [{ key: "active", label: "In progress" }, { key: "review", label: "Needs review" }, { key: "ineligible", label: "Ineligible or on hold" }];
+const PRIMARY_VIEWS: { key: WorkView; label: string }[] = [{ key: "active", label: "In progress" }, { key: "review", label: "Needs review" }, { key: "ineligible", label: "Exceptions" }];
 const SECONDARY_VIEWS: { key: WorkView; label: string }[] = [{ key: "all", label: "All non-test records" }, { key: "finalised", label: "Finalised" }, { key: "cancelled", label: "Cancelled" }, { key: "test", label: "Test records" }];
 
 export const Route = createFileRoute("/_authenticated/admin/")({

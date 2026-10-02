@@ -137,10 +137,10 @@
 - [ ] Installer pricing acknowledgement reworded + agreement bumped INST-1.9 → INST-1.10 (installer-brought jobs: no lead fee, no margin, only the $349 AP fee) — preview only, awaiting Jo approval to publish
 
 ## Portal brief fixes — approved preview-only
-- [ ] Compact admin views, filters, diagnostics and accurate retained-record labels
-- [ ] Single visibleJobs path for rows, selection and empty states
-- [ ] Fix stale eligibility badge precedence and mobile wrapping
-- [ ] Show actual Gate 1 answers, assessments, reasons and meaningful provenance
-- [ ] Add precise non-mutating action targets and AP evidence jump
-- [ ] Remove repeated job status/timeline summaries without losing records
+- [x] Compact admin views, filters, diagnostics and accurate retained-record labels
+- [x] Single visibleJobs path for rows, selection and empty states
+- [x] Fix stale eligibility badge precedence and mobile wrapping
+- [x] Show actual Gate 1 answers, assessments, reasons and meaningful provenance
+- [x] Add precise non-mutating action targets and AP evidence jump
+- [x] Remove repeated job status/timeline summaries without losing records
 - [ ] Update review notes; run focused checks and isolated mocked visual captures

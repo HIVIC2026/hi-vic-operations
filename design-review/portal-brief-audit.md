@@ -1,4 +1,21 @@
-# Portal brief audit (read-only, source-only) — HEAD 0dce1f40
+# Portal brief audit — fixes implemented 2 Oct 2026
+
+## Implementation result
+- **List density fixed:** primary work views are compact controls; terminal, all non-test, and QA records sit in a secondary selector. Routine intake health is disclosed, while communications lock and critical warnings remain visible. “All non-test records” accurately includes complete/cancelled records. The Exceptions view reports separate Ineligible and On hold counts without changing classification.
+- **Filtering fixed:** one phase-filtered `visibleJobs` collection now drives rows, select-all, and the empty state. A no-match state offers Clear filters.
+- **Status precedence fixed:** required review suppresses a stale eligibility outcome; full address, owner, and next-action text wraps.
+- **Gate 1 glance fixed:** every row now separates the stored owner answer, assessment/reason, and basis/provenance. Missing answers are explicit; property state is not presented as an owner answer; declarations remain unverified. Every row links to intake or full evidence, where raw source strings remain available.
+- **Navigation fixed:** consent, deposit request, signing, Gate 1, correspondence, documents, and evidence use precise focus/scroll targets after opening the disclosure. Installer-owned evidence-outstanding remains “Draft a nudge” to correspondence. AP review now has a direct link to the single installation-evidence panel.
+- **Repetition reduced:** duplicate stage/payment summary bands were removed. The readable timeline is primary; detailed and raw audit history remain under one disclosure.
+
+## Verification
+- `tsgo --noEmit`: pass.
+- Focused tests: 16 pass, 0 fail (`portal-presentation`, `admin-pipeline-visibility`, `waiting.core`).
+- Preview build signal: build OK.
+- Isolated visual check uses synthetic QA-only data in a local, network-blocked source-derived harness. It does not import the authenticated route because that route owns automatic sweep/advance effects. No authenticated `/admin` navigation or live data access occurred.
+- Captures: `portal-brief-audit-admin-desktop.json` and `portal-brief-audit-admin-mobile.json`; each contains list and active-detail PNG bytes plus viewport metadata.
+
+## Prior audit record
 
 No screenshots were taken. The live /admin page always runs sweepAuthorities + autoAdvancePipeline on load
 (admin.index.tsx:80-87), and every list read is a server call. A safe mocked harness would need hand-built
@@ -7,7 +24,7 @@ server-function responses, so it was not attempted. No live navigation was made 
 record is the earlier QA capture (`portal-workspace-desktop.json` / `portal-workspace-mobile.json`, QA job
 HV-1128); everything below is traced from source, not freshly verified on screen.
 
-## Findings (severity-ranked)
+### Findings before implementation (severity-ranked)
 1. MEDIUM: The list header is dense. Before the first job row there are a header, a counts line, 7 count
    cards, a split line, a warning banner, a pre-launch notice, an intake-health strip, a filter bar and a
    select-all row (admin.index.tsx:139-180). On mobile the count cards render as a two-column, four-row grid.
@@ -51,7 +68,7 @@ HV-1128); everything below is traced from source, not freshly verified on screen
 11. LOW: The terminal-job action { label "Open history", tab "overview" } maps to People, not History
     (waiting.core.ts:100). The button is hidden for terminal jobs (job-workspace.tsx:98), so latent only.
 
-## Brief matrix
+### Brief matrix before implementation
 | Item | Result |
 |---|---|
 | List: identity / outcome / one next action per row | PASS |
@@ -69,7 +86,7 @@ HV-1128); everything below is traced from source, not freshly verified on screen
 | Disclosure state accessible (aria-expanded/controls/region) | PASS |
 | Desktop + phone usability | PARTIAL — not visually verified in this audit |
 
-## Limitations
+### Original audit limitations
 Source-only audit. No fresh screenshots, no live navigation, no runtime test runs. Action handlers and
 guards were verified as preserved by code mapping, not by exercising them. The earlier QA screenshots
 (HV-1128) remain the only on-screen evidence.
