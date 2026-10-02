@@ -1,6 +1,6 @@
 // Installer-led jobs: the installer brings their own customer; Home Insulation Victoria is the AP and invoices the
 // owner with co-branding. Pure rules only.
-import { FORMS, type QuotedPrice } from "./mitti-forms.core";
+import { FORMS, validateQuotedPrice, type QuotedPrice } from "./mitti-forms.core";
 
 export const HIVIC_PIESA_INC_GST = 349;
 export type ElectricianChoice = "installer_own" | "hivic_matched" | "installer_own_hivic_books";
@@ -158,7 +158,6 @@ export function evidenceFromRecords(m: MeasurementRecord, evidenceCategories: st
 }
 
 // ---------------- Automatic co-branded quote from the priced Ready Check (Form A1) ----------------
-import { validateQuotedPrice } from "./mitti-forms.core";
 
 const pick = (entries: { label: string; value: string | null }[], label: string) =>
   entries.find((e) => e.label.trim().toLowerCase() === label.toLowerCase())?.value ?? null;
