@@ -61,11 +61,12 @@ const PIISA_SUPPLEMENTAL: FormField[] = [
 
 /** Pricing section — installer-sourced jobs only (Form A1). Tick what's included, describe Other, ONE total price. */
 export const PRICE_ITEMS = ["R5.0 supply and install", "Removal of existing insulation", "Difficult access", "Tile lift", "Metal sheet access", "Other"] as const;
+/** The installer's form may word an inclusion slightly differently; both mean the same line. */
+const PRICE_ALIASES: Record<string, string> = { "r5.0 ceiling insulation - supply & install": "R5.0 supply and install" };
 export const PRICING_FIELDS: FormField[] = [
-  { label: "What's included in your price (tick all that apply)", type: "multichoice", required: true, choices: [...PRICE_ITEMS], source: "portal – 'R5.0 supply and install' must be ticked; Removal ticked only when an area says Remove" },
-  { label: "Describe the other item", type: "text", required: true, when: "Other is ticked", source: "portal – required only when Other is ticked" },
-  { label: "Total quoted price $", type: "number", required: true, source: "portal – one total incl GST; becomes the installer line on the owner's co-branded quote" },
-  { label: "Price already agreed with the owner?", type: "choice", required: true, choices: ["Yes", "No"], source: "portal – if Yes, their price stays and our fees go on top, less the VEU discount" },
+  { label: "What's included in your quote?", type: "multichoice", required: true, choices: ["R5.0 ceiling insulation - supply & install", "Removal of existing insulation", "Other"], source: "portal – 'R5.0 ceiling insulation - supply & install' must be ticked; Removal ticked only when an area says Remove" },
+  { label: "What else is included?", type: "text", required: true, when: "Other is ticked", source: "portal – required only when Other is ticked" },
+  { label: "Total quoted price (inc GST)", type: "number", required: true, source: "portal – one total incl GST; becomes the installer line on the owner's co-branded quote" },
 ];
 
 const READY_CHECK_TITLE = "Home Insulation Victoria | Ready Check – Eligibility & Measure-up (Installer)";
