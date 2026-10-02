@@ -401,11 +401,18 @@ function StepBody({ step, d, up, token, setError, preview, onRevision }: { step:
       return <>
         <div style={infoCard}>
           <strong>Home Insulation Victoria provides pre-installation electrical safety assessment (PIESA) jobs in your service area.</strong>
-          <ol style={{ margin: "8px 0 0", paddingLeft: 20, lineHeight: 1.6 }}>
-            <li>Complete the electrical safety assessment and submit the PIESA through our portal.</li>
-            <li>Identify and quote only the electrical rectification required for the ceiling insulation to be installed safely. Complete that work once the scope and price are approved through Home Insulation Victoria.</li>
-            <li>Attend the installation on site when electrical attendance is required.</li>
-          </ol>
+          <ul style={{ margin: "10px 0 0", padding: 0, listStyle: "none" }}>
+            {[
+              "Complete the electrical safety assessment and submit the PIESA through our portal.",
+              "Identify and quote only the electrical rectification required for the ceiling insulation to be installed safely. Complete that work once the scope and price are approved through Home Insulation Victoria.",
+              "Attend the installation on site when electrical attendance is required.",
+            ].map((line, i) => (
+              <li key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginTop: 8 }}>
+                <span aria-hidden="true" style={{ flexShrink: 0, width: 22, height: 22, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>✓</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
         </div>
         <Check checked={d.services_all_confirmed === true} onChange={(v) => up({ services_all_confirmed: v })}>I confirm our REC can provide all three electrical services listed above, as required for each job.</Check>
       </>;
