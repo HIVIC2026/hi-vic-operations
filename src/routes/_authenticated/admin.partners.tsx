@@ -42,13 +42,17 @@ function Partners() {
   const of = (t: PartnerType) => visible.filter((r) => r.enquiry_type === t);
   // Open a linked enquiry once; closing it must not reopen it while the link is being cleared.
   const autoOpened = useRef<string | null>(null);
+  const openedFromUrl = useRef(false);
+  const opener = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    if (!enquiry || open || autoOpened.current === enquiry) return;
+    if (!enquiry) { if (autoOpened.current && openedFromUrl.current) { openedFromUrl.current = false; setOpen(null); } autoOpened.current = null; return; }
+    if (open || autoOpened.current === enquiry) return;
     const selected = rows.find((row) => row.id === enquiry);
     if (!selected) return;
     setQueue(selected.status === "approved" ? "approved" : ["declined", "closed"].includes(selected.status) ? "history" : "review");
     setPartnerType(selected.enquiry_type as PartnerType);
     autoOpened.current = enquiry;
+    openedFromUrl.current = true;
     setOpen(selected);
   }, [enquiry, open, rows]);
   return (
@@ -73,7 +77,7 @@ function Partners() {
                 {of(t).map((r) => {
                   const issues = partnerIssues(r);
                   return (
-                  <button key={r.id} onClick={() => setOpen(r)} className="rounded-xl border bg-card p-4 text-left text-sm hover:border-primary">
+                  <button key={r.id} data-enquiry-card={r.id} onClick={(e) => { opener.current = e.currentTarget; openedFromUrl.current = false; setOpen(r); }} className="rounded-xl border bg-card p-4 text-left text-sm hover:border-primary">
                     <div className="flex items-start justify-between gap-2"><div className="font-semibold">{r.company || r.name || "Unnamed"}</div><Badge variant="outline" className="capitalize">{r.status}</Badge></div>
                     {issues.length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">
@@ -96,7 +100,7 @@ function Partners() {
           </TabsContent>
         ))}
       </Tabs>}
-      {open && <Detail row={rows.find((r) => r.id === open.id) ?? open} onClose={() => { setOpen(null); if (enquiry) void navigate({ search: { enquiry: undefined }, replace: true }); }} />}
+      {open && <Detail row={rows.find((r) => r.id === open.id) ?? open} onClose={() => { const id = open.id; setOpen(null); openedFromUrl.current = false; if (enquiry) void navigate({ search: { enquiry: undefined }, replace: true }); const el = opener.current ?? document.querySelector<HTMLElement>(`[data-enquiry-card="${id}"]`); requestAnimationFrame(() => el?.focus()); }} />}
     </AppShell>
   );
 }
