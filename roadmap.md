@@ -159,3 +159,7 @@
 - [x] Remove repeated job status/timeline summaries without losing records
 - [x] Update review notes; run focused checks and isolated mocked visual captures
 - [x] Replace synthetic captures with actual-component isolated captures and runtime interaction checks
+
+## Official VEU form source documents (LR-003)
+- [ ] PIISA form: VEU-pre-installation-installer-safety-assessment-form-.docx (energy.vic.gov.au) — download blocked by site bot-check, retrying
+- [ ] PIESA form: VEU-pre-installation-electrical-safety-assessment-form.docx (energy.vic.gov.au) — download blocked by site bot-check, retrying
