@@ -312,8 +312,9 @@ export function parseAudit(audit: Any) {
     excl: ["Excluded area", "Excluded ceiling area"],
   };
   // Group per-area fields by their repeat-instance parent so each area's m2/removal/insulation stay together.
-  // New A1/A2 forms capture "Length (m)" × "Width (m)" per area (portal computes m2); legacy forms used "Measured area m2".
-  const isAreaKid = (e: Any) => !e.header && [norm("Measured area m2"), norm("Length (m)")].includes(e.norm) && e.value != null;
+  // A2 (our leads) captures "Length (m)" × "Width (m)" per area; A1 (installer's own customers) captures the
+  // measured m² directly. Legacy forms used "Measured area m2".
+  const isAreaKid = (e: Any) => !e.header && [norm("Measured area m2"), norm("Length (m)"), norm("Enter the measured ceiling area (m²)")].includes(e.norm) && e.value != null;
   const roomParents = new Set(entries.filter(isAreaKid).map((e) => e.parent ?? e.id));
   const rooms = [...roomParents].map((p) => {
     const kids = entries.filter((e) => (e.parent ?? e.id) === p);
