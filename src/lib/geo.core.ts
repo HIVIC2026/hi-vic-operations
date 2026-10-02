@@ -1,6 +1,6 @@
 // Photo/video location rule (Jo, 2026-10-02): onsite evidence must carry a location taken at the property.
 // PURE. Missing location or too far away = refused; the worker retakes it onsite.
-export type Fix = { lat: number; lng: number; accuracyM?: number | null } | null | undefined;
+export type Fix = { lat: number; lng: number; accuracyM?: number | null | undefined } | null | undefined;
 export type PropertyPoint = { lat: number; lng: number } | null;
 
 export function distanceM(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
