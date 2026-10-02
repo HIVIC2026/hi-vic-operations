@@ -4684,6 +4684,218 @@ export type Database = {
           },
         ]
       }
+      onboarding_authorisation_events: {
+        Row: {
+          actor: string | null
+          application_id: string | null
+          authorisation_id: string | null
+          created_at: string
+          event: string
+          id: number
+        }
+        Insert: {
+          actor?: string | null
+          application_id?: string | null
+          authorisation_id?: string | null
+          created_at?: string
+          event: string
+          id?: never
+        }
+        Update: {
+          actor?: string | null
+          application_id?: string | null
+          authorisation_id?: string | null
+          created_at?: string
+          event?: string
+          id?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_authorisation_events_authorisation_id_fkey"
+            columns: ["authorisation_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_authorisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onboarding_authorisations: {
+        Row: {
+          allow_incomplete_sign: boolean
+          created_at: string
+          expires_at: string
+          id: string
+          issued_by: string
+          max_uses: number
+          note: string | null
+          purpose: string
+          revoked_at: string | null
+          revoked_by: string | null
+          token_hash: string
+          trade: string
+          uses: number
+        }
+        Insert: {
+          allow_incomplete_sign?: boolean
+          created_at?: string
+          expires_at: string
+          id?: string
+          issued_by: string
+          max_uses?: number
+          note?: string | null
+          purpose: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          token_hash: string
+          trade: string
+          uses?: number
+        }
+        Update: {
+          allow_incomplete_sign?: boolean
+          created_at?: string
+          expires_at?: string
+          id?: string
+          issued_by?: string
+          max_uses?: number
+          note?: string | null
+          purpose?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          token_hash?: string
+          trade?: string
+          uses?: number
+        }
+        Relationships: []
+      }
+      onboarding_limit_clearances: {
+        Row: {
+          actor: string
+          attempts_cleared: number
+          created_at: string
+          fingerprint_hash: string
+          id: number
+          kind: string
+          reason: string
+          trade: string
+        }
+        Insert: {
+          actor: string
+          attempts_cleared: number
+          created_at?: string
+          fingerprint_hash: string
+          id?: never
+          kind: string
+          reason: string
+          trade: string
+        }
+        Update: {
+          actor?: string
+          attempts_cleared?: number
+          created_at?: string
+          fingerprint_hash?: string
+          id?: never
+          kind?: string
+          reason?: string
+          trade?: string
+        }
+        Relationships: []
+      }
+      onboarding_quarantine_uploads: {
+        Row: {
+          application_id: string
+          bytes: number | null
+          claim_until: string | null
+          cleanup_run_id: number | null
+          issued_at: string
+          path: string
+          resolved_at: string | null
+          state: string
+        }
+        Insert: {
+          application_id: string
+          bytes?: number | null
+          claim_until?: string | null
+          cleanup_run_id?: number | null
+          issued_at?: string
+          path: string
+          resolved_at?: string | null
+          state?: string
+        }
+        Update: {
+          application_id?: string
+          bytes?: number | null
+          claim_until?: string | null
+          cleanup_run_id?: number | null
+          issued_at?: string
+          path?: string
+          resolved_at?: string | null
+          state?: string
+        }
+        Relationships: []
+      }
+      onboarding_start_attempts: {
+        Row: {
+          allowed: boolean
+          clearance_id: number | null
+          cleared_at: string | null
+          cleared_by: string | null
+          created_at: string
+          fingerprint_hash: string
+          id: number
+          kind: string
+          trade: string
+        }
+        Insert: {
+          allowed: boolean
+          clearance_id?: number | null
+          cleared_at?: string | null
+          cleared_by?: string | null
+          created_at?: string
+          fingerprint_hash: string
+          id?: never
+          kind: string
+          trade: string
+        }
+        Update: {
+          allowed?: boolean
+          clearance_id?: number | null
+          cleared_at?: string | null
+          cleared_by?: string | null
+          created_at?: string
+          fingerprint_hash?: string
+          id?: never
+          kind?: string
+          trade?: string
+        }
+        Relationships: []
+      }
+      onboarding_upload_cleanup_runs: {
+        Row: {
+          actor: string | null
+          bytes_removed: number
+          created_at: string
+          files_removed: number
+          id: number
+          trigger: string
+        }
+        Insert: {
+          actor?: string | null
+          bytes_removed: number
+          created_at?: string
+          files_removed: number
+          id?: never
+          trigger: string
+        }
+        Update: {
+          actor?: string | null
+          bytes_removed?: number
+          created_at?: string
+          files_removed?: number
+          id?: never
+          trigger?: string
+        }
+        Relationships: []
+      }
       owner_authorities: {
         Row: {
           acceptance_method: string | null
@@ -7785,10 +7997,18 @@ export type Database = {
           agreement_text: string | null
           agreement_title: string | null
           agreement_version: string | null
+          allow_incomplete_sign: boolean
+          authorisation_id: string | null
+          contact_hash: string | null
           created_at: string
           data: Json
           id: string
           insurance_certificate_path: string | null
+          insurance_file_bytes: number | null
+          insurance_file_sha256: string | null
+          insurance_file_type: string | null
+          insurance_scan_result: string | null
+          insurance_verified_at: string | null
           partner_enquiry_id: string | null
           partner_type: string
           resume_token_hash: string
@@ -7809,10 +8029,18 @@ export type Database = {
           agreement_text?: string | null
           agreement_title?: string | null
           agreement_version?: string | null
+          allow_incomplete_sign?: boolean
+          authorisation_id?: string | null
+          contact_hash?: string | null
           created_at?: string
           data?: Json
           id?: string
           insurance_certificate_path?: string | null
+          insurance_file_bytes?: number | null
+          insurance_file_sha256?: string | null
+          insurance_file_type?: string | null
+          insurance_scan_result?: string | null
+          insurance_verified_at?: string | null
           partner_enquiry_id?: string | null
           partner_type?: string
           resume_token_hash: string
@@ -7833,10 +8061,18 @@ export type Database = {
           agreement_text?: string | null
           agreement_title?: string | null
           agreement_version?: string | null
+          allow_incomplete_sign?: boolean
+          authorisation_id?: string | null
+          contact_hash?: string | null
           created_at?: string
           data?: Json
           id?: string
           insurance_certificate_path?: string | null
+          insurance_file_bytes?: number | null
+          insurance_file_sha256?: string | null
+          insurance_file_type?: string | null
+          insurance_scan_result?: string | null
+          insurance_verified_at?: string | null
           partner_enquiry_id?: string | null
           partner_type?: string
           resume_token_hash?: string
@@ -7852,6 +8088,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rec_onboarding_applications_authorisation_id_fkey"
+            columns: ["authorisation_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_authorisations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rec_onboarding_applications_partner_enquiry_id_fkey"
             columns: ["partner_enquiry_id"]
@@ -8965,6 +9208,10 @@ export type Database = {
           payment_status: string
         }[]
       }
+      begin_quarantine_validation: {
+        Args: { _app: string; _path: string }
+        Returns: boolean
+      }
       bump_referral_counter: {
         Args: { _field: string; _id: string }
         Returns: undefined
@@ -9027,6 +9274,23 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      claim_quarantine_cleanup: {
+        Args: { _app?: string; _limit: number }
+        Returns: {
+          application_id: string
+          path: string
+        }[]
+      }
+      clear_onboarding_start_block: {
+        Args: {
+          _actor: string
+          _fp: string
+          _kind: string
+          _reason: string
+          _trade: string
+        }
+        Returns: number
+      }
       commit_guarded_stage: {
         Args: {
           _actor: string
@@ -9042,6 +9306,18 @@ export type Database = {
       }
       consume_cron_nonce: {
         Args: { _nonce: string; _purpose: string }
+        Returns: boolean
+      }
+      consume_onboarding_authorisation: {
+        Args: { _hash: string; _trade: string }
+        Returns: {
+          allow_incomplete_sign: boolean
+          id: string
+          purpose: string
+        }[]
+      }
+      consume_onboarding_start: {
+        Args: { _fp: string; _kind: string; _trade: string }
         Returns: boolean
       }
       consume_worker_access_budget: {
@@ -9073,6 +9349,28 @@ export type Database = {
         }
         Returns: string
       }
+      finish_quarantine_cleanup: {
+        Args: {
+          _actor?: string
+          _bytes: number[]
+          _paths: string[]
+          _trigger: string
+        }
+        Returns: {
+          bytes: number
+          files: number
+          run_id: number
+        }[]
+      }
+      finish_quarantine_validation: {
+        Args: {
+          _accepted: boolean
+          _app: string
+          _bytes: number
+          _path: string
+        }
+        Returns: boolean
+      }
       format_property_address: {
         Args: {
           _address_line: string
@@ -9103,8 +9401,22 @@ export type Database = {
       job_authority_expires_at: { Args: { _job: string }; Returns: string }
       job_authority_status: { Args: { _job: string }; Returns: string }
       job_deposit_cleared: { Args: { _job: string }; Returns: boolean }
+      list_onboarding_start_blocks: {
+        Args: never
+        Returns: {
+          blocked: boolean
+          fingerprint_hash: string
+          kind: string
+          last_attempt: string
+          recent_15m: number
+          recent_24h: number
+          refused: number
+          trade: string
+        }[]
+      }
       my_job_role: { Args: { _job: string }; Returns: string }
       post_intake_tick: { Args: { _url: string }; Returns: number }
+      record_expired_onboarding_authorisations: { Args: never; Returns: number }
       review_external_action: {
         Args: {
           _actor: string
@@ -9113,6 +9425,10 @@ export type Database = {
           _reason: string
         }
         Returns: undefined
+      }
+      revoke_onboarding_authorisation: {
+        Args: { _actor: string; _id: string }
+        Returns: boolean
       }
       set_external_action_mode: {
         Args: {

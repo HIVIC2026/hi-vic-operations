@@ -129,4 +129,5 @@
 - [x] Partner enquiry detail box: pressing X reopens instead of closing (preview only)
 - [x] Active jobs: '179 in progress' count doesn't match the dropdown list (preview only)
 - [x] Job detail page not opening (/admin/jobs/<id>)
-- [ ] 0079 final pre-publish checks (backup Oct 2 01:15:21 UTC given); then ask separately: APPLY 0079 ONLY / PUBLISH NARROW ONBOARDING SECURITY RELEASE
+- [x] 0079 final checks + applied live (recorded as drizzle 0074_onboarding_security); live DB checks passed
+- [ ] PUBLISH THE NARROW ONBOARDING SECURITY RELEASE — awaiting Jo approval
