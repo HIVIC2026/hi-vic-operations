@@ -42,7 +42,7 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
     electricalCost: number; electricalChargeEx: number;
     piesaCostEx: number | null; piesaCostMissing: boolean;
     lodgementFeeExGst: number | null;
-    costMissing: boolean; installerSourced: boolean; installerLed?: boolean;
+    costMissing: boolean; installerSourced: boolean; installerLed?: boolean; leadFeeEarned: boolean;
   }>();
   const gst = 1.1;
   const ensure = (jobId: string) => byJob.get(jobId) ?? {
@@ -51,7 +51,7 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
     electricalCost: 0, electricalChargeEx: 0,
     piesaCostEx: piesaRecCost, piesaCostMissing: piesaRecCost == null,
     lodgementFeeExGst,
-    costMissing: false, installerSourced: false,
+    costMissing: false, installerSourced: false, leadFeeEarned: false,
   };
   for (const q of quotes.data ?? []) {
     const cur = ensure(q.job_id);
@@ -81,6 +81,7 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
   const rows = (jobs.data ?? []).filter((j) => j.id && byJob.has(j.id) && j.source !== "qa_test" && j.stage !== "cancelled").map((j) => ({
     jobId: j.id!, jobNumber: j.job_number, address: j.property_address, owner: j.owner_name, stage: j.stage,
     ...byJob.get(j.id!)!, installerSourced: channelByJob.get(j.id!) === "hivic_sourced", installerLed: channelByJob.get(j.id!) === "installer_sourced",
+    leadFeeEarned: ["ready_for_veec", "complete"].includes(j.stage ?? ""),
   }));
   return { spots: (spots.data ?? []).map((s) => ({ ...s, price: Number(s.price) })), rows };
 });

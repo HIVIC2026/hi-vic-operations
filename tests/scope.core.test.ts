@@ -109,7 +109,7 @@ describe("quoting reads the accepted measurement", () => {
 describe("unchanged guards / permissions", () => {
   test("12 business-unit guard still fails closed for measure-up Mitti dispatch and Xero", async () => {
     const call: MittiCall = async () => ({});
-    const base = { businessUnit: "dc", stage: "piesa_scheduled", jobNumber: "HV-1", existingAuditId: null, electricianEmail: "i@x.test", assigneeRole: "installer" as const, templateId: "template_measure",
+    const base = { businessUnit: "dc", stage: "assessment_booked", jobNumber: "HV-1", existingAuditId: null, electricianEmail: "i@x.test", assigneeRole: "installer" as const, templateId: "template_measure",
       prefill: { jobNumber: "HV-1", address: "a", ownerName: "o", assessorName: "i" } };
     await expect(createOrReuseAudit(mittiApi(call), base)).rejects.toThrow(/only available for Home Insulation Victoria/);
     await expect(createOrReuseAudit(mittiApi(call), { ...base, businessUnit: "hivic", templateId: "" })).rejects.toThrow(/not configured/);

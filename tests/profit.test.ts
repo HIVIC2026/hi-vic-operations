@@ -28,45 +28,50 @@ describe("online spot price parser", () => {
 });
 
 describe("job markup breakdown", () => {
-  const base = { installerCostExGst: 2500, installerMarginExGst: 300, apFeeExGst: 317, electricalCostExGst: 250, electricalChargeExGst: 349, installerSourced: true, veecDiscountIncGst: 1400, piesaRecCostExGst: null as number | null, veecLodgementFeeExGst: null as number | null };
+  const base = { installerCostExGst: 2500, installerMarginExGst: 300, apFeeExGst: 317, electricalCostExGst: 250, electricalChargeExGst: 349, installerSourced: true, leadFeeEarned: true, veecDiscountIncGst: 1400, piesaRecCostExGst: null as number | null, veecLodgementFeeExGst: null as number | null };
   test("installer charged = cost + markup + PIESA fee", () => {
     const m = jobMargin(base, 90);
     expect(m.installerChargedEx).toBe(3117);
     expect(m.installerMarkup).toBe(300);
     expect(m.electricalMarkup).toBe(99);
-    expect("referralFeeEx" in m).toBe(false);
+    expect(m.referralFeeEx).toBeCloseTo(200);
     expect(m.veecs).toBe(20);
     expect(m.veecMargin).toBe(400);
-    expect(m.profit).toBeCloseTo(300 + 317 + 99 + 400);
+    expect(m.profit).toBeCloseTo(300 + 317 + 99 + 400 - 200);
   });
   test("PIESA: REC paid a lower negotiated set rate reduces profit until recorded it is optimistic", () => {
     const m = jobMargin({ ...base, piesaRecCostExGst: 227.27 }, 90);
     expect(m.piesaChargeEx).toBe(317);
     expect(m.piesaRecPaidEx).toBe(227.27);
     expect(m.piesaMarginEx).toBeCloseTo(89.73);
-    expect(m.tradeMargin).toBeCloseTo(300 + 89.73 + 99);
+    expect(m.tradeMargin).toBeCloseTo(300 + 89.73 + 99 - 200);
     const unknown = jobMargin(base, 90);
     expect(unknown.piesaRecPaidEx).toBeNull();
     expect(unknown.piesaMarginEx).toBeNull();
-    expect(unknown.tradeMargin).toBeCloseTo(300 + 317 + 99); // optimistic until the rate is recorded
+    expect(unknown.tradeMargin).toBeCloseTo(300 + 317 + 99 - 200); // optimistic until the rate is recorded
   });
   test("ESC $4.35 per VEEC lodgement fee comes off profit", () => {
     const m = jobMargin({ ...base, veecLodgementFeeExGst: 4.35 }, 90);
     expect(m.lodgementFeeEx).toBeCloseTo(20 * 4.35);
-    expect(m.profit).toBeCloseTo(300 + 317 + 99 + 400 - 20 * 4.35);
+    expect(m.profit).toBeCloseTo(300 + 317 + 99 + 400 - 200 - 20 * 4.35);
     const unset = jobMargin(base, 90);
     expect(unset.lodgementFeeEx).toBeNull();
-    expect(unset.profit).toBeCloseTo(300 + 317 + 99 + 400); // not deducted while unrecorded
+    expect(unset.profit).toBeCloseTo(300 + 317 + 99 + 400 - 200); // not deducted while unrecorded
   });
-  test("no lead fee: our leads and installer-owned customers have the same trade margin", () => {
-    expect(jobMargin({ ...base, installerSourced: false }, 90).profit).toBeCloseTo(300 + 317 + 99 + 400);
-    expect(jobMargin(base, 90).profit).toBeCloseTo(300 + 317 + 99 + 400);
+  test("installer-owned customer pays no lead fee", () => {
+    const m = jobMargin({ ...base, installerSourced: false }, 90);
+    expect(m.referralFeeEx).toBe(0);
+    expect(m.profit).toBeCloseTo(300 + 317 + 99 + 400);
+  });
+  test("lead fee waits for installation and paperwork approval", () => {
+    expect(jobMargin({ ...base, leadFeeEarned: false }, 90).referralFeeEx).toBe(0);
+    expect(jobMargin({ ...base, leadFeeEarned: true }, 90).referralFeeEx).toBeCloseTo(200);
   });
   test("no spot price = no profit guess", () => {
     const m = jobMargin(base, null);
     expect(m.veecMargin).toBeNull();
     expect(m.profit).toBeNull();
-    expect(m.tradeMargin).toBeCloseTo(300 + 317 + 99);
+    expect(m.tradeMargin).toBeCloseTo(300 + 317 + 99 - 200);
   });
   test("zero electrical work shows no sparky line", () => {
     const m = jobMargin({ ...base, electricalCostExGst: 0, electricalChargeExGst: 0 }, 90);

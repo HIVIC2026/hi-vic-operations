@@ -1,5 +1,6 @@
 import { OwnerEstimateCard } from "@/components/portal/estimate";
 import { nextStep } from "@/lib/nextstep.core";
+import { AppointmentPanel } from "@/components/portal/partner";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
@@ -25,7 +26,7 @@ function OwnerJob() {
   if (!job) return <AppShell><p className="text-muted-foreground">Loading…</p></AppShell>;
   const s = job.stage!;
   const pct = Math.max(5, Math.round(((STAGE_ORDER.indexOf(s) + 1) / STAGE_ORDER.length) * 100));
-  const bookKind = s === "rectification_scheduling" || s === "rectification_booked" ? "rectification" : s === "installation_scheduling" || s === "installation_booked" ? "installation" : null; // legacy assessment bookings retired
+  const bookKind = s === "rectification_scheduling" || s === "rectification_booked" ? "rectification" : s === "installation_scheduling" || s === "installation_booked" ? "installation" : s === "assessment_booking" || s === "assessment_booked" ? "assessment" : null;
   return (
     <AppShell>
       <WhoHasTheBall jobId={jobId} />
@@ -42,7 +43,8 @@ function OwnerJob() {
         <OwnerAssignmentCard jobId={jobId} />
         <QuotesPanel jobId={jobId} canRespond />
         <PaymentsPanel jobId={jobId} isAdmin={false} />
-        {bookKind && job.deposit_cleared && <BookingPanel jobId={jobId} kind={bookKind} canBook />}
+        {bookKind === "assessment" && <AppointmentPanel jobId={jobId} />}
+        {bookKind && bookKind !== "assessment" && job.deposit_cleared && <BookingPanel jobId={jobId} kind={bookKind} canBook />}
         {s === "awaiting_deposit_payment" && <p className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">Booking opens as soon as your 50% deposit is received.</p>}
         {job.installer_name && !["assessment_booking", "assessment_booked", "awaiting_electrician"].includes(s) && <ChangeTrade jobId={jobId} />}
         <DocumentsPanel jobId={jobId} />

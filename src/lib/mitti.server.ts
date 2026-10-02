@@ -8,7 +8,6 @@ import { MITTI_BASE_URL, MITTI_TEMPLATE_ID, MittiError, createOrReuseAudit, mitt
 import { planMeasurementUpdate, type MeasurementLike } from "./scope.core";
 import { jobScope } from "./requirements.server";
 import { readyCheckVariant } from "./mitti-forms.core";
-import { officialFormUseBlocker, answersFromEntries, evaluatePiesa } from "./official-forms.core";
 import { formatPropertyAddress } from "./address";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -63,8 +62,6 @@ export async function createAssignMittiAudit(jobId: string, actorId: string, cal
   const ids = await templateIds();
   const templateId = measureOnly ? (readyCheckVariant(job.channel) === "ready_check_priced" ? ids.readyCheckPriced : ids.readyCheck) : ids.piesa;
   if (!templateId) throw new WorkflowError(measureOnly ? MEASUREUP_TEMPLATE_MISSING : PIESA_TEMPLATE_MISSING);
-  // Official PIESA stays blocked from live use until its mapping is approved and its source confirmed.
-  if (!measureOnly) { const b = officialFormUseBlocker("piesa"); if (b) throw new WorkflowError(b); }
 
   const [{ data: prop }, { data: owner }, { data: asg }, { data: booking }, { data: a }] = await Promise.all([
     admin.from("properties").select("address_line,suburb,state,postcode,occupancy,enrichment").eq("id", job.property_id).single(),
@@ -172,9 +169,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string, call: 
           mitti_raw_snapshot: plan.snapshot as unknown as Json, mitti_validation_issues: plan.issues as unknown as Json, mitti_last_error: null,
           ...(plan.completed ? { mitti_synced_at: now } : {}),
         }).eq("id", a.id).neq("status", "complete");
-        // Printed PIESA rules, checked server-side on every sync (blockers stay as review issues; nothing is completed here).
-        const ev = evaluatePiesa(answersFromEntries("piesa", (plan.snapshot ?? []) as { label: string; value: string | null }[]));
-        issues = [...plan.issues, ...ev.blockers.map((b) => `Official form: ${b.message}${b.confirmation ? ` [${b.confirmation}]` : ""}`)];
+        issues = [...plan.issues];
         completed = plan.completed;
         for (const o of plan.others) {
           const { data: ex } = await admin.from("rectification_items").select("id,status").eq("job_id", jobId).eq("external_key", o.external_key).maybeSingle();

@@ -1,4 +1,4 @@
-import { ElectricianChoicePanel, PartnerProposalForm } from "@/components/portal/partner";
+import { AppointmentPanel, ElectricianChoicePanel, PartnerProposalForm } from "@/components/portal/partner";
 import { nextStep } from "@/lib/nextstep.core";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -50,8 +50,9 @@ function FieldJob() {
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "installer" && <InstallerJourney jobId={jobId} />}
-        {role === "installer" && ["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
-                {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage!} />}
+        {role === "installer" && ["new_enquiry", "eligibility_review", "awaiting_electrician"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
+        {(role === "installer" || role === "electrician") && ["assessment_booking", "assessment_booked"].includes(job.stage!) && <AppointmentPanel jobId={jobId} />}
+        {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage!} />}
         {role === "installer" && ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(job.stage!) && <PartnerProposalForm jobId={jobId} />}
         <WorkerLinksPanel jobId={jobId} />
         <MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" || role === "installer" ? { role } : {})} />

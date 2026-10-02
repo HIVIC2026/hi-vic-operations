@@ -188,12 +188,6 @@ const WAITING: Partial<Record<Stage, WaitingOn>> = {
   rectification_booked: "Electrician", installation_scheduling: "Installer", installation_booked: "Installer",
   evidence_outstanding: "Installer", ap_review: "AP", ready_for_veec: "AP", on_hold: "Home Insulation Victoria",
 };
-/** Retired legacy electrician-assessment stages: readable in history, never entered by current workflow. */
-export const RETIRED_LEGACY_STAGES: readonly Stage[] = ["awaiting_electrician", "assessment_booking", "assessment_booked", "assessment_complete"];
-export const isRetiredStage = (s: string | null | undefined) => (RETIRED_LEGACY_STAGES as readonly string[]).includes(s ?? "");
-export function retiredStageBlocker(to: string): string | null {
-  return isRetiredStage(to) ? `${STAGE_LABEL[to as Stage]} is retired. The free Ready Check comes first, then the PIESA is booked after quote acceptance.` : null;
-}
 /** Who/what the job waits on – derived from stage, refined by next_action text. */
 /** Early-stage jobs that passed or need onsite confirmation go to the free installer Ready Check before any electrician. */
 export const READY_CHECK_NEXT = "Arrange the free installer Ready Check";

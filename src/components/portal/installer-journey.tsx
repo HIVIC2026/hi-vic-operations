@@ -1,27 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, Circle, Download, X } from "lucide-react";
+import { Check, Circle, X } from "lucide-react";
 import { getInstallerJourney } from "@/lib/installer-journey.functions";
-import { Button } from "@/components/ui/button";
 
 /** Installer-led job tracker: where the job is, what's done, and only what's still missing. */
 export function InstallerJourney({ jobId }: { jobId: string }) {
   const load = useServerFn(getInstallerJourney);
   const { data } = useQuery({ queryKey: ["installer-journey", jobId], queryFn: () => load({ data: { jobId } }) });
   if (!data) return null;
-  const { steps, currentIndex, coverage, next, carryOver } = data;
-
-  const saveSheet = () => {
-    const url = URL.createObjectURL(new Blob([data.template], { type: "text/plain;charset=utf-8" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = data.templateFileName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-
+  const { steps, currentIndex, coverage, next } = data;
   return (
     <section className="rounded-xl border bg-card p-4">
       <h2 className="mb-1 text-lg font-semibold">Your customer's job</h2>
@@ -40,28 +27,10 @@ export function InstallerJourney({ jobId }: { jobId: string }) {
       <h3 className="mb-1 text-sm font-semibold">Measure-up {coverage.status === "complete" ? "– everything supplied" : coverage.status === "partial" ? "– a few items still needed" : "– not supplied yet"}</h3>
       {coverage.status === "complete" ? (
         <p className="text-sm text-muted-foreground">Home Insulation Victoria will review your measure-up. If accepted, no extra visit is needed.</p>
+      ) : coverage.status === "none" ? (
+        <p className="text-sm text-muted-foreground">Nothing supplied yet. Upload your existing measure-up, or book the free Ready Check.</p>
       ) : (
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">{coverage.status === "none" ? "Nothing supplied yet — use our sheet below, or send us your existing measure-up." : "Some items are still missing. Here's where each one gets collected."}</p>
-          {carryOver.beforeQuote.length > 0 && (
-            <div className="rounded-lg border border-warning/40 bg-warning-soft p-3">
-              <p className="text-sm font-semibold">Settle these before we can quote</p>
-              <ul className="mt-1 space-y-1">{carryOver.beforeQuote.map((m) => <li key={m} className="flex gap-2 text-sm"><X className="mt-0.5 h-4 w-4 shrink-0 text-warning" />{m}</li>)}</ul>
-              <p className="mt-1.5 text-xs text-muted-foreground">These decide eligibility or price, so they can't wait for installation day.</p>
-            </div>
-          )}
-          {carryOver.atPiisa.length > 0 && (
-            <div className="rounded-lg border p-3">
-              <p className="text-sm font-semibold">Bring these with the PIISA on installation day</p>
-              <ul className="mt-1 space-y-1">{carryOver.atPiisa.map((m) => <li key={m} className="flex gap-2 text-sm"><Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />{m}</li>)}</ul>
-            </div>
-          )}
-          <div className="rounded-lg border bg-muted/40 p-3">
-            <p className="text-sm font-semibold">Haven't been on site yet?</p>
-            <p className="mt-0.5 text-sm text-muted-foreground">Download our Ready Check sheet, fill it in during your visit and send it back with the photos.</p>
-            <Button size="sm" className="mt-2 w-full sm:w-auto" onClick={saveSheet}><Download className="mr-1.5 h-4 w-4" />Download the Ready Check sheet</Button>
-          </div>
-        </div>
+        <ul className="space-y-1">{coverage.missing.map((m) => <li key={m} className="flex gap-2 text-sm"><X className="mt-0.5 h-4 w-4 shrink-0 text-warning" />{m}</li>)}</ul>
       )}
     </section>
   );

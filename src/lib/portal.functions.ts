@@ -49,8 +49,6 @@ export const setEligibility = createServerFn({ method: "POST" }).middleware([req
     if (!before) throw new WorkflowError("Job not found");
     // Admin correction of a system auto-fail: release the automatic hold back to Gate 1.
     if (before.stage === "on_hold" && before.hold_reason?.startsWith(AUTO_FAIL_HOLD_PREFIX)) {
-      const { isRetiredStage } = await import("./workflow");
-      if (isRetiredStage(before.prior_stage)) before.prior_stage = "eligibility_review";
       await admin.from("jobs").update({ stage: before.prior_stage ?? "eligibility_review", prior_stage: null, hold_reason: null }).eq("id", data.jobId);
       await logEvent(data.jobId, context.userId, "stage_changed", "Auto-fail hold released by admin for Gate 1 correction", { reason: data.reason }, { from: "on_hold", to: before.prior_stage ?? "eligibility_review" });
     }
@@ -133,6 +131,8 @@ export const assignContractor = createServerFn({ method: "POST" }).middleware([r
     const awayFromOrigin = data.role === "installer" && src?.channel === "installer_sourced" && src.originating_installer_user_id !== data.userId;
     await logEvent(data.jobId, context.userId, "contractor_assigned", `${data.role === "electrician" ? "Electrician" : "Installer"} assigned: ${prof?.full_name ?? "user"}${awayFromOrigin ? " (admin reassignment away from originating installer – attribution unchanged)" : ""}`);
     if (stage === "ready_check_ready_to_schedule" && data.role === "installer") await admin.from("jobs").update({ next_action: "Assigned EEC Certified Insulation Installer to contact owner and arrange Ready Check" }).eq("id", data.jobId);
+    if (data.role === "electrician" && (await getStage(data.jobId)) === "awaiting_electrician")
+      await transition(data.jobId, "assessment_booking", context.userId, "Electrician assigned – booking PIESA");
     await autoAdvanceJob(data.jobId, context.userId, "contractor assigned");
     return { ok: true };
   });
@@ -928,9 +928,6 @@ export const setHold = createServerFn({ method: "POST" }).middleware([requireSup
     if (!job) throw new WorkflowError("Not found");
     if (data.action === "resume") {
       if (job.stage !== "on_hold" || !job.prior_stage) throw new WorkflowError("Job is not on hold.");
-      const { retiredStageBlocker } = await import("./workflow");
-      const retired = retiredStageBlocker(job.prior_stage);
-      if (retired) throw new WorkflowError(`Can't resume into ${job.prior_stage.replaceAll("_", " ")}: ${retired} Move it to the Ready Check stage instead.`);
       await admin.from("jobs").update({ stage: job.prior_stage, prior_stage: null, hold_reason: null }).eq("id", data.jobId);
       await logEvent(data.jobId, context.userId, "stage_changed", "Job resumed", {}, { from: "on_hold", to: job.prior_stage });
     } else {

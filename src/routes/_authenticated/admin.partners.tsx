@@ -15,6 +15,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { useServerFn } from "@tanstack/react-start";
 import { getAdminPartnerEnquiries } from "@/lib/admin-records.functions";
 import { activatePartnerApplication } from "@/lib/partner-activation.functions";
+import { getPartnerLeadFee, updatePartnerLeadFee } from "@/lib/partner-fees.functions";
 
 type Row = Tables<"partner_enquiries">;
 
@@ -51,6 +52,7 @@ function Partners() {
     <AppShell wide>
       <h1 className="text-2xl font-bold tracking-tight">Partner Enquiries</h1>
       <p className="mb-4 text-sm text-muted-foreground">Businesses interested in working with Home Insulation Victoria. These are not customer jobs and never appear in the Pipeline.</p>
+      <LeadFeeCard />
       <div className="mb-4 flex flex-wrap gap-2">{([['review', 'Review queue'], ['approved', 'Approved applications'], ['history', 'Declined / closed history']] as const).map(([key, label]) => <Button key={key} size="sm" variant={queue === key ? "default" : "outline"} onClick={() => setQueue(key)}>{label} ({rows.filter((row) => key === "review" ? ["new", "contacted", "onboarding"].includes(row.status) : key === "approved" ? row.status === "approved" : ["declined", "closed"].includes(row.status)).length})</Button>)}</div>
       {error && <div role="alert" className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Partner enquiries could not be loaded. Existing applications are safe. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
       {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading partner enquiries…</p>}
@@ -170,3 +172,43 @@ function SignedRecAgreement({ id }: { id: string }) {
   );
 }
 
+/** Office-editable lead fee for leads we send installers. New sign-ups see and sign the current figure. */
+function LeadFeeCard() {
+  const qc = useQueryClient();
+  const load = useServerFn(getPartnerLeadFee);
+  const save = useServerFn(updatePartnerLeadFee);
+  const { data } = useQuery({ queryKey: ["partner_lead_fee"], queryFn: () => load() });
+  const [editing, setEditing] = useState(false);
+  const [fee, setFee] = useState("");
+  const [reason, setReason] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function submit() {
+    setBusy(true); setMsg(null);
+    try {
+      await save({ data: { fee: Number(fee), reason } });
+      await qc.invalidateQueries({ queryKey: ["partner_lead_fee"] });
+      setEditing(false); setReason(""); setMsg("Saved. New sign-ups will see this fee.");
+    } catch (e) { setMsg(e instanceof Error ? e.message : "Could not save."); } finally { setBusy(false); }
+  }
+  return (
+    <div className="mb-4 rounded-xl border bg-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold">Lead fee on leads we send installers</div>
+          <div className="text-sm text-muted-foreground"><span className="text-lg font-bold text-foreground">${data?.leadFee ?? "…"}</span> inc GST · deducted from payout only after installation and paperwork approval. Never charged on installers&apos; own customers.</div>
+        </div>
+        {!editing && <Button size="sm" variant="outline" onClick={() => { setFee(String(data?.leadFee ?? 220)); setEditing(true); }}>Change fee</Button>}
+      </div>
+      {editing && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-[140px_1fr_auto] sm:items-start">
+          <input className="h-10 rounded-md border bg-background px-3 text-sm" type="number" min="0" step="1" value={fee} onChange={(e) => setFee(e.target.value)} aria-label="New lead fee" />
+          <Textarea rows={1} placeholder="Reason for the change (kept in the audit log)" value={reason} onChange={(e) => setReason(e.target.value)} />
+          <div className="flex gap-2"><Button size="sm" disabled={busy || reason.trim().length < 3 || fee === ""} onClick={() => void submit()}>Save</Button><Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button></div>
+          <p className="text-xs text-muted-foreground sm:col-span-3">Partners who already signed keep the fee in their signed agreement until they sign a variation.</p>
+        </div>
+      )}
+      {msg && <p className="mt-2 text-xs text-muted-foreground">{msg}</p>}
+    </div>
+  );
+}

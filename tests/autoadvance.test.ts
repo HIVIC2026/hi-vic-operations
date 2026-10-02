@@ -52,12 +52,12 @@ describe("autoAdvance", () => {
     expect(r.to).toBe("awaiting_deposit_payment");
     expect(r.stoppedBecause).toContain("PIESA");
   });
-  test("retired assessment_booked never auto-advances, even with complete site requirements", async () => {
+  test("no-rect job with complete site requirements auto-generates quotes -> awaiting_quote_acceptance", async () => {
     const x = fake("assessment_booked", {}, { site: true });
     const r = await runAutoAdvance(x.deps);
-    expect(r.to).toBe("assessment_booked");
-    expect(x.gens()).toBe(0);
-    expect(r.stoppedBecause).toContain("Retired legacy stage");
+    expect(r.to).toBe("awaiting_quote_acceptance");
+    expect(x.gens()).toBe(1);
+    expect(r.stoppedBecause).toContain("Owner must accept");
   });
   test("missing rate-card config stops safely at ready_for_installer_quotes", async () => {
     const x = fake("ready_for_installer_quotes", {}, { gen: () => { throw new Error("No active installer rate card"); } });

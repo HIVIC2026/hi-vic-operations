@@ -44,10 +44,12 @@ export function planStep(stage: Stage, f: AdvanceFacts, opts: { allowApPromotion
     case "ready_check_ready_to_schedule":
       return f.measureUpAccepted ? t("ready_check_complete", "Accepted measure-up on file – Ready Check not needed") : stop("Home Insulation Victoria must assign an installer for the free Ready Check");
     case "awaiting_electrician":
+      return f.electricianAssigned ? t("assessment_booking", "Electrician assigned – booking PIESA") : stop("Home Insulation Victoria must assign an electrician for PIESA");
     case "assessment_booking":
+      return f.assessmentBookingConfirmed ? t("assessment_booked", "Assessment booking confirmed") : stop("Assessment booking not confirmed");
     case "assessment_booked":
-      // Retired legacy electrician-assessment path: never auto-advance; office moves the job back to the Ready Check.
-      return stop("Retired legacy stage – Home Insulation Victoria must move this job to the free Ready Check");
+      // Delegated to advanceSiteRequirements (derives rectification scope + routing through transition()).
+      return { kind: "complete_site", to: "assessment_complete", summary: "Site requirements complete" };
     case "assessment_complete":
       return f.openRectItems > 0 ? t("rectification_required", `${f.openRectItems} rectification item(s) required`) : t("ready_for_installer_quotes", "No rectification required – ready for installer quotes");
     case "rectification_required":

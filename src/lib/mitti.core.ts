@@ -7,8 +7,7 @@ export const MITTI_BASE_URL = "https://api.mitti.com";
 export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
 /** Electrical rate codes Lovable can price. Everything else from Mitti is manual office review. */
 export const STANDARD_RATE_CODES = ["CALLOUT", "DOWNLIGHT_UPGRADE", "EXHAUST_CLEARANCE", "RCD_INSTALL", "SWITCHBOARD_UPGRADE"] as const;
-/** Mitti PIESA forms are created only in the Ready Check-first PIESA stages (legacy assessment stages retired). */
-export const MITTI_ASSIGN_STAGES = ["piesa_and_install_window_pending", "piesa_scheduled"] as const;
+export const MITTI_ASSIGN_STAGES = ["assessment_booking", "assessment_booked"] as const;
 
 export class MittiError extends Error {}
 
@@ -157,8 +156,8 @@ export type PrefillCtx = {
   lifeSupport?: string | null; propertyType?: string | null;
 };
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
-  { key: "jobNumber", aliases: ["Portal Job Number", "Job Reference ID"], mandatory: true },
-  { key: "address", aliases: ["Property Address", "Site address", "Site Address", "Address including postcode"], mandatory: true },
+  { key: "jobNumber", aliases: ["Portal Job Number"], mandatory: true },
+  { key: "address", aliases: ["Property Address", "Site address", "Site Address"], mandatory: true },
   { key: "ownerName", aliases: ["Owner name", "Owner full name", "Client name", "Property owner name"], mandatory: true },
   { key: "ownerEmail", aliases: ["Owner email"] },
   { key: "ownerPhone", aliases: ["Owner phone", "Owner mobile"] },
@@ -236,7 +235,7 @@ function pickUser(res: Any, email: string): Any | null {
 
 export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise<CreateResult> {
   if (ctx.businessUnit !== "hivic") throw new MittiError("Mitti automation is only available for Home Insulation Victoria jobs.");
-  if (!(MITTI_ASSIGN_STAGES as readonly string[]).includes(ctx.stage)) throw new MittiError("Mitti assessments can only be created once the job is waiting on or has booked its PIESA.");
+  if (!(MITTI_ASSIGN_STAGES as readonly string[]).includes(ctx.stage)) throw new MittiError("Mitti assessments can only be created while the job is in Assessment Booking or Assessment Booked.");
   const who = ctx.assigneeRole ?? "electrician";
   const templateId = ctx.templateId ?? MITTI_TEMPLATE_ID;
   if (!templateId.trim()) throw new MittiError("The Mitti template for this scope is not configured.");
@@ -396,7 +395,7 @@ export function parseAudit(audit: Any) {
   if (ls != null) patch.life_support_confirmed = ls;
 
   // Imported B1 "No rectification required" is a preliminary result only – it never establishes a PIESA pass.
-  const po = norm(val(entries, ["B1 Assessment outcome", "Check ONE option only", "PIESA outcome", "PIESA result", "Rectification outcome", "Rectification required"]));
+  const po = norm(val(entries, ["B1 Assessment outcome", "PIESA outcome", "PIESA result", "Rectification outcome", "Rectification required"]));
   // Official B1 wording: "...is not required..." / "...is required..." / "...is not possible...".
   if (/no rectification required|rectification work is not required/.test(po)) issues.push("Mitti reports no rectification required (preliminary B1 only) – PIESA clearance stays pending until confirmed in the portal.");
   else if (/rectification required|rectification work is required|rectification work is not possible/.test(po)) patch.piesa_outcome = "fail";
@@ -433,7 +432,7 @@ export function parseAudit(audit: Any) {
   return {
     auditId, patch, issues, others, completed,
     templateId: String(audit?.template_id ?? audit?.audit_data?.template_id ?? ""),
-    jobNumber: val(entries, ["Portal Job Number", "Job Reference ID"]),
+    jobNumber: val(entries, ["Portal Job Number"]),
     modifiedAt: audit?.modified_at ?? audit?.audit_data?.date_modified ?? null,
     snapshot: entries.filter((e) => e.label).map((e) => ({ id: e.id, label: e.label, section: e.section, value: e.value })),
   };
