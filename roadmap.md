@@ -178,4 +178,5 @@
 - [ ] Plan step 5: AP review tick row
 - [x] Ready Check: pre-fill "built in last 5 years" from owner enquiry
 - [ ] Send a dummy (qa_test) Ready Check job to Mitti end to end
+- [ ] Auto-generate official quote from Ready Check installer price + $349 PIESA + AP fee + VEU discount
 - [ ] Plan step 6: Mitti build sheets (PIESA evidence section, install day)

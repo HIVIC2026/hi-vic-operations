@@ -29,6 +29,9 @@ export function mittiApi(call: MittiCall) {
     setAuditOwner: (auditId: string, userId: string) =>
       call("PUT", `/inspections/v1/inspections/${encodeURIComponent(auditId)}/owner`, { owner_id: userId }),
     getAudit: (auditId: string) => call("GET", `/audits/${encodeURIComponent(auditId)}`) as Promise<Any>,
+    /** Mitti's own finished PDF report (with its photos): request, then poll until a download link is ready. */
+    requestReport: (auditId: string) => call("POST", `/audits/${encodeURIComponent(auditId)}/report`, { format: "PDF" }) as Promise<Any>,
+    getReport: (auditId: string, messageId: string) => call("GET", `/audits/${encodeURIComponent(auditId)}/report/${encodeURIComponent(messageId)}`) as Promise<Any>,
   };
 }
 export type MittiApi = ReturnType<typeof mittiApi>;
@@ -390,7 +393,7 @@ export function parseAudit(audit: Any) {
   const dt = val(entries, ["Downlight type"]); if (dt) patch.downlights_type = dt.slice(0, 200);
   const hz = val(entries, ["Hazards identified", "Hazards", "Hazards seen in the ceiling space"]); if (hz) patch.hazards = hz.slice(0, 4000);
   const roof = val(entries, ["Roof type"]); if (roof) patch.notes = [patch.notes, `Roof type: ${roof}`].filter(Boolean).join(". ").slice(0, 4000);
-  const built5 = val(entries, ["Was the ceiling or roof built or replaced in the last 5 years?", "Ceiling or roof built in the last 5 years", "Relevant ceiling or roof built in the last 5 years"]); if (built5) patch.notes = [patch.notes, `Ceiling/roof built in last 5 years (installer observed): ${built5}`].filter(Boolean).join(". ").slice(0, 4000);
+  const built5 = val(entries, ["Was the ceiling or roof built or replaced in the last 5 years?", "Ceiling or roof built in the last 5 years", "Relevant ceiling or roof built in the last 5 years"]); if (built5) patch.notes = [patch.notes, `Ceiling/roof built in last 5 years (Ready Check answer, pre-filled from owner's declared enquiry answer): ${built5}`].filter(Boolean).join(". ").slice(0, 4000);
 
   const sbUp = val(entries, ["Switchboard upgrade required"]);
   const sbCond = norm(val(entries, ["Switchboard condition", "Switchboard"]));
