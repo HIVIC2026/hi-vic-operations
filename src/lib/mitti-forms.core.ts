@@ -288,7 +288,8 @@ export function validateQuotedPrice(input: {
   for (const raw of input.included) {
     const v = (raw ?? "").trim().toLowerCase();
     if (!v) continue;
-    const m = (PRICE_ITEMS as readonly string[]).find((p) => p.toLowerCase() === v);
+    const key = PRICE_ALIASES[v] ?? v;
+    const m = (PRICE_ITEMS as readonly string[]).find((p) => p.toLowerCase() === key);
     if (!m) issues.push(`Unknown included item "${raw}".`);
     else if (!included.includes(m)) included.push(m);
   }
