@@ -48,6 +48,7 @@ export function usePortalTargetNavigation(openGroup: (group: RecordGroup) => voi
     let frame = 0;
     let timer = 0;
     let observer: MutationObserver | null = null;
+    let attempts = 0;
     const finish = (fallback = false) => {
       if (currentRun !== run.current) return false;
       const preferred = document.querySelector<HTMLElement>(`#target-${target}[data-portal-focus="target"]`)
@@ -61,10 +62,15 @@ export function usePortalTargetNavigation(openGroup: (group: RecordGroup) => voi
       cleanup.current?.();
       return true;
     };
+    const poll = () => {
+      if (currentRun !== run.current || finish()) return;
+      if (attempts++ < 240) frame = requestAnimationFrame(poll);
+    };
     const start = () => {
       if (finish()) return;
       observer = new MutationObserver(() => { finish(); });
       observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+      frame = requestAnimationFrame(poll);
       timer = window.setTimeout(() => finish(true), 4_000);
     };
     frame = requestAnimationFrame(start);
