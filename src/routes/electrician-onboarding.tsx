@@ -75,6 +75,44 @@ function Money({ value, onChange, unit }: { value: number | null | undefined; on
     </div>
   );
 }
+
+/** Green tick list — used wherever we tell the REC what we provide, so it reads as a checklist not a paragraph. */
+function TickList({ items }: { items: string[] }) {
+  return (
+    <ul style={{ margin: "10px 0 0", padding: 0, listStyle: "none" }}>
+      {items.map((line) => (
+        <li key={line} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginTop: 8 }}>
+          <span aria-hidden="true" style={{ flexShrink: 0, width: 22, height: 22, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>✓</span>
+          <span>{line}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** A titled block that groups related fields, so a pricing step reads as sections instead of one long list. */
+function Group({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+  return (
+    <section style={{ border: "1px solid #E4E8F0", borderRadius: 16, padding: 16, marginBottom: 18, background: "#FBFCFE" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+        <strong style={{ fontFamily: DISPLAY, fontSize: 15, color: NAVY }}>{title}</strong>
+        {note && <span style={{ background: "#fff", border: `1px solid ${GREEN}66`, borderRadius: 999, padding: "4px 12px", fontSize: 12.5, fontWeight: 700, color: NAVY, whiteSpace: "nowrap" }}>{note}</span>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** One rate line: item name on the left, amount on the right, so the rate schedule scans like a table. */
+function RateRow({ label, unit, value, onChange, last = false }: { label: string; unit: string; value: number | null | undefined; onChange: (v: number | null) => void; last?: boolean }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "10px 0", borderBottom: last ? "none" : "1px solid #EDF0F7" }}>
+      <span style={{ fontWeight: 700, fontSize: 14, color: NAVY }}>{label}<span style={{ color: BLUE }}> *</span></span>
+      <Money value={value} onChange={onChange} unit={unit} />
+    </div>
+  );
+}
+
 /** Australian address lookup. A selected suggestion is resolved before it is accepted. */
 function AddressInput({ value, onChange, onSelect, victoriaOnly = false }: { value: string; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean }) {
   const [items, setItems] = useState<AddressSuggestion[]>([]);
