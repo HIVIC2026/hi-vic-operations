@@ -164,6 +164,8 @@ export const signRecAgreement = createServerFn({ method: "POST" })
     const ackList = acknowledgementsFor(d);
     for (const a of ackList) if (data.acknowledgements[a.key] !== true) throw new Error("Tick every acknowledgement to sign.");
     const relax = mayRelaxRequiredSteps({ test_mode: !!app.test_mode, allow_incomplete_sign: (app as { allow_incomplete_sign?: boolean | null }).allow_incomplete_sign ?? null });
+    // Never relaxed, even on test links: the signer must be a confirmed licensed electrician with a licence number.
+    if (d.contact_is_licensed_electrician !== true || !(d.licence_number ?? "").trim()) throw new Error('Please confirm you are a licensed electrician and enter your licence number on the "About you" step before signing.');
     const missing = blockedMandatoryStep("sign", d) ?? (relax ? null : firstIncompleteStep(d));
     if (missing) throw new Error(`Please complete the "${missing.replace(/_/g, " ")}" step before signing.`);
 

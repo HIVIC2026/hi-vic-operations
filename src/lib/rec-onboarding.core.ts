@@ -61,9 +61,9 @@ export type RecData = {
   works_under_rec?: boolean | null; host_rec_name?: string; host_rec_number?: string;
   legal_entity_name?: string; trading_name?: string; abn?: string; rec_registration_number?: string;
   business_address?: string; business_address_details?: ResolvedAddress | null; primary_contact_name?: string; business_phone?: string; business_email?: string; authorised_to_register?: boolean;
-  /** Is the person registering a licensed electrician? Office administrators answer no. */
+  /** Explicit confirmation that the person registering is a licensed electrician (must be true to proceed). */
   contact_is_licensed_electrician?: boolean | null;
-  /** The applicant's own Victorian electrician licence (only when they are a licensed electrician). */
+  /** The applicant's own Victorian electrician licence (always required). */
   licence_number?: string;
   insurer?: string; insurance_policy_number?: string; public_liability_cover_amount?: number | null; public_liability_expiry?: string; insurance_uploaded?: boolean;
   electricians?: Electrician[];
@@ -216,8 +216,9 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
   switch (step) {
     case "about":
       if (!txt(d.primary_contact_name)) e.push("Enter your name.");
-      if (d.contact_is_licensed_electrician == null) e.push("Tell us if you are a licensed electrician.");
-      if (d.contact_is_licensed_electrician === true && !txt(d.licence_number)) e.push("Enter your Victorian electrician licence number.");
+      // Only licensed electricians may register; old drafts with false/null must be explicitly confirmed again.
+      if (d.contact_is_licensed_electrician !== true) e.push("Confirm you are a licensed electrician to continue.");
+      if (!txt(d.licence_number)) e.push("Enter your Victorian electrician licence number.");
       if (!validPhone(d.business_phone)) e.push("Enter a valid Australian mobile.");
       if (!validBusinessEmail(d.business_email)) e.push("Enter a real email address.");
       if (d.works_under_rec == null) e.push("Tell us if you are registering the REC business or joining as staff.");
