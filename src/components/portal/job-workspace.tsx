@@ -6,7 +6,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AlarmClock, AlertCircle, ArrowRight, Check, ChevronDown, HeartPulse, MessageSquare, Minus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/portal/badges";
@@ -34,6 +34,43 @@ export const TAB_TO_GROUP: Record<AdminTab | "documents" | "history", RecordGrou
   overview: "people", eligibility: "enquiry", assessment: "ready_check", quotes: "quote", authority: "quote",
   piesa: "piesa", installation: "installation", evidence: "ap_veec", veec: "ap_veec", messages: "history", documents: "history", history: "history",
 };
+
+/** Opens a record once, then waits for its real async control before focusing it. */
+export function usePortalTargetNavigation(openGroup: (group: RecordGroup) => void) {
+  const run = useRef(0);
+  const cleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => { run.current += 1; cleanup.current?.(); }, []);
+  return useCallback((target: PortalTarget) => {
+    const group = TARGET_TO_GROUP[target];
+    openGroup(group);
+    cleanup.current?.();
+    const currentRun = ++run.current;
+    let frame = 0;
+    let timer = 0;
+    let observer: MutationObserver | null = null;
+    const finish = (fallback = false) => {
+      if (currentRun !== run.current) return false;
+      const preferred = document.querySelector<HTMLElement>(`#target-${target}[data-portal-focus="target"]`)
+        ?? (target === "deposit-request" || target === "intake-consent" ? null : document.getElementById(`target-${target}`));
+      if (!preferred && !fallback) return false;
+      const panel = document.getElementById(`panel-${target}`);
+      const destination = preferred ?? panel ?? document.getElementById(`records-${group}`);
+      const focusable = preferred ?? panel?.querySelector<HTMLElement>("button,a,input,select,textarea,[tabindex]:not([tabindex='-1'])") ?? document.getElementById(`records-${group}-btn`);
+      destination?.scrollIntoView({ behavior: "smooth", block: "start" });
+      focusable?.focus({ preventScroll: true });
+      cleanup.current?.();
+      return true;
+    };
+    const start = () => {
+      if (finish()) return;
+      observer = new MutationObserver(() => { finish(); });
+      observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+      timer = window.setTimeout(() => finish(true), 4_000);
+    };
+    frame = requestAnimationFrame(start);
+    cleanup.current = () => { cancelAnimationFrame(frame); window.clearTimeout(timer); observer?.disconnect(); observer = null; };
+  }, [openGroup]);
+}
 
 const fmtDT = (s: string | null | undefined) => (s ? new Date(s).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "");
 
