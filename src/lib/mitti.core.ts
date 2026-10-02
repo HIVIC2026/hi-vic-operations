@@ -9,6 +9,8 @@ export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
 export const STANDARD_RATE_CODES = ["CALLOUT", "DOWNLIGHT_UPGRADE", "EXHAUST_CLEARANCE", "RCD_INSTALL", "SWITCHBOARD_UPGRADE"] as const;
 /** Mitti PIESA forms are created only in the Ready Check-first PIESA stages (legacy assessment stages retired). */
 export const MITTI_ASSIGN_STAGES = ["piesa_and_install_window_pending", "piesa_scheduled"] as const;
+/** The installer's Ready Check form (never PIESA) may be sent while the Ready Check is being arranged. */
+export const MITTI_READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled"] as const;
 
 export class MittiError extends Error {}
 
@@ -249,7 +251,8 @@ export function pickUser(res: Any, email: string): Any | null {
 
 export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise<CreateResult> {
   if (ctx.businessUnit !== "hivic") throw new MittiError("Mitti automation is only available for Home Insulation Victoria jobs.");
-  if (!(MITTI_ASSIGN_STAGES as readonly string[]).includes(ctx.stage)) throw new MittiError("Mitti assessments can only be created once the job is waiting on or has booked its PIESA.");
+  const readyCheckSend = ctx.assigneeRole === "installer" && (MITTI_READY_CHECK_STAGES as readonly string[]).includes(ctx.stage);
+  if (!readyCheckSend && !(MITTI_ASSIGN_STAGES as readonly string[]).includes(ctx.stage)) throw new MittiError("Mitti assessments can only be created once the job is waiting on or has booked its PIESA.");
   const who = ctx.assigneeRole ?? "electrician";
   const templateId = ctx.templateId ?? MITTI_TEMPLATE_ID;
   if (!templateId.trim()) throw new MittiError("The Mitti template for this scope is not configured.");
