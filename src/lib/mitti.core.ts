@@ -320,8 +320,17 @@ export function parseAudit(audit: Any) {
   const isAreaKid = (e: Any) => !e.header && [norm("Measured area m2"), norm("Length (m)"), norm("Enter the measured ceiling area (m²)")].includes(e.norm) && e.value != null;
   const roomParents = new Set(entries.filter(isAreaKid).map((e) => e.parent ?? e.id));
   const areaM2Label = (kids: Entry[]) => kids.find((e) => [norm("Measured area m2"), norm("Enter the measured ceiling area (m²)")].includes(e.norm)) ?? kids.find((e) => e.norm.startsWith(norm("Measured area m2")));
+  // Per-area questions can sit inside conditional sub-branches (empty-label containers), so an area's
+  // fields are its whole descendant subtree, not just direct children.
+  const entryById = new Map(entries.map((e) => [e.id, e]));
+  const areaKids = (p: string) => entries.filter((e) => {
+    if (e.id === p || e.parent === p) return true;
+    let anc = e.parent, guard = 0;
+    while (anc && guard++ < 20) { if (anc === p) return true; anc = entryById.get(anc)?.parent ?? null; }
+    return false;
+  });
   const rooms = [...roomParents].map((p) => {
-    const kids = entries.filter((e) => (e.parent ?? e.id) === p);
+    const kids = areaKids(p);
     const m2e = areaM2Label(kids);
     let m2 = physical(m2e?.value ?? null, m2e?.label ?? "Measured area m2");
     if (m2.value == null) {
