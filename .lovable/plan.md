@@ -52,9 +52,6 @@ So the electrician can't forget it, and you'll always know where it's up to:
 **C. Before-install evidence:**
 - isolation photo
 - product label photos (maker, product, R-value)
-- a ceiling video before work starts
-- existing insulation and its depth
-- every claimed ceiling zone, named
 
 **D. Ready Check catch-up (installer-supplied jobs only):** anything still missing from the Ready Check shows up here as a task. See the section below.
 
