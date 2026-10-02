@@ -114,7 +114,7 @@ const READY_CHECK_FIELDS: FormField[] = [
       { label: "Was the ceiling or roof built or replaced in the last 5 years?", type: "choice", required: true, choices: ["Yes", "No", "Not sure"], types: ["text"], source: `${G} eligibility` },
       // 6. Finish
       { label: "Anything else the office should know?", type: "text", required: false, source: "portal" },
-      { label: "I confirm this information is accurate", type: "signature", required: true, aliases: ["I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge."], source: `${G} – installer confirmation` },
+      { label: "I confirm this information is accurate", type: "signature", required: true, aliases: ["I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.", "I confirm the information, measurements and photos provided in this Ready Check are accurate to the best of my knowledge."], source: `${G} – installer confirmation` },
 ];
 
 export const FORMS: Record<FormKey, { title: string; role: "installer" | "electrician"; fields: FormField[] }> = {
