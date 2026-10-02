@@ -333,7 +333,9 @@ export function scheduleText(d: RecData): string {
       ? `Public liability: held by host REC (${d.host_rec_name ?? ""}, REC ${d.host_rec_number ?? ""})`
       : `Public liability: ${d.insurer ?? ""} policy ${d.insurance_policy_number ?? ""}, cover ${money(d.public_liability_cover_amount)}, expires ${d.public_liability_expiry ?? ""}`);
   lines.push("", "Nominated electricians:");
-  effectiveElectricians(d).forEach((x, i) => lines.push(`${i + 1}. ${x.full_legal_name} — licence ${x.licence_number}`));
+  const sparks = effectiveElectricians(d);
+  if (sparks.length === 0) lines.push("To be confirmed with the Home Insulation Victoria office before any work is allocated.");
+  sparks.forEach((x, i) => lines.push(`${i + 1}. ${x.full_legal_name} — licence ${x.licence_number}`));
   lines.push("", "SCHEDULE 2 — SERVICES, COVERAGE AND CAPACITY");
   lines.push("Required electrical services (all three, as required for each job):",
     "- Pre-installation electrical safety assessment (PIESA)",
