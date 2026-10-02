@@ -2,6 +2,9 @@
 
 The Ready Check is out of scope; it's already built in Mitti and stays as it is.
 
+## Rule applied throughout
+Never ask the same thing twice. Anything already on the PIESA, PIISA, Ready Check or job record (address, dates, names, licences, isolation, SWMS, insulation, zones) is reused, never asked again. Photo date, time and location are read from the photo automatically.
+
 ## Your decisions
 - Save the **government's official form, filled in**, to the job's files.
 - Refuse any photo with no location, or taken too far from the property. The worker has to retake it onsite.
@@ -17,14 +20,12 @@ The Ready Check is out of scope; it's already built in Mitti and stays as it is.
 ## 2. Electrical form (PIESA) — electrician
 - It only opens after the quote is accepted and the 50% deposit is paid.
 - It's the official PIESA (already pre-filled), plus a short Home Insulation Victoria evidence section:
-  - date, time and location of the visit
   - a front-of-property identity photo of the electrician (with location)
   - switchboard and cable photos
   - isolation arrangements
   - solar/battery photo where present
-  - life-support paperwork where it applies
 - Each rectification item has a description, quantity, location and photo. The rectification quote is still worked out automatically from the agreed rates.
-- After rectification there's no second visit form. The electrician uploads completion photos, the Certificate of Electrical Safety and the completed Section C.
+- After rectification there's no second visit form. The electrician completes Section C, which already asks for the Certificate of Electrical Safety number, and uploads the completion photos and certificate.
 - After signing, the filled form is sent to the owner and installer and recorded in the job history.
 
 ### Section C runs itself after rectification
@@ -38,12 +39,7 @@ So the electrician can't forget it, and you'll always know where it's up to:
 
 ## 3. Install day — lead installer, one Mitti job in three parts
 **A. Before starting:**
-- the installers onsite and their certification details
-- confirm the PIESA has been reviewed, and that rectification and the Certificate of Electrical Safety are done where needed
-- confirm nobody has been in the ceiling since the PIESA
-- power isolation and lock-out
-- safety plan (SWMS) acknowledged
-- the official PIISA, signed
+- the official PIISA, pre-filled and signed. It already covers the installers and their certifications, the PIESA review, rectification and the Certificate of Electrical Safety, ceiling access since the PIESA, power isolation and the SWMS, so none of these are asked again.
 
 **B. Identity:**
 - a front-of-property photo with location for each installer
