@@ -37,7 +37,7 @@ const s = (m: number) => z.string().max(m).optional();
 const n = z.number().finite().min(0).max(1_000_000_000).nullable().optional();
 const dataSchema = z.object({
   legal_entity_name: s(200), trading_name: s(200), abn: s(20), cii_status: s(20), cii_details: s(1000),
-  business_address: s(300), primary_contact_name: s(200), business_phone: s(30), business_email: s(320), authorised_to_register: z.boolean().optional(),
+  business_address: s(300), primary_contact_name: s(200), business_phone: s(30), business_email: s(320), authorised_to_register: z.boolean().optional(), works_for_business: z.boolean().nullable().optional(),
   insurer: s(200), insurance_policy_number: s(100), public_liability_cover_amount: n, public_liability_expiry: s(10),
   installers: z.array(z.object({ full_legal_name: s(200), qualification: s(300), mobile: s(30), email: s(320) })).max(50).optional(),
   service_batts_removal: z.boolean().optional(), service_loose_fill_removal: z.boolean().optional(), free_quotes_for_hivic_leads: z.boolean().nullable().optional(), free_measureups_for_hivic_quote_leads: z.boolean().nullable().optional(),
