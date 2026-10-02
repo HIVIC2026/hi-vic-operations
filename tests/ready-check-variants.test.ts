@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { FORMS, PRICING_FIELDS, readyCheckVariant, validateQuotedPrice, validateTemplate, mittiAiPrompt } from "../src/lib/mitti-forms.core";
 import { buildInstallerQuoteDraft, ownerPriceFromQuoted, quotedPriceFromEntries } from "../src/lib/installer-led.core";
+import { parseAudit } from "../src/lib/mitti.core";
 
 describe("Ready Check variants", () => {
   test("installer-sourced jobs get the priced form; our leads get evidence-only", () => {
