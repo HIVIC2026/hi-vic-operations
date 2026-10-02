@@ -355,20 +355,45 @@ function RecOnboarding() {
   if (!started) return shell(
     <div style={{ ...card, padding: 0, overflow: "hidden" }}>
       <div style={{ height: 6, background: `linear-gradient(90deg, ${GREEN}, ${BLUE})` }} />
-      <div style={{ padding: 24 }}>
+      <div style={{ padding: "32px 28px 28px" }}>
         {previewBanner}
-        <div style={{ fontSize: 13, fontWeight: 700, color: GREEN, textTransform: "uppercase", letterSpacing: 0.8, fontFamily: DISPLAY }}>Home Insulation Victoria</div>
-        <h1 style={{ fontSize: 28, fontWeight: 800, margin: "8px 0 10px", color: NAVY }}>Welcome to our Trade Partner Network</h1>
-        <p style={{ fontSize: 15, lineHeight: 1.6, color: MUTED }}>We're really pleased to have you here and can't wait to work with you. Home Insulation Victoria keeps jobs, communication and assessments simple — all in one place.</p>
-        <div style={{ fontWeight: 700, margin: "18px 0 10px", fontFamily: DISPLAY }}>Have these handy</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 22 }}>
-          {["Registered Electrical Contractor (REC) + ABN details", "Public liability insurance for the REC business", "Your personal electrician licence", "Your proposed supplier rates"].map((t, i) => (
-            <div key={t} style={{ background: ACCENTS[i % 4]!.bg, color: ACCENTS[i % 4]!.fg, borderRadius: 14, padding: "12px 14px", fontSize: 14, fontWeight: 600 }}><span style={{ fontWeight: 800 }}>✓ </span>{t}</div>
+        <div style={{ display: "inline-block", fontSize: 12, fontWeight: 800, color: BLUE, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: DISPLAY, background: "#F2F4FC", border: `1px solid ${BLUE}22`, borderRadius: 999, padding: "5px 14px" }}>REC Partner Network</div>
+        <h1 style={{ fontSize: 30, fontWeight: 800, margin: "14px 0 10px", color: NAVY, lineHeight: 1.2 }}>Grow your electrical business with us</h1>
+        <p style={{ fontSize: 15, lineHeight: 1.65, color: MUTED, margin: 0 }}>Join Home Insulation Victoria's REC partner network for electrical safety assessments, rectification and installation-day support.</p>
+
+        <div style={{ margin: "26px 0 8px", fontFamily: DISPLAY, fontWeight: 800, fontSize: 13, color: NAVY, textTransform: "uppercase", letterSpacing: 0.8 }}>How it works</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 26 }}>
+          {[
+            { n: "1", t: "Business details", s: "Your REC, ABN and contact details" },
+            { n: "2", t: "Coverage & rates", s: "Your service area and proposed rates" },
+            { n: "3", t: "Review & sign", s: "Check everything and sign the agreement" },
+          ].map((x) => (
+            <div key={x.n} style={{ border: "1px solid #E4E8F0", borderRadius: 14, padding: "14px 14px 12px", background: "#FBFCFE" }}>
+              <div style={{ width: 26, height: 26, borderRadius: "50%", background: BLUE, color: "#fff", fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 8 }}>{x.n}</div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: NAVY, marginBottom: 3 }}>{x.t}</div>
+              <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.45 }}>{x.s}</div>
+            </div>
           ))}
         </div>
-        <p style={{ fontSize: 13, color: MUTED }}>Your progress saves as you go on this device.</p>
+
+        <div style={{ margin: "0 0 8px", fontFamily: DISPLAY, fontWeight: 800, fontSize: 13, color: NAVY, textTransform: "uppercase", letterSpacing: 0.8 }}>What you'll need</div>
+        <div style={{ border: "1px solid #E4E8F0", borderRadius: 14, padding: "6px 16px", marginBottom: 22, background: "#fff" }}>
+          {[
+            "REC registration + ABN",
+            "Your personal Victorian electrician licence",
+            "Public liability Certificate of Currency",
+            "Your supplier rates + bank details",
+          ].map((t, i, arr) => (
+            <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid #F0F2F8" : "none", fontSize: 14, fontWeight: 600, color: NAVY }}>
+              <span aria-hidden="true" style={{ flexShrink: 0, width: 22, height: 22, borderRadius: "50%", background: "#EAF8F0", border: `1px solid ${GREEN}55`, color: GREEN, fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>✓</span>
+              {t}
+            </div>
+          ))}
+        </div>
+
+        <p style={{ fontSize: 13, color: MUTED, lineHeight: 1.55, margin: "0 0 18px" }}>Competitive rates help us bring you more opportunities. Select <strong>Save &amp; continue</strong> after each step to save your progress on this device.</p>
         {error && <p style={{ color: "#B3261E" }}>{error}</p>}
-        <button style={{ ...btn(true, busy), width: "100%", minHeight: 52, borderRadius: 16 }} disabled={busy} onClick={begin}>{busy ? "Starting…" : "Get started →"}</button>
+        <button style={{ ...btn(true, busy), width: "100%", minHeight: 52, borderRadius: 16, fontSize: 15 }} disabled={busy} onClick={begin}>{busy ? "Starting…" : token ? "Continue registration →" : "Start registration →"}</button>
       </div>
     </div>,
   );
