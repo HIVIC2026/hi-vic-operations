@@ -7,6 +7,14 @@ export type FieldType = "text" | "number" | "choice" | "multichoice" | "yesno" |
 export type FormField = {
   label: string; type: FieldType; required: boolean; choices?: string[];
   when?: string; // human-readable condition; required only when it applies
+  /** Other accepted item labels for the same question (e.g. the installer's own Mitti wording). */
+  aliases?: string[];
+  /** Extra accepted item types beyond `type` (a Mitti form may capture a choice as a text answer). */
+  types?: FieldType[];
+  /** Alternative question sets: the field passes when the primary label/alias is present OR every alternative is present. */
+  anyOf?: { label: string; type: FieldType; required?: boolean }[];
+  /** Required only when none of these labels exist in the form (the form captures the answer another way). */
+  notRequiredIf?: string[];
   perArea?: boolean; perPriceLine?: boolean; prefill?: boolean; portalOnly?: boolean; source: string;
   /** Official item id (PIESA/PIISA). */ id?: string;
   /** Official repeating table row. */ row?: { group: string; rows: number };
