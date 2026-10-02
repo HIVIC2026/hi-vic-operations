@@ -16,10 +16,18 @@ import { getJobFileHeader } from "@/lib/jobfile.functions";
 import { buildJourney, type JourneyInput } from "@/lib/journey.core";
 import { ELIGIBILITY_LABEL, fmtDate } from "@/lib/workflow";
 import type { AdminTab } from "@/lib/waiting.core";
+import { evidenceSourceLabel, ownerAnswerForGate1, targetForAction, type PortalTarget } from "@/lib/portal-presentation.core";
 
 type JobRow = import("@/integrations/supabase/types").Database["public"]["Views"]["job_overview"]["Row"];
 
 export type RecordGroup = "enquiry" | "ready_check" | "quote" | "piesa" | "installation" | "ap_veec" | "history" | "people";
+
+export const TARGET_TO_GROUP: Record<PortalTarget, RecordGroup> = {
+  people: "people", "gate1-evidence": "enquiry", "intake-consent": "enquiry", "ready-check": "ready_check",
+  quotes: "quote", "deposit-request": "quote", "electronic-signing": "quote", piesa: "piesa",
+  installation: "installation", "installation-evidence": "installation", "ap-evidence": "ap_veec", veec: "ap_veec",
+  correspondence: "history", documents: "history", history: "history",
+};
 
 /** Every legacy tab destination has exactly one record group. */
 export const TAB_TO_GROUP: Record<AdminTab | "documents" | "history", RecordGroup> = {
@@ -30,7 +38,7 @@ export const TAB_TO_GROUP: Record<AdminTab | "documents" | "history", RecordGrou
 const fmtDT = (s: string | null | undefined) => (s ? new Date(s).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "");
 
 /** 1. Compact identity: address, job no, owner contact, consent, one eligibility outcome. */
-export function JobIdentity({ jobId, job, onOpen }: { jobId: string; job: JobRow; onOpen: (g: RecordGroup) => void }) {
+export function JobIdentity({ jobId, job, onOpen }: { jobId: string; job: JobRow; onOpen: (target: PortalTarget) => void }) {
   const intakeFn = useServerFn(getIntakeSummary);
   const headerFn = useServerFn(getJobFileHeader);
   const intake = useQuery({ queryKey: ["intake_summary", jobId], queryFn: () => intakeFn({ data: { jobId } }) });
@@ -62,7 +70,7 @@ export function JobIdentity({ jobId, job, onOpen }: { jobId: string; job: JobRow
             : intake.error ? <span role="alert" className="text-danger">Couldn't load consent — treat as missing</span>
               : consent?.consent_status === "granted" ? <span className="text-success">Granted{consent.consented_at ? ` ${fmtDate(consent.consented_at)}` : ""}</span>
                 : <span className="text-danger">{consent ? `Not granted (${consent.consent_status})` : "No consent record"} — no external contact</span>}
-          {" "}<button type="button" className="text-xs font-semibold text-primary underline" onClick={() => onOpen("enquiry")}>View evidence</button>
+          {" "}<button type="button" className="text-xs font-semibold text-primary underline" onClick={() => onOpen("intake-consent")}>View evidence</button>
         </dd></div>
         <div className="min-w-0"><dt className="text-xs text-muted-foreground">Eligibility (Gate 1)</dt><dd><Pill t={outcome.t}>{outcome.l}</Pill></dd></div>
       </dl>
@@ -78,7 +86,7 @@ export function JobIdentity({ jobId, job, onOpen }: { jobId: string; job: JobRow
 }
 
 /** 2. The one current next action, with responsible party and real due time. CTA opens the working record. */
-export function NextActionBand({ jobId, onOpenTab }: { jobId: string; onOpenTab: (t: AdminTab) => void }) {
+export function NextActionBand({ jobId, onOpenTarget }: { jobId: string; onOpenTarget: (target: PortalTarget) => void }) {
   const load = useServerFn(getJobWaiting);
   const { data: w, error, refetch } = useQuery({ queryKey: ["job-waiting", jobId], queryFn: () => load({ data: { jobId } }), refetchInterval: 60_000 });
   if (error) return <div role="alert" className="mb-3 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Couldn't work out the next action. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>;
@@ -97,8 +105,8 @@ export function NextActionBand({ jobId, onOpenTab }: { jobId: string; onOpenTab:
       <p className="mt-1 font-display text-base font-bold leading-snug sm:text-lg">{w.sentence}</p>
       {isAdmin && !w.terminal && (
         <div className="mt-2 flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => onOpenTab(w.action.tab)}>{w.action.label} <ArrowRight className="ml-1 h-4 w-4" /></Button>
-          {w.parties[0] !== "Home Insulation Victoria" && w.action.label !== "Draft a nudge" && <Button size="sm" variant="outline" onClick={() => onOpenTab("messages")}><MessageSquare className="mr-1 h-4 w-4" />Draft a nudge</Button>}
+          <Button size="sm" onClick={() => onOpenTarget(targetForAction(w.action.tab, w.action.label))}>{w.action.label} <ArrowRight className="ml-1 h-4 w-4" /></Button>
+          {w.parties[0] !== "Home Insulation Victoria" && w.action.label !== "Draft a nudge" && <Button size="sm" variant="outline" onClick={() => onOpenTarget("correspondence")}><MessageSquare className="mr-1 h-4 w-4" />Draft a nudge</Button>}
         </div>
       )}
     </section>
@@ -115,14 +123,6 @@ const CHECK_LABELS: Record<(typeof CHECK_KEYS)[number], string> = {
   existing_insulation: "Existing insulation meets the Activity 48 criterion",
 };
 const BASIS: Record<string, string> = { verified: "Verified", recorded: "Recorded", declared: "Owner-declared (not verified)", unknown: "Unknown" };
-// Display-only labels for Gate 1 evidence sources; full source strings stay in the Gate 1 evidence audit.
-const SOURCE_LABELS: Record<string, string> = {
-  properties: "Property record", "properties.is_residential": "Property record", "properties.year_built": "Property record",
-  "properties.occupancy": "Property record", "properties.enrichment": "Property research",
-  "jobs.life_support_status": "Job record", "jobs.estimated_area_m2": "Job record",
-  base44: "Homeowner enquiry", "base44.property_research": "Website property research",
-};
-const sourceLabel = (s: string | null | undefined) => (s && SOURCE_LABELS[s]) || "Recorded source — view evidence";
 
 /** Assessment wording never upgrades a declared/recorded pass to "verified". */
 function assessmentOf(result: string | undefined, basis: string | undefined): { l: string; icon: typeof Check; cls: string } {
@@ -134,34 +134,34 @@ function assessmentOf(result: string | undefined, basis: string | undefined): { 
 }
 
 /** 3 + 4. Eligibility at a glance (six existing Gate 1 checks) with safety flags kept visible. */
-export function EligibilityGlance({ jobId, onOpen }: { jobId: string; onOpen: (g: RecordGroup) => void }) {
+export function EligibilityGlance({ jobId, onOpen }: { jobId: string; onOpen: (target: PortalTarget) => void }) {
   const fn = useServerFn(getGate1Evidence);
+  const intakeFn = useServerFn(getIntakeSummary);
   const { data, isPending, error, refetch } = useQuery({ queryKey: ["gate1_evidence", jobId], queryFn: () => fn({ data: { jobId } }) });
+  const intake = useQuery({ queryKey: ["intake_summary", jobId], queryFn: () => intakeFn({ data: { jobId } }) });
   return (
     <section aria-labelledby="elig-glance" className="mb-3 rounded-md border bg-card">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b px-4 py-2">
         <h2 id="elig-glance" className="text-sm font-bold">Eligibility at a glance</h2>
-        <button type="button" className="text-xs font-semibold text-primary underline" onClick={() => onOpen("enquiry")}>Full Gate 1 evidence</button>
+        <button type="button" className="shrink-0 text-xs font-semibold text-primary underline" onClick={() => onOpen("gate1-evidence")}>Full evidence</button>
       </div>
       {isPending ? <p role="status" className="px-4 py-3 text-sm text-muted-foreground">Loading Gate 1 checks…</p>
         : error || !data ? <div role="alert" className="px-4 py-3 text-sm text-danger">Gate 1 checks could not be loaded. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>
           : <>
-            <table className="w-full text-sm">
-              <thead className="sr-only sm:not-sr-only"><tr className="text-left text-xs text-muted-foreground"><th className="px-4 py-1.5 font-medium">Requirement</th><th className="px-2 py-1.5 font-medium">Assessment</th><th className="px-4 py-1.5 font-medium">Evidence basis</th></tr></thead>
-              <tbody>
+            <div className="divide-y text-sm" role="list" aria-label="Eligibility requirements">
                 {CHECK_KEYS.map((key) => {
                   const r = data.live.rules.find((x) => x.key === key);
                   const a = assessmentOf(r?.result, r?.basis);
+                  const ownerAnswer = ownerAnswerForGate1(key, intake.data);
                   return (
-                    <tr key={key} className="border-t align-top max-sm:grid max-sm:grid-cols-1 max-sm:py-2">
-                      <td className="px-4 py-1.5 font-medium max-sm:py-0">{CHECK_LABELS[key]}</td>
-                      <td className={`px-2 py-1.5 max-sm:px-4 max-sm:py-0 ${a.cls}`}><span className="inline-flex items-center gap-1"><a.icon className="h-3.5 w-3.5 shrink-0" aria-hidden />{a.l}</span></td>
-                      <td className="px-4 py-1.5 text-xs text-muted-foreground max-sm:py-0">{r ? `${BASIS[r.basis] ?? r.basis} · ${sourceLabel(r.source)}` : "Unknown — no evidence recorded"}</td>
-                    </tr>
+                    <div key={key} role="listitem" className="grid gap-1 px-4 py-2.5 sm:grid-cols-[minmax(11rem,1fr)_minmax(11rem,1fr)_minmax(14rem,1.35fr)] sm:gap-3">
+                      <div><div className="font-semibold">{CHECK_LABELS[key]}</div><div className="text-xs text-muted-foreground"><span className="font-medium">Owner answer:</span> {ownerAnswer}</div></div>
+                      <div className={a.cls}><span className="inline-flex items-center gap-1 font-medium"><a.icon className="h-3.5 w-3.5 shrink-0" aria-hidden />{a.l}</span><div className="text-xs text-muted-foreground">{r?.reason ?? "No assessment reason recorded"}</div></div>
+                      <div className="text-xs text-muted-foreground"><div><span className="font-medium text-foreground">Basis:</span> {r ? BASIS[r.basis] ?? r.basis : "Unknown"} · {evidenceSourceLabel(r?.source)}</div><button type="button" className="mt-0.5 font-semibold text-primary underline" onClick={() => onOpen(r?.basis === "declared" ? "intake-consent" : "gate1-evidence")}>Open answer and evidence</button></div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+            </div>
             {data.live.flags.filter((f) => f.type === "safety").length > 0 && (
               <div role="note" className="border-t border-l-4 border-l-danger px-4 py-2 text-sm">
                 <div className="text-xs font-bold uppercase text-danger">Safety flags — not an eligibility result</div>
