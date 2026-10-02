@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  START_LIMITS, contactDraftAllowed, fingerprintSource, hasForbiddenFlag, isOwnQuarantinePath, mayRelaxRequiredSteps,
+  START_LIMITS, contactDraftAllowed, hasForbiddenFlag, isVisitorId, limiterKeys, isOwnQuarantinePath, mayRelaxRequiredSteps,
   normaliseEmail, normaliseMobile, safeOriginalName, startAllowed, verifyInsuranceBytes, INSURANCE_MAX_BYTES,
 } from "../src/lib/onboarding-security.core";
 
@@ -27,9 +27,21 @@ describe("start limits", () => {
     expect(contactDraftAllowed(1)).toBe(true);
     expect(contactDraftAllowed(2)).toBe(false);
   });
-  test("shared office IP: different devices get different fingerprints", () => {
-    expect(fingerprintSource("1.2.3.4", "Safari iPhone", "rec")).not.toBe(fingerprintSource("1.2.3.4", "Chrome Windows", "rec"));
-    expect(fingerprintSource("1.2.3.4", "Safari", "rec")).not.toBe(fingerprintSource("1.2.3.4", "Safari", "installer"));
+  test("shared IP: different visitors get separate allowances; no-IP visitors never share one", () => {
+    const a = limiterKeys("A".repeat(43), "1.2.3.4", "rec"), b = limiterKeys("B".repeat(43), "1.2.3.4", "rec");
+    expect(a[0]!.source).not.toBe(b[0]!.source);
+    expect(a[1]!.source).toBe(b[1]!.source); // wider network backstop only
+    const n1 = limiterKeys("C".repeat(43), null, "rec"), n2 = limiterKeys("D".repeat(43), null, "rec");
+    expect(n1).toHaveLength(1); expect(n1[0]!.source).not.toBe(n2[0]!.source);
+    expect(limiterKeys("A".repeat(43), "1.2.3.4", "installer")[0]!.source).not.toBe(a[0]!.source);
+    expect(isVisitorId("short")).toBe(false); expect(isVisitorId("A".repeat(43))).toBe(true); expect(isVisitorId("bad id!".repeat(8))).toBe(false);
+  });
+  test("limiter and contact keys use a server-held secret, never plain SHA-256", () => {
+    const src = readFileSync("src/lib/onboarding-security.server.ts", "utf8");
+    expect(src).toContain('process.env["ONBOARDING_FP_SECRET"]');
+    expect(src).toContain('name: "HMAC"');
+    expect(src).not.toContain("onboarding-start-v1|");
+    expect(readFileSync("src/lib/request-meta.ts", "utf8")).toContain("httpOnly: true");
   });
   test("normalisation", () => {
     expect(normaliseEmail(" Jo@Example.COM ")).toBe("jo@example.com");
