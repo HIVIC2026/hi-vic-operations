@@ -45,8 +45,10 @@ function DetailFixture() {
       <RecordDisclosure id="enquiry" title="Enquiry" summary="Gate 1 evidence, estimate, eligibility decision, intake and consent" open={open.has("enquiry")} onToggle={() => toggle("enquiry")}><div id="panel-intake-consent"><IntakeSummary jobId="qa-job" /></div></RecordDisclosure>
       <RecordDisclosure id="ready_check" title="Ready Check" open={open.has("ready_check")} onToggle={() => toggle("ready_check")}><input aria-label="Draft note" defaultValue="Keep this draft" className="h-9 rounded-md border px-3" /></RecordDisclosure>
       <RecordDisclosure id="quote" title="Quote" summary="Quotes, invoice & deposit, electronic signing" open={open.has("quote")} onToggle={() => toggle("quote")}><div id="panel-deposit-request">{depositReady || mode !== "deposit" ? <PaymentsPanel jobId="qa-job" isAdmin /> : <p role="status">Loading payment records…</p>}</div></RecordDisclosure>
-      {(["piesa", "installation", "ap_veec", "history"] as RecordGroup[]).map((group) => <RecordDisclosure key={group} id={group} title={group === "ap_veec" ? "AP review & VEECs" : group === "history" ? "Correspondence & history" : group[0]!.toUpperCase() + group.slice(1)} open={open.has(group)} onToggle={() => toggle(group)}><p>QA-only record content.</p></RecordDisclosure>)}
+      {(["piesa", "installation", "ap_veec", "history"] as RecordGroup[]).map((group) => <RecordDisclosure key={group} id={group} title={group === "ap_veec" ? "AP review & VEECs" : group === "history" ? "Correspondence & history" : `${group.charAt(0).toUpperCase()}${group.slice(1)}`} open={open.has(group)} onToggle={() => toggle(group)}><p>QA-only record content.</p></RecordDisclosure>)}
     </div></div></main>;
 }
 
-createRoot(document.getElementById("root")!).render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{query.get("page") === "list" ? <ListFixture /> : <DetailFixture />}</QueryClientProvider>);
+const root = document.getElementById("root");
+if (!root) throw new Error("Portal QA root is missing");
+createRoot(root).render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{query.get("page") === "list" ? <ListFixture /> : <DetailFixture />}</QueryClientProvider>);
