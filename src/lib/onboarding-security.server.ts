@@ -147,7 +147,6 @@ export async function verifyAndPromote(db: Db, folder: string, appId: string, pa
   if (error || !updated) {
     await bucket.remove([finalPath]);
     await db.rpc("finish_quarantine_validation", { _path: path, _app: appId, _accepted: false, _bytes: size });
-    await db.rpc("finish_quarantine_cleanup", { _paths: [], _bytes: [], _trigger: "rejected" });
     throw new Error("Could not attach the certificate. Please try again.");
   }
   await db.rpc("finish_quarantine_validation", { _path: path, _app: appId, _accepted: true, _bytes: size });

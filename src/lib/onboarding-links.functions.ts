@@ -61,3 +61,49 @@ export const listOnboardingLinks = createServerFn({ method: "POST" })
     const now = Date.now();
     return (data ?? []).map((r: Omit<OnboardingLinkRow, "state">) => ({ ...r, state: r.revoked_at ? "revoked" : r.uses > 0 ? "used" : Date.parse(r.expires_at) <= now ? "expired" : "unused" }));
   });
+
+type AdminDb = { from: (t: string) => any; rpc: (f: string, a?: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }> }; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+export type StartBlockRow = { key: string; key_label: string; trade: "rec" | "installer"; kind: "visitor" | "network"; recent_15m: number; recent_24h: number; refused: number; last_attempt: string; blocked: boolean };
+
+// Lists current start-limit records by hashed key only (never IP, cookie, email or mobile).
+export const listOnboardingStartBlocks = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<StartBlockRow[]> => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await (supabaseAdmin as unknown as AdminDb).rpc("list_onboarding_start_blocks");
+    if (error) throw new Error("Could not load start limits. The onboarding security update may not be installed yet.");
+    return ((data ?? []) as Array<Omit<StartBlockRow, "key" | "key_label"> & { fingerprint_hash: string }>).map(({ fingerprint_hash, ...r }) => ({
+      ...r, key: fingerprint_hash, key_label: `${r.kind === "visitor" ? "Browser" : "Network"} …${fingerprint_hash.slice(-8)}`,
+    }));
+  });
+
+// Clears ONE hashed limit record for ONE trade. Reason required; actor comes from the session, never the client.
+export const clearOnboardingStartBlock = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    key: z.string().regex(/^[a-f0-9]{64}$/),
+    trade: z.enum(["rec", "installer"]),
+    kind: z.enum(["visitor", "network"]),
+    reason: z.string().trim().min(3, "Enter a reason").max(300),
+  }).strict().parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: id, error } = await (supabaseAdmin as unknown as AdminDb).rpc("clear_onboarding_start_block", {
+      _fp: data.key, _trade: data.trade, _kind: data.kind, _actor: context.userId, _reason: data.reason,
+    });
+    if (error || id == null) throw new Error("This limit could not be cleared. It may have already expired or been cleared.");
+    return { clearance_id: Number(id) };
+  });
+
+// Runs abandoned-upload cleanup now and returns counts only.
+export const runOnboardingUploadCleanup = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { cleanupQuarantine } = await import("./onboarding-security.server");
+    return cleanupQuarantine(supabaseAdmin as never, "office", { actor: context.userId, limit: 200 });
+  });
