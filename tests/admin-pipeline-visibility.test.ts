@@ -34,6 +34,13 @@ describe("admin pipeline visibility", () => {
     expect(pipeline).toContain("Your enquiries have not been deleted.");
   });
 
+  it("uses the same phase-filtered jobs for rows, select-all and the empty state", () => {
+    expect(pipeline).toContain("const visibleJobs = useMemo(() => filterVisibleJobs(filtered, phase, phaseForStage)");
+    expect(pipeline).toContain("visibleJobs.map((j: JobRow)");
+    expect(pipeline).toContain("visibleJobs.every((j) => selected.has(j.id!))");
+    expect(pipeline).toContain("visibleJobs.length === 0 && shownInterests.length === 0");
+  });
+
   it("keeps unrelated jobs hidden from non-admins at the RLS boundary", () => {
     expect(schema).toContain("create policy \"job_access\" on public.jobs for select to authenticated using (public.can_access_job(id));");
     expect(schema).toMatch(/create or replace function public\.can_access_job[\s\S]*?public\.is_admin\(\)[\s\S]*?job_assignment_role[\s\S]*?is_job_owner/);
