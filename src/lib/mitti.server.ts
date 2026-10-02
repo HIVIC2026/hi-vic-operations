@@ -234,13 +234,15 @@ export async function syncPendingMitti(actorId: string, call: MittiCall = realMi
 /** Sends the official PIISA to the assigned installer in Mitti with the LR-003 pre-fills (Installation Booked only).
  * Fails closed while the PIISA is locked or its Mitti form isn't configured. Reminders stay in the portal. */
 export async function createPiisaMittiAudit(jobId: string, actorId: string, call: MittiCall = realMittiCall) {
-  const { MITTI_PIISA_TEMPLATE_ID, buildOfficialPrefill } = await import("./mitti.core");
+  const { buildOfficialPrefill } = await import("./mitti.core");
   const { OFFICIAL_ITEMS } = await import("./official-forms.core");
   const { piisaPrefill } = await import("./official-prefill.core");
   const { officialPrefillContext } = await import("./official-forms.server");
   const block = officialFormUseBlocker("piisa");
   if (block) throw new WorkflowError(block);
-  if (!MITTI_PIISA_TEMPLATE_ID.trim()) throw new WorkflowError("PIISA Mitti form is not configured. Add the validated PIISA form before it can be sent.");
+  const { data: ws } = await admin.from("workflow_settings").select("mitti_piisa_template_id").eq("id", 1).maybeSingle();
+  const MITTI_PIISA_TEMPLATE_ID = ws?.mitti_piisa_template_id?.trim() ?? "";
+  if (!MITTI_PIISA_TEMPLATE_ID) throw new WorkflowError("PIISA Mitti form is not configured. Add the validated PIISA form before it can be sent.");
   const { data: job } = await admin.from("jobs").select("job_number,business_unit,stage").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
   if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for Home Insulation Victoria jobs.");
