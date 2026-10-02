@@ -115,7 +115,7 @@ export function EscInstallPanel({ jobId }: { jobId: string }) {
         <div className="rounded border p-2">
           <b>Signed PIESA copy delivered</b>
           <ul className="text-xs">{(["owner", "installer"] as const).map((who) => { const d = dels.find((x) => x.recipient === who); return <li key={who}>{who}: {d ? `${fmtDateTime(d.delivered_at)} (${d.method})` : <span className="text-danger">not recorded</span>}</li>; })}</ul>
-          <div className="mt-1 flex gap-2">{(["owner", "installer"] as const).map((who) => <Button key={who} size="sm" variant="outline" onClick={() => deliver({ jobId, recipient: who, deliveredAt: new Date().toISOString(), method: "email" }, `Delivery to ${who} recorded`)}>Record delivered to {who} now</Button>)}</div>
+          <div className="mt-1 flex flex-wrap gap-2">{(["owner", "installer"] as const).map((who) => <Button key={who} size="sm" variant="outline" onClick={() => deliver({ jobId, recipient: who, deliveredAt: new Date().toISOString(), method: "email" }, `Delivery to ${who} recorded`)}>Record delivered to {who} now</Button>)}</div>
         </div>
       </div>
     </Section>

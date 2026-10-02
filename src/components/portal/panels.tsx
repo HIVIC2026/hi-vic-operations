@@ -66,7 +66,7 @@ export function BlockersPanel({ jobId }: { jobId: string }) {
 }
 
 // ---------------- Evidence ----------------
-export function EvidencePanel({ jobId, role, gates }: { jobId: string; role: string; gates?: string[] }) {
+export function EvidencePanel({ jobId, role, gates, excludeGates }: { jobId: string; role: string; gates?: string[]; excludeGates?: string[] }) {
   const { data } = useQuery({
     queryKey: ["evidence", jobId],
     queryFn: async () => {
@@ -74,7 +74,7 @@ export function EvidencePanel({ jobId, role, gates }: { jobId: string; role: str
       return data ?? [];
     },
   });
-  const reqs = (data ?? []).filter((r) => !gates || gates.includes(r.gate));
+  const reqs = (data ?? []).filter((r) => (!gates || gates.includes(r.gate)) && !excludeGates?.includes(r.gate));
   const done = reqs.filter((r) => r.required && ["uploaded", "verified"].includes(r.status)).length;
   const total = reqs.filter((r) => r.required).length;
   return (
