@@ -120,4 +120,4 @@
 
 - [x] Read-only live readiness check: REC/installer onboarding, worker invites, job links, commercial wording (PASS/FAIL/NOT LIVE with URLs + evidence)
 
-- [ ] Narrow installer onboarding release: prepared and tested in a separate copy; WAITING for the exact phrase "PUBLISH THE NARROW INSTALLER ONBOARDING RELEASE." then swap, publish, check live, restore 81429ac0
+- [x] Narrow installer onboarding release published 2026-10-02 (INST-1.9, no lead-fee wording); unpublished work restored and verified against 81429ac0
