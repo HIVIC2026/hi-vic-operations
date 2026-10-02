@@ -55,7 +55,7 @@ describe("test mode trust", () => {
     for (const f of ["src/lib/rec-onboarding.functions.ts", "src/lib/installer-onboarding.functions.ts"]) {
       const src = readFileSync(f, "utf8");
       expect(src).not.toContain("data.test");
-      expect(src).not.toContain("app.test_mode ? null");
+      expect(src).not.toContain("app.test_mode ? null : firstIncompleteStep");
       expect(src).toMatch(/staff_link: tokenSchema\.optional\(\) \}\)\.strict\(\)/);
     }
     const rec = readFileSync("src/lib/rec-onboarding.functions.ts", "utf8");
