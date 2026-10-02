@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { buildInstallerQuoteDraft, quotedPriceFromEntries } from "../src/lib/installer-led.core";
 
-const e = (inc: string, total: string | null, agreed = "Yes") => [
-  { label: "What's included in your price (tick all that apply)", value: inc },
-  { label: "Total quoted price $", value: total },
-  { label: "Price already agreed with the owner?", value: agreed },
+const e = (inc: string, total: string | null) => [
+  { label: "What's included in your quote?", value: inc },
+  { label: "Total quoted price (inc GST)", value: total },
+  { label: "What else is included?", value: null },
 ];
 const base = { measuredM2: 100, ghgReduction: 20, veecValue: 70, piesaIncGst: 349, apFeeIncGst: 349 };
 
