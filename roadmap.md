@@ -1,6 +1,18 @@
 # Roadmap
 
 ## Now
+- [x] Restore-point check guide for applying 0071–0073 (report only)
+- [x] Launch fixes in test copy (booking atomic, licence guard, Ready Check order proof); pricing questions shown verbatim
+- [x] Migrations 0071, 0072, 0073 applied to live with checks
+- [x] 0074 staged in throwaway database with undo script tested; live apply waiting on Jo
+- [x] C01–C04 recorded and enforced in code (unpublished): two separate $349 lines; installer's own price passes through with no markup plus our two set fees; no lead fee; AP fee changeable only by Jo; Ready Check sheet for installers not yet on site; unsupplied items carried to the PIISA
+- [ ] AP fee after quote acceptance stays locked for everyone including Jo — confirm with her whether a post-acceptance change should exist (would need customer reconfirmation rules)
+- [ ] Old electrician-visit path: waiting on Jo's decision (Ready Check not guaranteed before PIESA on it)
+- [x] Official PIESA/PIISA forms Parts 1–4: correct both forms, printed-rule checks, template records, re-run comparison (keep blocked until Jo approves + source URLs confirmed)
+- [x] Signed-copy storage (0075 staged + throwaway-tested), PIISA wired into central gate, rules A/B fail-closed
+- [ ] Live: apply 0075 + create private bucket + publish code — awaiting Jo go-ahead and form approval
+- [x] C03 (no lead fee) in test copy; awaiting Jo wording approval before publish —: full search report with classification, remove from every active surface (onboarding, agreements as new versions, rate cards, payouts, quotes, invoices, emails, help, tests), side-by-side before/after wording, proofs; nothing live until Jo approves wording
+- [ ] Launch-fix app code re-test on a rebuilt merged copy (test copy was cleared)
 - [x] Provide safe no-write onboarding links for an external AI audit
 - [x] Prevent cancelled preview page requests from surfacing an AbortError and blanking the screen
 - [x] Complete authorized REC refinements: fix save/navigation races; verified AU/VIC addresses; exact service/availability/rates copy; staff links; assigned-REC standard/custom rates; agreement v2.3 source reconciliation and official $5m insurance override; terminology sweep; focused tests, provider/browser checks, viewable screenshots and audit
@@ -99,3 +111,11 @@
 - [x] Align REC clauses 4, 5, 12, 24, 26 and 27; increment agreement version and reconciliation.
 - [x] Complete remaining REC UI/save checks and no-write address-proxy proof.
 - [x] Save viewable 1280/390 REC screenshots as embedded JSON and run focused verification.
+- [x] C03 no-lead-fee wording approved in principle; exact before/after delivered; C03 removed from commercial blockers (C01, C02, C04 unchanged)
+- [x] Hazard → verified rectification wiring (test copy; staged 0077, throwaway-tested)
+- [x] Conductivity answer vs HI VIC supporting photo separated; provenance download date UNKNOWN
+- [x] 0074 merged against current code in throwaway copy and retested
+- [ ] Apply 0075 storage + private file store live — waiting on Jo's approval and restore-point confirmation
+- [ ] Apply 0077 / 0074 live, publish app code — waiting on Jo's approval, form approvals, source URL/date, conductivity/hazard official confirmation, C01/C02/C04
+
+- [x] Read-only live readiness check: REC/installer onboarding, worker invites, job links, commercial wording (PASS/FAIL/NOT LIVE with URLs + evidence)

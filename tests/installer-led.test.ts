@@ -12,15 +12,14 @@ describe("installer-led pricing", () => {
   });
   it("owner price = quote + PIESA + rectification + AP fee − discount, no referral, min $200", () => {
     const p = installerLedOwnerPrice({ installerQuoteIncGst: 3000, piesaIncGst: 349, rectificationIncGst: 0, apFeeIncGst: 200, veecDiscountIncGst: 2100 });
-    expect(p.total).toBe(3549); expect(p.afterDiscount).toBe(1449); expect(p.referralFee).toBe(0); expect(p.ready).toBe(true);
+    expect(p.total).toBe(3549); expect(p.afterDiscount).toBe(1449); expect("referralFee" in p).toBe(false); expect(p.ready).toBe(true);
     expect(installerLedOwnerPrice({ installerQuoteIncGst: 1000, piesaIncGst: 349, rectificationIncGst: 0, apFeeIncGst: 0, veecDiscountIncGst: 1200 }).ready).toBe(false);
     expect(installerLedOwnerPrice({ installerQuoteIncGst: 3000, piesaIncGst: null, rectificationIncGst: 0, apFeeIncGst: null, veecDiscountIncGst: 0 }).blockers.length).toBe(2);
   });
   it("installer-led jobs never carry a referral fee in profit", () => {
     const base = { installerCostExGst: 1000, installerMarginExGst: 0, apFeeExGst: 317.27, electricalCostExGst: 0, electricalChargeExGst: 0, installerSourced: true, veecDiscountIncGst: 700, piesaRecCostExGst: null, veecLodgementFeeExGst: null };
-    expect(jobMargin({ ...base, installerLed: true, leadFeeEarned: true }, 85).referralFeeEx).toBe(0);
-    expect(jobMargin({ ...base, leadFeeEarned: false }, 85).referralFeeEx).toBe(0);
-    expect(jobMargin({ ...base, leadFeeEarned: true }, 85).referralFeeEx).toBe(200);
+    expect("referralFeeEx" in jobMargin({ ...base, installerLed: true }, 85)).toBe(false);
+    expect(jobMargin(base, 85).tradeMargin).toBe(jobMargin({ ...base, installerLed: true }, 85).tradeMargin);
   });
 });
 
@@ -47,8 +46,8 @@ describe("Ready Check coverage", () => {
 });
 
 describe("Mitti form validation", () => {
-  const typeFor = (t: string) => ({ text: "textsingle", number: "textsingle", choice: "question", multichoice: "question", yesno: "question", media: "media", signature: "signature", datetime: "datetime" } as Record<string, string>)[t];
-  const complete = (k: "ready_check" | "piesa" | "piisa") => FORMS[k].fields.map((f) => ({ label: f.label, type: typeFor(f.type) }));
+  const typeFor = (t: string) => ({ text: "textsingle", number: "textsingle", choice: "question", multichoice: "question", yesno: "question", media: "media", signature: "signature", datetime: "datetime", date: "datetime", tick: "checkbox" } as Record<string, string>)[t];
+  const complete = (k: "ready_check" | "piesa" | "piisa") => FORMS[k].fields.filter((f) => !f.statement).map((f) => ({ label: f.label, type: typeFor(f.type) }));
   for (const k of ["ready_check", "piesa", "piisa"] as const) it(`${k}: full form passes`, () => expect(validateTemplate(k, complete(k))).toEqual({ ok: true, issues: [] }));
   it("missing, duplicate and wrong-type fields fail closed", () => {
     const items = complete("piesa");

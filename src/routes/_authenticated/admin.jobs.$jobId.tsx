@@ -13,6 +13,7 @@ import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, PaymentsPane
 import { MittiCard, PriceItemForm } from "@/components/portal/mitti";
 import { RequirementCards } from "@/components/portal/requirements";
 import { EscInstallPanel } from "@/components/portal/intelligence";
+import { PiisaPanel } from "@/components/portal/piisa-panel";
 import { Gate1EvidencePanel } from "@/components/portal/gate1";
 import { IntakeSummary } from "@/components/portal/intake";
 import { JobJourney } from "@/components/portal/journey";
@@ -101,7 +102,7 @@ function JobDetail() {
         </TabsContent>
         <TabsContent value="assessment" className="space-y-4"><RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} /></TabsContent>
         <TabsContent value="quotes" className="space-y-4"><AdminQuotes jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><PaymentsPanel jobId={jobId} isAdmin /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} /></TabsContent>
-        <TabsContent value="installation" className="space-y-4"><EscInstallPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /><SectionDocuments jobId={jobId} categories={["Installation"]} /></TabsContent>
+        <TabsContent value="installation" className="space-y-4"><EscInstallPanel jobId={jobId} /><PiisaPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /><SectionDocuments jobId={jobId} categories={["Installation"]} /></TabsContent>
         <TabsContent value="evidence" className="space-y-4"><EvidencePanel jobId={jobId} role="admin" /><SectionDocuments jobId={jobId} categories={["Evidence"]} /></TabsContent>
         <TabsContent value="veec" className="space-y-4"><ComplianceRecords jobId={jobId} /><Compliance jobId={jobId} /><Veec jobId={jobId} /><SectionDocuments jobId={jobId} categories={["ESC / VEEC"]} /></TabsContent>
         <TabsContent value="messages" className="space-y-4"><WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin /><Correspondence jobId={jobId} /></TabsContent>

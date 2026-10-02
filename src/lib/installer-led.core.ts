@@ -21,7 +21,7 @@ export function installerLedOwnerPrice(i: OwnerPriceInput) {
   const total = Math.round((i.installerQuoteIncGst + (i.piesaIncGst ?? 0) + i.rectificationIncGst + (i.apFeeIncGst ?? 0)) * 100) / 100;
   const afterDiscount = Math.round((total - i.veecDiscountIncGst) * 100) / 100;
   if (afterDiscount < 200) blockers.push("Owner co-payment would be below the $200 minimum.");
-  return { total, discount: i.veecDiscountIncGst, afterDiscount, referralFee: 0, blockers, ready: blockers.length === 0 };
+  return { total, discount: i.veecDiscountIncGst, afterDiscount, blockers, ready: blockers.length === 0 };
 }
 
 /**
@@ -69,6 +69,22 @@ export function readyCheckCoverage(e: SuppliedEvidence): Coverage {
   });
   const status = missing.length === 0 ? "complete" : have === 0 ? "none" : "partial";
   return { status, missing, hardFail };
+}
+
+/**
+ * C02 (Jo, 2 Oct 2026): Ready Check items the installer didn't supply are collected with the PIISA on
+ * installation day — except answers that decide eligibility or price, which must be settled first,
+ * because the PIISA is signed on the day and can't reopen eligibility. Pure: nothing is stored and
+ * the office still reviews; the split never lets a job progress by itself.
+ */
+const BEFORE_QUOTE_MARKERS = ["built in the last 5 years", "at least one measured area", "area name", "uninsulated or under-insulated", "measured m", "existing r-value", "removal required"];
+export type CarryOver = { beforeQuote: string[]; atPiisa: string[] };
+
+/** Splits a Ready Check gap list without dropping anything. */
+export function piisaCarryOver(missing: string[]): CarryOver {
+  const beforeQuote: string[] = [], atPiisa: string[] = [];
+  for (const label of missing) (BEFORE_QUOTE_MARKERS.some((k) => label.toLowerCase().includes(k)) ? beforeQuote : atPiisa).push(label);
+  return { beforeQuote, atPiisa };
 }
 
 export type JourneyStep = "submit" | "eligibility" | "measure_up" | "electrician" | "piesa" | "quote" | "pre_install" | "install" | "completion" | "veecs";

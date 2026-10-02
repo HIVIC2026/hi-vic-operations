@@ -36,7 +36,7 @@ function fake(opts: { users?: { id: string; email: string }[]; template?: unknow
 }
 
 const ctx = (over: Partial<CreateCtx> = {}): CreateCtx => ({
-  businessUnit: "hivic", stage: "assessment_booked", jobNumber: "HV-1020", existingAuditId: null, electricianEmail: "sparky@hivic.test",
+  businessUnit: "hivic", stage: "piesa_scheduled", jobNumber: "HV-1020", existingAuditId: null, electricianEmail: "sparky@hivic.test",
   prefill: { jobNumber: "HV-1020", address: "1 Test St, Brunswick, 3056", ownerName: "Ann Owner", ownerEmail: "ann@example.com", assessorName: "Sam Sparky", assessmentAt: "2026-09-30T00:00:00Z", estimatedAreaM2: 120, occupancy: "owner occupied", lifeSupport: "None recorded by office" },
   ...over,
 });
@@ -71,7 +71,7 @@ describe("create & assign", () => {
   });
   test("guards: business unit, stage, missing mandatory template labels", async () => {
     await expect(createOrReuseAudit(fake().api, ctx({ businessUnit: "dc" }))).rejects.toThrow(/Home Insulation Victoria/);
-    await expect(createOrReuseAudit(fake().api, ctx({ stage: "eligibility_review" }))).rejects.toThrow(/Assessment Booking/);
+    await expect(createOrReuseAudit(fake().api, ctx({ stage: "eligibility_review" }))).rejects.toThrow(/waiting on or has booked its PIESA/);
     const { api, calls } = fake({ template: { template_id: MITTI_TEMPLATE_ID, header_items: [{ item_id: "h1", label: "Portal Job Number" }], items: [] } });
     await expect(createOrReuseAudit(api, ctx())).rejects.toThrow(/missing required office fields/);
     expect(calls.some((c) => c.path === "/audits")).toBe(false);
