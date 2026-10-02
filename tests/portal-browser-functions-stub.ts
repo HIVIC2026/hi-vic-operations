@@ -1,0 +1,5 @@
+const named = (name: string) => Object.assign(() => undefined, { __mockName: name });
+export const getGate1Evidence = named("getGate1Evidence");
+export const getIntakeSummary = named("getIntakeSummary");
+export const getInvoiceInternals = named("getInvoiceInternals");
+export const confirmEvidenceUpload = named("confirmEvidenceUpload"); export const createBooking = named("createBooking"); export const getAuthorityDocUrl = named("getAuthorityDocUrl"); export const getEvidenceUrl = named("getEvidenceUrl"); export const getJobBlockers = named("getJobBlockers"); export const overrideDepositGate = named("overrideDepositGate"); export const requestEvidenceUpload = named("requestEvidenceUpload"); export const respondToQuote = named("respondToQuote"); export const sendMessage = named("sendMessage"); export const cancelBooking = named("cancelBooking"); export const markDepositRequestRaised = named("markDepositRequestRaised"); export const syncInvoice = named("syncInvoice"); export const verifyEvidence = named("verifyEvidence");
