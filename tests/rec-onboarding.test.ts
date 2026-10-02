@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { validAbn, validPhone, validBusinessEmail, stepErrors, firstIncompleteStep, applyMaterialReset, agreementText, scheduleText, visibleSteps, effectiveElectricians, parseRecSampleStep, recDraftRole, isRecRevisionTimestamp, ACKNOWLEDGEMENTS, type RecData } from "../src/lib/rec-onboarding.core";
+import { validAbn, validPhone, validBusinessEmail, stepErrors, firstIncompleteStep, applyMaterialReset, agreementText, scheduleText, visibleSteps, effectiveElectricians, parseRecSampleStep, recDraftRole, isRecRevisionTimestamp, isAlwaysMandatoryStep, ALWAYS_MANDATORY_STEPS, ACKNOWLEDGEMENTS, type RecData } from "../src/lib/rec-onboarding.core";
 
 const full: RecData = {
   works_under_rec: false,
@@ -110,5 +110,14 @@ describe("rec onboarding", () => {
     expect(t).toContain("1. Sam Smith — licence A123");
     expect(ACKNOWLEDGEMENTS.length).toBe(9);
     for (const a of ACKNOWLEDGEMENTS) expect(t).toContain(a.text);
+  });
+
+  test("the services confirmation stays mandatory in every mode", () => {
+    expect(ALWAYS_MANDATORY_STEPS).toEqual(["services"]);
+    expect(isAlwaysMandatoryStep("services")).toBe(true);
+    expect(isAlwaysMandatoryStep("coverage")).toBe(false);
+    expect(stepErrors("services", {})).toEqual(["Confirm your REC can provide all three electrical services."]);
+    expect(stepErrors("services", { services_all_confirmed: false })).toEqual(["Confirm your REC can provide all three electrical services."]);
+    expect(stepErrors("services", { services_all_confirmed: true })).toEqual([]);
   });
 });
