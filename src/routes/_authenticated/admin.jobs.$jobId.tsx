@@ -3,7 +3,7 @@ import { AdminBookingOverride, AdminPartnerPanel, AppointmentPanel } from "@/com
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useState } from "react";
-import { ArrowLeft, HeartPulse } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { PaymentBadge, Pill, SourceBadge, StageBadge, UrgencyBadge } from "@/components/portal/badges";
@@ -17,13 +17,10 @@ import { PiisaPanel } from "@/components/portal/piisa-panel";
 import { Gate1EvidencePanel } from "@/components/portal/gate1";
 import { IntakeSummary } from "@/components/portal/intake";
 import { JobJourney } from "@/components/portal/journey";
-import { ClearTimeline, WhoHasTheBall } from "@/components/portal/waiting";
-import { AllDocuments, Correspondence, ExportJobPack, JobFileHeader, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
+import { ClearTimeline } from "@/components/portal/waiting";
+import { EligibilityGlance, JobIdentity, NextActionBand, PhaseStrip, RecordDisclosure, SubHeading, TAB_TO_GROUP, type RecordGroup } from "@/components/portal/job-workspace";
+import { AllDocuments, Correspondence, ExportJobPack, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
 
-const TABS: [string, string][] = [
-  ["overview", "Overview"], ["eligibility", "Eligibility"], ["assessment", "Ready Check"], ["quotes", "Quote & deposit"], ["piesa", "PIESA"],
-  ["installation", "Installation"], ["evidence", "Evidence & AP review"], ["authority", "Electronic signing"], ["veec", "VEEC & finalise"], ["messages", "Correspondence"], ["documents", "Documents"], ["history", "Audit history"],
-];
 import { useAction } from "@/hooks/use-me";
 import { useServerFn } from "@tanstack/react-start";
 import { RECORD_LABELS, type RecordKey } from "@/lib/compliance-timeline.core";
@@ -32,7 +29,6 @@ import {
   setCommercialModel, setComplianceCheck, setEligibility, setHold, updateVeec, listComplianceRecords, recordComplianceItem,
 } from "@/lib/portal.functions";
 import { ELIGIBILITY_LABEL, aud, fmtDate, type EligibilityOutcome } from "@/lib/workflow";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
