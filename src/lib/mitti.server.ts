@@ -141,6 +141,35 @@ async function applyMeasure(jobId: string, actorId: string, auditId: string, sou
   return plan;
 }
 
+/** Save Mitti's finished PDF report to the job's private files, once per completed audit version. Never throws. */
+async function saveMittiReport(jobId: string, actorId: string, auditId: string, modifiedAt: string | null, label: string, call: MittiCall) {
+  const key = `${auditId}:${modifiedAt ?? "completed"}`;
+  try {
+    const { data: ex } = await admin.from("documents").select("id").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
+    if (ex) return;
+    const api = mittiApi(call);
+    const req = await api.requestReport(auditId);
+    let url: string | null = null;
+    for (let i = 0; i < 6 && !url; i++) {
+      const r = await api.getReport(auditId, String(req?.messageId ?? ""));
+      if (typeof r?.url === "string" && r.url.startsWith("https://")) url = r.url;
+      else await new Promise((res) => setTimeout(res, 2000));
+    }
+    if (!url) throw new Error("report not ready");
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`download ${res.status}`);
+    const buf = await res.arrayBuffer();
+    const stamp = (modifiedAt ?? new Date().toISOString()).replace(/[^0-9]/g, "").slice(0, 14);
+    const path = `${jobId}/mitti/${auditId}-${stamp}.pdf`;
+    const up = await admin.storage.from("job-files").upload(path, buf, { contentType: "application/pdf", upsert: false });
+    if (up.error) throw new Error("storage upload failed");
+    await admin.from("documents").insert({ job_id: jobId, kind: "mitti_report", title: `Mitti ${label} report`, storage_path: path, mime_type: "application/pdf", uploaded_by: actorId, source_system: "mitti", external_id: key, original_name: `${label}.pdf`, size_bytes: buf.byteLength });
+    await logEvent(jobId, actorId, "mitti_report_saved", `Mitti ${label} report saved to job files`, { audit_id: auditId, path });
+  } catch (e) {
+    await logEvent(jobId, actorId, "mitti_report_failed", `Mitti ${label} report could not be saved – sync again to retry`, { audit_id: auditId, reason: e instanceof Error ? e.message : "error" });
+  }
+}
+
 /** Sync the STORED audit(s) only. Never completes a requirement. */
 export async function syncMittiAssessment(jobId: string, actorId: string, call: MittiCall = realMittiCall) {
   const { data: job } = await admin.from("jobs").select("job_number,business_unit").eq("id", jobId).single();
@@ -190,6 +219,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string, call: 
             await admin.from("rectification_items").insert({ ...base, job_id: jobId, assessment_id: a.id, is_other: true, source: "mitti", external_key: o.external_key, other_unit_price_inc_gst: o.unit_price_inc_gst, needs_office_pricing: o.needs_office_pricing, added_by: actorId });
           }
         }
+        if (plan.completed) await saveMittiReport(jobId, actorId, a.external_mitti_id, plan.modifiedAt ?? null, "PIESA", call);
         await logEvent(jobId, actorId, "mitti_synced", plan.completed ? "Mitti assessment synced (completed in Mitti)" : "Mitti partial data synced (audit not yet completed)",
           { audit_id: a.external_mitti_id, electrical_fields: Object.keys(electrical), measurement: "not_imported_from_piesa", measurement_fields: [], issues, other_items: plan.others.length });
       }
@@ -208,6 +238,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string, call: 
       const mIssues = plan.issues.filter((i) => !/PIESA|Switchboard/.test(i));
       issues = [...issues, ...mIssues, ...(mp.action === "skip" ? [mp.reason] : [])];
       completed = completed || plan.completed;
+      if (plan.completed) await saveMittiReport(jobId, actorId, measureAudit, plan.modifiedAt ?? null, "Ready Check", call);
       await logEvent(jobId, actorId, "mitti_measureup_synced", plan.completed ? "Mitti measure-up synced (completed in Mitti)" : "Mitti measure-up partial data synced", { audit_id: measureAudit, measurement: mp.action, issues: mIssues });
     }
   }
