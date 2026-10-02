@@ -46,9 +46,9 @@ const text = (v: unknown, max: number) => (typeof v === "string" && v.trim() && 
 export function normaliseExtract(raw: Record<string, unknown> | null | undefined): InsuranceExtract | null {
   if (!raw || typeof raw !== "object") return null;
   const out: InsuranceExtract = {
-    insured_name: text(raw.insured_name, 200), insurer: text(raw.insurer, 200), policy_number: text(raw.policy_number, 100),
-    cover_amount: parseAmount(raw.cover_amount), expiry: parseAuDate(raw.expiry),
-    is_public_liability: typeof raw.is_public_liability === "boolean" ? raw.is_public_liability : null,
+    insured_name: text(raw["insured_name"], 200), insurer: text(raw["insurer"], 200), policy_number: text(raw["policy_number"], 100),
+    cover_amount: parseAmount(raw["cover_amount"]), expiry: parseAuDate(raw["expiry"]),
+    is_public_liability: typeof raw["is_public_liability"] === "boolean" ? raw["is_public_liability"] : null,
   };
   return Object.values(out).some((v) => v !== null) ? out : null;
 }
