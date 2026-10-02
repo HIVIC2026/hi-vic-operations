@@ -63,8 +63,14 @@ describe("validateQuotedPrice", () => {
   test("Other needs a description; fails closed on missing answers", () => {
     expect(validateQuotedPrice({ included: [R, "Other"], totalIncGst: 1300, agreedWithOwner: true, removalRequired: false }).ok).toBe(false);
     expect(validateQuotedPrice({ included: [R, "Other"], otherDescription: "Asbestos check", totalIncGst: 1300, agreedWithOwner: true, removalRequired: false }).ok).toBe(true);
-    expect(validateQuotedPrice({ included: [R], totalIncGst: 1200, agreedWithOwner: null, removalRequired: false }).ok).toBe(false);
     expect(validateQuotedPrice({ included: [R], totalIncGst: 0, agreedWithOwner: true, removalRequired: false }).ok).toBe(false);
+    // Agreement is not a blocker any more: the office reviews every quote draft before it is sent (A1 has no such question).
+    expect(validateQuotedPrice({ included: [R], totalIncGst: 1200, agreedWithOwner: null, removalRequired: false }).ok).toBe(true);
+  });
+  test("the installer's own wording for the R5.0 line is accepted and normalised", () => {
+    const r = validateQuotedPrice({ included: ["R5.0 ceiling insulation - supply & install"], totalIncGst: 1200, agreedWithOwner: null, removalRequired: false });
+    expect(r.ok).toBe(true);
+    expect(r.price?.included).toEqual(["R5.0 supply and install"]);
   });
   test("validated price feeds the owner co-branded quote without retyping", () => {
     const r = validateQuotedPrice({ included: [R], totalIncGst: 1200, agreedWithOwner: true, removalRequired: false });
