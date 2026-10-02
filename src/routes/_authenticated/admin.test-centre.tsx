@@ -101,6 +101,9 @@ function CreateTestJob({ onDone }: { onDone: () => void }) {
 // One-use staff links for onboarding tests or helping a blocked applicant. Shown once; expires in 24 hours.
 function OnboardingLinks() {
   const issue = useServerFn(issueOnboardingLink);
+  const revoke = useServerFn(revokeOnboardingLink);
+  const list = useServerFn(listOnboardingLinks);
+  const links = useQuery({ queryKey: ["onboarding-links"], queryFn: () => list() });
   const [trade, setTrade] = useState<"rec" | "installer">("rec");
   const [purpose, setPurpose] = useState<"qa_test" | "office_recovery">("qa_test");
   const [incomplete, setIncomplete] = useState(false);
@@ -112,18 +115,34 @@ function OnboardingLinks() {
       <h2 className="font-display text-xl font-bold">Onboarding staff links</h2>
       <p className="mt-1 text-sm text-muted-foreground">A test link starts an application marked as a test. An office link lets a real applicant start after being blocked. Each link works once and expires in 24 hours.</p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div><Label>Trade</Label><select className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm" value={trade} onChange={(e) => setTrade(e.target.value as "rec")}><option value="rec">Electrician (REC)</option><option value="installer">Installer</option></select></div>
-        <div><Label>Purpose</Label><select className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm" value={purpose} onChange={(e) => setPurpose(e.target.value as "qa_test")}><option value="qa_test">Test application</option><option value="office_recovery">Office help for a real applicant</option></select></div>
+        <div><Label>Trade</Label><select className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm" value={trade} onChange={(e) => setTrade(e.target.value as "rec" | "installer")}><option value="rec">Electrician (REC)</option><option value="installer">Installer</option></select></div>
+        <div><Label>Purpose</Label><select className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm" value={purpose} onChange={(e) => setPurpose(e.target.value as "qa_test" | "office_recovery")}><option value="qa_test">Test application</option><option value="office_recovery">Office help for a real applicant</option></select></div>
         <div className="sm:col-span-2"><Label>Reason</Label><Input className="mt-1" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Launch QA run" /></div>
         {purpose === "qa_test" && <label className="flex items-center gap-2 text-sm sm:col-span-2"><Checkbox checked={incomplete} onCheckedChange={(v) => setIncomplete(v === true)} />Allow signing with steps unfinished (services tick is still required)</label>}
       </div>
       <Button className="mt-4" disabled={busy || note.trim().length < 3} onClick={async () => {
         setBusy(true); setLink(null);
-        try { const r = await issue({ data: { trade, purpose, allow_incomplete_sign: incomplete, note } }); setLink(window.location.origin + r.path); }
+        try { const r = await issue({ data: { trade, purpose, allow_incomplete_sign: incomplete, note } }); setLink(window.location.origin + r.path); void links.refetch(); }
         catch (e) { toast.error(e instanceof Error ? e.message : "Could not create the link"); }
         finally { setBusy(false); }
       }}>Create one-use link</Button>
       {link && <div className="mt-3 rounded-md border border-dashed p-3 text-sm"><p className="font-semibold">Copy this now — it won't be shown again.</p><code className="mt-1 block break-all">{link}</code></div>}
+      <h3 className="mt-6 text-sm font-semibold">Recent links</h3>
+      {links.isError && <p className="mt-2 text-sm text-destructive">{links.error instanceof Error ? links.error.message : "Could not load links."}</p>}
+      {links.data && links.data.length === 0 && <p className="mt-2 text-sm text-muted-foreground">No links yet.</p>}
+      {links.data && links.data.length > 0 && <ul className="mt-2 divide-y rounded-md border text-sm">
+        {links.data.map((l) => <li key={l.id} className="flex flex-wrap items-center gap-2 p-2">
+          <Badge variant="outline">{l.trade === "rec" ? "Electrician" : "Installer"}</Badge>
+          <span>{l.purpose === "qa_test" ? "Test" : "Office help"}</span>
+          <span className="text-muted-foreground">{l.note}</span>
+          <span className="ml-auto text-muted-foreground">{l.state === "unused" ? `Unused · expires ${new Date(l.expires_at).toLocaleString("en-AU")}` : l.state === "used" ? "Used" : l.state === "revoked" ? "Revoked" : "Expired"}</span>
+          {l.state === "unused" && <Button size="sm" variant="outline" onClick={async () => {
+            try { await revoke({ data: { id: l.id } }); toast.success("Link revoked"); }
+            catch (e) { toast.error(e instanceof Error ? e.message : "Could not revoke the link"); }
+            finally { void links.refetch(); }
+          }}>Revoke</Button>}
+        </li>)}
+      </ul>}
     </section>
   );
 }
