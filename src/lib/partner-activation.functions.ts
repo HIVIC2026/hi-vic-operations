@@ -18,6 +18,7 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
     if (existing) return { ...existing, alreadyActivated: true as const };
     const { data: app, error } = await admin.from("rec_onboarding_applications").select("*").eq("id", data.applicationId).single();
     if (error || !app || app.status !== "submitted" || !app.partner_enquiry_id) throw new WorkflowError("A complete signed application is required.");
+    if (app.test_mode) throw new WorkflowError("Test applications can never be approved as real partners.");
     const type = app.partner_type as PartnerType;
     const application = app.data as RecData | InstData;
     const blockers = activationBlockers(type, application, app.agreement_version, app.signed_at);

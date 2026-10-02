@@ -12,6 +12,7 @@ import {
   loadInstallerOnboarding as loadRecOnboarding, saveInstallerOnboarding as saveRecOnboarding, signInstallerAgreement as signRecAgreement, startInstallerOnboarding as startRecOnboarding,
 } from "@/lib/installer-onboarding.functions";
 import { defaultAddressProvider } from "@/lib/address-provider";
+import { newResumeToken, takeStaffLink } from "@/lib/onboarding-security.core";
 import type { AddressSuggestion } from "@/lib/whatif-location";
 
 // Public installer onboarding (same design/rules as electrician onboarding) + partner agreement signing. Progress is saved
@@ -136,7 +137,15 @@ function InstallerOnboarding() {
   const [showErrors, setShowErrors] = useState(false);
   // Test mode (?test=1): nothing is mandatory, so staff can click straight through. The
   // application is flagged test_mode server-side and never counts as a real applicant.
-  const [testMode, setTestMode] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("test") === "1");
+  // Test mode is decided by the server (staff-issued link only); `testMode` = relaxed required steps.
+  const [testMode, setTestMode] = useState(false);
+  const [isTest, setIsTest] = useState(false);
+  const [staffLink] = useState(() => takeStaffLink());
+  const startWith = async () => {
+    const r = await startRecOnboarding({ data: { token: newResumeToken(), ...(staffLink ? { staff_link: staffLink } : {}) } });
+    setIsTest(r.test_mode); setTestMode(r.relaxed);
+    return r;
+  };
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("reset") === "1") { localStorage.removeItem(TOKEN_KEY); setLoaded(true); return; }
@@ -144,7 +153,7 @@ function InstallerOnboarding() {
     if (!t) { setLoaded(true); return; }
     loadRecOnboarding({ data: { token: t } }).then((r) => {
       setToken(t); setD(r.data as RecData); setStatus(r.status as "draft" | "submitted"); setStarted(true);
-      if (r.test_mode) setTestMode(true);
+      setIsTest(!!r.test_mode); setTestMode(!!r.relaxed);
       const first = firstIncompleteStep(r.data as RecData);
       setStep(r.status === "submitted" ? "sign" : ((first ?? r.step_key ?? "about") as StepKey));
     }).catch(() => localStorage.removeItem(TOKEN_KEY)).finally(() => setLoaded(true));
@@ -158,7 +167,7 @@ function InstallerOnboarding() {
   async function begin() {
     setBusy(true); setError(null);
     try {
-      const { token: t } = await startRecOnboarding({ data: { test: testMode } });
+      const { token: t } = await startWith();
       localStorage.setItem(TOKEN_KEY, t); setToken(t); setStarted(true);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not start."); } finally { setBusy(false); }
   }
@@ -244,7 +253,7 @@ function InstallerOnboarding() {
 
   return shell(
     <div style={card}>
-      {testMode && <div style={{ background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#7A5A00", marginBottom: 14 }}>TEST MODE — nothing is mandatory, so you can click straight through. This application is marked as a test and won't count as a real applicant.</div>}
+      {isTest && <div style={{ background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#7A5A00", marginBottom: 14 }}>TEST MODE — staff test link. This application is marked as a test and won't count as a real applicant.</div>}
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
       {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Nice one, {firstName(d)} — next up: {steps[idx]?.title?.toLowerCase()}.</div>}
       {!firstName(d) && <div style={{ marginBottom: 12 }} />}
@@ -412,11 +421,11 @@ function InsuranceStep({ d, up, token, setError }: { d: RecData; up: (p: Partial
     if (f.size > 20 * 1024 * 1024) { setError("File must be 20 MB or smaller."); return; }
     setUploading(true);
     try {
-      const u = await insuranceUploadUrl({ data: { token, content_type: f.type as "application/pdf", size: f.size } });
+      const u = await insuranceUploadUrl({ data: { token, content_type: f.type as "application/pdf", size: f.size, filename: f.name } });
       const { error } = await supabase.storage.from("partner-files").uploadToSignedUrl(u.path, u.token, f, { contentType: f.type });
       if (error) throw new Error("Upload failed. Please try again.");
       setChecking(true);
-      const r = await confirmInsuranceUpload({ data: { token, path: u.path } });
+      const r = await confirmInsuranceUpload({ data: { token, path: u.path, content_type: f.type as "application/pdf" } });
       const x = r.extracted;
       const patch: Partial<RecData> = { insurance_uploaded: true };
       const notes: string[] = [];

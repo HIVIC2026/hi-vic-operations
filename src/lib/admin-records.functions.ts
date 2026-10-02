@@ -12,7 +12,7 @@ async function adminClient() {
 export const getAdminPartnerEnquiries = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
   const admin = await adminClient();
-  const { data, error } = await admin.from("partner_enquiries").select("*").order("created_at", { ascending: false });
+  const { data, error } = await admin.from("partner_enquiries").select("*").or("source.is.null,source.not.in.(portal_rec_onboarding_test,portal_installer_onboarding_test)").order("created_at", { ascending: false });
   if (error) throw new Error(`Partner enquiries could not be loaded: ${error.message}`);
   return data ?? [];
 });

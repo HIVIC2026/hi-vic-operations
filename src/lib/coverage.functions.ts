@@ -44,7 +44,7 @@ export const getAdminCoverage = createServerFn({ method: "POST" }).middleware([r
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: enquiries, error: enquiriesError } = await supabaseAdmin.from("partner_enquiries")
     .select("id,enquiry_type,status,company,name,service_areas,cii_certification_status,rec_registration_number")
-    .in("enquiry_type", ["electrician_rec", "installer"]).neq("status", "declined").order("created_at", { ascending: false });
+    .in("enquiry_type", ["electrician_rec", "installer"]).neq("status", "declined").or("source.is.null,source.not.in.(portal_rec_onboarding_test,portal_installer_onboarding_test)").order("created_at", { ascending: false });
   if (enquiriesError) throw new Error(`Partner enquiries could not be loaded: ${enquiriesError.message}`);
   return {
     rows,
