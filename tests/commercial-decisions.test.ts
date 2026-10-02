@@ -50,9 +50,9 @@ describe("C02 Ready Check sheet for an installer who has not been on site", () =
   });
   test("only the installer-sourced sheet carries the price section, and says we don't mark it up", () => {
     const priced = readyCheckTemplateText("ready_check_priced", { jobNumber: "HV-1234" });
-    expect(priced).toContain("Total quoted price $");
+    expect(priced).toContain("Total quoted price (inc GST)");
     expect(priced).toContain("does not mark this figure up");
-    expect(readyCheckTemplateText("ready_check", { jobNumber: "HV-1234" })).not.toContain("Total quoted price $");
+    expect(readyCheckTemplateText("ready_check", { jobNumber: "HV-1234" })).not.toContain("Total quoted price (inc GST)");
   });
 });
 
