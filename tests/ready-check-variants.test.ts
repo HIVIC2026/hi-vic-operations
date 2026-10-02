@@ -33,13 +33,13 @@ describe("Ready Check variants", () => {
     const missingPricing = FORMS.ready_check.fields.map((f) => ({ label: f.label, type: f.type === "choice" ? "question" : f.type === "multichoice" ? "checkbox" : f.type === "yesno" ? "question" : f.type === "media" ? "media" : f.type }));
     const result = validateTemplate("ready_check_priced", missingPricing);
     expect(result.ok).toBe(false);
-    expect(result.issues.some((i) => i.includes("Total quoted price $"))).toBe(true);
+    expect(result.issues.some((i) => i.includes("Total quoted price (inc GST)"))).toBe(true);
   });
 
   test("AI prompt for the priced form uses tick-what's-included + one total and the draw option", () => {
     const prompt = mittiAiPrompt("ready_check_priced");
-    expect(prompt).toContain("What's included in your price (tick all that apply)");
-    expect(prompt).toContain('"Total quoted price $"');
+    expect(prompt).toContain("What's included in your quote?");
+    expect(prompt).toContain('"Total quoted price (inc GST)"');
     expect(prompt).toContain("Do NOT add a price box per item");
     expect(prompt).toContain("DRAW the diagram inside the form");
     expect(mittiAiPrompt("ready_check")).not.toContain("Total quoted price");
