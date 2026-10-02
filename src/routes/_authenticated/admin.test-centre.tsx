@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { createTestEnquiry, getAdminPipeline } from "@/lib/portal.functions";
 import { clearOnboardingStartBlock, issueOnboardingLink, listOnboardingLinks, listOnboardingStartBlocks, revokeOnboardingLink, runOnboardingUploadCleanup } from "@/lib/onboarding-links.functions";
+import { createTestTradeAccounts } from "@/lib/test-accounts.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/test-centre")({
   head: () => ({ meta: [
