@@ -467,3 +467,28 @@ export function splitPatch(patch: AssessmentPatch) {
   }
   return { measure, electrical };
 }
+
+// ---------- official PIISA / PIESA prefill from LR-003 hints ----------
+/** Mitti template for the official PIISA. Empty = not configured: sending is blocked, never guessed. */
+export const MITTI_PIISA_TEMPLATE_ID = "";
+export type OfficialPrefillItem = { itemId: string; label: string; kind: string; value: string };
+/** Places "prefill" values on the template by official label. Labels the form repeats are matched in form order
+ * (`occurrence`). Attachments can't be pre-loaded into Mitti, and choice values must match an option exactly. */
+export function buildOfficialPrefill(template: Any, items: (OfficialPrefillItem & { occurrence: number })[]) {
+  const entries = flatten(template);
+  const header_items: Any[] = [], rows: Any[] = [], skipped: string[] = [];
+  for (const f of items) {
+    const e = entries.filter((x) => x.norm === norm(f.label))[f.occurrence];
+    if (!e) { skipped.push(`${f.itemId} (not on the Mitti form)`); continue; }
+    let type = e.type, responses: Any;
+    if (f.kind === "attachment") { skipped.push(`${f.itemId} (attachment — shown in the portal)`); continue; }
+    if (f.kind === "date") responses = { datetime: f.value };
+    else if (/choice|question|switch|list/i.test(e.type)) {
+      const opt = choiceOption(template, e.id, f.value);
+      if (!opt) { skipped.push(`${f.itemId} (no "${f.value}" option)`); continue; }
+      type = "question"; responses = { selected: [opt] };
+    } else responses = { text: f.value };
+    (e.header ? header_items : rows).push({ item_id: e.id, label: e.label, type, responses });
+  }
+  return { header_items, items: rows, count: header_items.length + rows.length, skipped };
+}
