@@ -378,7 +378,6 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
     }
     case "services":
       return <>
-        <div style={infoCard}><strong>Included for all installer partners:</strong> R5.0 ceiling insulation supply & installation, plus removal of existing insulation (batts and loose fill) where a job needs it. Removal is part of every installer's service — you'll set your rate for each removal type on the pricing step.</div>
         <Field label="Do you want to receive pre-qualified leads from Home Insulation Victoria?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.wants_hivic_leads ?? null} onChange={(v) => up(v ? { wants_hivic_leads: v } : { wants_hivic_leads: v, free_measureups_for_hivic_quote_leads: null })} /></Field>
         {d.wants_hivic_leads === true && <>
           <div style={{ ...infoCard, marginTop: 8 }}>
