@@ -350,11 +350,12 @@ export function parseAudit(audit: Any) {
         const remRooms = rooms.filter((r) => r.removal === true);
         // Prefer the per-area "Area to remove (m2)" answer; fall back to the area's full m2.
         const remM2 = remRooms.map((r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); const v = physical(val(kids, ["Area to remove (m2)"]), "Area to remove (m2)"); return v.value != null && v.value > 0 ? v.value : r.m2; });
-        if (remM2.some((m) => m == null || m <= 0)) issues.push("A removal area's size was missing or invalid – removal area not taken from Mitti; office review required.");
+      if (remM2.some((m) => m == null || m <= 0)) issues.push("A removal area's size was missing or invalid – removal area not taken from Mitti; office review required.");
         else patch.removal_m2 = r2(remM2.reduce<number>((s, m) => s + (m ?? 0), 0));
-        const types = [...new Set(remRooms.map((r) => r.removalType).filter(Boolean))] as string[];
-        if (types.length > 0) patch.notes = [patch.notes, `Insulation type to remove: ${types.join(", ")}`].filter(Boolean).join(". ").slice(0, 4000);
-        else issues.push("Insulation type to remove not captured – needed for removal pricing; office follow-up required.");
+        const types = [...new Set(remRooms.flatMap((r) => (r.removalType ?? "").split(/[,;\n]+/)).map((t) => t.trim()).filter(Boolean))];
+        if (types.length > 0) patch.notes = [patch.notes, `Insulation type to remove: ${types.join(", ")}${types.length > 1 ? " (mixed)" : ""}`].filter(Boolean).join(". ").slice(0, 4000);
+        if (types.length > 1) issues.push("More than one existing insulation type was ticked (batts + loose fill) – mixed insulation needs office review.");
+        if (types.length === 0) issues.push("Insulation type to remove not captured – needed for removal pricing; office follow-up required.");
       }
     }
   } else {
