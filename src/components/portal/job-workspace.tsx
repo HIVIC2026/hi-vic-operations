@@ -73,7 +73,8 @@ export function usePortalTargetNavigation(openGroup: (group: RecordGroup) => voi
       frame = requestAnimationFrame(poll);
       timer = window.setTimeout(() => finish(true), 4_000);
     };
-    frame = requestAnimationFrame(start);
+    // Two frames place focus after the activating click's native focus step.
+    frame = requestAnimationFrame(() => { frame = requestAnimationFrame(start); });
     cleanup.current = () => { cancelAnimationFrame(frame); window.clearTimeout(timer); observer?.disconnect(); observer = null; };
   }, [openGroup]);
 }
