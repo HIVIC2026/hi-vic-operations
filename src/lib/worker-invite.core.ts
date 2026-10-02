@@ -1,4 +1,4 @@
-// Worker invites: the business boss signs up the business, then sends each person who
+// Worker invites: the business owner signs up the business, then sends each person who
 // works for them a personal invite link. Pure rules only — persistence in worker-invite.functions.ts.
 
 export const INVITE_DAYS = 14;
@@ -15,9 +15,9 @@ export function inviteState(i: InviteLike, now: number): "active" | "used" | "re
 }
 
 export const INVITE_STATE_MESSAGE: Record<"used" | "revoked" | "expired", string> = {
-  used: "This invite link has already been used. Ask your boss for a new one if you need to change your details.",
-  revoked: "This invite link was cancelled. Ask your boss to send you a new one.",
-  expired: "This invite link has expired. Ask your boss to send you a new one.",
+  used: "This invite link has already been used. If you need to change your details, ask the business owner for a new link.",
+  revoked: "This invite link was cancelled. Ask the business owner to send you a new one.",
+  expired: "This invite link has expired. Ask the business owner to send you a new one.",
 };
 
 export const WORKER_DECLARATIONS_VERSION = "worker-v1";
@@ -30,7 +30,7 @@ export function workerDeclarations(trade: "electrician" | "installer", businessN
   return [
     { key: "own_behalf", text: `I am signing on my own behalf as a worker of ${businessName}, and ${businessName} has asked me to register under their business.` },
     { key: "customer_owner", text: "I understand the customer is Home Insulation Victoria's customer. I will not quote, invoice or accept payment from them separately for any work connected to a Home Insulation Victoria job, and I will not approach them for other work. All communication goes through the Home Insulation Victoria portal." },
-    { key: "licence_current", text: trade === "electrician" ? "My Victorian electrician licence is current, and I will tell my boss and Home Insulation Victoria straight away if it is suspended, cancelled or lapses." : "My training and any licences or cards I hold are current, and I will tell my boss and Home Insulation Victoria straight away if that changes." },
+    { key: "licence_current", text: trade === "electrician" ? "My Victorian electrician licence is current, and I will tell the business owner and Home Insulation Victoria straight away if it is suspended, cancelled or lapses." : "My training and any licences or cards I hold are current, and I will tell the business owner and Home Insulation Victoria straight away if that changes." },
     { key: "compliance", text: `I will carry out ${work} on Home Insulation Victoria jobs safely and in line with current VEU, Code of Conduct, electrical-safety and Home Insulation Victoria requirements.` },
     { key: "no_bypass", text: "I will not take any work identified through a Home Insulation Victoria job off-platform or deal with the customer directly about it." },
     { key: "true_info", text: "The details I have given are true and correct." },
