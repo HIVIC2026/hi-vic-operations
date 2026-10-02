@@ -101,6 +101,22 @@ function CreateTestJob({ onDone }: { onDone: () => void }) {
     </DialogContent>
   </Dialog>;
 }
+// Creates 3 fake installers and 3 fake electricians with different agreed rates, for running examples.
+function TestTradeAccounts() {
+  const create = useServerFn(createTestTradeAccounts);
+  const [busy, setBusy] = useState(false);
+  const [results, setResults] = useState<{ name: string; role: string; status: string }[] | null>(null);
+  return (
+    <section className="mt-8 rounded-md border bg-card p-4">
+      <h2 className="font-display text-xl font-bold">Test trade accounts</h2>
+      <p className="mt-1 text-sm text-muted-foreground">Three installers and three electricians, all clearly marked TEST, each with different agreed rates. Use them to run example jobs and check quotes. Safe to press again — existing accounts are skipped.</p>
+      <Button className="mt-4" disabled={busy} onClick={async () => { setBusy(true); try { const r = await create({ data: {} }); setResults(r.results); toast.success("Test trade accounts ready"); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not create test accounts"); } finally { setBusy(false); } }}>
+        {busy ? "Creating…" : "Create 6 test trade accounts"}
+      </Button>
+      {results && <ul className="mt-4 grid gap-1 text-sm sm:grid-cols-2">{results.map((r) => <li key={r.name} className="flex items-center justify-between rounded border px-3 py-2"><span>{r.name} <span className="text-muted-foreground">({r.role})</span></span><Badge variant="outline">{r.status}</Badge></li>)}</ul>}
+    </section>
+  );
+}
 // One-use staff links for onboarding tests or helping a blocked applicant. Shown once; expires in 24 hours.
 function OnboardingLinks() {
   const issue = useServerFn(issueOnboardingLink);
