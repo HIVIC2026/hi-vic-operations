@@ -778,11 +778,27 @@ async function requirementWithAccess(sb: Parameters<typeof requireJobRole>[0], r
   return req;
 }
 
+
+const fixSchema = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), accuracyM: z.number().min(0).max(100000).nullish(), capturedAt: z.string().max(40).nullish() }).nullish();
+async function enforcePhotoLocation(sb: Parameters<typeof requireJobRole>[0], jobId: string, mime: string, fix: z.infer<typeof fixSchema>) {
+  const { checkPhotoLocation, propertyPoint } = await import("./geo.core");
+  const role = await requireJobRole(sb, jobId, ["admin", "electrician", "installer"]);
+  const { data: job } = await admin.from("jobs").select("property_id").eq("id", jobId).single();
+  const [{ data: fact }, { data: ws }] = await Promise.all([
+    job?.property_id ? admin.from("property_facts").select("value").eq("property_id", job.property_id).eq("fact_key", "coordinates").eq("is_current", true).limit(1).maybeSingle() : Promise.resolve({ data: null }),
+    admin.from("workflow_settings").select("photo_max_distance_m").eq("id", 1).maybeSingle(),
+  ]);
+  const r = checkPhotoLocation({ mime, fix: fix ?? null, property: propertyPoint(fact?.value), maxM: ws?.photo_max_distance_m ?? 150, isOffice: role === "admin" });
+  if (!r.ok) throw new WorkflowError(r.reason);
+  return { ...r, role };
+}
+
 export const requestEvidenceUpload = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ requirementId: uuid, fileName: z.string().min(1).max(200), mimeType: z.string().max(100) }).parse(d))
+  .inputValidator((d) => z.object({ requirementId: uuid, fileName: z.string().min(1).max(200), mimeType: z.string().max(100), fix: fixSchema }).parse(d))
   .handler(async ({ data, context }) => {
     const req = await requirementWithAccess(context.supabase, data.requirementId);
     if (!/^(image\/|video\/|application\/pdf)/.test(data.mimeType)) throw new WorkflowError("Only photos, videos and PDFs are accepted.");
+    await enforcePhotoLocation(context.supabase, req.job_id, data.mimeType, data.fix);
     const safe = data.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `${req.job_id}/${req.category}/${crypto.randomUUID()}-${safe}`;
     const { data: signed, error } = await admin.storage.from("job-files").createSignedUploadUrl(path);
@@ -791,11 +807,14 @@ export const requestEvidenceUpload = createServerFn({ method: "POST" }).middlewa
   });
 
 export const confirmEvidenceUpload = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ requirementId: uuid, path: z.string().min(5).max(500), fileName: z.string().max(200), mimeType: z.string().max(100), size: z.number().int().min(0) }).parse(d))
+  .inputValidator((d) => z.object({ requirementId: uuid, path: z.string().min(5).max(500), fileName: z.string().max(200), mimeType: z.string().max(100), size: z.number().int().min(0), fix: fixSchema }).parse(d))
   .handler(async ({ data, context }) => {
     const req = await requirementWithAccess(context.supabase, data.requirementId);
     if (!data.path.startsWith(`${req.job_id}/${req.category}/`)) throw new WorkflowError("Invalid path");
-    await admin.from("evidence_files").insert({ requirement_id: req.id, job_id: req.job_id, storage_path: data.path, file_name: data.fileName, mime_type: data.mimeType, size_bytes: data.size, uploaded_by: context.userId });
+    const loc = await enforcePhotoLocation(context.supabase, req.job_id, data.mimeType, data.fix);
+    await admin.from("evidence_files").insert({ requirement_id: req.id, job_id: req.job_id, storage_path: data.path, file_name: data.fileName, mime_type: data.mimeType, size_bytes: data.size, uploaded_by: context.userId,
+      lat: data.fix?.lat ?? null, lng: data.fix?.lng ?? null, location_accuracy_m: data.fix?.accuracyM ?? null, captured_at: data.fix?.capturedAt ?? new Date().toISOString(),
+      distance_m: loc.distanceM, location_source: loc.exempt ? (loc.role === "admin" ? "office_upload" : "not_required") : "device_at_capture" });
     await admin.from("evidence_requirements").update({ status: "uploaded", verified_by: null, verified_at: null }).eq("id", req.id);
     await logEvent(req.job_id, context.userId, "evidence_uploaded", `Evidence uploaded: ${req.label}`, { file: data.fileName });
     await autoAdvanceJob(req.job_id, context.userId, "evidence uploaded");
