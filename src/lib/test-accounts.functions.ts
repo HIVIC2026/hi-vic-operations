@@ -105,20 +105,26 @@ export const createTestTradeAccounts = createServerFn({ method: "POST" })
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const results: { name: string; role: string; status: "created" | "already existed" }[] = [];
     for (const spec of SPECS) {
-      const { data: existing } = await admin.from("profiles").select("id").eq("email", spec.email).maybeSingle();
-      if (existing) { results.push({ name: spec.name, role: spec.role, status: "already existed" }); continue; }
-      const { data: user, error: userError } = await admin.auth.admin.createUser({
-        email: spec.email,
-        password: crypto.randomUUID() + "Qa!",
-        email_confirm: true,
-        user_metadata: { full_name: spec.name, qa_test: true },
-      });
-      if (userError || !user.user) throw new WorkflowError(`Could not create ${spec.name}: ${userError?.message ?? "unknown error"}`);
-      const uid = user.user.id;
+      const { data: existingBiz } = await admin.from("businesses").select("id").eq("name", spec.name).maybeSingle();
+      if (existingBiz) { results.push({ name: spec.name, role: spec.role, status: "already existed" }); continue; }
+      let uid: string;
+      const { data: existingProfile } = await admin.from("profiles").select("id").eq("email", spec.email).maybeSingle();
+      if (existingProfile) {
+        uid = existingProfile.id; // recover a half-created account from an earlier run
+      } else {
+        const { data: user, error: userError } = await admin.auth.admin.createUser({
+          email: spec.email,
+          password: crypto.randomUUID() + "Qa!",
+          email_confirm: true,
+          user_metadata: { full_name: spec.name, qa_test: true },
+        });
+        if (userError || !user.user) throw new WorkflowError(`Could not create ${spec.name}: ${userError?.message ?? "unknown error"}`);
+        uid = user.user.id;
+      }
       const now = new Date().toISOString();
       const { data: business, error: bizError } = await admin.from("businesses").insert({
         name: spec.name, legal_name: spec.name, trading_name: spec.name, business_type: spec.businessType,
-        email: spec.email, phone: spec.phone, commercial_route: "hivic_invoices_owner", default_comms_owner: "hivic",
+        email: spec.email, phone: spec.phone, commercial_route: "hivic_full_invoice", default_comms_owner: "hivic",
         onboarding_status: "approved", is_active: true, approved_by: context.userId, approved_at: now,
         gst_registered: true, onboarding_notes: "Test account created from the Test Centre. Not a real partner.",
       }).select("id").single();
