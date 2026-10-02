@@ -67,21 +67,48 @@ export async function enforceContactCap(db: Db, appId: string, trade: Trade, has
 
 const BUCKET = "partner-files";
 
-/** Removes every quarantined (unverified) file for this application. Best effort; never blocks. */
-export async function purgeQuarantine(db: Db, folder: string, appId: string) {
-  const prefix = quarantinePrefix(folder, appId);
-  const { data } = await db.storage.from(BUCKET).list(prefix.slice(0, -1));
-  const paths = (data ?? []).map((f: { name: string }) => prefix + f.name);
-  if (paths.length) await db.storage.from(BUCKET).remove(paths);
+/** Abandoned quarantined uploads are deleted after this many hours (approved default: 24). */
+export const QUARANTINE_ABANDON_HOURS = 24;
+
+type CleanupTrigger = "rejected" | "abandoned" | "superseded" | "signed" | "office";
+export type CleanupReport = { files: number; bytes: number };
+
+/**
+ * Deletes claimed quarantine objects and records one audit run (count + bytes only, no applicant data).
+ * Claims are row-locked in the database, so concurrent or repeated runs never double-count.
+ * Only paths under quarantine/ are ever removed; accepted evidence lives elsewhere and is never claimed.
+ */
+export async function cleanupQuarantine(db: Db, trigger: CleanupTrigger, opts: { app?: string; actor?: string; limit?: number } = {}): Promise<CleanupReport> {
+  const { data, error } = await db.rpc("claim_quarantine_cleanup", { _limit: opts.limit ?? 50, _app: opts.app ?? null });
+  if (error || !Array.isArray(data) || data.length === 0) return { files: 0, bytes: 0 };
+  const paths = (data as { path: string }[]).map((r) => r.path).filter((p) => p.startsWith("quarantine/"));
+  const bucket = db.storage.from(BUCKET);
+  const sizes: number[] = [];
+  for (const p of paths) {
+    const slash = p.lastIndexOf("/");
+    const { data: listed } = await bucket.list(p.slice(0, slash), { search: p.slice(slash + 1) });
+    const hit = (listed ?? []).find((f: { name: string }) => f.name === p.slice(slash + 1));
+    sizes.push(Number(hit?.metadata?.size ?? 0));
+  }
+  const { error: rmError } = await bucket.remove(paths);
+  if (rmError) return { files: 0, bytes: 0 }; // claims lapse after 5 min and are retried
+  const { data: done } = await db.rpc("finish_quarantine_cleanup", { _paths: paths, _bytes: sizes, _trigger: trigger, _actor: opts.actor ?? null });
+  const row = Array.isArray(done) ? (done[0] as { files: number; bytes: number } | undefined) : undefined;
+  return { files: Number(row?.files ?? 0), bytes: Number(row?.bytes ?? 0) };
 }
 
-/** New quarantine slot; abandoned quarantine files for this application are removed first. */
+/** Removes every unaccepted quarantined file for this application (used before signing). */
+export async function purgeQuarantine(db: Db, _folder: string, appId: string) {
+  await cleanupQuarantine(db, "signed", { app: appId });
+}
+
+/** New tracked quarantine slot. Earlier unaccepted uploads for this application, and abandoned ones, are cleaned first. */
 export async function quarantineSlot(db: Db, folder: string, appId: string) {
-  const prefix = quarantinePrefix(folder, appId);
-  const { data: old } = await db.storage.from(BUCKET).list(prefix.slice(0, -1));
-  const stale = (old ?? []).map((f: { name: string }) => prefix + f.name);
-  if (stale.length) await db.storage.from(BUCKET).remove(stale);
-  const path = prefix + crypto.randomUUID();
+  await cleanupQuarantine(db, "superseded", { app: appId });
+  await cleanupQuarantine(db, "abandoned", { limit: 20 });
+  const path = quarantinePrefix(folder, appId) + crypto.randomUUID();
+  const { error: trackError } = await db.from("onboarding_quarantine_uploads").insert({ path, application_id: appId });
+  if (trackError) throw new Error("Could not prepare the upload. Please try again.");
   const { data: signed, error } = await db.storage.from(BUCKET).createSignedUploadUrl(path);
   if (error || !signed) throw new Error("Could not prepare the upload. Please try again.");
   return { path, token: signed.token as string };
@@ -89,15 +116,24 @@ export async function quarantineSlot(db: Db, folder: string, appId: string) {
 
 /**
  * Reads the stored bytes, verifies them, moves them to a server-named final path and records
- * type/size/SHA-256/verification. Any failure deletes the quarantined file and leaves evidence incomplete.
+ * type/size/SHA-256/verification. Only one validator can claim an upload; any failure deletes the
+ * quarantined file at once and leaves evidence incomplete.
  */
 export async function verifyAndPromote(db: Db, folder: string, appId: string, path: string, claimedMime: string) {
   if (!isOwnQuarantinePath(path, folder, appId)) throw new Error("Invalid upload.");
+  const { data: claimed, error: claimError } = await db.rpc("begin_quarantine_validation", { _path: path, _app: appId });
+  if (claimError || claimed !== true) throw new Error("This upload has expired or was already checked. Please upload the file again.");
   const bucket = db.storage.from(BUCKET);
-  const reject = async (msg: string): Promise<never> => { await bucket.remove([path]); throw new Error(msg); };
+  let size = 0;
+  const reject = async (msg: string): Promise<never> => {
+    await db.rpc("finish_quarantine_validation", { _path: path, _app: appId, _accepted: false, _bytes: size });
+    await cleanupQuarantine(db, "rejected", { app: appId });
+    throw new Error(msg);
+  };
   const { data: blob } = await bucket.download(path);
   if (!blob) return reject("Upload not found. Please try again.");
   const bytes = new Uint8Array(await (blob as Blob).arrayBuffer());
+  size = bytes.length;
   const verdict = verifyInsuranceBytes(bytes, claimedMime);
   if (!verdict.ok) return reject(verdict.reason);
   const sha = await sha256Hex(bytes);
@@ -108,6 +144,11 @@ export async function verifyAndPromote(db: Db, folder: string, appId: string, pa
     insurance_certificate_path: finalPath, insurance_file_type: verdict.type, insurance_file_bytes: bytes.length,
     insurance_file_sha256: sha, insurance_verified_at: new Date().toISOString(), insurance_scan_result: SCAN_RESULT_NO_SCANNER,
   }).eq("id", appId).eq("status", "draft").select("updated_at").single();
-  if (error || !updated) { await bucket.remove([finalPath]); throw new Error("Could not attach the certificate. Please try again."); }
+  if (error || !updated) {
+    await bucket.remove([finalPath]);
+    await db.rpc("finish_quarantine_validation", { _path: path, _app: appId, _accepted: false, _bytes: size });
+    throw new Error("Could not attach the certificate. Please try again.");
+  }
+  await db.rpc("finish_quarantine_validation", { _path: path, _app: appId, _accepted: true, _bytes: size });
   return { finalPath, mime: INSURANCE_MIME[verdict.type], updated_at: String(updated.updated_at) };
 }

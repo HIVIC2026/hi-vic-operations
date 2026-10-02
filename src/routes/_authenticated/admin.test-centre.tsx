@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { createTestEnquiry, getAdminPipeline } from "@/lib/portal.functions";
-import { issueOnboardingLink, listOnboardingLinks, revokeOnboardingLink } from "@/lib/onboarding-links.functions";
+import { clearOnboardingStartBlock, issueOnboardingLink, listOnboardingLinks, listOnboardingStartBlocks, revokeOnboardingLink, runOnboardingUploadCleanup } from "@/lib/onboarding-links.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/test-centre")({
   head: () => ({ meta: [
@@ -62,6 +62,7 @@ function TestCentre() {
           </article>
         ))}</div>}
       <OnboardingLinks />
+      <OnboardingLimits />
     </AppShell>
   );
 }
@@ -143,6 +144,47 @@ function OnboardingLinks() {
           }}>Revoke</Button>}
         </li>)}
       </ul>}
+    </section>
+  );
+}
+
+// Office-only: clear ONE sign-up limit (hashed key only) with a reason, and run upload cleanup on demand.
+function OnboardingLimits() {
+  const listBlocks = useServerFn(listOnboardingStartBlocks);
+  const clear = useServerFn(clearOnboardingStartBlock);
+  const cleanup = useServerFn(runOnboardingUploadCleanup);
+  const blocks = useQuery({ queryKey: ["onboarding-start-blocks"], queryFn: () => listBlocks() });
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [swept, setSwept] = useState<string | null>(null);
+  return (
+    <section className="mt-8 rounded-md border bg-card p-4">
+      <h2 className="font-display text-xl font-bold">Onboarding sign-up limits</h2>
+      <p className="mt-1 text-sm text-muted-foreground">Each row is one hashed browser or network record. Clearing needs a reason, is recorded with your name, and resets only that record for that trade.</p>
+      {blocks.isError && <p className="mt-2 text-sm text-destructive">{blocks.error instanceof Error ? blocks.error.message : "Could not load limits."}</p>}
+      {blocks.data && blocks.data.length === 0 && <p className="mt-2 text-sm text-muted-foreground">No one is currently limited.</p>}
+      {blocks.data && blocks.data.length > 0 && <ul className="mt-3 divide-y rounded-md border text-sm">
+        {blocks.data.map((b) => { const id = `${b.key}:${b.trade}:${b.kind}`; const reason = reasons[id] ?? ""; return <li key={id} className="grid gap-2 p-3 sm:grid-cols-[1fr_16rem_auto] sm:items-center">
+          <div><span className="font-mono">{b.key_label}</span> <Badge variant="outline">{b.trade === "rec" ? "Electrician" : "Installer"}</Badge> {b.blocked && <Badge variant="destructive">Blocked</Badge>}
+            <p className="text-xs text-muted-foreground">{b.recent_15m} starts in 15 min · {b.recent_24h} in 24 h · {b.refused} refused · last {new Date(b.last_attempt).toLocaleString("en-AU")}</p></div>
+          <Input aria-label={`Reason for clearing ${b.key_label}`} value={reason} onChange={(e) => setReasons({ ...reasons, [id]: e.target.value })} placeholder="Reason (required)" />
+          <Button size="sm" variant="outline" disabled={busy === id || reason.trim().length < 3} onClick={async () => {
+            setBusy(id);
+            try { await clear({ data: { key: b.key, trade: b.trade, kind: b.kind, reason } }); toast.success("Limit cleared and recorded"); setReasons({ ...reasons, [id]: "" }); }
+            catch (e) { toast.error(e instanceof Error ? e.message : "Could not clear the limit"); }
+            finally { setBusy(null); void blocks.refetch(); }
+          }}>Clear limit</Button>
+        </li>; })}
+      </ul>}
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Button size="sm" variant="outline" disabled={busy === "sweep"} onClick={async () => {
+          setBusy("sweep");
+          try { const r = await cleanup(); setSwept(`${r.files} unused upload${r.files === 1 ? "" : "s"} removed (${(r.bytes / 1024).toFixed(0)} KB).`); }
+          catch (e) { toast.error(e instanceof Error ? e.message : "Cleanup failed"); }
+          finally { setBusy(null); }
+        }}>Remove unused insurance uploads now</Button>
+        <span className="text-xs text-muted-foreground">{swept ?? "Uploads never accepted are removed automatically after 24 hours; accepted certificates are never touched."}</span>
+      </div>
     </section>
   );
 }

@@ -125,3 +125,41 @@ describe("insurance file verification", () => {
     expect(isOwnQuarantinePath(`rec-onboarding/${id}/insurance-${u}.pdf`, "rec-onboarding", id)).toBe(false);
   });
 });
+
+// ---------- Quarantine cleanup (mocked storage + RPC) ----------
+import { cleanupQuarantine } from "../src/lib/onboarding-security.server";
+function fakeDb(claims: { path: string }[]) {
+  const removed: string[][] = []; const finished: unknown[] = [];
+  let claimed = false;
+  return { removed, finished, db: {
+    rpc: async (fn: string, a: Record<string, unknown>) => {
+      if (fn === "claim_quarantine_cleanup") { const d = claimed ? [] : claims; claimed = true; return { data: d, error: null }; }
+      if (fn === "finish_quarantine_cleanup") { finished.push(a); const p = a._paths as string[]; return { data: [{ files: p.length, bytes: (a._bytes as number[]).reduce((x, y) => x + y, 0) }], error: null }; }
+      return { data: null, error: null };
+    },
+    from: () => ({}),
+    storage: { from: () => ({ list: async (_d: string, o: { search: string }) => ({ data: [{ name: o.search, metadata: { size: 1000 } }] }), remove: async (p: string[]) => { removed.push(p); return { error: null }; } }) },
+  } };
+}
+test("cleanup removes only quarantine paths and reports counts", async () => {
+  const f = fakeDb([{ path: "quarantine/rec-onboarding/a/b" }, { path: "rec-onboarding/a/insurance-x.pdf" }]);
+  const r = await cleanupQuarantine(f.db as never, "abandoned");
+  expect(f.removed).toEqual([["quarantine/rec-onboarding/a/b"]]);
+  expect(r).toEqual({ files: 1, bytes: 1000 });
+});
+test("repeated cleanup with nothing claimed is a no-op", async () => {
+  const f = fakeDb([{ path: "quarantine/rec-onboarding/a/b" }]);
+  await cleanupQuarantine(f.db as never, "abandoned");
+  const again = await cleanupQuarantine(f.db as never, "abandoned");
+  expect(again).toEqual({ files: 0, bytes: 0 });
+  expect(f.removed.length).toBe(1);
+});
+test("admin limit/cleanup functions require auth middleware and admin", async () => {
+  const src = await Bun.file("src/lib/onboarding-links.functions.ts").text();
+  for (const fn of ["listOnboardingStartBlocks", "clearOnboardingStartBlock", "runOnboardingUploadCleanup"]) {
+    const body = src.slice(src.indexOf(`export const ${fn}`)).split("export const")[1];
+    expect(body).toContain("requireSupabaseAuth"); expect(body).toContain("requireAdmin");
+  }
+  expect(src).toContain("_actor: context.userId");
+  expect(src).toMatch(/reason: z\.string\(\)\.trim\(\)\.min\(3/);
+});
