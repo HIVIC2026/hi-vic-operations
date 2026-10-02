@@ -8,10 +8,11 @@ import { Pill } from "@/components/portal/badges";
 import { FORMS, buildSheet, type FormKey } from "@/lib/mitti-forms.core";
 import { connectMittiForm, getMittiForms } from "@/lib/mitti-forms.functions";
 
-const ORDER: { key: FormKey; letter: string; who: string }[] = [
-  { key: "ready_check", letter: "A", who: "Installer · free Ready Check before the PIESA" },
-  { key: "piesa", letter: "B", who: "Licensed electrician · official DEECA PIESA" },
-  { key: "piisa", letter: "C", who: "Lead installer · official DEECA PIISA on install day" },
+const ORDER: { key: FormKey; letter: string; forWho: string; who: string }[] = [
+  { key: "ready_check", letter: "A", forWho: "For a customer WE brought you", who: "Installer · free Ready Check on a Home Insulation Victoria lead (no price)" },
+  { key: "ready_check_priced", letter: "B", forWho: "For a customer THE INSTALLER brought", who: "Installer · free Ready Check on their own customer (with quoted price)" },
+  { key: "piesa", letter: "C", forWho: "For every job that needs electrical work", who: "Licensed electrician · official DEECA PIESA" },
+  { key: "piisa", letter: "D", forWho: "For every installation", who: "Lead installer · official DEECA PIISA on install day" },
 ];
 
 export function MittiFormsSection() {
@@ -27,12 +28,12 @@ export function MittiFormsSection() {
     <section className="my-6">
       <div className="mb-1 flex items-center gap-2"><ClipboardList className="h-5 w-5 text-primary" /><h2 className="text-xl font-bold">Mitti forms</h2></div>
       <p className="mb-3 text-sm text-muted-foreground">Build each form in Mitti using its build sheet, then paste its ID here. The portal checks every required question before connecting it, and nothing is sent automatically.</p>
-      <div className="grid gap-3 lg:grid-cols-3">{ORDER.map(({ key, letter, who }) => {
+      <div className="grid gap-3 lg:grid-cols-2">{ORDER.map(({ key, letter, forWho, who }) => {
         const connected = ids?.[key];
         const r = result[key];
         return (
           <article key={key} className="rounded-md border bg-card p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-2"><h3 className="font-bold">{letter}. {FORMS[key].title}</h3>{connected ? <Pill t="good">Connected</Pill> : <Pill t="warn">Not connected</Pill>}</div>
+            <div className="flex items-start justify-between gap-2"><div><p className="text-[11px] font-bold uppercase tracking-wide text-primary">{letter} · {forWho}</p><h3 className="font-bold">{FORMS[key].title}</h3></div>{connected ? <Pill t="good">Connected</Pill> : <Pill t="warn">Not connected</Pill>}</div>
             <p className="mt-1 text-xs text-muted-foreground">{who} · {FORMS[key].fields.length} questions</p>
             <Button variant="outline" size="sm" className="mt-3" onClick={() => setOpen(open === key ? null : key)}>{open === key ? "Hide build sheet" : "View build sheet"}</Button>
             {open === key && <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded bg-muted p-2 text-xs">{buildSheet(key)}</pre>}
