@@ -29,6 +29,7 @@ const date = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-AU") 
 
 function Partners() {
   const { enquiry } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const [open, setOpen] = useState<Row | null>(null);
   const [queue, setQueue] = useState<"review" | "approved" | "history">("review");
   const [partnerType, setPartnerType] = useState<PartnerType>("property_manager");
@@ -92,7 +93,7 @@ function Partners() {
           </TabsContent>
         ))}
       </Tabs>}
-      {open && <Detail row={rows.find((r) => r.id === open.id) ?? open} onClose={() => setOpen(null)} />}
+      {open && <Detail row={rows.find((r) => r.id === open.id) ?? open} onClose={() => { setOpen(null); if (enquiry) void navigate({ search: { enquiry: undefined }, replace: true }); }} />}
     </AppShell>
   );
 }
