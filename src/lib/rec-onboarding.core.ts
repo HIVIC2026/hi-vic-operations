@@ -118,6 +118,14 @@ export const STEPS = [
 ] as const;
 export type StepKey = (typeof STEPS)[number]["key"];
 
+/**
+ * Statements the REC makes about their own business. These stay mandatory in every
+ * mode — sample previews and test mode included — because they are the REC's own
+ * undertaking, not data entry we can prefill for them.
+ */
+export const ALWAYS_MANDATORY_STEPS: readonly StepKey[] = ["services"];
+export const isAlwaysMandatoryStep = (step: StepKey) => ALWAYS_MANDATORY_STEPS.includes(step);
+
 export type RecSampleStep = StepKey | "welcome" | "submitted";
 
 /** Accept only real onboarding steps for the public no-write sample. */
