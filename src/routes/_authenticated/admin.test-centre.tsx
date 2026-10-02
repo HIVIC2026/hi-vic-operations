@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { createTestEnquiry, getAdminPipeline } from "@/lib/portal.functions";
+import { issueOnboardingLink } from "@/lib/onboarding-links.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/test-centre")({
   head: () => ({ meta: [
@@ -60,6 +61,7 @@ function TestCentre() {
             <div className="mt-4 flex gap-2 border-t pt-3"><Button asChild size="sm"><Link to="/admin/jobs/$jobId" params={{ jobId: job.id! }}>Open journey</Link></Button><Button size="sm" variant="outline" disabled={deleting === job.id} onClick={async () => { setDeleting(job.id!); try { const result = await remove({ data: { jobIds: [job.id!], action: "delete", reason: "Removed from Test Centre" } }); if (result.done) toast.success("Test journey deleted"); else toast.error(result.failed[0]?.error ?? "Could not delete test journey"); await refetch(); } finally { setDeleting(null); } }}><Trash2 className="h-4 w-4" />Delete</Button></div>
           </article>
         ))}</div>}
+      <OnboardingLinks />
     </AppShell>
   );
 }
@@ -95,4 +97,33 @@ function CreateTestJob({ onDone }: { onDone: () => void }) {
       </form>
     </DialogContent>
   </Dialog>;
+}
+// One-use staff links for onboarding tests or helping a blocked applicant. Shown once; expires in 24 hours.
+function OnboardingLinks() {
+  const issue = useServerFn(issueOnboardingLink);
+  const [trade, setTrade] = useState<"rec" | "installer">("rec");
+  const [purpose, setPurpose] = useState<"qa_test" | "office_recovery">("qa_test");
+  const [incomplete, setIncomplete] = useState(false);
+  const [note, setNote] = useState("");
+  const [link, setLink] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <section className="mt-8 rounded-md border bg-card p-4">
+      <h2 className="font-display text-xl font-bold">Onboarding staff links</h2>
+      <p className="mt-1 text-sm text-muted-foreground">A test link starts an application marked as a test. An office link lets a real applicant start after being blocked. Each link works once and expires in 24 hours.</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div><Label>Trade</Label><select className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm" value={trade} onChange={(e) => setTrade(e.target.value as "rec")}><option value="rec">Electrician (REC)</option><option value="installer">Installer</option></select></div>
+        <div><Label>Purpose</Label><select className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm" value={purpose} onChange={(e) => setPurpose(e.target.value as "qa_test")}><option value="qa_test">Test application</option><option value="office_recovery">Office help for a real applicant</option></select></div>
+        <div className="sm:col-span-2"><Label>Reason</Label><Input className="mt-1" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Launch QA run" /></div>
+        {purpose === "qa_test" && <label className="flex items-center gap-2 text-sm sm:col-span-2"><Checkbox checked={incomplete} onCheckedChange={(v) => setIncomplete(v === true)} />Allow signing with steps unfinished (services tick is still required)</label>}
+      </div>
+      <Button className="mt-4" disabled={busy || note.trim().length < 3} onClick={async () => {
+        setBusy(true); setLink(null);
+        try { const r = await issue({ data: { trade, purpose, allow_incomplete_sign: incomplete, note } }); setLink(window.location.origin + r.path); }
+        catch (e) { toast.error(e instanceof Error ? e.message : "Could not create the link"); }
+        finally { setBusy(false); }
+      }}>Create one-use link</Button>
+      {link && <div className="mt-3 rounded-md border border-dashed p-3 text-sm"><p className="font-semibold">Copy this now — it won't be shown again.</p><code className="mt-1 block break-all">{link}</code></div>}
+    </section>
+  );
 }
