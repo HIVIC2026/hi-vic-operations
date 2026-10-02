@@ -370,8 +370,9 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
           <div style={{ ...infoCard, marginTop: 8 }}>
             <strong>To receive our pre-qualified leads, you need to provide free Home Insulation Ready Checks (measure-up).</strong>
             <div style={{ marginTop: 6 }}>A Ready Check is a free onsite visit where you measure the ceiling, confirm eligibility details and collect site evidence — no electrical work.</div>
-            <div style={{ marginTop: 6 }}>A Ready Check doesn't guarantee the job — owners aren't always eligible. Final eligibility is confirmed after the onsite assessment. We gather as much as we can at this stage, so the leads we send you are as strong as they can be.</div>
-            <div style={{ marginTop: 6 }}>You'll receive the job if it proceeds, unless the owner specifies otherwise.</div>
+            <div style={{ marginTop: 6 }}>We run every eligibility check we can from the office before a lead ever reaches you — and we don't charge you a lead fee.</div>
+            <div style={{ marginTop: 6 }}>What no office can check from a desk is the ceiling itself. Owners very often don't know whether they already have insulation, or what condition it's in, so eligibility can't be confirmed until someone measures it.</div>
+            <div style={{ marginTop: 6 }}>That's exactly what the Ready Check is for. You'll receive the job if it proceeds, unless the owner specifies otherwise.</div>
           </div>
           <Check checked={d.free_measureups_for_hivic_quote_leads === true} onChange={(v) => up({ free_measureups_for_hivic_quote_leads: v })}>I confirm I'll provide free Home Insulation Ready Checks (measure-up) for Home Insulation Victoria leads.</Check>
         </>}
