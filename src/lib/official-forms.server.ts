@@ -178,3 +178,44 @@ export async function supersedeHazardVerification(id: string, reason: string, ac
   const { error } = await db().from("hazard_rectification_verifications").update({ status: "superseded", superseded_reason: reason.trim(), superseded_at: new Date().toISOString(), superseded_by: actor }).eq("id", id).eq("status", "current");
   if (error) throw new Error(error.message);
 }
+
+/** LR-003 change requests: gathers the records the PIESA/PIISA pre-fills and reminders read. Read-only.
+ * `leadUserId` is the signed-in installer (PIISA). Missing records stay null — never guessed. */
+export async function officialPrefillContext(jobId: string, today: string, leadUserId: string | null): Promise<import("./official-prefill.core").OfficialPrefillContext> {
+  const { formatPropertyAddress } = await import("./address");
+  const { AP_LEGAL_ENTITY } = await import("./authority");
+  const { declaredLifeSupport } = await import("./official-prefill.core");
+  const a = supabaseAdmin;
+  const { data: job } = await a.from("jobs").select("job_number,property_id,life_support_status").eq("id", jobId).single();
+  const [{ data: prop }, pe, { facts, installDate }, { data: inst }, { data: agr }] = await Promise.all([
+    job?.property_id ? a.from("properties").select("address_line,suburb,state,postcode").eq("id", job.property_id).maybeSingle() : Promise.resolve({ data: null }),
+    currentCopy(jobId, "piesa"),
+    materialFacts(jobId, null),
+    a.from("job_assignments").select("user_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle(),
+    a.from("customer_agreements").select("quoted_product,installer_business_name").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  void facts;
+  const leadId = leadUserId ?? inst?.user_id ?? null;
+  let lead: { name: string | null; eecNumber: string | null; eecVerified: boolean } | null = null;
+  let businessName: string | null = agr?.installer_business_name ?? null;
+  if (leadId) {
+    const { data: prof } = await a.from("profiles").select("full_name,business_id").eq("id", leadId).maybeSingle();
+    const now = new Date().toISOString();
+    const { data: cred } = await a.from("business_credentials").select("number,verification,expires_at").eq("profile_id", leadId).eq("kind", "installer_certification").eq("verification", "verified").order("verified_at", { ascending: false }).limit(1).maybeSingle();
+    const current = !!cred && (!cred.expires_at || cred.expires_at > now);
+    lead = { name: prof?.full_name ?? null, eecNumber: current ? cred?.number ?? null : null, eecVerified: current };
+    if (!businessName && prof?.business_id) {
+      const { data: biz } = await a.from("businesses").select("name").eq("id", prof.business_id).maybeSingle();
+      businessName = biz?.name ?? null;
+    }
+  }
+  const piesaAnswers = pe.copy ? answersFromDocument(pe.copy.snapshot.document) : null;
+  const att = pe.copy?.snapshot.attachments?.find((x) => x.itemId === "lifeSupportAttachment")?.fileId ?? null;
+  const { data: m } = await a.from("ceiling_measurements").select("insulation_present").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  return {
+    today, jobNumber: job?.job_number ?? null, address: prop ? formatPropertyAddress(prop) : null,
+    lifeSupportDeclared: declaredLifeSupport(job?.life_support_status), installDate, apName: AP_LEGAL_ENTITY,
+    installerBusinessName: businessName, leadInstaller: lead, piesaAnswers, piesaLifeSupportAttachment: att,
+    measuredInsulationPresent: m?.insulation_present ?? null, acceptedQuoteProduct: agr?.quoted_product ?? null,
+  };
+}
