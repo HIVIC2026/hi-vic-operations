@@ -156,7 +156,7 @@ export function EligibilityGlance({ jobId, onOpen }: { jobId: string; onOpen: (g
                     <tr key={key} className="border-t align-top max-sm:grid max-sm:grid-cols-1 max-sm:py-2">
                       <td className="px-4 py-1.5 font-medium max-sm:py-0">{CHECK_LABELS[key]}</td>
                       <td className={`px-2 py-1.5 max-sm:px-4 max-sm:py-0 ${a.cls}`}><span className="inline-flex items-center gap-1"><a.icon className="h-3.5 w-3.5 shrink-0" aria-hidden />{a.l}</span></td>
-                      <td className="px-4 py-1.5 text-xs text-muted-foreground max-sm:py-0">{r ? `${BASIS[r.basis] ?? r.basis} · ${r.source}` : "Unknown — no evidence recorded"}</td>
+                      <td className="px-4 py-1.5 text-xs text-muted-foreground max-sm:py-0">{r ? `${BASIS[r.basis] ?? r.basis} · ${sourceLabel(r.source)}` : "Unknown — no evidence recorded"}</td>
                     </tr>
                   );
                 })}
