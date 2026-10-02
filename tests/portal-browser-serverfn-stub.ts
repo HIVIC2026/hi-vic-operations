@@ -6,3 +6,4 @@ export const useServerFn = (fn: unknown) => async () => {
   if (name === "getInvoiceInternals") return mockInternals;
   return null;
 };
+export const createMiddleware = () => ({ server: () => ({}) });
