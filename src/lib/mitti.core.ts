@@ -381,12 +381,15 @@ export function parseAudit(audit: Any) {
   }
   const rv = note(physical(val(entries, ["Existing R-value", "Measured R-value", "Confirmed R-value", "Existing insulation R-value"]), "Existing R-value"));
   if (rv != null && patch.insulation_present !== false) patch.existing_r_value = rv;
-  const method = val(entries, ["How was the ceiling measured?", "How the ceiling was measured", "Measurement method"]);
-  if (method) patch.notes = [patch.notes, `Measured by: ${method}`].filter(Boolean).join(". ").slice(0, 4000);
+  // Measurement provenance: whole-job question (A2) or per-area questions (A1). Aerial/online estimates are never accepted.
+  const methodWhole = val(entries, ["How was the ceiling measured?", "How the ceiling was measured", "Measurement method"]);
+  const perAreaMethods = rooms.length ? [...new Set(rooms.map((r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); return [val(kids, ["How was this ceiling area measured?", "How was the ceiling measured?"]), val(kids, ["Tell us how you measured it", "Explain the method"])].filter(Boolean).join(" — "); }).filter(Boolean))] : [];
+  const methodText = methodWhole ? [methodWhole, ...perAreaMethods] : perAreaMethods;
+  if (methodText.length) patch.notes = [patch.notes, `Measured by: ${methodText.join("; ")}`].filter(Boolean).join(". ").slice(0, 4000);
   else if (rooms.length > 0) issues.push("Measurement method not captured – how the ceiling was measured must be documented.");
 
-  const acc = norm(val(entries, ["How easy is the ceiling access?", "Ceiling access", "Access difficulty", "Roof space access"]));
-  if (acc) { const a = /difficult|hard|restricted/.test(acc) ? "difficult" : /moderate|medium/.test(acc) ? "moderate" : /easy|good/.test(acc) ? "easy" : null; if (a) patch.access_difficulty = a; else issues.push("Ceiling access answer not recognised."); }
+  const acc = norm(val(entries, ["How easy is the ceiling access?", "How would you rate the ceiling access?", "Ceiling access", "Access difficulty", "Roof space access"]));
+  if (acc) { const a = /difficult|hard|restricted/.test(acc) ? "difficult" : /moderate|medium|standard/.test(acc) ? "moderate" : /easy|good/.test(acc) ? "easy" : null; if (a) patch.access_difficulty = a; else issues.push("Ceiling access answer not recognised – office review required."); }
 
   const setInt = (k: keyof AssessmentPatch, aliases: string[]) => { const e = find(entries, aliases, { withValue: true }); const n = note(count(e?.value ?? null, e?.label ?? aliases[0]!)); if (n != null) (patch as Any)[k] = n; };
   setInt("downlights_upgrade_qty", ["Downlights requiring upgrade", "Downlights to upgrade", "Downlight upgrade qty"]);
