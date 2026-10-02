@@ -35,6 +35,13 @@ describe("rec onboarding", () => {
     // an explicit legacy list always wins
     expect(effectiveElectricians({ ...full, electricians: [{ full_legal_name: "Other", licence_number: "B9", mobile: "0400000000", email: "o@x.com" }] })[0].full_legal_name).toBe("Other");
   });
+  test("office administrator can register without a personal licence", () => {
+    const admin: RecData = { ...full, contact_is_licensed_electrician: false, licence_number: undefined };
+    expect(stepErrors("about", admin)).toEqual([]);
+    expect(effectiveElectricians(admin)).toEqual([]);
+    expect(firstIncompleteStep(admin)).toBeNull();
+    expect(scheduleText(admin)).toContain("To be confirmed with the Home Insulation Victoria office");
+  });
   test("services: all three electrical services are mandatory", () => {
     expect(stepErrors("services", {})).toContain("Confirm your REC can provide all three electrical services.");
     expect(stepErrors("services", { service_piesa: false, service_rectification: false, service_installation_isolation: false })).toContain("Confirm your REC can provide all three electrical services.");
