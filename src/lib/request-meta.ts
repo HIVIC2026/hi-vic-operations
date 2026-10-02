@@ -5,11 +5,12 @@ import { START_LIMIT_MESSAGE, VISITOR_COOKIE, isVisitorId, newResumeToken } from
 
 export const withRequestMeta = createMiddleware({ type: "function" }).server(async ({ next }) => {
   const req = getRequest();
-  // Only the edge-set header is trusted; x-forwarded-for can be supplied by the caller.
-  const ip = req?.headers.get("cf-connecting-ip")?.trim() || null;
+  const ip = req?.headers.get("cf-connecting-ip") ?? req?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  // Rate limiting trusts only the edge-set header; x-forwarded-for can be supplied by the caller.
+  const edgeIp = req?.headers.get("cf-connecting-ip")?.trim() || null;
   const hostname = req ? new URL(req.url).hostname : "";
   const assessmentTestMode = hostname === "localhost" || hostname === "127.0.0.1" || hostname.includes("-preview--") || hostname.includes("-dev.lovable.app");
-  return next({ context: { ip, userAgent: req?.headers.get("user-agent") ?? null, assessmentTestMode } });
+  return next({ context: { ip, edgeIp, userAgent: req?.headers.get("user-agent") ?? null, assessmentTestMode } });
 });
 
 /** Public onboarding: a start/contact limit refusal is returned as HTTP 429 with the generic message. */

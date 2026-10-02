@@ -75,7 +75,7 @@ export const startRecOnboarding = createServerFn({ method: "POST" })
     }
     const sec = await import("./onboarding-security.server");
     const auth = await sec.consumeAuthorisation(db as never, data.staff_link, "rec");
-    if (!auth) await sec.consumeStart(db as never, context.visitorId, context.ip, "rec");
+    if (!auth) await sec.consumeStart(db as never, context.visitorId, context.edgeIp, "rec");
     const qa = auth?.purpose === "qa_test";
     const { error } = await db.from("rec_onboarding_applications").insert({
       resume_token_hash: hash, step_key: "about", test_mode: qa,

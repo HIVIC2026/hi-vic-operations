@@ -73,7 +73,7 @@ export const startInstallerOnboarding = createServerFn({ method: "POST" })
     }
     const sec = await import("./onboarding-security.server");
     const auth = await sec.consumeAuthorisation(db as never, data.staff_link, "installer");
-    if (!auth) await sec.consumeStart(db as never, context.visitorId, context.ip, "installer");
+    if (!auth) await sec.consumeStart(db as never, context.visitorId, context.edgeIp, "installer");
     const qa = auth?.purpose === "qa_test";
     const { error } = await db.from("rec_onboarding_applications").insert({
       resume_token_hash: hash, step_key: "business", partner_type: "installer", test_mode: qa,
