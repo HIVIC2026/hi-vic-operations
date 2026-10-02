@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { createTestEnquiry, getAdminPipeline } from "@/lib/portal.functions";
-import { issueOnboardingLink } from "@/lib/onboarding-links.functions";
+import { issueOnboardingLink, listOnboardingLinks, revokeOnboardingLink } from "@/lib/onboarding-links.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/test-centre")({
   head: () => ({ meta: [
