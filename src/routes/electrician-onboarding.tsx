@@ -43,12 +43,6 @@ export const Route = createFileRoute("/electrician-onboarding")({
 const input: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #D7DCE8", fontSize: 15, fontFamily: "inherit", color: NAVY, background: "#fff", boxSizing: "border-box", minHeight: 48 };
 const card: React.CSSProperties = { background: "#fff", borderRadius: 24, padding: 24, border: `1px solid ${BLUE}1A`, boxShadow: "0 10px 30px -18px rgba(34,55,107,.35)" };
 const DISPLAY = "'Outfit', 'Figtree', system-ui, sans-serif";
-const ACCENTS: Array<{ bg: string; fg: string }> = [
-  { bg: "oklch(0.93 0.06 345)", fg: "oklch(0.43 0.13 345)" },
-  { bg: "oklch(0.92 0.055 250)", fg: "oklch(0.4 0.14 255)" },
-  { bg: "oklch(0.93 0.07 145)", fg: "oklch(0.38 0.1 150)" },
-  { bg: "oklch(0.94 0.075 85)", fg: "oklch(0.42 0.1 70)" },
-];
 const infoCard: React.CSSProperties = { background: "#EAF8F0", border: `1px solid ${GREEN}55`, borderRadius: 14, padding: "12px 14px", fontSize: 14, color: NAVY, lineHeight: 1.5, marginBottom: 18 };
 const btn = (primary: boolean, disabled = false): React.CSSProperties => ({ minHeight: 48, padding: "0 20px", borderRadius: 12, border: primary ? "none" : `1px solid #D7DCE8`, background: primary ? (disabled ? "#9AA6D8" : BLUE) : "#fff", color: primary ? "#fff" : NAVY, fontWeight: 800, fontSize: 14, letterSpacing: 0.6, textTransform: "uppercase", cursor: disabled ? "default" : "pointer", fontFamily: "inherit" });
 
