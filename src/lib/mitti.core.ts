@@ -455,6 +455,14 @@ export function parseAudit(audit: Any) {
     }
   }
 
+  // Installer's Ready Check outcome (Form A1): a failed check is an office matter, never an auto-rejection.
+  const rcOutcome = norm(val(entries, ["Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?"]));
+  if (/failed|^no\b/.test(rcOutcome)) {
+    issues.push("Installer marked the Ready Check as failed – office review required.");
+    const reason = val(entries, ["Why did the property fail the ready check"]);
+    if (reason) patch.notes = [patch.notes, `Ready Check failed – installer reasons: ${reason}`].filter(Boolean).join(". ").slice(0, 4000);
+  }
+
   const readyFlag = yesNo(val(entries, ["Ready for office review"]));
   const completed = !!(audit?.completed || audit?.audit_data?.date_completed || audit?.completed_at || readyFlag);
   return {
