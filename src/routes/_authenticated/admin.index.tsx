@@ -117,6 +117,9 @@ function Pipeline() {
   const piesaCount = jobs.filter(piesaIssue).length, paymentCount = jobs.filter(paymentIssue).length, acceptanceCount = jobs.filter(needsAcceptance).length;
   const warnings = jobs.filter((j) => piesaIssue(j) || paymentIssue(j) || needsAcceptance(j)).length;
   const activeCount = groups.active.length;
+  // The in-progress card counts only what this page lists; the total across Enquiries/Quotes/Jobs is shown beside it.
+  const activeHere = tab !== "ineligible" ? groups.active.filter((j) => tabOf(j.stage) === tab).length : activeCount;
+  const cardCount = (key: keyof typeof groups) => key === "active" ? activeHere : groups[key].length;
   const uncounted = useMemo(() => {
     const seen = new Set([...groups.active, ...groups.review, ...groups.ineligible, ...groups.finalised, ...groups.cancelled].map((j) => j.id));
     return groups.all.filter((j) => !seen.has(j.id)).length;
@@ -141,12 +144,12 @@ function Pipeline() {
       <section aria-label="What each view means" className="mb-3 rounded-xl border border-workspace-blush-strong/50 bg-card/80 p-3 shadow-sm">
         <ul className="flex flex-wrap items-center gap-2">
           <li className="mr-1 text-[11px] font-bold uppercase tracking-[0.1em] text-brand-dark">Key</li>
-          {CARDS.map((item) => <li key={item.key} className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${item.chip}`}><span className="h-2 w-2 shrink-0 rounded-full bg-current opacity-60" /><span>{item.label}</span><b className="text-sm tabular-nums">{groups[item.key].length}</b><span className="hidden font-normal opacity-75 xl:inline">— {item.meaning}</span></li>)}
+          {CARDS.map((item) => <li key={item.key} className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${item.chip}`}><span className="h-2 w-2 shrink-0 rounded-full bg-current opacity-60" /><span>{item.label}</span><b className="text-sm tabular-nums">{cardCount(item.key)}</b><span className="hidden font-normal opacity-75 xl:inline">— {item.meaning}</span></li>)}
         </ul>
         <p className="mt-2 text-xs text-muted-foreground">{groups.all.length} live = {activeCount} in progress + {groups.review.length} needs review + {groups.ineligible.length} ineligible/hold + {groups.finalised.length} finalised + {groups.cancelled.length} cancelled ({groups.test.length} test records filed separately)</p>
       </section>
        <section className="mb-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-7" aria-label="Work files">
-          {CARDS.map((item) => <button key={item.key} type="button" onClick={() => { setWorkView(item.key); setPhase("all"); }} aria-pressed={workView === item.key} className={`rounded-md border p-3 text-left transition hover:border-primary hover:shadow-sm ${workView === item.key ? item.active : "bg-card"}`}><div className="flex items-center justify-between"><span className="text-xs font-semibold text-muted-foreground">{item.label}</span><item.icon className={`h-4 w-4 ${item.text}`} /></div><div className={`mt-1 text-xl font-bold tabular-nums ${item.text}`}>{groups[item.key].length}</div></button>)}
+          {CARDS.map((item) => <button key={item.key} type="button" onClick={() => { setWorkView(item.key); setPhase("all"); }} aria-pressed={workView === item.key} className={`rounded-md border p-3 text-left transition hover:border-primary hover:shadow-sm ${workView === item.key ? item.active : "bg-card"}`}><div className="flex items-center justify-between"><span className="text-xs font-semibold text-muted-foreground">{item.label}</span><item.icon className={`h-4 w-4 ${item.text}`} /></div><div className={`mt-1 text-xl font-bold tabular-nums ${item.text}`}>{cardCount(item.key)}{item.key === "active" && activeHere !== activeCount && <span className="ml-1 text-xs font-normal text-muted-foreground">on this page · {activeCount} in total</span>}</div></button>)}
       </section>
       {uncounted > 0 && <div role="alert" className="mb-4 rounded-md border-l-4 border-destructive bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">{uncounted} live enquir{uncounted === 1 ? "y is" : "ies are"} not in any group. Open "All live enquiries" to find {uncounted === 1 ? "it" : "them"}.</div>}
        {workView === "active" && warnings > 0 && <div className="mb-4 rounded-md border-l-4 border-warning bg-warning-soft px-4 py-3 text-sm"><b>{warnings} active job{warnings === 1 ? "" : "s"} need attention.</b> {[piesaCount && `${piesaCount} PIESA`, paymentCount && `${paymentCount} payment`, acceptanceCount && `${acceptanceCount} agreement`].filter(Boolean).join(" · ")}</div>}
