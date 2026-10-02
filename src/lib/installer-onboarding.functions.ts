@@ -179,7 +179,7 @@ export const signInstallerAgreement = createServerFn({ method: "POST" })
       free_measureups_for_hivic_quote_leads: d.free_measureups_for_hivic_quote_leads ?? null,
       booking_lead_time: d.normal_attendance_speed ?? null, weekly_capacity: d.capacity_band ?? null,
       source_created_at: app.created_at, source_updated_at: signedAt,
-      raw_payload: { rec_onboarding_id: app.id, partner_type: "installer", agreement_version: INSTALLER_AGREEMENT_VERSION, agreement_sha256: hash, signed_at: signedAt, signer: { name: data.signer_name, position: data.signer_position, email: data.signer_email } } as never,
+      raw_payload: { rec_onboarding_id: app.id, partner_type: "installer", wants_hivic_leads: d.wants_hivic_leads ?? null, agreement_version: INSTALLER_AGREEMENT_VERSION, agreement_sha256: hash, signed_at: signedAt, signer: { name: data.signer_name, position: data.signer_position, email: data.signer_email } } as never,
     }).select("id").single();
     if (peErr) throw new Error("Could not submit your application. Please try again.");
 

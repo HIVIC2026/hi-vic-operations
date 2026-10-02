@@ -169,7 +169,7 @@ export function firstIncompleteStep(d: InstData, now = new Date()): StepKey | nu
 export const MATERIAL_FIELDS = [
   "legal_entity_name", "trading_name", "abn", "cii_status", "cii_details", "business_email", "service_origin", "travel_radius_km",
   "excluded_areas", "typical_days", "normal_attendance_speed", "capacity_band", "service_batts_removal", "service_loose_fill_removal",
-  "free_quotes_for_hivic_leads", "free_measureups_for_hivic_quote_leads", "gst_registered", "r5_rate", "batts_removal_rate", "loose_fill_removal_rate", "extra_rates", "installers",
+  "wants_hivic_leads", "free_quotes_for_hivic_leads", "free_measureups_for_hivic_quote_leads", "gst_registered", "r5_rate", "batts_removal_rate", "loose_fill_removal_rate", "extra_rates", "installers",
 ] as const;
 
 export function applyMaterialReset(prev: InstData, next: InstData): InstData {
