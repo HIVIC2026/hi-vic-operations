@@ -301,7 +301,8 @@ export function validateQuotedPrice(input: {
   if (included.includes("Other") && !otherDescription) issues.push("Other is ticked — describe the other item.");
   const totalIncGst = Number(input.totalIncGst);
   if (!Number.isFinite(totalIncGst) || totalIncGst <= 0) issues.push("Total quoted price is missing or not a positive number.");
-  if (input.agreedWithOwner == null) issues.push("'Price already agreed with the owner?' was not answered.");
+  // "Price already agreed with the owner?" is optional: the office reviews every quote draft before sending,
+  // so no draft is ever sent without a human look. A Yes/No answer is still recorded when the form has it.
   if (issues.length) return { ok: false, issues, price: null };
   return { ok: true, issues: [], price: { included, otherDescription, totalIncGst: r2(totalIncGst), agreedWithOwner: input.agreedWithOwner === true } };
 }
