@@ -12,16 +12,16 @@ export function sha256Hex(input: string): string {
   for (let o = 0; o < total; o += 64) {
     for (let i = 0; i < 16; i++) W[i] = dv.getUint32(o + i * 4);
     for (let i = 16; i < 64; i++) {
-      const a = W[i - 15], b = W[i - 2];
-      W[i] = (W[i - 16] + (r(a, 7) ^ r(a, 18) ^ (a >>> 3)) + W[i - 7] + (r(b, 17) ^ r(b, 19) ^ (b >>> 10))) >>> 0;
+      const a = W[i - 15]!, b = W[i - 2]!;
+      W[i] = (W[i - 16]! + (r(a, 7) ^ r(a, 18) ^ (a >>> 3)) + W[i - 7]! + (r(b, 17) ^ r(b, 19) ^ (b >>> 10))) >>> 0;
     }
-    let [a, b, c, d, e, f, g, h] = H;
+    let a = H[0]!, b = H[1]!, c = H[2]!, d = H[3]!, e = H[4]!, f = H[5]!, g = H[6]!, h = H[7]!;
     for (let i = 0; i < 64; i++) {
-      const t1 = (h + (r(e, 6) ^ r(e, 11) ^ r(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + W[i]) >>> 0;
+      const t1 = (h + (r(e, 6) ^ r(e, 11) ^ r(e, 25)) + ((e & f) ^ (~e & g)) + K[i]! + W[i]!) >>> 0;
       const t2 = ((r(a, 2) ^ r(a, 13) ^ r(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
       h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
     }
-    H[0] += a; H[1] += b; H[2] += c; H[3] += d; H[4] += e; H[5] += f; H[6] += g; H[7] += h;
+    H[0]! += a; H[1]! += b; H[2]! += c; H[3]! += d; H[4]! += e; H[5]! += f; H[6]! += g; H[7]! += h;
   }
   return Array.from(H, (x) => x.toString(16).padStart(8, "0")).join("");
 }
