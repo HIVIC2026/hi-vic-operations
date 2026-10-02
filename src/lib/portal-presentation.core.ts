@@ -71,6 +71,6 @@ export function evidenceSourceLabel(source: string | null | undefined): string {
   return "Other recorded evidence";
 }
 
-export function filterVisibleJobs<T extends { stage?: string | null }>(jobs: T[], phase: string, phaseFor: (stage: string | null | undefined) => string): T[] {
+export function filterVisibleJobs<T extends { stage?: S | null }, S extends string>(jobs: T[], phase: string, phaseFor: (stage: S | null | undefined) => string): T[] {
   return phase === "all" ? jobs : jobs.filter((job) => phaseFor(job.stage) === phase);
 }

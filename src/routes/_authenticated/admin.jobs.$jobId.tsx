@@ -7,7 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { Pill, SourceBadge, UrgencyBadge } from "@/components/portal/badges";
-import { AdminAssignmentPanel, AssignmentStatusInline } from "@/components/portal/assignment";
+import { AdminAssignmentPanel } from "@/components/portal/assignment";
 import { WorkerLinksPanel } from "@/components/portal/workers";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, PaymentsPanel, QuotesPanel, Section, TimelinePanel, useJob } from "@/components/portal/panels";
 import { MittiCard, PriceItemForm } from "@/components/portal/mitti";
@@ -55,7 +55,7 @@ function JobDetail() {
     const focus = (attempt = 0) => requestAnimationFrame(() => {
       const exact = document.getElementById(`target-${target}`);
       const destination = exact ?? document.getElementById(`records-${g}`);
-      if (!destination && attempt < 4) return focus(attempt + 1);
+      if (!destination && attempt < 4) { focus(attempt + 1); return; }
       destination?.scrollIntoView({ behavior: "smooth", block: "start" });
       const focusable = exact?.matches("button,a,input,select,textarea,[tabindex]") ? exact : exact?.querySelector<HTMLElement>("button,a,input,select,textarea,[tabindex]");
       (focusable ?? document.getElementById(`records-${g}-btn`))?.focus({ preventScroll: true });
