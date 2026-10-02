@@ -319,7 +319,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
       const list = d.installers ?? [];
       const set = (i: number, p: Partial<NonNullable<RecData["installers"]>[number]>) => up({ installers: list.map((x, j) => (j === i ? { ...x, ...p } : x)) });
       return <>
-        <div style={infoCard}>You only need to add ONE installer to continue. Add more only if they may attend Home Insulation Victoria jobs.</div>
+        <div style={infoCard}>List everyone who installs insulation for this business — <strong>including yourself if you do the work</strong>. Each person listed can be verified and assigned to jobs. You need at least one installer to continue.</div>
         {list.map((x, i) => (
           <div key={i} style={{ border: "1px solid #E4E8F0", borderRadius: 14, padding: 14, marginBottom: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><strong>Installer {i + 1}</strong>
