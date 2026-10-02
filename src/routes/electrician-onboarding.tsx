@@ -75,6 +75,44 @@ function Money({ value, onChange, unit }: { value: number | null | undefined; on
     </div>
   );
 }
+
+/** Green tick list — used wherever we tell the REC what we provide, so it reads as a checklist not a paragraph. */
+function TickList({ items }: { items: string[] }) {
+  return (
+    <ul style={{ margin: "10px 0 0", padding: 0, listStyle: "none" }}>
+      {items.map((line) => (
+        <li key={line} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginTop: 8 }}>
+          <span aria-hidden="true" style={{ flexShrink: 0, width: 22, height: 22, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>✓</span>
+          <span>{line}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** A titled block that groups related fields, so a pricing step reads as sections instead of one long list. */
+function Group({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+  return (
+    <section style={{ border: "1px solid #E4E8F0", borderRadius: 16, padding: 16, marginBottom: 18, background: "#FBFCFE" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+        <strong style={{ fontFamily: DISPLAY, fontSize: 15, color: NAVY }}>{title}</strong>
+        {note && <span style={{ background: "#fff", border: `1px solid ${GREEN}66`, borderRadius: 999, padding: "4px 12px", fontSize: 12.5, fontWeight: 700, color: NAVY, whiteSpace: "nowrap" }}>{note}</span>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** One rate line: item name on the left, amount on the right, so the rate schedule scans like a table. */
+function RateRow({ label, unit, value, onChange, last = false }: { label: string; unit: string; value: number | null | undefined; onChange: (v: number | null) => void; last?: boolean }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "10px 0", borderBottom: last ? "none" : "1px solid #EDF0F7" }}>
+      <span style={{ fontWeight: 700, fontSize: 14, color: NAVY }}>{label}<span style={{ color: BLUE }}> *</span></span>
+      <Money value={value} onChange={onChange} unit={unit} />
+    </div>
+  );
+}
+
 /** Australian address lookup. A selected suggestion is resolved before it is accepted. */
 function AddressInput({ value, onChange, onSelect, victoriaOnly = false }: { value: string; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean }) {
   const [items, setItems] = useState<AddressSuggestion[]>([]);
@@ -401,18 +439,11 @@ function StepBody({ step, d, up, token, setError, preview, onRevision }: { step:
       return <>
         <div style={infoCard}>
           <strong>Home Insulation Victoria provides pre-installation electrical safety assessment (PIESA) jobs in your service area.</strong>
-          <ul style={{ margin: "10px 0 0", padding: 0, listStyle: "none" }}>
-            {[
-              "Complete the electrical safety assessment and submit the PIESA through our portal.",
-              "Identify and quote only the electrical rectification required for the ceiling insulation to be installed safely. Complete that work once the scope and price are approved through Home Insulation Victoria.",
-              "Attend the installation on site when electrical attendance is required.",
-            ].map((line, i) => (
-              <li key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginTop: 8 }}>
-                <span aria-hidden="true" style={{ flexShrink: 0, width: 22, height: 22, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>✓</span>
-                <span>{line}</span>
-              </li>
-            ))}
-          </ul>
+          <TickList items={[
+            "Complete the electrical safety assessment and submit the PIESA through our portal.",
+            "Identify and quote only the electrical rectification required for the ceiling insulation to be installed safely. Complete that work once the scope and price are approved through Home Insulation Victoria.",
+            "Attend the installation on site when electrical attendance is required.",
+          ]} />
         </div>
         <Check checked={d.services_all_confirmed === true} onChange={(v) => up({ services_all_confirmed: v })}>I confirm our REC can provide all three electrical services listed above, as required for each job.</Check>
       </>;
@@ -451,20 +482,32 @@ function StepBody({ step, d, up, token, setError, preview, onRevision }: { step:
     case "rectification_pricing": {
       const r = d.rectification_rates ?? {};
       return <>
-        <div style={{ ...infoCard, marginBottom: 12 }}>We provide an assessment app for your PIESA visit. Select the mandatory electrical rectification items and enter the quantity of each. The app uses your agreed rates to calculate an itemised rectification quote when you finish the assessment. Home Insulation Victoria manages the customer quote and approval through the portal.</div>
-        <div style={infoCard}>{d.gst_registered === false ? "Enter total rates (not GST registered)." : "Enter rates including GST."}</div>
-        {RECT_ITEMS.map((it) => <Field key={it.key} label={it.label} required><Money value={r[it.key]} onChange={(v) => up({ rectification_rates: { ...r, [it.key]: v } })} unit={it.unit} /></Field>)}
-        <Field label="Certificate of Electrical Safety" required><Choice options={[{ v: "included" as const, l: "Included" }, { v: "separate" as const, l: "Separate fee" }]} value={d.coes_fee_choice || null} onChange={(v) => up({ coes_fee_choice: v })} /></Field>
-        {d.coes_fee_choice === "separate" && <Field label="CoES fee" required><Money value={d.coes_fee} onChange={(v) => up({ coes_fee: v })} /></Field>}
-        <div style={{ borderTop: "1px solid #E4E8F0", paddingTop: 16, marginTop: 18 }}><strong style={{ fontFamily: DISPLAY }}>Your other repeatable rectification items</strong><p style={{ fontSize: 13, color: MUTED }}>Add work you regularly price. Each item remains a proposed supplier rate until the office approves it.</p>
-          {(d.custom_rectification_rates ?? []).map((item, index) => <div key={item.id} style={{ border: "1px solid #D7DCE8", borderRadius: 12, padding: 12, marginBottom: 10 }}>
+        <div style={infoCard}>
+          <strong>We provide an assessment app for your PIESA visit.</strong>
+          <TickList items={[
+            "Select the mandatory electrical rectification items and enter the quantity of each.",
+            "The app uses your agreed rates to calculate an itemised rectification quote when you finish the assessment.",
+            "Home Insulation Victoria manages the customer quote and approval through the portal.",
+          ]} />
+        </div>
+        <Group title="Mandatory item rates" note={d.gst_registered === false ? "Enter total rates (not GST registered)." : "Enter rates including GST."}>
+          {RECT_ITEMS.map((it, i) => <RateRow key={it.key} label={it.label} unit={it.unit} value={r[it.key]} last={i === RECT_ITEMS.length - 1} onChange={(v) => up({ rectification_rates: { ...r, [it.key]: v } })} />)}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "10px 0", borderTop: "1px solid #EDF0F7" }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: NAVY }}>Certificate of Electrical Safety<span style={{ color: BLUE }}> *</span></span>
+            <Choice options={[{ v: "included" as const, l: "Included" }, { v: "separate" as const, l: "Separate fee" }]} value={d.coes_fee_choice || null} onChange={(v) => up({ coes_fee_choice: v })} />
+          </div>
+          {d.coes_fee_choice === "separate" && <div style={{ padding: "10px 0 2px" }}><Field label="CoES fee" required><Money value={d.coes_fee} onChange={(v) => up({ coes_fee: v })} /></Field></div>}
+        </Group>
+        <Group title="Your other repeatable rectification items">
+          <p style={{ fontSize: 13, color: MUTED, margin: "0 0 10px" }}>Add work you regularly price. Each item remains a proposed supplier rate until the office approves it.</p>
+          {(d.custom_rectification_rates ?? []).map((item, index) => <div key={item.id} style={{ border: "1px solid #D7DCE8", borderRadius: 12, padding: 12, marginBottom: 10, background: "#fff" }}>
             <Field label="Description" required><input style={input} value={item.description} onChange={(e) => up({ custom_rectification_rates: (d.custom_rectification_rates ?? []).map((x, i) => i === index ? { ...x, description: e.target.value } : x) })} /></Field>
             <Field label="Unit" required hint="For example: each, metre or visit"><input style={input} value={item.unit} onChange={(e) => up({ custom_rectification_rates: (d.custom_rectification_rates ?? []).map((x, i) => i === index ? { ...x, unit: e.target.value } : x) })} /></Field>
             <Field label={d.gst_registered === false ? "Total supplier rate" : "Supplier rate (inc GST)"} required><Money value={item.price} onChange={(v) => up({ custom_rectification_rates: (d.custom_rectification_rates ?? []).map((x, i) => i === index ? { ...x, price: v } : x) })} {...(item.unit ? { unit: item.unit } : {})} /></Field>
             <button type="button" style={btn(false)} onClick={() => up({ custom_rectification_rates: (d.custom_rectification_rates ?? []).filter((_, i) => i !== index) })}>Remove item</button>
           </div>)}
           <button type="button" style={btn(false)} onClick={() => up({ custom_rectification_rates: [...(d.custom_rectification_rates ?? []), { id: crypto.randomUUID(), description: "", unit: "each", price: null }] })}>Add custom item</button>
-        </div>
+        </Group>
         <p style={{ fontSize: 13, color: MUTED }}>Anything outside your approved rate schedule is quoted separately through Home Insulation Victoria on the specific job before owner approval.</p>
       </>;
     }
