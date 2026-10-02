@@ -52,6 +52,20 @@ const ACCENTS: Array<{ bg: string; fg: string }> = [
 const infoCard: React.CSSProperties = { background: "#EAF8F0", border: `1px solid ${GREEN}55`, borderRadius: 14, padding: "12px 14px", fontSize: 14, color: NAVY, lineHeight: 1.5, marginBottom: 18 };
 const btn = (primary: boolean, disabled = false): React.CSSProperties => ({ minHeight: 48, padding: "0 20px", borderRadius: 12, border: primary ? "none" : `1px solid #D7DCE8`, background: primary ? (disabled ? "#9AA6D8" : BLUE) : "#fff", color: primary ? "#fff" : NAVY, fontWeight: 800, fontSize: 14, letterSpacing: 0.6, textTransform: "uppercase", cursor: disabled ? "default" : "pointer", fontFamily: "inherit" });
 
+/** Green tick list — same as the electrician flow, so what we give and what we ask reads as a checklist, not a paragraph. */
+function TickList({ items }: { items: string[] }) {
+  return (
+    <ul style={{ margin: "10px 0 0", padding: 0, listStyle: "none" }}>
+      {items.map((line) => (
+        <li key={line} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginTop: 8 }}>
+          <span aria-hidden="true" style={{ flexShrink: 0, width: 22, height: 22, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>✓</span>
+          <span>{line}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 16 }}>
@@ -368,11 +382,14 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
         <Field label="Do you want to receive pre-qualified leads from Home Insulation Victoria?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.wants_hivic_leads ?? null} onChange={(v) => up(v ? { wants_hivic_leads: v } : { wants_hivic_leads: v, free_measureups_for_hivic_quote_leads: null })} /></Field>
         {d.wants_hivic_leads === true && <>
           <div style={{ ...infoCard, marginTop: 8 }}>
-            <strong>To receive our pre-qualified leads, you need to provide free Home Insulation Ready Checks (measure-up).</strong>
-            <div style={{ marginTop: 6 }}>A Ready Check is a free onsite visit where you measure the ceiling, confirm eligibility details and collect site evidence — no electrical work.</div>
-            <div style={{ marginTop: 6 }}>We run every eligibility check we can from the office before a lead ever reaches you — and there's no lead fee.</div>
-            <div style={{ marginTop: 6 }}>What no office can check from a desk is the ceiling itself. Owners very often don't know whether they already have insulation, or what condition it's in, so eligibility can't be confirmed until someone measures it.</div>
-            <div style={{ marginTop: 6 }}>That's exactly what the Ready Check is for. You'll receive the job if it proceeds, unless the owner specifies otherwise.</div>
+            <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 16, color: NAVY, lineHeight: 1.35 }}>To receive our pre-qualified leads, you provide free Home Insulation Ready Checks.</div>
+            <div style={{ marginTop: 6 }}>A Ready Check is a free onsite measure-up: you measure the ceiling, confirm what we couldn't verify from the office, and collect site evidence. No electrical work.</div>
+            <TickList items={[
+              "Every eligibility check we can do from the office, done before a lead reaches you",
+              "No lead fee — you are never charged for a lead",
+              "The ceiling itself can't be checked from a desk: owners often don't know what's already installed, so final eligibility is only confirmed onsite",
+            ]} />
+            <div style={{ marginTop: 10, fontWeight: 800 }}>You'll receive the job if it proceeds, unless the owner specifies otherwise.</div>
           </div>
           <Check checked={d.free_measureups_for_hivic_quote_leads === true} onChange={(v) => up({ free_measureups_for_hivic_quote_leads: v })}>I confirm I'll provide free Home Insulation Ready Checks (measure-up) for Home Insulation Victoria leads.</Check>
         </>}
