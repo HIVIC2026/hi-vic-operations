@@ -119,3 +119,5 @@
 - [ ] Apply 0077 / 0074 live, publish app code — waiting on Jo's approval, form approvals, source URL/date, conductivity/hazard official confirmation, C01/C02/C04
 
 - [x] Read-only live readiness check: REC/installer onboarding, worker invites, job links, commercial wording (PASS/FAIL/NOT LIVE with URLs + evidence)
+
+- [x] Narrow installer onboarding release published 2026-10-02 (INST-1.9, no lead-fee wording); unpublished work restored and verified against 81429ac0
