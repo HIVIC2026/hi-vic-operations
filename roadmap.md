@@ -169,3 +169,4 @@
 - [ ] Auto-fill the official PIESA/PIISA documents (government layout) and save signed copies to the job files (awaiting format decision)
 - [ ] AP evidence at each stage, e.g. geotagged photos (awaiting list from Jo)
 - [ ] Automate PIESA Section C after rectification: auto-open, reminders, office alert, install blocked until done
+- [ ] Installer-supplied jobs: gap-check uploaded Ready Check evidence; missing items become install-day Mitti tasks (no rejection)

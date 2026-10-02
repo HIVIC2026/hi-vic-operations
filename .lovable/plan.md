@@ -56,7 +56,18 @@ So the electrician can't forget it, and you'll always know where it's up to:
 - existing insulation and its depth
 - every claimed ceiling zone, named
 
-**"Start installation" stays locked** until A, B and C all pass.
+**D. Ready Check catch-up (installer-supplied jobs only):** anything still missing from the Ready Check shows up here as a task. See the section below.
+
+**"Start installation" stays locked** until A, B, C and any catch-up tasks all pass.
+
+## Installer-supplied jobs: accept now, catch up on install day
+- **Gap check on upload.** When an installer uploads a job, the portal checks the Ready Check evidence they've supplied (photos, depth, zones, area, access and so on) and lists what's there and what's missing.
+- **No turning jobs away.** If the job is otherwise eligible, it can still move to quote and acceptance. Nobody has to go back to a job they've already quoted just to collect evidence.
+- **Only a few items must come first.** Anything needed to decide eligibility or the price (for example the measured m² and existing insulation type) still has to be there before quoting. Everything else moves to install day.
+- **Missing items become install-day tasks.** Each one is added automatically to the installer's install-day Mitti job as a required question or photo, worded for exactly what's missing, so they can't forget it.
+- **Install stays locked until they're done.** "Start installation" won't unlock until every catch-up item is supplied, with location and time on each photo.
+- **You can see it.** The job page and the AP review screen show each item as "From Ready Check" or "Caught up on install day", with who uploaded it and when.
+- **Builds on what exists.** The portal already sorts missing items into "before quote" and "at PIISA". This connects that list to Mitti and the install lock.
 
 **Finish (same Mitti job):**
 - the product installed and batch details
