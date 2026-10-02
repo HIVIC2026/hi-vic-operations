@@ -121,3 +121,18 @@ describe("rec onboarding", () => {
     expect(stepErrors("services", { services_all_confirmed: true })).toEqual([]);
   });
 });
+
+import { blockedMandatoryStep } from "../src/lib/rec-onboarding.core";
+import { describe as d2, test as t2, expect as e2 } from "bun:test";
+d2("server guard for the services confirmation", () => {
+  t2("refuses a manipulated save past services while unticked", () => {
+    e2(blockedMandatoryStep("coverage", {})).toBe("services");
+    e2(blockedMandatoryStep("sign", { services_all_confirmed: false })).toBe("services");
+    e2(blockedMandatoryStep("unknown-step", {})).toBe("services");
+  });
+  t2("allows saves on or before services, and past it once ticked", () => {
+    e2(blockedMandatoryStep("services", {})).toBeNull();
+    e2(blockedMandatoryStep("about", {})).toBeNull();
+    e2(blockedMandatoryStep("coverage", { services_all_confirmed: true })).toBeNull();
+  });
+});
