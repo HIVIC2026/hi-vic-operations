@@ -76,7 +76,7 @@ export function supplementalEligibilityLabel(input: {
   eligibility_review_required?: boolean | null;
   eligibility_outcome?: string | null;
 }, authoritativeLabel: string): "Review required" | "Ineligible" | "Needs onsite confirmation" | "Likely eligible" | null {
-  if (input.eligibility_review_required && authoritativeLabel !== "Review required") return "Review required";
+  if (input.eligibility_review_required) return authoritativeLabel === "Review required" ? null : "Review required";
   const label = input.eligibility_outcome === "does_not_appear_eligible" ? "Ineligible"
     : input.eligibility_outcome === "needs_onsite_confirmation" ? "Needs onsite confirmation"
       : input.eligibility_outcome === "likely_eligible" ? "Likely eligible" : null;

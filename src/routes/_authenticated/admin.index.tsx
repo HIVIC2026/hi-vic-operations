@@ -151,9 +151,9 @@ function Pipeline() {
        {workView === "active" && warnings > 0 && <div className="mb-4 rounded-md border-l-4 border-warning bg-warning-soft px-4 py-3 text-sm"><b>{warnings} active job{warnings === 1 ? "" : "s"} need attention.</b> {[piesaCount && `${piesaCount} PIESA`, paymentCount && `${paymentCount} payment`, acceptanceCount && `${acceptanceCount} agreement`].filter(Boolean).join(" · ")}</div>}
       {comms?.enabled !== true && <p className="mb-3 text-xs text-muted-foreground">Pre-launch safety is active: no email, SMS or notification is sent to customers or trades.</p>}
       {intakeHealth && <details data-testid="post-intake-health" className="mb-2 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground"><summary className="cursor-pointer font-semibold text-foreground">System health {intakeHealth.counts.stale > 0 || intakeHealth.counts.failed > 0 ? `— ${intakeHealth.counts.stale + intakeHealth.counts.failed} need attention` : "— normal"}</summary><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1"><span>Queued <b className="text-foreground">{intakeHealth.counts.queued}</b></span><span>Running <b className="text-foreground">{intakeHealth.counts.running}</b></span><span className={intakeHealth.counts.stale > 0 ? "font-semibold text-warning" : ""}>Stale <b>{intakeHealth.counts.stale}</b></span><span className={intakeHealth.counts.failed > 0 ? "font-semibold text-danger" : ""}>Failed <b>{intakeHealth.counts.failed}</b></span></div></details>}
-      <details className="group mb-3 rounded-md border bg-card sm:[&>div]:!flex" open>
+      <details className="group mb-3 rounded-md border bg-card sm:hidden" open>
         <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm font-semibold sm:hidden">Search and filters <ChevronDown className="h-4 w-4 transition group-open:rotate-180" /></summary>
-      <div className="flex flex-wrap items-center gap-2 p-3 max-sm:border-t">
+      <div className="flex flex-wrap items-center gap-2 border-t p-3">
           <div className="relative min-w-0 basis-full sm:min-w-64 sm:basis-auto sm:flex-1"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search job number, address or person" className="pl-8" /></div>
           <select aria-label="Job source" className="h-9 rounded-md border bg-background px-2 text-sm" value={source} onChange={(e) => setSource(e.target.value as typeof source)}>
             <option value="all">All sources</option><option value="hivic_sourced">Home Insulation Victoria-sourced</option><option value="installer_sourced">Installer-sourced</option>
@@ -163,6 +163,15 @@ function Pipeline() {
           </select>
       </div>
       </details>
+      <div className="mb-3 hidden flex-wrap items-center gap-2 rounded-md border bg-card p-3 sm:flex">
+          <div className="relative min-w-64 flex-1"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search job number, address or person" className="pl-8" /></div>
+          <select aria-label="Job source" className="h-9 rounded-md border bg-background px-2 text-sm" value={source} onChange={(e) => setSource(e.target.value as typeof source)}>
+            <option value="all">All sources</option><option value="hivic_sourced">Home Insulation Victoria-sourced</option><option value="installer_sourced">Installer-sourced</option>
+          </select>
+          <select aria-label="Phase" className="h-9 rounded-md border bg-background px-2 text-sm" value={phase} onChange={(e) => setPhase(e.target.value as typeof phase)} disabled={workView !== "active"}>
+            <option value="all">All phases</option>{lanes.map((p) => <option key={p.key} value={p.key}>{p.label} ({byPhase(p.key).length})</option>)}
+          </select>
+      </div>
       {(() => {
         const all = visibleJobs.length > 0 && visibleJobs.every((j) => selected.has(j.id!));
         return <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">

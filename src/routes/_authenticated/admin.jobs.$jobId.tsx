@@ -62,7 +62,8 @@ function JobDetail() {
     let observer: MutationObserver | null = null;
     const finish = (fallback = false) => {
       if (run !== targetRun.current) return false;
-      const preferred = document.querySelector<HTMLElement>(`#target-${target}[data-portal-focus="target"]`);
+      const preferred = document.querySelector<HTMLElement>(`#target-${target}[data-portal-focus="target"]`)
+        ?? (target === "deposit-request" || target === "intake-consent" ? null : document.getElementById(`target-${target}`));
       if (!preferred && !fallback) return false;
       const panel = document.getElementById(`panel-${target}`);
       const destination = preferred ?? panel ?? document.getElementById(`records-${g}`);
