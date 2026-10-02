@@ -184,3 +184,9 @@
 ## Test trade accounts + generation check (Jo, 3 Oct)
 - [ ] Create 3 fake installers + 3 fake electricians with different rate cards (test accounts, clearly marked)
 - [ ] Run a test job through: confirm Mitti templates prefill and quotes generate correctly per rate card
+
+## Mitti access as part of trade onboarding (Jo, 3 Oct)
+- [x] Record Mitti membership per person (who is in, checked when, against which email)
+- [x] Pure rule + tests for who counts as in Mitti
+- [ ] Stop a job being assigned to someone not in Mitti, with a recorded office override
+- [ ] Show Mitti status on the job page and the users/trade list, with a Check button
