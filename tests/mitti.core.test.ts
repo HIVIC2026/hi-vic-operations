@@ -170,6 +170,29 @@ describe("sync mapping", () => {
     });
     expect(p.syncStatus).toBe("synced");
   });
+  test("A1 per-area labels: measured m², determined R value and removal amount map per area", () => {
+    const area = (id: string, m2: string, rv: string, action: string, remM2: string) => [
+      { item_id: `${id}-m`, parent_id: id, label: "Enter the measured ceiling area (m²)", responses: { text: m2 } },
+      { item_id: `${id}-i`, parent_id: id, label: "Is there existing insulation in this ceiling area?", responses: sel("Yes") },
+      { item_id: `${id}-r`, parent_id: id, label: "What is the determined R value of the existing ceiling insulation?", responses: { text: rv } },
+      { item_id: `${id}-a`, parent_id: id, label: "What is required for the existing insulation?", responses: sel(action) },
+      { item_id: `${id}-rm`, parent_id: id, label: "How much existing insulation needs to be removed? (m²)", responses: { text: remM2 } },
+    ];
+    const single = audit({ completed: true, extra: area("area1", "120", "R1.3", "Remove", "80") });
+    single.items = single.items.filter((i) => !["g", "x", "n", "e"].includes(i.item_id));
+    const p = parseAudit(single);
+    expect(p.patch.measured_area_m2).toBe(120);
+    expect(p.patch.existing_r_value).toBe(1.3);
+    expect(p.patch.removal_required).toBe(true);
+    expect(p.patch.removal_m2).toBe(80);
+    // Differing per-area R-values: lowest recorded, office review flagged.
+    const multi = audit({ completed: true, extra: [...area("area1", "100", "R1.0", "Remove", "100"), ...area("area2", "50", "R2.5", "Top up", "0")] });
+    multi.items = multi.items.filter((i) => !["g", "x", "n", "e"].includes(i.item_id));
+    const pm = parseAudit(multi);
+    expect(pm.patch.measured_area_m2).toBe(150);
+    expect(pm.patch.existing_r_value).toBe(1);
+    expect(pm.issues.some((i) => /R-values differ/.test(i))).toBe(true);
+  });
   test("completed audit never carries status/completion fields", () => {
     const p = planSync(audit({ completed: true }), base);
     if (p.locked) throw new Error("locked");
