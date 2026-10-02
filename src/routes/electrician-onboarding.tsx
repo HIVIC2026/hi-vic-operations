@@ -489,11 +489,22 @@ function StepBody({ step, d, up, token, setError, preview, onRevision }: { step:
     case "rectification_pricing": {
       const r = d.rectification_rates ?? {};
       return <>
-        <div style={{ ...infoCard, marginBottom: 12 }}>We provide an assessment app for your PIESA visit. Select the mandatory electrical rectification items and enter the quantity of each. The app uses your agreed rates to calculate an itemised rectification quote when you finish the assessment. Home Insulation Victoria manages the customer quote and approval through the portal.</div>
-        <div style={infoCard}>{d.gst_registered === false ? "Enter total rates (not GST registered)." : "Enter rates including GST."}</div>
-        {RECT_ITEMS.map((it) => <Field key={it.key} label={it.label} required><Money value={r[it.key]} onChange={(v) => up({ rectification_rates: { ...r, [it.key]: v } })} unit={it.unit} /></Field>)}
-        <Field label="Certificate of Electrical Safety" required><Choice options={[{ v: "included" as const, l: "Included" }, { v: "separate" as const, l: "Separate fee" }]} value={d.coes_fee_choice || null} onChange={(v) => up({ coes_fee_choice: v })} /></Field>
-        {d.coes_fee_choice === "separate" && <Field label="CoES fee" required><Money value={d.coes_fee} onChange={(v) => up({ coes_fee: v })} /></Field>}
+        <div style={infoCard}>
+          <strong>We provide an assessment app for your PIESA visit.</strong>
+          <TickList items={[
+            "Select the mandatory electrical rectification items and enter the quantity of each.",
+            "The app uses your agreed rates to calculate an itemised rectification quote when you finish the assessment.",
+            "Home Insulation Victoria manages the customer quote and approval through the portal.",
+          ]} />
+        </div>
+        <Group title="Mandatory item rates" note={d.gst_registered === false ? "Enter total rates (not GST registered)." : "Enter rates including GST."}>
+          {RECT_ITEMS.map((it, i) => <RateRow key={it.key} label={it.label} unit={it.unit} value={r[it.key]} last={i === RECT_ITEMS.length - 1} onChange={(v) => up({ rectification_rates: { ...r, [it.key]: v } })} />)}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "10px 0", borderTop: "1px solid #EDF0F7" }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: NAVY }}>Certificate of Electrical Safety<span style={{ color: BLUE }}> *</span></span>
+            <Choice options={[{ v: "included" as const, l: "Included" }, { v: "separate" as const, l: "Separate fee" }]} value={d.coes_fee_choice || null} onChange={(v) => up({ coes_fee_choice: v })} />
+          </div>
+          {d.coes_fee_choice === "separate" && <div style={{ padding: "10px 0 2px" }}><Field label="CoES fee" required><Money value={d.coes_fee} onChange={(v) => up({ coes_fee: v })} /></Field></div>}
+        </Group>
         <div style={{ borderTop: "1px solid #E4E8F0", paddingTop: 16, marginTop: 18 }}><strong style={{ fontFamily: DISPLAY }}>Your other repeatable rectification items</strong><p style={{ fontSize: 13, color: MUTED }}>Add work you regularly price. Each item remains a proposed supplier rate until the office approves it.</p>
           {(d.custom_rectification_rates ?? []).map((item, index) => <div key={item.id} style={{ border: "1px solid #D7DCE8", borderRadius: 12, padding: 12, marginBottom: 10 }}>
             <Field label="Description" required><input style={input} value={item.description} onChange={(e) => up({ custom_rectification_rates: (d.custom_rectification_rates ?? []).map((x, i) => i === index ? { ...x, description: e.target.value } : x) })} /></Field>
