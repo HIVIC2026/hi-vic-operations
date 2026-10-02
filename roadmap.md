@@ -136,6 +136,17 @@
 - [ ] Jo wants a whole-portal test login to give to someone (2026-10-02) — admin-level access is barred by locked rule; clarifying who it's for and what they must see
 - [ ] Installer pricing acknowledgement reworded + agreement bumped INST-1.9 → INST-1.10 (installer-brought jobs: no lead fee, no margin, only the $349 AP fee) — preview only, awaiting Jo approval to publish
 
+## Launch readiness (restructured per Jo's critique 2026-10-02)
+- [ ] Phase 1 freeze: AP-fee post-acceptance, old electrician path, PIESA/PIISA mappings, eligibility definitions, declared-vs-verified, comms/consent policy, test-login role
+- [ ] Phase 2 identity/access: owner-to-job access, invites/recovery, secure links, RLS, contact masking, token expiry, audit
+- [ ] Phase 3 workflow correctness vs dummy data (stages, Ready Check, PIESA timing, gates, 24h rule, overdue, superseded proposals, cancel/reschedule)
+- [ ] Phase 4 communications: SMS workstream (primary alerts, provider, sender ID, callbacks, consent, duplicate protection, AU numbers, Melbourne scheduling, segment costs, mock tests) + email domain + event matrix
+- [ ] Phase 5 onboarding/forms: insurance extraction, quarantine, autocomplete, completion screens, Mitti A2/B/C + A1 regression, signed-copy storage
+- [ ] Phase 6 Xero controlled test: org, mapping, tax/rounding, layout, VEU discount, duplicate prevention, 50% deposit, refunds/credits, override, payload preflight
+- [ ] Phase 7 UX/public routing: staff portal, owner view, mobile trades, calculator routing, /home sign-in, no dev branding, accessibility, error states
+- [ ] Phase 8 regression + launch rehearsal: six scenarios plus failure modes (conflicts, invalid phone/email, expired links, wrong role, duplicate webhook, Xero down, extraction failure, comms off, rollback)
+- [ ] Launch register with ID/owners/acceptance criteria/evidence/status/rollback/approvals; separate deployment vs communications approvals
+
 ## Portal brief fixes — approved preview-only
 - [x] Compact admin views, filters, diagnostics and accurate retained-record labels
 - [x] Single visibleJobs path for rows, selection and empty states
