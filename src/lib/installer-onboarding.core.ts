@@ -41,7 +41,7 @@ export type InstData = {
   works_for_business?: boolean | null;
   insurer?: string; insurance_policy_number?: string; public_liability_cover_amount?: number | null; public_liability_expiry?: string; insurance_uploaded?: boolean;
   installers?: Installer[];
-  service_batts_removal?: boolean; service_loose_fill_removal?: boolean; free_quotes_for_hivic_leads?: boolean | null; free_measureups_for_hivic_quote_leads?: boolean | null;
+  service_batts_removal?: boolean; service_loose_fill_removal?: boolean; wants_hivic_leads?: boolean | null; free_quotes_for_hivic_leads?: boolean | null; free_measureups_for_hivic_quote_leads?: boolean | null;
   service_origin?: string; travel_radius_km?: number | null; excluded_areas?: string;
   typical_days?: string[]; normal_attendance_speed?: string;
   capacity_band?: string; accepting_jobs?: boolean;
@@ -124,8 +124,8 @@ export function stepErrors(step: StepKey, d: InstData, now = new Date()): string
       e.push(...electricianStepErrors(d));
       break;
     case "services":
-      if (typeof d.free_quotes_for_hivic_leads !== "boolean") e.push("Tell us if you offer free quotes for pre-qualified Home Insulation Victoria leads.");
-      if (d.free_measureups_for_hivic_quote_leads !== true) e.push("Free Home Insulation Ready Checks are required to receive pre-qualified Home Insulation Victoria leads.");
+      if (typeof d.wants_hivic_leads !== "boolean") e.push("Tell us if you want to receive pre-qualified leads from Home Insulation Victoria.");
+      if (d.wants_hivic_leads === true && d.free_measureups_for_hivic_quote_leads !== true) e.push("Free Home Insulation Ready Checks (measure-up) are required to receive pre-qualified Home Insulation Victoria leads.");
       break;
     case "coverage":
       if (!txt(d.service_origin)) e.push("Enter your service starting location.");
@@ -194,8 +194,8 @@ export function scheduleText(d: InstData): string {
   L.push("Free Home Insulation Ready Check: installer eligibility check, ceiling measure-up and required site evidence; no electrical assessment or PIESA");
   L.push("Ceiling insulation supply & installation: included");
   L.push("Removal of existing insulation (batts and loose fill): included — required of all installer partners",
-    `Free quotes for pre-qualified Home Insulation Victoria leads: ${d.free_quotes_for_hivic_leads ? "yes" : "no"}`,
-    `Free Home Insulation Ready Checks for pre-qualified Home Insulation Victoria leads (required): ${d.free_measureups_for_hivic_quote_leads ? "yes" : "no"}`);
+    `Receives pre-qualified Home Insulation Victoria leads: ${d.wants_hivic_leads ? "yes" : "no"}`);
+  if (d.wants_hivic_leads) L.push("Free Home Insulation Ready Checks (measure-up) for those leads: yes — the installer receives the job if it proceeds, unless the owner specifies otherwise");
   L.push(`Service origin: ${d.service_origin ?? ""}; radius: ${d.travel_radius_km === 9999 ? "anywhere in Victoria" : `${d.travel_radius_km} km`}${d.excluded_areas ? `; excluded: ${d.excluded_areas}` : ""}`);
   L.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}; weekly installations: ${d.capacity_band ?? ""}`);
   L.push("", `SCHEDULE 3 — PROPOSED SUPPLIER RATES (${gst}; not binding until accepted by Home Insulation Victoria under clause 17)`);
