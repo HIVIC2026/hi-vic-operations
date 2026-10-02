@@ -17,7 +17,7 @@ export type PortalTarget =
   | "documents"
   | "history";
 
-export function targetForAction(tab: AdminTab, label = ""): PortalTarget {
+export function targetForAction(tab: AdminTab | "documents" | "history", label = ""): PortalTarget {
   if (label === "Record deposit request") return "deposit-request";
   if (tab === "authority") return "electronic-signing";
   if (tab === "eligibility") return "gate1-evidence";

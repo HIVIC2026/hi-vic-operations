@@ -6,7 +6,7 @@ import { Fragment, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
-import { PaymentBadge, Pill, SourceBadge, StageBadge, UrgencyBadge } from "@/components/portal/badges";
+import { Pill, SourceBadge, UrgencyBadge } from "@/components/portal/badges";
 import { AdminAssignmentPanel, AssignmentStatusInline } from "@/components/portal/assignment";
 import { WorkerLinksPanel } from "@/components/portal/workers";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, PaymentsPanel, QuotesPanel, Section, TimelinePanel, useJob } from "@/components/portal/panels";
@@ -18,8 +18,9 @@ import { Gate1EvidencePanel } from "@/components/portal/gate1";
 import { IntakeSummary } from "@/components/portal/intake";
 import { JobJourney } from "@/components/portal/journey";
 import { ClearTimeline } from "@/components/portal/waiting";
-import { EligibilityGlance, JobIdentity, NextActionBand, PhaseStrip, RecordDisclosure, SubHeading, TAB_TO_GROUP, type RecordGroup } from "@/components/portal/job-workspace";
+import { EligibilityGlance, JobIdentity, NextActionBand, PhaseStrip, RecordDisclosure, SubHeading, TARGET_TO_GROUP, type RecordGroup } from "@/components/portal/job-workspace";
 import { AllDocuments, Correspondence, ExportJobPack, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
+import type { PortalTarget } from "@/lib/portal-presentation.core";
 
 import { useAction } from "@/hooks/use-me";
 import { useServerFn } from "@tanstack/react-start";
@@ -47,15 +48,20 @@ function JobDetail() {
   const { data: job, error, refetch } = useJob(jobId);
   const [open, setOpen] = useState<Set<RecordGroup>>(new Set());
   const toggle = (g: RecordGroup) => setOpen((s) => { const n = new Set(s); if (n.has(g)) n.delete(g); else n.add(g); return n; });
-  /** Open a record group, scroll to it and move keyboard focus to its heading button. */
-  const openGroup = (g: RecordGroup) => {
+  /** Open a record group, then focus the precise non-mutating control after its lazy content mounts. */
+  const openTarget = (target: PortalTarget) => {
+    const g = TARGET_TO_GROUP[target];
     setOpen((s) => new Set(s).add(g));
-    requestAnimationFrame(() => {
-      document.getElementById(`records-${g}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-      document.getElementById(`records-${g}-btn`)?.focus({ preventScroll: true });
+    const focus = (attempt = 0) => requestAnimationFrame(() => {
+      const exact = document.getElementById(`target-${target}`);
+      const destination = exact ?? document.getElementById(`records-${g}`);
+      if (!destination && attempt < 4) return focus(attempt + 1);
+      destination?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const focusable = exact?.matches("button,a,input,select,textarea,[tabindex]") ? exact : exact?.querySelector<HTMLElement>("button,a,input,select,textarea,[tabindex]");
+      (focusable ?? document.getElementById(`records-${g}-btn`))?.focus({ preventScroll: true });
     });
+    focus();
   };
-  const openTab = (t: string) => openGroup(TAB_TO_GROUP[t as keyof typeof TAB_TO_GROUP] ?? "people");
   if (error) return <AppShell wide><div role="alert" className="rounded-md border border-danger bg-danger-soft p-4 text-sm text-danger">This job could not be loaded. Its records have not been deleted.<Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div></AppShell>;
   if (!job) return <AppShell wide><p role="status" className="text-muted-foreground">Loading…</p></AppShell>;
   const g = (k: RecordGroup) => ({ id: k, open: open.has(k), onToggle: () => toggle(k) });
@@ -63,26 +69,16 @@ function JobDetail() {
     <AppShell wide>
       <div className="mx-auto max-w-5xl">
       <Link to="/admin" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Enquiries</Link>
-      <JobIdentity jobId={jobId} job={job} onOpen={openGroup} />
-      <NextActionBand jobId={jobId} onOpenTab={openTab} />
+      <JobIdentity jobId={jobId} job={job} onOpen={openTarget} />
+      <NextActionBand jobId={jobId} onOpenTarget={openTarget} />
       <div className="mb-3"><BlockersPanel jobId={jobId} /></div>
-      <EligibilityGlance jobId={jobId} onOpen={openGroup} />
+      <EligibilityGlance jobId={jobId} onOpen={openTarget} />
       <PhaseStrip input={job} details={<JobJourney input={job} jobId={job.id} isTest={job.source === "qa_test"} />} />
-      <div className="mb-3 flex flex-wrap gap-1.5">
-        <StageBadge stage={job.stage} /><PaymentBadge status={job.payment_status} /><UrgencyBadge urgency={job.urgency} days={job.days_remaining} /><SourceBadge channel={job.channel} business={job.originating_business_name} />
+      <div className="mb-3 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+        <SourceBadge channel={job.channel} business={job.originating_business_name} />{job.urgency && <UrgencyBadge urgency={job.urgency} days={job.days_remaining} />}
       </div>
       <div className="mb-3 rounded-md border bg-card">
         <RecordDisclosure {...g("people")} title="People, source & exceptions" summary={`Electrician ${job.electrician_name ?? "unassigned"} · Installer ${job.installer_name ?? "unassigned"} · last activity ${fmtDate(job.last_activity_at)}`}>
-          <Section title="Status summary">
-            <dl className="grid grid-cols-2 gap-1 text-sm">
-              <dt className="text-muted-foreground">Quote agreement / consent / post-install VEEC assignment</dt><dd><AssignmentStatusInline jobId={jobId} /></dd>
-              <dt className="text-muted-foreground">Payment</dt><dd><PaymentBadge status={job.payment_status} /> {job.deposit_cleared ? <span className="text-xs text-success">deposit cleared</span> : <span className="text-xs text-danger">deposit not cleared</span>}</dd>
-              <dt className="text-muted-foreground">PIESA</dt><dd>{job.piesa_date ? `${fmtDate(job.piesa_date)} → install by ${fmtDate(job.install_deadline)}` : "Not recorded"}</dd>
-              <dt className="text-muted-foreground">Electrician</dt><dd>{job.electrician_name ?? "Unassigned"}</dd>
-              <dt className="text-muted-foreground">Installer</dt><dd>{job.installer_name ?? "Unassigned"}</dd>
-              <dt className="text-muted-foreground">Last activity</dt><dd>{fmtDate(job.last_activity_at)}</dd>
-            </dl>
-          </Section>
           <div className="grid gap-4 lg:grid-cols-2">
             <JobSource jobId={jobId} channel={job.channel} model={job.commercial_model} business={job.originating_business_name} />
             <JobCoverage jobId={jobId} />
@@ -96,17 +92,17 @@ function JobDetail() {
       <h2 className="mb-1 text-sm font-bold">Job records</h2>
       <div className="mb-6 rounded-md border bg-card">
         <RecordDisclosure {...g("enquiry")} title="Enquiry" summary="Gate 1 evidence, estimate, eligibility decision, website intake and consent">
-          <Gate1EvidencePanel jobId={jobId} /><AdminEstimateCard jobId={jobId} /><EligibilityForm jobId={jobId} />
+          <div id="target-gate1-evidence" tabIndex={-1} className="scroll-mt-4 outline-none"><Gate1EvidencePanel jobId={jobId} /></div><AdminEstimateCard jobId={jobId} /><EligibilityForm jobId={jobId} />
           <SubHeading>Website intake, consent and source audit</SubHeading>
-          <IntakeSummary jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Property"]} />
+          <div id="target-intake-consent" tabIndex={-1} className="scroll-mt-4 outline-none"><IntakeSummary jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Property"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("ready_check")} title="Ready Check" summary="Requirements, appointment, booking, Mitti and measure-up">
           <RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("quote")} title="Quote" summary="Quotes, invoice & deposit, electronic signing">
-          <AdminQuotes jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><PaymentsPanel jobId={jobId} isAdmin /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
+          <div id="target-quotes" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} /></div><InstallerLedInvoicePanel jobId={jobId} /><div id="target-deposit-request" tabIndex={-1} className="scroll-mt-4 outline-none"><PaymentsPanel jobId={jobId} isAdmin /></div><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
           <SubHeading>Electronic signing</SubHeading>
-          <AdminAssignmentPanel jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Customer / Consent"]} />
+          <div id="target-electronic-signing" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminAssignmentPanel jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Customer / Consent"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("piesa")} title="PIESA" summary={job.piesa_date ? `PIESA ${fmtDate(job.piesa_date)} · install by ${fmtDate(job.install_deadline)}` : "No PIESA recorded yet"}>
           <Section title="PIESA 30-day installation window">
@@ -118,21 +114,22 @@ function JobDetail() {
           <SectionDocuments jobId={jobId} categories={["Electrical / PIESA"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("installation")} title="Installation" summary="Pre-install ESC controls, PIISA, booking and installation evidence">
-          <EscInstallPanel jobId={jobId} /><PiisaPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /><SectionDocuments jobId={jobId} categories={["Installation"]} />
+          <EscInstallPanel jobId={jobId} /><PiisaPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /><div id="target-installation-evidence" tabIndex={-1} className="scroll-mt-4 outline-none"><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /></div><SectionDocuments jobId={jobId} categories={["Installation"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("ap_veec")} title="AP review & VEECs" summary="Other evidence, Activity 48 records, compliance review, VEEC lodgement">
           <SubHeading>Evidence (installation evidence is under Installation)</SubHeading>
-          <EvidencePanel jobId={jobId} role="admin" excludeGates={["installation"]} /><SectionDocuments jobId={jobId} categories={["Evidence"]} />
+          <Button type="button" size="sm" variant="outline" onClick={() => openTarget("installation-evidence")}>Open installation evidence</Button>
+          <div id="target-ap-evidence" tabIndex={-1} className="scroll-mt-4 outline-none"><EvidencePanel jobId={jobId} role="admin" excludeGates={["installation"]} /></div><SectionDocuments jobId={jobId} categories={["Evidence"]} />
           <SubHeading>Compliance and VEEC</SubHeading>
           <ComplianceRecords jobId={jobId} /><Compliance jobId={jobId} /><Veec jobId={jobId} /><SectionDocuments jobId={jobId} categories={["ESC / VEEC"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("history")} title="Correspondence & history" summary="Worker links, messages, timeline, audit history, all documents and export">
-          <WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin /><Correspondence jobId={jobId} />
+          <WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin /><div id="target-correspondence" tabIndex={-1} className="scroll-mt-4 outline-none"><Correspondence jobId={jobId} /></div>
           <SubHeading>What's happened</SubHeading>
-          <ClearTimeline jobId={jobId} /><JobTimeline jobId={jobId} />
-          <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm font-medium">Raw workflow history</summary><div className="mt-3"><TimelinePanel jobId={jobId} /></div></details>
+          <div id="target-history" tabIndex={-1} className="scroll-mt-4 outline-none"><ClearTimeline jobId={jobId} /></div>
+          <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm font-medium">Detailed and raw audit history</summary><div className="mt-3 space-y-4"><JobTimeline jobId={jobId} /><TimelinePanel jobId={jobId} /></div></details>
           <SubHeading>All documents</SubHeading>
-          <AllDocuments jobId={jobId} /><ExportJobPack jobId={jobId} />
+          <div id="target-documents" tabIndex={-1} className="scroll-mt-4 outline-none"><AllDocuments jobId={jobId} /></div><ExportJobPack jobId={jobId} />
         </RecordDisclosure>
       </div>
       </div>
