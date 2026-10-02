@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Badge } from "@/components/ui/badge";
 import { listInterests } from "@/lib/interest.functions";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
