@@ -341,7 +341,8 @@ export function parseAudit(audit: Any) {
     const tickTypes = ["Batts", "Loose fill"].filter((l) => { const e = find(kids, [l]); return e?.value != null && !/^(false|no|n a|na)$/.test(norm(e.value)); });
     const mc = val(kids, ["Insulation type (tick all that apply)", "What type of existing insulation is installed? Select all that apply", "Existing insulation type", "Insulation type to remove"]);
     const removalType = [mc, ...tickTypes].filter(Boolean).join(", ") || null;
-    return { parent: p, m2: m2.value, state, removal, removalType };
+    const rv = physical(val(kids, ["What is the determined R value of the existing ceiling insulation?", "Existing R-value", "Measured R-value"]), "R value").value;
+    return { parent: p, m2: m2.value, state, removal, removalType, rv };
   });
   if (rooms.length > 0) {
     if (rooms.some((r) => r.m2 == null || r.m2 <= 0)) issues.push("A room's measured area was missing or invalid – whole-house area not taken from Mitti; office review required.");
@@ -352,7 +353,7 @@ export function parseAudit(audit: Any) {
       if (patch.removal_required) {
         const remRooms = rooms.filter((r) => r.removal === true);
         // Prefer the per-area "Area to remove (m2)" answer; fall back to the area's full m2.
-        const remM2 = remRooms.map((r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); const v = physical(val(kids, ["Area to remove (m2)"]), "Area to remove (m2)"); return v.value != null && v.value > 0 ? v.value : r.m2; });
+        const remM2 = remRooms.map((r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); const v = physical(val(kids, ["Area to remove (m2)", "How much existing insulation needs to be removed? (m²)"]), "Area to remove (m2)"); return v.value != null && v.value > 0 ? v.value : r.m2; });
       if (remM2.some((m) => m == null || m <= 0)) issues.push("A removal area's size was missing or invalid – removal area not taken from Mitti; office review required.");
         else patch.removal_m2 = r2(remM2.reduce<number>((s, m) => s + (m ?? 0), 0));
         const types = [...new Set(remRooms.flatMap((r) => (r.removalType ?? "").split(/[,;\n]+/)).map((t) => t.trim()).filter(Boolean))];
