@@ -143,4 +143,4 @@
 - [x] Show actual Gate 1 answers, assessments, reasons and meaningful provenance
 - [x] Add precise non-mutating action targets and AP evidence jump
 - [x] Remove repeated job status/timeline summaries without losing records
-- [ ] Update review notes; run focused checks and isolated mocked visual captures
+- [x] Update review notes; run focused checks and isolated mocked visual captures
