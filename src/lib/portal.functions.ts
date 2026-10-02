@@ -18,6 +18,8 @@ import { ASSIGNMENT_EVENTS, parseFormFields, prefillRows, setupStatus, templateB
 import { consentValidityBlockers } from "./consent.core";
 import { autoAdvanceJob, autoAdvanceOpenJobs } from "./autoadvance.server";
 import { sweepAuthorityExpiry } from "./authority.server";
+import { requireMittiAccess } from "./mitti-membership.server";
+import { mittiAssignBlocker, mittiOverrideAccepted } from "./mitti-membership.core";
 
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
 
@@ -111,7 +113,7 @@ export const setCommercialModel = createServerFn({ method: "POST" }).middleware(
 
 // ---------- Assignments / users ----------
 export const assignContractor = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, userId: uuid, role: z.enum(["electrician", "installer"]) }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, userId: uuid, role: z.enum(["electrician", "installer"]), mittiOverrideReason: z.string().trim().max(500).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const stage = await getStage(data.jobId);
@@ -119,6 +121,13 @@ export const assignContractor = createServerFn({ method: "POST" }).middleware([r
     const { data: hasRole } = await admin.from("user_roles").select("id").eq("user_id", data.userId).eq("role", data.role).maybeSingle();
     if (!hasRole) throw new WorkflowError(`User does not hold the ${data.role} role.`);
     const { data: prof } = await admin.from("profiles").select("full_name, business_id").eq("id", data.userId).single();
+    // Every Mitti form (Ready Check, PIESA, installer safety form) can only be handed to a member of
+    // our Mitti organisation, so office learns that here instead of at send time.
+    const { row: member, access } = await requireMittiAccess(data.userId, data.role);
+    if (access !== "member") {
+      if (!mittiOverrideAccepted(data.mittiOverrideReason)) throw new WorkflowError(mittiAssignBlocker(data.role, member.full_name, member.email, access));
+      await logEvent(data.jobId, context.userId, "mitti_access_override", `Assigned ${data.role} without confirmed Mitti access: ${member.full_name ?? member.email} – reason: ${data.mittiOverrideReason!.trim()}`, { user_id: data.userId, access, reason: data.mittiOverrideReason!.trim() });
+    }
     if (stage === "ready_check_ready_to_schedule" && data.role === "installer") {
       if (!prof?.business_id) throw new WorkflowError("The installer must belong to an approved EEC installer business.");
       const { requireApprovedPartner } = await import("./pilot.server");
