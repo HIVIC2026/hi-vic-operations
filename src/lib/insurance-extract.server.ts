@@ -19,9 +19,9 @@ export async function extractInsurance(db: Db, path: string): Promise<InsuranceE
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-pro",
         messages: [{ role: "user", content: [
-          { type: "text", text: "This should be an Australian insurance Certificate of Currency. Extract the details for the PUBLIC LIABILITY section only. Rules: insurer = the insurance company or underwriter (not the broker or intermediary). cover_amount = the public liability limit of liability per occurrence, copied exactly as printed (e.g. \"$20,000,000\") — not products liability aggregate, professional indemnity, or the excess. expiry = the period of insurance END date copied exactly as printed; Australian dates are day/month/year. policy_number = the public liability policy number. Use null for anything not clearly shown. Never guess or calculate." },
+          { type: "text", text: "This should be an Australian insurance Certificate of Currency. Read every page carefully, including tables. Extract the details for the PUBLIC LIABILITY (also called 'General Liability', 'Broadform Liability' or 'Public & Products Liability') section only. Rules: insured_name = the named insured / policyholder business. insurer = the insurance company or underwriter (e.g. 'QBE Insurance (Australia) Limited'), not the broker, agent or intermediary. cover_amount = the public liability limit (labels like 'Limit of Liability', 'Limit of Indemnity', 'Sum Insured', 'any one occurrence'), copied exactly as printed (e.g. \"$20,000,000\" or \"$20M\") — not the products aggregate, professional indemnity, or the excess/deductible. expiry = the period of insurance END date (labels like 'Period of Insurance … to', 'Expiry', 'Valid until', 'To 4pm'), copied exactly as printed; Australian dates are day/month/year. policy_number = the public liability policy number. If a value is printed, return it even if formatting is unusual. Use null only when it truly isn't shown. Never guess or calculate." },
           { type: "image_url", image_url: { url: `data:${mime};base64,${btoa(bin)}` } },
         ] }],
         tools: [{ type: "function", function: { name: "certificate", parameters: { type: "object", properties: {
