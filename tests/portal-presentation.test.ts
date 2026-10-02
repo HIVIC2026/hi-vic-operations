@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { evidenceSourceLabel, filterVisibleJobs, ownerAnswerForGate1, targetForAction } from "../src/lib/portal-presentation.core";
+import { evidenceSourceLabel, filterVisibleJobs, ownerAnswerForGate1, supplementalEligibilityLabel, targetForAction } from "../src/lib/portal-presentation.core";
 import { readFileSync } from "fs";
 
 describe("staff portal presentation helpers", () => {
@@ -14,7 +14,7 @@ describe("staff portal presentation helpers", () => {
     const intake = { declared: { property_type: "townhouse", over_five_years: "yes", previous_upgrade: "no" }, declaredExtras: { top_floor: "unknown", existing_insulation: "present" } };
     expect(ownerAnswerForGate1("residential", intake)).toBe("townhouse");
     expect(ownerAnswerForGate1("ceiling_age", intake)).toBe("Owner says over five years");
-    expect(ownerAnswerForGate1("previous_activity", intake)).toBe("Owner says no previous ceiling-insulation upgrade");
+    expect(ownerAnswerForGate1("previous_activity", intake)).toBe("Previous VEU upgrade: No");
     expect(ownerAnswerForGate1("existing_insulation", intake)).toBe("Owner says insulation is present");
     expect(ownerAnswerForGate1("residential", null)).toBe("Not answered / unknown");
     expect(ownerAnswerForGate1("location", intake)).toBe("No owner answer stored here");
@@ -23,6 +23,7 @@ describe("staff portal presentation helpers", () => {
   test("maps evidence sources to meaningful labels without hiding the raw audit", () => {
     expect(evidenceSourceLabel("properties.is_residential")).toBe("Property record");
     expect(evidenceSourceLabel("base44 answers.insulation")).toBe("Homeowner enquiry");
+    expect(evidenceSourceLabel("base44.property_research.year_built")).toBe("Website property research");
     expect(evidenceSourceLabel("verified onsite finding")).toBe("Onsite assessment");
     expect(evidenceSourceLabel("unmapped.provider.fact")).toBe("Other recorded evidence");
   });
@@ -34,11 +35,18 @@ describe("staff portal presentation helpers", () => {
     expect(targetForAction("evidence", "Open evidence")).toBe("ap-evidence");
   });
 
-  test("required review suppresses stale eligibility and disclosures remain mounted", () => {
+  test("status precedence keeps terminal review flags and suppresses duplicate outcomes", () => {
+    expect(supplementalEligibilityLabel({ eligibility_review_required: true, eligibility_outcome: "likely_eligible" }, "Review required")).toBeNull();
+    expect(supplementalEligibilityLabel({ eligibility_review_required: true, eligibility_outcome: "likely_eligible" }, "On hold")).toBe("Review required");
+    expect(supplementalEligibilityLabel({ eligibility_outcome: "does_not_appear_eligible" }, "Ineligible")).toBeNull();
+  });
+
+  test("disclosures remain mounted and exact targets are placed on real controls", () => {
     const row = readFileSync("src/components/portal/StaffJobRow.tsx", "utf8");
     const workspace = readFileSync("src/components/portal/job-workspace.tsx", "utf8");
-    expect(row).toContain("job.eligibility_review_required ? null");
-    expect(row).not.toContain('step.label !== "Review required"');
+    const panels = readFileSync("src/components/portal/panels.tsx", "utf8");
+    expect(row).toContain("supplementalEligibilityLabel(job, step.label)");
+    expect(panels).toContain('id="target-deposit-request" data-portal-focus="target"');
     expect(workspace).toContain("{mounted && children}");
     expect(workspace).toContain("hidden={!open}");
   });

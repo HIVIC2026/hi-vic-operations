@@ -4,15 +4,14 @@ import { AlertTriangle, HeartPulse } from "lucide-react";
 import { fmtDateTime } from "@/lib/workflow";
 import { Pill } from "./badges";
 import type { JobRow } from "./JobCard";
+import { supplementalEligibilityLabel } from "@/lib/portal-presentation.core";
 
 /** Staff-only list row. Same facts as JobCard (nextStep, Gate 1 label precedence, coverage, stuck reasons), calmer layout. */
 export function StaffJobRow({ job, coverage, select }: { job: JobRow; coverage?: "serviceable" | "unserviceable" | "partial" | "not_configured"; select: React.ReactNode }) {
   const stuck = job.stuck_reasons ?? [];
   const step = nextStep(job);
-  const elig = job.eligibility_review_required ? null
-    : job.eligibility_outcome === "does_not_appear_eligible" ? <Pill t="bad">Ineligible</Pill>
-      : job.eligibility_outcome === "needs_onsite_confirmation" ? <Pill t="info">Needs onsite confirmation</Pill>
-        : job.eligibility_outcome === "likely_eligible" ? <Pill t="good">Likely eligible</Pill> : null;
+  const supplemental = supplementalEligibilityLabel(job, step.label);
+  const elig = supplemental ? <Pill t={supplemental === "Ineligible" ? "bad" : supplemental === "Likely eligible" ? "good" : supplemental === "Needs onsite confirmation" ? "info" : "warn"}>{supplemental}</Pill> : null;
   return (
     <li className={`relative grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 px-3 py-3 hover:bg-muted/40 lg:grid-cols-[auto_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,0.9fr)] lg:items-start ${stuck.length ? "border-l-4 border-l-danger" : "border-l-4 border-l-transparent"}`}>
       <div className="relative z-10 row-span-4 pt-0.5 lg:row-span-1">{select}</div>

@@ -10,11 +10,22 @@ const when = (s: string | null | undefined) => (s ? new Date(s).toLocaleString("
 /** Read-only website intake summary. Declarations are labelled as owner-declared, never verified. */
 export function IntakeSummary({ jobId }: { jobId: string }) {
   const fn = useServerFn(getIntakeSummary);
-  const { data, isLoading } = useQuery({ queryKey: ["intake_summary", jobId], queryFn: () => fn({ data: { jobId } }) });
+  const { data, isLoading, error, refetch } = useQuery({ queryKey: ["intake_summary", jobId], queryFn: () => fn({ data: { jobId } }) });
   const [showRaw, setShowRaw] = useState(false);
-  if (isLoading) return <div className="rounded-xl border p-4 text-sm text-muted-foreground">Loading website intake…</div>;
-  if (!data || data.source !== "base44") return null;
+  if (isLoading) return <div className="rounded-md border p-4 text-sm text-muted-foreground">Loading intake and consent evidence…</div>;
+  if (error || !data) return <section id="target-intake-consent" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 rounded-md border border-danger bg-danger-soft p-4 text-sm text-danger outline-none"><h3 className="font-semibold">Consent evidence unavailable</h3><p>Consent evidence could not be loaded. Treat consent as missing until it is checked.</p><button type="button" className="mt-2 font-semibold underline" onClick={() => void refetch()}>Try again</button></section>;
   const c = data.consent;
+  if (data.source !== "base44") return (
+    <section id="target-intake-consent" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 rounded-md border bg-card p-4 outline-none">
+      <div className="mb-2 flex flex-wrap items-center gap-2"><h3 className="font-semibold">Contact consent evidence</h3>{c?.consent_status === "granted" ? <Pill t="good">Contact consent granted</Pill> : <Pill t="bad">Contact consent missing — no external contact</Pill>}</div>
+      <dl className="grid gap-1 text-sm sm:grid-cols-2">
+        <div><dt className="text-xs font-medium uppercase text-muted-foreground">Source</dt><dd>{data.source ? yn(data.source) : "No source recorded"}</dd></div>
+        <div><dt className="text-xs font-medium uppercase text-muted-foreground">Consent</dt><dd>{c ? `${yn(c.consent_status)}${c.consent_version ? ` · version ${c.consent_version}` : ""} · ${when(c.consented_at)}` : "No consent record"}</dd></div>
+        <div><dt className="text-xs font-medium uppercase text-muted-foreground">Age confirmed</dt><dd>{c?.age_confirmed == null ? "Not answered" : c.age_confirmed ? "Yes" : "No"}</dd></div>
+        <div><dt className="text-xs font-medium uppercase text-muted-foreground">Preferred contact</dt><dd>{c?.contact_preference ?? "Not given"}</dd></div>
+      </dl>
+    </section>
+  );
   const rows: [string, string][] = [
     ["Property type", data.declared?.property_type ?? "Not answered"],
     ["Over 5 years old", yn(data.declared?.over_five_years)],
@@ -27,7 +38,7 @@ export function IntakeSummary({ jobId }: { jobId: string }) {
   if (data.declaredExtras?.existing_insulation) rows.splice(3, 0, ["Existing insulation", yn(data.declaredExtras.existing_insulation)]);
   if (data.declaredExtras?.top_floor) rows.splice(4, 0, ["Top floor", yn(data.declaredExtras.top_floor)]);
   return (
-    <section className="rounded-xl border bg-card p-4">
+    <section id="target-intake-consent" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 rounded-md border bg-card p-4 outline-none">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h3 className="font-semibold">Website intake</h3>
         {data.reference && <span className="text-xs text-muted-foreground">Ref {data.reference}</span>}
