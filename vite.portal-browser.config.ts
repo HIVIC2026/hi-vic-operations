@@ -5,6 +5,7 @@ import { fileURLToPath, URL } from "node:url";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 export default defineConfig({ root, plugins: [react(), tailwindcss()], resolve: { alias: [
+  { find: "@tanstack/react-start/server", replacement: fileURLToPath(new URL("./tests/portal-browser-start-server-stub.ts", import.meta.url)) },
   { find: "@tanstack/react-start", replacement: fileURLToPath(new URL("./tests/portal-browser-serverfn-stub.ts", import.meta.url)) },
   { find: "@/lib/portal.functions", replacement: fileURLToPath(new URL("./tests/portal-browser-functions-stub.ts", import.meta.url)) },
   { find: "@/lib/admin-records.functions", replacement: fileURLToPath(new URL("./tests/portal-browser-admin-records-stub.ts", import.meta.url)) },
