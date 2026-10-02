@@ -180,3 +180,7 @@
 - [ ] Send a dummy (qa_test) Ready Check job to Mitti end to end
 - [ ] Auto-generate official quote from Ready Check installer price + $349 PIESA + AP fee + VEU discount
 - [ ] Plan step 6: Mitti build sheets (PIESA evidence section, install day)
+
+## Test trade accounts + generation check (Jo, 3 Oct)
+- [ ] Create 3 fake installers + 3 fake electricians with different rate cards (test accounts, clearly marked)
+- [ ] Run a test job through: confirm Mitti templates prefill and quotes generate correctly per rate card
