@@ -69,3 +69,13 @@ export const supersedeHazardRectification = createServerFn({ method: "POST" }).m
     await supersedeHazardVerification(data.id, data.reason, context.userId);
     return { ok: true };
   });
+
+/** Office sends the official PIISA to the assigned installer in Mitti (blocked while the form is locked). */
+export const sendPiisaToInstaller = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const { createPiisaMittiAudit } = await import("./mitti.server");
+    return createPiisaMittiAudit(data.jobId, context.userId);
+  });
