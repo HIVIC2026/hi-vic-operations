@@ -121,7 +121,8 @@ function RateRow({ label, unit, value, onChange, last = false }: { label: string
 }
 
 /** Australian address lookup. A selected suggestion is resolved before it is accepted. */
-function AddressInput({ value, onChange, onSelect, victoriaOnly = false }: { value: string; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean }) {
+function AddressInput({ value, onChange, onSelect, victoriaOnly = false, id = "address" }: { value: string; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean; id?: string }) {
+  const [announce, setAnnounce] = useState("");
   const [items, setItems] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -131,7 +132,7 @@ function AddressInput({ value, onChange, onSelect, victoriaOnly = false }: { val
   const selectedLabel = useRef<string | null>(null);
   useEffect(() => {
     const q = value.trim();
-    if (selectedLabel.current === value) { selectedLabel.current = null; setItems([]); setOpen(false); return; }
+    if (selectedLabel.current !== null && selectedLabel.current === value) { setItems([]); setOpen(false); return; } // stays suppressed until the person edits
     if (q.length < 4) { setItems([]); setOpen(false); return; }
     const mine = ++seq.current;
     const t = setTimeout(async () => {
@@ -147,7 +148,7 @@ function AddressInput({ value, onChange, onSelect, victoriaOnly = false }: { val
   }, [value]);
   async function choose(s: AddressSuggestion) {
     const mine = ++seq.current;
-    setLoading(true); setNote("");
+    setOpen(false); setItems([]); setActive(-1); setLoading(true); setNote("");
     try {
       const details = await defaultAddressProvider.details(s.id) as ResolvedAddress;
       if (mine !== seq.current) return;
@@ -155,25 +156,26 @@ function AddressInput({ value, onChange, onSelect, victoriaOnly = false }: { val
       if (victoriaOnly && !isVictorianAddress(details)) {
         onSelect(null); setOpen(true); setNote("Sorry, your service area needs to be in Victoria."); return;
       }
-      selectedLabel.current = details.label; onChange(details.label); onSelect(details); setOpen(false); setItems([]);
+      selectedLabel.current = details.label; onChange(details.label); onSelect(details); setOpen(false); setItems([]); setAnnounce(`Selected ${details.label}`);
     } catch { if (mine === seq.current) { onSelect(null); setOpen(true); setNote("We couldn't verify that address. Please choose another result."); } }
     finally { if (mine === seq.current) setLoading(false); }
   }
   return (
     <div style={{ position: "relative" }}>
-      <input style={input} role="combobox" aria-expanded={open} aria-controls="address-options" aria-autocomplete="list" aria-activedescendant={active >= 0 ? `address-option-${active}` : undefined} autoComplete="off" placeholder="Start typing your address…" value={value}
-        onChange={(e) => { seq.current++; selectedLabel.current = null; onChange(e.target.value); onSelect(null); setOpen(true); }} onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onKeyDown={(e) => { if (e.key === "ArrowDown" && items.length) { e.preventDefault(); setActive((x) => (x + 1) % items.length); } else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((x) => (x - 1 + items.length) % items.length); } else if (e.key === "Enter" && open && items[active]) { e.preventDefault(); void choose(items[active]!); } else if (e.key === "Escape") setOpen(false); }} />
+      <input id={id} style={input} role="combobox" aria-expanded={open && items.length > 0} aria-controls={`${id}-options`} aria-autocomplete="list" aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined} autoComplete="off" placeholder="Start typing your address…" value={value}
+        onChange={(e) => { seq.current++; selectedLabel.current = null; setAnnounce(""); onChange(e.target.value); onSelect(null); }} onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown={(e) => { if (e.key === "ArrowDown" && items.length) { e.preventDefault(); setActive((x) => (x + 1) % items.length); } else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((x) => (x - 1 + items.length) % items.length); } else if (e.key === "Enter" && open && items[active]) { e.preventDefault(); void choose(items[active]!); } else if (e.key === "Escape" && open) { e.preventDefault(); setOpen(false); } }} />
       {loading && <div style={{ position: "absolute", right: 14, top: 14, fontSize: 12, color: MUTED }}>Searching…</div>}
-      {open && (
-        <ul id="address-options" role="listbox" style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #D7DCE8", borderRadius: 12, boxShadow: "0 12px 30px -12px rgba(34,55,107,.35)", overflow: "hidden" }}>
+      {open && items.length > 0 && (
+        <ul id={`${id}-options`} role="listbox" aria-label="Address suggestions" style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #D7DCE8", borderRadius: 12, boxShadow: "0 12px 30px -12px rgba(34,55,107,.35)", overflow: "hidden" }}>
           {items.map((s, i) => (
-            <li id={`address-option-${i}`} role="option" aria-selected={active === i} key={s.id} style={{ padding: "12px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F0F2F8", background: active === i ? "#F2F4FC" : "#fff" }}
+            <li id={`${id}-option-${i}`} onMouseEnter={() => setActive(i)} role="option" aria-selected={active === i} key={s.id} style={{ padding: "12px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F0F2F8", background: active === i ? "#F2F4FC" : "#fff" }}
               onMouseDown={(e) => { e.preventDefault(); void choose(s); }}>{s.label}</li>
           ))}
         </ul>
       )}
       {open && note && <div role="status" style={{ marginTop: 5, color: victoriaOnly ? "#8C1D18" : MUTED, fontSize: 12 }}>{note}</div>}
+      <span role="status" aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{announce}</span>
     </div>
   );
 }
@@ -451,7 +453,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
       </>;
     case "contact":
       return <>
-         <Field label="Australian business address" required hint="Start typing and choose the verified address from the list"><AddressInput value={d.business_address ?? ""} onChange={(v) => up({ business_address: v })} onSelect={(v) => up({ business_address_details: v })} /></Field>
+         <Field label="Australian business address" required hint="Start typing and choose the verified address from the list"><AddressInput id="business-address" value={d.business_address ?? ""} onChange={(v) => up({ business_address: v })} onSelect={(v) => up({ business_address_details: v })} /></Field>
         <div style={{ ...infoCard, marginBottom: 16 }}>Contact: <strong>{d.primary_contact_name}</strong> · {d.business_phone} · {d.business_email} — if any of these are wrong, go back to "About you".</div>
         {d.works_under_rec !== true && <Check checked={d.authorised_to_register === true} onChange={(v) => up({ authorised_to_register: v })}>I'm authorised to set up this REC.</Check>}
       </>;
@@ -471,7 +473,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
       </>;
     case "coverage":
       return <>
-         <Field label="Victorian service starting location" required hint="Choose a verified Victorian address"><AddressInput victoriaOnly value={d.service_origin ?? ""} onChange={(v) => up({ service_origin: v })} onSelect={(v) => up({ service_origin_details: v })} /></Field>
+         <Field label="Victorian service starting location" required hint="Choose a verified Victorian address"><AddressInput id="service-origin" victoriaOnly value={d.service_origin ?? ""} onChange={(v) => up({ service_origin: v })} onSelect={(v) => up({ service_origin_details: v })} /></Field>
          {d.business_address && d.service_origin !== d.business_address && <button type="button" style={{ ...btn(false), marginBottom: 16 }} onClick={() => up({ service_origin: d.business_address ?? "", service_origin_details: d.business_address_details ?? null })}>Use business address</button>}
         <Field label="Travel radius" required><Choice options={RADII.map((r) => ({ v: r.v as number, l: r.l }))} value={d.travel_radius_km ?? null} onChange={(v) => up({ travel_radius_km: v })} /></Field>
         {d.travel_radius_km != null && <div style={infoCard}>You'll be offered jobs {d.travel_radius_km === 9999 ? "anywhere in Victoria" : `within ${d.travel_radius_km} km of your starting location`}.</div>}
