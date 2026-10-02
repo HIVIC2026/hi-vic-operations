@@ -5,7 +5,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
 import { checkAllTradeMittiAccess, verifyMittiMember } from "./mitti-membership.server";
-import { MITTI_ACCESS_LABEL, mittiAccessOf, mittiCheckedLabel } from "./mitti-membership.core";
+import { MITTI_ACCESS_LABEL } from "./mitti-membership.core";
 
 const uuid = z.string().uuid();
 
