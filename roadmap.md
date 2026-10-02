@@ -125,3 +125,4 @@
 - [ ] Onboarding insurance certificate: details not read properly (Jo 2026-10-02) — investigate after security fixes 1-3
 - [ ] Security findings 1-3 (start limits, staff test links, verified insurance uploads) — preview only, 0079 staged
 - [ ] Address autocomplete: suggestion list stays visible under the field after selecting (Jo 2026-10-02)
+- [ ] Electrician 'application received' screen: stronger wording + green ticks for What happens next (preview only)
