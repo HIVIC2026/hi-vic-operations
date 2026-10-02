@@ -394,14 +394,19 @@ export function parseAudit(audit: Any) {
   const setInt = (k: keyof AssessmentPatch, aliases: string[]) => { const e = find(entries, aliases, { withValue: true }); const n = note(count(e?.value ?? null, e?.label ?? aliases[0]!)); if (n != null) (patch as Any)[k] = n; };
   setInt("downlights_upgrade_qty", ["Downlights requiring upgrade", "Downlights to upgrade", "Downlight upgrade qty"]);
   // Per-area downlight counts ("How many?") are summed; whole-job aliases cover legacy forms.
-  const perAreaDownlights = rooms.length ? rooms.reduce((s, r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); const n = count(val(kids, ["How many?"]), "How many?"); return s + (n.value ?? 0); }, 0) : 0;
+  const perAreaDownlights = rooms.length ? rooms.reduce((s, r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); const n = count(val(kids, ["How many?", "How many recessed downlights?"]), "How many?"); return s + (n.value ?? 0); }, 0) : 0;
   if (perAreaDownlights > 0) patch.downlights_qty = perAreaDownlights;
   else setInt("downlights_qty", ["Total number of luminaires", "Number of downlights", "Downlights qty", "Downlight count", "Downlights"]);
   setInt("exhaust_fans_clearance_qty", ["Exhaust fans requiring clearance", "Exhaust fan clearance", "Exhaust fans needing clearance"]);
   setInt("exhaust_fans_qty", ["Number of exhaust fans", "Exhaust fans qty", "Exhaust fans"]);
   const dt = val(entries, ["Downlight type"]); if (dt) patch.downlights_type = dt.slice(0, 200);
   const hz = val(entries, ["Hazards identified", "Hazards", "Hazards seen in the ceiling space"]); if (hz) patch.hazards = hz.slice(0, 4000);
-  const roof = val(entries, ["Roof type"]); if (roof) patch.notes = [patch.notes, `Roof type: ${roof}`].filter(Boolean).join(". ").slice(0, 4000);
+  // Installer-flagged hazards per ceiling area (both A1 and A2 per-area questions) — flagged jobs go to office review.
+  if (rooms.length && patch.hazards == null) {
+    const flagged = rooms.filter((r) => { const kids = entries.filter((e) => (e.parent ?? e.id) === r.parent); const a = val(kids, ["Are there any issues that could affect the insulation installation?", "Hazards in this area?"]); return a != null && /^(yes|y|true)\b/.test(norm(a)); });
+    if (flagged.length > 0) { patch.hazards = `Installer flagged hazards in ${flagged.length} ceiling area(s) – confirm details and evidence in office.`; issues.push("Installer flagged hazards in a ceiling area – office review required."); }
+  }
+  const roof = val(entries, ["Roof type", "What type of roof does the home have?"]); if (roof) patch.notes = [patch.notes, `Roof type: ${roof}`].filter(Boolean).join(". ").slice(0, 4000);
   const built5 = val(entries, ["Was the ceiling or roof built or replaced in the last 5 years?", "Ceiling or roof built in the last 5 years", "Relevant ceiling or roof built in the last 5 years"]); if (built5) patch.notes = [patch.notes, `Ceiling/roof built in last 5 years (Ready Check answer, pre-filled from owner's declared enquiry answer): ${built5}`].filter(Boolean).join(". ").slice(0, 4000);
 
   const sbUp = val(entries, ["Switchboard upgrade required"]);
