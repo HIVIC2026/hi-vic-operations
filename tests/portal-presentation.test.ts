@@ -51,8 +51,8 @@ describe("staff portal presentation helpers", () => {
     expect(row).toContain("supplementalEligibilityLabel(job, step.label)");
     expect(panels).toContain('id="target-deposit-request" data-portal-focus="target"');
     expect(intake).toContain('id="target-intake-consent" data-portal-focus="target"');
-    expect(detail).toContain("new MutationObserver");
-    expect(detail).toContain("targetCleanup.current?.()");
+    expect(workspace).toContain("new MutationObserver");
+    expect(workspace).toContain("cleanup.current?.()");
     expect(list).toContain('className="group mb-3 rounded-md border bg-card sm:hidden"');
     expect(list).toContain('className="mb-3 hidden flex-wrap items-center gap-2 rounded-md border bg-card p-3 sm:flex"');
     expect(workspace).toContain("{mounted && children}");
