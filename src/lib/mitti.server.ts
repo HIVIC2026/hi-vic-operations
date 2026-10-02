@@ -230,3 +230,50 @@ export async function syncPendingMitti(actorId: string, call: MittiCall = realMi
   }
   return results;
 }
+
+/** Sends the official PIISA to the assigned installer in Mitti with the LR-003 pre-fills (Installation Booked only).
+ * Fails closed while the PIISA is locked or its Mitti form isn't configured. Reminders stay in the portal. */
+export async function createPiisaMittiAudit(jobId: string, actorId: string, call: MittiCall = realMittiCall) {
+  const { MITTI_PIISA_TEMPLATE_ID, buildOfficialPrefill } = await import("./mitti.core");
+  const { OFFICIAL_ITEMS } = await import("./official-forms.core");
+  const { piisaPrefill } = await import("./official-prefill.core");
+  const { officialPrefillContext } = await import("./official-forms.server");
+  const block = officialFormUseBlocker("piisa");
+  if (block) throw new WorkflowError(block);
+  if (!MITTI_PIISA_TEMPLATE_ID.trim()) throw new WorkflowError("PIISA Mitti form is not configured. Add the validated PIISA form before it can be sent.");
+  const { data: job } = await admin.from("jobs").select("job_number,business_unit,stage").eq("id", jobId).single();
+  if (!job) throw new WorkflowError("Job not found.");
+  if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for Home Insulation Victoria jobs.");
+  if (job.stage !== "installation_booked") throw new WorkflowError("The installer safety form can only be sent once the installation is booked.");
+  const { data: asg } = await admin.from("job_assignments").select("user_id, profiles:user_id(email)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  const email = (asg as unknown as { profiles: { email: string | null } | null } | null)?.profiles?.email?.trim();
+  if (!asg || !email) throw new WorkflowError("Assign an installer with an email address before sending the safety form.");
+  const { data: prev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const api = mittiApi(call);
+  const users = (await api.searchUsers(email)) as { users?: { id?: string; user_id?: string; email?: string }[] } | { id?: string; user_id?: string; email?: string }[];
+  const list = Array.isArray(users) ? users : users?.users ?? [];
+  const u = list.find((x) => String(x.email ?? "").toLowerCase() === email.toLowerCase());
+  const userId = u?.id ?? u?.user_id;
+  if (!userId) throw new WorkflowError(`The assigned installer (${email}) was not found in Mitti. Invite them with that exact email, then retry.`);
+  const prevId = (prev?.details as { audit_id?: string } | null)?.audit_id;
+  if (prevId) {
+    await api.shareAudit(prevId, String(userId)); await api.setAuditOwner(prevId, String(userId));
+    await logEvent(jobId, actorId, "mitti_piisa_audit_reshared", `Installer safety form re-shared with ${email}`, { audit_id: prevId });
+    return { auditId: prevId, reused: true, skipped: [] as string[] };
+  }
+  const hints = piisaPrefill(await officialPrefillContext(jobId, todayMelbourne(), asg.user_id));
+  const items = OFFICIAL_ITEMS.piisa;
+  const pre = hints.filter((h) => h.mode === "prefill" && h.value != null).map((h) => {
+    const it = items.find((i) => i.id === h.itemId)!;
+    const occurrence = items.filter((i) => i.label === it.label && items.indexOf(i) < items.indexOf(it)).length;
+    return { itemId: h.itemId, label: it.label, kind: it.kind, value: h.value!, occurrence };
+  });
+  const template = await api.getTemplateDefinition(MITTI_PIISA_TEMPLATE_ID);
+  const p = buildOfficialPrefill(template, pre);
+  const audit = (await api.createAudit({ template_id: MITTI_PIISA_TEMPLATE_ID, header_items: p.header_items, items: p.items })) as { audit_id?: string; id?: string };
+  const auditId = audit?.audit_id ?? audit?.id;
+  if (!auditId) throw new WorkflowError("Mitti did not return an audit ID.");
+  await api.shareAudit(String(auditId), String(userId)); await api.setAuditOwner(String(auditId), String(userId));
+  await logEvent(jobId, actorId, "mitti_piisa_audit_created", `Installer safety form sent to ${email} with ${p.count} pre-filled answers`, { audit_id: String(auditId), prefill_count: p.count, skipped: p.skipped });
+  return { auditId: String(auditId), reused: false, skipped: p.skipped };
+}
