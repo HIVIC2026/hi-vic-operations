@@ -148,7 +148,15 @@ export type TemplateItem = { label: string; type: string };
 export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boolean; issues: string[] } {
   const issues: string[] = [];
   const byLabel = new Map<string, TemplateItem[]>();
-  for (const it of items) { const n = norm(it.label ?? ""); if (!n) continue; byLabel.set(n, [...(byLabel.get(n) ?? []), it]); }
+  for (const it of items) {
+    const full = norm(it.label ?? "");
+    if (!full) continue;
+    byLabel.set(full, [...(byLabel.get(full) ?? []), it]);
+    // Mitti appends help text after a line break (e.g. "How many ceiling areas need to be measured separately?\nCount areas...").
+    // Index the first line too so the required wording still matches while the help text stays visible in Mitti.
+    const first = norm(String(it.label ?? "").split("\n")[0]);
+    if (first && first !== full) byLabel.set(first, [...(byLabel.get(first) ?? []), it]);
+  }
   // Official forms repeat some labels (e.g. "Licence no:" in B3 and Section C): expect exactly that many.
   const expected = new Map<string, number>();
   const fields = FORMS[key].fields.filter((f) => !f.statement);
