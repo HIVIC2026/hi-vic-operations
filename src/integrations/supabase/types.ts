@@ -3195,9 +3195,15 @@ export type Database = {
       }
       evidence_files: {
         Row: {
+          captured_at: string | null
+          distance_m: number | null
           file_name: string
           id: string
           job_id: string
+          lat: number | null
+          lng: number | null
+          location_accuracy_m: number | null
+          location_source: string | null
           mime_type: string | null
           requirement_id: string
           size_bytes: number | null
@@ -3206,9 +3212,15 @@ export type Database = {
           uploaded_by: string | null
         }
         Insert: {
+          captured_at?: string | null
+          distance_m?: number | null
           file_name: string
           id?: string
           job_id: string
+          lat?: number | null
+          lng?: number | null
+          location_accuracy_m?: number | null
+          location_source?: string | null
           mime_type?: string | null
           requirement_id: string
           size_bytes?: number | null
@@ -3217,9 +3229,15 @@ export type Database = {
           uploaded_by?: string | null
         }
         Update: {
+          captured_at?: string | null
+          distance_m?: number | null
           file_name?: string
           id?: string
           job_id?: string
+          lat?: number | null
+          lng?: number | null
+          location_accuracy_m?: number | null
+          location_source?: string | null
           mime_type?: string | null
           requirement_id?: string
           size_bytes?: number | null
@@ -8948,6 +8966,7 @@ export type Database = {
           mitti_ready_check_priced_template_id: string | null
           mitti_ready_check_template_id: string | null
           partner_lead_fee_inc_gst: number
+          photo_max_distance_m: number
           piesa_install_window_days: number
           updated_at: string
           urgency_amber_days: number
@@ -8977,6 +8996,7 @@ export type Database = {
           mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
           partner_lead_fee_inc_gst?: number
+          photo_max_distance_m?: number
           piesa_install_window_days?: number
           updated_at?: string
           urgency_amber_days?: number
@@ -9006,6 +9026,7 @@ export type Database = {
           mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
           partner_lead_fee_inc_gst?: number
+          photo_max_distance_m?: number
           piesa_install_window_days?: number
           updated_at?: string
           urgency_amber_days?: number
@@ -9670,6 +9691,12 @@ export type Database = {
         | "piesa_signoff"
         | "rectification_completion"
         | "installer_declaration"
+        | "identity_front_of_property"
+        | "switchboard_cables"
+        | "electrical_isolation"
+        | "solar_battery"
+        | "post_install_video"
+        | "final_zone_plan"
       evidence_status:
         | "outstanding"
         | "uploaded"
@@ -9926,6 +9953,12 @@ export const Constants = {
         "piesa_signoff",
         "rectification_completion",
         "installer_declaration",
+        "identity_front_of_property",
+        "switchboard_cables",
+        "electrical_isolation",
+        "solar_battery",
+        "post_install_video",
+        "final_zone_plan",
       ],
       evidence_status: [
         "outstanding",
