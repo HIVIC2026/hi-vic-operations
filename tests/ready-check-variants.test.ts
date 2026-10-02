@@ -78,3 +78,47 @@ describe("validateQuotedPrice", () => {
     expect(owner.total).toBe(1200 + 349 + 349);
   });
 });
+
+describe("the real Mitti templates", () => {
+  // Shape copied from the live A1 template (template_01ee0428be6d4435b34d8b738935f099), one item per repeat instance.
+  const A1 = [
+    ["Portal Job Number", "textsingle"], ["Site address", "textsingle"], ["Homeowner name", "textsingle"],
+    ["Property type", "textsingle"], ["Life support equipment at property?", "textsingle"],
+    ["Are the property details provided above correct?", "question"], ["What needs to be corrected?", "textsingle"],
+    ["Assessor", "textsingle"], ["What type of roof does the home have?", "list"], ["How would you rate the ceiling access?", "list"],
+    ["Upload a clear photo of the ceiling access point", "media"], ["How many ceiling areas need to be measured separately?", "list"],
+    ["Which part of the home does this ceiling area cover?", "textsingle"], ["Enter the measured ceiling area (m²)", "number"],
+    ["Is there existing insulation in this ceiling area?", "list"],
+    ["What type of existing insulation is installed? Select all that apply", "list"],
+    ["What is the measured insulation depth (mm)?", "number"], ["Upload a photo clearly showing the measured insulation depth", "media"],
+    ["What is required for the existing insulation?", "list"], ["How much existing insulation needs to be removed? (m²)", "number"],
+    ["Upload an overview photo of this ceiling area", "media"], ["Are there recessed downlights in this ceiling area?", "question"],
+    ["How many recessed downlights?", "number"],
+    ["Are there any issues that could affect the insulation installation?", "question"], ["Describe the issue and add a photo", "media"],
+    ["How was this ceiling area measured?", "list"], ["Tell us how you measured it", "textsingle"],
+    ["Upload your area sketch or floor plan.", "drawing"],
+    ["Was the ceiling or roof built or replaced in the last 5 years?", "textsingle"], ["Anything else the office should know?", "textsingle"],
+    ["I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.", "signature"],
+    ["What's included in your quote?", "list"], ["What else is included?", "textsingle"], ["Total quoted price (inc GST)", "number"],
+  ].map(([label, type]) => ({ label, type }));
+  test("the real installer A1 template passes ready_check_priced", () => {
+    const r = validateTemplate("ready_check_priced", A1);
+    expect(r.issues).toEqual([]);
+  });
+  test("the evidence-only form without pricing still fails the priced validator", () => {
+    const r = validateTemplate("ready_check_priced", A1.filter((i) => !/quote|included/i.test(i.label)));
+    expect(r.ok).toBe(false);
+  });
+  test("the real installer A1 answer labels feed the quote price reader", () => {
+    const d = buildInstallerQuoteDraft({
+      price: quotedPriceFromEntries([
+        { label: "What\u2019s included in your quote?", value: "R5.0 ceiling insulation - supply & install" },
+        { label: "Total quoted price (inc GST)", value: "$2,400" },
+        { label: "What else is included?", value: null },
+      ], false),
+      measuredM2: 100, ghgReduction: 20, veecValue: 70, piesaIncGst: 349, apFeeIncGst: 349,
+    });
+    expect(d.ready).toBe(true);
+    expect(d.lines[0]?.unit_price_inc_gst).toBe(2400);
+  });
+});
