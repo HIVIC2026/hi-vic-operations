@@ -1,7 +1,7 @@
 import { AdminEstimateCard } from "@/components/portal/estimate";
 import { AdminBookingOverride, AdminPartnerPanel, AppointmentPanel } from "@/components/portal/partner";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useCallback, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +21,8 @@ import { ClearTimeline } from "@/components/portal/waiting";
 import { EligibilityGlance, JobIdentity, NextActionBand, PhaseStrip, RecordDisclosure, SubHeading, usePortalTargetNavigation, type RecordGroup } from "@/components/portal/job-workspace";
 import { AllDocuments, Correspondence, ExportJobPack, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
 import type { PortalTarget } from "@/lib/portal-presentation.core";
+import { checkMittiAccess } from "@/lib/mitti-membership.functions";
+import { MITTI_ACCESS_LABEL, mittiAccessOf, mittiCheckedLabel, mittiInviteLine, type MittiMemberRow } from "@/lib/mitti-membership.core";
 
 import { useAction } from "@/hooks/use-me";
 import { useServerFn } from "@tanstack/react-start";
@@ -204,27 +206,64 @@ function JobSource({ jobId, channel, model, business }: { jobId: string; channel
 
 function Assignments({ jobId }: { jobId: string }) {
   const assign = useAction(assignContractor);
+  const check = useAction(checkMittiAccess);
   const load = useServerFn(getAdminAssignments);
+  const qc = useQueryClient();
   const { data, error, refetch } = useQuery({
     queryKey: ["assign", jobId],
     queryFn: () => load({ data: { jobId } }), retry: 3, staleTime: 30_000,
   });
+  const [pending, setPending] = useState<{ role: "electrician" | "installer"; userId: string; name: string } | null>(null);
+  const [why, setWhy] = useState("");
+  const prof = (userId?: string | null): MittiMemberRow & { full_name: string | null } =>
+    (data?.roles.find((x) => x.user_id === userId)?.profiles as (MittiMemberRow & { full_name: string | null }) | null | undefined) ?? { full_name: null };
+  const refresh = () => { void qc.invalidateQueries({ queryKey: ["assign", jobId] }); };
+  const pick = async (role: "electrician" | "installer", userId: string) => {
+    if (!userId) return;
+    if (mittiAccessOf(prof(userId)) === "member") { await assign({ jobId, userId, role }, "Assigned"); return; }
+    setWhy("");
+    setPending({ role, userId, name: prof(userId).full_name ?? "This person" });
+  };
   return (
     <Section title="Assigned trades">
       {error && <div role="alert" className="mb-2 text-sm text-danger">Assignments could not be loaded. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
       {data?.rr.map((r) => <p key={r.id} className="mb-2 rounded bg-warning-soft p-2 text-sm">Owner requested a different {r.role}: {r.reason}</p>)}
       {(["electrician", "installer"] as const).map((role) => {
         const cur = data?.a.find((x) => x.role === role && x.active);
+        const acc = mittiAccessOf(prof(cur?.user_id));
         return (
           <div key={role} className="mb-3">
             <Label className="capitalize">{role}</Label>
-            <select className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm" value={cur?.user_id ?? ""} onChange={(e) => e.target.value && assign({ jobId, userId: e.target.value, role }, "Assigned")}>
+            <select className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm" value={cur?.user_id ?? ""} onChange={(e) => void pick(role, e.target.value)}>
               <option value="">— Unassigned —</option>
-              {data?.roles.filter((r) => r.role === role).map((r) => <option key={r.user_id} value={r.user_id}>{(r.profiles as { full_name: string | null } | null)?.full_name}</option>)}
+              {data?.roles.filter((r) => r.role === role).map((r) => {
+                const p = prof(r.user_id);
+                const a = mittiAccessOf(p);
+                return <option key={r.user_id} value={r.user_id}>{p.full_name ?? "Unnamed"}{a === "member" ? "" : ` — ${MITTI_ACCESS_LABEL[a]}`}</option>;
+              })}
             </select>
+            {cur ? (
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                <span className={acc === "member" ? "font-semibold text-success" : "font-semibold text-warning"}>{MITTI_ACCESS_LABEL[acc]}</span>
+                <span className="text-muted-foreground">{mittiCheckedLabel(prof(cur.user_id))}</span>
+                <Button size="sm" variant="outline" onClick={() => void check({ userId: cur.user_id }, "Mitti access checked").then(refresh)}>Check Mitti access</Button>
+              </div>
+            ) : null}
+            {cur && acc !== "member" ? <p className="mt-1 text-xs text-muted-foreground">{mittiInviteLine(prof(cur.user_id).email)}</p> : null}
           </div>
         );
       })}
+      {pending ? (
+        <div className="mt-2 rounded-md border border-warning bg-warning-soft p-3">
+          <p className="text-sm font-semibold">{pending.name} is not confirmed in the Home Insulation Victoria Mitti organisation.</p>
+          <p className="mt-1 text-xs text-muted-foreground">They cannot be sent the {pending.role === "electrician" ? "electrical safety (PIESA)" : "Ready Check / installer safety"} form until invited with their exact email. Assigning anyway is recorded with your reason.</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why assign them anyway? (required)" className="h-9 max-w-sm" />
+            <Button size="sm" onClick={async () => { await assign({ jobId, userId: pending.userId, role: pending.role, mittiOverrideReason: why }, "Assigned with a recorded exception"); setPending(null); }}>Assign anyway</Button>
+            <Button size="sm" variant="outline" onClick={() => setPending(null)}>Cancel</Button>
+          </div>
+        </div>
+      ) : null}
       {!data?.roles.length && <p className="text-xs text-muted-foreground">No electricians/installers yet — grant roles on the Users page.</p>}
     </Section>
   );

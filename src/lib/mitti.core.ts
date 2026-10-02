@@ -242,7 +242,7 @@ export type CreateCtx = {
 };
 export type CreateResult = { auditId: string; reused: boolean; mittiUserId: string; assigneeEmail: string; prefillCount: number | null; createdAt: string | null };
 
-function pickUser(res: Any, email: string): Any | null {
+export function pickUser(res: Any, email: string): Any | null {
   const list: Any[] = Array.isArray(res) ? res : res?.users ?? res?.data ?? [];
   return list.find((u) => String(u?.email ?? "").toLowerCase() === email.toLowerCase()) ?? null;
 }
