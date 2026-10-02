@@ -4,7 +4,7 @@
 import type { Json } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { MITTI_BASE_URL, MITTI_TEMPLATE_ID, MittiError, createOrReuseAudit, mittiApi, planSync, propertyTypeOption, splitPatch, type MittiCall } from "./mitti.core";
+import { MITTI_BASE_URL, MITTI_TEMPLATE_ID, MittiError, builtLast5YearsOption, createOrReuseAudit, mittiApi, planSync, propertyTypeOption, splitPatch, type MittiCall } from "./mitti.core";
 import { planMeasurementUpdate, type MeasurementLike } from "./scope.core";
 import { jobScope } from "./requirements.server";
 import { readyCheckVariant } from "./mitti-forms.core";
@@ -92,6 +92,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string, cal
         occupancy: prop?.occupancy ? prop.occupancy.replace("_", " ") : null, lifeSupport: job.life_support ? "Yes – life support recorded" : "None recorded by office",
         inspectionDate: measureOnly ? null : todayMelbourne(),
         lifeSupportDeclared: measureOnly ? null : job.life_support_status === "yes" ? "Yes" : job.life_support_status === "no" ? "No" : null,
+        builtLast5Years: measureOnly ? builtLast5YearsOption((prop?.enrichment as Any)?.base44?.declared?.over_five_years ?? null) : null,
         propertyType: propertyTypeOption((prop?.enrichment as Any)?.base44?.declared?.property_type ?? null),
       },
     });

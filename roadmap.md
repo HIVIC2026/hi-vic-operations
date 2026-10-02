@@ -176,4 +176,5 @@
 - [ ] Plan step 3: fill official Word forms on signing, save to job files
 - [ ] Plan step 4: automatic PIESA sending + Section C automation (built OFF until LR-006 confirmed)
 - [ ] Plan step 5: AP review tick row
+- [x] Ready Check: pre-fill "built in last 5 years" from owner enquiry
 - [ ] Plan step 6: Mitti build sheets (PIESA evidence section, install day)

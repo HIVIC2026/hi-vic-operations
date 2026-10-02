@@ -156,6 +156,7 @@ export type PrefillCtx = {
   assessorName: string; assessmentAt?: string | null; estimatedAreaM2?: number | null; occupancy?: string | null;
   lifeSupport?: string | null; propertyType?: string | null;
   /** Official PIESA "Date of inspection" default (today, Melbourne); the electrician can change it. */ inspectionDate?: string | null;
+  /** Ready Check "built or replaced in the last 5 years?" — from the owner's DECLARED enquiry answer: over 5 years "yes" → "No", "no" → "Yes"; unknown stays blank. */ builtLast5Years?: string | null;
   /** Official PIESA life-support question, from the owner's DECLARED enquiry answer ("Yes"/"No"); blank when unknown. */ lifeSupportDeclared?: string | null;
 };
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
@@ -170,11 +171,16 @@ const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; 
   { key: "occupancy", aliases: ["Occupancy"] },
   { key: "lifeSupport", aliases: ["Life support status", "Office life support result", "Office life support status"] },
   { key: "propertyType", aliases: ["Property type"] },
+  { key: "builtLast5Years", aliases: ["Was the ceiling or roof built or replaced in the last 5 years?"] },
   { key: "inspectionDate", aliases: ["Date of inspection"], datetime: true },
   { key: "lifeSupportDeclared", aliases: ["Is anyone at this property dependent on life support?"] },
 ];
 
 const PROPERTY_TYPE_OPTIONS = ["House", "Townhouse", "Unit or apartment"] as const;
+/** Pure: owner's declared "over five years" → Ready Check "built in last 5 years" option. Never guesses. */
+export function builtLast5YearsOption(overFive: unknown): string | null {
+  return overFive === "yes" ? "No" : overFive === "no" ? "Yes" : null;
+}
 /** Pure: maps a declared property type to a Ready Check option. Unknown values return null — never invented. */
 export function propertyTypeOption(v: string | null | undefined): string | null {
   const s = String(v ?? "").trim().toLowerCase();
