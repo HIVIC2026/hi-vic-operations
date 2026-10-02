@@ -27,6 +27,15 @@ The Ready Check is out of scope; it's already built in Mitti and stays as it is.
 - After rectification there's no second visit form. The electrician uploads completion photos, the Certificate of Electrical Safety and the completed Section C.
 - After signing, the filled form is sent to the owner and installer and recorded in the job history.
 
+### Section C runs itself after rectification
+So the electrician can't forget it, and you'll always know where it's up to:
+- **It opens by itself.** When the rectification visit is booked, the portal puts Section C on the electrician's job automatically, already filled in from their PIESA and details. They don't have to start it.
+- **Reminders.** If Section C isn't done on the day of the rectification visit, the electrician gets a reminder. Another goes the next morning.
+- **Office alert.** After 48 hours you get an alert on the To-do list: "Section C missing — job can't be installed".
+- **Install stays locked.** Installation can't be booked or started until Section C is signed with its Certificate of Electrical Safety number and completion photos.
+- **The 30-day clock is shown.** The job shows the days left before the PIESA window runs out, so a late Section C is caught before it causes a redo.
+- Reminders to the electrician follow the same on/off switch as the automatic sending above.
+
 ## 3. Install day — lead installer, one Mitti job in three parts
 **A. Before starting:**
 - the installers onsite and their certification details
