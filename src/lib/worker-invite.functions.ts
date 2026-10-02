@@ -8,7 +8,7 @@ import { INVITE_STATE_MESSAGE, WORKER_DECLARATIONS_VERSION, inviteExpiry, invite
 const uuid = z.string().uuid();
 const trade = z.enum(["electrician", "installer"]);
 
-// ---------- Boss: create / list / cancel invites ----------
+// ---------- Business owner: create / list / cancel invites ----------
 export const listWorkerInvites = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ businessId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
