@@ -61,7 +61,9 @@ export type RecData = {
   works_under_rec?: boolean | null; host_rec_name?: string; host_rec_number?: string;
   legal_entity_name?: string; trading_name?: string; abn?: string; rec_registration_number?: string;
   business_address?: string; business_address_details?: ResolvedAddress | null; primary_contact_name?: string; business_phone?: string; business_email?: string; authorised_to_register?: boolean;
-  /** The applicant's own Victorian electrician licence. */
+  /** Is the person registering a licensed electrician? Office administrators answer no. */
+  contact_is_licensed_electrician?: boolean | null;
+  /** The applicant's own Victorian electrician licence (only when they are a licensed electrician). */
   licence_number?: string;
   insurer?: string; insurance_policy_number?: string; public_liability_cover_amount?: number | null; public_liability_expiry?: string; insurance_uploaded?: boolean;
   electricians?: Electrician[];
@@ -214,7 +216,8 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
   switch (step) {
     case "about":
       if (!txt(d.primary_contact_name)) e.push("Enter your name.");
-      if (!txt(d.licence_number)) e.push("Enter your Victorian electrician licence number.");
+      if (d.contact_is_licensed_electrician == null) e.push("Tell us if you are a licensed electrician.");
+      if (d.contact_is_licensed_electrician === true && !txt(d.licence_number)) e.push("Enter your Victorian electrician licence number.");
       if (!validPhone(d.business_phone)) e.push("Enter a valid Australian mobile.");
       if (!validBusinessEmail(d.business_email)) e.push("Enter a real email address.");
       if (d.works_under_rec == null) e.push("Tell us if you are registering the REC business or joining as staff.");
@@ -330,7 +333,9 @@ export function scheduleText(d: RecData): string {
       ? `Public liability: held by host REC (${d.host_rec_name ?? ""}, REC ${d.host_rec_number ?? ""})`
       : `Public liability: ${d.insurer ?? ""} policy ${d.insurance_policy_number ?? ""}, cover ${money(d.public_liability_cover_amount)}, expires ${d.public_liability_expiry ?? ""}`);
   lines.push("", "Nominated electricians:");
-  effectiveElectricians(d).forEach((x, i) => lines.push(`${i + 1}. ${x.full_legal_name} — licence ${x.licence_number}`));
+  const sparks = effectiveElectricians(d);
+  if (sparks.length === 0) lines.push("To be confirmed with the Home Insulation Victoria office before any work is allocated.");
+  sparks.forEach((x, i) => lines.push(`${i + 1}. ${x.full_legal_name} — licence ${x.licence_number}`));
   lines.push("", "SCHEDULE 2 — SERVICES, COVERAGE AND CAPACITY");
   lines.push("Required electrical services (all three, as required for each job):",
     "- Pre-installation electrical safety assessment (PIESA)",

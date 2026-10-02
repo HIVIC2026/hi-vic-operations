@@ -428,7 +428,11 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
       return <>
         <div style={infoCard}>First things first — so we know who we're talking to. We'll use your name throughout.</div>
         <Field label="Your name" required><input style={input} autoFocus placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
-        <Field label="Your Victorian electrician licence number" required hint="Your personal Energy Safe Victoria electrical licence number."><input style={input} {...t("licence_number", true)} /></Field>
+        <Field label="Are you a licensed electrician?" required hint="Office administrators and business owners who aren't electricians should answer No — you can still register the business.">
+          <Choice options={[{ v: true as boolean, l: "Yes, I'm a licensed electrician" }, { v: false as boolean, l: "No — I handle the office/admin side" }]} value={d.contact_is_licensed_electrician ?? null} onChange={(v) => up({ contact_is_licensed_electrician: v, ...(v === false ? { licence_number: "" } : {}) })} />
+        </Field>
+        {d.contact_is_licensed_electrician === true && <Field label="Your Victorian electrician licence number" required hint="Your personal Energy Safe Victoria electrical licence number."><input style={input} {...t("licence_number", true)} /></Field>}
+        {d.contact_is_licensed_electrician === false && <div style={infoCard}>No problem — you don't need a licence to register the business. We'll confirm the business's licensed electricians with you before any work is allocated.</div>}
         <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
         <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
         <Field label="Are you registering the business, or joining as staff?" required hint="A business administrator sets up the Registered Electrical Contractor (REC) profile. Staff join using a personal invitation link from that administrator.">
