@@ -373,10 +373,17 @@ function RecOnboarding() {
     <div style={{ ...card, textAlign: "center" }}>
       {previewBanner}
       <div style={{ width: 56, height: 56, borderRadius: "50%", background: GREEN, color: "#fff", fontSize: 28, lineHeight: "56px", margin: "0 auto 16px" }}>✓</div>
-      <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — we've received your application</h1>
-      <p style={{ color: MUTED, lineHeight: 1.6, textAlign: "left" }}>Your signed agreement and business details are with our team. We'll check your REC registration, licences and insurance, review your proposed rates, and contact you if we need anything else.</p>
-      <div style={{ ...infoCard, textAlign: "left", marginTop: 8 }}><strong>What happens next</strong><ol style={{ paddingLeft: 20, marginBottom: 0, lineHeight: 1.7 }}><li>We confirm business approval and agreed rates.</li><li>Your business profile receives portal access.</li><li>Your business administrator invites staff to complete their details and declarations.</li><li>Our office approves each electrician before they can access assigned jobs.</li></ol></div>
-      <p style={{ color: MUTED, fontSize: 13, textAlign: "left" }}>If the business owner will do electrical work, they must also have an approved staff electrician profile. Payments follow the timing in the signed agreement and each accepted job offer.</p>
+      <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px" }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — your application is in</h1>
+      <p style={{ color: MUTED, lineHeight: 1.6 }}>Your signed agreement and business details are now with Home Insulation Victoria.</p>
+      <div style={{ ...infoCard, textAlign: "left", marginTop: 8 }}>
+        <strong>What we're checking</strong>
+        <TickList items={["Your REC registration and licences", "Your $5 million public liability insurance", "Your proposed rates"]} />
+      </div>
+      <div style={{ ...infoCard, textAlign: "left", marginTop: 12 }}>
+        <strong>What happens next</strong>
+        <TickList items={["We confirm your approval and agreed rates", "Your business gets access to the portal", "Your administrator invites your electricians to add their details", "We approve each electrician before they can see jobs"]} />
+      </div>
+      <p style={{ color: MUTED, fontSize: 13, textAlign: "left" }}>We'll contact you if we need anything else. If the business owner will do electrical work, they also need their own approved electrician profile. Payments follow the timing in your signed agreement and each accepted job.</p>
       <p style={{ color: MUTED, fontSize: 13 }}>Agreement version {REC_AGREEMENT_VERSION} · A copy of everything you've submitted is kept on your file.</p>
     </div>,
   );
