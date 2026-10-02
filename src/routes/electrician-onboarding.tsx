@@ -428,11 +428,8 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
       return <>
         <div style={infoCard}>First things first — so we know who we're talking to. We'll use your name throughout.</div>
         <Field label="Your name" required><input style={input} autoFocus placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
-        <Field label="Are you a licensed electrician?" required hint="Office administrators and business owners who aren't electricians should answer No — you can still register the business.">
-          <Choice options={[{ v: true as boolean, l: "Yes, I'm a licensed electrician" }, { v: false as boolean, l: "No — I handle the office/admin side" }]} value={d.contact_is_licensed_electrician ?? null} onChange={(v) => up({ contact_is_licensed_electrician: v, ...(v === false ? { licence_number: "" } : {}) })} />
-        </Field>
-        {d.contact_is_licensed_electrician === true && <Field label="Your Victorian electrician licence number" required hint="Your personal Energy Safe Victoria electrical licence number."><input style={input} {...t("licence_number", true)} /></Field>}
-        {d.contact_is_licensed_electrician === false && <div style={infoCard}>No problem — you don't need a licence to register the business. We'll confirm the business's licensed electricians with you before any work is allocated.</div>}
+        <Check checked={d.contact_is_licensed_electrician === true} onChange={(v) => up({ contact_is_licensed_electrician: v ? true : null })} required error={showErrors && d.contact_is_licensed_electrician !== true ? "Confirm you are a licensed electrician to continue." : null}>I am a licensed electrician authorised to register this REC business with Home Insulation Victoria.</Check>
+        <Field label="Your Victorian electrician licence number" required hint="Your personal Energy Safe Victoria electrical licence number."><input style={input} {...t("licence_number", true)} /></Field>
         <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
         <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
         <Field label="Are you registering the business, or joining as staff?" required>
@@ -661,7 +658,7 @@ function SignStep({ d, token, onSigned, preview }: { d: RecData; token: string; 
 }
 
 const SAMPLE_REC_DATA: RecData = {
-  works_under_rec: false, primary_contact_name: "Sample REC representative", licence_number: "ESV SAMPLE", business_phone: "0400 000 000", business_email: "sample@example.com",
+  works_under_rec: false, primary_contact_name: "Sample REC representative", contact_is_licensed_electrician: true, licence_number: "ESV SAMPLE", business_phone: "0400 000 000", business_email: "sample@example.com",
   legal_entity_name: "Sample Electrical Pty Ltd", trading_name: "Sample Electrical", abn: "51824753556", rec_registration_number: "REC SAMPLE", business_address: "100 Sample Road, Melbourne VIC 3000", business_address_details: { label: "100 Sample Road, Melbourne VIC 3000", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU", provider: "google_places_au" }, authorised_to_register: true,
   insurance_uploaded: true, insurer: "Sample insurer", insurance_policy_number: "SAMPLE-001", public_liability_cover_amount: 5_000_000, public_liability_expiry: "2099-12-31",
   service_origin: "100 Sample Road, Melbourne VIC 3000", service_origin_details: { label: "100 Sample Road, Melbourne VIC 3000", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU", provider: "google_places_au" }, travel_radius_km: 50, typical_days: ["Mon", "Tue", "Wed"], normal_attendance_speed: "3-5 business days", capacity_band: "6-10", accepting_jobs: true,

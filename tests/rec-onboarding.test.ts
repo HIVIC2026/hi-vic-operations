@@ -30,17 +30,25 @@ describe("rec onboarding", () => {
     expect(visibleSteps(full).some((s) => s.key === "electricians")).toBe(false);
     expect(visibleSteps(full).some((s) => s.key === "howitworks")).toBe(false);
     expect(stepErrors("about", { ...full, licence_number: undefined })).toContain("Enter your Victorian electrician licence number.");
-    expect(stepErrors("about", { ...full, contact_is_licensed_electrician: null })).toContain("Tell us if you are a licensed electrician.");
+    expect(stepErrors("about", { ...full, contact_is_licensed_electrician: null })).toContain("Confirm you are a licensed electrician to continue.");
     expect(effectiveElectricians(full)).toEqual([{ full_legal_name: "Sam Smith", licence_number: "A123", mobile: "0412345678", email: "sam@spark.com.au" }]);
     // an explicit legacy list always wins
     expect(effectiveElectricians({ ...full, electricians: [{ full_legal_name: "Other", licence_number: "B9", mobile: "0400000000", email: "o@x.com" }] })[0].full_legal_name).toBe("Other");
   });
-  test("office administrator can register without a personal licence", () => {
-    const admin: RecData = { ...full, contact_is_licensed_electrician: false, licence_number: undefined };
-    expect(stepErrors("about", admin)).toEqual([]);
-    expect(effectiveElectricians(admin)).toEqual([]);
-    expect(firstIncompleteStep(admin)).toBeNull();
-    expect(scheduleText(admin)).toContain("To be confirmed with the Home Insulation Victoria office");
+  test("only a confirmed licensed electrician can register; old false/null drafts return to About you", () => {
+    for (const v of [false, null, undefined]) {
+      const old: RecData = { ...full, contact_is_licensed_electrician: v as never };
+      expect(stepErrors("about", old)).toContain("Confirm you are a licensed electrician to continue.");
+      expect(firstIncompleteStep(old)).toBe("about");
+    }
+    const noLicence: RecData = { ...full, licence_number: undefined };
+    expect(firstIncompleteStep(noLicence)).toBe("about");
+    expect(effectiveElectricians(noLicence)).toEqual([]);
+    expect(stepErrors("about", full)).toEqual([]);
+    expect(firstIncompleteStep(full)).toBeNull();
+    expect(effectiveElectricians(full)).toHaveLength(1);
+    expect(recDraftRole({ ...full, works_under_rec: true })).toBe("worker");
+    expect(recDraftRole(full)).toBe("business");
   });
   test("services: all three electrical services are mandatory", () => {
     expect(stepErrors("services", {})).toContain("Confirm your REC can provide all three electrical services.");
