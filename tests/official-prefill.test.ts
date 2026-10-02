@@ -1,0 +1,65 @@
+import { describe, expect, test } from "bun:test";
+import { B1_OPTIONS } from "../src/lib/official-forms.core";
+import { crossCheckWarnings, declaredLifeSupport, piesaPrefill, piisaPrefill, seedAnswers, type OfficialPrefillContext } from "../src/lib/official-prefill.core";
+import { buildPrefill } from "../src/lib/mitti.core";
+
+const full: OfficialPrefillContext = {
+  today: "2026-10-02", jobNumber: "HV-1128", address: "1 Test St, Preston VIC 3072", lifeSupportDeclared: "no",
+  installDate: "2026-10-20", apName: "DC Construction Solutions Pty Ltd t/a Home Insulation Victoria", installerBusinessName: "Test Insulation Co",
+  leadInstaller: { name: "Sam Lead", eecNumber: "EEC-123", eecVerified: true },
+  piesaAnswers: { b1: B1_OPTIONS[0], "p3.present": "Yes", "p6.recessed": "No", "c.tick2": true, "c.tick3": true },
+  piesaLifeSupportAttachment: null, measuredInsulationPresent: true, acceptedQuoteProduct: "Brand X R5.0 batts",
+};
+const empty: OfficialPrefillContext = { today: "2026-10-02", jobNumber: null, address: null, lifeSupportDeclared: null, installDate: null, apName: null, installerBusinessName: null, leadInstaller: null, piesaAnswers: null, piesaLifeSupportAttachment: null, measuredInsulationPresent: null, acceptedQuoteProduct: null };
+const by = (h: ReturnType<typeof piisaPrefill>) => Object.fromEntries(h.map((x) => [x.itemId, x]));
+
+describe("LR-003 pre-fills", () => {
+  test("covers all 26 change requests exactly once", () => {
+    const ids = [...piesaPrefill(full).map((h) => `piesa:${h.itemId}`), ...piisaPrefill(full).map((h) => `piisa:${h.itemId}`)];
+    expect(new Set(ids).size).toBe(26);
+    expect(ids.length).toBe(26);
+  });
+  test("PIESA seeds job, address, today and declared life support", () => {
+    expect(seedAnswers(piesaPrefill(full))).toEqual({ jobRef: "HV-1128", address: "1 Test St, Preston VIC 3072", inspectionDate: "2026-10-02", lifeSupport: "No" });
+    expect(piesaPrefill(full).find((h) => h.itemId === "lifeSupport")!.basis).toBe("declared");
+  });
+  test("empty sources stay blank — never No", () => {
+    const seed = seedAnswers(piisaPrefill(empty));
+    expect(Object.keys(seed).sort()).toEqual(["p8.date"]);
+    expect(seedAnswers(piesaPrefill({ ...empty, lifeSupportDeclared: "unknown" }))["lifeSupport"]).toBeUndefined();
+  });
+  test("reminders and cross-checks never become answers", () => {
+    const seed = seedAnswers(piisaPrefill(full));
+    for (const id of ["p4.present", "p5.recessed", "p5.icConfirmed", "p5.safeToCover", "p5.rcd", "p5.tps", "p5.basic", "p6.present"]) expect(seed[id]).toBeUndefined();
+    const h = by(piisaPrefill(full));
+    expect(h["p4.present"]!.value).toBe("Yes");
+    expect(h["p5.icConfirmed"]!.value).toBe("Ticked");
+    expect(h["p5.tps"]!.value).toBeNull();
+  });
+  test("electrician-present N/A only when PIESA says no rectification", () => {
+    expect(seedAnswers(piisaPrefill(full))["p5.electricianPresent"]).toBe("N/A");
+    expect(seedAnswers(piisaPrefill({ ...full, piesaAnswers: { b1: B1_OPTIONS[1] } }))["p5.electricianPresent"]).toBeUndefined();
+  });
+  test("EEC number only from a verified certification", () => {
+    expect(seedAnswers(piisaPrefill({ ...full, leadInstaller: { name: "Sam", eecNumber: "EEC-1", eecVerified: false } }))["p2.leadEec"]).toBeUndefined();
+    expect(seedAnswers(piisaPrefill(full))["p2.leadEec"]).toBe("EEC-123");
+  });
+  test("cross-check warns on mismatch, not on match", () => {
+    const h = piisaPrefill(full);
+    expect(crossCheckWarnings(h, { "p4.present": "Yes", "p5.recessed": "No" })).toEqual([]);
+    expect(crossCheckWarnings(h, { "p4.present": "No", "p6.present": "No" }).length).toBe(2);
+  });
+  test("declared life-support mapping", () => {
+    expect([declaredLifeSupport("yes"), declaredLifeSupport("no"), declaredLifeSupport("unknown"), declaredLifeSupport(null)]).toEqual(["yes", "no", "unknown", null]);
+  });
+  test("Mitti PIESA template receives the date and life-support pre-fills", () => {
+    const template = { template: { items: [
+      { id: "d", label: "Date of inspection", datetime: {} },
+      { id: "l", label: "Is anyone at this property dependent on life support?", question: { response_set_id: "rs" } },
+    ], response_sets: [{ id: "rs", responses: [{ id: "y", label: "Yes" }, { id: "n", label: "No" }] }] } };
+    const p = buildPrefill(template, { jobNumber: "J", address: "A", ownerName: "O", assessorName: "E", inspectionDate: "2026-10-02", lifeSupportDeclared: "No" });
+    const items = [...p.header_items, ...p.items];
+    expect(items.find((i: { item_id: string }) => i.item_id === "d")?.responses).toEqual({ datetime: "2026-10-02" });
+    expect(items.find((i: { item_id: string }) => i.item_id === "l")?.responses).toEqual({ selected: [{ id: "n", label: "No" }] });
+  });
+});
