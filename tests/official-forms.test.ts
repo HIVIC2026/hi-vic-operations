@@ -17,12 +17,12 @@ const docText = (k: "piesa" | "piisa") => {
 describe("template records", () => {
   for (const k of ["piesa", "piisa"] as const) {
     test(`${k}: stored original matches its SHA-256`, () => expect(createHash("sha256").update(readFileSync(OFFICIAL_TEMPLATES[k].originalFile)).digest("hex")).toBe(OFFICIAL_TEMPLATES[k].sha256));
-    test(`${k}: not approved, source unconfirmed, blocked from use`, () => {
+    test(`${k}: source confirmed, not approved, blocked from use`, () => {
       const t = OFFICIAL_TEMPLATES[k];
-      expect(t.approved).toBe(false); expect(t.sourceUrlStatus).toBe("NEEDS CONFIRMATION"); expect(t.retrievalDateStatus).toBe("UNKNOWN"); expect(t.retrievalDate).toBeNull(); expect(t.publication).toBe("© DEECA March 2026"); expect(t.sourceUrl).toBeNull();
-      expect(officialFormUseBlocker(k)).not.toBeNull();
-      expect(officialFormUseBlocker(k, { ...t, sourceUrl: "https://x", sourceUrlStatus: "confirmed", retrievalDate: "2026-10-02", retrievalDateStatus: "confirmed" })).toMatch(/approved/);
-      expect(officialFormUseBlocker(k, { ...t, sourceUrl: "https://x", sourceUrlStatus: "confirmed", retrievalDate: "2026-10-02", retrievalDateStatus: "confirmed", approved: { by: "jo", at: "x" } })).toBeNull();
+      expect(t.approved).toBe(false); expect(t.sourceUrlStatus).toBe("confirmed"); expect(t.retrievalDateStatus).toBe("confirmed"); expect(t.retrievalDate).toBe("2026-10-02"); expect(t.publication).toBe("© DEECA March 2026"); expect(t.sourceUrl).toMatch(/^https:\/\/www\.energy\.vic\.gov\.au\//);
+      expect(officialFormUseBlocker(k)).toMatch(/approved/);
+      expect(officialFormUseBlocker(k, { ...t, sourceUrl: null, sourceUrlStatus: "NEEDS CONFIRMATION" })).toMatch(/source web address/);
+      expect(officialFormUseBlocker(k, { ...t, approved: { by: "jo", at: "x" } })).toBeNull();
     });
   }
 });

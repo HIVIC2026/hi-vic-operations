@@ -31,7 +31,7 @@ export type TemplateRecord = {
 export const OFFICIAL_TEMPLATES: Record<OfficialKey, TemplateRecord> = {
   piesa: {
     key: "piesa", title: "VEU pre-installation electrical safety assessment form", issuingAuthority: "Department of Energy, Environment and Climate Action (DEECA), State of Victoria",
-    sourceUrl: null, sourceUrlStatus: "NEEDS CONFIRMATION", retrievalDate: null, retrievalDateStatus: "UNKNOWN",
+    sourceUrl: "https://www.energy.vic.gov.au/__data/assets/word_doc/0039/788394/VEU-pre-installation-electrical-safety-assessment-form.docx", sourceUrlStatus: "confirmed", retrievalDate: "2026-10-02", retrievalDateStatus: "confirmed",
     dateInspected: "2026-10-02", publication: "© DEECA March 2026", formVersion: "not printed", effectiveDatePrinted: "not printed",
     sha256: "2a89d21c1f2c8fef916954d070449bd3175590d90b9a514d4a8d7625f3a299ac",
     originalFile: "docs/official-forms/VEU-pre-installation-electrical-safety-assessment-form_1.docx",
@@ -39,7 +39,7 @@ export const OFFICIAL_TEMPLATES: Record<OfficialKey, TemplateRecord> = {
   },
   piisa: {
     key: "piisa", title: "VEU pre-installation installer safety assessment form", issuingAuthority: "Department of Energy, Environment and Climate Action (DEECA), State of Victoria",
-    sourceUrl: null, sourceUrlStatus: "NEEDS CONFIRMATION", retrievalDate: null, retrievalDateStatus: "UNKNOWN",
+    sourceUrl: "https://www.energy.vic.gov.au/__data/assets/word_doc/0042/788397/VEU-pre-installation-installer-safety-assessment-form-.docx", sourceUrlStatus: "confirmed", retrievalDate: "2026-10-02", retrievalDateStatus: "confirmed",
     dateInspected: "2026-10-02", publication: "© DEECA March 2026", formVersion: "not printed", effectiveDatePrinted: "not printed",
     sha256: "bea62330fa766d3da29137a494d01f9e3e80a883cb5126b2fffb6fa07ad46dea",
     originalFile: "docs/official-forms/VEU-pre-installation-installer-safety-assessment-form-_3.docx",
