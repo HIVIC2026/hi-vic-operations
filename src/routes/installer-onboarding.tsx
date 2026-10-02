@@ -293,7 +293,7 @@ function StepBody({ step, d, up, token, setError }: { step: StepKey; d: RecData;
         <Field label="Your name" required><input style={input} autoFocus placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
         <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
         <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
-        <Field label="Do you run the business, or work for someone?" required hint="This sign-up is for the person who runs the business. People who work for an installation business join with their own invite link.">
+        <Field label="Do you run the business, or work for someone?" required>
           <Choice options={[{ v: false as boolean, l: "I run the business" }, { v: true as boolean, l: "I work for an installation business" }]} value={d.works_for_business ?? null} onChange={(v) => up({ works_for_business: v })} />
         </Field>
         {d.works_for_business === true && <WorkerStop who="business" />}
