@@ -126,6 +126,20 @@ export type StepKey = (typeof STEPS)[number]["key"];
 export const ALWAYS_MANDATORY_STEPS: readonly StepKey[] = ["services"];
 export const isAlwaysMandatoryStep = (step: StepKey) => ALWAYS_MANDATORY_STEPS.includes(step);
 
+/**
+ * Server-side guard: the first always-mandatory step that is still incomplete while the
+ * draft claims to be at or past a later step. Applies in every mode, test mode included.
+ */
+export function blockedMandatoryStep(targetStep: string, d: RecData, now = new Date()): StepKey | null {
+  const order = STEPS.map((s) => s.key as string);
+  const target = order.indexOf(targetStep);
+  for (const m of ALWAYS_MANDATORY_STEPS) {
+    const at = order.indexOf(m);
+    if ((target === -1 || target > at) && stepErrors(m, d, now).length) return m;
+  }
+  return null;
+}
+
 export type RecSampleStep = StepKey | "welcome" | "submitted";
 
 /** Accept only real onboarding steps for the public no-write sample. */
