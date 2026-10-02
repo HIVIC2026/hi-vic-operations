@@ -87,7 +87,8 @@ const READY_CHECK_FIELDS: FormField[] = [
       { label: "Assessor", type: "text", required: true, prefill: true, source: "portal – person doing the measure-up" },
       { label: "Installer photo at front of premises with photo ID", type: "media", required: false, source: `${G} Table 4 – the installer-sourced A1 form collects it at installation instead` },
       { label: "Roof type", type: "choice", required: true, choices: ["Tiles", "Metal sheet", "Other"], aliases: ["What type of roof does the home have?"], source: "portal – quoting: tile lift / metal-sheet access extras" },
-      { label: "Describe the roof type", type: "text", required: true, when: "Other", source: "portal – quoting" },
+      // A1 has no separate "Other" detail question for the roof; the office sees the parsed report on review.
+      { label: "Describe the roof type", type: "text", required: true, when: "Other", notRequiredIf: ["What type of roof does the home have?"], source: "portal – quoting" },
       { label: "How easy is the ceiling access?", type: "choice", required: true, choices: ["Easy", "Moderate", "Difficult"], aliases: ["How would you rate the ceiling access?"], source: "portal – quoting: access difficulty" },
       { label: "Photo of the ceiling access point", type: "media", required: true, aliases: ["Upload a clear photo of the ceiling access point"], source: "portal – quoting + ESC Table 4 access evidence" },
       // 3. Ceiling areas
