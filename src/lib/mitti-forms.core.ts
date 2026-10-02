@@ -152,15 +152,26 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
   const expected = new Map<string, number>();
   const fields = FORMS[key].fields.filter((f) => !f.statement);
   for (const f of fields) if (!f.perArea && !f.perPriceLine && !f.row) expected.set(norm(f.label), (expected.get(norm(f.label)) ?? 0) + 1);
+  const labelsOf = (f: FormField) => [norm(f.label), ...(f.aliases ?? []).map(norm)];
+  const typeOk = (f: { type: FieldType; types?: FieldType[] }, t: string) => [f.type, ...(f.types ?? [])].some((ty) => TYPE_ALIASES[ty].includes(String(t).toLowerCase()));
+  const optional = (f: FormField) => f.required === false || (f.notRequiredIf?.some((l) => (byLabel.get(norm(l)) ?? []).length > 0) ?? false);
   const checked = new Set<string>();
   for (const f of fields) {
-    const hits = byLabel.get(norm(f.label)) ?? [];
-    if (hits.length === 0) { if (f.required) issues.push(`Missing: ${f.label}`); continue; }
+    // anyOf: the question may appear as one multichoice OR as separate checkboxes (e.g. Batts / Loose fill).
+    if (f.anyOf) {
+      const primaryHits = labelsOf(f).flatMap((l) => byLabel.get(l) ?? []);
+      const altOk = f.anyOf.every((a) => { const hits = byLabel.get(norm(a.label)) ?? []; return hits.length > 0 && hits.every((h) => typeOk(a, h.type)); });
+      if (primaryHits.length === 0 && !altOk) { if (f.required) issues.push(`Missing: ${f.label}`); continue; }
+      if (primaryHits.length > 0 && primaryHits.some((h) => !typeOk(f, h.type))) issues.push(`Wrong type: ${f.label} (expected ${f.type})`);
+      continue;
+    }
+    const hits = labelsOf(f).flatMap((l) => byLabel.get(l) ?? []);
+    if (hits.length === 0) { if (!optional(f)) issues.push(`Missing: ${f.label}`); continue; }
     const exp = expected.get(norm(f.label)) ?? 0;
     const rowCap = fields.filter((x) => x.row && norm(x.label) === norm(f.label)).reduce((s, x) => s + x.row!.rows, 0);
     if (!f.perArea && !f.perPriceLine && !f.row && hits.length > exp + rowCap) { if (!checked.has(norm(f.label))) issues.push(`Duplicate: ${f.label}`); checked.add(norm(f.label)); continue; }
-    if (!f.perArea && !f.perPriceLine && !f.row && hits.length < exp && f.required) { if (!checked.has(norm(f.label))) issues.push(`Missing: ${f.label} (expected ${exp})`); checked.add(norm(f.label)); continue; }
-    if (hits.some((h) => !TYPE_ALIASES[f.type].includes(String(h.type).toLowerCase()))) issues.push(`Wrong type: ${f.label} (expected ${f.type})`);
+    if (!f.perArea && !f.perPriceLine && !f.row && hits.length < exp && !optional(f)) { if (!checked.has(norm(f.label))) issues.push(`Missing: ${f.label} (expected ${exp})`); checked.add(norm(f.label)); continue; }
+    if (hits.some((h) => !typeOk(f, h.type))) issues.push(`Wrong type: ${f.label} (expected ${f.type})`);
   }
   // Role guard: installer forms must never contain PIESA conclusions.
   if (FORMS[key].role === "installer" && [...byLabel.keys()].some((l) => l.includes("b1 assessment outcome") || l.includes("check one option only") || l.includes("certificate of electrical safety"))) {
