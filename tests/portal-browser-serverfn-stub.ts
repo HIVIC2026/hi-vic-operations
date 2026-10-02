@@ -7,3 +7,7 @@ export const useServerFn = (fn: unknown) => async () => {
   return null;
 };
 export const createMiddleware = () => ({ server: () => ({}) });
+export const createServerFn = () => {
+  const chain = { middleware: () => chain, inputValidator: () => chain, handler: () => Object.assign(() => undefined, { __mockName: "serverFunction" }) };
+  return chain;
+};
