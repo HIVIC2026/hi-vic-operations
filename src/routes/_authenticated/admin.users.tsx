@@ -20,6 +20,8 @@ const ROLES: AppRole[] = ["admin", "electrician", "installer", "owner"];
 function Users() {
   const setRole = useAction(setUserRole);
   const setBiz = useAction(setUserBusiness);
+  const checkMitti = useAction(checkMittiAccess);
+  const sweepMitti = useAction(checkAllTrades);
   const load = useServerFn(getAdminUsers);
   const { data, error, isPending, refetch } = useQuery({
     queryKey: ["users"],
@@ -32,9 +34,13 @@ function Users() {
       <p className="mb-4 text-sm text-muted-foreground">People appear here after they sign up. Owners are linked automatically when their sign-up email matches their enquiry.</p>
       {error && <div role="alert" className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Users could not be loaded. Existing accounts are safe. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
       {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading users…</p>}
+      {!error && !isPending && <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="outline" onClick={() => void sweepMitti(undefined, "Mitti access checked for every trade")}>Check all trades in Mitti</Button>
+        <span className="text-xs text-muted-foreground">One check per person, so a job is never assigned to someone who cannot receive the Mitti forms.</span>
+      </div>}
       {!error && !isPending && <div className="overflow-x-auto rounded-xl border bg-card">
         <table className="w-full text-sm">
-          <thead className="bg-muted text-left"><tr><th className="p-3">Name</th><th className="p-3">Email</th><th className="p-3">Business</th>{ROLES.map((r) => <th key={r} className="p-3 capitalize">{r}</th>)}</tr></thead>
+          <thead className="bg-muted text-left"><tr><th className="p-3">Name</th><th className="p-3">Email</th><th className="p-3">Business</th><th className="p-3">Mitti</th>{ROLES.map((r) => <th key={r} className="p-3 capitalize">{r}</th>)}</tr></thead>
           <tbody>
             {data?.profiles.map((p) => (
               <tr key={p.id} className="border-t">
@@ -45,6 +51,16 @@ function Users() {
                     <option value="">—</option>{data.businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
                 </td>
+                <td className="p-3">{(() => {
+                  const isTrade = ROLES.some((r) => (r === "electrician" || r === "installer") && data.roles.some((x) => x.user_id === p.id && x.role === r));
+                  if (!isTrade) return <span className="text-xs text-muted-foreground">—</span>;
+                  const access = mittiAccessOf(p);
+                  return <div className="flex flex-wrap items-center gap-1">
+                    <span className={`text-xs font-semibold ${access === "member" ? "text-success" : "text-warning"}`}>{MITTI_ACCESS_LABEL[access]}</span>
+                    <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => void checkMitti({ userId: p.id }, "Mitti access checked")}>Check</Button>
+                    <span className="text-xs text-muted-foreground">{mittiCheckedLabel(p)}</span>
+                  </div>;
+                })()}</td>
                 {ROLES.map((r) => {
                   const has = data.roles.some((x) => x.user_id === p.id && x.role === r);
                   return <td key={r} className="p-3"><Checkbox checked={has} onCheckedChange={(v) => setRole({ userId: p.id, role: r, grant: !!v }, "Role updated")} /></td>;
