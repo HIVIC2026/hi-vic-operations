@@ -12,6 +12,7 @@ import {
   loadInstallerOnboarding as loadRecOnboarding, saveInstallerOnboarding as saveRecOnboarding, signInstallerAgreement as signRecAgreement, startInstallerOnboarding as startRecOnboarding,
 } from "@/lib/installer-onboarding.functions";
 import { defaultAddressProvider } from "@/lib/address-provider";
+import { newResumeToken, takeStaffLink } from "@/lib/onboarding-security.core";
 import type { AddressSuggestion } from "@/lib/whatif-location";
 
 // Public installer onboarding (same design/rules as electrician onboarding) + partner agreement signing. Progress is saved
@@ -140,6 +141,11 @@ function InstallerOnboarding() {
   const [testMode, setTestMode] = useState(false);
   const [isTest, setIsTest] = useState(false);
   const [staffLink] = useState(() => takeStaffLink());
+  const startWith = async () => {
+    const r = await startRecOnboarding({ data: { token: newResumeToken(), ...(staffLink ? { staff_link: staffLink } : {}) } });
+    setIsTest(r.test_mode); setTestMode(r.relaxed);
+    return r;
+  };
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("reset") === "1") { localStorage.removeItem(TOKEN_KEY); setLoaded(true); return; }

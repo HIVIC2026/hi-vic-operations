@@ -12,6 +12,7 @@ import {
 } from "@/lib/rec-onboarding.functions";
 import { loadTeamInvite, respondTeamInvite } from "@/lib/teaming.functions";
 import { defaultAddressProvider } from "@/lib/address-provider";
+import { newResumeToken, takeStaffLink } from "@/lib/onboarding-security.core";
 import type { AddressSuggestion } from "@/lib/whatif-location";
 
 // Public REC (electrician) onboarding + partner agreement signing. Progress is saved
@@ -208,6 +209,11 @@ function RecOnboarding() {
   const [testMode, setTestMode] = useState(false);
   const [isTest, setIsTest] = useState(false);
   const [staffLink] = useState(() => takeStaffLink());
+  const startWith = async () => {
+    const r = await startRecOnboarding({ data: { token: newResumeToken(), ...(staffLink ? { staff_link: staffLink } : {}) } });
+    setIsTest(r.test_mode); setTestMode(r.relaxed);
+    return r;
+  };
 
   const [invite, setInvite] = useState<string | null>(null);
   const [inviteInfo, setInviteInfo] = useState<Awaited<ReturnType<typeof loadTeamInvite>> | null>(null);
