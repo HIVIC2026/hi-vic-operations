@@ -1,8 +1,6 @@
 import { BLUE, GREEN, NAVY, MUTED, btn, Check } from "@/components/rec/rec-ui";
 import { RecReviewPanel, type ReviewedAgreement } from "@/components/rec/RecReviewPanel";
 import { WorkerStop } from "@/components/portal/worker-stop";
-import { InsuranceReadReview } from "@/components/onboarding/InsuranceReadReview";
-import type { InsuranceExtract } from "@/lib/insurance-reading.core";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
