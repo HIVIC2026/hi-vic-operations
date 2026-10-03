@@ -225,7 +225,7 @@ describe("PIISA installation-day gate", () => {
     expect(base({ piisa: p, conductiveExistingInsulation: null }).blockers.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(true);
     const noPhoto = base({ piisa: p, conductivityEvidence: null }).blockers;
        expect(noPhoto.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(false); // the Yes/No answer is recorded
-       expect(noPhoto.some((b) => b.includes("HI VIC supporting evidence"))).toBe(true); // separate HI VIC photo requirement
+       expect(noPhoto.some((b) => b.includes("Home Insulation Victoria supporting evidence"))).toBe(true); // separate Home Insulation Victoria photo requirement
     expect(base({ piisa: p }).blockers.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(false);
   });
   test("storage missing fails closed", () => expect(base({ storageUnavailable: true }).due).toBe("blocked"));
