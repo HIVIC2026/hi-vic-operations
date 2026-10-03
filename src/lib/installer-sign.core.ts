@@ -9,6 +9,7 @@ import { validBusinessEmail } from "./rec-onboarding.core";
 export type InstallerSignApp = {
   id: string; status: string; data: unknown; insurance_certificate_path: string | null; created_at: string; updated_at: string;
   test_mode?: boolean | null; allow_incomplete_sign?: boolean | null;
+  agreement_sha256?: string | null; partner_enquiry_id?: string | null;
 };
 export type InstallerSignInput = {
   signer_name: string; signer_position: string; signer_email: string;
@@ -72,6 +73,14 @@ export function installerEnquiry(app: InstallerSignApp, d: InstData, hash: strin
 }
 
 export async function performInstallerSign(app: InstallerSignApp, input: InstallerSignInput, meta: { ip: string | null; userAgent: string | null }, deps: InstallerSignDeps, now = new Date()) {
+  // Idempotent replay (double-click, retry after a lost response): the same reviewed agreement hash on an
+  // already-signed application returns the original signature through the same atomic RPC; it never re-signs.
+  if (app.status !== "draft" && app.agreement_sha256 && app.partner_enquiry_id && input.agreement_sha256 === app.agreement_sha256) {
+    const r = await deps.signAtomic({ appId: app.id, expectedUpdatedAt: app.updated_at, agreementSha256: app.agreement_sha256, enquiry: {}, signed: {}, nominations: [] })
+      .catch(() => { throw new Error("This application has already been signed."); });
+    if (r.outcome !== "already_signed_same") throw new Error("This application has already been signed.");
+    return { ok: true as const, outcome: r.outcome, signed_at: r.signed_at, agreement_sha256: app.agreement_sha256 };
+  }
   const blocker = installerSignBlocker(app, input, now);
   if (blocker) throw new Error(blocker);
   const d = signedData(app);
