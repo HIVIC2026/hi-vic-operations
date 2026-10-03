@@ -575,6 +575,13 @@
       "when": 1791012851400,
       "tag": "0081_installer_sign_activation",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1791013914929,
+      "tag": "0082_activation_corrections",
+      "breakpoints": true
     }
   ]
 }
