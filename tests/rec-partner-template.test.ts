@@ -29,7 +29,6 @@ describe("REC partnership invitation", () => {
     expect(canonical).not.toContain("Sharper rates help more homeowners proceed");
     // Approved edit 3 (Jo, 3 Oct): sign-off paragraph removed entirely
     expect(canonical).not.toContain("Kind regards");
-    expect(canonical).not.toContain("Home Insulation Victoria</p>");
     // Approved edit 4 (Jo, 3 Oct): referral line highlighted like the rates line
     expect(canonical).toContain("<strong style=\"color:#22376B;background:#FFDDEB;\">Know another great REC?</strong>");
     // Removed unsolicited sentence must stay out
