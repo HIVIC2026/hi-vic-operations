@@ -162,13 +162,13 @@ export async function paymentOptionCleared(jobId: string) {
 
 /** PIESA request facts: Ready Check complete, verified eligible, current quote approved, payment option verified. */
 async function piesaRequestFacts(jobId: string) {
-  const [{ count: rc }, { data: ev }, quote, payment] = await Promise.all([
+  const { verifiedEligible } = await import("./verified-eligibility.server");
+  const [{ count: rc }, eligible, quote, payment] = await Promise.all([
     admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("to_stage", "ready_check_complete"),
-    admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "eligibility_verified").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    verifiedEligible(jobId), // current, not-stale office verification only (fails closed)
     currentApprovedQuote(jobId), paymentGate(jobId),
   ]);
-  const outcome = (ev?.details as { outcome?: string } | null)?.outcome;
-  return { readyCheckComplete: (rc ?? 0) > 0, verifiedEligible: outcome === "eligible", currentQuoteApproved: !!quote, payment };
+  return { readyCheckComplete: (rc ?? 0) > 0, verifiedEligible: eligible, currentQuoteApproved: !!quote, payment };
 }
 
 /** Ready Check pathway guards (pure rules in readycheck.core.ts). */
@@ -186,6 +186,8 @@ async function readyCheckBlockers(jobId: string, to: Stage): Promise<string[]> {
   if (to === "measured_estimate_ready") {
     const { count } = await admin.from("ceiling_measurements").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("is_current", true).eq("status", "complete").eq("source_role", "installer");
     if (!count) out.push("Free Ready Check eligibility measure-up not yet completed by the installer.");
+    const { verifiedEligible } = await import("./verified-eligibility.server");
+    if (!(await verifiedEligible(jobId))) out.push("Verified eligibility not recorded as eligible by the office for the current Ready Check.");
   }
   if (to === "piesa_scheduled") {
     const { checkPiesaWindow } = await import("./readycheck.core");
