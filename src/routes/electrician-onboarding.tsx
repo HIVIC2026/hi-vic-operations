@@ -1,3 +1,5 @@
+import { BLUE, GREEN, NAVY, MUTED, btn, Check } from "@/components/rec/rec-ui";
+import { RecReviewPanel, type ReviewedAgreement } from "@/components/rec/RecReviewPanel";
 import { WorkerStop } from "@/components/portal/worker-stop";
 import { InsuranceReadReview } from "@/components/onboarding/InsuranceReadReview";
 import type { InsuranceExtract } from "@/lib/insurance-reading.core";
@@ -19,10 +21,6 @@ import type { AddressSuggestion } from "@/lib/whatif-location";
 
 // Public REC (electrician) onboarding + partner agreement signing. Progress is saved
 // server-side against an opaque resume token kept in this browser.
-const BLUE = "#3C51C4";
-const GREEN = "#07BF61";
-const NAVY = "#22376B";
-const MUTED = "#4A5578";
 const TOKEN_KEY = "hivic_rec_onboarding_token";
 
 export const Route = createFileRoute("/electrician-onboarding")({
@@ -44,7 +42,6 @@ const input: React.CSSProperties = { width: "100%", padding: "12px 14px", border
 const card: React.CSSProperties = { background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E9ECF3", boxShadow: "0 6px 20px -18px rgba(34,55,107,.32)" };
 const DISPLAY = "'Outfit', 'Figtree', system-ui, sans-serif";
 const infoCard: React.CSSProperties = { background: "#EAF8F0", border: `1px solid ${GREEN}55`, borderRadius: 14, padding: "12px 14px", fontSize: 14, color: NAVY, lineHeight: 1.5, marginBottom: 18 };
-const btn = (primary: boolean, disabled = false): React.CSSProperties => ({ minHeight: 48, padding: "0 20px", borderRadius: 12, border: primary ? "none" : `1px solid #D7DCE8`, background: primary ? (disabled ? "#9AA6D8" : BLUE) : "#fff", color: primary ? "#fff" : NAVY, fontWeight: 800, fontSize: 14, letterSpacing: 0.6, textTransform: "uppercase", cursor: disabled ? "default" : "pointer", fontFamily: "inherit" });
 
 function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
   return (
@@ -52,18 +49,6 @@ function Field({ label, required, hint, children }: { label: string; required?: 
       <label style={{ display: "block", fontWeight: 700, fontSize: 14, color: NAVY, marginBottom: 6 }}>{label}{required && <span style={{ color: BLUE }}> *</span>}</label>
       {children}
       {hint && <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>{hint}</div>}
-    </div>
-  );
-}
-function Check({ checked, onChange, children, required = false, error = null, disabled = false }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode; required?: boolean; error?: string | null; disabled?: boolean }) {
-  const box: React.CSSProperties = { display: "flex", gap: 10, alignItems: "flex-start", padding: "7px 0", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.55 : 1, fontSize: 14, lineHeight: 1.5, color: error ? "#8C1D18" : NAVY };
-  return (
-    <div style={{ marginBottom: 10 }}>
-      <label style={box}>
-        <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} style={{ width: 20, height: 20, marginTop: 1, accentColor: BLUE, flexShrink: 0 }} />
-        <span>{children}{required && <span style={{ color: BLUE, fontWeight: 800 }}> *</span>}</span>
-      </label>
-      {error && <div style={{ color: "#8C1D18", fontSize: 13, fontWeight: 700, marginTop: 6 }}>{error}</div>}
     </div>
   );
 }
@@ -615,44 +600,6 @@ function InsuranceStep({ d, up, token, setError, preview, onRevision }: { d: Rec
   </>;
 }
 
-function ReviewStep({ d, up, token, preview }: { d: RecData; up: (p: Partial<RecData>) => void; token: string; preview: boolean }) {
-  const [text, setText] = useState<string | null>(null);
-  const [version, setVersion] = useState("");
-  const [failed, setFailed] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-  const generation = useRef(0);
-  // Reload only when the schedules could change; ticking the review box must not refetch.
-  const { agreement_reviewed: _r, ...scheduleData } = d;
-  const signature = JSON.stringify(scheduleData);
-  const upRef = useRef(up); upRef.current = up;
-  useEffect(() => {
-    const mine = ++generation.current;
-    setText(null); setFailed(false);
-    if (preview) { setText(agreementText(d)); setVersion(REC_AGREEMENT_VERSION); return; }
-    getRecAgreement({ data: { token } }).then((a) => {
-      if (mine !== generation.current) return;
-      if (a.version !== REC_AGREEMENT_VERSION) { setFailed(true); upRef.current({ agreement_reviewed: false }); return; }
-      setText(a.text); setVersion(a.version);
-    }).catch(() => {
-      if (mine !== generation.current) return;
-      setFailed(true); upRef.current({ agreement_reviewed: false });
-    });
-    return () => { generation.current++; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signature, preview, token, attempt]);
-  const loaded = text !== null && !failed;
-  return <>
-    <div style={{ fontSize: 12, fontWeight: 800, color: GREEN, textTransform: "uppercase", letterSpacing: 0.8 }}>Activity 48 · VEU</div>
-    <div style={{ fontSize: 13, color: MUTED, marginBottom: 6 }}>Version {version || "—"}</div>
-    <div style={{ fontSize: 14, marginBottom: 4 }}><strong>AP:</strong> DC Construction Solutions Pty Ltd trading as Home Insulation Victoria</div>
-    <div style={{ fontSize: 14, marginBottom: 12 }}><strong>REC:</strong> {d.trading_name || d.legal_entity_name} · {d.rec_registration_number}</div>
-    {failed ? <div role="alert" style={{ border: "1px solid #F3B4AE", borderRadius: 14, padding: 16, fontSize: 14, color: "#8C1D18", background: "#FFF5F4", marginBottom: 16 }}>
-      Could not load the agreement, so it can't be reviewed yet.{" "}
-      <button type="button" onClick={() => setAttempt((x) => x + 1)} style={{ ...btn(false), minHeight: 40, marginTop: 8 }}>Try again</button>
-    </div> : <div data-testid="agreement-text" style={{ maxHeight: 420, overflowY: "auto", border: "1px solid #E4E8F0", borderRadius: 14, padding: 16, fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap", background: "#FBFCFA", marginBottom: 16 }}>{text ?? "Loading agreement…"}</div>}
-    <Check disabled={!loaded} checked={loaded && d.agreement_reviewed === true} onChange={(v) => up({ agreement_reviewed: v })}>I've reviewed the REC partner agreement and the schedules above.</Check>
-  </>;
-}
 
 function SignStep({ d, token, onSigned, preview }: { d: RecData; token: string; onSigned: () => void; preview: boolean }) {
   const [acks, setAcks] = useState<Record<string, boolean>>({});
