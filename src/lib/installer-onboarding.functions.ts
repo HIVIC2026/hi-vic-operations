@@ -35,7 +35,10 @@ async function findApp(token: string) {
 // Loose schema: drafts may be partial; strict checks happen in stepErrors on submit.
 const s = (m: number) => z.string().max(m).optional();
 const n = z.number().finite().min(0).max(1_000_000_000).nullable().optional();
+const coord = z.number().finite().min(-90).max(180).nullable().optional();
+const address = z.object({ label: z.string().max(300), street: s(300).nullable(), suburb: s(100).nullable(), postcode: s(10).nullable(), state: s(30).nullable(), country: z.literal("AU"), latitude: coord, longitude: coord, provider: z.literal("google_places_au") });
 const dataSchema = z.object({
+  business_address_details: address.nullable().optional(), service_origin_details: address.nullable().optional(),
   legal_entity_name: s(200), trading_name: s(200), abn: s(20), cii_status: s(20), cii_details: s(1000),
   business_address: s(300), primary_contact_name: s(200), business_phone: s(30), business_email: s(320), authorised_to_register: z.boolean().optional(), works_for_business: z.boolean().nullable().optional(),
   insurer: s(200), insurance_policy_number: s(100), public_liability_cover_amount: n, public_liability_expiry: s(10),
