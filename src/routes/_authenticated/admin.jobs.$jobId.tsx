@@ -99,6 +99,7 @@ function JobDetail() {
           <div id="target-electronic-signing" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminAssignmentPanel jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Customer / Consent"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("piesa")} title="PIESA" summary={job.piesa_date ? `PIESA ${fmtDate(job.piesa_date)} · install by ${fmtDate(job.install_deadline)}` : "No PIESA recorded yet"}>
+          <OfficeAllocationPanel jobId={jobId} />
           <Section title="PIESA 30-day installation window">
             {job.piesa_date ? <p className="text-sm">Current PIESA {fmtDate(job.piesa_date)} → install by <strong>{fmtDate(job.install_deadline)}</strong> ({job.days_remaining} days) <UrgencyBadge urgency={job.urgency} days={job.days_remaining} /></p> : <p className="text-sm text-muted-foreground">No PIESA recorded yet.</p>}
           </Section>
