@@ -589,6 +589,13 @@
       "when": 1791014929340,
       "tag": "0083_certification_consistency",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1791019137483,
+      "tag": "0084_installer_sign_nomination_value",
+      "breakpoints": true
     }
   ]
 }
