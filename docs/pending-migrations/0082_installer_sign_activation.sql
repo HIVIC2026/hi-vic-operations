@@ -59,6 +59,7 @@ CREATE FUNCTION public.sign_installer_application(
   _app_id uuid, _expected_updated_at timestamptz, _agreement_sha256 text, _enquiry jsonb, _signed jsonb, _nominations jsonb
 ) RETURNS TABLE(outcome text, partner_enquiry_id uuid, signed_at timestamptz)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+#variable_conflict use_column
 DECLARE
   a public.rec_onboarding_applications%ROWTYPE;
   pe uuid;
@@ -135,6 +136,7 @@ GRANT EXECUTE ON FUNCTION public.sign_installer_application(uuid, timestamptz, t
 CREATE FUNCTION public.activate_partner_application(_app_id uuid, _actor uuid, _override text, _plan jsonb)
 RETURNS TABLE(outcome text, business_id uuid, rate_card_id uuid)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+#variable_conflict use_column
 DECLARE
   a public.rec_onboarding_applications%ROWTYPE;
   ex public.partner_activations%ROWTYPE;
