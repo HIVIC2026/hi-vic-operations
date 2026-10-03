@@ -419,3 +419,9 @@ export function agreementText(d: RecData): string {
   ];
   return parts.join("\n");
 }
+
+/** Continue from Review is allowed only with a loaded current-version agreement AND an explicit tick. */
+export const recReviewGateOpen = (d: RecData, ready: { sha256: string; version: string } | null) =>
+  ready !== null && ready.version === REC_AGREEMENT_VERSION && d.agreement_reviewed === true;
+/** What the resume screen does after a failed load. The token is never cleared automatically. */
+export const resumeFailureMode = (error: unknown): "invalid" | "retry" => (shouldForgetResumeToken(error) ? "invalid" : "retry");

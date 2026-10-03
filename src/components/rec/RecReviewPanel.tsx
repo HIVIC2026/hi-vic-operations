@@ -33,7 +33,7 @@ export function RecReviewPanel({ d, up, preview, load, onReady }: {
       if (a.version !== REC_AGREEMENT_VERSION || !/^[a-f0-9]{64}$/.test(a.sha256)) { setFailed(true); return; }
       setText(a.text); setVersion(a.version); readyRef.current({ sha256: a.sha256, version: a.version });
     }).catch(() => { if (mine === generation.current) setFailed(true); });
-    return () => { generation.current++; readyRef.current(null); };
+    return () => { generation.current++; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature, preview, attempt]);
   const loaded = text !== null && !failed;
