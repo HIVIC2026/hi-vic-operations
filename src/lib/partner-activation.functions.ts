@@ -67,6 +67,7 @@ export const recordWorkerCertification = createServerFn({ method: "POST" }).midd
       const m = error.message;
       if (m.includes("cert:not_nominated")) throw new WorkflowError("That person is not a nominated installer on this application.");
       if (m.includes("cert:not_found")) throw new WorkflowError("Installer application not found.");
+      if (m.includes("cert:worker_role_conflict")) throw new WorkflowError("That email belongs to a non-installer worker in this business; nothing was changed.");
       throw new WorkflowError(`Could not record the check; nothing was changed. (${m})`);
     }
     return { ok: true as const };
