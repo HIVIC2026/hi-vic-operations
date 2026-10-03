@@ -14,7 +14,7 @@ describe("REC partnership invitation", () => {
   test("stored and rendered HTML are byte-identical to the canonical file", () => {
     expect(REC_TEMPLATE.html).toBe(canonical);
     expect(renderPartnerTemplate(REC_TEMPLATE)).toBe(canonical);
-    expect(createHash("sha256").update(canonical).digest("hex")).toBe("6c694b151f94766eb3562583337d488b05ebcd6c46a1bee48934b58578eaf381");
+    expect(createHash("sha256").update(canonical).digest("hex")).toBe("1cb0e48c5734579433a7b138bb7e72a62e519021257e88e9d9f36d21cd63b44e");
   });
   test("original headline and intro restored, with only the two approved wording replacements", () => {
     expect(canonical).toContain("<title>Hundreds of enquiries. Join our electrical network.</title>");
@@ -27,6 +27,11 @@ describe("REC partnership invitation", () => {
     // Approved replacement 2
     expect(canonical).toContain("Sharper rates help us turn more enquiries into approved jobs");
     expect(canonical).not.toContain("Sharper rates help more homeowners proceed");
+    // Approved edit 3 (Jo, 3 Oct): sign-off paragraph removed entirely
+    expect(canonical).not.toContain("Kind regards");
+    expect(canonical).not.toContain("Home Insulation Victoria</p>");
+    // Approved edit 4 (Jo, 3 Oct): referral line highlighted like the rates line
+    expect(canonical).toContain("<strong style=\"color:#22376B;background:#FFDDEB;\">Know another great REC?</strong>");
     // Removed unsolicited sentence must stay out
     expect(canonical).not.toContain("Any rectification is quoted and approved before it proceeds.");
   });
