@@ -101,7 +101,7 @@ export function fillOfficialDocxXml(input: string, key: OfficialKey, answers: Of
       const v = kind === "date" ? dateOut(value) : txt(value);
       if (!v) return; // blank stays blank
       const r = fillText(xml, from, v);
-      if (r.at < 0) missed.push(id); else { xml = r.xml; filled.push(id); charCursor = r.at; }
+      if (r.at < 0) missed.push(id); else { xml = r.xml; filled.push(id); charCursor = r.at; segs = segments(xml); }
     } else if (kind === "yesno" || kind === "yesno_na") {
       const v = txt(value);
       if (!/^(yes|no|n\/a)$/i.test(v)) return;
