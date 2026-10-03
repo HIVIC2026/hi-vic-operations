@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
   acknowledgementsFor, agreementText, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION, MIN_REC_PL_COVER,
-  applyMaterialReset, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, pageErrors, pageMembers, parseRecSampleStep, firstIncompleteStep, stepErrors, validAbn, validBusinessEmail, visiblePageForStep, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
+  applyMaterialReset, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, pageErrors, pageMembers, parseRecSampleStep, firstIncompleteStep, stepErrors, shouldForgetResumeToken, validAbn, validBusinessEmail, visiblePageForStep, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
@@ -275,7 +275,10 @@ function RecOnboarding() {
       setIsTest(!!r.test_mode); setTestMode(!!r.relaxed);
       const first = firstIncompleteStep(r.data as RecData);
       setStep(r.status === "submitted" ? "sign" : (first ?? visiblePageForStep(r.step_key)));
-    }).catch(() => localStorage.removeItem(TOKEN_KEY)).finally(() => setLoaded(true));
+    }).catch((e) => {
+      if (shouldForgetResumeToken(e)) { localStorage.removeItem(TOKEN_KEY); return; }
+      setToken(t); setError("We couldn't load your saved application just now. Your progress is safe — refresh the page to try again.");
+    }).finally(() => setLoaded(true));
   }, [invalidSample, sampleStep]);
   useEffect(() => {
     if (!started || status !== "draft") return;

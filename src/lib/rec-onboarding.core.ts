@@ -250,6 +250,10 @@ export function validCalendarDate(v?: string | null): boolean {
   return t.getUTCFullYear() === y && t.getUTCMonth() === m! - 1 && t.getUTCDate() === d;
 }
 
+export const REC_INVALID_LINK_MESSAGE = "This onboarding link is no longer valid. Please start again.";
+/** Only a definitive "link not found" may forget the saved resume token; network/server blips must keep it. */
+export const shouldForgetResumeToken = (error: unknown) => error instanceof Error && error.message === REC_INVALID_LINK_MESSAGE;
+
 /** Today in Melbourne as YYYY-MM-DD. */
 export function melbourneToday(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(now);
