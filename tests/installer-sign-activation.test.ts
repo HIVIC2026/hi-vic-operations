@@ -185,7 +185,7 @@ describe("5/6/7 certification gate, atomic activation, preferences", () => {
     expect(plan.workers[0]!.qualification).toBe("EEC CII CII-1"); // satisfies partner_workers_check without inventing training
     // Mid-transaction state: before the final approval the new business is 'draft' and inactive.
     await t.db.exec(`CREATE FUNCTION peek() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
-      IF (SELECT onboarding_status FROM businesses WHERE id = NEW.business_id) <> 'draft' OR (SELECT is_active FROM businesses WHERE id = NEW.business_id) THEN RAISE EXCEPTION 'approved too early'; END IF; RETURN NEW; END $$;
+      IF (SELECT onboarding_status FROM businesses WHERE id = (SELECT business_id FROM rate_cards WHERE id = NEW.rate_card_id)) <> 'draft' OR (SELECT is_active FROM businesses WHERE id = (SELECT business_id FROM rate_cards WHERE id = NEW.rate_card_id)) THEN RAISE EXCEPTION 'approved too early'; END IF; RETURN NEW; END $$;
       CREATE TRIGGER peek BEFORE INSERT ON rate_card_items FOR EACH ROW EXECUTE FUNCTION peek();`);
     const r = await t.activate(id, plan);
     expect(r.outcome).toBe("activated");
