@@ -49,6 +49,7 @@ function CustomerCommunications() {
   return <AppShell wide>
     <p className="text-xs font-bold uppercase text-primary">Controlled customer content</p>
     <h1 className="mt-1 text-4xl font-bold">CUSTOMER COMMUNICATIONS</h1>
+    <a href="#partner-invitation-templates" className="mt-2 inline-block text-sm font-semibold text-primary underline">Partner invitation templates ↓</a>
     <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Personally inspect every customer email here. Delivery remains locked; approving a review draft does not send it or replace regulated wording automatically.</p>
     <div className="mt-6 grid gap-5 xl:grid-cols-[360px_1fr]">
       <aside className="space-y-2">{CATALOG.map(([key, label, purpose, stage, forms], index) => {
