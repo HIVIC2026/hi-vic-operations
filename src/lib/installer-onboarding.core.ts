@@ -6,10 +6,10 @@ import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melb
 
 export { DAYS, LEAD_TIMES, RADII, validAbn };
 export type { ResolvedAddress };
-// 1.12: acknowledgement wording aligned with clause 13 (Accredited Person fee variations recorded before quote acceptance)
-// and EEC Certified Insulation Installer (CII) wording. Earlier signed versions stay immutable and remain activatable.
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.12-2026-10-03";
-export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", INSTALLER_AGREEMENT_VERSION];
+// 1.13 removes internal AP-fee override mechanics from applicant-facing wording.
+// Earlier signed versions stay immutable and remain activatable.
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.13-2026-10-03";
+export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", INSTALLER_AGREEMENT_VERSION];
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
@@ -18,7 +18,7 @@ export const ACKNOWLEDGEMENTS = [
   { key: "compliance", text: "I understand the Installer and its personnel must comply with current VEU, Code of Conduct, Activity 48, AS 3999, safety and Home Insulation Victoria requirements, and must not install without a current signed VEU pre-installation electrical safety assessment and Home Insulation Victoria ready-to-install confirmation." },
   { key: "records", text: "I confirm the Installer will provide truthful measurements, records and evidence and cooperate with Home Insulation Victoria, ESC and regulator compliance checks." },
   { key: "no_bypass", text: "I understand that removal, access, extras and other work identified through a Home Insulation Victoria Activity 48 job must be quoted, approved, scheduled and completed through the Home Insulation Victoria workflow and must not be taken off-platform or dealt with directly." },
-  { key: "pricing", text: "I understand our approved rates are supplier rates, not customer prices. On Home Insulation Victoria-sourced jobs, Home Insulation Victoria sets the customer price and may include its own margin, which it is not required to disclose to us. On jobs we bring in ourselves, we set our own price and Home Insulation Victoria adds no lead fee and no margin to it; the customer quote adds Home Insulation Victoria's Accredited Person fee ($349 including GST unless an authorised staff member records a job-specific amount before quote acceptance) and the separate $349 electrical safety assessment, and both are fixed once the customer accepts the quote. I will not share our rates with customers." },
+  { key: "pricing", text: "I understand our approved rates are supplier rates, not customer prices. On Home Insulation Victoria-sourced jobs, Home Insulation Victoria sets the customer price and may include its own margin, which it is not required to disclose to us. On jobs we bring in ourselves, we set our own price and Home Insulation Victoria adds no lead fee and no margin to it; the customer quote adds Home Insulation Victoria's Accredited Person fee ($349 including GST) and the separate $349 electrical safety assessment, and both are fixed once the customer accepts the quote. I will not share our rates with customers." },
   { key: "same_day", text: "I understand the signed VEU pre-installation installer safety assessment and install-day evidence must be submitted through the Home Insulation Victoria portal on the day of each installation." },
   { key: "electronic_signature", text: "I agree to electronic execution and to the signed agreement, exact wording, version and audit record being stored by Home Insulation Victoria." },
 ] as const;
@@ -252,6 +252,29 @@ export function normaliseInstallerDraft(d: InstData): InstData {
 export function firstIncompleteStep(d: InstData, now = new Date()): StepKey | null {
   for (const s of STEPS) if (s.key !== "sign" && stepErrors(s.key, d, now).length) return visiblePageForStep(s.key);
   return null;
+}
+
+export type InstallerSignUiBlocker = { key: string; message: string; page?: StepKey; target?: string };
+/** Complete applicant-facing signing checklist. It explains disabled signing without weakening server validation. */
+export function installerSignUiBlockers(input: {
+  data: InstData; reviewed: boolean; acknowledgements: Record<string, boolean>;
+  signerName: string; signerPosition: string; signerEmail: string; relaxed?: boolean; preview?: boolean; now?: Date;
+}): InstallerSignUiBlocker[] {
+  const blockers: InstallerSignUiBlocker[] = [];
+  if (!input.reviewed || input.data.agreement_reviewed !== true) blockers.push({ key: "review", message: "Review the agreement and tick the review confirmation above.", page: "review", target: "agreement-review" });
+  if (!input.relaxed && !input.preview) {
+    for (const page of INSTALLER_VISIBLE_PAGES) {
+      if (page.key === "review") continue;
+      const errors = pageFieldErrors(page.key, input.data, input.now);
+      if (errors.length) blockers.push({ key: `page-${page.key}`, message: `${page.title}: ${errors[0]?.message ?? "Complete this page."}`, page: page.key });
+    }
+  }
+  const unticked = ACKNOWLEDGEMENTS.filter((a) => input.acknowledgements[a.key] !== true).length;
+  if (unticked) blockers.push({ key: "acknowledgements", message: `Tick all ${ACKNOWLEDGEMENTS.length} signing acknowledgements (${unticked} remaining).`, page: "review", target: "signing-acknowledgements" });
+  if (input.signerName.trim().length < 2) blockers.push({ key: "signer-name", message: "Enter the signer's full legal name.", page: "review", target: "signer-name" });
+  if (input.signerPosition.trim().length < 2) blockers.push({ key: "signer-position", message: "Enter the signer's position or title.", page: "review", target: "signer-position" });
+  if (!validBusinessEmail(input.signerEmail)) blockers.push({ key: "signer-email", message: "Enter a valid business email for the signer.", page: "review", target: "signer-email" });
+  return blockers;
 }
 
 /** Fields that never appear in the signed agreement text; every other answer requires the agreement to be reviewed again. */

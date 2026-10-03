@@ -9,10 +9,10 @@ import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import { uploadWithRevision, signWithRecovery, type RevisionRef } from "@/lib/installer-onboarding-flow.core";
 import {
   ACKNOWLEDGEMENTS, CAPACITY_BANDS, DAYS, WORKER_CII, EXTRA_ITEMS, LEAD_TIMES, RADII, INSTALLER_AGREEMENT_VERSION,
-  agreementText, applyMaterialReset, firstIncompleteStep, pageErrors, pageFieldErrors, resolvedBusinessAddress, parseInstallerSampleStep, visiblePageForStep, visibleSteps,
+  agreementText, applyMaterialReset, firstIncompleteStep, installerSignUiBlockers, pageErrors, pageFieldErrors, resolvedBusinessAddress, parseInstallerSampleStep, visiblePageForStep, visibleSteps,
   type InstData, type ResolvedAddress, type StepKey,
 } from "@/lib/installer-onboarding.core";
-import { isAustralianAddress, isVictorianAddress, keepPickedNumber, validBusinessEmail, resumeFailureMode } from "@/lib/rec-onboarding.core";
+import { isAustralianAddress, isVictorianAddress, keepPickedNumber, resumeFailureMode } from "@/lib/rec-onboarding.core";
 import {
   confirmInstallerInsuranceUpload, getInstallerAgreement, installerInsuranceUploadUrl,
   loadInstallerOnboarding, saveInstallerOnboarding, signInstallerAgreement, startInstallerOnboarding,
@@ -403,6 +403,7 @@ function InstallerOnboarding() {
       <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onReviewReady={setReviewed} errFor={errFor} revision={revision} onUploadBusy={(b) => { navigationLock.current = b; setBusy(b); }} />
       {step === "review" && <SignStep d={d} token={token ?? ""} reviewed={reviewed} preview={sampleMode} relaxed={testMode} revision={() => revision.current}
         saveReviewed={async () => { const next = { ...d, agreement_reviewed: true }; await persist("review", next); }}
+        onGoToPage={(page) => { setStep(page); window.history.pushState({ instStep: page }, ""); window.scrollTo({ top: 0 }); }}
         onSigned={() => setStatus("submitted")} />}
       {showErrors && errs.length > 0 && (
         <div id="page-errors" tabIndex={-1} role="alert" style={{ background: "#FDECEA", border: "1px solid #F5C2BE", borderRadius: 12, padding: "10px 14px", color: "#8C1D18", fontSize: 14, marginTop: 8 }}>
@@ -533,7 +534,6 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
       const unit = d.gst_registered === false ? "total rate" : "inc GST";
       const r = d.extra_rates ?? {};
       return <>
-        <p style={{ background: BLUSH, color: PINK_TEXT, borderRadius: 8, padding: "9px 11px", fontSize: 13, fontWeight: 700, lineHeight: 1.45, margin: "0 0 6px" }}>Sharper rates help more homeowners proceed — creating more opportunities for your business.</p>
         <p style={note}>Allocation also depends on location, availability and reliable service.</p>
         <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
         <p style={note}>{d.gst_registered === false ? "Enter total supplier rates." : "Enter supplier rates including GST."} Home Insulation Victoria reviews them before they apply.</p>
@@ -546,6 +546,7 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
         <Section title={`Access & extras — optional (${unit})`}>
           {EXTRA_ITEMS.map((it, i) => <RateRow key={it.key} label={it.label} unit={it.unit} value={r[it.key]} last={i === EXTRA_ITEMS.length - 1} onChange={(v) => up({ extra_rates: { ...r, [it.key]: v } })} />)}
           <p style={{ ...note, marginTop: 6 }}>Enter $0 if it's included at no extra charge. Leave blank to quote it separately on the job before owner approval.</p>
+          <p style={{ background: BLUSH, color: PINK_TEXT, borderRadius: 8, padding: "9px 11px", fontSize: 13, fontWeight: 700, lineHeight: 1.45, margin: "0 0 6px" }}>Keeping access, call-out and other extra charges reasonable helps more homeowners proceed—and creates more opportunities for your business.</p>
         </Section>
       </>;
     }
@@ -596,7 +597,7 @@ function ReviewPanel({ d, up, preview, load, onReady }: { d: InstData; up: (p: P
       Could not load the agreement, so it can't be reviewed yet.{" "}
       <button type="button" onClick={() => setAttempt((x) => x + 1)} style={{ ...btn(false), minHeight: 40, marginTop: 8 }}>Try again</button>
     </div> : <div data-testid="agreement-text" style={{ maxHeight: 380, overflowY: "auto", border: "1px solid #E4E8F0", borderRadius: 12, padding: 14, fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere", background: "#fff", marginBottom: 14 }}>{text ?? "Loading agreement…"}</div>}
-    <Check required disabled={!loaded} checked={loaded && d.agreement_reviewed === true} onChange={(v) => up({ agreement_reviewed: v })}>I've reviewed the installer partner agreement and the schedules above.</Check>
+    <div id="agreement-review" tabIndex={-1}><Check required disabled={!loaded} checked={loaded && d.agreement_reviewed === true} onChange={(v) => up({ agreement_reviewed: v })}>I've reviewed the installer partner agreement and the schedules above.</Check></div>
   </>;
 }
 
@@ -658,7 +659,7 @@ function InsuranceStep({ d, up, token, setError, preview, revision, onUploadBusy
   </>;
 }
 
-function SignStep({ d, token, reviewed, preview, relaxed, revision, saveReviewed, onSigned }: { d: InstData; token: string; reviewed: Reviewed; preview: boolean; relaxed: boolean; revision: () => string | null; saveReviewed: () => Promise<void>; onSigned: () => void }) {
+function SignStep({ d, token, reviewed, preview, relaxed, revision, saveReviewed, onGoToPage, onSigned }: { d: InstData; token: string; reviewed: Reviewed; preview: boolean; relaxed: boolean; revision: () => string | null; saveReviewed: () => Promise<void>; onGoToPage: (page: StepKey) => void; onSigned: () => void }) {
   const [acks, setAcks] = useState<Record<string, boolean>>({});
   const [name, setName] = useState(d.primary_contact_name ?? "");
   const [position, setPosition] = useState("");
@@ -668,8 +669,8 @@ function SignStep({ d, token, reviewed, preview, relaxed, revision, saveReviewed
   const textRevision = `${INSTALLER_AGREEMENT_VERSION}:${agreementText(d)}`;
   useEffect(() => setAcks({}), [textRevision]);
   const reviewDone = !!reviewed && d.agreement_reviewed === true;
-  const incomplete = !relaxed && !preview ? firstIncompleteStep({ ...d, agreement_reviewed: true }) : null;
-  const ready = reviewDone && !incomplete && ACKNOWLEDGEMENTS.every((a) => acks[a.key]) && name.trim().length > 1 && position.trim().length > 1 && validBusinessEmail(email);
+  const blockers = installerSignUiBlockers({ data: d, reviewed: reviewDone, acknowledgements: acks, signerName: name, signerPosition: position, signerEmail: email, relaxed, preview });
+  const ready = blockers.length === 0;
   async function sign() {
     if (preview) { setErr("Sample preview only — no agreement was signed or submitted."); return; }
     setBusy(true); setErr(null);
@@ -686,11 +687,14 @@ function SignStep({ d, token, reviewed, preview, relaxed, revision, saveReviewed
   return <section style={{ borderTop: "1px solid #E4E8F0", marginTop: 20, paddingTop: 18, opacity: reviewDone ? 1 : 0.6 }}>
     <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 15, color: NAVY, marginBottom: 4 }}>2. Sign</div>
     <p style={note}>{reviewDone ? "You're signing electronically. We store the exact wording, version, your details and the time." : "Tick the review box above to sign."}</p>
-    {ACKNOWLEDGEMENTS.map((a) => <Check key={a.key} disabled={!reviewDone} checked={!!acks[a.key]} onChange={(v) => setAcks((x) => ({ ...x, [a.key]: v }))}>{a.text}</Check>)}
-    <Field label="Signer full legal name" required><input style={input} disabled={!reviewDone} value={name} onChange={(e) => setName(e.target.value)} /></Field>
-    <Field label="Position / title" required><input style={input} disabled={!reviewDone} placeholder="e.g. Director" value={position} onChange={(e) => setPosition(e.target.value)} /></Field>
-    <Field label="Signer email" required><input style={input} disabled={!reviewDone} type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
-    {incomplete && incomplete !== "review" && <p role="alert" style={{ color: "#8C1D18", fontSize: 14 }}>Complete the "{visibleSteps(d).find((p) => p.key === incomplete)?.title}" page before signing.</p>}
+    <div id="signing-acknowledgements" tabIndex={-1}>{ACKNOWLEDGEMENTS.map((a) => <Check key={a.key} disabled={!reviewDone} checked={!!acks[a.key]} onChange={(v) => setAcks((x) => ({ ...x, [a.key]: v }))}>{a.text}</Check>)}</div>
+    <Field label="Signer full legal name" required htmlFor="signer-name"><input id="signer-name" style={input} disabled={!reviewDone} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+    <Field label="Position / title" required htmlFor="signer-position"><input id="signer-position" style={input} disabled={!reviewDone} placeholder="e.g. Director" value={position} onChange={(e) => setPosition(e.target.value)} /></Field>
+    <Field label="Signer email" required htmlFor="signer-email"><input id="signer-email" style={input} disabled={!reviewDone} type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+    {blockers.length > 0 && <div role="alert" aria-label="Items required before signing" style={{ background: "#FFF5F4", border: "1px solid #F3B4AE", borderRadius: 12, padding: "11px 13px", marginBottom: 14, color: "#8C1D18", fontSize: 14 }}>
+      <div style={{ fontWeight: 800, marginBottom: 6 }}>Before you can sign:</div>
+      {blockers.map((b) => <div key={b.key} style={{ marginTop: 5 }}>• <button type="button" onClick={() => { if (b.page && b.page !== "review") onGoToPage(b.page); else { const el = b.target ? document.getElementById(b.target) : null; el?.scrollIntoView({ block: "center" }); el?.focus(); } }} style={{ border: 0, padding: 0, background: "transparent", color: "inherit", textDecoration: "underline", font: "inherit", fontWeight: 700, cursor: "pointer", textAlign: "left" }}>{b.message}</button></div>)}
+    </div>}
     {err && <p style={{ color: "#B3261E", fontSize: 14 }}>{err}</p>}
     <button style={{ ...btn(true, !ready || busy), width: "100%" }} disabled={!ready || busy || preview} onClick={sign}>{busy ? "Signing…" : preview ? "Preview only — signing disabled" : "Sign agreement & submit"}</button>
   </section>;
