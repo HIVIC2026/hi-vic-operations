@@ -7,6 +7,7 @@ import type { InstallerSignApp, InstallerSignDeps } from "../../src/lib/installe
 
 export const PENDING_SQL = readFileSync(new URL("../../docs/pending-migrations/0082_installer_sign_activation.sql", import.meta.url), "utf8");
 export const CORRECTION_SQL = readFileSync(new URL("../../docs/pending-migrations/0083_activation_corrections.sql", import.meta.url), "utf8");
+export const CERT_CONSISTENCY_SQL = readFileSync(new URL("../../docs/pending-migrations/0084_certification_consistency.sql", import.meta.url), "utf8");
 const SCHEMA = `
 CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
 CREATE TYPE app_role AS ENUM ('admin','electrician','installer','owner');
@@ -100,6 +101,7 @@ export async function installerDb() {
   await db.exec(SCHEMA);
   await db.exec(PENDING_SQL);
   await db.exec(CORRECTION_SQL);
+  await db.exec(CERT_CONSISTENCY_SQL);
   await db.query(`INSERT INTO profiles(id) VALUES ($1), ($2)`, [ADMIN, OTHER]);
   await db.query(`INSERT INTO user_roles(user_id, role) VALUES ($1, 'admin')`, [ADMIN]);
   const app = async (id: string): Promise<InstallerSignApp & Record<string, unknown>> =>
