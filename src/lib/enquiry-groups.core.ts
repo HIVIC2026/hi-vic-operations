@@ -174,7 +174,7 @@ export function sendHolds(x: { commsEnabled: boolean; approval: "approved" | "dr
   if (!x.commsEnabled) holds.push("Customer communications are OFF");
   if (x.approval === "draft") holds.push("New template – needs approval before sending");
   if (x.purpose === "step3_estimate" || x.purpose === "preliminary_ineligible") {
-    const s = emailSuppression({ purpose: x.purpose, optedOut: false, bounced: false, stage: x.stage, jobSource: x.source, jobCreatedAt: x.createdAt, recipient: x.email, jobsCreatedAfter: x.jobsCreatedAfter, now: x.now });
+    const s = emailSuppression({ purpose: x.purpose, optedOut: false, bounced: false, stage: x.stage, jobSource: x.source, jobCreatedAt: x.createdAt, recipient: x.email, jobsCreatedAfter: x.jobsCreatedAfter, now: x.now ?? Date.now() });
     if (s) holds.push(SUPPRESSION_WORDS[s] ?? s);
   } else holds.push("No manual send path yet – sending stays locked");
   return holds;
