@@ -24,6 +24,7 @@ CREATE TABLE public.properties (id uuid primary key, postcode text);
 CREATE TABLE public.jobs (id uuid primary key, owner_id uuid, property_id uuid, stage job_stage not null);
 CREATE TABLE public.job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid not null references jobs(id), user_id uuid not null references profiles(id), role assignment_role not null, business_id uuid, active boolean not null default true, assigned_by uuid references profiles(id), assigned_at timestamptz not null default now());
 CREATE TABLE public.partner_offers (id uuid primary key default gen_random_uuid(), job_id uuid not null, business_id uuid not null, status text not null default 'pending', summary jsonb not null default '{}', offered_by uuid, offered_at timestamptz not null default now(), expires_at timestamptz, responded_by uuid, responded_at timestamptz, decline_reason text);
+CREATE UNIQUE INDEX partner_offers_one_pending ON public.partner_offers(job_id) WHERE status = 'pending';
 CREATE TABLE public.workflow_settings (id integer primary key default 1);
 CREATE TABLE public.piesa_records (id uuid primary key default gen_random_uuid(), job_id uuid);
 CREATE TABLE public.quotes (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, status text);
@@ -49,7 +50,7 @@ const sees = async (user: string) => {
   await db.exec(`SET ROLE authenticated; SELECT set_config('request.jwt.claim.sub','${user}',false);`);
   try { return (await db.query<{ ok: boolean }>(`SELECT has_contact_release('${JOB}','${user}') ok`)).rows[0]!.ok; } finally { await db.exec("RESET ROLE;"); }
 };
-beforeEach(async () => { db = new PGlite(); await db.exec(BASE); await db.exec(read("0086_piesa_allocation_self_scheduling.sql")); await db.exec(read("0087_allocation_hardening.sql")); });
+beforeEach(async () => { db = new PGlite(); await db.exec(BASE); await db.exec(read("0086_piesa_allocation_self_scheduling.sql")); await db.exec(read("0087_allocation_hardening.sql")); await db.exec(read("0088_offer_batch_index.sql")); });
 
 describe("0087 acceptance re-checks (practice database)", () => {
   test("qualified, in-area REC at the PIESA stage is accepted", async () => { expect(await accept()).toBe("accepted"); });
@@ -81,5 +82,16 @@ describe("0087 contacts only for the current visit", () => {
     expect(await sees(U.inst)).toBe(false); // installation contacts need their own release after clearance
     await db.exec(`INSERT INTO contact_releases (job_id,assignment_id,visit_kind,owner_notice,trade_notice) SELECT job_id,id,'installation','o','t' FROM job_assignments WHERE role='installer'`);
     expect(await sees(U.inst)).toBe(true);
+  });
+});
+
+describe("0088 batch offers", () => {
+  test("several RECs can hold an open PIESA offer; installer offers stay one per job", async () => {
+    const B2 = "10000000-0000-4000-8000-000000000002";
+    await db.exec(`INSERT INTO businesses (id,name) VALUES ('${B2}','TEST REC 2')`);
+    await db.exec(`INSERT INTO partner_offers (job_id,business_id,kind) VALUES ('${JOB}','${B}','piesa'),('${JOB}','${B2}','piesa')`);
+    await db.exec(`INSERT INTO partner_offers (job_id,business_id,kind) VALUES ('${JOB}','${B}','installer')`);
+    await expect(db.exec(`INSERT INTO partner_offers (job_id,business_id,kind) VALUES ('${JOB}','${B2}','installer')`)).rejects.toThrow();
+    await expect(db.exec(`INSERT INTO partner_offers (job_id,business_id,kind) VALUES ('${JOB}','${B}','piesa')`)).rejects.toThrow();
   });
 });
