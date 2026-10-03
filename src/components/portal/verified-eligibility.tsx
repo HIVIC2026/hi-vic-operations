@@ -10,9 +10,41 @@ import {
   getVerifiedEligibility,
   recordVerifiedEligibility,
 } from "@/lib/verified-eligibility.functions";
-import { VERIFIED_LABEL, type VerifiedOutcome } from "@/lib/verified-eligibility.core";
+import {
+  VERIFIED_LABEL,
+  electricalSummary,
+  evidenceSummary,
+  readyCheckPresent,
+  type ReadyCheckEvidence,
+  type SummaryRow,
+  type VerifiedOutcome,
+} from "@/lib/verified-eligibility.core";
+
+function Rows({ rows }: { rows: SummaryRow[] }) {
+  return (
+    <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 text-sm">
+      {rows.map((r) => (
+        <div key={r.label} className="contents">
+          <dt className="text-muted-foreground">{r.label}</dt>
+          <dd
+            className={
+              r.ok === false
+                ? "text-danger font-medium"
+                : r.ok === null
+                  ? "text-warning font-medium"
+                  : ""
+            }
+          >
+            {r.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
 type View = {
+  evidence: ReadyCheckEvidence;
   assessment: {
     missing: string[];
     reviewReasons: string[];
@@ -62,6 +94,7 @@ export function VerifiedEligibilityCard({ jobId }: { jobId: string }) {
         </p>
       </Section>
     );
+  if (!readyCheckPresent(data.evidence)) return null;
   const a = data.assessment;
   const needsText = outcome === "not_eligible" || outcome === "needs_review";
   const submit = async () => {
@@ -92,6 +125,28 @@ export function VerifiedEligibilityCard({ jobId }: { jobId: string }) {
           </span>
         )}
       </p>
+      {data.stale && (
+        <p role="alert" className="mt-1 text-sm text-danger">
+          Quote and PIESA progression stay blocked until this job is re-reviewed.
+        </p>
+      )}
+      <div className="mt-3">
+        <div className="mb-1 text-sm font-semibold">
+          Ready Check evidence (property eligibility)
+        </div>
+        <Rows rows={evidenceSummary(data.evidence)} />
+        {data.evidence.conflicts.length > 0 && (
+          <p className="mt-1 text-sm text-warning">
+            Conflicting evidence: {data.evidence.conflicts.join("; ")}
+          </p>
+        )}
+      </div>
+      <div className="mt-3 border-t pt-2">
+        <div className="mb-1 text-sm font-semibold">
+          Section D electrical observations — safety/planning only, not eligibility
+        </div>
+        <Rows rows={electricalSummary(data.evidence)} />
+      </div>
       {a.missing.length > 0 && (
         <div className="mt-2 text-sm">
           <div className="font-semibold">Missing evidence</div>
@@ -114,6 +169,7 @@ export function VerifiedEligibilityCard({ jobId }: { jobId: string }) {
       )}
       {a.flags.length > 0 && (
         <div className="mt-2 text-sm text-muted-foreground">
+          <div className="font-semibold">Safety/planning flags</div>
           <ul className="list-disc pl-5">
             {a.flags.map((m) => (
               <li key={m}>{m}</li>

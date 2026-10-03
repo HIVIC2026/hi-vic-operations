@@ -182,3 +182,112 @@ export function verifiedEligibleNow(
 ): boolean {
   return !!v && v.outcome === "eligible" && !verificationStale(v, current);
 }
+
+export type SummaryRow = { label: string; value: string; ok: boolean | null };
+
+/** True when the office card should show: a Ready Check is final or any Ready Check evidence exists. */
+export function readyCheckPresent(e: ReadyCheckEvidence): boolean {
+  return !!e.readyCheck.ref || e.readyCheck.final;
+}
+
+const yn = (b: boolean) => (b ? "Provided" : "Missing");
+
+/** Property-eligibility evidence summary (Section D electrical kept separate in `electricalSummary`). */
+export function evidenceSummary(e: ReadyCheckEvidence): SummaryRow[] {
+  const ins = e.insulation;
+  const rows: SummaryRow[] = [
+    {
+      label: "Ready Check",
+      value:
+        e.readyCheck.version === null
+          ? "Not recorded"
+          : `Version ${e.readyCheck.version}${e.readyCheck.final ? " · final" : " · not final"}`,
+      ok: e.readyCheck.final,
+    },
+    {
+      label: "Attendance / time",
+      value: e.attendance.installer && e.attendance.attendedAt ? "Recorded" : "Missing",
+      ok: e.attendance.installer && e.attendance.attendedAt,
+    },
+    {
+      label: "Geotagged attendance photo",
+      value: yn(e.attendance.geotagPhoto),
+      ok: e.attendance.geotagPhoto,
+    },
+    {
+      label: "Ceiling-space media",
+      value: yn(e.attendance.ceilingMedia),
+      ok: e.attendance.ceilingMedia,
+    },
+    {
+      label: "Measured ceiling area",
+      value: e.measure.areaM2 ? `${e.measure.areaM2} m²` : "Missing",
+      ok: !!e.measure.areaM2 && e.measure.areaM2 > 0,
+    },
+    { label: "Measurement method", value: e.measure.method ?? "Missing", ok: !!e.measure.method },
+    {
+      label: "Existing insulation",
+      value: ins.existing ?? "Missing",
+      ok: ins.existing === null ? false : ins.existing === "unknown" ? null : true,
+    },
+  ];
+  if (ins.existing === "present") {
+    rows.push(
+      { label: "Insulation type", value: ins.type ?? "Not recorded", ok: !!ins.type },
+      {
+        label: "Depth / R-value",
+        value:
+          [
+            ins.depthMm !== null ? `${ins.depthMm} mm` : null,
+            ins.rValue !== null ? `R${ins.rValue}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || "Not recorded",
+        ok: ins.rValue !== null ? rBelowLimit(ins.rValue) : null,
+      },
+      { label: "Insulation photos", value: yn(ins.photos), ok: ins.photos },
+    );
+  }
+  rows.push(
+    {
+      label: "Removal",
+      value: e.removal ?? "Missing",
+      ok: e.removal === null ? false : e.removal === "uncertain" ? null : true,
+    },
+    {
+      label: "Access / site",
+      value: e.access.level ?? "Missing",
+      ok: e.access.level
+        ? e.access.level === "difficult" && !e.access.evidence
+          ? null
+          : true
+        : false,
+    },
+    {
+      label: "Previous VEU ceiling-insulation upgrade (declared)",
+      value: e.previousUpgrade ?? "Not answered",
+      ok: e.previousUpgrade === "yes" ? null : e.previousUpgrade === "no" ? true : null,
+    },
+  );
+  return rows;
+}
+
+/** Section D — safety/planning only, never property eligibility. */
+export function electricalSummary(e: ReadyCheckEvidence): SummaryRow[] {
+  return [
+    {
+      label: "Downlight count",
+      value:
+        e.electrical.downlightCount === null ? "Not recorded" : String(e.electrical.downlightCount),
+      ok: e.electrical.downlightCount === null ? null : true,
+    },
+    {
+      label: "Downlight type",
+      value: e.electrical.downlightType ?? "Not recorded",
+      ok:
+        !e.electrical.downlightType || e.electrical.downlightType === "unable_to_confirm"
+          ? null
+          : true,
+    },
+  ];
+}
