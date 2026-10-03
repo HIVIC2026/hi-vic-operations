@@ -22,6 +22,7 @@ export type FormField = {
   /** Portal evidence kept outside the official form. */ supplemental?: boolean;
 };
 import { B1_OPTIONS, B2_OPTIONS, OFFICIAL_ITEMS, type ItemKind } from "./official-forms.core";
+import { SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS } from "./official-short.core";
 
 const G = "ESC Guide V1.1";
 const F1 = "DEECA PIESA form";
