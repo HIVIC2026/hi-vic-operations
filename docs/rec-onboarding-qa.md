@@ -21,6 +21,7 @@ Root `/` → staff sign-in change preserved (untouched).
 | B6 | Any radius 1–100000 accepted by the server | Only the five offered radii (25/50/75/100/all-Victoria) |
 | B7 | Arbitrary/duplicate day values accepted | Days must be unique values from the list |
 | B8 | Sign button enabled for any text containing "@" while the server rejected it | Client uses the same `validBusinessEmail` |
+| B10 | 21 custom rate items passed page validation (only the server schema capped at 20) | Page/sign validation caps at 20 |
 | B9 | Sample data pre-ticked "reviewed" | Removed; preview requires an explicit tick |
 
 ## Matrix
@@ -47,7 +48,8 @@ Root `/` → staff sign-in change preserved (untouched).
 | RAT-1 GST | yes / no / unanswered + schedule labels | STRICT-UNIT | PASS |
 | RAT-2 required rates | null/0/−1/100001/NaN/∞ on PIESA, attendance, RCD; decimal 329.95 | STRICT-UNIT | PASS |
 | RAT-3 CoES | unanswered, separate w/o fee, separate $45, switch back to included (no stale $45 in agreement) | STRICT-UNIT | PASS |
-| RAT-4 custom items | valid, dup description (case), dup id, desc 1/121, unit blank/31, price 0, bad id; schedule line | STRICT-UNIT | PASS; 20-item limit enforced by server schema `.max(20)` CODE-READ only |
+| EXT-1 reviewer boundaries | 2099-99-99, radius 42, Funday, 21 items, 20 items | STRICT-UNIT | PASS (after B5–B7, B10) |
+| RAT-4 custom items | valid, dup description (case), dup id, desc 1/121, unit blank/31, price 0, bad id; schedule line | STRICT-UNIT | PASS; 20-item limit now in validation (EXT-1) |
 | BNK-1 | BSB 3 valid/5 invalid, account 2 valid/4 invalid, blank name | STRICT-UNIT | PASS |
 | REV-1 load failure fail-closed | | CODE-READ + SAMPLE-UI (loaded path) | Loaded path PASS; failure path browser NOT TESTED (needs a real token; server functions use an internal protocol that can't be safely mocked) |
 | REV-2 review always mandatory | unticked stays on page (sample), relaxed sign blocked | SAMPLE-UI + STRICT-HARNESS | PASS (after B2) |
@@ -70,8 +72,14 @@ Root `/` → staff sign-in change preserved (untouched).
 | OFF-1 submitted app reaches office queue | entry with submission_id + raw_payload linked on the application | STRICT-HARNESS | PASS (logic); real admin list render NOT TESTED |
 | OFF-2 success copy | lists checks and next steps conditional on approval; no volume/timing promise | CODE-READ | PASS |
 
+## Independently reproduced evidence (reviewer, base ba756b2d, Node 24 on the pure core)
+`stepErrors` returned [] for expiry `2099-99-99` (B5), radius 42 (B6), days `["Funday"]` (B7), 21 distinct custom items (B10). Case EXT-1 in `tests/rec-sign-qa.test.ts` asserts all four now fail and 20 items still pass: **PASS**. Reviewer also confirmed: baseline full fixture complete, Infinity rate rejected, GST no + CoES included omits stale fee — matching RAT-2/RAT-3.
+
+## Submission idempotency vs production unique keys
+Read-only `pg_indexes` (confirmed by me and independently by the reviewer): UNIQUE `partner_enquiries(source_system, enquiry_type, submission_id)` and UNIQUE `rec_onboarding_applications(resume_token_hash)`. Signing relies on the first: `submission_id = portal-rec-onboarding-<application id>`, so a duplicate insert returns unique-conflict (23505), which `performRecSign` treats as "entry already exists" → looks it up and re-uses it (SGN-6, SGN-8). The application update is conditional on `status = 'draft'` and must change a row. The harness's fake database enforces the same unique key.
+
 ## Commands and results
-- `bun test tests/rec-sign-qa.test.ts tests/rec-onboarding.test.ts tests/partner-activation.test.ts tests/insurance-reading.test.ts` → **66 pass, 0 fail, 498 expects** (first run 65/1: old test asserted services-only mandatory list; updated for B2).
+- `bun test tests/rec-sign-qa.test.ts tests/rec-onboarding.test.ts tests/partner-activation.test.ts tests/insurance-reading.test.ts` → **67 pass, 0 fail, 504 expects** (rerun after EXT-1) (first run 65/1: old test asserted services-only mandatory list; updated for B2).
 - `tsgo --noEmit` → no errors.
 - Preview build log → `build OK`.
 - `python3 /tmp/browser/recqa/smoke.py` → 18/18 screens ok, 0 page errors; review box unticked, sign disabled in preview.
