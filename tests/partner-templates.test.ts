@@ -27,12 +27,21 @@ describe("partner invitation templates", () => {
     expect(hrefs.some((h) => /installer-onboarding[?#/]/.test(h))).toBe(false);
   });
 
-  test("copy: preheader, app, leads, referral highlight, no old sign-off", () => {
+  test("copy: preheader, online portal, leads, referral highlight, no old sign-off", () => {
     const html = INSTALLER_TEMPLATE.html;
-    expect(html).toContain("Your customers or our leads. One app to manage the job, with Home Insulation Victoria handling the rebate process. No lead fees.");
-    expect(html).toContain("One app to keep the job moving");
+    expect(html).toContain("Your customers or our leads. We manage the VEU rebate process and help keep the paperwork off your plate. No lead fees.");
+    expect(html).toContain("As your Accredited Person, Home Insulation Victoria manages the Victorian Energy Upgrades (VEU) rebate process and supports you from the initial enquiry through to completion.");
+    expect(html).toContain("Bring us your own customers, set your installation price and help eligible customers access VEU savings. No lead fees.");
+    expect(html).toContain("Your job information in one place");
+    expect(html).toContain("Our online portal gives you access to job details, required documents and next steps, so you can see what each job needs.");
+    expect(html).toContain('<strong style="color:#22376B;background:#FFDDEB;">We take care of the paperwork, so you can focus on installing.</strong> We handle customer quotes');
+    expect(html).toContain("Tell us where you work, how much capacity you have and your supplier rates. We’ll agree the details with you before allocating work.");
+    // No in-app messaging claims and no "app" wording: the job view is the online portal.
+    expect(html).not.toMatch(/\bapp\b/i);
+    expect(html).not.toContain("manage bookings and messages");
+    expect(html).not.toContain("You bring the installation expertise");
+    expect(html).not.toContain("enquiries");
     expect(html).toContain("homeowner leads.");
-    expect(html).not.toMatch(/enquir/i);
     expect(html).toContain('<strong style="color:#22376B;background:#FFDDEB;">Know another great installer?</strong>');
     expect(html).not.toMatch(/HI VIC|HIVIC|JOIN OUR INSTALLER NETWORK|Kind regards|Warm regards/);
     expect(html.startsWith("<!doctype html>")).toBe(true);
