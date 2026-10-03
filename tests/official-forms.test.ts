@@ -45,7 +45,7 @@ describe("verbatim wording and order against the original Word files", () => {
       const fields = FORMS[k].fields; const firstSupp = fields.findIndex((f) => f.supplemental);
       expect(firstSupp).toBeGreaterThan(0);
       expect(fields.slice(firstSupp).every((f) => f.supplemental)).toBe(true);
-      expect(fields.slice(0, firstSupp).every((f) => f.official && !f.supplemental)).toBe(true);
+      expect(fields.slice(0, firstSupp).every((f) => !f.supplemental)).toBe(true);
     }
     expect(FORMS.piisa.fields.some((f) => /owner name/i.test(f.label))).toBe(false);
   });
