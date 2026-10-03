@@ -1,3 +1,4 @@
+import { useMe } from "@/hooks/use-me";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -61,7 +62,7 @@ function CustomerCommunications() {
         <section className="rounded-md border bg-card p-5"><h2 className="text-lg font-bold">Version history</h2>{drafts.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">No personal review version saved yet.</p> : <div className="mt-3 space-y-3">{drafts.map((row) => <article key={row.id} className="rounded-md border p-4"><div className="flex flex-wrap items-center gap-2"><b>{row.version}</b><Pill t={row.status === "approved" ? "good" : row.status === "draft" ? "warn" : "neutral"}>{row.status}</Pill>{row.status === "draft" && <Button className="ml-auto" size="sm" onClick={async () => { await approve({ id: row.id }, "Review version approved"); await refetch(); }}>Approve review version</Button>}</div><p className="mt-2 text-sm font-semibold">{row.subject}</p><pre className="mt-2 whitespace-pre-wrap rounded-md bg-muted p-3 font-sans text-sm">{row.body_markdown}</pre>{row.source_note && <p className="mt-2 text-xs text-muted-foreground">Note: {row.source_note}</p>}</article>)}</div>}</section>
       </section>
     </div>
-    <PartnerTemplates />
+    <OfficeOnlyPartnerTemplates />
   </AppShell>;
 }
 
@@ -77,6 +78,11 @@ function useLogoBase64(): string {
     return () => { cancelled = true; };
   }, []);
   return logo;
+}
+
+function OfficeOnlyPartnerTemplates() {
+  const { data: me } = useMe();
+  return (me?.roles ?? []).includes("admin") ? <PartnerTemplates /> : null;
 }
 
 function PartnerTemplates() {
