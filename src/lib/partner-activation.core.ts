@@ -35,8 +35,10 @@ export function activationWorkers(type: PartnerType, application: RecData | Inst
 export function installerQualification(worker: { qualification?: string | null; cii_holds?: string | null; cii_certificate_number?: string | null }, v?: CertVerification | null): string {
   const stated = worker.qualification?.trim();
   if (stated) return stated.slice(0, 300);
-  const num = (v?.status === "verified" ? v.certificate_number : null)?.trim() || worker.cii_certificate_number?.trim();
-  const basis = v?.status === "verified" ? "office-verified" : v?.status === "rejected" ? "not accepted" : "declared, not verified";
+  const verifiedNum = v?.status === "verified" ? v.certificate_number?.trim() : "";
+  if (verifiedNum) return `EEC CII ${verifiedNum} (office-verified)`;
+  const basis = v?.status === "rejected" ? "not accepted" : "declared, not verified";
+  const num = worker.cii_certificate_number?.trim();
   if (num) return `EEC CII ${num} (${basis})`;
   const held = worker.cii_holds === "held" ? "held" : worker.cii_holds === "in_training" ? "in training" : worker.cii_holds === "not_held" ? "not held" : "not stated";
   return `EEC CII ${held} (${basis})`;

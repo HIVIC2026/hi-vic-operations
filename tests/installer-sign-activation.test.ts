@@ -233,7 +233,7 @@ describe("5/6/7 certification gate, atomic activation, preferences", () => {
     const t = await installerDb();
     const { id, signed } = await signedApp(t, { ...complete, installers: [{ ...complete.installers![0]!, qualification: undefined }] } as InstData);
     const plan = planActivation("installer", signed as never, signed.data as InstData, latestCertifications([cert("a@samplebiz.com.au")]), []);
-    expect(plan.workers[0]!.qualification).toBe("EEC CII CII-1"); // satisfies partner_workers_check without inventing training
+    expect(plan.workers[0]!.qualification).toBe("EEC CII CII-1 (declared, not verified)"); // cert status alone decides; satisfies partner_workers_check without inventing training
     // Mid-transaction state: before the final approval the new business is 'draft' and inactive.
     await t.db.exec(`CREATE FUNCTION peek() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
       IF (SELECT onboarding_status FROM businesses WHERE id = (SELECT business_id FROM rate_cards WHERE id = NEW.rate_card_id)) <> 'draft' OR (SELECT is_active FROM businesses WHERE id = (SELECT business_id FROM rate_cards WHERE id = NEW.rate_card_id)) THEN RAISE EXCEPTION 'approved too early'; END IF; RETURN NEW; END $$;
