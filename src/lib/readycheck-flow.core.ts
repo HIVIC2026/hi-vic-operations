@@ -144,3 +144,15 @@ export function bookingStageExitBlocker(from: string, to: string, f: VisitFacts)
   if (!f.confirmedBooking) return "The visit time has not been confirmed by the other party.";
   return null;
 }
+
+/** Needs attention items for message recipients. Failed, undelivered and suppressed-with-follow-up rows always surface,
+ *  with who / what / why. Delivered, read or link-opened never count as approval and never progress workflow. */
+export type MessageRow = { id: string; jobId: string; recipient: string; channel: "email" | "sms"; template: string;
+  outcome: "prepared" | "queued" | "sent" | "delivered" | "failed" | "undelivered" | "suppressed"; reason?: string | null; followUp?: boolean };
+export type AttentionItem = { code: "failed_message"; jobId: string; messageId: string; who: string; what: string; why: string };
+export function failedMessageAttention(rows: MessageRow[]): AttentionItem[] {
+  return rows
+    .filter((r) => r.outcome === "failed" || r.outcome === "undelivered" || (r.outcome === "suppressed" && r.followUp))
+    .map((r) => ({ code: "failed_message", jobId: r.jobId, messageId: r.id, who: r.recipient, what: `${r.channel} · ${r.template}`,
+      why: r.reason?.trim() || (r.outcome === "suppressed" ? "Held: sending is switched off" : "No reason given by the provider") }));
+}
