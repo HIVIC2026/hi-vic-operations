@@ -37,5 +37,13 @@ export async function signWithRecovery(reviewedSha: string | null, deps: SignDep
   await deps.saveReviewed();
   const current = await deps.agreement();
   if (current.sha256 !== reviewedSha || Date.parse(current.updated_at) !== Date.parse(deps.revision() ?? "")) throw new Error(REVIEW_AGAIN);
-  return deps.sign(current.updated_at, current.sha256);
+  try {
+    return await deps.sign(current.updated_at, current.sha256);
+  } catch (error) {
+    // The database may have committed even when the browser lost the response. Re-read once and use
+    // the RPC's hash-checked replay path only when the application is now submitted.
+    const after = await deps.load();
+    if (after.status !== "draft") return deps.sign(after.updated_at ?? new Date(0).toISOString(), reviewedSha);
+    throw error;
+  }
 }
