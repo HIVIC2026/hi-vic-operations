@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
   acknowledgementsFor, agreementText, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION, MIN_REC_PL_COVER,
-  applyMaterialReset, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, pageErrors, pageMembers, parseRecSampleStep, firstIncompleteStep, validAbn, visiblePageForStep, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
+  applyMaterialReset, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, pageErrors, pageMembers, parseRecSampleStep, firstIncompleteStep, stepErrors, validAbn, visiblePageForStep, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
@@ -124,14 +124,21 @@ function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = fals
   const [active, setActive] = useState(-1);
   const [focused, setFocused] = useState(false);
   const [edited, setEdited] = useState(false);
-  const seq = useRef(0);
+  const searchSeq = useRef(0);
+  const detailsSeq = useRef(0);
   const root = useRef<HTMLDivElement | null>(null);
   const mounted = useRef(true);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; seq.current += 1; }; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; searchSeq.current += 1; detailsSeq.current += 1; }; }, []);
+  useEffect(() => {
+    if (resolved?.label !== value) return;
+    searchSeq.current += 1;
+    detailsSeq.current += 1;
+    setEdited(false); setItems([]); setOpen(false); setActive(-1); setLoading(false); setNote("");
+  }, [resolved, value]);
   useEffect(() => {
     const close = (event: PointerEvent) => {
-      if (root.current && !root.current.contains(event.target as Node)) {
-        seq.current += 1; setOpen(false); setItems([]); setActive(-1); setLoading(false);
+      if (root.current && !event.composedPath().includes(root.current)) {
+        searchSeq.current += 1; detailsSeq.current += 1; setFocused(false); setOpen(false); setItems([]); setActive(-1); setLoading(false);
       }
     };
     document.addEventListener("pointerdown", close);
@@ -139,47 +146,48 @@ function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = fals
   }, []);
   useEffect(() => {
     const q = value.trim();
-    if (!focused || !edited || (resolved && resolved.label === value)) { setItems([]); setOpen(false); return; }
-    if (q.length < 4) { setItems([]); setOpen(false); setNote(""); return; }
-    const mine = ++seq.current;
+    if (!focused || !edited || (resolved && resolved.label === value)) { setItems([]); setOpen(false); setLoading(false); return; }
+    if (q.length < 4) { searchSeq.current += 1; setItems([]); setOpen(false); setActive(-1); setLoading(false); setNote(""); return; }
+    const mine = ++searchSeq.current;
     const t = setTimeout(async () => {
-      if (!mounted.current || mine !== seq.current) return;
+      if (!mounted.current || mine !== searchSeq.current) return;
       setLoading(true);
       try {
         const r = (await defaultAddressProvider.search(q)).slice(0, 6);
-        if (!mounted.current || mine !== seq.current) return;
+        if (!mounted.current || mine !== searchSeq.current) return;
         setItems(r); setActive(r.length ? 0 : -1); setOpen(true); setNote(r.length ? "" : "No Australian address matched. Keep typing and include the postcode.");
-      } catch { if (mounted.current && mine === seq.current) { setItems([]); setOpen(true); setNote("Address lookup is unavailable right now. Please try again."); } }
-      finally { if (mounted.current && mine === seq.current) setLoading(false); }
+      } catch { if (mounted.current && mine === searchSeq.current) { setItems([]); setOpen(true); setNote("Address lookup is unavailable right now. Edit the address to try again."); } }
+      finally { if (mounted.current && mine === searchSeq.current) setLoading(false); }
     }, 300);
-    return () => { clearTimeout(t); seq.current += 1; };
+    return () => { clearTimeout(t); searchSeq.current += 1; };
   }, [edited, focused, resolved, value]);
   async function choose(s: AddressSuggestion) {
-    const mine = ++seq.current;
-    setOpen(false); setItems([]); setActive(-1); setEdited(false); setLoading(true); setNote("");
+    searchSeq.current += 1;
+    const mine = ++detailsSeq.current;
+    setOpen(false); setItems([]); setActive(-1); setLoading(true); setNote("");
     try {
       const details = await defaultAddressProvider.details(s.id) as ResolvedAddress;
-      if (!mounted.current || mine !== seq.current) return;
+      if (!mounted.current || mine !== detailsSeq.current) return;
       if (!isAustralianAddress(details)) throw new Error("incomplete");
       if (victoriaOnly && !isVictorianAddress(details)) {
-        onSelect(null); setOpen(false); setNote("Sorry, your service area needs to be in Victoria."); return;
+        onSelect(null); setOpen(false); setEdited(true); setNote("Sorry, your service area needs to be in Victoria. Choose another result."); return;
       }
       onChange(details.label); onSelect(details); setOpen(false); setItems([]); setEdited(false); setAnnounce(`Selected ${details.label}`);
-    } catch { if (mounted.current && mine === seq.current) { onSelect(null); setOpen(false); setNote("We couldn't verify that address. Please choose another result."); } }
-    finally { if (mounted.current && mine === seq.current) setLoading(false); }
+    } catch { if (mounted.current && mine === detailsSeq.current) { onSelect(null); setItems([s]); setActive(0); setOpen(focused); setEdited(true); setNote("We couldn't verify that address. Select it again or choose another result."); } }
+    finally { if (mounted.current && mine === detailsSeq.current) setLoading(false); }
   }
-  const dismiss = () => { seq.current += 1; setOpen(false); setItems([]); setActive(-1); setLoading(false); };
+  const dismiss = () => { searchSeq.current += 1; detailsSeq.current += 1; setOpen(false); setItems([]); setActive(-1); setLoading(false); };
   return (
     <div ref={root} style={{ position: "relative" }}>
       <input id={id} style={input} role="combobox" aria-expanded={open && items.length > 0} aria-controls={`${id}-options`} aria-autocomplete="list" aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined} autoComplete="off" placeholder="Start typing your address…" value={value}
-        onFocus={() => setFocused(true)} onChange={(e) => { seq.current += 1; setEdited(true); setItems([]); setOpen(false); setNote(""); setAnnounce(""); onSelect(null); onChange(e.target.value); }} onBlur={() => { setFocused(false); dismiss(); }}
+        onFocus={() => setFocused(true)} onChange={(e) => { searchSeq.current += 1; detailsSeq.current += 1; setLoading(false); setEdited(true); setItems([]); setActive(-1); setOpen(false); setNote(""); setAnnounce(""); onSelect(null); onChange(e.target.value); }} onBlur={() => { setFocused(false); dismiss(); }}
         onKeyDown={(e) => { if (e.key === "ArrowDown" && items.length) { e.preventDefault(); setActive((x) => (x + 1) % items.length); } else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((x) => (x - 1 + items.length) % items.length); } else if (e.key === "Enter" && open && items[active]) { e.preventDefault(); void choose(items[active]); } else if (e.key === "Escape") { e.preventDefault(); dismiss(); } }} />
       {loading && <div style={{ position: "absolute", right: 14, top: 14, fontSize: 12, color: MUTED }}>Searching…</div>}
       {open && items.length > 0 && (
         <ul id={`${id}-options`} role="listbox" aria-label="Address suggestions" style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #D7DCE8", borderRadius: 12, boxShadow: "0 12px 30px -12px rgba(34,55,107,.35)", overflow: "hidden" }}>
           {items.map((s, i) => (
             <li id={`${id}-option-${i}`} onMouseEnter={() => setActive(i)} role="option" aria-selected={active === i} key={s.id} style={{ padding: "12px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F0F2F8", background: active === i ? "#F2F4FC" : "#fff" }}
-              onPointerDown={(e) => { e.preventDefault(); void choose(s); }}>{s.label}</li>
+              onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); void choose(s); }}>{s.label}</li>
           ))}
         </ul>
       )}
@@ -309,7 +317,7 @@ function RecOnboarding() {
     try {
       if (delta === 1 && d.works_under_rec === true) return;
       const underCover = step === "insurance" && d.works_under_rec !== true && typeof d.public_liability_cover_amount === "number" && d.public_liability_cover_amount < MIN_REC_PL_COVER;
-      const mandatoryGroupError = pageMembers(step).some((member) => isAlwaysMandatoryStep(member) && pageErrors(member, d).length > 0);
+      const mandatoryGroupError = pageMembers(step).some((member) => isAlwaysMandatoryStep(member) && stepErrors(member, d).length > 0);
       if (delta === 1 && (underCover || mandatoryGroupError || (errs.length && !testMode && !sampleMode))) { setShowErrors(true); return; }
       setShowErrors(false);
       const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "about";
@@ -653,7 +661,7 @@ const SAMPLE_REC_DATA: RecData = {
   works_under_rec: false, primary_contact_name: "Sample REC representative", contact_is_licensed_electrician: true, licence_number: "ESV SAMPLE", business_phone: "0400 000 000", business_email: "sample@example.com",
   legal_entity_name: "Sample Electrical Pty Ltd", trading_name: "Sample Electrical", abn: "51824753556", rec_registration_number: "REC SAMPLE", business_address: "100 Sample Road, Melbourne VIC 3000", business_address_details: { label: "100 Sample Road, Melbourne VIC 3000", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU", provider: "google_places_au" },
   insurance_uploaded: true, insurer: "Sample insurer", insurance_policy_number: "SAMPLE-001", public_liability_cover_amount: 5_000_000, public_liability_expiry: "2099-12-31",
-  services_all_confirmed: true, service_origin: "100 Sample Road, Melbourne VIC 3000", service_origin_details: { label: "100 Sample Road, Melbourne VIC 3000", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU", provider: "google_places_au" }, travel_radius_km: 50, typical_days: ["Mon", "Tue", "Wed"], normal_attendance_speed: "3-5 business days", capacity_band: "6-10", accepting_jobs: true,
+  service_origin: "100 Sample Road, Melbourne VIC 3000", service_origin_details: { label: "100 Sample Road, Melbourne VIC 3000", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU", provider: "google_places_au" }, travel_radius_km: 50, typical_days: ["Mon", "Tue", "Wed"], normal_attendance_speed: "3-5 business days", capacity_band: "6-10", accepting_jobs: true,
   gst_registered: true, assessment_rate: 330, installation_attendance_rate: 220, rectification_rates: { prohibited_luminaires: 55, circuit_protection: 110, rcd_installation: 220, tps_cable_replacement: 11, basic_protection: 165 }, coes_fee_choice: "included",
   bank_account_name: "Sample Electrical Pty Ltd", bank_bsb: "123-456", bank_account_number: "12345678", agreement_reviewed: true,
 };
