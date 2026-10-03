@@ -1,0 +1,82 @@
+// Secure no-login homeowner video upload. The existing per-job step3 estimate link token is the only credential;
+// the job is always taken from the token, never from the client. Files go to the private job-files bucket via a
+// short-lived signed upload URL and are recorded once in documents (canonical homeowner media). Never changes stage
+// or eligibility; only adds an internal job-history note so the office sees "Video received – priority review".
+import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { LINK_PURPOSE, isWellFormedToken } from "./estimatelink.core";
+import { logEvent } from "./workflow.server";
+import { CAPTURE_KIND, CAPTURE_MAX_FILES, CAPTURE_SOURCE_SYSTEM, captureLinkState, capturePath, parseCapturePath, validateVideo, normaliseVideoType, CAPTURE_MAX_BYTES } from "./owner-capture.core";
+
+const BUCKET = "job-files";
+const GENERIC = "This link is not available. Please contact Home Insulation Victoria.";
+
+async function resolve(token: unknown) {
+  if (!isWellFormedToken(token)) return { state: "invalid" as const };
+  const { data: l, error } = await admin.from("customer_estimate_links").select("id, job_id, status, expires_at").eq("token", token).eq("purpose", LINK_PURPOSE).maybeSingle();
+  if (error) throw new Error("Link check unavailable – please try again shortly.");
+  if (!l) return { state: "invalid" as const };
+  const { data: j, error: je } = await admin.from("jobs").select("id, stage, eligibility_outcome, eligibility_decision_source, eligibility_review_required, job_number, properties(suburb)").eq("id", l.job_id).maybeSingle();
+  if (je) throw new Error("Link check unavailable – please try again shortly.");
+  const state = captureLinkState(l, j ? { stage: j.stage, outcome: j.eligibility_outcome, decisionSource: j.eligibility_decision_source, reviewRequired: !!j.eligibility_review_required } : null);
+  return { state, link: l, job: j };
+}
+
+async function existing(jobId: string) {
+  const { data, error } = await admin.from("documents").select("external_id, created_at").eq("job_id", jobId).eq("source_system", CAPTURE_SOURCE_SYSTEM);
+  if (error) throw new Error("Upload check unavailable – please try again shortly.");
+  return data ?? [];
+}
+
+export async function captureStatus(token: unknown) {
+  const r = await resolve(token);
+  if (r.state !== "ok") return { state: r.state };
+  const files = await existing(r.link!.job_id);
+  const suburb = (r.job!.properties as { suburb: string | null } | null)?.suburb ?? null;
+  return { state: "ok" as const, suburb, reference: r.job!.job_number, received: files.length, remaining: Math.max(0, CAPTURE_MAX_FILES - files.length) };
+}
+
+export async function startCapture(token: unknown, f: { fileName: string; mime: string; size: number }) {
+  const r = await resolve(token);
+  if (r.state !== "ok") throw new Error(GENERIC);
+  const v = validateVideo({ mime: f.mime, fileName: f.fileName, size: f.size });
+  if (!v.ok) throw new Error(v.error);
+  if ((await existing(r.link!.job_id)).length >= CAPTURE_MAX_FILES) throw new Error("We've already received the maximum number of videos for this property. Thank you!");
+  const path = capturePath(r.link!.job_id, crypto.randomUUID(), v.mime);
+  const { data, error } = await admin.storage.from(BUCKET).createSignedUploadUrl(path);
+  if (error || !data) throw new Error("Upload could not start. Please try again.");
+  return { path, uploadToken: data.token, mime: v.mime };
+}
+
+export async function finishCapture(token: unknown, x: { path: string; fileName: string; deviceModifiedAt: number | null }, meta: { userAgent: string | null }) {
+  const r = await resolve(token);
+  if (r.state !== "ok") throw new Error(GENERIC);
+  const jobId = r.link!.job_id;
+  const uploadId = parseCapturePath(jobId, x.path);
+  if (!uploadId) throw new Error(GENERIC);
+  const folder = x.path.slice(0, x.path.lastIndexOf("/"));
+  const { data: objs, error: le } = await admin.storage.from(BUCKET).list(folder, { search: uploadId });
+  if (le) throw new Error("Upload check unavailable – please try again shortly.");
+  const obj = (objs ?? []).find((o) => x.path.endsWith(`/${o.name}`));
+  if (!obj) throw new Error("We couldn't find your upload. Please try again.");
+  const size = Number((obj.metadata as { size?: number } | null)?.size ?? 0);
+  const storedMime = normaliseVideoType((obj.metadata as { mimetype?: string } | null)?.mimetype ?? null, x.path);
+  if (!storedMime || size <= 0 || size > CAPTURE_MAX_BYTES) {
+    await admin.storage.from(BUCKET).remove([x.path]);
+    throw new Error("That file isn't a supported video. Please try again with MP4 or MOV.");
+  }
+  const safeName = x.fileName.replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "video";
+  const { error, data: ins } = await admin.from("documents").insert({
+    job_id: jobId, kind: CAPTURE_KIND, title: `Homeowner phone video: ${safeName}`, storage_path: x.path, mime_type: storedMime,
+    source_system: CAPTURE_SOURCE_SYSTEM, external_id: uploadId, original_name: safeName, size_bytes: size,
+  }).select("id").maybeSingle();
+  const duplicate = !!error && /duplicate/i.test(error.message);
+  if (error && !duplicate) throw new Error("Your video uploaded but could not be recorded. Please try again.");
+  if (!duplicate) {
+    await logEvent(jobId, null, "owner_video_received", "Homeowner video received – priority review (does not confirm eligibility)", {
+      document_id: ins?.id ?? null, size_bytes: size, mime_type: storedMime, user_agent: meta.userAgent?.slice(0, 300) ?? null,
+      device_reported_modified_at: x.deviceModifiedAt && Number.isFinite(x.deviceModifiedAt) ? new Date(x.deviceModifiedAt).toISOString() : null,
+      location: "not captured",
+    }, { internal: true });
+  }
+  return { recorded: true, duplicate };
+}

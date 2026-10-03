@@ -46,6 +46,7 @@ import { Route as ApiPublicAddressSearchRouteImport } from './routes/api/public/
 import { Route as ApiPublicEnquiryRouteImport } from './routes/api/public/enquiry'
 import { Route as ApiPublicPartnerEnquiryRouteImport } from './routes/api/public/partner-enquiry'
 import { Route as ApiPublicUnsubscribeRouteImport } from './routes/api/public/unsubscribe'
+import { Route as EstimateTokenVideoRouteImport } from './routes/estimate_.$token.video'
 import { Route as TETokenRouteImport } from './routes/t.e.$token'
 import { Route as TOFileRouteImport } from './routes/t.o.$file'
 import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authenticated/admin.jobs.$jobId'
@@ -252,6 +253,11 @@ const ApiPublicUnsubscribeRoute = ApiPublicUnsubscribeRouteImport.update({
   path: '/api/public/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EstimateTokenVideoRoute = EstimateTokenVideoRouteImport.update({
+  id: '/estimate_/$token/video',
+  path: '/estimate/$token/video',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TETokenRoute = TETokenRouteImport.update({
   id: '/t/e/$token',
   path: '/t/e/$token',
@@ -326,6 +332,7 @@ export interface FileRoutesByFullPath {
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
+  '/estimate/$token/video': typeof EstimateTokenVideoRoute
   '/t/e/$token': typeof TETokenRoute
   '/t/o/$file': typeof TOFileRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -371,6 +378,7 @@ export interface FileRoutesByTo {
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
+  '/estimate/$token/video': typeof EstimateTokenVideoRoute
   '/t/e/$token': typeof TETokenRoute
   '/t/o/$file': typeof TOFileRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -418,6 +426,7 @@ export interface FileRoutesById {
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
+  '/estimate_/$token/video': typeof EstimateTokenVideoRoute
   '/t/e/$token': typeof TETokenRoute
   '/t/o/$file': typeof TOFileRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -465,6 +474,7 @@ export interface FileRouteTypes {
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/api/public/unsubscribe'
+    | '/estimate/$token/video'
     | '/t/e/$token'
     | '/t/o/$file'
     | '/admin/'
@@ -510,6 +520,7 @@ export interface FileRouteTypes {
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/api/public/unsubscribe'
+    | '/estimate/$token/video'
     | '/t/e/$token'
     | '/t/o/$file'
     | '/admin'
@@ -556,6 +567,7 @@ export interface FileRouteTypes {
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/api/public/unsubscribe'
+    | '/estimate_/$token/video'
     | '/t/e/$token'
     | '/t/o/$file'
     | '/_authenticated/admin/'
@@ -584,6 +596,7 @@ export interface RootRouteChildren {
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
   ApiPublicPartnerEnquiryRoute: typeof ApiPublicPartnerEnquiryRoute
   ApiPublicUnsubscribeRoute: typeof ApiPublicUnsubscribeRoute
+  EstimateTokenVideoRoute: typeof EstimateTokenVideoRoute
   TETokenRoute: typeof TETokenRoute
   TOFileRoute: typeof TOFileRoute
   ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
@@ -853,6 +866,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/estimate_/$token/video': {
+      id: '/estimate_/$token/video'
+      path: '/estimate/$token/video'
+      fullPath: '/estimate/$token/video'
+      preLoaderRoute: typeof EstimateTokenVideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/t/e/$token': {
       id: '/t/e/$token'
       path: '/t/e/$token'
@@ -977,6 +997,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
   ApiPublicPartnerEnquiryRoute: ApiPublicPartnerEnquiryRoute,
   ApiPublicUnsubscribeRoute: ApiPublicUnsubscribeRoute,
+  EstimateTokenVideoRoute: EstimateTokenVideoRoute,
   TETokenRoute: TETokenRoute,
   TOFileRoute: TOFileRoute,
   ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,

@@ -1,9 +1,9 @@
 // Office enquiry / email groups (Jo, 3 Oct 2026). PURE: no I/O.
 // Presentation-level grouping for bulk email PREPARATION only. It never decides eligibility, never changes a job stage,
 // Gate 1 outcome, verified eligibility or delivery status. It only reads the recorded official Gate 1 audit.
-import { GATE1_RULESET_VERSION } from "./eligibility.core";
+import { GATE1_RULESET_VERSION, normaliseInsulation } from "./eligibility.core";
 import { DEFAULT_ESTIMATED_AREA_M2 } from "./estimate.core";
-import { emailSuppression, type EmailPurpose } from "./emailsafety.core";
+import { emailSuppression, isTestRecipient, type EmailPurpose } from "./emailsafety.core";
 
 export type EnquiryGroup = "likely_size" | "likely_no_size" | "insulation_check" | "other";
 export type OtherReason = "needs_review" | "missing_info" | "not_eligible" | "progressing" | "closed";
@@ -50,6 +50,8 @@ export type EnquiryInput = {
   intakeWorkActive: boolean;
   area: { measured?: number | null; estimated?: number | null; declared?: number | null; declaredUnknown?: boolean | null };
   videoCount: number;
+  /** Canonical owner answer (normaliseInsulation over Base44 answers), never inferred. */
+  declaredInsulation?: "none" | "present" | "unknown" | null;
   calculatorStatus?: string | null;
 };
 export type EnquiryClass = {
@@ -71,16 +73,27 @@ export function realArea(a: EnquiryInput["area"]): { m2: number | null; source: 
   return { m2: null, source: "none" };
 }
 
-/** Group 3 test: positively declared insulation is the ONLY open item; every other preliminary check passed. */
-export function insulationOnly(audit: StoredAudit): { ok: true } | { ok: false; why: string; missing: boolean } {
+/** Every non-insulation preliminary gate that must be POSITIVELY represented, with the allowed results. */
+export const REQUIRED_GATES: Record<string, string[]> = {
+  location: ["pass"], residential: ["pass"], ceiling_age: ["pass"], previous_activity: ["pass"], relevant_ceiling: ["pass", "info"], roof_access: ["pass", "info"],
+};
+const INFO_ONLY = new Set(["life_support", "occupancy", "area", "preliminary", "rollout"]);
+
+/** Group 3 test: canonical declared "present" insulation is the ONLY open item; every other required gate passed. */
+export function insulationOnly(audit: StoredAudit, declared: EnquiryInput["declaredInsulation"]): { ok: true } | { ok: false; why: string; missing: boolean } {
   const rules = Array.isArray(audit?.rules) ? audit!.rules! : [];
   if (!rules.length) return { ok: false, why: "Screening reasons were not recorded", missing: false };
+  const canonical = normaliseInsulation(declared ?? null);
+  if (canonical !== "present") return { ok: false, why: canonical === "none" ? "Owner declared no insulation – screening disagrees" : "Existing insulation answer unknown – ask the owner", missing: canonical !== "none" };
   const ins = rules.find((r) => r.key === "existing_insulation");
   if (!ins || ins.result !== "onsite") return { ok: false, why: "Existing-insulation check not recorded as open", missing: false };
-  if (!/present/i.test(ins.fact ?? "")) return { ok: false, why: "Existing insulation answer unknown – ask the owner", missing: true };
-  for (const k of REQUIRED_PASSES) if (rules.find((r) => r.key === k)?.result !== "pass") return { ok: false, why: `Check not passed: ${k.replace(/_/g, " ")}`, missing: false };
-  const other = rules.find((r) => r.key !== "existing_insulation" && r.result !== "pass" && r.result !== "info");
-  if (other) return { ok: false, why: other.result === "onsite" && other.key === "roof_access" ? "Roof / access also needs onsite confirmation" : `Also open: ${other.reason ?? other.key}`, missing: false };
+  for (const [k, allowed] of Object.entries(REQUIRED_GATES)) {
+    const rs = rules.filter((x) => x.key === k);
+    if (!rs.length) return { ok: false, why: `Check not recorded: ${k.replace(/_/g, " ")}`, missing: false };
+    if (rs.some((r) => !allowed.includes(r.result ?? ""))) return { ok: false, why: k === "roof_access" ? "Roof / access also needs onsite confirmation" : `Check not passed: ${k.replace(/_/g, " ")}`, missing: false };
+  }
+  const extra = rules.find((r) => r.key !== "existing_insulation" && !(r.key && r.key in REQUIRED_GATES) && !(INFO_ONLY.has(r.key ?? "") && r.result === "info"));
+  if (extra) return { ok: false, why: `Also open: ${extra.reason ?? extra.key}`, missing: false };
   return { ok: true };
 }
 
@@ -113,50 +126,72 @@ export function classifyEnquiry(x: EnquiryInput): EnquiryClass {
     return { group: "likely_no_size", otherReason: null, reason: "No usable ceiling area", area: { m2: ASSUMED_REFERENCE_AREA_M2, source: "assumed" }, videoState, nextAction: GROUP_ACTION.likely_no_size };
   }
   if (x.outcome === "needs_onsite_confirmation") {
-    const chk = insulationOnly(x.audit);
+    const chk = insulationOnly(x.audit, x.declaredInsulation);
     if (chk.ok) return { group: "insulation_check", otherReason: null, reason: videoState === "received" ? "Video received – priority review" : "Existing insulation declared; all other checks passed", area, videoState, nextAction: videoState === "received" ? "Review video" : GROUP_ACTION.insulation_check };
     return other(chk.missing ? "missing_info" : "needs_review", chk.why, area, videoState);
   }
   return other("needs_review", `Unrecognised result: ${x.outcome}`, area, videoState);
 }
 
-// ---------- Email preparation (review only; nothing is sent or stored) ----------
-export type PrepTemplate = { key: string; purpose: EmailPurpose; label: string; subject: string } | { key: null; blocked: string };
+// ---------- Email preparation (staff-reviewed drafts; nothing is sent or stored) ----------
+export type TemplateKey = "step3_estimate_likely" | "step3_estimate_assumed" | "insulation_video_request" | "preliminary_ineligible";
+export type PrepTemplate = { key: TemplateKey; campaign: string; purpose: EmailPurpose | "insulation_video_request"; label: string; approval: "approved" | "draft" } | { key: null; blocked: string };
 export function templateFor(group: EnquiryGroup, otherReason: OtherReason | null): PrepTemplate {
-  if (group === "likely_size") return { key: "step3_estimate_likely", purpose: "step3_estimate", label: "Preliminary estimate email (approved, locked)", subject: "Personalised: estimate amount in subject (approved likely email)" };
-  if (group === "likely_no_size") return { key: "step3_estimate_likely", purpose: "step3_estimate", label: "Preliminary estimate email (approved, locked) – typical-area wording", subject: "Personalised: estimate amount in subject (approved likely email)" };
-  if (group === "insulation_check") return { key: null, blocked: "No approved calculator + video request template yet, and there is no secure no-login video upload for owners. Nothing can be prepared." };
-  if (otherReason === "not_eligible") return { key: "preliminary_ineligible", purpose: "preliminary_ineligible", label: "Preliminary eligibility result email (approved)", subject: "Your ceiling insulation eligibility result" };
+  if (group === "likely_size") return { key: "step3_estimate_likely", campaign: "step3_estimate", purpose: "step3_estimate", label: "Preliminary estimate email (approved likely email)", approval: "approved" };
+  if (group === "likely_no_size") return { key: "step3_estimate_assumed", campaign: "step3_estimate", purpose: "step3_estimate", label: "Preliminary estimate email (approved likely email, typical-home assumption wording)", approval: "approved" };
+  if (group === "insulation_check") return { key: "insulation_video_request", campaign: "insulation_video_request", purpose: "insulation_video_request", label: "Calculator + optional phone video invitation (NEW DRAFT – needs approval before any send)", approval: "draft" };
+  if (otherReason === "not_eligible") return { key: "preliminary_ineligible", campaign: "preliminary_ineligible", purpose: "preliminary_ineligible", label: "Preliminary eligibility result email (approved)", approval: "approved" };
   if (!otherReason) return { key: null, blocked: "Choose a reason first – there is no catch-all email." };
-  return { key: null, blocked: `No approved email for "${OTHER_LABEL[otherReason]}". Handle these one by one.` };
+  return { key: null, blocked: `No email for "${OTHER_LABEL[otherReason]}" – these need individual handling.` };
 }
 
 export type ContactFacts = {
   id: string; group: EnquiryGroup; otherReason: OtherReason | null; email: string | null;
-  consent: string | null; optedOut: boolean; bounced: boolean; stage: string; source: string | null; createdAt: string;
-  alreadySent: boolean; jobsCreatedAfter: string | null; isPrimaryForEmail: boolean;
+  consent: string | null; optedOut: boolean; bounced: boolean; source: string | null;
+  alreadySentCampaign: boolean; isPrimaryForContact: boolean;
 };
-export const SUPPRESSION_WORDS: Record<string, string> = {
-  unsubscribed: "Unsubscribed", bounced: "Bounced / complaint / later activity", test_or_example_recipient: "Test or example address",
-  job_progressed_or_closed: "Stage no longer allows this email", backlog_cutoff_not_set: "Delivery start date not set (communications off)",
-  backlog_before_cutoff: "Enquiry before delivery start date", backlog_too_old: "Enquiry older than 14 days (existing safety rule)",
-};
-/** First reason wins; null = would be included. Revalidates the CURRENT group against the selected one. */
-export function exclusionFor(c: ContactFacts, selected: { group: EnquiryGroup; otherReason: OtherReason | null }, purpose: EmailPurpose, now = Date.now()): string | null {
+/** CONTACT exclusions for a staff-prepared draft. Automatic-email scheduling rules are NOT applied here (see sendHolds). */
+export function contactExclusion(c: ContactFacts, selected: { group: EnquiryGroup; otherReason: OtherReason | null }): string | null {
   if (c.group !== selected.group || (selected.group === "other" && c.otherReason !== selected.otherReason)) return `Group changed – now ${c.group === "other" && c.otherReason ? OTHER_LABEL[c.otherReason] : GROUP_LABEL[c.group]}`;
-  if (!c.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.email)) return "Missing or invalid email";
-  if (c.consent !== "granted") return c.consent === "withdrawn" ? "Contact consent withdrawn" : "Contact consent unknown";
-  if (!c.isPrimaryForEmail) return "Duplicate contact – newer enquiry for the same email";
-  if (c.alreadySent) return "Already sent this email";
-  const s = emailSuppression({ purpose, optedOut: c.optedOut, bounced: c.bounced, stage: c.stage, jobSource: c.source, jobCreatedAt: c.createdAt, recipient: c.email, jobsCreatedAfter: c.jobsCreatedAfter, now });
-  return s ? SUPPRESSION_WORDS[s] ?? s : null;
+  if (!c.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.email.trim())) return "Missing or invalid email";
+  if (c.source === "qa_test" || isTestRecipient(c.email)) return "Test or example address";
+  if (c.consent !== "granted") return c.consent === "withdrawn" || c.consent === "revoked" ? "Contact consent withdrawn" : "Contact consent unknown";
+  if (c.optedOut) return "Unsubscribed";
+  if (c.bounced) return "Bounced, complaint or later customer activity";
+  if (!c.isPrimaryForContact) return "Duplicate – newer enquiry from the same contact for the same property";
+  if (c.alreadySentCampaign) return "Already sent this email for this enquiry";
+  return null;
 }
 
-/** Newest enquiry per normalised email is the primary contact; older repeats are duplicates. */
-export function primaryByEmail(rows: { id: string; email: string | null; createdAt: string }[]): Set<string> {
+export const SUPPRESSION_WORDS: Record<string, string> = {
+  unsubscribed: "Unsubscribed", bounced: "Bounced / complaint / later activity", test_or_example_recipient: "Test or example address",
+  job_progressed_or_closed: "Automatic-email stage rule (this stage is outside automatic estimate emails)", backlog_cutoff_not_set: "Delivery start date not set",
+  backlog_before_cutoff: "Enquiry is before the delivery start date", backlog_too_old: "Enquiry older than 14 days (automatic-email rule)",
+};
+/** SEND holds shown alongside a draft: the unchanged live/automatic safeguards. They never hide the draft. */
+export function sendHolds(x: { commsEnabled: boolean; approval: "approved" | "draft"; purpose: string; stage: string; source: string | null; createdAt: string; email: string | null; jobsCreatedAfter: string | null; now?: number }): string[] {
+  const holds: string[] = [];
+  if (!x.commsEnabled) holds.push("Customer communications are OFF");
+  if (x.approval === "draft") holds.push("New template – needs approval before sending");
+  if (x.purpose === "step3_estimate" || x.purpose === "preliminary_ineligible") {
+    const s = emailSuppression({ purpose: x.purpose, optedOut: false, bounced: false, stage: x.stage, jobSource: x.source, jobCreatedAt: x.createdAt, recipient: x.email, jobsCreatedAfter: x.jobsCreatedAfter, now: x.now ?? Date.now() });
+    if (s) holds.push(SUPPRESSION_WORDS[s] ?? s);
+  } else holds.push("No manual send path yet – sending stays locked");
+  return holds;
+}
+
+/** Conservative same-property key: postcode + address line, lower-cased, punctuation/space collapsed. */
+export function propertyKey(address: string | null | undefined, postcode: string | null | undefined): string {
+  const a = (address ?? "").toLowerCase().replace(/\b(vic|victoria)\b/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  return `${(postcode ?? "").trim()}|${a}`;
+}
+export const contactKey = (email: string | null | undefined, propKey: string) => { const e = email?.trim().toLowerCase(); return e ? `${e}#${propKey}` : null; };
+
+/** Newest enquiry per same contact + same property is primary; different properties are always kept. */
+export function primaryByContact(rows: { id: string; email: string | null; propKey: string; createdAt: string }[]): Set<string> {
   const best = new Map<string, { id: string; createdAt: string }>();
   for (const r of rows) {
-    const k = r.email?.trim().toLowerCase();
+    const k = contactKey(r.email, r.propKey);
     if (!k) continue;
     const cur = best.get(k);
     if (!cur || r.createdAt > cur.createdAt || (r.createdAt === cur.createdAt && r.id > cur.id)) best.set(k, r);

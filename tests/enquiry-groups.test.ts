@@ -1,12 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { classifyEnquiry, exclusionFor, primaryByEmail, templateFor, realArea, GROUP_ORDER, type EnquiryInput, type ContactFacts } from "../src/lib/enquiry-groups.core";
+import { classifyEnquiry, contactExclusion, sendHolds, primaryByContact, propertyKey, templateFor, realArea, GROUP_ORDER, type EnquiryInput, type ContactFacts } from "../src/lib/enquiry-groups.core";
+import { captureLinkState, parseCapturePath, validateVideo, homeownerVideoCount, capturePath } from "../src/lib/owner-capture.core";
+import { renderEstimateEmail, renderInsulationVideoEmail } from "../src/lib/estimate-email";
 import { GATE1_RULESET_VERSION } from "../src/lib/eligibility.core";
 
 const passes = ["location", "residential", "ceiling_age", "previous_activity"].map((key) => ({ key, result: "pass" }));
 const info = ["relevant_ceiling", "life_support", "occupancy", "area", "roof_access"].map((key) => ({ key, result: "info" }));
 const audit = (ins: { result: string; fact?: string }, extra: object[] = []) => ({ ruleset_version: GATE1_RULESET_VERSION, rules: [...passes, ...info, { key: "existing_insulation", ...ins }, ...extra], hard_failures: [], review_reasons: [] });
 const base = (o: Partial<EnquiryInput> = {}): EnquiryInput => ({ kind: "job", stage: "ready_check_ready_to_schedule", outcome: "likely_eligible", decisionSource: "system", reviewRequired: false, audit: audit({ result: "pass", fact: "owner: none" }), intakeWorkActive: false, area: { declared: 180 }, videoCount: 0, ...o });
-const onsite = (o: Partial<EnquiryInput> = {}) => base({ outcome: "needs_onsite_confirmation", audit: audit({ result: "onsite", fact: "owner: present" }), ...o });
+const onsite = (o: Partial<EnquiryInput> = {}) => base({ outcome: "needs_onsite_confirmation", audit: audit({ result: "onsite", fact: "owner: present" }), declaredInsulation: "present", ...o });
 
 describe("enquiry email groups", () => {
   test("likely with declared size -> group 1", () => expect(classifyEnquiry(base())).toMatchObject({ group: "likely_size", area: { m2: 180, source: "declared" } }));
@@ -26,7 +28,7 @@ describe("enquiry email groups", () => {
     const a = audit({ result: "onsite", fact: "owner: present" }); a.rules[1] = { key: "residential", result: "review" };
     expect(classifyEnquiry(onsite({ audit: a })).group).toBe("other");
   });
-  test("unknown insulation never becomes No or group 3", () => expect(classifyEnquiry(onsite({ audit: audit({ result: "onsite", fact: "owner: unknown" }) }))).toMatchObject({ group: "other", otherReason: "missing_info" }));
+  test("unknown insulation never becomes No or group 3", () => expect(classifyEnquiry(onsite({ declaredInsulation: "unknown", audit: audit({ result: "onsite", fact: "owner: unknown" }) }))).toMatchObject({ group: "other", otherReason: "missing_info" }));
   test("known fail wins even with present insulation", () => expect(classifyEnquiry(onsite({ outcome: "does_not_appear_eligible" })).otherReason).toBe("not_eligible"));
   test("stale system ruleset -> review", () => expect(classifyEnquiry(base({ audit: { ...audit({ result: "pass" }), ruleset_version: "old" } })).otherReason).toBe("needs_review"));
   test("admin decision stands even with old audit", () => expect(classifyEnquiry(base({ decisionSource: "admin", audit: { ruleset_version: "old", rules: [{ key: "previous_activity", result: "fail" }] } })).group).toBe("likely_size"));
@@ -39,7 +41,7 @@ describe("enquiry email groups", () => {
   });
   test("video upload flags priority but never grants a group", () => {
     expect(classifyEnquiry(onsite({ videoCount: 1 }))).toMatchObject({ group: "insulation_check", videoState: "received", nextAction: "Review video" });
-    expect(classifyEnquiry(onsite({ videoCount: 1, audit: audit({ result: "onsite", fact: "owner: unknown" }) })).group).toBe("other");
+    expect(classifyEnquiry(onsite({ videoCount: 1, declaredInsulation: "unknown", audit: audit({ result: "onsite", fact: "owner: unknown" }) })).group).toBe("other");
   });
   test("calculator registrations are never auto-screened", () => expect(classifyEnquiry({ ...base(), kind: "calculator", calculatorStatus: "new" })).toMatchObject({ group: "other", otherReason: "needs_review" }));
   test("exactly one group for a matrix of inputs; totals add up", () => {
@@ -56,23 +58,73 @@ describe("enquiry email groups", () => {
 });
 
 describe("email preparation rules", () => {
-  const facts = (o: Partial<ContactFacts> = {}): ContactFacts => ({ id: "a", group: "likely_size", otherReason: null, email: "owner@homeowner.com.au", consent: "granted", optedOut: false, bounced: false, stage: "new_enquiry", source: "base44", createdAt: new Date().toISOString(), alreadySent: false, jobsCreatedAfter: "2026-01-01T00:00:00Z", isPrimaryForEmail: true, ...o });
+  const facts = (o: Partial<ContactFacts> = {}): ContactFacts => ({ id: "a", group: "likely_size", otherReason: null, email: "owner@homeowner.com.au", consent: "granted", optedOut: false, bounced: false, source: "base44", alreadySentCampaign: false, isPrimaryForContact: true, ...o });
   const sel = { group: "likely_size" as const, otherReason: null };
-  test("clean contact is included", () => expect(exclusionFor(facts(), sel, "step3_estimate")).toBeNull());
+  test("clean contact is included", () => expect(contactExclusion(facts(), sel)).toBeNull());
   test.each([
-    [{ group: "likely_no_size" as const }, "Group changed"], [{ email: null }, "Missing"], [{ consent: "unknown" }, "consent unknown"], [{ consent: "withdrawn" }, "withdrawn"],
-    [{ isPrimaryForEmail: false }, "Duplicate"], [{ alreadySent: true }, "Already sent"], [{ optedOut: true }, "Unsubscribed"], [{ bounced: true }, "Bounced"],
-    [{ createdAt: "2025-01-01T00:00:00Z" }, "before delivery start"], [{ jobsCreatedAfter: null }, "Delivery start date not set"],
-  ])("excluded: %p", (o, word) => expect(exclusionFor(facts(o), sel, "step3_estimate")).toContain(word));
-  test("templates: group 3 and unchosen Other are blocked, not faked", () => {
-    expect(templateFor("insulation_check", null).key).toBeNull();
+    [{ group: "likely_no_size" as const }, "Group changed"], [{ email: null }, "invalid"], [{ email: "a@b" }, "invalid"], [{ consent: null }, "consent unknown"], [{ consent: "withdrawn" }, "withdrawn"],
+    [{ isPrimaryForContact: false }, "Duplicate"], [{ alreadySentCampaign: true }, "Already sent"], [{ optedOut: true }, "Unsubscribed"], [{ bounced: true }, "Bounced"], [{ source: "qa_test" }, "Test"],
+  ])("excluded: %p", (o, word) => expect(contactExclusion(facts(o), sel)).toContain(word));
+  test("automatic-email scheduling rules never exclude a staff draft; they show as send holds", () => {
+    expect(contactExclusion(facts(), sel)).toBeNull();
+    const h = sendHolds({ commsEnabled: false, approval: "approved", purpose: "step3_estimate", stage: "ready_check_ready_to_schedule", source: "base44", createdAt: "2025-01-01T00:00:00Z", email: "owner@homeowner.com.au", jobsCreatedAfter: null });
+    expect(h[0]).toContain("OFF"); expect(h.length).toBe(2);
+    expect(sendHolds({ commsEnabled: true, approval: "draft", purpose: "insulation_video_request", stage: "new_enquiry", source: "base44", createdAt: new Date().toISOString(), email: "x@y.com", jobsCreatedAfter: null })).toEqual(["New template – needs approval before sending", "No manual send path yet – sending stays locked"]);
+  });
+  test("templates: group 3 draft, unchosen/other reasons blocked", () => {
+    expect(templateFor("insulation_check", null)).toMatchObject({ key: "insulation_video_request", approval: "draft" });
     expect(templateFor("other", null).key).toBeNull();
     expect(templateFor("other", "needs_review").key).toBeNull();
     expect(templateFor("other", "not_eligible").key).toBe("preliminary_ineligible");
-    expect(templateFor("likely_no_size", null).key).toBe("step3_estimate_likely");
+    expect(templateFor("likely_no_size", null).key).toBe("step3_estimate_assumed");
   });
-  test("newest enquiry per email is the primary contact", () => {
-    const p = primaryByEmail([{ id: "1", email: "A@x.com", createdAt: "2026-01-01" }, { id: "2", email: "a@x.com ", createdAt: "2026-02-01" }, { id: "3", email: null, createdAt: "2026-03-01" }]);
-    expect([...p]).toEqual(["2"]);
+  test("same contact + same property dedupes; different property is kept", () => {
+    const k1 = propertyKey("12 Smith St", "3000"), k2 = propertyKey("12 smith st.", "3000"), k3 = propertyKey("40 Other Rd", "3000");
+    expect(k1).toBe(k2);
+    const p = primaryByContact([{ id: "1", email: "A@x.com", propKey: k1, createdAt: "2026-01-01" }, { id: "2", email: "a@x.com ", propKey: k2, createdAt: "2026-02-01" }, { id: "3", email: "a@x.com", propKey: k3, createdAt: "2026-01-01" }, { id: "4", email: null, propKey: k1, createdAt: "2026-03-01" }]);
+    expect([...p].sort()).toEqual(["2", "3"]);
+  });
+});
+
+describe("homeowner video capture", () => {
+  const J = "11111111-1111-4111-8111-111111111111", O = "22222222-2222-4222-8222-222222222222", U = "33333333-3333-4333-8333-333333333333";
+  const job = { stage: "ready_check_ready_to_schedule", outcome: "needs_onsite_confirmation", decisionSource: "system", reviewRequired: false };
+  const live = { status: "active", expires_at: new Date(Date.now() + 864e5).toISOString() };
+  test("link states: valid, expired, revoked, missing, closed job, review", () => {
+    expect(captureLinkState(live, job)).toBe("ok");
+    expect(captureLinkState({ ...live, expires_at: "2020-01-01" }, job)).toBe("invalid");
+    expect(captureLinkState({ ...live, status: "revoked" }, job)).toBe("invalid");
+    expect(captureLinkState(null, job)).toBe("invalid");
+    expect(captureLinkState(live, { ...job, stage: "cancelled" })).toBe("closed");
+    expect(captureLinkState(live, { ...job, reviewRequired: true })).toBe("invalid");
+  });
+  test("upload path is bound to the link's job (no cross-job)", () => {
+    const p = capturePath(J, U, "video/quicktime");
+    expect(parseCapturePath(J, p)).toBe(U);
+    expect(parseCapturePath(O, p)).toBeNull();
+    expect(parseCapturePath(J, `${J}/intake/base44/${U}.mp4`)).toBeNull();
+    expect(parseCapturePath(J, `${J}/intake/owner-capture/../x.mp4`)).toBeNull();
+  });
+  test("iPhone MOV/MP4 accepted; other types and oversize refused", () => {
+    expect(validateVideo({ mime: "video/quicktime", fileName: "IMG_1.MOV", size: 1e6 }).ok).toBe(true);
+    expect(validateVideo({ mime: "", fileName: "clip.mp4", size: 1e6 }).ok).toBe(true);
+    expect(validateVideo({ mime: "application/pdf", fileName: "a.pdf", size: 10 }).ok).toBe(false);
+    expect(validateVideo({ mime: "video/mp4", fileName: "a.mp4", size: 300 * 1024 * 1024 }).ok).toBe(false);
+  });
+  test("Base44 homeowner videos count once; trade/photos do not", () => expect(homeownerVideoCount([
+    { kind: "intake_media", mime_type: "video/quicktime", storage_path: "a" }, { kind: "intake_media", mime_type: "video/quicktime", storage_path: "a" },
+    { kind: "intake_media", mime_type: "image/jpeg", storage_path: "b" }, { kind: "evidence", mime_type: "video/mp4", storage_path: "c" },
+  ])).toBe(1));
+  test("video email draft: secure link, no roof-entry instruction, onsite alternative", () => {
+    const m = renderInsulationVideoEmail({ captureUrl: "https://quote.homeinsulationvictoria.com.au/estimate/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/video", firstName: "Sam", reference: "HV-1" });
+    expect(m.html).toContain("/video");
+    expect(m.plainText).toContain("don’t climb into or walk through the roof space");
+    expect(m.plainText.toLowerCase()).toContain("onsite");
+    expect(m.html).toContain("Home Insulation Victoria");
+  });
+  test("approved estimate renderer still renders a $0-now assumed-area draft", () => {
+    const m = renderEstimateEmail({ estimateUrl: "https://quote.homeinsulationvictoria.com.au/estimate/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", outcome: "likely", firstName: "Sam", reference: "HV-1", estimatedTotal: 900, veuDiscount: 1949, areaM2: 150, installationPrice: 2500, installationRatePerM2: 16.67, assessmentFee: 0, apFee: 349, grossProjectTotal: 2849, amountPayableNow: 0, estimatedRemainingBalance: 900, areaIsTypical: true });
+    expect(m.subject.length).toBeGreaterThan(5);
+    expect(m.html).toContain("150");
   });
 });
