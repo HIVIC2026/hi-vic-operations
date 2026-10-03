@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAction } from "@/hooks/use-me";
 import { approveCustomerCommunicationDraft, listCustomerCommunicationTemplates, saveCustomerCommunicationDraft } from "@/lib/customer-communications.functions";
+import { PARTNER_TEMPLATES, renderPartnerTemplate, type PartnerTemplate } from "@/lib/partner-templates";
+import { useMemo } from "react";
 
 // [key, label, purpose, when it is sent, mandatory forms attached, preview available]
 const CATALOG = [
@@ -60,5 +62,54 @@ function CustomerCommunications() {
         <section className="rounded-md border bg-card p-5"><h2 className="text-lg font-bold">Version history</h2>{drafts.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">No personal review version saved yet.</p> : <div className="mt-3 space-y-3">{drafts.map((row) => <article key={row.id} className="rounded-md border p-4"><div className="flex flex-wrap items-center gap-2"><b>{row.version}</b><Pill t={row.status === "approved" ? "good" : row.status === "draft" ? "warn" : "neutral"}>{row.status}</Pill>{row.status === "draft" && <Button className="ml-auto" size="sm" onClick={async () => { await approve({ id: row.id }, "Review version approved"); await refetch(); }}>Approve review version</Button>}</div><p className="mt-2 text-sm font-semibold">{row.subject}</p><pre className="mt-2 whitespace-pre-wrap rounded-md bg-muted p-3 font-sans text-sm">{row.body_markdown}</pre>{row.source_note && <p className="mt-2 text-xs text-muted-foreground">Note: {row.source_note}</p>}</article>)}</div>}</section>
       </section>
     </div>
+    <PartnerTemplates />
   </AppShell>;
+}
+
+function PartnerTemplates() {
+  const [open, setOpen] = useState<PartnerTemplate | null>(null);
+  const [copied, setCopied] = useState("");
+  return <section className="mt-10 rounded-md border bg-card p-5">
+    <h2 className="text-lg font-bold">Partner invitation templates</h2>
+    <p className="mt-1 text-sm text-muted-foreground">Reusable, office-approved invitations. Preview, copy the subject or download the ready-to-send file. Nothing here sends email.</p>
+    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      {PARTNER_TEMPLATES.map((t) => <article key={t.key} className="rounded-md border p-4">
+        <div className="font-bold">{t.label}</div>
+        <p className="mt-1 text-xs text-muted-foreground">Subject: {t.subject}</p>
+        <p className="mt-1 text-xs text-muted-foreground">Registration link: <a className="text-primary underline" href={t.registrationUrl} target="_blank" rel="noopener">{t.registrationUrl}</a></p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={() => setOpen(open?.key === t.key ? null : t)}>{open?.key === t.key ? "Close preview" : "Preview"}</Button>
+          <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(t.subject); setCopied(t.key); }}>{copied === t.key ? "Copied" : "Copy subject"}</Button>
+          <DownloadTemplate t={t} />
+        </div>
+      </article>)}
+    </div>
+    {open && <TemplatePreview t={open} />}
+  </section>;
+}
+
+function useTemplateHtml(t: PartnerTemplate): string {
+  const [logo, setLogo] = useState("");
+  useMemo(() => {
+    let cancelled = false;
+    fetch("/email-preview/hi-vic-logo.png").then((r) => r.blob()).then((blob) => new Promise<string>((res) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1] ?? ""); fr.readAsDataURL(blob); })).then((b64) => { if (!cancelled) setLogo(b64); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  return useMemo(() => renderPartnerTemplate(t, logo), [t, logo]);
+}
+
+function TemplatePreview({ t }: { t: PartnerTemplate }) {
+  const html = useTemplateHtml(t);
+  return <div className="mt-4 overflow-hidden rounded-md border"><iframe title={t.label} srcDoc={html} className="h-[560px] w-full bg-white" sandbox="" /></div>;
+}
+
+function DownloadTemplate({ t }: { t: PartnerTemplate }) {
+  const html = useTemplateHtml(t);
+  return <Button size="sm" variant="outline" disabled={!html} onClick={() => {
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = t.fileName; a.click();
+    URL.revokeObjectURL(url);
+  }}>Download file</Button>;
 }
