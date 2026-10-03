@@ -197,3 +197,5 @@
 - [ ] Slice 1 plan approved (payment-option gate, PIESA after quote+payment, verified eligibility, direct contact + "Time arranged" + 24h reminder)
 - [ ] Verify office-only permissions on every server action (launch blocker)
 - [ ] Failed-message visibility to office (launch blocker)
+- [x] Installer partnership invitation template (canonical HTML, preview/copy/download in office Communications) — DONE 2026-10-03
+- [ ] REC/electrician partnership invitation template — BLOCKED: no canonical REC HTML exists in the repo; need Jo's exact electrician HTML to add beside the installer one
