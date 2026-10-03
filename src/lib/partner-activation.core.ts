@@ -1,6 +1,6 @@
 import { ACTIVATABLE_INSTALLER_VERSIONS, INSTALLER_AGREEMENT_VERSION, normaliseInstallerDraft, type InstData, EXTRA_ITEMS } from "./installer-onboarding.core";
 import { validCalendarDate } from "./rec-onboarding.core";
-import { REC_AGREEMENT_VERSION, type RecData, RECT_ITEMS, customRateCode, effectiveElectricians, melbourneToday } from "./rec-onboarding.core";
+import { ACTIVATABLE_REC_VERSIONS, REC_AGREEMENT_VERSION, type RecData, RECT_ITEMS, customRateCode, effectiveElectricians, melbourneToday } from "./rec-onboarding.core";
 
 export type PartnerType = "rec" | "installer";
 
@@ -72,7 +72,7 @@ export function mandatoryActivationBlockers(type: PartnerType, data: RecData | I
 export function activationBlockers(type: PartnerType, data: RecData | InstData, agreementVersion: string | null, signedAt: string | null, now = new Date()) {
   const blockers: string[] = [];
   if (!signedAt) blockers.push("The agreement has not been signed.");
-  if (type === "rec" ? agreementVersion !== REC_AGREEMENT_VERSION : !ACTIVATABLE_INSTALLER_VERSIONS.includes(agreementVersion ?? "")) blockers.push(`Agreement ${type === "rec" ? REC_AGREEMENT_VERSION : INSTALLER_AGREEMENT_VERSION} must be accepted before activation.`);
+  if (type === "rec" ? !ACTIVATABLE_REC_VERSIONS.includes(agreementVersion ?? "") : !ACTIVATABLE_INSTALLER_VERSIONS.includes(agreementVersion ?? "")) blockers.push(`Agreement ${type === "rec" ? REC_AGREEMENT_VERSION : INSTALLER_AGREEMENT_VERSION} must be accepted before activation.`);
   if (!validCalendarDate(data.public_liability_expiry) || (data.public_liability_expiry as string) < melbourneToday(now)) blockers.push("Public liability insurance is expired or missing.");
   return blockers;
 }

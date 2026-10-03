@@ -148,7 +148,8 @@ describe("rec onboarding", () => {
   });
   test("agreement text includes final clauses, schedules and every acknowledgement", () => {
     const t = agreementText(full);
-    expect(t).toContain("HI-VIC-A48-REC-2.3-2026-10-01");
+    expect(t).toContain("HI-VIC-A48-REC-2.4-2026-10-03");
+    expect(t).toContain("AP accreditation number: A003654");
     expect(t).toContain("public liability insurance of at least $5,000,000");
     expect(t).toContain("No separate fixed product-liability minimum is imposed");
     expect(t).toContain("six years after the record was made or the relevant transaction was completed, whichever is later");
