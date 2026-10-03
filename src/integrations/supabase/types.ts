@@ -955,6 +955,7 @@ export type Database = {
       businesses: {
         Row: {
           abn: string | null
+          accepting_new_jobs: boolean | null
           acn: string | null
           address: string | null
           approved_at: string | null
@@ -978,6 +979,7 @@ export type Database = {
           id: string
           installer_certification: Json
           is_active: boolean
+          lead_time: string | null
           lead_time_days: number | null
           legal_name: string | null
           licence_number: string | null
@@ -986,9 +988,11 @@ export type Database = {
           onboarding_status: string
           phone: string | null
           rec_number: string | null
+          receives_hivic_leads: boolean | null
           service_postcodes: string[]
           service_regions: string[]
           trading_name: string | null
+          typical_days: string[] | null
           updated_at: string
           weekly_capacity: number | null
           xero_contact_error: string | null
@@ -998,6 +1002,7 @@ export type Database = {
         }
         Insert: {
           abn?: string | null
+          accepting_new_jobs?: boolean | null
           acn?: string | null
           address?: string | null
           approved_at?: string | null
@@ -1021,6 +1026,7 @@ export type Database = {
           id?: string
           installer_certification?: Json
           is_active?: boolean
+          lead_time?: string | null
           lead_time_days?: number | null
           legal_name?: string | null
           licence_number?: string | null
@@ -1029,9 +1035,11 @@ export type Database = {
           onboarding_status?: string
           phone?: string | null
           rec_number?: string | null
+          receives_hivic_leads?: boolean | null
           service_postcodes?: string[]
           service_regions?: string[]
           trading_name?: string | null
+          typical_days?: string[] | null
           updated_at?: string
           weekly_capacity?: number | null
           xero_contact_error?: string | null
@@ -1041,6 +1049,7 @@ export type Database = {
         }
         Update: {
           abn?: string | null
+          accepting_new_jobs?: boolean | null
           acn?: string | null
           address?: string | null
           approved_at?: string | null
@@ -1064,6 +1073,7 @@ export type Database = {
           id?: string
           installer_certification?: Json
           is_active?: boolean
+          lead_time?: string | null
           lead_time_days?: number | null
           legal_name?: string | null
           licence_number?: string | null
@@ -1072,9 +1082,11 @@ export type Database = {
           onboarding_status?: string
           phone?: string | null
           rec_number?: string | null
+          receives_hivic_leads?: boolean | null
           service_postcodes?: string[]
           service_regions?: string[]
           trading_name?: string | null
+          typical_days?: string[] | null
           updated_at?: string
           weekly_capacity?: number | null
           xero_contact_error?: string | null
@@ -6337,6 +6349,63 @@ export type Database = {
           },
         ]
       }
+      partner_worker_certifications: {
+        Row: {
+          application_id: string | null
+          certificate_number: string | null
+          evidence_note: string
+          evidence_source: string
+          id: string
+          issuer: string | null
+          recorded_at: string
+          recorded_by: string
+          status: string
+          worker_email: string
+          worker_id: string | null
+        }
+        Insert: {
+          application_id?: string | null
+          certificate_number?: string | null
+          evidence_note: string
+          evidence_source: string
+          id?: string
+          issuer?: string | null
+          recorded_at?: string
+          recorded_by: string
+          status: string
+          worker_email: string
+          worker_id?: string | null
+        }
+        Update: {
+          application_id?: string | null
+          certificate_number?: string | null
+          evidence_note?: string
+          evidence_source?: string
+          id?: string
+          issuer?: string | null
+          recorded_at?: string
+          recorded_by?: string
+          status?: string
+          worker_email?: string
+          worker_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_worker_certifications_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "rec_onboarding_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_worker_certifications_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "partner_workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       partner_worker_invites: {
         Row: {
           business_id: string
@@ -6420,6 +6489,8 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           business_id: string
+          certification: Json | null
+          certification_status: string | null
           created_at: string
           email: string
           full_legal_name: string
@@ -6443,6 +6514,8 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           business_id: string
+          certification?: Json | null
+          certification_status?: string | null
           created_at?: string
           email: string
           full_legal_name: string
@@ -6466,6 +6539,8 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           business_id?: string
+          certification?: Json | null
+          certification_status?: string | null
           created_at?: string
           email?: string
           full_legal_name?: string
@@ -9584,6 +9659,19 @@ export type Database = {
           payment_status: string
         }[]
       }
+      activate_partner_application: {
+        Args: {
+          _actor: string
+          _app_id: string
+          _override: string
+          _plan: Json
+        }
+        Returns: {
+          business_id: string
+          outcome: string
+          rate_card_id: string
+        }[]
+      }
       apply_pre_assessment_test_payment: {
         Args: {
           _idempotency_key: string
@@ -9858,6 +9946,21 @@ export type Database = {
         Returns: undefined
       }
       shares_job_with: { Args: { _profile: string }; Returns: boolean }
+      sign_installer_application: {
+        Args: {
+          _agreement_sha256: string
+          _app_id: string
+          _enquiry: Json
+          _expected_updated_at: string
+          _nominations: Json
+          _signed: Json
+        }
+        Returns: {
+          outcome: string
+          partner_enquiry_id: string
+          signed_at: string
+        }[]
+      }
       sign_rec_application: {
         Args: {
           _agreement_sha256: string
