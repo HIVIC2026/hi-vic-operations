@@ -62,7 +62,7 @@ const TAB: Record<string, AdminTab> = {
   installation_scheduling: "installation", installation_booked: "installation", evidence_outstanding: "evidence", ap_review: "evidence", ready_for_veec: "veec",
 };
 const ACTION: Record<string, string> = {
-  new_enquiry: "Review eligibility", eligibility_review: "Review eligibility", ready_check_ready_to_schedule: "Book Ready Check", ready_check_complete: "Review measure-up",
+  new_enquiry: "Review eligibility", eligibility_review: "Review eligibility", ready_check_ready_to_schedule: "Book the Ready Check", ready_check_complete: "Review measure-up",
   measured_quote_accepted: "Open quote", piesa_and_install_window_pending: "Assign electrician", awaiting_electrician: "Assign electrician", piesa_complete: "Reconcile PIESA",
   assessment_complete: "Review PIESA", rectification_required: "Review rectification", ready_for_installer_quotes: "Issue quotes", awaiting_deposit_payment: "Check deposit",
   ap_review: "Do AP review", ready_for_veec: "Lodge VEECs", on_hold: "Resolve hold",
