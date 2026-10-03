@@ -194,8 +194,15 @@
 - [ ] Confirm guest seats can complete Ready Check/PIESA (decides whether extra trades cost ~$24-29/seat/month)
 
 ## Workflow correction (Oct 2026)
-- [ ] Slice 1 plan approved (payment-option gate, PIESA after quote+payment, verified eligibility, direct contact + "Time arranged" + 24h reminder)
+- [x] Slice 1 plan approved (revised with Jo's 8 corrections, 3 Oct)
+- [x] Slice 1 step 1: pure rules (visit status, next action, exact-counterpart confirmation, 24h/48h timers, per-recipient retry, rollback state) + tests
+- [ ] Slice 1 step 2: additive migration (visits, disclosures, approvals, requests, tasks, rc_* functions, contact-column privileges) — dry-run in a draft first (waiting on Jo's OK to create the draft)
+- [ ] Slice 1 step 3: route every stage change (autoAdvance, setEligibility, bulk, hold/resume, booking) through the guarded function
+- [ ] Slice 1 step 4: owner token actions, trade/owner contact screens, compact job summary
+- [ ] Slice 1 step 5: real-database authorisation tests and report
+- [ ] S1.10 decision from Jo: previous upgrade = yes -> office review?
 - [ ] Verify office-only permissions on every server action (launch blocker)
 - [ ] Failed-message visibility to office (launch blocker)
 - [x] Installer partnership invitation template (canonical HTML, preview/copy/download in office Communications) — DONE 2026-10-03
-- [ ] REC/electrician partnership invitation template — BLOCKED: no canonical REC HTML exists in the repo; need Jo's exact electrician HTML to add beside the installer one
+- [x] REC partnership invitation template saved (3 Oct)
+- [x] Resend key saved as RESEND_API (not used by any send yet)
