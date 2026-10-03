@@ -119,7 +119,13 @@ export async function quarantineSlot(db: Db, folder: string, appId: string) {
  * type/size/SHA-256/verification. Only one validator can claim an upload; any failure deletes the
  * quarantined file at once and leaves evidence incomplete.
  */
-export async function verifyAndPromote(db: Db, folder: string, appId: string, path: string, claimedMime: string) {
+export const UPLOAD_STALE_MESSAGE = "Your application changed in another tab. Reload to continue.";
+/**
+ * `expectedUpdatedAt` (installer): the attach is compare-and-swap on the application revision the tab holds,
+ * so an upload never silently absorbs another tab's edit; the new revision is returned for the tab to adopt.
+ * Omitted (REC): behaviour unchanged.
+ */
+export async function verifyAndPromote(db: Db, folder: string, appId: string, path: string, claimedMime: string, expectedUpdatedAt?: string) {
   if (!isOwnQuarantinePath(path, folder, appId)) throw new Error("Invalid upload.");
   const { data: claimed, error: claimError } = await db.rpc("begin_quarantine_validation", { _path: path, _app: appId });
   if (claimError || claimed !== true) throw new Error("This upload has expired or was already checked. Please upload the file again.");
@@ -140,14 +146,18 @@ export async function verifyAndPromote(db: Db, folder: string, appId: string, pa
   const finalPath = `${folder}/${appId}/insurance-${crypto.randomUUID()}.${verdict.type}`;
   const { error: moveError } = await bucket.move(path, finalPath);
   if (moveError) return reject("Could not store the certificate. Please try again.");
-  const { data: updated, error } = await db.from("rec_onboarding_applications").update({
+  const upd = db.from("rec_onboarding_applications").update({
     insurance_certificate_path: finalPath, insurance_file_type: verdict.type, insurance_file_bytes: bytes.length,
     insurance_file_sha256: sha, insurance_verified_at: new Date().toISOString(), insurance_scan_result: SCAN_RESULT_NO_SCANNER,
-  }).eq("id", appId).eq("status", "draft").select("updated_at").single();
+  });
+  const base = upd.eq("id", appId).eq("status", "draft");
+  const { data: updated, error } = expectedUpdatedAt
+    ? await base.eq("updated_at", expectedUpdatedAt).select("updated_at").maybeSingle()
+    : await base.select("updated_at").single();
   if (error || !updated) {
     await bucket.remove([finalPath]);
     await db.rpc("finish_quarantine_validation", { _path: path, _app: appId, _accepted: false, _bytes: size });
-    throw new Error("Could not attach the certificate. Please try again.");
+    throw new Error(expectedUpdatedAt && !error ? UPLOAD_STALE_MESSAGE : "Could not attach the certificate. Please try again.");
   }
   await db.rpc("finish_quarantine_validation", { _path: path, _app: appId, _accepted: true, _bytes: size });
   return { finalPath, mime: INSURANCE_MIME[verdict.type], updated_at: String(updated.updated_at) };
