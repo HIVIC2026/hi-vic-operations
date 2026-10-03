@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { defaultAddressProvider } from "@/lib/address-provider";
 import { isAustralianAddress, isVictorianAddress, keepPickedNumber, type ResolvedAddress } from "@/lib/rec-onboarding.core";
-import type { AddressSuggestion } from "@/lib/whatif-location";
+import type { AddressDetails, AddressSuggestion } from "@/lib/whatif-location";
 
 type AddressProvider = {
   search: (query: string) => Promise<AddressSuggestion[]>;
-  details: (placeId: string) => Promise<ResolvedAddress | null>;
+  details: (placeId: string) => Promise<AddressDetails | null>;
 };
 
 type Props = {
   value: string;
-  resolved?: ResolvedAddress | null;
+  resolved?: ResolvedAddress | null | undefined;
   onChange: (value: string) => void;
   onSelect: (value: ResolvedAddress | null) => void;
   victoriaOnly?: boolean;
@@ -94,9 +94,13 @@ export function VerifiedAddressInput({ value, resolved, onChange, onSelect, vict
     setFocused(false); setOpen(false); setItems([]); setActive(-1); setLoading(true); setNote("");
     try {
       const raw = await provider.details(suggestion.id);
-      const details = raw ? keepPickedNumber(suggestion.label, raw) : null;
+      const verified = raw?.country === "AU" && raw.provider === "google_places_au"
+        ? { ...raw, country: "AU" as const, provider: "google_places_au" as const }
+        : null;
+      const details = verified ? keepPickedNumber(suggestion.label, verified) : null;
       if (!mounted.current || mine !== detailsSeq.current) return;
       if (!isAustralianAddress(details)) throw new Error("incomplete");
+      if (!details) throw new Error("incomplete");
       if (victoriaOnly && !isVictorianAddress(details)) {
         onSelect(null); setEdited(true); setNote("Sorry, your service area needs to be in Victoria. Choose another result."); return;
       }
