@@ -3869,6 +3869,116 @@ export type Database = {
           },
         ]
       }
+      instalment_plans: {
+        Row: {
+          collection_arrangement: string | null
+          collection_recorded_at: string | null
+          created_at: string
+          first_instalment_amount: number | null
+          first_instalment_verified_at: string | null
+          id: string
+          instalment_count: number
+          invoice_id: string
+          job_id: string
+          office_approved_at: string | null
+          office_approved_by: string | null
+          owner_accepted_at: string | null
+          owner_accepted_by: string | null
+          quote_id: string
+          status: string
+          status_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          collection_arrangement?: string | null
+          collection_recorded_at?: string | null
+          created_at?: string
+          first_instalment_amount?: number | null
+          first_instalment_verified_at?: string | null
+          id?: string
+          instalment_count?: number
+          invoice_id: string
+          job_id: string
+          office_approved_at?: string | null
+          office_approved_by?: string | null
+          owner_accepted_at?: string | null
+          owner_accepted_by?: string | null
+          quote_id: string
+          status?: string
+          status_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          collection_arrangement?: string | null
+          collection_recorded_at?: string | null
+          created_at?: string
+          first_instalment_amount?: number | null
+          first_instalment_verified_at?: string | null
+          id?: string
+          instalment_count?: number
+          invoice_id?: string
+          job_id?: string
+          office_approved_at?: string | null
+          office_approved_by?: string | null
+          owner_accepted_at?: string | null
+          owner_accepted_by?: string | null
+          quote_id?: string
+          status?: string
+          status_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instalment_plans_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoice_payment_state"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instalment_plans_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoice_status"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instalment_plans_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instalment_plans_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instalment_plans_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "instalment_plans_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instalment_plans_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           amount_inc_gst: number | null
@@ -3894,6 +4004,7 @@ export type Database = {
           last_synced_at: string | null
           paid_at: string | null
           part: string
+          payment_option: string | null
           quote_id: string
           status: Database["public"]["Enums"]["payment_status"]
           sync_lock_at: string | null
@@ -3933,6 +4044,7 @@ export type Database = {
           last_synced_at?: string | null
           paid_at?: string | null
           part?: string
+          payment_option?: string | null
           quote_id: string
           status?: Database["public"]["Enums"]["payment_status"]
           sync_lock_at?: string | null
@@ -3972,6 +4084,7 @@ export type Database = {
           last_synced_at?: string | null
           paid_at?: string | null
           part?: string
+          payment_option?: string | null
           quote_id?: string
           status?: Database["public"]["Enums"]["payment_status"]
           sync_lock_at?: string | null
@@ -8975,6 +9088,7 @@ export type Database = {
           mitti_ready_check_priced_template_id: string | null
           mitti_ready_check_template_id: string | null
           partner_lead_fee_inc_gst: number
+          payment_option_gate_enabled: boolean
           photo_max_distance_m: number
           piesa_install_window_days: number
           updated_at: string
@@ -9005,6 +9119,7 @@ export type Database = {
           mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
           partner_lead_fee_inc_gst?: number
+          payment_option_gate_enabled?: boolean
           photo_max_distance_m?: number
           piesa_install_window_days?: number
           updated_at?: string
@@ -9035,6 +9150,7 @@ export type Database = {
           mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
           partner_lead_fee_inc_gst?: number
+          payment_option_gate_enabled?: boolean
           photo_max_distance_m?: number
           piesa_install_window_days?: number
           updated_at?: string
@@ -9582,6 +9698,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      instalment_plan_active: { Args: { _inv: string }; Returns: boolean }
       invoice_deposit_cleared: { Args: { _inv: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_business_member: {
@@ -9612,6 +9729,7 @@ export type Database = {
       my_job_role: { Args: { _job: string }; Returns: string }
       post_intake_tick: { Args: { _url: string }; Returns: number }
       record_expired_onboarding_authorisations: { Args: never; Returns: number }
+      required_deposit_amount: { Args: { _total: number }; Returns: number }
       review_external_action: {
         Args: {
           _actor: string
