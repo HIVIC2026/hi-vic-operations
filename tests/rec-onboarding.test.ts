@@ -167,7 +167,7 @@ describe("rec onboarding", () => {
   });
 
   test("the services confirmation stays mandatory in every mode", () => {
-    expect(ALWAYS_MANDATORY_STEPS).toEqual(["services"]);
+    expect(ALWAYS_MANDATORY_STEPS).toEqual(["services", "review"]);
     expect(isAlwaysMandatoryStep("services")).toBe(true);
     expect(isAlwaysMandatoryStep("coverage")).toBe(false);
     expect(stepErrors("services", {})).toEqual(["Confirm your REC can provide all three electrical services."]);
