@@ -57,8 +57,8 @@ Root `/` → staff sign-in change preserved (untouched).
 | REV-3 material edits reset review | 7 schedule fields reset; bank does not | STRICT-UNIT | PASS |
 | SGN-1 each of 9 acknowledgements | | STRICT-HARNESS | PASS |
 | SGN-2 signer name/title/email, version mismatch, already signed, relaxed missing licence, no certificate | | STRICT-HARNESS | PASS |
-| SGN-3 full path A: GST yes, CoES included, Mon, accepting | | STRICT-HARNESS | PASS — submitted, 1 office entry linked, signed text = exact agreement |
-| SGN-4 full path B: GST no, CoES separate $55, Sat+Sun, not accepting, all-VIC, Varies, 20+ | | STRICT-HARNESS | PASS |
+| SGN-3 sign-function path A (partial: no start/save/upload handlers): GST yes, CoES included, Mon, accepting | | STRICT-HARNESS | PASS — submitted, 1 office entry linked, signed text = exact agreement |
+| SGN-4 sign-function path B (partial: no start/save/upload handlers): GST no, CoES separate $55, Sat+Sun, not accepting, all-VIC, Varies, 20+ | | STRICT-HARNESS | PASS |
 | SGN-5 double click / stale tab after success | | STRICT-HARNESS | PASS |
 | SGN-6 concurrent double submit | | STRICT-HARNESS | PASS (after B4) |
 | SGN-7 update error / zero-row update rollback | | STRICT-HARNESS | PASS (after B4) |
@@ -94,5 +94,28 @@ Read-only `pg_indexes` (confirmed by me and independently by the reviewer): UNIQ
 ## Remaining before sending
 Not blockers to the form logic, but should be done before wide release:
 1. One real end-to-end submission on an office QA link (real upload of a PDF/JPG, extraction, sign, appears in the office list) — needs your go-ahead because it writes a real record.
-2. Full atomicity: signing is now compensated + self-healing, but not a single transaction. A database function would close the last gap (rollback delete failing *and* the applicant never retrying leaves an unsigned office entry). Optional; not applied.
+2. SUPERSEDED by root review 2a075c6 (below): compensation/delete was unsafe; replaced by a single-transaction database function, pending review.
 3. Upload boundaries (exact 10 MB, wrong bytes with right extension) and expired-link/rate-limit messages were not exercised live.
+
+
+## Root review of 2a075c6 — follow-ups (2026-10-03)
+
+**Status: NOT READY TO PUBLISH.** Signing now calls a database function that is prepared but **not applied to production** (`docs/pending-migrations/0078_sign_rec_application.sql`). Until it is reviewed and applied, live signing would fail closed ("Could not record your signature").
+
+| ID | Finding | Fix | Method | Result |
+|---|---|---|---|---|
+| RR-1 | Sign used no revision; concurrent save after read could sign stale text against new data | Browser sends `expected_updated_at` (last saved revision) + `agreement_sha256` of the text it reviewed; server rejects mismatch with app revision or recomputed hash; DB function re-checks revision under `FOR UPDATE` | PGlite (isolated PostgreSQL, real triggers, pending SQL) | PASS — CASE 1a (save after review), 1b (save between server read and transaction), 1c (other tab reviewed changed draft; stale tab rejected by hash and by revision) |
+| RR-2 | Compensating delete could remove an enquiry another winner uses; reused orphan kept old hash/rates/signer | Compensation removed entirely (no delete path). One transaction: lock row, CAS, upsert enquiry refreshing every synced column, mark signed. Same-hash re-sign = idempotent success | PGlite | PASS — CASE 2a (orphan refreshed: hash, signer, PIESA rate), 2b (B commits mid-A; A idempotent, different-hash A rejected, B's entry intact), 2c (failure after upsert rolls back both; retry works), bad submission id/hash rejected; static check: SQL has no DELETE |
+| RR-3 | Resume token cleared automatically | Token is never cleared on load failure. Transient: "Try again" re-requests the load. Invalid: message + "Start a new application" clears only on that click | Browser (route-aborted server calls) + unit | PASS — network failure kept token, Try again sent a new load; invalid token kept until explicit restart |
+| RR-4 | Review tick stayed true in data while load pending/failed; Continue could proceed | Panel resets `agreement_reviewed` and "ready" on every (re)load; Continue on Review requires loaded current-version agreement with valid hash AND tick (`recReviewGateOpen`); Sign requires reviewed hash + revision | Mounted component harness (happy-dom, injected loader) | PASS — pending, failure+retry, wrong version/malformed hash, schedule edit + slow stale response |
+| RR-5 | Client allowed a 21st custom rate | "Add custom item" hidden at 20, list capped; core already rejects 21 (EXT-1) | Unit + code | PASS (button not exercised on screen) |
+| RR-6 | Upload boundaries untested | Real `verifyInsuranceBytes`, `verifyAndPromote` with injected storage/db, `extractInsurance` with stubbed gateway | Unit harness, no writes | PASS — PDF/PNG/JPEG, MIME mismatch, fake/renamed, empty, truncated, active content, polyglot, exactly 10 MB pass / +1 byte fail, foreign/expired/missing path, move failure, DB failure removes promoted file, retry; extraction success/partial/500/garbage/network → advisory or null |
+| RR-7 | Docs called sign-function runs "full path" | Renamed; coverage marked partial | Docs | Done |
+
+**Concurrency limit:** PGlite is single-connection, so interleavings were reproduced by injecting the competing write between the server read and the transaction. True parallel row-lock blocking between two live connections is NOT TESTED.
+
+**NOT TESTED:** start/save/upload server handlers end to end; real signing; on-screen 20-item cap; migration on production (not applied).
+
+**Incident during this QA:** the invalid-token browser check's "Start a new application" click reached the live start handler (my request filter missed it) and created **3 empty, unsigned drafts** (2026-10-03 01:11–01:12 UTC, ids ce881c81…, 078d52de…, a41f45c4…). No data, no signature, no office entry. Not deleted (no live changes this task). Earlier test-mode drafts from the previous real sign-up attempt (00:52–01:00 UTC) also remain unsigned.
+
+**Commands (final):** `bun test tests/rec-onboarding.test.ts tests/partner-activation.test.ts tests/insurance-reading.test.ts tests/onboarding-security.test.ts tests/rec-sign-qa.test.ts tests/rec-upload-harness.test.ts tests/rec-review-panel.test.tsx` → **108 pass, 0 fail, 695 expects**. `tsgo --noEmit` → no errors.

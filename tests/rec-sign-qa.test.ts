@@ -5,7 +5,8 @@ import {
   blockedMandatoryStep, canonicalStepKey, firstIncompleteStep, pageErrors, stepErrors, validAbn, validCalendarDate, visiblePageForStep, STEPS, type RecData,
 } from "../src/lib/rec-onboarding.core";
 import { REC_INVALID_LINK_MESSAGE, shouldForgetResumeToken } from "../src/lib/rec-onboarding.core";
-import { performRecSign, recSignBlocker, type RecSignApp, type RecSignDeps } from "../src/lib/rec-sign.core";
+import { performRecSign, recSignBlocker, REC_STALE_MESSAGE, type RecSignApp } from "../src/lib/rec-sign.core";
+import { recDb, sha256, PENDING_SQL } from "./helpers/pglite-rec";
 
 const addr = (label: string, state = "VIC", country = "AU") => ({ label, state, postcode: "3000", country: country as "AU", provider: "google_places_au" as const });
 const full: RecData = {
@@ -20,32 +21,10 @@ const full: RecData = {
   bank_account_name: "Spark Pty Ltd", bank_bsb: "123-456", bank_account_number: "12345678", agreement_reviewed: true,
 };
 const allAcks = Object.fromEntries(ACKNOWLEDGEMENTS.map((a) => [a.key, true]));
-const input = { signer_name: "Sam Smith", signer_position: "Director", signer_email: "sam@spark.com.au", acknowledgements: allAcks, agreement_version: REC_AGREEMENT_VERSION };
-const appOf = (data: RecData, extra: Partial<RecSignApp> = {}): RecSignApp => ({ id: "app-1", status: "draft", data, insurance_certificate_path: "rec/app-1/coc.pdf", created_at: "2026-10-01T00:00:00Z", ...extra });
+const input = { signer_name: "Sam Smith", signer_position: "Director", signer_email: "sam@spark.com.au", acknowledgements: allAcks, agreement_version: REC_AGREEMENT_VERSION, expected_updated_at: "2026-10-01 00:00:00+00", agreement_sha256: "a".repeat(64) };
+const appOf = (data: RecData, extra: Partial<RecSignApp> = {}): RecSignApp => ({ id: "app-1", status: "draft", data, insurance_certificate_path: "rec/app-1/coc.pdf", created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01 00:00:00+00", ...extra });
 const now = new Date("2026-10-03T00:30:00Z"); // 10:30 Melbourne, 3 Oct
 
-function fakeDb(opts: { failMark?: "error" | "zero"; preexisting?: boolean; failInsert?: boolean } = {}) {
-  const state = { enquiries: new Map<string, { id: string; sub: string }>(), app: { status: "draft", fields: null as Record<string, unknown> | null }, deletes: 0 };
-  if (opts.preexisting) state.enquiries.set("pe-old", { id: "pe-old", sub: "portal-rec-onboarding-app-1" });
-  let n = 0;
-  const deps: RecSignDeps = {
-    sha256: async (s) => `h${s.length}`,
-    insertEnquiry: async (row) => {
-      if (opts.failInsert) throw new Error("Could not submit your application. Please try again.");
-      if ([...state.enquiries.values()].some((e) => e.sub === row.submission_id)) return null;
-      const id = `pe-${++n}`; state.enquiries.set(id, { id, sub: String(row.submission_id) }); return { id };
-    },
-    findEnquiry: async (sub) => [...state.enquiries.values()].find((e) => e.sub === sub) ?? null,
-    markSigned: async (_id, fields) => {
-      if (opts.failMark === "error") throw new Error("db down");
-      if (opts.failMark === "zero" || state.app.status !== "draft") return false;
-      state.app.status = "submitted"; state.app.fields = fields; return true;
-    },
-    currentStatus: async () => state.app.status,
-    deleteEnquiry: async (id) => { state.deletes++; state.enquiries.delete(id); },
-  };
-  return { state, deps };
-}
 
 describe("QA-ABT about you", () => {
   test("unanswered/staff/business/back-switch", () => {
@@ -213,77 +192,125 @@ describe("QA-PER persistence mapping", () => {
   });
 });
 
-describe("QA-SGN signing (in-memory database)", () => {
-  test("worker cannot sign, including relaxed test links and with a licence", async () => {
+const meta = { ip: "1.2.3.4", userAgent: "qa" };
+/** Browser-side view after reviewing: the draft revision and the hash of the agreement text shown. */
+async function reviewedInput(t: Awaited<ReturnType<typeof recDb>>, id: string) {
+  const a = await t.app(id);
+  return { ...input, expected_updated_at: a.updated_at, agreement_sha256: await sha256(agreementText({ ...(a.data as RecData), insurance_uploaded: true })) };
+}
+
+describe("QA-SGN signing rules (pure)", () => {
+  test("worker cannot sign, including relaxed test links and with a licence", () => {
     for (const extra of [{}, { test_mode: true, allow_incomplete_sign: true }]) {
-      const { state, deps } = fakeDb();
-      await expect(performRecSign(appOf({ ...full, works_under_rec: true }, extra), input, { ip: null, userAgent: null }, deps, now)).rejects.toThrow(/private invitation/);
-      await expect(performRecSign(appOf({ ...full, works_under_rec: null }, extra), input, { ip: null, userAgent: null }, deps, now)).rejects.toThrow(/private invitation/);
-      expect(state.enquiries.size).toBe(0);
+      expect(recSignBlocker(appOf({ ...full, works_under_rec: true }, extra), input, now)).toMatch(/private invitation/);
+      expect(recSignBlocker(appOf({ ...full, works_under_rec: null }, extra), input, now)).toMatch(/private invitation/);
     }
   });
-  test("each acknowledgement individually required", async () => {
-    for (const a of acknowledgementsFor(full)) {
-      const acks = { ...allAcks, [a.key]: false };
-      expect(recSignBlocker(appOf(full), { ...input, acknowledgements: acks }, now)).toBe("Tick every acknowledgement to sign.");
-    }
+  test("each acknowledgement individually required", () => {
+    for (const a of acknowledgementsFor(full)) expect(recSignBlocker(appOf(full), { ...input, acknowledgements: { ...allAcks, [a.key]: false } }, now)).toBe("Tick every acknowledgement to sign.");
   });
-  test("signer fields, version mismatch, already signed", () => {
+  test("signer fields, version mismatch, already signed, missing reviewed revision/hash", () => {
     expect(recSignBlocker(appOf(full), { ...input, signer_email: "sam@x" }, now)).toMatch(/business email/);
     expect(recSignBlocker(appOf(full), { ...input, signer_name: " a " }, now)).toMatch(/signer's name/);
     expect(recSignBlocker(appOf(full), { ...input, signer_position: "" }, now)).toMatch(/signer's name/);
     expect(recSignBlocker(appOf(full), { ...input, agreement_version: "old" }, now)).toMatch(/updated/);
     expect(recSignBlocker(appOf(full, { status: "submitted" }), input, now)).toMatch(/already been signed/);
+    expect(recSignBlocker(appOf(full), { ...input, expected_updated_at: "" }, now)).toMatch(/review the agreement/);
+    expect(recSignBlocker(appOf(full), { ...input, agreement_sha256: "nothex" }, now)).toMatch(/review the agreement/);
     expect(recSignBlocker(appOf({ ...full, licence_number: "" }, { test_mode: true, allow_incomplete_sign: true }), input, now)).toMatch(/licensed electrician/);
     expect(recSignBlocker(appOf(full, { insurance_certificate_path: null }), input, now)).toMatch(/insurance/);
   });
+  test("pending SQL never deletes and locks the application row", () => {
+    expect(/\bDELETE\b/i.test(PENDING_SQL.replace(/--.*$/gm, ""))).toBe(false);
+    expect(PENDING_SQL).toContain("FOR UPDATE");
+    expect(PENDING_SQL).toContain("rec_sign:stale");
+  });
+});
+
+describe("QA-SGN signing against isolated PostgreSQL (PGlite) + pending sign_rec_application", () => {
   for (const [label, variant] of [
     ["GST yes / CoES included / Mon accepting", { gst_registered: true, coes_fee_choice: "included" as const, typical_days: ["Mon"], accepting_jobs: true, travel_radius_km: 50 }],
     ["GST no / CoES separate / Sat-Sun not accepting / all-VIC", { gst_registered: false, coes_fee_choice: "separate" as const, coes_fee: 55, typical_days: ["Sat", "Sun"], accepting_jobs: false, travel_radius_km: 9999, normal_attendance_speed: "Varies", capacity_band: "20+" }],
   ] as const) {
-    test(`strict full path: ${label}`, async () => {
-      const d = { ...full, ...variant } as RecData;
+    test(`sign-function path (not full onboarding): ${label}`, async () => {
+      const t = await recDb(); const d = { ...full, ...variant } as RecData;
       expect(firstIncompleteStep(d, now)).toBeNull();
-      const { state, deps } = fakeDb();
-      const r = await performRecSign(appOf(d), input, { ip: "1.2.3.4", userAgent: "qa" }, deps, now);
-      expect(r.ok).toBe(true);
-      expect(state.app.status).toBe("submitted");
-      expect(state.enquiries.size).toBe(1);
-      expect(state.app.fields?.partner_enquiry_id).toBe([...state.enquiries.keys()][0]);
-      expect(state.app.fields?.agreement_text).toBe(agreementText({ ...d, insurance_uploaded: true }));
-      expect(String(state.app.fields?.agreement_text)).toContain(d.gst_registered ? "inc GST" : "not GST registered");
-      // second click / stale tab after success
-      await expect(performRecSign({ ...appOf(d), status: state.app.status }, input, { ip: null, userAgent: null }, deps, now)).rejects.toThrow(/already been signed/);
-      expect(state.enquiries.size).toBe(1);
+      const id = await t.create(d); const inp = await reviewedInput(t, id);
+      const r = await performRecSign(await t.app(id), inp, meta, t.deps(), now);
+      const a = await t.app(id); const pes = await t.enquiries();
+      expect(r.ok).toBe(true); expect(a.status).toBe("submitted"); expect(pes.length).toBe(1);
+      expect(a.partner_enquiry_id).toBe(pes[0]!.id);
+      expect(a.agreement_text).toBe(agreementText({ ...d, insurance_uploaded: true }));
+      expect(pes[0]!.raw_payload.agreement_sha256).toBe(String(a.agreement_sha256));
+      expect(String(a.agreement_text)).toContain(d.gst_registered ? "inc GST" : "not GST registered");
+      // double click with the same reviewed agreement: idempotent, still one entry
+      const again = await performRecSign({ ...(await t.app(id)), status: "draft" }, { ...inp, expected_updated_at: a.updated_at }, meta, t.deps(), now);
+      expect(again.agreement_sha256).toBe(String(a.agreement_sha256));
+      expect((await t.enquiries()).length).toBe(1);
+      await expect(t.db.query(`UPDATE rec_onboarding_applications SET signer_name = 'x' WHERE id = $1`, [id])).rejects.toThrow(/cannot be changed/);
     });
   }
-  test("update failure rolls back the new office entry", async () => {
-    for (const failMark of ["error", "zero"] as const) {
-      const { state, deps } = fakeDb({ failMark });
-      await expect(performRecSign(appOf(full), input, { ip: null, userAgent: null }, deps, now)).rejects.toThrow(/record your signature/);
-      expect(state.enquiries.size).toBe(0); expect(state.app.status).toBe("draft");
-    }
+
+  test("CASE 1a: another tab saves after this tab reviewed -> stale, nothing written", async () => {
+    const t = await recDb(); const id = await t.create(full); const inp = await reviewedInput(t, id);
+    await t.save(id, { ...full, assessment_rate: 999 });
+    await expect(performRecSign(await t.app(id), inp, meta, t.deps(), now)).rejects.toThrow(REC_STALE_MESSAGE);
+    expect((await t.app(id)).status).toBe("draft"); expect((await t.enquiries()).length).toBe(0);
   });
-  test("retry after an orphaned office entry re-uses it instead of failing forever", async () => {
-    const { state, deps } = fakeDb({ preexisting: true });
-    await performRecSign(appOf(full), input, { ip: null, userAgent: null }, deps, now);
-    expect(state.app.fields?.partner_enquiry_id).toBe("pe-old");
-    expect(state.enquiries.size).toBe(1);
+  test("CASE 1b: save lands between server read and atomic sign -> row-lock CAS rejects stale terms", async () => {
+    const t = await recDb(); const id = await t.create(full); const inp = await reviewedInput(t, id);
+    const snapshot = await t.app(id); // server read sees the reviewed revision
+    const deps = t.deps(() => t.save(id, { ...full, assessment_rate: 999 })); // other tab saves before the transaction
+    await expect(performRecSign(snapshot, inp, meta, deps, now)).rejects.toThrow(REC_STALE_MESSAGE);
+    const a = await t.app(id);
+    expect(a.status).toBe("draft"); expect((a.data as RecData).assessment_rate).toBe(999); expect((await t.enquiries()).length).toBe(0);
   });
-  test("concurrent double submit: one wins, loser sees already-signed and keeps winner's entry", async () => {
-    const { state, deps } = fakeDb();
-    const [a, b] = await Promise.allSettled([
-      performRecSign(appOf(full), input, { ip: null, userAgent: null }, deps, now),
-      performRecSign(appOf(full), input, { ip: null, userAgent: null }, deps, now),
-    ]);
-    expect([a.status, b.status].sort()).toEqual(["fulfilled", "rejected"]);
-    expect(state.enquiries.size).toBe(1);
-    expect(state.app.fields?.partner_enquiry_id).toBe([...state.enquiries.keys()][0]);
+  test("CASE 1c: tab B fully reviewed the changed draft; stale tab A cannot sign A's old text over it", async () => {
+    const t = await recDb(); const id = await t.create(full); const inpA = await reviewedInput(t, id);
+    await t.save(id, { ...full, assessment_rate: 999 }); const inpB = await reviewedInput(t, id);
+    expect(inpB.agreement_sha256).not.toBe(inpA.agreement_sha256);
+    await expect(performRecSign(await t.app(id), { ...inpA, expected_updated_at: inpB.expected_updated_at }, meta, t.deps(), now)).rejects.toThrow(REC_STALE_MESSAGE); // hash mismatch
+    await expect(performRecSign(await t.app(id), inpA, meta, t.deps(), now)).rejects.toThrow(REC_STALE_MESSAGE); // revision mismatch
+    await performRecSign(await t.app(id), inpB, meta, t.deps(), now);
+    expect(String((await t.app(id)).agreement_text)).toContain("999");
   });
-  test("insert failure leaves draft untouched", async () => {
-    const { state, deps } = fakeDb({ failInsert: true });
-    await expect(performRecSign(appOf(full), input, { ip: null, userAgent: null }, deps, now)).rejects.toThrow(/submit your application/);
-    expect(state.app.status).toBe("draft");
+  test("CASE 2a: orphan office entry with old hash/rates/signer is refreshed to the signed record", async () => {
+    const t = await recDb(); const id = await t.create(full);
+    await t.db.query(`INSERT INTO partner_enquiries(source_system, enquiry_type, submission_id, estimated_piesa_fee_inc_gst, raw_payload) VALUES ('portal_form','electrician_rec',$1, 1, $2)`,
+      [`portal-rec-onboarding-${id}`, JSON.stringify({ agreement_sha256: "old", signer: { name: "Old Signer" } })]);
+    await performRecSign(await t.app(id), await reviewedInput(t, id), meta, t.deps(), now);
+    const pes = await t.enquiries(); const a = await t.app(id);
+    expect(pes.length).toBe(1); expect(a.partner_enquiry_id).toBe(pes[0]!.id);
+    expect(pes[0]!.raw_payload.agreement_sha256).toBe(String(a.agreement_sha256));
+    expect(pes[0]!.raw_payload.signer.name).toBe("Sam Smith"); expect(Number(pes[0]!.estimated_piesa_fee_inc_gst)).toBe(300);
+  });
+  test("CASE 2b: A and B interleave; B wins; A's failure path never deletes B's entry", async () => {
+    const t = await recDb(); const id = await t.create(full); const inp = await reviewedInput(t, id);
+    const snapA = await t.app(id);
+    // B commits between A's read and A's transaction
+    const depsA = t.deps(async () => { await performRecSign(await t.app(id), inp, meta, t.deps(), now); });
+    const r = await performRecSign(snapA, inp, meta, depsA, now); // same agreement -> idempotent success
+    expect(r.ok).toBe(true);
+    const a = await t.app(id); const pes = await t.enquiries();
+    expect(pes.length).toBe(1); expect(a.partner_enquiry_id).toBe(pes[0]!.id);
+    // A with different (stale) terms after B signed: rejected, B's entry untouched
+    await expect(performRecSign({ ...a, status: "draft" }, { ...inp, expected_updated_at: a.updated_at, agreement_sha256: "b".repeat(64) }, meta, t.deps(), now)).rejects.toThrow();
+    expect((await t.enquiries()).map((e) => e.id)).toEqual([pes[0]!.id]);
+  });
+  test("CASE 2c: failure after the enquiry upsert rolls back everything (single transaction)", async () => {
+    const t = await recDb(); const id = await t.create(full);
+    await t.db.exec(`CREATE FUNCTION boom() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.status='submitted' THEN RAISE EXCEPTION 'boom'; END IF; RETURN NEW; END $$;
+      CREATE TRIGGER zz_boom BEFORE UPDATE ON rec_onboarding_applications FOR EACH ROW EXECUTE FUNCTION boom();`);
+    await expect(performRecSign(await t.app(id), await reviewedInput(t, id), meta, t.deps(), now)).rejects.toThrow(/record your signature/);
+    expect((await t.enquiries()).length).toBe(0); expect((await t.app(id)).status).toBe("draft");
+    await t.db.exec(`DROP TRIGGER zz_boom ON rec_onboarding_applications`);
+    await performRecSign(await t.app(id), await reviewedInput(t, id), meta, t.deps(), now); // retry works
+    expect((await t.enquiries()).length).toBe(1);
+  });
+  test("RPC rejects mismatched submission id and malformed hash", async () => {
+    const t = await recDb(); const id = await t.create(full); const a = await t.app(id);
+    await expect(t.db.query(`SELECT * FROM sign_rec_application($1,$2,$3,$4,$5)`, [id, a.updated_at, "c".repeat(64), JSON.stringify({ submission_id: "other" }), JSON.stringify({ agreement_sha256: "c".repeat(64) })])).rejects.toThrow(/bad_submission/);
+    await expect(t.db.query(`SELECT * FROM sign_rec_application($1,$2,$3,$4,$5)`, [id, a.updated_at, "zz", JSON.stringify({ submission_id: `portal-rec-onboarding-${id}` }), JSON.stringify({ agreement_sha256: "zz" })])).rejects.toThrow(/bad_hash/);
   });
 });
 

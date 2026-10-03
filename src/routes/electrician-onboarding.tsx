@@ -1,3 +1,5 @@
+import { BLUE, GREEN, NAVY, MUTED, btn, Check } from "@/components/rec/rec-ui";
+import { RecReviewPanel, type ReviewedAgreement } from "@/components/rec/RecReviewPanel";
 import { WorkerStop } from "@/components/portal/worker-stop";
 import { InsuranceReadReview } from "@/components/onboarding/InsuranceReadReview";
 import type { InsuranceExtract } from "@/lib/insurance-reading.core";
@@ -7,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
   acknowledgementsFor, agreementText, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION, MIN_REC_PL_COVER,
-  applyMaterialReset, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, pageErrors, pageMembers, parseRecSampleStep, firstIncompleteStep, stepErrors, shouldForgetResumeToken, validAbn, validBusinessEmail, visiblePageForStep, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
+  applyMaterialReset, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, pageErrors, pageMembers, parseRecSampleStep, firstIncompleteStep, stepErrors, recReviewGateOpen, resumeFailureMode, MAX_CUSTOM_RECT_ITEMS, validAbn, validBusinessEmail, visiblePageForStep, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
@@ -19,10 +21,6 @@ import type { AddressSuggestion } from "@/lib/whatif-location";
 
 // Public REC (electrician) onboarding + partner agreement signing. Progress is saved
 // server-side against an opaque resume token kept in this browser.
-const BLUE = "#3C51C4";
-const GREEN = "#07BF61";
-const NAVY = "#22376B";
-const MUTED = "#4A5578";
 const TOKEN_KEY = "hivic_rec_onboarding_token";
 
 export const Route = createFileRoute("/electrician-onboarding")({
@@ -44,7 +42,6 @@ const input: React.CSSProperties = { width: "100%", padding: "12px 14px", border
 const card: React.CSSProperties = { background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E9ECF3", boxShadow: "0 6px 20px -18px rgba(34,55,107,.32)" };
 const DISPLAY = "'Outfit', 'Figtree', system-ui, sans-serif";
 const infoCard: React.CSSProperties = { background: "#EAF8F0", border: `1px solid ${GREEN}55`, borderRadius: 14, padding: "12px 14px", fontSize: 14, color: NAVY, lineHeight: 1.5, marginBottom: 18 };
-const btn = (primary: boolean, disabled = false): React.CSSProperties => ({ minHeight: 48, padding: "0 20px", borderRadius: 12, border: primary ? "none" : `1px solid #D7DCE8`, background: primary ? (disabled ? "#9AA6D8" : BLUE) : "#fff", color: primary ? "#fff" : NAVY, fontWeight: 800, fontSize: 14, letterSpacing: 0.6, textTransform: "uppercase", cursor: disabled ? "default" : "pointer", fontFamily: "inherit" });
 
 function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
   return (
@@ -52,18 +49,6 @@ function Field({ label, required, hint, children }: { label: string; required?: 
       <label style={{ display: "block", fontWeight: 700, fontSize: 14, color: NAVY, marginBottom: 6 }}>{label}{required && <span style={{ color: BLUE }}> *</span>}</label>
       {children}
       {hint && <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>{hint}</div>}
-    </div>
-  );
-}
-function Check({ checked, onChange, children, required = false, error = null, disabled = false }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode; required?: boolean; error?: string | null; disabled?: boolean }) {
-  const box: React.CSSProperties = { display: "flex", gap: 10, alignItems: "flex-start", padding: "7px 0", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.55 : 1, fontSize: 14, lineHeight: 1.5, color: error ? "#8C1D18" : NAVY };
-  return (
-    <div style={{ marginBottom: 10 }}>
-      <label style={box}>
-        <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} style={{ width: 20, height: 20, marginTop: 1, accentColor: BLUE, flexShrink: 0 }} />
-        <span>{children}{required && <span style={{ color: BLUE, fontWeight: 800 }}> *</span>}</span>
-      </label>
-      {error && <div style={{ color: "#8C1D18", fontSize: 13, fontWeight: 700, marginTop: 6 }}>{error}</div>}
     </div>
   );
 }
@@ -224,6 +209,9 @@ function RecOnboarding() {
   const latestData = useRef(d);
   latestData.current = d;
   const [baseUpdatedAt, setBaseUpdatedAt] = useState<string | null>(null);
+  const [reviewed, setReviewed] = useState<ReviewedAgreement | null>(null);
+  const [resumeState, setResumeState] = useState<"ok" | "retry" | "invalid">("ok");
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [showErrors, setShowErrors] = useState(false);
   // Test mode is decided by the server (staff-issued link only); `testMode` = relaxed required steps.
@@ -271,16 +259,19 @@ function RecOnboarding() {
     const t = localStorage.getItem(TOKEN_KEY);
     if (!t) { setLoaded(true); return; }
     loadRecOnboarding({ data: { token: t } }).then((r) => {
+      setResumeState("ok"); setError(null); resumeLoadFailed.current = false;
       setToken(t); setD(r.data as RecData); setBaseUpdatedAt(r.updated_at); setStatus(r.status as "draft" | "submitted"); setStarted(true);
       setIsTest(!!r.test_mode); setTestMode(!!r.relaxed);
       const first = firstIncompleteStep(r.data as RecData);
       setStep(r.status === "submitted" ? "sign" : (first ?? visiblePageForStep(r.step_key)));
     }).catch((e) => {
-      if (shouldForgetResumeToken(e)) { localStorage.removeItem(TOKEN_KEY); return; }
-      resumeLoadFailed.current = true; // never start blank over a saved draft
-      setError("We couldn't load your saved application just now. Your progress is safe — try again in a moment.");
+      // Never clear the saved token here; only an explicit "Start a new application" does.
+      resumeLoadFailed.current = true;
+      const mode = resumeFailureMode(e);
+      setResumeState(mode);
+      setError(mode === "invalid" ? "This saved application link is no longer valid." : "We couldn't load your saved application just now. Your progress is safe — try again in a moment.");
     }).finally(() => setLoaded(true));
-  }, [invalidSample, sampleStep]);
+  }, [invalidSample, sampleStep, loadAttempt]);
   useEffect(() => {
     if (!started || status !== "draft") return;
     const onPop = (event: PopStateEvent) => { const candidate = visiblePageForStep(event.state?.recStep); if (visibleSteps(latestData.current).some((item) => item.key === candidate)) setStep(candidate); };
@@ -294,7 +285,10 @@ function RecOnboarding() {
 
   const resumeLoadFailed = useRef(false);
   async function begin() {
-    if (resumeLoadFailed.current) { window.location.reload(); return; }
+    if (resumeLoadFailed.current) {
+      if (resumeState === "invalid") { localStorage.removeItem(TOKEN_KEY); resumeLoadFailed.current = false; setResumeState("ok"); setError(null); }
+      else { setError(null); setLoadAttempt((x) => x + 1); return; }
+    }
     if (token) { setStarted(true); setError(null); return; }
     if (sampleMode) { setD(SAMPLE_REC_DATA); setToken("sample-preview-token"); setStep("about"); setStarted(true); setError(null); return; }
     setBusy(true); setError(null);
@@ -324,7 +318,8 @@ function RecOnboarding() {
       if (delta === 1 && d.works_under_rec === true) return;
       const underCover = step === "insurance" && d.works_under_rec !== true && typeof d.public_liability_cover_amount === "number" && d.public_liability_cover_amount < MIN_REC_PL_COVER;
       const mandatoryGroupError = pageMembers(step).some((member) => isAlwaysMandatoryStep(member) && stepErrors(member, d).length > 0);
-      if (delta === 1 && (underCover || mandatoryGroupError || (errs.length && !testMode && !sampleMode))) { setShowErrors(true); return; }
+      const reviewBlocked = step === "review" && !recReviewGateOpen(d, reviewed);
+      if (delta === 1 && (underCover || mandatoryGroupError || reviewBlocked || (errs.length && !testMode && !sampleMode))) { setShowErrors(true); return; }
       setShowErrors(false);
       const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "about";
       if (delta === -1) { setStep(target); window.history.pushState({ recStep: target }, ""); window.scrollTo({ top: 0 }); }
@@ -399,7 +394,7 @@ function RecOnboarding() {
           ))}
         </div>
         {error && <p style={{ color: "#B3261E" }}>{error}</p>}
-        <button style={{ ...btn(true, busy), width: "100%", minHeight: 52, borderRadius: 16, fontSize: 15 }} disabled={busy} onClick={begin}>{busy ? "Starting…" : resumeLoadFailed.current ? "Try again →" : token ? "Continue registration →" : "Start registration →"}</button>
+        <button style={{ ...btn(true, busy), width: "100%", minHeight: 52, borderRadius: 16, fontSize: 15 }} disabled={busy} onClick={begin}>{busy ? "Starting…" : resumeState === "invalid" ? "Start a new application →" : resumeState === "retry" ? "Try again →" : token ? "Continue registration →" : "Start registration →"}</button>
         <p style={{ fontSize: 12, color: MUTED, textAlign: "center", margin: "10px 0 0" }}>Save your progress after each step.</p>
       </div>
     </div>,
@@ -439,8 +434,8 @@ function RecOnboarding() {
       {isTest && !sampleMode && <div style={{ background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#7A5A00", marginBottom: 14 }}>TEST MODE — staff test link. This application is marked as a test and won't count as a real applicant. The services confirmation is always required.</div>}
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
       <div style={{ width: 34, height: 3, borderRadius: 99, background: "#F4A9C7", margin: "10px 0 18px" }} />
-      <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onRevision={setBaseUpdatedAt} showErrors={showErrors} />
-      {step === "sign" && <SignStep d={d} token={token ?? ""} onSigned={() => setStatus("submitted")} preview={sampleMode} />}
+      <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onRevision={setBaseUpdatedAt} showErrors={showErrors} onReviewReady={setReviewed} />
+      {step === "sign" && <SignStep d={d} token={token ?? ""} reviewed={reviewed} revision={baseUpdatedAt} onSigned={() => setStatus("submitted")} preview={sampleMode} />}
       {showErrors && errs.length > 0 && (
         <div style={{ background: "#FDECEA", border: "1px solid #F5C2BE", borderRadius: 12, padding: "10px 14px", color: "#8C1D18", fontSize: 14, marginTop: 8 }}>
           {errs.map((e) => <div key={e}>• {e}</div>)}
@@ -452,7 +447,7 @@ function RecOnboarding() {
   );
 }
 
-function StepBody({ step, d, up, token, setError, preview, onRevision, showErrors }: { step: StepKey; d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void; preview: boolean; onRevision: (revision: string) => void; showErrors: boolean }) {
+function StepBody({ step, d, up, token, setError, preview, onRevision, showErrors, onReviewReady }: { step: StepKey; d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void; preview: boolean; onRevision: (revision: string) => void; showErrors: boolean; onReviewReady: (r: ReviewedAgreement | null) => void }) {
   const t = (k: keyof RecData, upper = false) => ({ value: (d[k] as string) ?? "", onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => up({ [k]: upper ? e.target.value.toUpperCase() : e.target.value } as Partial<RecData>) });
   switch (step) {
     case "about":
@@ -537,7 +532,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
             <Field label={d.gst_registered === false ? "Total supplier rate" : "Supplier rate (inc GST)"} required><Money value={item.price} onChange={(v) => up({ custom_rectification_rates: (d.custom_rectification_rates ?? []).map((x, i) => i === index ? { ...x, price: v } : x) })} {...(item.unit ? { unit: item.unit } : {})} /></Field>
             <button type="button" style={btn(false)} onClick={() => up({ custom_rectification_rates: (d.custom_rectification_rates ?? []).filter((_, i) => i !== index) })}>Remove item</button>
           </div>)}
-          <button type="button" style={btn(false)} onClick={() => up({ custom_rectification_rates: [...(d.custom_rectification_rates ?? []), { id: crypto.randomUUID(), description: "", unit: "each", price: null }] })}>Add custom item</button>
+          {(d.custom_rectification_rates ?? []).length < MAX_CUSTOM_RECT_ITEMS ? <button type="button" style={btn(false)} onClick={() => up({ custom_rectification_rates: [...(d.custom_rectification_rates ?? []), { id: crypto.randomUUID(), description: "", unit: "each", price: null }].slice(0, MAX_CUSTOM_RECT_ITEMS) })}>Add custom item</button> : <p style={{ fontSize: 13, color: MUTED }}>Up to {MAX_CUSTOM_RECT_ITEMS} custom items.</p>}
         </Group>
         <p style={{ fontSize: 13, color: MUTED }}>Anything outside your approved rate schedule is quoted separately through Home Insulation Victoria on the specific job before owner approval.</p>
       </>;
@@ -550,7 +545,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
         <Field label="Account number" required><input style={input} inputMode="numeric" autoComplete="off" {...t("bank_account_number")} /></Field>
       </>;
     case "review":
-      return <ReviewStep d={d} up={up} token={token} preview={preview} />;
+      return <RecReviewPanel d={d} up={up} preview={preview} load={() => getRecAgreement({ data: { token } })} onReady={onReviewReady} />;
     default:
       return null;
   }
@@ -615,46 +610,8 @@ function InsuranceStep({ d, up, token, setError, preview, onRevision }: { d: Rec
   </>;
 }
 
-function ReviewStep({ d, up, token, preview }: { d: RecData; up: (p: Partial<RecData>) => void; token: string; preview: boolean }) {
-  const [text, setText] = useState<string | null>(null);
-  const [version, setVersion] = useState("");
-  const [failed, setFailed] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-  const generation = useRef(0);
-  // Reload only when the schedules could change; ticking the review box must not refetch.
-  const { agreement_reviewed: _r, ...scheduleData } = d;
-  const signature = JSON.stringify(scheduleData);
-  const upRef = useRef(up); upRef.current = up;
-  useEffect(() => {
-    const mine = ++generation.current;
-    setText(null); setFailed(false);
-    if (preview) { setText(agreementText(d)); setVersion(REC_AGREEMENT_VERSION); return; }
-    getRecAgreement({ data: { token } }).then((a) => {
-      if (mine !== generation.current) return;
-      if (a.version !== REC_AGREEMENT_VERSION) { setFailed(true); upRef.current({ agreement_reviewed: false }); return; }
-      setText(a.text); setVersion(a.version);
-    }).catch(() => {
-      if (mine !== generation.current) return;
-      setFailed(true); upRef.current({ agreement_reviewed: false });
-    });
-    return () => { generation.current++; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signature, preview, token, attempt]);
-  const loaded = text !== null && !failed;
-  return <>
-    <div style={{ fontSize: 12, fontWeight: 800, color: GREEN, textTransform: "uppercase", letterSpacing: 0.8 }}>Activity 48 · VEU</div>
-    <div style={{ fontSize: 13, color: MUTED, marginBottom: 6 }}>Version {version || "—"}</div>
-    <div style={{ fontSize: 14, marginBottom: 4 }}><strong>AP:</strong> DC Construction Solutions Pty Ltd trading as Home Insulation Victoria</div>
-    <div style={{ fontSize: 14, marginBottom: 12 }}><strong>REC:</strong> {d.trading_name || d.legal_entity_name} · {d.rec_registration_number}</div>
-    {failed ? <div role="alert" style={{ border: "1px solid #F3B4AE", borderRadius: 14, padding: 16, fontSize: 14, color: "#8C1D18", background: "#FFF5F4", marginBottom: 16 }}>
-      Could not load the agreement, so it can't be reviewed yet.{" "}
-      <button type="button" onClick={() => setAttempt((x) => x + 1)} style={{ ...btn(false), minHeight: 40, marginTop: 8 }}>Try again</button>
-    </div> : <div data-testid="agreement-text" style={{ maxHeight: 420, overflowY: "auto", border: "1px solid #E4E8F0", borderRadius: 14, padding: 16, fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap", background: "#FBFCFA", marginBottom: 16 }}>{text ?? "Loading agreement…"}</div>}
-    <Check disabled={!loaded} checked={loaded && d.agreement_reviewed === true} onChange={(v) => up({ agreement_reviewed: v })}>I've reviewed the REC partner agreement and the schedules above.</Check>
-  </>;
-}
 
-function SignStep({ d, token, onSigned, preview }: { d: RecData; token: string; onSigned: () => void; preview: boolean }) {
+function SignStep({ d, token, reviewed, revision, onSigned, preview }: { d: RecData; token: string; reviewed: ReviewedAgreement | null; revision: string | null; onSigned: () => void; preview: boolean }) {
   const [acks, setAcks] = useState<Record<string, boolean>>({});
   const [name, setName] = useState(d.primary_contact_name ?? "");
   const [position, setPosition] = useState("");
@@ -664,12 +621,12 @@ function SignStep({ d, token, onSigned, preview }: { d: RecData; token: string; 
   const ackList = acknowledgementsFor(d);
   const acknowledgementRevision = `${REC_AGREEMENT_VERSION}:${agreementText(d)}`;
   useEffect(() => setAcks({}), [acknowledgementRevision]);
-  const ready = ackList.every((a) => acks[a.key]) && name.trim().length > 1 && position.trim().length > 1 && validBusinessEmail(email);
+  const ready = ackList.every((a) => acks[a.key]) && name.trim().length > 1 && position.trim().length > 1 && validBusinessEmail(email) && (preview || (!!reviewed && !!revision));
   async function sign() {
     if (preview) { setErr("Sample preview only — no agreement was signed or submitted."); return; }
     setBusy(true); setErr(null);
     try {
-      await signRecAgreement({ data: { token, signer_name: name, signer_position: position, signer_email: email, acknowledgements: acks, agreement_version: REC_AGREEMENT_VERSION } });
+      await signRecAgreement({ data: { token, signer_name: name, signer_position: position, signer_email: email, acknowledgements: acks, agreement_version: REC_AGREEMENT_VERSION, expected_updated_at: revision ?? "", agreement_sha256: reviewed?.sha256 ?? "" } });
       onSigned(); window.scrollTo({ top: 0 });
     } catch (e) { setErr(e instanceof Error ? e.message : "Could not sign."); } finally { setBusy(false); }
   }
@@ -679,6 +636,7 @@ function SignStep({ d, token, onSigned, preview }: { d: RecData; token: string; 
     <Field label="Signer full legal name" required><input style={input} value={name} onChange={(e) => setName(e.target.value)} /></Field>
     <Field label="Position / title" required><input style={input} placeholder="e.g. Director" value={position} onChange={(e) => setPosition(e.target.value)} /></Field>
     <Field label="Signer email" required><input style={input} type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+    {!preview && !reviewed && <p role="alert" style={{ color: "#8C1D18", fontSize: 14 }}>Go back and review the agreement before signing.</p>}
     {err && <p style={{ color: "#B3261E", fontSize: 14 }}>{err}</p>}
     <button style={{ ...btn(true, !ready || busy), width: "100%" }} disabled={!ready || busy || preview} onClick={sign}>{busy ? "Signing…" : preview ? "Preview only — signing disabled" : "Sign agreement & submit"}</button>
   </>;

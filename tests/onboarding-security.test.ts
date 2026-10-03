@@ -70,8 +70,8 @@ describe("test mode trust", () => {
       expect(src).not.toContain("app.test_mode ? null : firstIncompleteStep");
       expect(src).toMatch(/staff_link: tokenSchema\.optional\(\) \}\)\.strict\(\)/);
     }
-    const rec = readFileSync("src/lib/rec-onboarding.functions.ts", "utf8");
-    expect(rec).toContain('blockedMandatoryStep("sign", d) ?? (relax ? null : firstIncompleteStep(d))');
+    const rec = readFileSync("src/lib/rec-sign.core.ts", "utf8");
+    expect(rec).toContain('blockedMandatoryStep("sign", d, now) ?? (relax ? null : firstIncompleteStep(d, now))');
   });
   test("pages never send a test switch", () => {
     for (const f of ["src/routes/electrician-onboarding.tsx", "src/routes/installer-onboarding.tsx"]) {

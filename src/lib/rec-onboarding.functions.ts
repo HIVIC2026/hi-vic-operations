@@ -141,7 +141,8 @@ export const getRecAgreement = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { app } = await findApp(data.token);
     const d = { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path };
-    return { title: REC_AGREEMENT_TITLE, version: REC_AGREEMENT_VERSION, text: app.agreement_text ?? agreementText(d) };
+    const text = app.agreement_text ?? agreementText(d);
+    return { title: REC_AGREEMENT_TITLE, version: REC_AGREEMENT_VERSION, text, sha256: await sha256(text), updated_at: String(app.updated_at) };
   });
 
 export const signRecAgreement = createServerFn({ method: "POST" })
@@ -153,6 +154,8 @@ export const signRecAgreement = createServerFn({ method: "POST" })
     signer_email: z.string().trim().max(320),
     acknowledgements: z.record(z.string(), z.boolean()),
     agreement_version: z.string(),
+    expected_updated_at: z.string().refine(isRecRevisionTimestamp, "Invalid draft revision."),
+    agreement_sha256: z.string().regex(/^[a-f0-9]{64}$/),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { db, app } = await findApp(data.token);
@@ -161,21 +164,12 @@ export const signRecAgreement = createServerFn({ method: "POST" })
     const { performRecSign } = await import("./rec-sign.core");
     return performRecSign(app as never, data, { ip: context.ip, userAgent: context.userAgent }, {
       sha256,
-      insertEnquiry: async (row) => {
-        const { data: pe, error } = await db.from("partner_enquiries").insert(row as never).select("id").single();
-        if (error) { if ((error as { code?: string }).code === "23505") return null; throw new Error("Could not submit your application. Please try again."); }
-        return pe;
+      signAtomic: async ({ appId, expectedUpdatedAt, agreementSha256, enquiry, signed }) => {
+        const { data: rows, error } = await db.rpc("sign_rec_application" as never, { _app_id: appId, _expected_updated_at: expectedUpdatedAt, _agreement_sha256: agreementSha256, _enquiry: enquiry, _signed: signed } as never);
+        if (error) throw new Error((error as { message?: string }).message ?? "sign failed");
+        const row = (rows as unknown as { outcome: "signed" | "already_signed_same"; partner_enquiry_id: string; signed_at: string }[] | null)?.[0];
+        if (!row) throw new Error("sign failed");
+        return row;
       },
-      findEnquiry: async (submissionId) => {
-        const { data: pe } = await db.from("partner_enquiries").select("id").eq("source_system", "portal_form").eq("enquiry_type", "electrician_rec").eq("submission_id", submissionId).maybeSingle();
-        return pe;
-      },
-      markSigned: async (id, fields) => {
-        const { data: row, error } = await db.from("rec_onboarding_applications").update(fields as never).eq("id", id).eq("status", "draft").select("id").maybeSingle();
-        if (error) throw error;
-        return !!row;
-      },
-      currentStatus: async (id) => (await db.from("rec_onboarding_applications").select("status").eq("id", id).maybeSingle()).data?.status ?? null,
-      deleteEnquiry: async (id) => { await db.from("partner_enquiries").delete().eq("id", id); },
     });
   });
