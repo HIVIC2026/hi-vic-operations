@@ -18,7 +18,10 @@ export function activationWorkers(type: PartnerType, application: RecData | Inst
       business_id: businessId, trade_role: "installer" as const,
       full_legal_name: worker.full_legal_name?.trim() ?? "", email,
       mobile: worker.mobile?.trim() || null, licence_number: null,
-      qualification: worker.qualification?.trim() || null, source_application_id: applicationId,
+      // partner_workers_check requires a qualification for installers: use stated training, else the CII certificate the office checks.
+      qualification: worker.qualification?.trim()
+        || ((v?.certificate_number ?? worker.cii_certificate_number)?.trim() ? `EEC CII ${(v?.certificate_number ?? worker.cii_certificate_number)!.trim()}` : null),
+      source_application_id: applicationId,
       // Only an office verification counts; the applicant's own answer is kept as "declared".
       certification_status: v?.status ?? "unverified",
       certification: { declared: { holds: worker.cii_holds ?? null, certificate_number: worker.cii_certificate_number ?? null, issuer: worker.cii_issuer ?? null, issue_date: worker.cii_issue_date ?? null }, verification_id: v?.id ?? null },
@@ -26,7 +29,7 @@ export function activationWorkers(type: PartnerType, application: RecData | Inst
   });
 }
 
-export type CertVerification = { id: string; worker_email: string; status: "verified" | "rejected"; recorded_at: string };
+export type CertVerification = { id: string; worker_email: string; status: "verified" | "rejected"; recorded_at: string; certificate_number?: string | null };
 /** Latest office decision per worker email (append-only history; newest wins). */
 export function latestCertifications(rows: CertVerification[]): Map<string, CertVerification> {
   const m = new Map<string, CertVerification>();
@@ -76,7 +79,7 @@ export function planActivation(type: PartnerType, app: { id: string; partner_enq
   const capability = type === "rec" ? "electrician" : "installer";
   const items = approvedRateItems(type, application);
   return {
-    abn: application.abn?.replace(/\s/g, "") || null,
+    abn: application.abn?.replace(/\D/g, "") || null,
     capability,
     business: {
       name: application.trading_name || application.legal_entity_name || "Partner business",
