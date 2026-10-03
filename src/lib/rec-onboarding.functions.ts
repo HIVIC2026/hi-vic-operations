@@ -131,9 +131,7 @@ export const confirmInsuranceUpload = createServerFn({ method: "POST" })
     if (app.status !== "draft") throw new Error("Already submitted.");
     const sec = await import("./onboarding-security.server");
     const done = await sec.verifyAndPromote(db as never, "rec-onboarding", app.id, data.path, data.content_type);
-    const { extractInsurance } = await import("./insurance-extract.server");
-    const extracted = await extractInsurance(db as never, done.finalPath);
-    return { ok: true, extracted, updated_at: done.updated_at };
+    return { ok: true, updated_at: done.updated_at };
   });
 
 export const getRecAgreement = createServerFn({ method: "POST" })
