@@ -6,7 +6,7 @@ import { withRequestMeta, withStartLimitStatus, withVisitorId } from "./request-
 import { mayRelaxRequiredSteps } from "./onboarding-security.core";
 import {
   REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, agreementText, applyMaterialReset,
-  blockedMandatoryStep, canonicalStepKey, isRecRevisionTimestamp, type RecData,
+  blockedMandatoryStep, canonicalStepKey, REC_INVALID_LINK_MESSAGE, isRecRevisionTimestamp, type RecData,
 } from "./rec-onboarding.core";
 
 async function sha256(s: string) {
@@ -26,7 +26,7 @@ async function findApp(token: string) {
   const db = await admin();
   const { data, error } = await db.from("rec_onboarding_applications").select("*").eq("resume_token_hash", await sha256(token)).eq("partner_type", "rec").maybeSingle();
   if (error) throw new Error("Could not load your application.");
-  if (!data) throw new Error("This onboarding link is no longer valid. Please start again.");
+  if (!data) throw new Error(REC_INVALID_LINK_MESSAGE);
   return { db, app: data };
 }
 

@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
   acknowledgementsFor, agreementText, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION, MIN_REC_PL_COVER,
-  applyMaterialReset, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, pageErrors, pageMembers, parseRecSampleStep, firstIncompleteStep, stepErrors, validAbn, validBusinessEmail, visiblePageForStep, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
+  applyMaterialReset, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, pageErrors, pageMembers, parseRecSampleStep, firstIncompleteStep, stepErrors, shouldForgetResumeToken, validAbn, validBusinessEmail, visiblePageForStep, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
@@ -275,7 +275,11 @@ function RecOnboarding() {
       setIsTest(!!r.test_mode); setTestMode(!!r.relaxed);
       const first = firstIncompleteStep(r.data as RecData);
       setStep(r.status === "submitted" ? "sign" : (first ?? visiblePageForStep(r.step_key)));
-    }).catch(() => localStorage.removeItem(TOKEN_KEY)).finally(() => setLoaded(true));
+    }).catch((e) => {
+      if (shouldForgetResumeToken(e)) { localStorage.removeItem(TOKEN_KEY); return; }
+      resumeLoadFailed.current = true; // never start blank over a saved draft
+      setError("We couldn't load your saved application just now. Your progress is safe — try again in a moment.");
+    }).finally(() => setLoaded(true));
   }, [invalidSample, sampleStep]);
   useEffect(() => {
     if (!started || status !== "draft") return;
@@ -288,7 +292,9 @@ function RecOnboarding() {
   const errs = pageErrors(step, d);
   const up = (patch: Partial<RecData>) => setD((x) => applyMaterialReset(x, { ...x, ...patch }));
 
+  const resumeLoadFailed = useRef(false);
   async function begin() {
+    if (resumeLoadFailed.current) { window.location.reload(); return; }
     if (token) { setStarted(true); setError(null); return; }
     if (sampleMode) { setD(SAMPLE_REC_DATA); setToken("sample-preview-token"); setStep("about"); setStarted(true); setError(null); return; }
     setBusy(true); setError(null);
@@ -393,7 +399,7 @@ function RecOnboarding() {
           ))}
         </div>
         {error && <p style={{ color: "#B3261E" }}>{error}</p>}
-        <button style={{ ...btn(true, busy), width: "100%", minHeight: 52, borderRadius: 16, fontSize: 15 }} disabled={busy} onClick={begin}>{busy ? "Starting…" : token ? "Continue registration →" : "Start registration →"}</button>
+        <button style={{ ...btn(true, busy), width: "100%", minHeight: 52, borderRadius: 16, fontSize: 15 }} disabled={busy} onClick={begin}>{busy ? "Starting…" : resumeLoadFailed.current ? "Try again →" : token ? "Continue registration →" : "Start registration →"}</button>
         <p style={{ fontSize: 12, color: MUTED, textAlign: "center", margin: "10px 0 0" }}>Save your progress after each step.</p>
       </div>
     </div>,
