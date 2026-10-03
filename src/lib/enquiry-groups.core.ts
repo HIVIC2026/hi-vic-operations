@@ -88,9 +88,9 @@ export function insulationOnly(audit: StoredAudit, declared: EnquiryInput["decla
   const ins = rules.find((r) => r.key === "existing_insulation");
   if (!ins || ins.result !== "onsite") return { ok: false, why: "Existing-insulation check not recorded as open", missing: false };
   for (const [k, allowed] of Object.entries(REQUIRED_GATES)) {
-    const r = rules.find((x) => x.key === k);
-    if (!r) return { ok: false, why: `Check not recorded: ${k.replace(/_/g, " ")}`, missing: false };
-    if (!allowed.includes(r.result ?? "")) return { ok: false, why: k === "roof_access" ? "Roof / access also needs onsite confirmation" : `Check not passed: ${k.replace(/_/g, " ")}`, missing: false };
+    const rs = rules.filter((x) => x.key === k);
+    if (!rs.length) return { ok: false, why: `Check not recorded: ${k.replace(/_/g, " ")}`, missing: false };
+    if (rs.some((r) => !allowed.includes(r.result ?? ""))) return { ok: false, why: k === "roof_access" ? "Roof / access also needs onsite confirmation" : `Check not passed: ${k.replace(/_/g, " ")}`, missing: false };
   }
   const extra = rules.find((r) => r.key !== "existing_insulation" && !(r.key && r.key in REQUIRED_GATES) && !(INFO_ONLY.has(r.key ?? "") && r.result === "info"));
   if (extra) return { ok: false, why: `Also open: ${extra.reason ?? extra.key}`, missing: false };

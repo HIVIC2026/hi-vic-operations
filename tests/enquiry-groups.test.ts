@@ -116,14 +116,14 @@ describe("homeowner video capture", () => {
     { kind: "intake_media", mime_type: "image/jpeg", storage_path: "b" }, { kind: "evidence", mime_type: "video/mp4", storage_path: "c" },
   ])).toBe(1));
   test("video email draft: secure link, no roof-entry instruction, onsite alternative", () => {
-    const m = renderInsulationVideoEmail({ captureUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/abc/video", firstName: "Sam", reference: "HV-1" });
-    expect(m.html).toContain("/estimate/abc/video");
+    const m = renderInsulationVideoEmail({ captureUrl: "https://quote.homeinsulationvictoria.com.au/estimate/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/video", firstName: "Sam", reference: "HV-1" });
+    expect(m.html).toContain("/video");
     expect(m.plainText.toLowerCase()).not.toMatch(/climb|go into the roof|enter the roof/);
     expect(m.plainText.toLowerCase()).toContain("onsite");
     expect(m.html).toContain("Home Insulation Victoria");
   });
   test("approved estimate renderer still renders a $0-now assumed-area draft", () => {
-    const m = renderEstimateEmail({ estimateUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/x", outcome: "likely", firstName: "Sam", reference: "HV-1", estimatedTotal: 900, veuDiscount: 2000, areaM2: 150, installationPrice: 2500, installationRatePerM2: 16.67, assessmentFee: 0, apFee: 349, grossProjectTotal: 2900, amountPayableNow: 0, estimatedRemainingBalance: 900, areaIsTypical: true });
+    const m = renderEstimateEmail({ estimateUrl: "https://quote.homeinsulationvictoria.com.au/estimate/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", outcome: "likely", firstName: "Sam", reference: "HV-1", estimatedTotal: 900, veuDiscount: 2000, areaM2: 150, installationPrice: 2500, installationRatePerM2: 16.67, assessmentFee: 0, apFee: 349, grossProjectTotal: 2900, amountPayableNow: 0, estimatedRemainingBalance: 900, areaIsTypical: true });
     expect(m.subject.length).toBeGreaterThan(5);
     expect(m.html).toContain("150");
   });
