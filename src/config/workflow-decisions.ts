@@ -5,6 +5,7 @@
 
 export const WORKFLOW_DECISIONS = {
   version: "2026-10-03",
+  xeroReference: "Home Insulation Victoria <job>",
   brand: { name: "Home Insulation Victoria", retiredVisibleNames: ["HI VIC!", "HI VIC", "HIVIC"] },
   eligibility: {
     preliminaryLabels: [

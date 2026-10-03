@@ -77,3 +77,6 @@ Preliminary: estimate only, not binding, never the final price, unlocks neither 
 
 ## Hard stops (Needs attention)
 See `hardStops` in `src/config/workflow-decisions.ts`.
+
+## Xero reference (locked 2026-10-03)
+Xero invoice and all customer/trade/financial-facing references use "Home Insulation Victoria <job>". HI VIC, HI VIC! and HIVIC are retired visible names. Internal-only identifiers (business_unit value `hivic`, `hivic-` idempotency keys, `assertHivic*` function names) stay for compatibility and never appear on invoices, quotes, receipts, emails, SMS, portal screens or exports.
