@@ -422,7 +422,7 @@ function InstallerOnboarding() {
   );
 }
 
-function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor }: { step: StepKey; d: InstData; up: (p: Partial<InstData>) => void; token: string; setError: (s: string | null) => void; preview: boolean; onReviewReady: (r: Reviewed) => void; errFor: (field: string) => string | null }) {
+function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor, revision, onUploadBusy }: { step: StepKey; d: InstData; up: (p: Partial<InstData>) => void; token: string; setError: (s: string | null) => void; preview: boolean; onReviewReady: (r: Reviewed) => void; errFor: (field: string) => string | null; revision: RevisionRef; onUploadBusy: (b: boolean) => void }) {
   const t = (k: keyof InstData) => ({ id: k as string, "aria-invalid": !!errFor(k as string) || undefined, value: (d[k] as string) ?? "", onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => up({ [k]: e.target.value } as Partial<InstData>) });
   switch (step) {
     case "about":
@@ -449,7 +449,7 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
         </>}
       </>;
     case "insurance":
-      return <InsuranceStep d={d} up={up} token={token} setError={setError} preview={preview} />;
+      return <InsuranceStep d={d} up={up} token={token} setError={setError} preview={preview} revision={revision} onUploadBusy={onUploadBusy} />;
     case "installers": {
       const list = d.installers ?? [];
       const set = (i: number, p: Partial<NonNullable<InstData["installers"]>[number]>) => up({ installers: list.map((x, j) => (j === i ? { ...x, ...p } : x)) });
