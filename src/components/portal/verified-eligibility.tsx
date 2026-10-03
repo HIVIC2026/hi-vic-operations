@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -76,6 +76,7 @@ type View = {
 export function VerifiedEligibilityCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getVerifiedEligibility);
   const record = useAction(recordVerifiedEligibility);
+  const queryClient = useQueryClient();
   const { data, error, isPending } = useQuery({
     queryKey: ["verified-eligibility", jobId],
     queryFn: () => load({ data: { jobId } }) as Promise<View>,
@@ -114,6 +115,9 @@ export function VerifiedEligibilityCard({ jobId }: { jobId: string }) {
     if (ok) {
       setOutcome(null);
       setText("");
+      await queryClient.invalidateQueries({
+        queryKey: ["verified-eligibility", jobId],
+      });
     }
   };
   return (
