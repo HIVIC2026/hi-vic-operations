@@ -671,8 +671,8 @@ function SignStep({ d, token, reviewed, preview, relaxed, revision, saveReviewed
   const [email, setEmail] = useState(d.business_email ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const revision = `${INSTALLER_AGREEMENT_VERSION}:${agreementText(d)}`;
-  useEffect(() => setAcks({}), [revision]);
+  const textRevision = `${INSTALLER_AGREEMENT_VERSION}:${agreementText(d)}`;
+  useEffect(() => setAcks({}), [textRevision]);
   const reviewDone = !!reviewed && d.agreement_reviewed === true;
   const incomplete = !relaxed && !preview ? firstIncompleteStep({ ...d, agreement_reviewed: true }) : null;
   const ready = reviewDone && !incomplete && ACKNOWLEDGEMENTS.every((a) => acks[a.key]) && name.trim().length > 1 && position.trim().length > 1 && validBusinessEmail(email);
@@ -683,7 +683,7 @@ function SignStep({ d, token, reviewed, preview, relaxed, revision, saveReviewed
       await saveReviewed();
       // The signature binds the exact text reviewed: refetch and refuse if anything changed since.
       const current = await getInstallerAgreement({ data: { token } });
-      if (!reviewed || current.sha256 !== reviewed.sha256 || current.updated_at !== revision()) throw new Error("The agreement changed since you reviewed it. Please review it again before signing.");
+      if (!reviewed || current.sha256 !== reviewed.sha256 || Date.parse(current.updated_at) !== Date.parse(revision() ?? "")) throw new Error("The agreement changed since you reviewed it. Please review it again before signing.");
       await signInstallerAgreement({ data: { token, signer_name: name, signer_position: position, signer_email: email, acknowledgements: acks, agreement_version: INSTALLER_AGREEMENT_VERSION, expected_updated_at: current.updated_at, agreement_sha256: current.sha256 } });
       onSigned(); window.scrollTo({ top: 0 });
     } catch (e) { setErr(e instanceof Error ? e.message : "Could not sign. Please try again."); } finally { setBusy(false); }
