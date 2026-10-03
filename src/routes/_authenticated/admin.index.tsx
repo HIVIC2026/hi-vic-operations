@@ -270,6 +270,17 @@ function NewEnquiry() {
 
 function PipelineBoard({ jobs }: { jobs: JobRow[] }) {
   const columns = PIPELINE_PHASES.filter((p) => p.key !== "complete");
+  const jobIds = useMemo(() => jobs.map((j) => j.id!).filter(Boolean), [jobs]);
+  const { data: readyCheckBookings } = useQuery({
+    queryKey: ["board_ready_check_bookings", jobIds],
+    enabled: jobIds.length > 0,
+    queryFn: async () => {
+      const rows = (await supabase.from("bookings").select("job_id, scheduled_start, status").in("job_id", jobIds).eq("kind", "ready_check").order("scheduled_start", { ascending: false })).data ?? [];
+      const byJob = new Map<string, string>();
+      for (const b of rows) if (b.status !== "cancelled" && !byJob.has(b.job_id)) byJob.set(b.job_id, b.scheduled_start);
+      return byJob;
+    },
+  });
   return (
     <div className="-mx-4 overflow-x-auto px-4 pb-6 sm:-mx-7 sm:px-7">
       <div className="flex min-w-max items-start gap-4">
