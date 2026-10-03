@@ -233,7 +233,7 @@ describe("5/6/7 certification gate, atomic activation, preferences", () => {
   test("NEW business (no existing ABN) activates under the real onboarding_status check; starts as inactive draft", async () => {
     const t = await installerDb();
     const { id, signed } = await signedApp(t, { ...complete, installers: [{ ...complete.installers![0]!, qualification: undefined }] } as InstData);
-    await t.recordCert(id, "a@samplebiz.com.au", "verified", null);
+    await t.recordCert(id, "a@samplebiz.com.au", "verified");
     const plan = planActivation("installer", signed as never, signed.data as InstData, latestCertifications([cert("a@samplebiz.com.au")]), []);
     expect(plan.workers[0]!.qualification).toBe("EEC CII CII-1 (declared, not verified)"); // cert status alone decides; satisfies partner_workers_check without inventing training
     // Mid-transaction state: before the final approval the new business is 'draft' and inactive.
