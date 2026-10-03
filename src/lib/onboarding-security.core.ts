@@ -119,13 +119,26 @@ export function verifyInsuranceBytes(b: Uint8Array, claimedMime: string | null):
   return { ok: true, type };
 }
 
-/** Original filenames are only checked, never used for storage. */
+const RISKY_INNER_EXT = new Set(["exe", "bat", "cmd", "com", "scr", "js", "vbs", "msi", "sh", "ps1", "jar", "html", "htm", "svg", "php", "dll", "app", "apk"]);
+/**
+ * Original filenames are only checked, never used for storage (bytes are verified and the stored name is server-made).
+ * Ordinary dotted names such as "Certificate of Currency 01.10.2026.pdf" are accepted; disguised executables are not.
+ */
 export function safeOriginalName(name: string | null | undefined): boolean {
   const n = (name ?? "").trim();
   if (!n || n.length > 200 || /[\\/]|\.\.|\0/.test(n)) return false;
   const parts = n.toLowerCase().split(".");
-  if (parts.length !== 2) return false; // rejects double extensions and no extension
-  return ["pdf", "png", "jpg", "jpeg"].includes(parts[1]!);
+  if (parts.length < 2 || !parts[0]) return false;
+  if (!["pdf", "png", "jpg", "jpeg"].includes(parts[parts.length - 1]!)) return false;
+  return !parts.slice(1, -1).some((p) => RISKY_INNER_EXT.has(p.trim()));
+}
+
+/** Browser-reported type, or one inferred from the extension when the phone/browser leaves it blank. */
+export function certificateMime(type: string, name: string): string {
+  if (type === "image/jpg" || type === "image/pjpeg") return "image/jpeg";
+  if (type) return type;
+  const ext = name.toLowerCase().split(".").pop();
+  return ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : ext === "jpg" || ext === "jpeg" ? "image/jpeg" : "";
 }
 
 export const quarantinePrefix = (folder: string, appId: string) => `quarantine/${folder}/${appId}/`;

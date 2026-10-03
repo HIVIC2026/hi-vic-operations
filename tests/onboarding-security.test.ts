@@ -113,6 +113,9 @@ describe("insurance file verification", () => {
     expect(safeOriginalName("photo.JPEG")).toBe(true);
     expect(safeOriginalName("cert.pdf.exe")).toBe(false);
     expect(safeOriginalName("cert.exe.pdf")).toBe(false);
+    expect(safeOriginalName("Certificate of Currency 01.10.2026.pdf")).toBe(true);
+    expect(safeOriginalName("COC 2025-26.v2.PDF")).toBe(true);
+    expect(safeOriginalName(".pdf")).toBe(false);
     expect(safeOriginalName("../../etc/passwd.pdf")).toBe(false);
     expect(safeOriginalName("a\\b.pdf")).toBe(false);
     expect(safeOriginalName("noextension")).toBe(false);
