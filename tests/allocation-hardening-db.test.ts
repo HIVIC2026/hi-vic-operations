@@ -44,7 +44,7 @@ INSERT INTO properties VALUES ('${PROP}','3199');
 INSERT INTO jobs VALUES ('${JOB}','${OWNER}','${PROP}','piesa_and_install_window_pending');
 `;
 let db: PGlite;
-const offer = async () => (await db.query<{ id: string }>(`INSERT INTO partner_offers (job_id,business_id,kind,expires_at) VALUES ('${JOB}','${B}','piesa',now()+interval '2 hours') RETURNING id`)).rows[0]!.id;
+const offer = async () => (await db.exec(`UPDATE partner_offers SET status='withdrawn' WHERE status='pending'`), await db.query<{ id: string }>(`INSERT INTO partner_offers (job_id,business_id,kind,expires_at) VALUES ('${JOB}','${B}','piesa',now()+interval '2 hours') RETURNING id`)).rows[0]!.id;
 const accept = async () => (await db.query<{ outcome: string }>(`SELECT * FROM accept_partner_offer('${await offer()}','${U.rec}')`)).rows[0]!.outcome;
 const sees = async (user: string) => {
   await db.exec(`SET ROLE authenticated; SELECT set_config('request.jwt.claim.sub','${user}',false);`);
