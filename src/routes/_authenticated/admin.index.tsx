@@ -21,6 +21,8 @@ import { getAdminCoverage } from "@/lib/coverage.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { toast } from "sonner";
 import { filterVisibleJobs } from "@/lib/portal-presentation.core";
+import { nextStep } from "@/lib/nextstep.core";
+import { Pill } from "@/components/portal/badges";
 
 const ACCEPTANCE_STAGES = ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"];
 type WorkView = "all" | "active" | "review" | "ineligible" | "finalised" | "cancelled" | "test";
@@ -87,6 +89,7 @@ function Pipeline() {
     review: allJobs.filter((job) => job.source !== "qa_test" && job.eligibility_review_required && !["complete", "cancelled", "on_hold"].includes(job.stage ?? "")),
     active: allJobs.filter((job) => job.source !== "qa_test" && !job.eligibility_review_required && job.eligibility_outcome !== "does_not_appear_eligible" && !["complete", "cancelled", "on_hold"].includes(job.stage ?? "")),
   }), [allJobs]);
+  const boardJobs = useMemo(() => [...groups.review, ...groups.active], [groups]);
   const jobs = workView === "active" && tab !== "ineligible" ? groups.active.filter((j) => tabOf(j.stage) === tab) : groups[workView];
   const filtered = useMemo(() => {
     const s = q.toLowerCase();
@@ -171,8 +174,8 @@ function Pipeline() {
           <select aria-label="Phase" className="h-9 rounded-md border bg-background px-2 text-sm" value={phase} onChange={(e) => setPhase(e.target.value as typeof phase)} disabled={workView !== "active"}>
             <option value="all">All phases</option>{lanes.map((p) => <option key={p.key} value={p.key}>{p.label} ({byPhase(p.key).length})</option>)}
           </select>
-      </div>
-      {(() => {
+      </div>}
+      {tab !== "board" && (() => {
         const all = visibleJobs.length > 0 && visibleJobs.every((j) => selected.has(j.id!));
         return <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
           <label className="flex items-center gap-2 font-medium"><Checkbox checked={all} onCheckedChange={() => setSelected(all ? new Set() : new Set(visibleJobs.map((j) => j.id!)))} aria-label="Select all shown" />Select all shown</label>
@@ -203,7 +206,13 @@ function Pipeline() {
           }}>Confirm</Button>
         </DialogContent>
       </Dialog>
-      {pipelinePending ? (
+      {tab === "board" ? (
+        pipelinePending ? (
+          <div role="status" className="rounded-md border bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">Loading pipeline…</div>
+        ) : (
+          <PipelineBoard jobs={boardJobs} />
+        )
+      ) : pipelinePending ? (
         <div role="status" className="rounded-md border bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">Loading enquiries…</div>
       ) : (
          <ul aria-label="Records" className="divide-y overflow-hidden rounded-md border bg-card">
@@ -256,5 +265,48 @@ function NewEnquiry() {
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PipelineBoard({ jobs }: { jobs: JobRow[] }) {
+  const columns = PIPELINE_PHASES.filter((p) => p.key !== "complete");
+  return (
+    <div className="-mx-4 overflow-x-auto px-4 pb-6 sm:-mx-7 sm:px-7">
+      <div className="flex min-w-max items-start gap-4">
+        {columns.map((col) => {
+          const cards = jobs.filter((j) => phaseForStage(j.stage) === col.key);
+          return (
+            <section key={col.key} className="flex w-72 shrink-0 flex-col" aria-label={`${col.label} (${cards.length})`}>
+              <h3 className="mb-3 flex items-center gap-2 px-1 text-sm font-bold text-foreground">
+                {col.label}
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">{cards.length}</span>
+              </h3>
+              <div className="flex min-h-24 flex-col gap-3 rounded-xl border border-dashed border-border bg-muted/30 p-2">
+                {cards.map((j) => <BoardCard key={j.id} job={j} />)}
+                {cards.length === 0 && <p className="px-2 py-6 text-center text-xs text-muted-foreground">No jobs here</p>}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BoardCard({ job }: { job: JobRow }) {
+  const step = nextStep(job);
+  return (
+    <Link to="/admin/jobs/$jobId" params={{ jobId: job.id! }} className="block rounded-xl border bg-card p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold text-primary">{job.job_number}</span>
+        <Pill t={step.tone}>{step.label}</Pill>
+      </div>
+      <p className="mt-1.5 font-bold leading-tight text-foreground">{job.property_address}</p>
+      <p className="mt-0.5 truncate text-xs text-muted-foreground">{job.owner_name}</p>
+      <div className="mt-3 border-t pt-3">
+        <p className="text-xs font-semibold text-foreground">{step.next}</p>
+        {step.waitingOn && <p className="mt-1 text-[11px] text-muted-foreground">Waiting on {step.waitingOn}</p>}
+      </div>
+    </Link>
   );
 }
