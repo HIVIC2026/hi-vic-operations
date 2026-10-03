@@ -91,7 +91,7 @@ function JobDetail() {
           <div id="panel-intake-consent" className="scroll-mt-4"><IntakeSummary jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Property"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("ready_check")} title="Ready Check" summary="Requirements, appointment, booking, Mitti and measure-up">
-          <RequirementCards jobId={jobId} isAdmin job={job} /><OfficeAllocationPanel jobId={jobId} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><VerifiedEligibilityCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Measure-up"]} />
+          <RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><VerifiedEligibilityCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Measure-up"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("quote")} title="Quote" summary="Quotes, invoice & deposit, electronic signing">
           <div id="target-quotes" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} /></div><InstallerQuoteDraftPanel jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><div id="panel-deposit-request" className="scroll-mt-4"><PaymentsPanel jobId={jobId} isAdmin /></div><OfficeInstalmentPlanCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
@@ -99,6 +99,7 @@ function JobDetail() {
           <div id="target-electronic-signing" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminAssignmentPanel jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Customer / Consent"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("piesa")} title="PIESA" summary={job.piesa_date ? `PIESA ${fmtDate(job.piesa_date)} · install by ${fmtDate(job.install_deadline)}` : "No PIESA recorded yet"}>
+          <OfficeAllocationPanel jobId={jobId} />
           <Section title="PIESA 30-day installation window">
             {job.piesa_date ? <p className="text-sm">Current PIESA {fmtDate(job.piesa_date)} → install by <strong>{fmtDate(job.install_deadline)}</strong> ({job.days_remaining} days) <UrgencyBadge urgency={job.urgency} days={job.days_remaining} /></p> : <p className="text-sm text-muted-foreground">No PIESA recorded yet.</p>}
           </Section>
