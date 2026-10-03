@@ -270,6 +270,17 @@ function NewEnquiry() {
 
 function PipelineBoard({ jobs }: { jobs: JobRow[] }) {
   const columns = PIPELINE_PHASES.filter((p) => p.key !== "complete");
+  const jobIds = useMemo(() => jobs.map((j) => j.id!).filter(Boolean), [jobs]);
+  const { data: readyCheckBookings } = useQuery({
+    queryKey: ["board_ready_check_bookings", jobIds],
+    enabled: jobIds.length > 0,
+    queryFn: async () => {
+      const rows = (await supabase.from("bookings").select("job_id, scheduled_start, status").in("job_id", jobIds).eq("kind", "ready_check").order("scheduled_start", { ascending: false })).data ?? [];
+      const byJob = new Map<string, string>();
+      for (const b of rows) if (b.status !== "cancelled" && !byJob.has(b.job_id)) byJob.set(b.job_id, b.scheduled_start);
+      return byJob;
+    },
+  });
   return (
     <div className="-mx-4 overflow-x-auto px-4 pb-6 sm:-mx-7 sm:px-7">
       <div className="flex min-w-max items-start gap-4">
@@ -282,7 +293,7 @@ function PipelineBoard({ jobs }: { jobs: JobRow[] }) {
                 <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">{cards.length}</span>
               </h3>
               <div className="flex min-h-24 flex-col gap-3 rounded-xl border border-dashed border-border bg-muted/30 p-2">
-                {cards.map((j) => <BoardCard key={j.id} job={j} />)}
+                {cards.map((j) => <BoardCard key={j.id} job={j} readyCheckAt={readyCheckBookings?.get(j.id!) ?? null} />)}
                 {cards.length === 0 && <p className="px-2 py-6 text-center text-xs text-muted-foreground">No jobs here</p>}
               </div>
             </section>
@@ -293,8 +304,9 @@ function PipelineBoard({ jobs }: { jobs: JobRow[] }) {
   );
 }
 
-function BoardCard({ job }: { job: JobRow }) {
+function BoardCard({ job, readyCheckAt }: { job: JobRow; readyCheckAt?: string | null }) {
   const step = nextStep(job);
+  const booked = job.stage === "ready_check_scheduled";
   return (
     <Link to="/admin/jobs/$jobId" params={{ jobId: job.id! }} className="block rounded-xl border bg-card p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md">
       <div className="flex items-center justify-between gap-2">
@@ -303,6 +315,11 @@ function BoardCard({ job }: { job: JobRow }) {
       </div>
       <p className="mt-1.5 font-bold leading-tight text-foreground">{job.property_address}</p>
       <p className="mt-0.5 truncate text-xs text-muted-foreground">{job.owner_name}</p>
+      {booked && (
+        <p className="mt-2 rounded-md bg-success-soft px-2 py-1 text-[11px] font-semibold text-success">
+          Booked{readyCheckAt ? `: ${new Date(readyCheckAt).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : " — date on the job page"}
+        </p>
+      )}
       <div className="mt-3 border-t pt-3">
         <p className="text-xs font-semibold text-foreground">{step.next}</p>
         {step.waitingOn && <p className="mt-1 text-[11px] text-muted-foreground">Waiting on {step.waitingOn}</p>}
