@@ -120,6 +120,36 @@ export const STEPS = [
 ] as const;
 export type StepKey = (typeof STEPS)[number]["key"];
 
+export type VisibleRecPage = {
+  key: StepKey;
+  title: string;
+  members: readonly StepKey[];
+};
+
+/**
+ * Public presentation only. Persisted drafts keep the legacy StepKey anchors,
+ * while related legacy steps are rendered and validated together.
+ */
+export const REC_VISIBLE_PAGES: readonly VisibleRecPage[] = [
+  { key: "about", title: "About you", members: ["about"] },
+  { key: "business", title: "Business details", members: ["business", "contact"] },
+  { key: "insurance", title: "Insurance", members: ["insurance"] },
+  { key: "services", title: "Work & coverage", members: ["services", "coverage"] },
+  { key: "availability", title: "Availability", members: ["availability", "capacity"] },
+  { key: "assessment_pricing", title: "Rates", members: ["assessment_pricing", "rectification_pricing"] },
+  { key: "bank", title: "Payment details", members: ["bank"] },
+  { key: "review", title: "Review agreement", members: ["review"] },
+  { key: "sign", title: "Sign agreement", members: ["sign"] },
+] as const;
+
+export function visiblePageForStep(step: string | null | undefined): StepKey {
+  return REC_VISIBLE_PAGES.find((page) => page.members.some((member) => member === step))?.key ?? "about";
+}
+
+export function pageMembers(step: StepKey): readonly StepKey[] {
+  return REC_VISIBLE_PAGES.find((page) => page.key === visiblePageForStep(step))?.members ?? ["about"];
+}
+
 /**
  * Statements the REC makes about their own business. These stay mandatory in every
  * mode — sample previews and test mode included — because they are the REC's own
@@ -133,10 +163,10 @@ export const isAlwaysMandatoryStep = (step: StepKey) => ALWAYS_MANDATORY_STEPS.i
  * draft claims to be at or past a later step. Applies in every mode, test mode included.
  */
 export function blockedMandatoryStep(targetStep: string, d: RecData, now = new Date()): StepKey | null {
-  const order = STEPS.map((s) => s.key as string);
-  const target = order.indexOf(targetStep);
+  const order = REC_VISIBLE_PAGES.map((s) => s.key as string);
+  const target = order.indexOf(visiblePageForStep(targetStep));
   for (const m of ALWAYS_MANDATORY_STEPS) {
-    const at = order.indexOf(m);
+    const at = order.indexOf(visiblePageForStep(m));
     if ((target === -1 || target > at) && stepErrors(m, d, now).length) return m;
   }
   return null;
@@ -147,7 +177,7 @@ export type RecSampleStep = StepKey | "welcome" | "submitted";
 /** Accept only real onboarding steps for the public no-write sample. */
 export function parseRecSampleStep(value: string | null): RecSampleStep | null {
   if (value === "welcome" || value === "submitted") return value;
-  return STEPS.some((step) => step.key === value) ? value as StepKey : null;
+  return STEPS.some((step) => step.key === value) ? visiblePageForStep(value) : null;
 }
 
 /** Legacy drafts must resolve their old worker/business answer before continuing. */
@@ -158,11 +188,8 @@ export function recDraftRole(d: RecData): "business" | "worker" | "unresolved" {
 }
 
 export function visibleSteps(d: RecData) {
-  return STEPS.filter((s) =>
-    (s.key !== "insurance" || d.works_under_rec !== true) &&
-    (s.key !== "bank" || d.works_under_rec !== true) &&
-    (s.key !== "assessment_pricing" || d.works_under_rec !== true) &&
-    (s.key !== "rectification_pricing" || d.works_under_rec !== true));
+  return REC_VISIBLE_PAGES.filter((page) =>
+    !(["insurance", "assessment_pricing", "bank"] as StepKey[]).includes(page.key) || d.works_under_rec !== true);
 }
 
 export function validAbn(abn: string | undefined): boolean {
@@ -294,9 +321,14 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
   return e;
 }
 
+/** Every legacy member must pass before its containing visible page can advance. */
+export function pageErrors(step: StepKey, d: RecData, now = new Date()): string[] {
+  return [...new Set(pageMembers(step).flatMap((member) => stepErrors(member, d, now)))];
+}
+
 /** First visible step (before signing) with an error, or null if all are complete. */
 export function firstIncompleteStep(d: RecData, now = new Date()): StepKey | null {
-  for (const s of visibleSteps(d)) if (s.key !== "sign" && stepErrors(s.key, d, now).length) return s.key;
+  for (const s of visibleSteps(d)) if (s.key !== "sign" && pageErrors(s.key, d, now).length) return s.key;
   return null;
 }
 
