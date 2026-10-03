@@ -26,4 +26,10 @@ describe("TO ACTION list", () => {
     const t = buildTodos({ ...base(), jobs: [{ id: "j2", job_number: "HV-2", property: null, stage: "ap_review", eligibility_review_required: false, eligibility_outcome: "likely_eligible" }], invoices: [inv] });
     expect(t.map((x) => x.key)).toEqual(["stage:ap_review:j2"]);
   });
+  test("a signed installer application creates one clearly labelled office review action", () => {
+    const t = buildTodos({ ...base(), onboarding: [{ id: "app1", signer_name: "Jo", partner_type: "installer", updated_at: "2026-10-01T00:00:00Z" }], partnerEnquiries: [{ id: "enq1", name: "Jo", kind: "installer", source: "portal_installer_onboarding", created_at: "2026-10-01T00:00:00Z" }] });
+    expect(t.map((item) => item.key)).toEqual(["penq:enq1"]);
+    expect(t[0]?.title).toBe("Review signed partner application – Jo");
+    expect(t[0]?.action).toContain("signed agreement");
+  });
 });

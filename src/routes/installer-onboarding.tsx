@@ -12,14 +12,13 @@ import {
   agreementText, applyMaterialReset, firstIncompleteStep, installerSignUiBlockers, pageErrors, pageFieldErrors, resolvedBusinessAddress, parseInstallerSampleStep, visiblePageForStep, visibleSteps,
   type InstData, type ResolvedAddress, type StepKey,
 } from "@/lib/installer-onboarding.core";
-import { isAustralianAddress, isVictorianAddress, keepPickedNumber, resumeFailureMode } from "@/lib/rec-onboarding.core";
+import { isVictorianAddress, resumeFailureMode } from "@/lib/rec-onboarding.core";
 import {
   confirmInstallerInsuranceUpload, getInstallerAgreement, installerInsuranceUploadUrl,
   loadInstallerOnboarding, saveInstallerOnboarding, signInstallerAgreement, startInstallerOnboarding,
 } from "@/lib/installer-onboarding.functions";
-import { defaultAddressProvider } from "@/lib/address-provider";
 import { newResumeToken, takeStaffLink } from "@/lib/onboarding-security.core";
-import type { AddressSuggestion } from "@/lib/whatif-location";
+import { VerifiedAddressInput } from "@/components/onboarding/VerifiedAddressInput";
 
 // Public installer onboarding + partner agreement signing, in the same design system as REC onboarding.
 // Progress is saved server-side (on "Save & continue") against an opaque resume token kept in this browser.
@@ -104,91 +103,8 @@ function RateRow({ label, unit, value, onChange, required = false, last = false 
 /** Australian address lookup (same interaction as REC onboarding): suggestions close after a pick and stay closed
  *  until the text is edited; slow or stale lookups never overwrite newer typing; keyboard and Escape work. */
 function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = false, id = "address" }: { value: string; resolved?: ResolvedAddress | null | undefined; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean; id?: string }) {
-  const [announce, setAnnounce] = useState("");
-  const [items, setItems] = useState<AddressSuggestion[]>([]);
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [hint, setHint] = useState("");
-  const [active, setActive] = useState(-1);
-  const [focused, setFocused] = useState(false);
-  const [edited, setEdited] = useState(false);
-  const searchSeq = useRef(0);
-  const detailsSeq = useRef(0);
-  const root = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  /** True while a picked suggestion is being confirmed; stray input events (e.g. phone keyboard autocorrect) must not cancel it. */
-  const picking = useRef(false);
-  const mounted = useRef(true);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; searchSeq.current += 1; detailsSeq.current += 1; }; }, []);
-  useEffect(() => {
-    if (resolved?.label !== value) return;
-    searchSeq.current += 1; detailsSeq.current += 1;
-    setEdited(false); setItems([]); setOpen(false); setActive(-1); setLoading(false); setHint("");
-  }, [resolved, value]);
-  useEffect(() => {
-    const close = (event: PointerEvent) => {
-      if (root.current && !event.composedPath().includes(root.current)) {
-        searchSeq.current += 1; detailsSeq.current += 1; setFocused(false); setOpen(false); setItems([]); setActive(-1); setLoading(false);
-      }
-    };
-    document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
-  }, []);
-  useEffect(() => {
-    const q = value.trim();
-    if (!focused || !edited || (resolved && resolved.label === value)) { setItems([]); setOpen(false); setLoading(false); return; }
-    if (q.length < 4) { searchSeq.current += 1; setItems([]); setOpen(false); setActive(-1); setLoading(false); setHint(""); return; }
-    const mine = ++searchSeq.current;
-    const t = setTimeout(async () => {
-      if (!mounted.current || mine !== searchSeq.current) return;
-      setLoading(true);
-      try {
-        const r = (await defaultAddressProvider.search(q)).slice(0, 6);
-        if (!mounted.current || mine !== searchSeq.current) return;
-        setItems(r); setActive(r.length ? 0 : -1); setOpen(true); setHint(r.length ? "" : "No Australian address matched. Keep typing and include the postcode.");
-      } catch { if (mounted.current && mine === searchSeq.current) { setItems([]); setOpen(true); setHint("Address lookup is unavailable right now. Edit the address to try again."); } }
-      finally { if (mounted.current && mine === searchSeq.current) setLoading(false); }
-    }, 300);
-    return () => { clearTimeout(t); searchSeq.current += 1; };
-  }, [edited, focused, resolved, value]);
-  async function choose(s: AddressSuggestion) {
-    inputRef.current?.blur();
-    picking.current = true;
-    searchSeq.current += 1;
-    const mine = ++detailsSeq.current;
-    onSelect(null); onChange(s.label);
-    setOpen(false); setItems([]); setActive(-1); setLoading(true); setHint("");
-    try {
-      const raw = await defaultAddressProvider.details(s.id) as ResolvedAddress | null;
-      const details = raw ? keepPickedNumber(s.label, raw) : (raw as unknown as ResolvedAddress);
-      if (!mounted.current || mine !== detailsSeq.current) return;
-      if (!isAustralianAddress(details)) throw new Error("incomplete");
-      if (victoriaOnly && !isVictorianAddress(details)) {
-        onSelect(null); setOpen(false); setEdited(true); setHint("Your service starting location needs to be in Victoria. Choose another result."); return;
-      }
-      onChange(details.label); onSelect(details); setOpen(false); setItems([]); setEdited(false); setAnnounce(`Selected ${details.label}`);
-    } catch { if (mounted.current && mine === detailsSeq.current) { onSelect(null); setItems([s]); setActive(0); setOpen(focused); setEdited(true); setHint("We couldn't verify that address. Select it again or choose another result."); } }
-    finally { if (mine === detailsSeq.current) picking.current = false; if (mounted.current && mine === detailsSeq.current) setLoading(false); }
-  }
-  const dismiss = () => { searchSeq.current += 1; detailsSeq.current += 1; setOpen(false); setItems([]); setActive(-1); setLoading(false); };
-  return (
-    <div ref={root} style={{ position: "relative" }}>
-      <input ref={inputRef} id={id} style={input} role="combobox" autoCorrect="off" autoCapitalize="off" spellCheck={false} aria-expanded={open && items.length > 0} aria-controls={`${id}-options`} aria-autocomplete="list" aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined} autoComplete="off" placeholder="Start typing the address…" value={value}
-        onFocus={() => setFocused(true)} onChange={(e) => { if (picking.current) return; searchSeq.current += 1; detailsSeq.current += 1; setLoading(false); setEdited(true); setItems([]); setActive(-1); setOpen(false); setHint(""); setAnnounce(""); onSelect(null); onChange(e.target.value); }} onBlur={() => { setFocused(false); searchSeq.current += 1; setOpen(false); setActive(-1); }}
-        onKeyDown={(e) => { if (e.key === "ArrowDown" && items.length) { e.preventDefault(); setActive((x) => (x + 1) % items.length); } else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((x) => (x - 1 + items.length) % items.length); } else if (e.key === "Enter" && open && items[active]) { e.preventDefault(); void choose(items[active]); } else if (e.key === "Escape") { e.preventDefault(); dismiss(); } }} />
-      {loading && <div style={{ position: "absolute", right: 14, top: 14, fontSize: 12, color: MUTED }}>Searching…</div>}
-      {open && items.length > 0 && (
-        <ul id={`${id}-options`} role="listbox" aria-label="Address suggestions" style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #D7DCE8", borderRadius: 12, boxShadow: "0 12px 30px -12px rgba(34,55,107,.35)", overflow: "hidden" }}>
-          {items.map((s, i) => (
-            <li id={`${id}-option-${i}`} onMouseEnter={() => setActive(i)} role="option" aria-selected={active === i} key={s.id} style={{ padding: "12px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F0F2F8", background: active === i ? "#F2F4FC" : "#fff" }}
-              onMouseDown={(e) => e.preventDefault()} onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); void choose(s); }}>{s.label}</li>
-          ))}
-        </ul>
-      )}
-      {hint && <div role="status" style={{ marginTop: 5, color: victoriaOnly ? "#8C1D18" : MUTED, fontSize: 12 }}>{hint}</div>}
-      <span role="status" aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{announce}</span>
-    </div>
-  );
+  return <VerifiedAddressInput id={id} value={value} resolved={resolved} onChange={onChange} onSelect={onSelect} victoriaOnly={victoriaOnly} inputStyle={input} mutedColor={MUTED} />;
+
 }
 
 function Choice<T extends string | number | boolean>({ options, value, onChange }: { options: { v: T; l: string }[]; value: T | null | undefined; onChange: (v: T) => void }) {
