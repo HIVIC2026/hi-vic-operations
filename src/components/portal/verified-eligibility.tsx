@@ -36,6 +36,8 @@ function Rows({ rows }: { rows: SummaryRow[] }) {
             }
           >
             {r.value}
+            {r.ok === false && r.value !== "Missing" ? " (missing)" : ""}
+            {r.ok === null ? " (needs review)" : ""}
           </dd>
         </div>
       ))}
