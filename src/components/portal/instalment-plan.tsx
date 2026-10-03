@@ -49,17 +49,19 @@ type OfficeView = { route: string; proposeBlocker: string | null; plans: OfficeP
 export function OfficeInstalmentPlanCard({ jobId }: { jobId: string }) {
   const me = useMe();
   const isAdmin = (me.data?.roles ?? []).includes("admin");
-  if (!isAdmin) return null; // Office controls never render for owners/trades; server fns also refuse them.
   const load = useServerFn(getOfficeInstalmentPlans);
   const propose = useAction(proposeInstalmentPlan);
   const act = useAction(officeInstalmentAction);
   const { data, error, isPending } = useQuery({
     queryKey: ["instalment-plans", jobId],
     queryFn: () => load({ data: { jobId } }) as Promise<OfficeView>,
+    enabled: isAdmin,
   });
   const [collection, setCollection] = useState("");
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
+  // Office controls never render for owners/trades; server fns also refuse them.
+  if (!isAdmin) return null;
   if (isPending)
     return (
       <Section title={OFFICE_PLAN_TITLE}>
