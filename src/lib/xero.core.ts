@@ -111,7 +111,7 @@ export function buildDueDateUpdate(xeroInvoiceId: string, dueDate: string, invoi
 export function evaluateXeroInvoice(x: { Status?: string; AmountPaid?: number; Payments?: { Date?: string; Amount?: number }[] }, depositAmount: number) {
   if (x.Status === "VOIDED" || x.Status === "DELETED") return { voided: true as const, paid: 0, depositPaidAt: null as string | null };
   const paid = Number(x.AmountPaid ?? 0);
-  // Earliest date by which cumulative payments on the one invoice reached the 50% deposit.
+  // Earliest date by which cumulative payments on the one invoice reached the configured minimum deposit.
   let run = 0, depositPaidAt: string | null = null;
   for (const p of [...(x.Payments ?? [])].sort((a, b) => parseXeroDate(a.Date) - parseXeroDate(b.Date))) {
     run += Number(p.Amount ?? 0);

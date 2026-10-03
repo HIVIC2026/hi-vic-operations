@@ -107,8 +107,8 @@ export function waitingOn(job: NextStepInput, f: WaitingFacts): Waiting {
     let parties: Party[] = ["Home Insulation Victoria"];
     let label = ACTION[stage] ?? "Open";
     if (stage === "awaiting_deposit_payment") {
-      if (f.depositRequestRaised) { parties = ["Owner"]; sentence = "Waiting on the owner to pay the 50% deposit (request sent from Xero)."; label = "Check deposit"; }
-      else { sentence = "Home Insulation Victoria to action: raise the 50% deposit request in Xero, then record it here."; label = "Record deposit request"; }
+      if (f.depositRequestRaised) { parties = ["Owner"]; sentence = "Waiting on the owner to complete the approved payment option (deposit request sent from Xero)."; label = "Check deposit"; }
+      else { sentence = "Home Insulation Victoria to action: raise the deposit request in Xero, then record it here."; label = "Record deposit request"; }
     } else if (ns.waitingOn === "AP") sentence = `Home Insulation Victoria (AP) to action: ${ns.next}`;
     out = { ...base, parties, sentence, action: { label, tab: job.eligibility_review_required ? "eligibility" : tab } };
     if (parties[0] === "Home Insulation Victoria" && f.stageEnteredAt) setDue(out, addH(f.stageEnteredAt, cfg.tradeExceptionHours), f.now, addH(f.stageEnteredAt, cfg.tradeWarnHours), "Target");

@@ -1,4 +1,4 @@
-// Xero integration boundary – ONE full invoice per accepted quote. The 50% deposit is requested with Xero's native
+// Xero integration boundary – ONE full invoice per accepted quote. The configured minimum deposit is requested with Xero's native
 // "Request Deposit" (raised manually by an admin, recorded in the portal) and confirmed only by Xero AmountPaid ≥ 50%.
 // Xero is the system of record; the portal mirrors state and enforces gates.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -95,7 +95,7 @@ export async function createInvoiceForQuote(quoteId: string, actorId: string) {
   if (!q) throw new Error("Quote not found");
   await requireHivicJob(q.job_id);
   const { row, created } = await ensureInvoice(dbStore, q, melbourneDate(new Date().toISOString()));
-  if (created) await logEvent(q.job_id, actorId, "invoice_created_local", `Invoice raised for ${q.option_label}: ${row.total_inc_gst} inc GST. 50% deposit (${row.deposit_amount}) must be requested in Xero.`, { invoice_id: row.id, total_inc_gst: row.total_inc_gst });
+  if (created) await logEvent(q.job_id, actorId, "invoice_created_local", `Invoice raised for ${q.option_label}: ${row.total_inc_gst} inc GST. Minimum deposit (${row.deposit_amount}) must be requested in Xero.`, { invoice_id: row.id, total_inc_gst: row.total_inc_gst });
   if (!row.xero_invoice_id) await pushInvoiceToXero(row.id, actorId);
   return row.id;
 }
@@ -153,7 +153,7 @@ export async function pushInvoiceToXero(invoiceId: string, actorId: string | nul
     const { error: linkErr } = await admin.from("invoices").update({ status: "deposit_due", xero_contact_id: contactId, xero_invoice_id: x.InvoiceID, xero_invoice_number: x.InvoiceNumber, xero_reference: x.Reference, xero_invoice_status: x.Status ?? null, xero_tracking_option_id: tracking.optionId, xero_update_pending: false, last_synced_at: new Date().toISOString(), last_sync_error: null }).eq("id", invoiceId);
     if (linkErr) throw new Error(`Xero invoice ${x.InvoiceNumber} exists but could not be linked locally: ${linkErr.message}`);
     await syncLog(invoiceId, true, { xero_invoice_id: x.InvoiceID });
-    await logEvent(inv.job_id, actorId, "xero_invoice_created", `Xero invoice ${x.InvoiceNumber} linked – raise the 50% deposit request in Xero`, { invoice_id: invoiceId });
+    await logEvent(inv.job_id, actorId, "xero_invoice_created", `Xero invoice ${x.InvoiceNumber} linked – raise the deposit request in Xero`, { invoice_id: invoiceId });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await admin.from("invoices").update({ status: "xero_sync_error", last_sync_error: msg, last_synced_at: new Date().toISOString() }).eq("id", invoiceId);
@@ -210,7 +210,7 @@ export async function applyPaidAmount(invoiceId: string, paid: number, actorId: 
   if (!inv) return;
   const { patch, events } = paymentPatch(inv as unknown as InvoiceRow, paid, depositReachedAt ?? null, new Date().toISOString());
   await admin.from("invoices").update(patch as never).eq("id", invoiceId);
-  if (events.includes("deposit_paid")) await logEvent(inv.job_id, actorId, "deposit_paid", `50% deposit confirmed paid in Xero (${inv.deposit_amount} of ${inv.total_inc_gst} inc GST)`, { invoice_id: invoiceId, amount_paid: paid });
+  if (events.includes("deposit_paid")) await logEvent(inv.job_id, actorId, "deposit_paid", `Minimum deposit confirmed paid in Xero (${inv.deposit_amount} of ${inv.total_inc_gst} inc GST)`, { invoice_id: invoiceId, amount_paid: paid });
   if (events.includes("balance_paid")) await logEvent(inv.job_id, actorId, "balance_paid", "Invoice fully paid in Xero", { invoice_id: invoiceId });
 }
 
