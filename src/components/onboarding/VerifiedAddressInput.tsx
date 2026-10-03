@@ -3,6 +3,8 @@ import { defaultAddressProvider } from "@/lib/address-provider";
 import { isAustralianAddress, isVictorianAddress, keepPickedNumber, type ResolvedAddress } from "@/lib/rec-onboarding.core";
 import type { AddressDetails, AddressSuggestion } from "@/lib/whatif-location";
 
+const DETAILS_TIMEOUT_MS = 10_000;
+
 type AddressProvider = {
   search: (query: string) => Promise<AddressSuggestion[]>;
   details: (placeId: string) => Promise<AddressDetails | null>;
@@ -54,6 +56,7 @@ export function VerifiedAddressInput({ value, resolved, onChange, onSelect, vict
     searchSeq.current += 1;
     detailsSeq.current += 1;
     picking.current = false;
+    pickedLabel.current = null;
     setEdited(false); setItems([]); setOpen(false); setActive(-1); setLoading(false); setNote("");
   }, [resolved, value]);
   useEffect(() => {
