@@ -9,16 +9,18 @@ export const PENDING_SQL = readFileSync(new URL("../../docs/pending-migrations/0
 const SCHEMA = `
 CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
 CREATE TABLE public.partner_enquiries (
-  id uuid primary key default gen_random_uuid(), enquiry_type text not null, submission_id text not null, source_system text not null default 'base44',
-  source text, status text not null default 'new', name text, email text, phone text, company text, service_areas text[], rec_registration_number text,
+  id uuid primary key default gen_random_uuid(), enquiry_type text not null check (enquiry_type in ('property_manager','installer','electrician_rec')), submission_id text not null, source_system text not null default 'base44',
+  source text, status text not null default 'new' check (status in ('new','contacted','onboarding','approved','declined','closed')), name text, email text, phone text, company text, service_areas text[], rec_registration_number text,
   esv_licensed_electricians_confirmed boolean, services text[], estimated_piesa_fee_inc_gst numeric, booking_lead_time text, weekly_capacity text,
   raw_payload jsonb, source_created_at timestamptz, source_updated_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
 CREATE UNIQUE INDEX partner_enquiries_source_uniq ON public.partner_enquiries(source_system, enquiry_type, submission_id);
 CREATE TABLE public.rec_onboarding_applications (
-  id uuid primary key default gen_random_uuid(), resume_token_hash text, status text not null default 'draft', step_key text, data jsonb not null default '{}',
+  id uuid primary key default gen_random_uuid(), resume_token_hash text unique, status text not null default 'draft' check (status in ('draft','submitted')), step_key text, data jsonb not null default '{}',
   insurance_certificate_path text, agreement_version text, agreement_title text, agreement_text text, agreement_sha256 text, acknowledgements jsonb,
-  signer_name text, signer_position text, signer_email text, signed_at timestamptz, signed_ip text, signed_user_agent text, partner_enquiry_id uuid,
-  created_at timestamptz not null default now(), updated_at timestamptz not null default now(), partner_type text not null default 'rec', test_mode boolean default false, allow_incomplete_sign boolean default false);
+  signer_name text, signer_position text, signer_email text, signed_at timestamptz, signed_ip text, signed_user_agent text, partner_enquiry_id uuid references partner_enquiries(id) on delete set null,
+  created_at timestamptz not null default now(), updated_at timestamptz not null default now(), partner_type text not null default 'rec' check (partner_type in ('rec','installer')), test_mode boolean default false, allow_incomplete_sign boolean default false,
+  insurance_file_type text check (insurance_file_type in ('pdf','png','jpg')), insurance_verified_at timestamptz, insurance_file_sha256 text,
+  constraint signed_complete check (status='draft' or (signed_at is not null and agreement_sha256 is not null and agreement_text is not null and signer_name is not null)));
 CREATE FUNCTION public.touch_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.updated_at := clock_timestamp(); RETURN NEW; END $$;
 CREATE TRIGGER partner_enquiries_touch BEFORE UPDATE ON public.partner_enquiries FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 -- production guard_rec_onboarding_signed (now() -> clock_timestamp() so separate test statements get distinct revisions)
@@ -31,6 +33,13 @@ BEGIN
   NEW.updated_at := clock_timestamp(); RETURN NEW;
 END $$;
 CREATE TRIGGER rec_onboarding_signed_guard BEFORE DELETE OR UPDATE ON public.rec_onboarding_applications FOR EACH ROW EXECUTE FUNCTION guard_rec_onboarding_signed();
+CREATE FUNCTION public.guard_onboarding_trust() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+  IF NEW.insurance_certificate_path IS NOT NULL AND (TG_OP='INSERT' OR NEW.insurance_certificate_path IS DISTINCT FROM OLD.insurance_certificate_path) THEN
+    IF NEW.insurance_certificate_path LIKE 'quarantine/%' OR NEW.insurance_verified_at IS NULL OR NEW.insurance_file_sha256 !~ '^[a-f0-9]{64}$' THEN RAISE EXCEPTION 'Insurance file has not been verified'; END IF;
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER rec_onboarding_trust BEFORE INSERT OR UPDATE ON public.rec_onboarding_applications FOR EACH ROW EXECUTE FUNCTION guard_onboarding_trust();
 `;
 
 export const sha256 = async (s: string) => createHash("sha256").update(s).digest("hex");
@@ -42,7 +51,7 @@ export async function recDb() {
   const app = async (id: string): Promise<RecSignApp & Record<string, unknown>> =>
     (await db.query<RecSignApp & Record<string, unknown>>(`SELECT *, updated_at::text AS updated_at, created_at::text AS created_at FROM rec_onboarding_applications WHERE id = $1`, [id])).rows[0]!;
   const create = async (data: unknown) => {
-    const r = await db.query<{ id: string }>(`INSERT INTO rec_onboarding_applications(data, insurance_certificate_path) VALUES ($1, 'rec/x/coc.pdf') RETURNING id`, [JSON.stringify(data)]);
+    const r = await db.query<{ id: string }>(`INSERT INTO rec_onboarding_applications(data, insurance_certificate_path, insurance_file_type, insurance_verified_at, insurance_file_sha256) VALUES ($1, 'rec/x/coc.pdf', 'pdf', now(), $2) RETURNING id`, [JSON.stringify(data), "a".repeat(64)]);
     return r.rows[0]!.id;
   };
   const save = async (id: string, data: unknown) => { await db.query(`UPDATE rec_onboarding_applications SET data = $2 WHERE id = $1 AND status = 'draft'`, [id, JSON.stringify(data)]); };

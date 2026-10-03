@@ -9,6 +9,7 @@ import {
 export type RecSignApp = {
   id: string; status: string; data: unknown; insurance_certificate_path: string | null; created_at: string; updated_at: string;
   test_mode?: boolean | null; allow_incomplete_sign?: boolean | null;
+  agreement_sha256?: string | null; partner_enquiry_id?: string | null;
 };
 export type RecSignInput = {
   signer_name: string; signer_position: string; signer_email: string;
@@ -44,6 +45,14 @@ export function recSignBlocker(app: RecSignApp, input: RecSignInput, now = new D
 }
 
 export async function performRecSign(app: RecSignApp, input: RecSignInput, meta: { ip: string | null; userAgent: string | null }, deps: RecSignDeps, now = new Date()) {
+  // A double-click or a response lost after commit must replay through the atomic RPC. The RPC returns
+  // the original signature only when this exact reviewed hash already owns the submitted application.
+  if (app.status !== "draft" && app.agreement_sha256 && app.partner_enquiry_id && input.agreement_sha256 === app.agreement_sha256) {
+    const r = await deps.signAtomic({ appId: app.id, expectedUpdatedAt: app.updated_at, agreementSha256: app.agreement_sha256, enquiry: {}, signed: {} })
+      .catch(() => { throw new Error("This application has already been signed."); });
+    if (r.outcome !== "already_signed_same") throw new Error("This application has already been signed.");
+    return { ok: true as const, outcome: r.outcome, signed_at: r.signed_at, agreement_sha256: app.agreement_sha256 };
+  }
   const blocker = recSignBlocker(app, input, now);
   if (blocker) throw new Error(blocker);
   const d: RecData = { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path };
@@ -78,5 +87,21 @@ export async function performRecSign(app: RecSignApp, input: RecSignInput, meta:
     if (m.includes("rec_sign:already_signed")) throw new Error("This application has already been signed.");
     throw new Error("Could not record your signature. Please try again.");
   }
-  return { ok: true as const, signed_at: r.signed_at, agreement_sha256: hash };
+  return { ok: true as const, outcome: r.outcome, signed_at: r.signed_at, agreement_sha256: hash };
+}
+
+export type RecSignRecoveryDeps = {
+  load: () => Promise<{ status: string; updated_at: string | null }>;
+  sign: (expectedUpdatedAt: string, sha256: string) => Promise<{ outcome: string; signed_at: string }>;
+};
+
+/** Reconcile one lost signing response without changing, re-saving or re-reviewing the REC draft. */
+export async function signRecWithRecovery(expectedUpdatedAt: string, reviewedSha: string, deps: RecSignRecoveryDeps) {
+  try {
+    return await deps.sign(expectedUpdatedAt, reviewedSha);
+  } catch (error) {
+    const after = await deps.load();
+    if (after.status !== "draft") return deps.sign(after.updated_at ?? new Date(0).toISOString(), reviewedSha);
+    throw error;
+  }
 }

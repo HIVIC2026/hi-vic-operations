@@ -14,6 +14,7 @@ import {
 import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
 } from "@/lib/rec-onboarding.functions";
+import { signRecWithRecovery } from "@/lib/rec-sign.core";
 import { loadTeamInvite, respondTeamInvite } from "@/lib/teaming.functions";
 import { defaultAddressProvider } from "@/lib/address-provider";
 import { newResumeToken, takeStaffLink } from "@/lib/onboarding-security.core";
@@ -633,7 +634,12 @@ function SignStep({ d, token, reviewed, revision, onSigned, preview }: { d: RecD
     if (preview) { setErr("Sample preview only — no agreement was signed or submitted."); return; }
     setBusy(true); setErr(null);
     try {
-      await signRecAgreement({ data: { token, signer_name: name, signer_position: position, signer_email: email, acknowledgements: acks, agreement_version: REC_AGREEMENT_VERSION, expected_updated_at: revision ?? "", agreement_sha256: reviewed?.sha256 ?? "" } });
+      const reviewedSha = reviewed?.sha256 ?? "";
+      const submit = (expectedUpdatedAt: string, agreementSha256: string) => signRecAgreement({ data: { token, signer_name: name, signer_position: position, signer_email: email, acknowledgements: acks, agreement_version: REC_AGREEMENT_VERSION, expected_updated_at: expectedUpdatedAt, agreement_sha256: agreementSha256 } });
+      await signRecWithRecovery(revision ?? "", reviewedSha, {
+        load: async () => { const current = await loadRecOnboarding({ data: { token } }); return { status: current.status, updated_at: current.updated_at }; },
+        sign: submit,
+      });
       onSigned(); window.scrollTo({ top: 0 });
     } catch (e) { setErr(e instanceof Error ? e.message : "Could not sign."); } finally { setBusy(false); }
   }
