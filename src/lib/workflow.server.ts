@@ -128,7 +128,7 @@ async function paymentGateEnabled(): Promise<boolean> {
 }
 
 /** Owner-approved CURRENT confirmed installation quote: the newest issued/accepted version must be the accepted one. */
-async function currentApprovedQuote(jobId: string) {
+export async function currentApprovedQuote(jobId: string) {
   const { data } = await admin.from("quotes").select("id, status, customer_total_inc_gst").eq("job_id", jobId).eq("kind", "installation")
     .in("status", ["issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
   return data?.status === "accepted" ? data : null;
