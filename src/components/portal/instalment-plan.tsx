@@ -38,6 +38,7 @@ type OfficePlan = {
   collection_recorded_at: string | null;
   checklist: { items: { label: string; done: boolean }[]; clearsGate: boolean };
 };
+type OfficeAction = { kind: "approve" } | { kind: "record_collection"; arrangement: string } | { kind: "verify_first"; amount: number } | { kind: "mark"; status: "failed" | "overdue" | "cancelled" | "superseded"; reason: string };
 type OfficeView = { route: string; proposeBlocker: string | null; plans: OfficePlan[] };
 
 /** Office-only. Nothing here sends messages, calls Xero, books work or moves the job. */
@@ -57,7 +58,7 @@ export function OfficeInstalmentPlanCard({ jobId }: { jobId: string }) {
     return <Section title={OFFICE_PLAN_TITLE}><p role="alert" className="text-sm text-danger">Instalment plans could not be loaded. The payment gate stays blocked.</p></Section>;
   const open = data.plans.find((p) => p.status === "proposed" || p.status === "active");
   const past = data.plans.filter((p) => p !== open);
-  const run = (action: Parameters<typeof act>[0]["action"], msg: string) => act({ planId: open!.id, action }, msg);
+  const run = (action: OfficeAction, msg: string) => act({ planId: open!.id, action }, msg);
   return (
     <Section title={OFFICE_PLAN_TITLE}>
       <div className="rounded-md bg-muted p-3 text-sm">
