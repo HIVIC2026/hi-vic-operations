@@ -27,6 +27,9 @@ export const Route = createFileRoute("/_authenticated/admin/partners")({
 
 const money = (n: number | null) => (n == null ? "—" : `$${Number(n).toFixed(2)} inc GST`);
 const date = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-AU") : "—");
+// Portal onboarding submissions are signed applications from /electrician-onboarding or
+// /installer-onboarding; everything else arrived via the website (Base44) enquiry forms.
+const isOnboarding = (r: Row) => (r.source ?? "").startsWith("portal_");
 
 function Partners() {
   const { enquiry } = Route.useSearch();
