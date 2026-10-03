@@ -5,8 +5,8 @@ import { z } from "zod";
 import { withRequestMeta, withStartLimitStatus, withVisitorId } from "./request-meta";
 import { mayRelaxRequiredSteps } from "./onboarding-security.core";
 import {
-  acknowledgementsFor, REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, agreementText, applyMaterialReset,
-  blockedMandatoryStep, canonicalStepKey, effectiveElectricians, firstIncompleteStep, isRecRevisionTimestamp, validBusinessEmail, type RecData,
+  REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, agreementText, applyMaterialReset,
+  blockedMandatoryStep, canonicalStepKey, isRecRevisionTimestamp, type RecData,
 } from "./rec-onboarding.core";
 
 async function sha256(s: string) {
@@ -158,45 +158,24 @@ export const signRecAgreement = createServerFn({ method: "POST" })
     const { db, app } = await findApp(data.token);
     if (app.status !== "draft") throw new Error("This application has already been signed.");
     await (await import("./onboarding-security.server")).purgeQuarantine(db as never, "rec-onboarding", app.id);
-    if (data.agreement_version !== REC_AGREEMENT_VERSION) throw new Error("The agreement has been updated. Please reload and review it again.");
-    if (!validBusinessEmail(data.signer_email)) throw new Error("Enter a real business email for the signer.");
-    const d: RecData = { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path };
-    const ackList = acknowledgementsFor(d);
-    for (const a of ackList) if (data.acknowledgements[a.key] !== true) throw new Error("Tick every acknowledgement to sign.");
-    const relax = mayRelaxRequiredSteps({ test_mode: !!app.test_mode, allow_incomplete_sign: (app as { allow_incomplete_sign?: boolean | null }).allow_incomplete_sign ?? null });
-    // Never relaxed, even on test links: the signer must be a confirmed licensed electrician with a licence number.
-    if (d.contact_is_licensed_electrician !== true || !(d.licence_number ?? "").trim()) throw new Error('Please confirm you are a licensed electrician and enter your licence number on the "About you" step before signing.');
-    const missing = blockedMandatoryStep("sign", d) ?? (relax ? null : firstIncompleteStep(d));
-    if (missing) throw new Error(`Please complete the "${missing.replace(/_/g, " ")}" step before signing.`);
-
-    const text = agreementText(d);
-    const signedAt = new Date().toISOString();
-    const acks = Object.fromEntries(ackList.map((a) => [a.key, { text: a.text, accepted: true }]));
-    const hash = await sha256(text);
-
-    // Partner enquiry row so the application appears in the existing admin review list.
-    // Every REC provides all three services — never derived from legacy opt-in flags.
-    const services = ["assessment_piesa", "rectification", "installation_attendance"];
-    const { data: pe, error: peErr } = await db.from("partner_enquiries").insert({
-      source_system: "portal_form", enquiry_type: "electrician_rec", submission_id: `portal-rec-onboarding-${app.id}`,
-      source: app.test_mode ? "portal_rec_onboarding_test" : "portal_rec_onboarding", name: d.primary_contact_name ?? null, email: d.business_email ?? null, phone: d.business_phone ?? null,
-      company: d.trading_name || d.legal_entity_name || null, service_areas: [d.service_origin, d.travel_radius_km === 9999 ? "Anywhere in Victoria" : `${d.travel_radius_km} km radius`].filter(Boolean) as string[],
-      rec_registration_number: ((d.works_under_rec === true ? d.host_rec_number : d.rec_registration_number) ?? "").toUpperCase(), esv_licensed_electricians_confirmed: effectiveElectricians(d).length > 0,
-      services, estimated_piesa_fee_inc_gst: d.assessment_rate ?? null, booking_lead_time: d.normal_attendance_speed ?? null, weekly_capacity: d.capacity_band ?? null,
-      source_created_at: app.created_at, source_updated_at: signedAt,
-      raw_payload: { rec_onboarding_id: app.id, agreement_version: REC_AGREEMENT_VERSION, agreement_sha256: hash, signed_at: signedAt, signer: { name: data.signer_name, position: data.signer_position, email: data.signer_email } } as never,
-    }).select("id").single();
-    if (peErr) throw new Error("Could not submit your application. Please try again.");
-
-    const { error } = await db.from("rec_onboarding_applications").update({
-      status: "submitted", step_key: "sign", agreement_version: REC_AGREEMENT_VERSION, agreement_title: REC_AGREEMENT_TITLE,
-      agreement_text: text, agreement_sha256: hash, acknowledgements: acks as never,
-      signer_name: data.signer_name, signer_position: data.signer_position, signer_email: data.signer_email.toLowerCase(),
-      signed_at: signedAt, signed_ip: context.ip, signed_user_agent: context.userAgent, partner_enquiry_id: pe.id,
-    }).eq("id", app.id).eq("status", "draft");
-    if (error) {
-      await db.from("partner_enquiries").delete().eq("id", pe.id);
-      throw new Error("Could not record your signature. Please try again.");
-    }
-    return { ok: true as const, signed_at: signedAt, agreement_sha256: hash };
+    const { performRecSign } = await import("./rec-sign.core");
+    return performRecSign(app as never, data, { ip: context.ip, userAgent: context.userAgent }, {
+      sha256,
+      insertEnquiry: async (row) => {
+        const { data: pe, error } = await db.from("partner_enquiries").insert(row as never).select("id").single();
+        if (error) { if ((error as { code?: string }).code === "23505") return null; throw new Error("Could not submit your application. Please try again."); }
+        return pe;
+      },
+      findEnquiry: async (submissionId) => {
+        const { data: pe } = await db.from("partner_enquiries").select("id").eq("source_system", "portal_form").eq("enquiry_type", "electrician_rec").eq("submission_id", submissionId).maybeSingle();
+        return pe;
+      },
+      markSigned: async (id, fields) => {
+        const { data: row, error } = await db.from("rec_onboarding_applications").update(fields as never).eq("id", id).eq("status", "draft").select("id").maybeSingle();
+        if (error) throw error;
+        return !!row;
+      },
+      currentStatus: async (id) => (await db.from("rec_onboarding_applications").select("status").eq("id", id).maybeSingle()).data?.status ?? null,
+      deleteEnquiry: async (id) => { await db.from("partner_enquiries").delete().eq("id", id); },
+    });
   });
