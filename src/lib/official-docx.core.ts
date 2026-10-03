@@ -87,7 +87,7 @@ export function fillOfficialDocxXml(input: string, key: OfficialKey, answers: Of
     const wanted = norm(label);
     const probe = wanted.length > 48 ? wanted.slice(0, 48) : wanted;
     for (let i = segCursor; i < segs.length; i++) {
-      if (norm(segs[i].text).includes(probe)) { segCursor = i + 1; return segs[i].start; }
+      if (norm(segs[i]!.text).includes(probe)) { segCursor = i + 1; return segs[i]!.start; }
     }
     return -1;
   };
