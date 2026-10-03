@@ -35,8 +35,8 @@ describe("QA-UPL byte sniffing and size boundaries", () => {
   test("filenames and foreign quarantine paths", () => {
     expect(safeOriginalName("certificate.pdf")).toBe(true);
     for (const n of ["", "../x.pdf", "a/b.pdf", "x.exe", "x.pdf.exe"]) expect(safeOriginalName(n)).toBe(false);
-    expect(isOwnQuarantinePath("quarantine/rec-onboarding/app-1/abc.bin", "rec-onboarding", "app-1")).toBe(true);
-    for (const p of ["quarantine/rec-onboarding/app-2/abc.bin", "rec-onboarding/app-1/x.pdf", "quarantine/rec-onboarding/app-1/../app-2/x"]) expect(isOwnQuarantinePath(p, "rec-onboarding", "app-1")).toBe(false);
+    expect(isOwnQuarantinePath("quarantine/rec-onboarding/app-1/11111111-2222-3333-4444-555555555555", "rec-onboarding", "app-1")).toBe(true);
+    for (const p of ["quarantine/rec-onboarding/app-2/11111111-2222-3333-4444-555555555555", "rec-onboarding/app-1/x.pdf", "quarantine/rec-onboarding/app-1/../app-2/x"]) expect(isOwnQuarantinePath(p, "rec-onboarding", "app-1")).toBe(false);
   });
 });
 
@@ -54,7 +54,7 @@ function fakeStore(bytes: Uint8Array | null, opts: { claim?: boolean; moveFails?
   };
   return { db: db as never, log };
 }
-const QP = "quarantine/rec-onboarding/app-1/u1.bin";
+const QP = "quarantine/rec-onboarding/app-1/11111111-2222-3333-4444-555555555555";
 
 describe("QA-UPL verifyAndPromote with injected storage (no writes)", () => {
   test("valid PDF promoted to a private non-quarantine path and recorded", async () => {
@@ -64,7 +64,7 @@ describe("QA-UPL verifyAndPromote with injected storage (no writes)", () => {
     expect(log).toContain("update:pdf"); expect(log).toContain("rpc:finish_quarantine_validation:true");
   });
   test("foreign path, expired claim, missing object and bad bytes rejected; nothing promoted", async () => {
-    await expect(verifyAndPromote(fakeStore(pdf()).db, "rec-onboarding", "app-1", "quarantine/rec-onboarding/app-2/u.bin", "application/pdf")).rejects.toThrow(/Invalid upload/);
+    await expect(verifyAndPromote(fakeStore(pdf()).db, "rec-onboarding", "app-1", "quarantine/rec-onboarding/app-2/11111111-2222-3333-4444-555555555555", "application/pdf")).rejects.toThrow(/Invalid upload/);
     await expect(verifyAndPromote(fakeStore(pdf(), { claim: false }).db, "rec-onboarding", "app-1", QP, "application/pdf")).rejects.toThrow(/expired/);
     const missing = fakeStore(null);
     await expect(verifyAndPromote(missing.db, "rec-onboarding", "app-1", QP, "application/pdf")).rejects.toThrow(/not found/);
