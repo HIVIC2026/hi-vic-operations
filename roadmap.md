@@ -192,3 +192,8 @@
 - [x] Stop a job being assigned to someone not in Mitti, with a recorded office override
 - [x] Show Mitti status on the job page and the users/trade list, with a Check button
 - [ ] Confirm guest seats can complete Ready Check/PIESA (decides whether extra trades cost ~$24-29/seat/month)
+
+## Workflow correction (Oct 2026)
+- [ ] Slice 1 plan approved (payment-option gate, PIESA after quote+payment, verified eligibility, direct contact + "Time arranged" + 24h reminder)
+- [ ] Verify office-only permissions on every server action (launch blocker)
+- [ ] Failed-message visibility to office (launch blocker)
