@@ -19,6 +19,7 @@ import { loadTeamInvite, respondTeamInvite } from "@/lib/teaming.functions";
 import { defaultAddressProvider } from "@/lib/address-provider";
 import { newResumeToken, takeStaffLink } from "@/lib/onboarding-security.core";
 import type { AddressSuggestion } from "@/lib/whatif-location";
+import { VerifiedAddressInput } from "@/components/onboarding/VerifiedAddressInput";
 
 // Public REC (electrician) onboarding + partner agreement signing. Progress is saved
 // server-side against an opaque resume token kept in this browser.
@@ -102,6 +103,9 @@ function RateRow({ label, unit, value, onChange, last = false }: { label: string
 
 /** Australian address lookup. Free text is never treated as a verified address. */
 function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = false, id = "address" }: { value: string; resolved?: ResolvedAddress | null | undefined; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean; id?: string }) {
+  return <VerifiedAddressInput id={id} value={value} resolved={resolved} onChange={onChange} onSelect={onSelect} victoriaOnly={victoriaOnly} inputStyle={input} mutedColor={MUTED} />;
+  /* Legacy implementation retained below temporarily for source-map stability. */
+  /*
   const [announce, setAnnounce] = useState("");
   const [items, setItems] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
@@ -187,7 +191,7 @@ function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = fals
       {note && <div role="status" style={{ marginTop: 5, color: victoriaOnly ? "#8C1D18" : MUTED, fontSize: 12 }}>{note}</div>}
       <span role="status" aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{announce}</span>
     </div>
-  );
+  ); */
 }
 
 function Choice<T extends string | number | boolean>({ options, value, onChange }: { options: { v: T; l: string }[]; value: T | null | undefined; onChange: (v: T) => void }) {

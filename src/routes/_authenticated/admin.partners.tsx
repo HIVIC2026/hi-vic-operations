@@ -36,14 +36,14 @@ function Partners() {
   const { enquiry } = Route.useSearch();
   const navigate = Route.useNavigate();
   const [open, setOpen] = useState<Row | null>(null);
-  const [queue, setQueue] = useState<"review" | "approved" | "history" | "unfinished">("review");
+  const [queue, setQueue] = useState<"approval" | "enquiries" | "approved" | "history" | "unfinished">("approval");
   const [partnerType, setPartnerType] = useState<PartnerType>("property_manager");
   const load = useServerFn(getAdminPartnerEnquiries);
   const { data: rows = [], error, isPending, refetch } = useQuery({
     queryKey: ["partner_enquiries"],
     queryFn: () => load(), retry: 3, staleTime: 30_000,
   });
-  const visible = rows.filter((row) => queue === "review" ? ["new", "contacted", "onboarding"].includes(row.status) : queue === "approved" ? row.status === "approved" : ["declined", "closed"].includes(row.status));
+  const visible = rows.filter((row) => queue === "approval" ? ["new", "contacted", "onboarding"].includes(row.status) && isOnboarding(row) : queue === "enquiries" ? ["new", "contacted", "onboarding"].includes(row.status) && !isOnboarding(row) : queue === "approved" ? row.status === "approved" : ["declined", "closed"].includes(row.status));
   const of = (t: PartnerType) => visible.filter((r) => r.enquiry_type === t);
   // Open a linked enquiry once; closing it must not reopen it while the link is being cleared.
   const autoOpened = useRef<string | null>(null);
@@ -54,7 +54,7 @@ function Partners() {
     if (open || autoOpened.current === enquiry) return;
     const selected = rows.find((row) => row.id === enquiry);
     if (!selected) return;
-    setQueue(selected.status === "approved" ? "approved" : ["declined", "closed"].includes(selected.status) ? "history" : "review");
+    setQueue(selected.status === "approved" ? "approved" : ["declined", "closed"].includes(selected.status) ? "history" : isOnboarding(selected) ? "approval" : "enquiries");
     setPartnerType(selected.enquiry_type as PartnerType);
     autoOpened.current = enquiry;
     openedFromUrl.current = true;
@@ -64,7 +64,7 @@ function Partners() {
     <AppShell wide>
       <h1 className="text-2xl font-bold tracking-tight">Partner Enquiries</h1>
       <p className="mb-4 text-sm text-muted-foreground">Businesses interested in working with Home Insulation Victoria. These are not customer jobs and never appear in the Pipeline.</p>
-      <div className="mb-4 flex flex-wrap gap-2">{([['review', 'Review queue'], ['approved', 'Approved applications'], ['history', 'Declined / closed history']] as const).map(([key, label]) => <Button key={key} size="sm" variant={queue === key ? "default" : "outline"} onClick={() => setQueue(key)}>{label} ({rows.filter((row) => key === "review" ? ["new", "contacted", "onboarding"].includes(row.status) : key === "approved" ? row.status === "approved" : ["declined", "closed"].includes(row.status)).length})</Button>)}<Button size="sm" variant={queue === "unfinished" ? "default" : "outline"} onClick={() => setQueue("unfinished")}>Started, not signed</Button></div>
+      <div className="mb-4 flex flex-wrap gap-2">{([['approval', 'Pending approval'], ['enquiries', 'Website enquiries'], ['approved', 'Approved applications'], ['history', 'Declined / closed history']] as const).map(([key, label]) => <Button key={key} size="sm" variant={queue === key ? "default" : "outline"} onClick={() => setQueue(key)}>{label} ({rows.filter((row) => key === "approval" ? ["new", "contacted", "onboarding"].includes(row.status) && isOnboarding(row) : key === "enquiries" ? ["new", "contacted", "onboarding"].includes(row.status) && !isOnboarding(row) : key === "approved" ? row.status === "approved" : ["declined", "closed"].includes(row.status)).length})</Button>)}<Button size="sm" variant={queue === "unfinished" ? "default" : "outline"} onClick={() => setQueue("unfinished")}>Started, not signed</Button></div>
       {queue === "unfinished" && <Tabs value={partnerType === "installer" ? "installer" : "electrician_rec"} onValueChange={(v) => setPartnerType(v as PartnerType)}><TabsList><TabsTrigger value="electrician_rec">Electricians / RECs</TabsTrigger><TabsTrigger value="installer">Installers</TabsTrigger></TabsList><div className="mt-3"><OnboardingDrafts partnerType={partnerType === "installer" ? "installer" : "electrician_rec"} /></div></Tabs>}
       {error && <div role="alert" className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Partner enquiries could not be loaded. Existing applications are safe. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
       {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading partner enquiries…</p>}

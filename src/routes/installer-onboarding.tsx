@@ -20,6 +20,7 @@ import {
 import { defaultAddressProvider } from "@/lib/address-provider";
 import { newResumeToken, takeStaffLink } from "@/lib/onboarding-security.core";
 import type { AddressSuggestion } from "@/lib/whatif-location";
+import { VerifiedAddressInput } from "@/components/onboarding/VerifiedAddressInput";
 
 // Public installer onboarding + partner agreement signing, in the same design system as REC onboarding.
 // Progress is saved server-side (on "Save & continue") against an opaque resume token kept in this browser.
@@ -104,6 +105,9 @@ function RateRow({ label, unit, value, onChange, required = false, last = false 
 /** Australian address lookup (same interaction as REC onboarding): suggestions close after a pick and stay closed
  *  until the text is edited; slow or stale lookups never overwrite newer typing; keyboard and Escape work. */
 function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = false, id = "address" }: { value: string; resolved?: ResolvedAddress | null | undefined; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean; id?: string }) {
+  return <VerifiedAddressInput id={id} value={value} resolved={resolved} onChange={onChange} onSelect={onSelect} victoriaOnly={victoriaOnly} inputStyle={input} mutedColor={MUTED} />;
+  /* Legacy implementation retained below temporarily for source-map stability. */
+  /*
   const [announce, setAnnounce] = useState("");
   const [items, setItems] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
@@ -188,7 +192,7 @@ function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = fals
       {hint && <div role="status" style={{ marginTop: 5, color: victoriaOnly ? "#8C1D18" : MUTED, fontSize: 12 }}>{hint}</div>}
       <span role="status" aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{announce}</span>
     </div>
-  );
+  ); */
 }
 
 function Choice<T extends string | number | boolean>({ options, value, onChange }: { options: { v: T; l: string }[]; value: T | null | undefined; onChange: (v: T) => void }) {
