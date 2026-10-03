@@ -18,7 +18,7 @@ type Props = {
   inputStyle: CSSProperties;
   mutedColor: string;
   provider?: AddressProvider;
-  onPendingChange?: (pending: boolean) => void;
+  onPendingChange?: ((pending: boolean) => void) | undefined;
 };
 
 /** Verified Australian address picker. Free text never becomes a verified address. */
