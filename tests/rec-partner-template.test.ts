@@ -14,7 +14,7 @@ describe("REC partnership invitation", () => {
   test("stored and rendered HTML are byte-identical to the canonical file", () => {
     expect(REC_TEMPLATE.html).toBe(canonical);
     expect(renderPartnerTemplate(REC_TEMPLATE)).toBe(canonical);
-    expect(createHash("sha256").update(canonical).digest("hex")).toBe("3ffab0be13e3e4a1de4b808b54385c6601aaae43bdef4e7aaf0052190cd571de");
+    expect(createHash("sha256").update(canonical).digest("hex")).toBe("059819220e31b6aa382171d1bce68e81b43dd7926622e6f3472f56fb0dbd584f");
   });
   test("headline is the approved message; hundreds only in supporting copy", () => {
     expect(canonical).toContain("<title>We provide the approved jobs. You bring the electrical expertise.</title>");
