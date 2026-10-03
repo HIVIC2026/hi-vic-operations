@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { ACKNOWLEDGEMENTS, INSTALLER_AGREEMENT_VERSION, agreementText, firstIncompleteStep, pageFieldErrors, stepErrors, normaliseInstallerDraft, type InstData } from "../src/lib/installer-onboarding.core";
 import { performInstallerSign, signedData, INSTALLER_STALE_MESSAGE } from "../src/lib/installer-sign.core";
-import { activationBlockers, latestCertifications, mandatoryActivationBlockers, planActivation, partnerPreferences, certificationRecordErrors, approvedRateItems, type CertVerification } from "../src/lib/partner-activation.core";
+import { activationBlockers, latestCertifications, mandatoryActivationBlockers, planActivation, partnerPreferences, certificationRecordErrors, approvedRateItems, activationWorkers, installerExtraPricing, type CertVerification } from "../src/lib/partner-activation.core";
 import { offerBlocker } from "../src/lib/pilot.core";
+import { assignBlocker, certificationBlocker } from "../src/lib/worker-links.core";
 import { installerDb, sha256, ADMIN, OTHER, CORRECTION_SQL } from "./helpers/pglite-installer";
 
 const addr = (label: string, state = "VIC") => ({ label, street: "1 Main St", suburb: "Melbourne", postcode: "3000", state, country: "AU" as const, provider: "google_places_au" as const });
@@ -37,7 +38,56 @@ describe("1/8 address, dates, allowlists, rates", () => {
     expect(firstIncompleteStep({ ...complete, travel_radius_km: 0.01 })).not.toBeNull();
     expect(firstIncompleteStep({ ...complete, r5_rate: 0 })).not.toBeNull();
     expect(firstIncompleteStep({ ...complete, extra_rates: { tile_roof_access: 0 } })).toBeNull();
-    expect(approvedRateItems("installer", { ...complete, extra_rates: { tile_roof_access: 0 } }).some((i) => i.code === "TILE_ROOF_ACCESS")).toBe(false);
+    expect(approvedRateItems("installer", { ...complete, extra_rates: { tile_roof_access: 0 } }).find((i) => i.code === "TILE_ROOF_ACCESS")?.unit_price_ex_gst).toBe(0);
+  });
+  test("$0 optional extra survives agreement -> office summary -> approved card -> pricing; blank = quoted separately", () => {
+    const d: InstData = { ...complete, extra_rates: { tile_roof_access: 0, metal_roof_access: 55, difficult_access: null } };
+    const n = normaliseInstallerDraft(d);
+    expect(n.extra_rates?.tile_roof_access).toBe(0);
+    expect(n.extra_rates?.difficult_access).toBeNull();
+    const text = agreementText(d);
+    expect(text).toContain("Tile roof access (lift & relay tiles): no extra charge ($0)");
+    expect(text).toContain("Metal sheet roof access: $55.00 / job");
+    expect(text).toMatch(/Difficult \/ restricted ceiling access: no set rate — quoted separately/);
+    const items = approvedRateItems("installer", d);
+    expect(items.find((i) => i.code === "TILE_ROOF_ACCESS")?.unit_price_ex_gst).toBe(0);
+    expect(items.find((i) => i.code === "METAL_ROOF_ACCESS")?.unit_price_ex_gst).toBe(50); // 55 inc GST -> 50 ex
+    expect(items.some((i) => i.code === "DIFFICULT_ACCESS" || i.code === "CALL_OUT_MINIMUM")).toBe(false);
+    expect(installerExtraPricing(items, "tile_roof_access")).toEqual({ kind: "no_extra_charge", unit_price_ex_gst: 0 });
+    expect(installerExtraPricing(items, "metal_roof_access")).toEqual({ kind: "rated", unit_price_ex_gst: 50 });
+    expect(installerExtraPricing(items, "difficult_access")).toEqual({ kind: "quoted_separately" });
+    // Required base/removal rates never accept $0.
+    expect(approvedRateItems("installer", { ...complete, batts_removal_rate: 0 }).some((i) => i.code === "BATTS_REMOVAL")).toBe(false);
+    expect(firstIncompleteStep({ ...complete, batts_removal_rate: 0 })).not.toBeNull();
+    // Non-GST registered: $0 stays $0, positive stays as entered.
+    const ng = approvedRateItems("installer", { ...d, gst_registered: false });
+    expect(ng.find((i) => i.code === "TILE_ROOF_ACCESS")?.unit_price_ex_gst).toBe(0);
+    expect(ng.find((i) => i.code === "METAL_ROOF_ACCESS")?.unit_price_ex_gst).toBe(55);
+  });
+  test("installer qualification compatibility value is never null and never implies verification", () => {
+    const w = (x: object) => activationWorkers("installer", { ...complete, installers: [{ full_legal_name: "A", email: "a@x.au", ...x }] }, "b", "app")[0]!;
+    expect(w({ cii_holds: "in_training" })).toMatchObject({ qualification: "EEC CII in training (declared, not verified)", certification_status: "unverified" });
+    expect(w({})).toMatchObject({ qualification: "EEC CII not stated (declared, not verified)", certification_status: "unverified" });
+    expect(w({ cii_holds: "held", cii_certificate_number: "C9" }).qualification).toBe("EEC CII C9 (declared, not verified)");
+    expect(w({ qualification: "Experienced installer (legacy text)" })).toMatchObject({ qualification: "Experienced installer (legacy text)", certification_status: "unverified" });
+    const v = latestCertifications([{ id: "1", worker_email: "a@x.au", status: "verified", recorded_at: "2026-01-01", certificate_number: "V1" }]);
+    const vw = activationWorkers("installer", { ...complete, installers: [{ full_legal_name: "A", email: "a@x.au", cii_holds: "held" }] }, "b", "app", v)[0]!;
+    expect(vw).toMatchObject({ qualification: "EEC CII V1 (office-verified)", certification_status: "verified" });
+    expect(activationWorkers("rec", complete as never, "b", "app").every((x) => x.qualification === null)).toBe(true);
+  });
+  test("mixed team: one verified installer activates the business; unverified/rejected ones can't be approved, assigned or use links", () => {
+    const team: InstData = { ...complete, installers: [complete.installers![0]!, { full_legal_name: "C D", email: "c@samplebiz.com.au", cii_holds: "in_training" }, { full_legal_name: "E F", email: "e@samplebiz.com.au", cii_holds: "held", cii_certificate_number: "X" }] };
+    const certs = latestCertifications([cert("a@samplebiz.com.au"), cert("e@samplebiz.com.au", "rejected")]);
+    expect(mandatoryActivationBlockers("installer", team, certs)).toEqual([]);
+    const ws = activationWorkers("installer", team, "biz", "app", certs);
+    expect(ws.map((x) => x.certification_status)).toEqual(["verified", "unverified", "rejected"]);
+    expect(ws.every((x) => typeof x.qualification === "string" && x.qualification.length > 0)).toBe(true);
+    const base = { approval_status: "approved", removed_at: null, business_id: "biz", trade_role: "installer" };
+    expect(assignBlocker({ ...base, certification_status: "verified" }, ["biz"])).toBeNull();
+    expect(assignBlocker({ ...base, certification_status: "unverified" }, ["biz"])).toContain("hasn't been verified");
+    expect(assignBlocker({ ...base, certification_status: "rejected" }, ["biz"])).toContain("not accepted");
+    expect(certificationBlocker({ trade_role: "installer", certification_status: null })).not.toBeNull();
+    expect(certificationBlocker({ trade_role: "electrician", certification_status: null })).toBeNull(); // REC unchanged
   });
 });
 
