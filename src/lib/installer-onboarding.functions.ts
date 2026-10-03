@@ -7,7 +7,7 @@ import { mayRelaxRequiredSteps } from "./onboarding-security.core";
 import { validBusinessEmail } from "./rec-onboarding.core";
 import {
   ACKNOWLEDGEMENTS, INSTALLER_AGREEMENT_TITLE, INSTALLER_AGREEMENT_VERSION, agreementText, applyMaterialReset,
-  firstIncompleteStep, type InstData,
+  firstIncompleteStep, INSTALLER_VISIBLE_PAGES, type InstData,
 } from "./installer-onboarding.core";
 
 async function sha256(s: string) {
@@ -161,7 +161,7 @@ export const signInstallerAgreement = createServerFn({ method: "POST" })
     // Test applications skip mandatory-field checks so staff can run the flow end to end.
     const relax = mayRelaxRequiredSteps({ test_mode: !!app.test_mode, allow_incomplete_sign: (app as { allow_incomplete_sign?: boolean | null }).allow_incomplete_sign ?? null });
     const missing = relax ? null : firstIncompleteStep(d);
-    if (missing) throw new Error(`Please complete the "${missing.replace(/_/g, " ")}" step before signing.`);
+    if (missing) throw new Error(`Please complete the "${INSTALLER_VISIBLE_PAGES.find((p) => p.key === missing)?.title ?? missing}" page before signing.`);
 
     const text = agreementText(d);
     const signedAt = new Date().toISOString();
