@@ -93,10 +93,10 @@ function PartnerTemplates() {
     <h2 className="text-lg font-bold">Partner invitation templates</h2>
     <p className="mt-1 text-sm text-muted-foreground">Reusable, office-approved invitations. Preview, copy the subject or download the ready-to-send file. Nothing here sends email.</p>
     <div className="mt-4 grid gap-3 sm:grid-cols-2">
-      {PARTNER_TEMPLATES.map((t) => <article key={t.key} className="rounded-md border p-4">
+      {PARTNER_TEMPLATES.map((t) => <article key={t.key} className="min-w-0 rounded-md border p-4">
         <div className="font-bold">{t.label}</div>
         <p className="mt-1 text-xs text-muted-foreground">Subject: {t.subject}</p>
-        <p className="mt-1 text-xs text-muted-foreground">Registration link: <a className="text-primary underline" href={t.registrationUrl} target="_blank" rel="noopener">{t.registrationUrl}</a></p>
+        <p className="mt-1 text-xs text-muted-foreground">Registration link: <a className="break-all text-primary underline" href={t.registrationUrl} target="_blank" rel="noopener">{t.registrationUrl}</a></p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={() => setOpen(open?.key === t.key ? null : t)}>{open?.key === t.key ? "Close preview" : "Preview"}</Button>
           <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(t.subject); setCopied(t.key); }}>{copied === t.key ? "Copied" : "Copy subject"}</Button>
