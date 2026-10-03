@@ -144,7 +144,7 @@ export function fillOfficialDocxXml(input: string, key: OfficialKey, answers: Of
         const at = locate(item.label);
         if (at < 0) { missed.push(`${item.id}#${r}`); break; }
         const res = fillText(xml, at, txt(v));
-        if (res.at < 0) missed.push(`${item.id}#${r}`); else { xml = res.xml; filled.push(`${item.id}#${r}`); }
+        if (res.at < 0) missed.push(`${item.id}#${r}`); else { xml = res.xml; filled.push(`${item.id}#${r}`); segs = segments(xml); }
       }
       continue;
     }
