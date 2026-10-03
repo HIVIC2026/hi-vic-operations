@@ -10,8 +10,9 @@ describe("partner invitation templates", () => {
   });
 
   test("rendered HTML is standalone with embedded PNG and clean CTA link", () => {
-    const html = renderPartnerTemplate(INSTALLER_TEMPLATE, "QUJD");
-    expect(html).toContain('src="data:image/png;base64,QUJD"');
+    const html = renderPartnerTemplate(INSTALLER_TEMPLATE);
+    expect(html).toBe(INSTALLER_TEMPLATE.html);
+    expect(html).toContain('src="data:image/png;base64,iVBORw0KGgo');
     expect(html).toContain('href="https://estimate.homeinsulationvictoria.com.au/installer-onboarding"');
     expect(html).toContain("JOIN OUR INSTALLER NETWORK");
     expect(html).toContain("INSTALLER PARTNER INVITATION");
