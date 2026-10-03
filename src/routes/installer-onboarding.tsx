@@ -6,6 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
+import { uploadWithRevision, signWithRecovery, type RevisionRef } from "@/lib/installer-onboarding-flow.core";
 import {
   ACKNOWLEDGEMENTS, CAPACITY_BANDS, DAYS, WORKER_CII, EXTRA_ITEMS, LEAD_TIMES, RADII, INSTALLER_AGREEMENT_VERSION,
   agreementText, applyMaterialReset, firstIncompleteStep, pageErrors, pageFieldErrors, resolvedBusinessAddress, parseInstallerSampleStep, visiblePageForStep, visibleSteps,
@@ -406,7 +407,7 @@ function InstallerOnboarding() {
       {isTest && !sampleMode && <div style={{ ...warn, fontWeight: 700 }}>TEST MODE — staff test link. This application is marked as a test and won't count as a real applicant.</div>}
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
       <div style={{ width: 34, height: 3, borderRadius: 99, background: PINK, margin: "10px 0 18px" }} />
-      <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onReviewReady={setReviewed} errFor={errFor} />
+      <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onReviewReady={setReviewed} errFor={errFor} revision={revision} onUploadBusy={(b) => { navigationLock.current = b; setBusy(b); }} />
       {step === "review" && <SignStep d={d} token={token ?? ""} reviewed={reviewed} preview={sampleMode} relaxed={testMode} revision={() => revision.current}
         saveReviewed={async () => { const next = { ...d, agreement_reviewed: true }; await persist("review", next); }}
         onSigned={() => setStatus("submitted")} />}
@@ -606,7 +607,7 @@ function ReviewPanel({ d, up, preview, load, onReady }: { d: InstData; up: (p: P
   </>;
 }
 
-function InsuranceStep({ d, up, token, setError, preview }: { d: InstData; up: (p: Partial<InstData>) => void; token: string; setError: (s: string | null) => void; preview: boolean }) {
+function InsuranceStep({ d, up, token, setError, preview, revision, onUploadBusy }: { d: InstData; up: (p: Partial<InstData>) => void; token: string; setError: (s: string | null) => void; preview: boolean; revision: RevisionRef; onUploadBusy: (b: boolean) => void }) {
   const [uploading, setUploading] = useState(false);
   const [checking, setChecking] = useState(false);
   const [found, setFound] = useState<string | null>(null);
@@ -618,13 +619,13 @@ function InsuranceStep({ d, up, token, setError, preview }: { d: InstData; up: (
     setError(null);
     if (!["application/pdf", "image/jpeg", "image/png"].includes(f.type)) { setError("Upload a PDF, JPG or PNG."); return; }
     if (f.size > 10 * 1024 * 1024) { setError("File must be 10 MB or smaller."); return; }
-    setUploading(true);
+    setUploading(true); onUploadBusy(true); // Back / Save & continue wait until the upload and check finish.
     try {
       const u = await installerInsuranceUploadUrl({ data: { token, content_type: f.type as "application/pdf", size: f.size, filename: f.name } });
       const { error } = await supabase.storage.from("partner-files").uploadToSignedUrl(u.path, u.token, f, { contentType: f.type });
       if (error) throw new Error("Upload failed. Please try again.");
       setChecking(true);
-      const r = await confirmInstallerInsuranceUpload({ data: { token, path: u.path, content_type: f.type as "application/pdf" } });
+      const r = await uploadWithRevision(revision, (base) => confirmInstallerInsuranceUpload({ data: { token, path: u.path, content_type: f.type as "application/pdf", base_updated_at: base } }));
       const x = r.extracted;
       const patch: Partial<InstData> = { insurance_uploaded: true };
       const notes: string[] = [];
@@ -643,7 +644,7 @@ function InsuranceStep({ d, up, token, setError, preview }: { d: InstData; up: (
       setWarnings(notes);
       setReading(x ?? null);
       up(patch);
-    } catch (e) { setError(e instanceof Error ? e.message : "Upload failed."); } finally { setUploading(false); setChecking(false); }
+    } catch (e) { setError(e instanceof Error ? e.message : "Upload failed."); } finally { setUploading(false); setChecking(false); onUploadBusy(false); }
   }
   return <>
     {d.insurance_uploaded
@@ -680,11 +681,12 @@ function SignStep({ d, token, reviewed, preview, relaxed, revision, saveReviewed
     if (preview) { setErr("Sample preview only — no agreement was signed or submitted."); return; }
     setBusy(true); setErr(null);
     try {
-      await saveReviewed();
-      // The signature binds the exact text reviewed: refetch and refuse if anything changed since.
-      const current = await getInstallerAgreement({ data: { token } });
-      if (!reviewed || current.sha256 !== reviewed.sha256 || Date.parse(current.updated_at) !== Date.parse(revision() ?? "")) throw new Error("The agreement changed since you reviewed it. Please review it again before signing.");
-      await signInstallerAgreement({ data: { token, signer_name: name, signer_position: position, signer_email: email, acknowledgements: acks, agreement_version: INSTALLER_AGREEMENT_VERSION, expected_updated_at: current.updated_at, agreement_sha256: current.sha256 } });
+      // Recovers a lost successful response: an already-submitted application replays the idempotent sign.
+      await signWithRecovery(reviewed?.sha256 ?? null, {
+        load: () => loadInstallerOnboarding({ data: { token } }),
+        saveReviewed, agreement: () => getInstallerAgreement({ data: { token } }), revision,
+        sign: (expected, sha) => signInstallerAgreement({ data: { token, signer_name: name, signer_position: position, signer_email: email, acknowledgements: acks, agreement_version: INSTALLER_AGREEMENT_VERSION, expected_updated_at: expected, agreement_sha256: sha } }),
+      });
       onSigned(); window.scrollTo({ top: 0 });
     } catch (e) { setErr(e instanceof Error ? e.message : "Could not sign. Please try again."); } finally { setBusy(false); }
   }
