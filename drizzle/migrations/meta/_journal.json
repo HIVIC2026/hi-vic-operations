@@ -603,6 +603,13 @@
       "when": 1791069492853,
       "tag": "0085_piesa_allocation_self_scheduling",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1791071084811,
+      "tag": "0086_allocation_hardening",
+      "breakpoints": true
     }
   ]
 }
