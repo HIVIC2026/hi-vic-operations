@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  INSTALLER_VISIBLE_PAGES, STEPS, applyMaterialReset, firstIncompleteStep, pageErrors, pageMembers, parseInstallerSampleStep, stepErrors, visiblePageForStep, type InstData,
+  ACKNOWLEDGEMENTS, INSTALLER_AGREEMENT_VERSION, INSTALLER_VISIBLE_PAGES, STEPS, applyMaterialReset, firstIncompleteStep, installerSignUiBlockers, pageErrors, pageMembers, parseInstallerSampleStep, stepErrors, visiblePageForStep, type InstData,
 } from "../src/lib/installer-onboarding.core";
 
 const addr = (label: string) => ({ label, street: "1 Main St", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU" as const, provider: "google_places_au" as const });
@@ -65,6 +65,15 @@ describe("installer visible pages", () => {
   test("material changes reset review", () => {
     expect(applyMaterialReset(complete, { ...complete, r5_rate: 21 }).agreement_reviewed).toBe(false);
     expect(applyMaterialReset(complete, { ...complete, bank_bsb: "123-457" }).agreement_reviewed).toBe(true);
+  });
+  test("signing shows every actionable blocker and a complete draft enables submission", () => {
+    const acks = Object.fromEntries(ACKNOWLEDGEMENTS.map((a) => [a.key, true]));
+    expect(installerSignUiBlockers({ data: complete, reviewed: true, acknowledgements: acks, signerName: "Sam Taylor", signerPosition: "Director", signerEmail: "sam@example.com" })).toEqual([]);
+    const blocked = installerSignUiBlockers({ data: { ...complete, insurance_uploaded: false, r5_rate: null, agreement_reviewed: false }, reviewed: false, acknowledgements: {}, signerName: "", signerPosition: "", signerEmail: "bad" });
+    expect(blocked.some((x) => x.page === "insurance")).toBe(true);
+    expect(blocked.some((x) => x.page === "install_pricing")).toBe(true);
+    expect(blocked.map((x) => x.key)).toEqual(expect.arrayContaining(["review", "acknowledgements", "signer-name", "signer-position", "signer-email"]));
+    expect(INSTALLER_AGREEMENT_VERSION).toBe("HI-VIC-A48-INST-1.13-2026-10-03");
   });
   test("sample keys are allow-listed", () => {
     expect(parseInstallerSampleStep("welcome")).toBe("welcome");
