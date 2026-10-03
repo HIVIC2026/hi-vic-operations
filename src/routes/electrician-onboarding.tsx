@@ -451,7 +451,6 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
           <button type="button" style={{ ...btn(false), marginTop: 12 }} onClick={() => up({ works_under_rec: false })}>Register my REC business instead</button>
         </>}
         {d.works_under_rec === false && <>
-          <div style={infoCard}>So we know who we're talking to. We'll use your name throughout.</div>
           <Field label="Your name" required><input style={input} placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
           <Check checked={d.contact_is_licensed_electrician === true} onChange={(v) => up({ contact_is_licensed_electrician: v ? true : null })} required error={showErrors && d.contact_is_licensed_electrician !== true ? "Confirm you are a licensed electrician to continue." : null}>I am a licensed electrician.</Check>
           <Field label="Your Victorian electrician licence number" required hint="Your personal Energy Safe Victoria electrical licence number."><input style={input} {...t("licence_number", true)} /></Field>
@@ -654,7 +653,7 @@ const SAMPLE_REC_DATA: RecData = {
   works_under_rec: false, primary_contact_name: "Sample REC representative", contact_is_licensed_electrician: true, licence_number: "ESV SAMPLE", business_phone: "0400 000 000", business_email: "sample@example.com",
   legal_entity_name: "Sample Electrical Pty Ltd", trading_name: "Sample Electrical", abn: "51824753556", rec_registration_number: "REC SAMPLE", business_address: "100 Sample Road, Melbourne VIC 3000", business_address_details: { label: "100 Sample Road, Melbourne VIC 3000", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU", provider: "google_places_au" },
   insurance_uploaded: true, insurer: "Sample insurer", insurance_policy_number: "SAMPLE-001", public_liability_cover_amount: 5_000_000, public_liability_expiry: "2099-12-31",
-  service_origin: "100 Sample Road, Melbourne VIC 3000", service_origin_details: { label: "100 Sample Road, Melbourne VIC 3000", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU", provider: "google_places_au" }, travel_radius_km: 50, typical_days: ["Mon", "Tue", "Wed"], normal_attendance_speed: "3-5 business days", capacity_band: "6-10", accepting_jobs: true,
+  services_all_confirmed: true, service_origin: "100 Sample Road, Melbourne VIC 3000", service_origin_details: { label: "100 Sample Road, Melbourne VIC 3000", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU", provider: "google_places_au" }, travel_radius_km: 50, typical_days: ["Mon", "Tue", "Wed"], normal_attendance_speed: "3-5 business days", capacity_band: "6-10", accepting_jobs: true,
   gst_registered: true, assessment_rate: 330, installation_attendance_rate: 220, rectification_rates: { prohibited_luminaires: 55, circuit_protection: 110, rcd_installation: 220, tps_cable_replacement: 11, basic_protection: 165 }, coes_fee_choice: "included",
   bank_account_name: "Sample Electrical Pty Ltd", bank_bsb: "123-456", bank_account_number: "12345678", agreement_reviewed: true,
 };

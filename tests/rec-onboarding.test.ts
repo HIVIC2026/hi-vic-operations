@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { validAbn, validPhone, validBusinessEmail, stepErrors, firstIncompleteStep, applyMaterialReset, agreementText, scheduleText, visibleSteps, effectiveElectricians, parseRecSampleStep, recDraftRole, isRecRevisionTimestamp, isAlwaysMandatoryStep, ALWAYS_MANDATORY_STEPS, ACKNOWLEDGEMENTS, type RecData } from "../src/lib/rec-onboarding.core";
+import { validAbn, validPhone, validBusinessEmail, stepErrors, pageErrors, pageMembers, visiblePageForStep, canonicalStepKey, firstIncompleteStep, applyMaterialReset, agreementText, scheduleText, visibleSteps, effectiveElectricians, parseRecSampleStep, recDraftRole, isRecRevisionTimestamp, isAlwaysMandatoryStep, ALWAYS_MANDATORY_STEPS, ACKNOWLEDGEMENTS, type RecData } from "../src/lib/rec-onboarding.core";
 
 const full: RecData = {
   works_under_rec: false,
@@ -19,7 +19,33 @@ describe("rec onboarding", () => {
   test("sample steps are restricted to real onboarding states", () => {
     expect(parseRecSampleStep("welcome")).toBe("welcome");
     expect(parseRecSampleStep("assessment_pricing")).toBe("assessment_pricing");
+    expect(parseRecSampleStep("contact")).toBe("business");
+    expect(parseRecSampleStep("coverage")).toBe("services");
+    expect(parseRecSampleStep("capacity")).toBe("availability");
+    expect(parseRecSampleStep("rectification_pricing")).toBe("assessment_pricing");
     expect(parseRecSampleStep("made-up-step")).toBeNull();
+  });
+  test("nine visible pages preserve and map every legacy step", () => {
+    expect(visibleSteps(full).map((s) => s.key)).toEqual(["about", "business", "insurance", "services", "availability", "assessment_pricing", "bank", "review", "sign"]);
+    expect(pageMembers("business")).toEqual(["business", "contact"]);
+    expect(pageMembers("services")).toEqual(["services", "coverage"]);
+    expect(pageMembers("availability")).toEqual(["availability", "capacity"]);
+    expect(pageMembers("assessment_pricing")).toEqual(["assessment_pricing", "rectification_pricing"]);
+    expect(visiblePageForStep("contact")).toBe("business");
+    expect(visiblePageForStep("coverage")).toBe("services");
+    expect(visiblePageForStep("capacity")).toBe("availability");
+    expect(visiblePageForStep("rectification_pricing")).toBe("assessment_pricing");
+    expect(canonicalStepKey("unknown-history-key")).toBe("about");
+  });
+  test("merged pages require every legacy member", () => {
+    expect(pageErrors("business", { ...full, business_address_details: null })).toContain("Select an Australian business address from the list.");
+    expect(pageErrors("services", { ...full, services_all_confirmed: false, travel_radius_km: null })).toEqual(expect.arrayContaining(["Confirm your REC can provide all three electrical services.", "Choose a travel radius."]));
+    expect(pageErrors("availability", { ...full, capacity_band: undefined })).toContain("Choose your weekly capacity.");
+    expect(pageErrors("assessment_pricing", { ...full, rectification_rates: undefined })).toContain("Enter a rate for Downlight upgrade to IC-4 LED.");
+    expect(firstIncompleteStep({ ...full, business_address_details: null })).toBe("business");
+    expect(firstIncompleteStep({ ...full, services_all_confirmed: false })).toBe("services");
+    expect(firstIncompleteStep({ ...full, capacity_band: undefined })).toBe("availability");
+    expect(firstIncompleteStep({ ...full, rectification_rates: undefined })).toBe("assessment_pricing");
   });
   test("legacy draft role answers remain explicit", () => {
     expect(recDraftRole({ works_under_rec: false })).toBe("business");
@@ -100,7 +126,7 @@ describe("rec onboarding", () => {
   });
   test("rectification pricing step is always shown and requires all rates", () => {
     expect(visibleSteps(full).some((s) => s.key === "rectification_pricing")).toBe(true);
-    expect(firstIncompleteStep({ ...full, rectification_rates: undefined })).toBe("rectification_pricing");
+    expect(firstIncompleteStep({ ...full, rectification_rates: undefined })).toBe("assessment_pricing");
   });
   test("material change resets review", () => {
     expect(applyMaterialReset(full, { ...full, assessment_rate: 350 }).agreement_reviewed).toBe(false);
