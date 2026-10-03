@@ -6,7 +6,7 @@ import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melb
 
 export { DAYS, LEAD_TIMES, RADII, validAbn };
 export type { ResolvedAddress };
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.10-2026-10-02";
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.11-2026-10-03";
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
