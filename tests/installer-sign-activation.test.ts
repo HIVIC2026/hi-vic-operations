@@ -102,8 +102,8 @@ describe("9 grouped errors only for visible branch", () => {
   });
 });
 
-describe("2/3 atomic signing with exact reviewed revision + hash (PGlite, pending 0082 SQL)", () => {
-  test("signs once, maps both removal services/prices, replay idempotent, no duplicates", async () => {
+describe("2/3 atomic signing with exact reviewed revision + hash (production-compatible PGlite)", () => {
+  test("have + consent + nomination satisfies the live constraint, signs atomically, and retries without duplicates", async () => {
     const t = await installerDb();
     const id = await t.create({ ...complete, electrician_choice: "have", electrician_contact_consent: true, preferred_electricians: [{ name: "Eli Spark", business_name: "Sparky Pty Ltd", email: "E@sparky.com.au", mobile: "0412345670", licence_number: "A12345", rec_number: "12345", is_primary: true }] });
     const a = await t.app(id);
@@ -116,6 +116,13 @@ describe("2/3 atomic signing with exact reviewed revision + hash (PGlite, pendin
     expect(Number(pe[0]!.estimated_batts_removal_rate_per_sqm_inc_gst)).toBe(8);
     expect(Number(pe[0]!.estimated_loose_fill_removal_rate_per_sqm_inc_gst)).toBe(12);
     expect(await t.count("electrician_nominations")).toBe(1);
+    const nomination = (await t.db.query<{ nominated_for: string }>(`SELECT nominated_for FROM electrician_nominations`)).rows[0];
+    expect(nomination?.nominated_for).toBe("installer");
+    const constraint = (await t.db.query<{ definition: string }>(`SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid='electrician_nominations'::regclass AND conname='electrician_nominations_nominated_for_check'`)).rows[0];
+    expect(constraint?.definition).toContain("'installer'::text");
+    expect(constraint?.definition).toContain("'customer'::text");
+    expect(constraint?.definition).not.toContain("installer_team");
+    expect((await t.app(id)).status).toBe("submitted");
     // Replay at SQL level of the same signature is idempotent.
     const replay = await t.db.query<{ outcome: string }>(`SELECT * FROM sign_installer_application($1, $2, $3, '{"submission_id":"x"}', '{}', '[]')`, [id, a.updated_at, inp.agreement_sha256]);
     expect(replay.rows[0]!.outcome).toBe("already_signed_same");

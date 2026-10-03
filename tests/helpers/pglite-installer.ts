@@ -1,5 +1,6 @@
-// Isolated in-process PostgreSQL (PGlite) with the relevant production columns, triggers and unique keys, plus the
-// PENDING 0082 installer signing/activation SQL exactly as staged. Never touches the live database.
+// Isolated in-process PostgreSQL (PGlite) with exported production columns, defaults, PK/unique/CHECK constraints
+// and signing-related triggers. It applies 0082 followed by the already-applied 0085 one-literal hotfix.
+// Never touches the live database.
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";

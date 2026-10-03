@@ -1,5 +1,6 @@
--- Keep the staged installer signing function compatible with the production nomination constraint.
--- The live function already contains this value; this migration records the correction for clean rebuilds.
+-- APPLIED LIVE HOTFIX 2026-10-03: one literal changed from 'installer_team' to
+-- canonical 'installer', matching electrician_nominations_nominated_for_check.
+-- Retained here after the applied hotfix so clean rebuilds reproduce the live function.
 
 CREATE OR REPLACE FUNCTION public.sign_installer_application(
   _app_id uuid, _expected_updated_at timestamptz, _agreement_sha256 text,
