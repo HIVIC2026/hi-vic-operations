@@ -79,7 +79,7 @@ Root `/` → staff sign-in change preserved (untouched).
 Read-only `pg_indexes` (confirmed by me and independently by the reviewer): UNIQUE `partner_enquiries(source_system, enquiry_type, submission_id)` and UNIQUE `rec_onboarding_applications(resume_token_hash)`. Signing relies on the first: `submission_id = portal-rec-onboarding-<application id>`, so a duplicate insert returns unique-conflict (23505), which `performRecSign` treats as "entry already exists" → looks it up and re-uses it (SGN-6, SGN-8). The application update is conditional on `status = 'draft'` and must change a row. The harness's fake database enforces the same unique key.
 
 ## Commands and results
-- `bun test tests/rec-sign-qa.test.ts tests/rec-onboarding.test.ts tests/partner-activation.test.ts tests/insurance-reading.test.ts` → **66 pass, 0 fail, 498 expects** (first run 65/1: old test asserted services-only mandatory list; updated for B2).
+- `bun test tests/rec-sign-qa.test.ts tests/rec-onboarding.test.ts tests/partner-activation.test.ts tests/insurance-reading.test.ts` → **67 pass, 0 fail, 504 expects** (rerun after EXT-1) (first run 65/1: old test asserted services-only mandatory list; updated for B2).
 - `tsgo --noEmit` → no errors.
 - Preview build log → `build OK`.
 - `python3 /tmp/browser/recqa/smoke.py` → 18/18 screens ok, 0 page errors; review box unticked, sign disabled in preview.
