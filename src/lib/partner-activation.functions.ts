@@ -54,7 +54,7 @@ export const recordWorkerCertification = createServerFn({ method: "POST" }).midd
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const errs = certificationRecordErrors({ status: data.status, evidence_source: data.evidenceSource, evidence_note: data.evidenceNote, certificate_number: data.certificateNumber });
+    const errs = certificationRecordErrors({ status: data.status, evidence_source: data.evidenceSource, evidence_note: data.evidenceNote, certificate_number: data.certificateNumber ?? null });
     if (errs.length) throw new WorkflowError(errs.join(" "));
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data: app } = await admin.from("rec_onboarding_applications").select("id, partner_type, data").eq("id", data.applicationId).single();

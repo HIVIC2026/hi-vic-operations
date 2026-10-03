@@ -338,7 +338,7 @@ export function proposalResponse(p: Proposal, responderRole: string, action: "ac
 
 // ---------- Partner offers ----------
 export type OfferStatus = "pending" | "accepted" | "declined" | "expired" | "withdrawn";
-export type OfferPartnerPrefs = { onboarding_status?: string | null; is_active?: boolean | null; receives_hivic_leads?: boolean | null; accepting_new_jobs?: boolean | null };
+export type OfferPartnerPrefs = { onboarding_status?: string | null | undefined; is_active?: boolean | null | undefined; receives_hivic_leads?: boolean | null | undefined; accepting_new_jobs?: boolean | null | undefined };
 export function offerBlocker(job: { channel: string; stage: string; hasActiveInstaller: boolean; hasPendingOffer: boolean }, partner?: OfferPartnerPrefs): string | null {
   if (job.channel !== "hivic_sourced") return "Only Home Insulation Victoria-sourced jobs can be offered to a partner.";
   if (["complete", "cancelled", "ready_for_veec", "ap_review", "evidence_outstanding", "installation_booked"].includes(job.stage)) return "Job is too far through the workflow to offer.";
