@@ -75,35 +75,46 @@ function Partners() {
             </TabsTrigger>
           ))}
         </TabsList>
-        {PARTNER_TYPES.map((t) => (
+        {PARTNER_TYPES.map((t) => {
+          const list = of(t);
+          const groups: [string, Row[]][] = [["Onboarding form (signed application)", list.filter(isOnboarding)], ["Website enquiry", list.filter((r) => !isOnboarding(r))]];
+          return (
           <TabsContent key={t} value={t}>
-            {of(t).length === 0 ? <p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">No {PARTNER_TYPE_LABEL[t].toLowerCase()} enquiries yet.</p> : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {of(t).map((r) => {
-                  const issues = partnerIssues(r);
-                  return (
-                  <button key={r.id} data-enquiry-card={r.id} onClick={(e) => { opener.current = e.currentTarget; openedFromUrl.current = false; setOpen(r); }} className="rounded-xl border bg-card p-4 text-left text-sm hover:border-primary">
-                    <div className="flex items-start justify-between gap-2"><div className="font-semibold">{r.company || r.name || "Unnamed"}</div><Badge variant="outline" className="capitalize">{r.status}</Badge></div>
-                    {issues.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {issues.map((i) => <Badge key={i} variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400">{i}</Badge>)}
-                      </div>
-                    )}
-                    <div className="text-muted-foreground">{r.name}{r.phone ? ` · ${r.phone}` : ""}</div>
-                    <div className="truncate text-muted-foreground">{r.email}</div>
-                    <div className="mt-2 space-y-0.5">
-                      {t === "property_manager" && <div>Properties: {r.property_count ?? "—"}</div>}
-                      {t === "installer" && <><div>CII: {r.cii_certification_status ?? "—"}</div><div>Areas: {r.service_areas?.join(", ") || "—"}</div><div>Indicative R5 rate: {r.estimated_r5_install_rate_per_sqm_inc_gst == null ? "—" : `$${r.estimated_r5_install_rate_per_sqm_inc_gst}/m² inc GST`}</div></>}
-                      {t === "electrician_rec" && <><div>REC: {r.rec_registration_number ?? "—"} · ESV confirmed: {r.esv_licensed_electricians_confirmed == null ? "—" : r.esv_licensed_electricians_confirmed ? "Yes" : "No"}</div><div>Areas: {r.service_areas?.join(", ") || "—"}</div><div>PIESA fee: {money(r.estimated_piesa_fee_inc_gst)}</div><div>Services: {r.services?.join(", ") || "—"}</div></>}
+            {list.length === 0 ? <p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">No {PARTNER_TYPE_LABEL[t].toLowerCase()} enquiries yet.</p> : (
+              <div className="space-y-6">
+                {groups.map(([label, items]) => items.length === 0 ? null : (
+                  <section key={label}>
+                    <h2 className="mb-2 text-sm font-semibold text-muted-foreground">{label} ({items.length})</h2>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {items.map((r) => {
+                        const issues = partnerIssues(r);
+                        return (
+                        <button key={r.id} data-enquiry-card={r.id} onClick={(e) => { opener.current = e.currentTarget; openedFromUrl.current = false; setOpen(r); }} className="rounded-xl border bg-card p-4 text-left text-sm hover:border-primary">
+                          <div className="flex items-start justify-between gap-2"><div className="font-semibold">{r.company || r.name || "Unnamed"}</div><Badge variant="outline" className="capitalize">{r.status}</Badge></div>
+                          {issues.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {issues.map((i) => <Badge key={i} variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400">{i}</Badge>)}
+                            </div>
+                          )}
+                          <div className="text-muted-foreground">{r.name}{r.phone ? ` · ${r.phone}` : ""}</div>
+                          <div className="truncate text-muted-foreground">{r.email}</div>
+                          <div className="mt-2 space-y-0.5">
+                            {t === "property_manager" && <div>Properties: {r.property_count ?? "—"}</div>}
+                            {t === "installer" && <><div>CII: {r.cii_certification_status ?? "—"}</div><div>Areas: {r.service_areas?.join(", ") || "—"}</div><div>Indicative R5 rate: {r.estimated_r5_install_rate_per_sqm_inc_gst == null ? "—" : `$${r.estimated_r5_install_rate_per_sqm_inc_gst}/m² inc GST`}</div></>}
+                            {t === "electrician_rec" && <><div>REC: {r.rec_registration_number ?? "—"} · ESV confirmed: {r.esv_licensed_electricians_confirmed == null ? "—" : r.esv_licensed_electricians_confirmed ? "Yes" : "No"}</div><div>Areas: {r.service_areas?.join(", ") || "—"}</div><div>PIESA fee: {money(r.estimated_piesa_fee_inc_gst)}</div><div>Services: {r.services?.join(", ") || "—"}</div></>}
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground">Submitted {date(r.source_created_at ?? r.created_at)}</div>
+                        </button>
+                        );
+                      })}
                     </div>
-                    <div className="mt-2 text-xs text-muted-foreground">Submitted {date(r.source_created_at ?? r.created_at)}</div>
-                  </button>
-                  );
-                })}
+                  </section>
+                ))}
               </div>
             )}
           </TabsContent>
-        ))}
+          );
+        })}
       </Tabs>}
       {open && <Detail row={rows.find((r) => r.id === open.id) ?? open} onClose={() => { const id = open.id; setOpen(null); openedFromUrl.current = false; if (enquiry) void navigate({ search: { enquiry: undefined }, replace: true }); const el = opener.current ?? document.querySelector<HTMLElement>(`[data-enquiry-card="${id}"]`); requestAnimationFrame(() => el?.focus()); }} />}
     </AppShell>
