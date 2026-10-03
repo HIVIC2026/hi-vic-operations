@@ -220,10 +220,12 @@ export const isAustralianAddress = (address?: ResolvedAddress | null) => !!addre
 export const isVictorianAddress = (address?: ResolvedAddress | null) => isAustralianAddress(address) && ["VIC", "VICTORIA"].includes(stateCode(address?.state));
 export const customRateCode = (id: string) => `CUSTOM_${id.replace(/[^A-Za-z0-9]/g, "").toUpperCase()}`.slice(0, 40);
 
+export const MAX_CUSTOM_RECT_ITEMS = 20;
 export function customRectificationRateErrors(rows: CustomRectificationRate[] | undefined): string[] {
   const errors: string[] = [];
   const labels = new Set<string>();
   const codes = new Set<string>();
+  if ((rows ?? []).length > MAX_CUSTOM_RECT_ITEMS) errors.push(`Add no more than ${MAX_CUSTOM_RECT_ITEMS} custom items.`);
   for (const [index, row] of (rows ?? []).entries()) {
     const label = row.description.trim();
     const unit = row.unit.trim();

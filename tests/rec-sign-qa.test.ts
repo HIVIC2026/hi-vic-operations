@@ -286,4 +286,16 @@ describe("QA-SGN signing (in-memory database)", () => {
   });
 });
 
+describe("QA-EXT externally reproduced boundaries (base ba756b2d)", () => {
+  test("2099-99-99 expiry, radius 42, Funday, 21 custom items all rejected; 20 accepted", () => {
+    expect(stepErrors("insurance", { ...full, public_liability_expiry: "2099-99-99" }, now)).toContain("Insurance expiry must be today or later.");
+    expect(stepErrors("coverage", { ...full, travel_radius_km: 42 })).toContain("Choose a travel radius.");
+    expect(stepErrors("availability", { ...full, typical_days: ["Funday"] })).toContain("Choose days from the list.");
+    const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `item${String(i).padStart(3, "0")}`, description: `Item ${i}`, unit: "each", price: 10 }));
+    expect(stepErrors("rectification_pricing", { ...full, custom_rectification_rates: rows(21) })).toContain("Add no more than 20 custom items.");
+    expect(stepErrors("rectification_pricing", { ...full, custom_rectification_rates: rows(20) })).toEqual([]);
+    expect(firstIncompleteStep(full, now)).toBeNull();
+  });
+});
+
 function scheduleOf(p: Partial<RecData>) { return agreementText({ ...full, ...p }); }
