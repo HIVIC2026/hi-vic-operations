@@ -218,6 +218,22 @@ const stateCode = (state?: string | null) => (state ?? "").trim().toUpperCase();
 const AU_STATES = new Set(["ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"]);
 export const isAustralianAddress = (address?: ResolvedAddress | null) => !!address && address.provider === "google_places_au" && address.country === "AU" && AU_STATES.has(stateCode(address.state)) && /^\d{4}$/.test(address.postcode ?? "");
 export const isVictorianAddress = (address?: ResolvedAddress | null) => isAustralianAddress(address) && ["VIC", "VICTORIA"].includes(stateCode(address?.state));
+/**
+ * The address lookup sometimes returns details without the house/unit number
+ * the chosen suggestion showed (e.g. "3/12 Smith St, …" → "Smith St, …").
+ * Keep the number from the suggestion the person picked; never add one from free text.
+ */
+export function keepPickedNumber(suggestionLabel: string, details: ResolvedAddress): ResolvedAddress {
+  const pickedFirst = (suggestionLabel.split(",")[0] ?? "").trim();
+  const detailFirst = (details.label.split(",")[0] ?? "").trim();
+  if (!pickedFirst || !detailFirst || /\d/.test(detailFirst)) return details;
+  if (!pickedFirst.toLowerCase().endsWith(detailFirst.toLowerCase())) return details;
+  const prefix = pickedFirst.slice(0, pickedFirst.length - detailFirst.length).trim();
+  if (!/^(?:(?:unit|apt|shop|suite|level|lot)\s*)?[\d][\w/-]*(?:\s*\/\s*[\d][\w-]*)?$/i.test(prefix)) return details;
+  const label = `${prefix} ${details.label.trim()}`;
+  const street = details.street && !/\d/.test(details.street) ? `${prefix} ${details.street}` : details.street ?? null;
+  return { ...details, label, street };
+}
 export const customRateCode = (id: string) => `CUSTOM_${id.replace(/[^A-Za-z0-9]/g, "").toUpperCase()}`.slice(0, 40);
 
 export const MAX_CUSTOM_RECT_ITEMS = 20;

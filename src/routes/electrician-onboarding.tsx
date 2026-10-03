@@ -151,7 +151,8 @@ function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = fals
     const mine = ++detailsSeq.current;
     setOpen(false); setItems([]); setActive(-1); setLoading(true); setNote("");
     try {
-      const details = await defaultAddressProvider.details(s.id) as ResolvedAddress;
+      const raw = await defaultAddressProvider.details(s.id) as ResolvedAddress | null;
+      const details = raw ? keepPickedNumber(s.label, raw) : (raw as unknown as ResolvedAddress);
       if (!mounted.current || mine !== detailsSeq.current) return;
       if (!isAustralianAddress(details)) throw new Error("incomplete");
       if (victoriaOnly && !isVictorianAddress(details)) {
