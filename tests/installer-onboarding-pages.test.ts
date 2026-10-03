@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  ACKNOWLEDGEMENTS, INSTALLER_AGREEMENT_VERSION, INSTALLER_VISIBLE_PAGES, STEPS, applyMaterialReset, firstIncompleteStep, installerSignUiBlockers, pageErrors, pageMembers, parseInstallerSampleStep, stepErrors, visiblePageForStep, type InstData,
+  ACKNOWLEDGEMENTS, INSTALLER_AGREEMENT_VERSION, INSTALLER_VISIBLE_PAGES, STEPS, agreementText, applyMaterialReset, firstIncompleteStep, installerSignUiBlockers, pageErrors, pageMembers, parseInstallerSampleStep, stepErrors, visiblePageForStep, type InstData,
 } from "../src/lib/installer-onboarding.core";
 
 const addr = (label: string) => ({ label, street: "1 Main St", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU" as const, provider: "google_places_au" as const });
