@@ -8,7 +8,7 @@ describe("keepPickedNumber", () => {
     expect(r.street).toBe("3/12 Smith Street");
   });
   test("restores plain number", () => {
-    expect(keepPickedNumber("15 Main Street, Golden Point Ballarat, VIC", d("Main St, Golden Point VIC 3350", "Main Street")).label).toBe("15 Main Street, Golden Point VIC 3350".replace("Main Street", "Main St"));
+    expect(keepPickedNumber("15 Main Street, Golden Point Ballarat, VIC", d("Main St, Golden Point VIC 3350", "Main Street")).label).toBe("15 Main St, Golden Point VIC 3350");
   });
   test("leaves complete details unchanged", () => {
     const x = d("10 Collins St, Melbourne VIC 3000", "10 Collins Street");

@@ -223,13 +223,16 @@ export const isVictorianAddress = (address?: ResolvedAddress | null) => isAustra
  * the chosen suggestion showed (e.g. "3/12 Smith St, …" → "Smith St, …").
  * Keep the number from the suggestion the person picked; never add one from free text.
  */
+const STREET_ABBR: Record<string, string> = { street: "st", road: "rd", avenue: "ave", drive: "dr", court: "ct", place: "pl", crescent: "cres", parade: "pde", highway: "hwy", boulevard: "blvd", terrace: "tce", lane: "ln", close: "cl", grove: "gr", circuit: "cct", square: "sq" };
+const normStreet = (v: string) => v.toLowerCase().replace(/[.]/g, "").split(/\s+/).filter(Boolean).map((w) => STREET_ABBR[w] ?? w).join(" ");
 export function keepPickedNumber(suggestionLabel: string, details: ResolvedAddress): ResolvedAddress {
   const pickedFirst = (suggestionLabel.split(",")[0] ?? "").trim();
   const detailFirst = (details.label.split(",")[0] ?? "").trim();
   if (!pickedFirst || !detailFirst || /\d/.test(detailFirst)) return details;
-  if (!pickedFirst.toLowerCase().endsWith(detailFirst.toLowerCase())) return details;
-  const prefix = pickedFirst.slice(0, pickedFirst.length - detailFirst.length).trim();
-  if (!/^(?:(?:unit|apt|shop|suite|level|lot)\s*)?[\d][\w/-]*(?:\s*\/\s*[\d][\w-]*)?$/i.test(prefix)) return details;
+  const m = pickedFirst.match(/^((?:(?:unit|apt|shop|suite|level|lot)\s*)?\d[\w-]*(?:\s*\/\s*\d[\w-]*)?)\s+(.+)$/i);
+  if (!m) return details;
+  const prefix = m[1]!.trim();
+  if (normStreet(m[2]!) !== normStreet(detailFirst)) return details;
   const label = `${prefix} ${details.label.trim()}`;
   const street = details.street && !/\d/.test(details.street) ? `${prefix} ${details.street}` : details.street ?? null;
   return { ...details, label, street };
