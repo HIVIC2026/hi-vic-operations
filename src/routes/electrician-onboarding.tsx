@@ -100,8 +100,8 @@ function RateRow({ label, unit, value, onChange, last = false }: { label: string
 }
 
 /** Australian address lookup. Free text is never treated as a verified address. */
-function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = false, id = "address" }: { value: string; resolved?: ResolvedAddress | null | undefined; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean; id?: string }) {
-  return <VerifiedAddressInput id={id} value={value} resolved={resolved} onChange={onChange} onSelect={onSelect} victoriaOnly={victoriaOnly} inputStyle={input} mutedColor={MUTED} />;
+function AddressInput({ value, resolved, onChange, onSelect, onPendingChange, victoriaOnly = false, id = "address" }: { value: string; resolved?: ResolvedAddress | null | undefined; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; onPendingChange?: (pending: boolean) => void; victoriaOnly?: boolean; id?: string }) {
+  return <VerifiedAddressInput id={id} value={value} resolved={resolved} onChange={onChange} onSelect={onSelect} onPendingChange={onPendingChange} victoriaOnly={victoriaOnly} inputStyle={input} mutedColor={MUTED} />;
 
 }
 
@@ -128,6 +128,7 @@ function RecOnboarding() {
   const [step, setStep] = useState<StepKey>("about");
   const [status, setStatus] = useState<"draft" | "submitted">("draft");
   const [busy, setBusy] = useState(false);
+  const [addressPending, setAddressPending] = useState(false);
   const navigationLock = useRef(false);
   const latestData = useRef(d);
   latestData.current = d;
@@ -235,7 +236,7 @@ function RecOnboarding() {
     });
   }
   async function go(delta: 1 | -1) {
-    if (navigationLock.current) return;
+    if (navigationLock.current || addressPending) return;
     navigationLock.current = true; setError(null);
     try {
       if (delta === 1 && d.works_under_rec === true) return;
@@ -345,8 +346,8 @@ function RecOnboarding() {
   const footer = (
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#fff", borderTop: "1px solid #E4E8F0", padding: "12px 20px", zIndex: 10 }}>
       <div style={{ maxWidth: 672, margin: "0 auto", display: "flex", justifyContent: "space-between", gap: 12 }}>
-         <button style={btn(false, busy)} disabled={busy} onClick={() => { if (idx === 0) { setStarted(false); window.scrollTo({ top: 0 }); } else void go(-1); }}>Back</button>
-        {step !== "sign" && !(step === "about" && d.works_under_rec === true) && <button style={btn(true, busy)} disabled={busy} onClick={() => go(1)}>{busy ? "Saving…" : "Save & continue"}</button>}
+         <button style={btn(false, busy || addressPending)} disabled={busy || addressPending} onClick={() => { if (idx === 0) { setStarted(false); window.scrollTo({ top: 0 }); } else void go(-1); }}>Back</button>
+        {step !== "sign" && !(step === "about" && d.works_under_rec === true) && <button style={btn(true, busy || addressPending)} disabled={busy || addressPending} onClick={() => go(1)}>{addressPending ? "Checking address…" : busy ? "Saving…" : "Save & continue"}</button>}
       </div>
     </div>
   );
@@ -357,7 +358,7 @@ function RecOnboarding() {
       {isTest && !sampleMode && <div style={{ background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#7A5A00", marginBottom: 14 }}>TEST MODE — staff test link. This application is marked as a test and won't count as a real applicant. The services confirmation is always required.</div>}
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
       <div style={{ width: 34, height: 3, borderRadius: 99, background: "#F4A9C7", margin: "10px 0 18px" }} />
-      <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onRevision={setBaseUpdatedAt} showErrors={showErrors} onReviewReady={setReviewed} />
+      <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onRevision={setBaseUpdatedAt} showErrors={showErrors} onReviewReady={setReviewed} onAddressPending={setAddressPending} />
       {step === "sign" && <SignStep d={d} token={token ?? ""} reviewed={reviewed} revision={baseUpdatedAt} onSigned={() => setStatus("submitted")} preview={sampleMode} />}
       {showErrors && errs.length > 0 && (
         <div style={{ background: "#FDECEA", border: "1px solid #F5C2BE", borderRadius: 12, padding: "10px 14px", color: "#8C1D18", fontSize: 14, marginTop: 8 }}>
@@ -370,7 +371,7 @@ function RecOnboarding() {
   );
 }
 
-function StepBody({ step, d, up, token, setError, preview, onRevision, showErrors, onReviewReady }: { step: StepKey; d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void; preview: boolean; onRevision: (revision: string) => void; showErrors: boolean; onReviewReady: (r: ReviewedAgreement | null) => void }) {
+function StepBody({ step, d, up, token, setError, preview, onRevision, showErrors, onReviewReady, onAddressPending }: { step: StepKey; d: RecData; up: (p: Partial<RecData>) => void; token: string; setError: (s: string | null) => void; preview: boolean; onRevision: (revision: string) => void; showErrors: boolean; onReviewReady: (r: ReviewedAgreement | null) => void; onAddressPending: (pending: boolean) => void }) {
   const t = (k: keyof RecData, upper = false) => ({ value: (d[k] as string) ?? "", onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => up({ [k]: upper ? e.target.value.toUpperCase() : e.target.value } as Partial<RecData>) });
   switch (step) {
     case "about":
@@ -402,7 +403,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
           <Field label="Trading name"><input style={input} {...t("trading_name")} /></Field>
           <Field label="ABN" required hint="11 digits"><input style={input} inputMode="numeric" {...t("abn")} /></Field>
           <Field label="REC number" required hint="Your Victorian REC registration"><input style={input} {...t("rec_registration_number", true)} /></Field>
-          <Field label="Australian business address" required hint="Choose a verified address"><AddressInput id="business-address" value={d.business_address ?? ""} resolved={d.business_address_details} onChange={(v) => up({ business_address: v })} onSelect={(v) => up({ business_address_details: v })} /></Field>
+          <Field label="Australian business address" required hint="Choose a verified address"><AddressInput id="business-address" value={d.business_address ?? ""} resolved={d.business_address_details} onChange={(v) => up({ business_address: v })} onSelect={(v) => up({ business_address_details: v })} onPendingChange={onAddressPending} /></Field>
           {validAbn(d.abn) && (d.rec_registration_number ?? "").trim() && <p style={{ color: GREEN, fontWeight: 700, fontSize: 13 }}>✓ Ready for verification</p>}
         </> : null}
       </>;
@@ -413,7 +414,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
         <TickList items={["PIESA electrical safety assessments", "Approved electrical rectification", "Installation-day electrical attendance when required"]} />
         <Check required checked={d.services_all_confirmed === true} error={showErrors && d.services_all_confirmed !== true ? "Confirm your REC can provide all three electrical services." : null} onChange={(v) => up({ services_all_confirmed: v })}>I confirm our REC can provide all three electrical services listed above, as required for each job.</Check>
         <div style={{ borderTop: "1px solid #E4E8F0", margin: "18px 0 16px" }} />
-         <Field label="Victorian service starting location" required hint="Choose a verified Victorian address"><AddressInput id="service-origin" victoriaOnly value={d.service_origin ?? ""} resolved={d.service_origin_details} onChange={(v) => up({ service_origin: v })} onSelect={(v) => up({ service_origin_details: v })} /></Field>
+         <Field label="Victorian service starting location" required hint="Choose a verified Victorian address"><AddressInput id="service-origin" victoriaOnly value={d.service_origin ?? ""} resolved={d.service_origin_details} onChange={(v) => up({ service_origin: v })} onSelect={(v) => up({ service_origin_details: v })} onPendingChange={onAddressPending} /></Field>
          {d.business_address && d.service_origin !== d.business_address && <button type="button" style={{ ...btn(false), marginBottom: 16 }} onClick={() => up({ service_origin: d.business_address ?? "", service_origin_details: d.business_address_details ?? null })}>Use business address</button>}
         <Field label="Travel radius" required><Choice options={RADII.map((r) => ({ v: r.v as number, l: r.l }))} value={d.travel_radius_km ?? null} onChange={(v) => up({ travel_radius_km: v })} /></Field>
         <Field label="Need to exclude a particular area?"><textarea style={{ ...input, minHeight: 70 }} {...t("excluded_areas")} /></Field>

@@ -102,8 +102,8 @@ function RateRow({ label, unit, value, onChange, required = false, last = false 
 
 /** Australian address lookup (same interaction as REC onboarding): suggestions close after a pick and stay closed
  *  until the text is edited; slow or stale lookups never overwrite newer typing; keyboard and Escape work. */
-function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = false, id = "address" }: { value: string; resolved?: ResolvedAddress | null | undefined; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean; id?: string }) {
-  return <VerifiedAddressInput id={id} value={value} resolved={resolved} onChange={onChange} onSelect={onSelect} victoriaOnly={victoriaOnly} inputStyle={input} mutedColor={MUTED} />;
+function AddressInput({ value, resolved, onChange, onSelect, onPendingChange, victoriaOnly = false, id = "address" }: { value: string; resolved?: ResolvedAddress | null | undefined; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; onPendingChange?: (pending: boolean) => void; victoriaOnly?: boolean; id?: string }) {
+  return <VerifiedAddressInput id={id} value={value} resolved={resolved} onChange={onChange} onSelect={onSelect} onPendingChange={onPendingChange} victoriaOnly={victoriaOnly} inputStyle={input} mutedColor={MUTED} />;
 
 }
 
@@ -132,6 +132,7 @@ function InstallerOnboarding() {
   const [step, setStep] = useState<StepKey>("about");
   const [status, setStatus] = useState<"draft" | "submitted">("draft");
   const [busy, setBusy] = useState(false);
+  const [addressPending, setAddressPending] = useState(false);
   const navigationLock = useRef(false);
   const latestData = useRef(d);
   latestData.current = d;
@@ -220,7 +221,7 @@ function InstallerOnboarding() {
     });
   }
   async function go(delta: 1 | -1) {
-    if (navigationLock.current) return;
+    if (navigationLock.current || addressPending) return;
     navigationLock.current = true; setError(null);
     try {
       if (delta === 1 && d.works_for_business === true) return; // staff join through the business owner's invite
@@ -304,8 +305,8 @@ function InstallerOnboarding() {
   const footer = (
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#fff", borderTop: "1px solid #E4E8F0", padding: "12px 20px", zIndex: 10 }}>
       <div style={{ maxWidth: 672, margin: "0 auto", display: "flex", justifyContent: "space-between", gap: 12 }}>
-        <button style={btn(false, busy)} disabled={busy} onClick={() => { if (idx === 0) { setStarted(false); window.scrollTo({ top: 0 }); } else void go(-1); }}>Back</button>
-        {step !== "review" && !staffStop && <button style={btn(true, busy)} disabled={busy} onClick={() => go(1)}>{busy ? "Saving…" : "Save & continue"}</button>}
+        <button style={btn(false, busy || addressPending)} disabled={busy || addressPending} onClick={() => { if (idx === 0) { setStarted(false); window.scrollTo({ top: 0 }); } else void go(-1); }}>Back</button>
+        {step !== "review" && !staffStop && <button style={btn(true, busy || addressPending)} disabled={busy || addressPending} onClick={() => go(1)}>{addressPending ? "Checking address…" : busy ? "Saving…" : "Save & continue"}</button>}
       </div>
     </div>
   );
@@ -316,7 +317,7 @@ function InstallerOnboarding() {
       {isTest && !sampleMode && <div style={{ ...warn, fontWeight: 700 }}>TEST MODE — staff test link. This application is marked as a test and won't count as a real applicant.</div>}
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
       <div style={{ width: 34, height: 3, borderRadius: 99, background: PINK, margin: "10px 0 18px" }} />
-      <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onReviewReady={setReviewed} errFor={errFor} revision={revision} onUploadBusy={(b) => { navigationLock.current = b; setBusy(b); }} />
+      <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onReviewReady={setReviewed} errFor={errFor} revision={revision} onUploadBusy={(b) => { navigationLock.current = b; setBusy(b); }} onAddressPending={setAddressPending} />
       {step === "review" && <SignStep d={d} token={token ?? ""} reviewed={reviewed} preview={sampleMode} relaxed={testMode} revision={() => revision.current}
         saveReviewed={async () => { const next = { ...d, agreement_reviewed: true }; await persist("review", next); }}
         onGoToPage={(page) => { setStep(page); window.history.pushState({ instStep: page }, ""); window.scrollTo({ top: 0 }); }}
@@ -332,7 +333,7 @@ function InstallerOnboarding() {
   );
 }
 
-function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor, revision, onUploadBusy }: { step: StepKey; d: InstData; up: (p: Partial<InstData>) => void; token: string; setError: (s: string | null) => void; preview: boolean; onReviewReady: (r: Reviewed) => void; errFor: (field: string) => string | null; revision: RevisionRef; onUploadBusy: (b: boolean) => void }) {
+function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor, revision, onUploadBusy, onAddressPending }: { step: StepKey; d: InstData; up: (p: Partial<InstData>) => void; token: string; setError: (s: string | null) => void; preview: boolean; onReviewReady: (r: Reviewed) => void; errFor: (field: string) => string | null; revision: RevisionRef; onUploadBusy: (b: boolean) => void; onAddressPending: (pending: boolean) => void }) {
   const t = (k: keyof InstData) => ({ id: k as string, "aria-invalid": !!errFor(k as string) || undefined, value: (d[k] as string) ?? "", onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => up({ [k]: e.target.value } as Partial<InstData>) });
   switch (step) {
     case "about":
@@ -354,7 +355,7 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
             <Field label="Legal entity name" required htmlFor="legal_entity_name" error={errFor("legal_entity_name")}><input style={input} {...t("legal_entity_name")} /></Field>
             <Field label="Trading name" htmlFor="trading_name" error={errFor("trading_name")}><input style={input} {...t("trading_name")} /></Field>
             <Field label="ABN" required hint="11 digits" htmlFor="abn" error={errFor("abn")}><input style={input} inputMode="numeric" {...t("abn")} /></Field>
-            <Field label="Australian business address" required hint="Start typing and choose from the list" htmlFor="business-address" error={errFor("business-address")}><AddressInput id="business-address" value={d.business_address ?? ""} resolved={d.business_address_details} onChange={(v) => up({ business_address: v })} onSelect={(v) => up({ business_address_details: v })} /></Field>
+            <Field label="Australian business address" required hint="Start typing and choose from the list" htmlFor="business-address" error={errFor("business-address")}><AddressInput id="business-address" value={d.business_address ?? ""} resolved={d.business_address_details} onChange={(v) => up({ business_address: v })} onSelect={(v) => up({ business_address_details: v })} onPendingChange={onAddressPending} /></Field>
           </Section>
         </>}
       </>;
@@ -429,7 +430,7 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
           </>}
         </Section>
         <Section title="Where you work">
-          <Field label="Victorian service starting location" required hint="Start typing and choose from the list" htmlFor="service-origin" error={errFor("service-origin")}><AddressInput id="service-origin" victoriaOnly value={d.service_origin ?? ""} resolved={d.service_origin_details} onChange={(v) => up({ service_origin: v })} onSelect={(v) => up({ service_origin_details: v })} /></Field>
+          <Field label="Victorian service starting location" required hint="Start typing and choose from the list" htmlFor="service-origin" error={errFor("service-origin")}><AddressInput id="service-origin" victoriaOnly value={d.service_origin ?? ""} resolved={d.service_origin_details} onChange={(v) => up({ service_origin: v })} onSelect={(v) => up({ service_origin_details: v })} onPendingChange={onAddressPending} /></Field>
           {resolvedBusinessAddress(d) && isVictorianAddress(d.business_address_details) && d.service_origin !== d.business_address && <button type="button" style={{ ...btn(false), marginBottom: 16 }} onClick={() => up({ service_origin: d.business_address ?? "", service_origin_details: d.business_address_details ?? null })}>Use business address</button>}
           <Field label="Travel radius" required><Choice options={RADII.map((r) => ({ v: r.v as number, l: r.l }))} value={d.travel_radius_km ?? null} onChange={(v) => up({ travel_radius_km: v })} /></Field>
           <Field label="Areas to exclude"><textarea style={{ ...input, minHeight: 70 }} {...t("excluded_areas")} /></Field>

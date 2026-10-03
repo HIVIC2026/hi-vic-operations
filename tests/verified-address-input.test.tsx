@@ -13,13 +13,14 @@ const style = {};
 
 function harness(provider: { search: (query: string) => Promise<{ id: string; label: string }[]>; details: (id: string) => Promise<ResolvedAddress | null> }, victoriaOnly = false) {
   const state = { value: "", resolved: null as ResolvedAddress | null };
+  const pendingStates: boolean[] = [];
   function Host() {
     const [value, setValue] = React.useState("");
     const [resolved, setResolved] = React.useState<ResolvedAddress | null>(null);
     state.value = value; state.resolved = resolved;
-    return React.createElement(VerifiedAddressInput, { value, resolved, onChange: setValue, onSelect: setResolved, inputStyle: style, mutedColor: "#555", provider, victoriaOnly });
+    return React.createElement(VerifiedAddressInput, { value, resolved, onChange: setValue, onSelect: setResolved, inputStyle: style, mutedColor: "#555", provider, victoriaOnly, onPendingChange: (pending: boolean) => pendingStates.push(pending) });
   }
-  return { ...render(React.createElement(Host)), state };
+  return { ...render(React.createElement(Host)), state, pendingStates };
 }
 
 async function typeAndWait(r: ReturnType<typeof harness>, text = "30 dash") {
@@ -35,8 +36,10 @@ describe("verified address picker", () => {
     const r = harness({ search: async () => [{ id: "p1", label: "30 Dash Street, Richmond VIC 3121" }], details: () => pending.promise });
     const input = await typeAndWait(r);
     await act(async () => { fireEvent.pointerDown(r.getByRole("option")); });
+    expect(r.pendingStates).toEqual([true]);
     fireEvent.pointerDown(document.body);
     await act(async () => { pending.resolve(detail()); });
+    expect(r.pendingStates).toEqual([true, false]);
     expect(r.state.resolved?.postcode).toBe("3121");
     fireEvent.focus(input); fireEvent.change(input, { target: { value: "31 Dash" } });
     expect(r.state.value).toBe("31 Dash");
