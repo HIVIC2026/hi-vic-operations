@@ -140,6 +140,7 @@ function Pipeline() {
            <p className="text-xs font-bold uppercase text-primary">Home Insulation Victoria</p>
            <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{TAB_TITLE[tab]}</h1>
            <p className="mt-2 text-sm text-muted-foreground">Active enquiries first. Ineligible, finalised, cancelled and test records stay safely filed.</p>
+           {tab === "enquiries" && <Link to="/admin/enquiry-groups" className="mt-1 inline-block text-sm font-semibold text-primary underline">Open enquiry email groups</Link>}
         </div>
          <div className="flex shrink-0 flex-col items-end gap-2 sm:ml-auto sm:flex-row sm:items-center"><span className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-xs font-bold ${comms?.enabled === true ? "border-success/30 bg-success-soft text-success" : "border-workspace-sun-strong/40 bg-workspace-sun text-foreground"}`}><span className={`h-2 w-2 rounded-full ${comms?.enabled === true ? "bg-success" : "bg-warning"}`} />Messages {comms?.enabled === true ? "on" : "off"}</span><NewEnquiry /></div>
       </div>
