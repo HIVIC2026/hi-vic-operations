@@ -491,7 +491,9 @@ export const offerToPartner = createServerFn({ method: "POST" }).middleware([req
       admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("status", "pending"),
       admin.from("ceiling_measurements").select("measured_area_m2, status").eq("job_id", data.jobId).eq("is_current", true).maybeSingle(),
     ]);
-    const b = offerBlocker({ channel: j.channel, stage: j.stage, hasActiveInstaller: !!inst, hasPendingOffer: !!pend });
+    // Preference columns arrive with pending migration 0082; until then they are undefined and do not block.
+    const prefs = biz as unknown as { receives_hivic_leads?: boolean | null; accepting_new_jobs?: boolean | null };
+    const b = offerBlocker({ channel: j.channel, stage: j.stage, hasActiveInstaller: !!inst, hasPendingOffer: !!pend }, { receives_hivic_leads: prefs.receives_hivic_leads, accepting_new_jobs: prefs.accepting_new_jobs });
     if (b) throw new WorkflowError(b);
     const p = j.properties as { suburb: string | null; postcode: string | null } | null;
     if (!verifiedServiceAreaMatch(biz, p?.postcode ?? null)) throw new WorkflowError(`${biz.name} does not have office-verified coverage for postcode ${p?.postcode ?? "unknown"}. Confirm the partner's service postcodes before offering this job.`);
