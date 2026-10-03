@@ -112,6 +112,9 @@ function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = fals
   const searchSeq = useRef(0);
   const detailsSeq = useRef(0);
   const root = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  /** True while a picked suggestion is being confirmed; stray input events (e.g. phone keyboard autocorrect) must not cancel it. */
+  const picking = useRef(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; searchSeq.current += 1; detailsSeq.current += 1; }; }, []);
   useEffect(() => {
@@ -147,8 +150,11 @@ function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = fals
     return () => { clearTimeout(t); searchSeq.current += 1; };
   }, [edited, focused, resolved, value]);
   async function choose(s: AddressSuggestion) {
+    inputRef.current?.blur();
+    picking.current = true;
     searchSeq.current += 1;
     const mine = ++detailsSeq.current;
+    onSelect(null); onChange(s.label);
     setOpen(false); setItems([]); setActive(-1); setLoading(true); setNote("");
     try {
       const raw = await defaultAddressProvider.details(s.id) as ResolvedAddress | null;
@@ -160,13 +166,13 @@ function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = fals
       }
       onChange(details.label); onSelect(details); setOpen(false); setItems([]); setEdited(false); setAnnounce(`Selected ${details.label}`);
     } catch { if (mounted.current && mine === detailsSeq.current) { onSelect(null); setItems([s]); setActive(0); setOpen(focused); setEdited(true); setNote("We couldn't verify that address. Select it again or choose another result."); } }
-    finally { if (mounted.current && mine === detailsSeq.current) setLoading(false); }
+    finally { if (mine === detailsSeq.current) picking.current = false; if (mounted.current && mine === detailsSeq.current) setLoading(false); }
   }
   const dismiss = () => { searchSeq.current += 1; detailsSeq.current += 1; setOpen(false); setItems([]); setActive(-1); setLoading(false); };
   return (
     <div ref={root} style={{ position: "relative" }}>
-      <input id={id} style={input} role="combobox" aria-expanded={open && items.length > 0} aria-controls={`${id}-options`} aria-autocomplete="list" aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined} autoComplete="off" placeholder="Start typing your address…" value={value}
-        onFocus={() => setFocused(true)} onChange={(e) => { searchSeq.current += 1; detailsSeq.current += 1; setLoading(false); setEdited(true); setItems([]); setActive(-1); setOpen(false); setNote(""); setAnnounce(""); onSelect(null); onChange(e.target.value); }} onBlur={() => { setFocused(false); searchSeq.current += 1; setOpen(false); setActive(-1); }}
+      <input ref={inputRef} id={id} style={input} role="combobox" autoCorrect="off" autoCapitalize="off" spellCheck={false} aria-expanded={open && items.length > 0} aria-controls={`${id}-options`} aria-autocomplete="list" aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined} autoComplete="off" placeholder="Start typing your address…" value={value}
+        onFocus={() => setFocused(true)} onChange={(e) => { if (picking.current) return; searchSeq.current += 1; detailsSeq.current += 1; setLoading(false); setEdited(true); setItems([]); setActive(-1); setOpen(false); setNote(""); setAnnounce(""); onSelect(null); onChange(e.target.value); }} onBlur={() => { setFocused(false); searchSeq.current += 1; setOpen(false); setActive(-1); }}
         onKeyDown={(e) => { if (e.key === "ArrowDown" && items.length) { e.preventDefault(); setActive((x) => (x + 1) % items.length); } else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((x) => (x - 1 + items.length) % items.length); } else if (e.key === "Enter" && open && items[active]) { e.preventDefault(); void choose(items[active]); } else if (e.key === "Escape") { e.preventDefault(); dismiss(); } }} />
       {loading && <div style={{ position: "absolute", right: 14, top: 14, fontSize: 12, color: MUTED }}>Searching…</div>}
       {open && items.length > 0 && (
