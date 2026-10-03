@@ -293,7 +293,7 @@ function PipelineBoard({ jobs }: { jobs: JobRow[] }) {
                 <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">{cards.length}</span>
               </h3>
               <div className="flex min-h-24 flex-col gap-3 rounded-xl border border-dashed border-border bg-muted/30 p-2">
-                {cards.map((j) => <BoardCard key={j.id} job={j} />)}
+                {cards.map((j) => <BoardCard key={j.id} job={j} readyCheckAt={readyCheckBookings?.get(j.id!) ?? null} />)}
                 {cards.length === 0 && <p className="px-2 py-6 text-center text-xs text-muted-foreground">No jobs here</p>}
               </div>
             </section>
