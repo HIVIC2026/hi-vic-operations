@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExternalLink, MailCheck } from "lucide-react";
 import { AppShell } from "@/components/portal/AppShell";
 import { Pill } from "@/components/portal/badges";
@@ -12,7 +12,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAction } from "@/hooks/use-me";
 import { approveCustomerCommunicationDraft, listCustomerCommunicationTemplates, saveCustomerCommunicationDraft } from "@/lib/customer-communications.functions";
 import { PARTNER_TEMPLATES, renderPartnerTemplate, type PartnerTemplate } from "@/lib/partner-templates";
-import { useEffect, useState as useState2 } from "react";
 
 // [key, label, purpose, when it is sent, mandatory forms attached, preview available]
 const CATALOG = [
@@ -68,7 +67,7 @@ function CustomerCommunications() {
 
 function useLogoBase64(): string {
   const [logo, setLogo] = useState("");
-  useEffectX(() => {
+  useEffect(() => {
     let cancelled = false;
     fetch("/email-preview/hi-vic-logo.png")
       .then((r) => r.blob())
