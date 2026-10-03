@@ -18,10 +18,11 @@ type Props = {
   inputStyle: CSSProperties;
   mutedColor: string;
   provider?: AddressProvider;
+  onPendingChange?: (pending: boolean) => void;
 };
 
 /** Verified Australian address picker. Free text never becomes a verified address. */
-export function VerifiedAddressInput({ value, resolved, onChange, onSelect, victoriaOnly = false, id = "address", inputStyle, mutedColor, provider = defaultAddressProvider }: Props) {
+export function VerifiedAddressInput({ value, resolved, onChange, onSelect, victoriaOnly = false, id = "address", inputStyle, mutedColor, provider = defaultAddressProvider, onPendingChange }: Props) {
   const [announce, setAnnounce] = useState("");
   const [items, setItems] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
@@ -87,6 +88,7 @@ export function VerifiedAddressInput({ value, resolved, onChange, onSelect, vict
   async function choose(suggestion: AddressSuggestion) {
     // Set the lock before blur. Mobile browsers dispatch blur/outside events before click.
     picking.current = true;
+    onPendingChange?.(true);
     inputRef.current?.blur();
     searchSeq.current += 1;
     const mine = ++detailsSeq.current;
@@ -112,6 +114,7 @@ export function VerifiedAddressInput({ value, resolved, onChange, onSelect, vict
     } finally {
       if (mine === detailsSeq.current) picking.current = false;
       if (mounted.current && mine === detailsSeq.current) setLoading(false);
+      if (mine === detailsSeq.current) onPendingChange?.(false);
     }
   }
 
