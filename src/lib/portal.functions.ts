@@ -12,7 +12,7 @@ import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
 import { applyPaidAmount, clearInstallDueDate, createInvoiceForQuote, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
 import { buildDepositOverride, depositRequestPatch } from "./invoice.lifecycle";
-import { commercialBlocker, depositCleared } from "./workflow.server";
+import { commercialBlocker, paymentOptionCleared } from "./workflow.server";
 import { assertAgreementCanSign, assignmentEffective, buildAcceptancePackage, currentAgreement, currentAssignment, currentInstallerDeclaration, loadTemplates, prepareFinalAssignment, raiseVariation, reconfirmVariation, signCustomerAgreement, signFinalAssignment, signInstallerDecl } from "./assignment.server";
 import { ASSIGNMENT_EVENTS, parseFormFields, prefillRows, setupStatus, templateBlockers, type TemplateKey } from "./assignment.core";
 import { consentValidityBlockers } from "./consent.core";
@@ -641,7 +641,7 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
 // ---------- Payments (Xero mirror + gates) ----------
 /** Deposit routing now lives in the central auto-advance helper (never bypasses blockers). */
 async function advanceAfterDeposit(jobId: string, actorId: string) {
-  if ((await getStage(jobId)) === "awaiting_deposit_payment" && (await depositCleared(jobId)))
+  if ((await getStage(jobId)) === "awaiting_deposit_payment" && (await paymentOptionCleared(jobId)))
     await logEvent(jobId, actorId, ASSIGNMENT_EVENTS.DEPOSIT_PAID, "50% deposit confirmed – scheduling can unlock");
   await autoAdvanceJob(jobId, actorId, "payment update");
 }
