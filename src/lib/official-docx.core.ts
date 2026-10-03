@@ -24,7 +24,7 @@ function segments(xml: string): Seg[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml))) {
     const raw = m[0];
-    const text = [...raw.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map((t) => unesc(t[1])).join("");
+    const text = [...raw.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map((t) => unesc(t[1]!)).join("");
     out.push({ start: m.index, end: m.index + raw.length, text });
   }
   return out;
@@ -37,7 +37,7 @@ function fillText(xml: string, from: number, value: string): { xml: string; at: 
   const m = re.exec(xml);
   if (!m) return { xml, at: -1 };
   const replacement = `<w:r><w:rPr><w:noProof/></w:rPr><w:t xml:space="preserve">${esc(value)}</w:t></w:r>`;
-  const xml2 = xml.slice(0, m.index) + m[0].replace(m[1], replacement) + xml.slice(m.index + m[0].length);
+  const xml2 = xml.slice(0, m.index) + m[0].replace(m[1]!, replacement) + xml.slice(m.index + m[0].length);
   return { xml: xml2, at: m.index + m[0].length };
 }
 
@@ -48,10 +48,10 @@ function setCheckbox(xml: string, from: number, label: string, on: boolean): { x
   let m: RegExpExecArray | null;
   const wanted = norm(label);
   while ((m = re.exec(xml))) {
-    if (norm(m[4]) !== wanted) continue;
+    if (norm(m[4]!) !== wanted) continue;
     let block = m[0];
     block = block.replace(/<w:default w:val="\d"\/>/, `<w:default w:val="${on ? 1 : 0}"/>`);
-    if (on) block = block.replace(m[2], m[2] + CHECKED_RUN);
+    if (on) block = block.replace(m[2]!, m[2]! + CHECKED_RUN);
     const xml2 = xml.slice(0, m.index) + block + xml.slice(m.index + m[0].length);
     return { xml: xml2, at: m.index + block.length };
   }
@@ -65,7 +65,7 @@ function tickBox(xml: string, from: number, on: boolean): { xml: string; at: num
   const m = re.exec(xml);
   if (!m) return { xml, at: -1 };
   let block = m[0].replace(/<w:default w:val="\d"\/>/, `<w:default w:val="${on ? 1 : 0}"/>`);
-  if (on) block = block.replace(m[1], m[1] + CHECKED_RUN);
+  if (on) block = block.replace(m[1]!, m[1]! + CHECKED_RUN);
   return { xml: xml.slice(0, m.index) + block + xml.slice(m.index + m[0].length), at: m.index + block.length };
 }
 
