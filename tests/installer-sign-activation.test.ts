@@ -77,7 +77,8 @@ describe("1/8 address, dates, allowlists, rates", () => {
   });
   test("mixed team: one verified installer activates the business; unverified/rejected ones can't be approved, assigned or use links", () => {
     const team: InstData = { ...complete, installers: [complete.installers![0]!, { full_legal_name: "C D", email: "c@samplebiz.com.au", cii_holds: "in_training" }, { full_legal_name: "E F", email: "e@samplebiz.com.au", cii_holds: "held", cii_certificate_number: "X" }] };
-    const certs = latestCertifications([cert("a@samplebiz.com.au"), cert("e@samplebiz.com.au", "rejected")]);
+    const mk = (email: string, status: "verified" | "rejected"): CertVerification => ({ id: email, worker_email: email, status, recorded_at: "2026-01-01" });
+    const certs = latestCertifications([mk("a@samplebiz.com.au", "verified"), mk("e@samplebiz.com.au", "rejected")]);
     expect(mandatoryActivationBlockers("installer", team, certs)).toEqual([]);
     const ws = activationWorkers("installer", team, "biz", "app", certs);
     expect(ws.map((x) => x.certification_status)).toEqual(["verified", "unverified", "rejected"]);
