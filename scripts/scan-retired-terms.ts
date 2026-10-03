@@ -60,8 +60,6 @@ const ALLOWED = [/business_unit/, /'hivic'/];
 // and Mitti question labels that the label-based sync parser matches on.
 const RETAINED: { file: RegExp; re: RegExp; why: string }[] = [
   { file: /./, re: /"HIVIC-[A-Z-]+"/, why: "Internal rule code" },
-  // Signed installer agreement text: changes only with a new admin-approved agreement version (hash-locked).
-  { file: /^src\/lib\/installer-agreement\.text\.ts$/, re: /50 ?% deposit/, why: "Signed agreement text – needs approved new version" },
   {
     file: /^src\/lib\/mitti-forms\.core\.ts$/,
     re: /HI VIC/,
