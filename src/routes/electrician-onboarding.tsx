@@ -137,7 +137,7 @@ function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = fals
   }, [resolved, value]);
   useEffect(() => {
     const close = (event: PointerEvent) => {
-      if (root.current && !root.current.contains(event.target as Node)) {
+      if (root.current && !event.composedPath().includes(root.current)) {
         searchSeq.current += 1; detailsSeq.current += 1; setFocused(false); setOpen(false); setItems([]); setActive(-1); setLoading(false);
       }
     };
