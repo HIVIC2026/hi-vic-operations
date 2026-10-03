@@ -610,6 +610,13 @@
       "when": 1791071084811,
       "tag": "0086_allocation_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1791071547182,
+      "tag": "0087_offer_batch_index",
+      "breakpoints": true
     }
   ]
 }
