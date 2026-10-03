@@ -26,9 +26,9 @@ const meta = { ip: "203.0.113.1", userAgent: "test" };
 describe("1/8 address, dates, allowlists, rates", () => {
   test("fake address text never passes; resolved AU business + VIC origin required", () => {
     expect(firstIncompleteStep(complete)).toBeNull();
-    expect(firstIncompleteStep({ ...complete, business_address: "not a real address", business_address_details: null })).toBe("contact");
-    expect(firstIncompleteStep({ ...complete, business_address: "edited text" })).toBe("contact"); // label mismatch
-    expect(firstIncompleteStep({ ...complete, service_origin_details: addr("1 Main St, Sydney NSW 2000", "NSW"), service_origin: "1 Main St, Sydney NSW 2000" })).toBe("coverage");
+    expect(firstIncompleteStep({ ...complete, business_address: "not a real address", business_address_details: null })).toBe("about");
+    expect(firstIncompleteStep({ ...complete, business_address: "edited text" })).toBe("about"); // label mismatch
+    expect(firstIncompleteStep({ ...complete, service_origin_details: addr("1 Main St, Sydney NSW 2000", "NSW"), service_origin: "1 Main St, Sydney NSW 2000" })).toBe("services");
     expect(normaliseInstallerDraft({ ...complete, business_address: "changed" }).business_address_details).toBeNull();
   });
   test("calendar dates, days and radii allowlisted; zero optional = no charge; required rates positive", () => {
@@ -54,7 +54,7 @@ describe("9 grouped errors only for visible branch", () => {
 describe("2/3 atomic signing with exact reviewed revision + hash (PGlite, pending 0082 SQL)", () => {
   test("signs once, maps both removal services/prices, replay idempotent, no duplicates", async () => {
     const t = await installerDb();
-    const id = await t.create({ ...complete, electrician_choice: "have", electrician_contact_consent: true, preferred_electricians: [{ name: "E", email: "E@sparky.com.au", is_primary: true }] });
+    const id = await t.create({ ...complete, electrician_choice: "have", electrician_contact_consent: true, preferred_electricians: [{ name: "Eli Spark", business_name: "Sparky Pty Ltd", email: "E@sparky.com.au", mobile: "0412345670", licence_number: "A12345", rec_number: "12345", is_primary: true }] });
     const a = await t.app(id);
     const inp = await input(a);
     const r = await performInstallerSign(a, inp, meta, t.deps());
