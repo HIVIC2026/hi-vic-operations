@@ -471,34 +471,20 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
           <Field label="Trading name"><input style={input} {...t("trading_name")} /></Field>
           <Field label="ABN" required hint="11 digits"><input style={input} inputMode="numeric" {...t("abn")} /></Field>
           <Field label="REC number" required hint="Your Victorian REC registration"><input style={input} {...t("rec_registration_number", true)} /></Field>
+          <Field label="Australian business address" required hint="Choose a verified address"><AddressInput id="business-address" value={d.business_address ?? ""} resolved={d.business_address_details} onChange={(v) => up({ business_address: v })} onSelect={(v) => up({ business_address_details: v })} /></Field>
           {validAbn(d.abn) && (d.rec_registration_number ?? "").trim() && <div style={{ ...infoCard, display: "inline-block" }}>✓ Ready for verification</div>}
         </> : null}
-      </>;
-    case "contact":
-      return <>
-         <Field label="Australian business address" required hint="Start typing and choose the verified address from the list"><AddressInput id="business-address" value={d.business_address ?? ""} onChange={(v) => up({ business_address: v })} onSelect={(v) => up({ business_address_details: v })} /></Field>
-        <div style={{ ...infoCard, marginBottom: 16 }}>Contact: <strong>{d.primary_contact_name}</strong> · {d.business_phone} · {d.business_email} — if any of these are wrong, go back to "About you".</div>
       </>;
     case "insurance":
       return <InsuranceStep d={d} up={up} token={token} setError={setError} preview={preview} onRevision={onRevision} />;
     case "services":
       return <>
-        <div style={infoCard}>
-          <strong>Home Insulation Victoria provides pre-installation electrical safety assessment (PIESA) jobs in your service area.</strong>
-          <TickList items={[
-            "Complete the electrical safety assessment and submit the PIESA through our portal.",
-            "Identify and quote only the electrical rectification required for the ceiling insulation to be installed safely. Complete that work once the scope and price are approved through Home Insulation Victoria.",
-            "Attend the installation on site when electrical attendance is required.",
-          ]} />
-        </div>
+        <TickList items={["PIESA electrical safety assessments", "Approved electrical rectification", "Installation-day electrical attendance when required"]} />
         <Check required checked={d.services_all_confirmed === true} error={showErrors && d.services_all_confirmed !== true ? "Confirm your REC can provide all three electrical services." : null} onChange={(v) => up({ services_all_confirmed: v })}>I confirm our REC can provide all three electrical services listed above, as required for each job.</Check>
-      </>;
-    case "coverage":
-      return <>
-         <Field label="Victorian service starting location" required hint="Choose a verified Victorian address"><AddressInput id="service-origin" victoriaOnly value={d.service_origin ?? ""} onChange={(v) => up({ service_origin: v })} onSelect={(v) => up({ service_origin_details: v })} /></Field>
+        <div style={{ borderTop: "1px solid #E4E8F0", margin: "18px 0 16px" }} />
+         <Field label="Victorian service starting location" required hint="Choose a verified Victorian address"><AddressInput id="service-origin" victoriaOnly value={d.service_origin ?? ""} resolved={d.service_origin_details} onChange={(v) => up({ service_origin: v })} onSelect={(v) => up({ service_origin_details: v })} /></Field>
          {d.business_address && d.service_origin !== d.business_address && <button type="button" style={{ ...btn(false), marginBottom: 16 }} onClick={() => up({ service_origin: d.business_address ?? "", service_origin_details: d.business_address_details ?? null })}>Use business address</button>}
         <Field label="Travel radius" required><Choice options={RADII.map((r) => ({ v: r.v as number, l: r.l }))} value={d.travel_radius_km ?? null} onChange={(v) => up({ travel_radius_km: v })} /></Field>
-        {d.travel_radius_km != null && <div style={infoCard}>You'll be offered jobs {d.travel_radius_km === 9999 ? "anywhere in Victoria" : `within ${d.travel_radius_km} km of your starting location`}.</div>}
         <Field label="Need to exclude a particular area?"><textarea style={{ ...input, minHeight: 70 }} {...t("excluded_areas")} /></Field>
       </>;
     case "availability": {
@@ -509,38 +495,19 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
         </Field>
         <Field label="Usual lead time" required><Choice options={LEAD_TIMES.map((l) => ({ v: l as string, l }))} value={d.normal_attendance_speed} onChange={(v) => up({ normal_attendance_speed: v })} /></Field>
          <Field label="Are you accepting new Home Insulation Victoria work now?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "Not right now" }]} value={d.accepting_jobs ?? null} onChange={(v) => up({ accepting_jobs: v })} /></Field>
+        <Field label="Weekly assessment visits" required><Choice options={CAPACITY_BANDS.map((b) => ({ v: b.v as string, l: b.v }))} value={d.capacity_band} onChange={(v) => up({ capacity_band: v })} /></Field>
       </>;
     }
-    case "capacity":
-      return <>
-        <Field label="Weekly assessment visits" required><Choice options={CAPACITY_BANDS.map((b) => ({ v: b.v as string, l: b.v }))} value={d.capacity_band} onChange={(v) => up({ capacity_band: v })} /></Field>
-         <div style={infoCard}>This helps our office understand your indicative capacity. It does not promise or guarantee job volume.</div>
-      </>;
     case "assessment_pricing": {
       const unit = d.gst_registered === false ? "total rate" : "inc GST";
-      return <>
-        <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
-        <div style={infoCard}>{d.gst_registered === false ? "Enter your total supplier rate." : "Enter your supplier rate including GST."} Home Insulation Victoria reviews proposed rates before they apply. Approved supplier rates are separate from the customer price.</div>
-        <div style={{ border: `2px solid ${BLUE}`, background: "#EEF1FB", borderRadius: 12, padding: "12px 14px", margin: "0 0 16px" }}>
-          <strong style={{ color: BLUE, display: "block", marginBottom: 4 }}>Sharper rates can support more work</strong>
-          <span style={{ fontSize: 14, lineHeight: 1.5 }}>Competitive supplier rates help Home Insulation Victoria keep projects affordable and can support more customers proceeding—and more work for your business. Offer your best sustainable rates while maintaining safety and quality. Job volume depends on customer demand, location, availability and performance; no minimum volume is guaranteed.</span>
-        </div>
-        <Field label={`Pre-Insulation Electrical Safety Assessment (PIESA) visit (${unit})`} required hint="Formal electrical safety assessment, required tests, evidence and PIESA submission."><Money value={d.assessment_rate} onChange={(v) => up({ assessment_rate: v })} unit="visit" /></Field>
-        {<Field label={`Installation-day attendance (${unit})`} required><Money value={d.installation_attendance_rate} onChange={(v) => up({ installation_attendance_rate: v })} unit="visit" /></Field>}
-      </>;
-    }
-    case "rectification_pricing": {
       const r = d.rectification_rates ?? {};
       return <>
-        <div style={{ ...infoCard, fontWeight: 600 }}>Use the same sharp, sustainable approach for your rectification rates.</div>
-        <div style={infoCard}>
-          <strong>We provide an assessment app for your PIESA visit.</strong>
-          <TickList items={[
-            "Select the mandatory electrical rectification items and enter the quantity of each.",
-            "The app uses your agreed rates to calculate an itemised rectification quote when you finish the assessment.",
-            "Home Insulation Victoria manages the customer quote and approval through the portal.",
-          ]} />
-        </div>
+        <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
+        <p style={{ color: MUTED, fontSize: 13, lineHeight: 1.5 }}>{d.gst_registered === false ? "Enter total supplier rates." : "Enter supplier rates including GST."} Home Insulation Victoria approves rates separately from customer prices.</p>
+        <p style={{ background: "#FCE7F0", color: "#7B3553", borderRadius: 8, padding: "9px 11px", fontSize: 13, fontWeight: 700, lineHeight: 1.45 }}>Sharper rates can help win more work. Keep them sustainable—job volume isn’t guaranteed.</p>
+        <Field label={`Pre-Insulation Electrical Safety Assessment (PIESA) visit (${unit})`} required hint="Formal electrical safety assessment, required tests, evidence and PIESA submission."><Money value={d.assessment_rate} onChange={(v) => up({ assessment_rate: v })} unit="visit" /></Field>
+        {<Field label={`Installation-day attendance (${unit})`} required><Money value={d.installation_attendance_rate} onChange={(v) => up({ installation_attendance_rate: v })} unit="visit" /></Field>}
+        <p style={{ color: MUTED, fontSize: 13 }}>Your approved rates calculate rectification quotes; Home Insulation Victoria manages customer approval.</p>
         <Group title="Mandatory item rates" note={d.gst_registered === false ? "Enter total rates (not GST registered)." : "Enter rates including GST."}>
           {RECT_ITEMS.map((it, i) => <RateRow key={it.key} label={it.label} unit={it.unit} value={r[it.key]} last={i === RECT_ITEMS.length - 1} onChange={(v) => up({ rectification_rates: { ...r, [it.key]: v } })} />)}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "10px 0", borderTop: "1px solid #EDF0F7" }}>
