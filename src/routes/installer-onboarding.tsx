@@ -508,7 +508,8 @@ function ReviewPanel({ d, up, preview, load, onReady }: { d: InstData; up: (p: P
   const loaded = text !== null && !failed;
   return <>
     <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 15, color: NAVY, marginBottom: 4 }}>1. Review the agreement</div>
-    <div style={{ fontSize: 13, color: MUTED, marginBottom: 10 }}>Activity 48 · VEU · Version {version || "—"} · Installer: {d.trading_name || d.legal_entity_name} · ABN {d.abn}</div>
+    <div style={{ fontSize: 13, color: MUTED, marginBottom: 4 }}>Activity 48 · VEU · Version {version || "—"} · Installer: {d.trading_name || d.legal_entity_name} · ABN {d.abn}</div>
+    <div style={{ fontSize: 14, fontWeight: 800, color: GREEN, marginBottom: 10 }}>AP accreditation number: A003654</div>
     {failed ? <div role="alert" style={{ border: "1px solid #F3B4AE", borderRadius: 12, padding: 14, fontSize: 14, color: "#8C1D18", background: "#FFF5F4", marginBottom: 14 }}>
       Could not load the agreement, so it can't be reviewed yet.{" "}
       <button type="button" onClick={() => setAttempt((x) => x + 1)} style={{ ...btn(false), minHeight: 40, marginTop: 8 }}>Try again</button>

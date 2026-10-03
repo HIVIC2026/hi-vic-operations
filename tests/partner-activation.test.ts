@@ -9,6 +9,12 @@ describe("partner activation", () => {
     expect(activationBlockers("rec", data, "old", null, new Date("2026-09-30T00:00:00Z"))).toHaveLength(3);
   });
 
+  test("preserves activation of previously signed installer and REC agreement versions", () => {
+    const currentInsurance = { public_liability_expiry: "2099-01-01" };
+    expect(activationBlockers("rec", currentInsurance as RecData, "HI-VIC-A48-REC-2.3-2026-10-01", "2026-10-01")).toEqual([]);
+    expect(activationBlockers("installer", currentInsurance as InstData, "HI-VIC-A48-INST-1.13-2026-10-03", "2026-10-03")).toEqual([]);
+  });
+
   test("converts GST-inclusive REC supplier rates to ex-GST rate-card values", () => {
     const data = { gst_registered: true, assessment_rate: 330 } as RecData;
     expect(activationBlockers("rec", { ...data, public_liability_expiry: "2099-01-01" }, REC_AGREEMENT_VERSION, "2026-09-30")).toEqual([]);

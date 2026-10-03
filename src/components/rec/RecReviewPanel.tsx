@@ -41,6 +41,7 @@ export function RecReviewPanel({ d, up, preview, load, onReady }: {
     <div style={{ fontSize: 12, fontWeight: 800, color: GREEN, textTransform: "uppercase", letterSpacing: 0.8 }}>Activity 48 · VEU</div>
     <div style={{ fontSize: 13, color: MUTED, marginBottom: 6 }}>Version {version || "—"}</div>
     <div style={{ fontSize: 14, marginBottom: 4 }}><strong>AP:</strong> DC Construction Solutions Pty Ltd trading as Home Insulation Victoria</div>
+    <div style={{ fontSize: 14, fontWeight: 800, color: GREEN, marginBottom: 4 }}>AP accreditation number: A003654</div>
     <div style={{ fontSize: 14, marginBottom: 12 }}><strong>REC:</strong> {d.trading_name || d.legal_entity_name} · {d.rec_registration_number}</div>
     {failed ? <div role="alert" style={{ border: "1px solid #F3B4AE", borderRadius: 14, padding: 16, fontSize: 14, color: "#8C1D18", background: "#FFF5F4", marginBottom: 16 }}>
       Could not load the agreement, so it can't be reviewed yet.{" "}

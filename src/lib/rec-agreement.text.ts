@@ -1,4 +1,4 @@
-// DRAFT REC agreement v2.3 (2026-10-01). Lawyer review required before live use.
+// DRAFT REC agreement v2.4 (2026-10-03). Lawyer review required before live use.
 // any wording change needs a NEW version string so earlier signatures keep their exact text.
 export const REC_AGREEMENT_SECTIONS: { n: number; title: string; paras: string[] }[] = [
  {

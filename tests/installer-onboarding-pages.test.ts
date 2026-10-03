@@ -73,7 +73,7 @@ describe("installer visible pages", () => {
     expect(blocked.some((x) => x.page === "insurance")).toBe(true);
     expect(blocked.some((x) => x.page === "install_pricing")).toBe(true);
     expect(blocked.map((x) => x.key)).toEqual(expect.arrayContaining(["review", "acknowledgements", "signer-name", "signer-position", "signer-email"]));
-    expect(INSTALLER_AGREEMENT_VERSION).toBe("HI-VIC-A48-INST-1.13-2026-10-03");
+    expect(INSTALLER_AGREEMENT_VERSION).toBe("HI-VIC-A48-INST-1.14-2026-10-03");
   });
   test("rates note appears only after the optional-extra hint and fee copy hides internal overrides", () => {
     const route = readFileSync("src/routes/installer-onboarding.tsx", "utf8");
@@ -82,6 +82,7 @@ describe("installer visible pages", () => {
     expect(route.match(new RegExp(note.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))?.length).toBe(1);
     expect(route.indexOf(note)).toBeGreaterThan(route.indexOf(hint));
     const agreement = agreementText(complete);
+    expect(agreement).toContain("AP accreditation number: A003654");
     expect(agreement).toContain("Accredited Person fee ($349 including GST)");
     expect(agreement).not.toContain("job-specific amount before quote acceptance");
     expect(agreement).not.toContain("authorised staff member");

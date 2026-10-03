@@ -6,10 +6,10 @@ import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melb
 
 export { DAYS, LEAD_TIMES, RADII, validAbn };
 export type { ResolvedAddress };
-// 1.13 removes internal AP-fee override mechanics from applicant-facing wording.
+// 1.14 adds the verified AP accreditation number to the applicant-facing agreement.
 // Earlier signed versions stay immutable and remain activatable.
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.13-2026-10-03";
-export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", INSTALLER_AGREEMENT_VERSION];
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.14-2026-10-03";
+export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", "HI-VIC-A48-INST-1.13-2026-10-03", INSTALLER_AGREEMENT_VERSION];
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
@@ -324,7 +324,8 @@ export function scheduleText(d: InstData): string {
 export function agreementText(d: InstData): string {
   return [
     INSTALLER_AGREEMENT_TITLE, `Version: ${INSTALLER_AGREEMENT_VERSION}`,
-    `Between: ${AP_ENTITY}, acting as an Accredited Person for Victorian Energy Upgrades (VEU) Activity 48, and the insulation installation business (Installer) identified in Schedule 1.`, "",
+    `Between: ${AP_ENTITY}, acting as an Accredited Person for Victorian Energy Upgrades (VEU) Activity 48, and the insulation installation business (Installer) identified in Schedule 1.`,
+    "AP accreditation number: A003654", "",
     ...INSTALLER_AGREEMENT_SECTIONS.flatMap((s) => [`${s.n}. ${s.title}`, ...s.paras, ""]),
     scheduleText(d), "", "ACKNOWLEDGEMENTS",
     ...ACKNOWLEDGEMENTS.map((a, i) => `${i + 1}. ${a.text}`),

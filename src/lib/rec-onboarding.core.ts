@@ -2,7 +2,9 @@
 // No I/O. Used by the public form (live validation) and the server (authoritative checks).
 import { REC_AGREEMENT_SECTIONS } from "./rec-agreement.text";
 
-export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-2.3-2026-10-01";
+export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-2.4-2026-10-03";
+/** Earlier signed agreements remain valid for office activation; only new signatures use the current version. */
+export const ACTIVATABLE_REC_VERSIONS: readonly string[] = ["HI-VIC-A48-REC-2.3-2026-10-01", REC_AGREEMENT_VERSION];
 export const REC_AGREEMENT_TITLE = "Activity 48 Registered Electrical Contractor Partner Agreement";
 export const AP_ENTITY = "DC Construction Solutions Pty Ltd ABN 44 671 613 979 trading as Home Insulation Victoria";
 export const MIN_PL_COVER = 5_000_000;
@@ -431,7 +433,8 @@ export function scheduleText(d: RecData): string {
 export function agreementText(d: RecData): string {
   const parts = [
     `${REC_AGREEMENT_TITLE}`, `Version: ${REC_AGREEMENT_VERSION}`,
-    `Between: ${AP_ENTITY}, acting as an Accredited Person for Victorian Energy Upgrades (VEU) Activity 48, and the Registered Electrical Contractor (REC) identified in Schedule 1.`, "",
+    `Between: ${AP_ENTITY}, acting as an Accredited Person for Victorian Energy Upgrades (VEU) Activity 48, and the Registered Electrical Contractor (REC) identified in Schedule 1.`,
+    "AP accreditation number: A003654", "",
     ...REC_AGREEMENT_SECTIONS.flatMap((s) => [`${s.n}. ${s.title}`, ...s.paras, ""]),
     scheduleText(d), "", "ACKNOWLEDGEMENTS",
     ...ACKNOWLEDGEMENTS.map((a, i) => `${i + 1}. ${a.text}`),
