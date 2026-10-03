@@ -148,7 +148,11 @@ export function fillOfficialDocxXml(input: string, key: OfficialKey, answers: Of
       }
       continue;
     }
-    fillOne(item, item.id, answers[item.id]);
+    const v = answers[item.id];
+    // Unanswered items are skipped WITHOUT touching the document cursor — locating them would
+    // advance past their labels and break later lookups (and they must stay blank anyway).
+    if (v == null || txt(v) === "") continue;
+    fillOne(item, item.id, v);
   }
   return { xml, filled, missed };
 }

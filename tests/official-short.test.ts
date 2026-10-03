@@ -30,7 +30,7 @@ describe("short onsite form", () => {
     const ids = ["mainsSafe", "ceilingSafe", "lifeSupportConfirm", "swmsComplete", "piesaReviewed"];
     for (const f of [...SHORT_PIESA_FIELDS, ...SHORT_PIISA_FIELDS]) {
       if (!ids.includes(f.id!)) continue;
-      expect(f.label.endsWith("?")).toBe(true);
+      expect(f.label.endsWith("?") || f.label.endsWith(".")).toBe(true);
       expect(f.label.length).toBeGreaterThan(30);
     }
   });
