@@ -11,7 +11,7 @@ const uuid = z.string().uuid();
 
 type AdminDb = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 async function loadCertifications(admin: AdminDb, applicationId: string) {
-  const { data, error } = await admin.from("partner_worker_certifications").select("id, worker_email, status, recorded_at").eq("application_id", applicationId);
+  const { data, error } = await admin.from("partner_worker_certifications").select("id, worker_email, status, recorded_at, certificate_number").eq("application_id", applicationId);
   if (error) throw new WorkflowError("Could not load certification checks.");
   return latestCertifications((data ?? []) as CertVerification[]);
 }
@@ -57,21 +57,17 @@ export const recordWorkerCertification = createServerFn({ method: "POST" }).midd
     const errs = certificationRecordErrors({ status: data.status, evidence_source: data.evidenceSource, evidence_note: data.evidenceNote, certificate_number: data.certificateNumber ?? null });
     if (errs.length) throw new WorkflowError(errs.join(" "));
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const { data: app } = await admin.from("rec_onboarding_applications").select("id, partner_type, data").eq("id", data.applicationId).single();
-    if (!app || app.partner_type !== "installer") throw new WorkflowError("Installer application not found.");
-    const worker = ((app.data as InstData).installers ?? []).find((w) => (w.email ?? "").trim().toLowerCase() === data.workerEmail);
-    if (!worker) throw new WorkflowError("That person is not a nominated installer on this application.");
-    const { data: pw } = await admin.from("partner_workers").select("id").eq("source_application_id", app.id).eq("email", data.workerEmail).maybeSingle();
-    const { error } = await admin.from("partner_worker_certifications").insert({
-      application_id: app.id, worker_id: pw?.id ?? null, worker_email: data.workerEmail, status: data.status,
-      certificate_number: data.certificateNumber || null, issuer: data.issuer || null,
-      evidence_source: data.evidenceSource, evidence_note: data.evidenceNote, recorded_by: context.userId,
-    });
-    if (error) throw new WorkflowError(`Could not record the check. (${error.message})`);
-    // Keep an already-activated worker record in step (DB trigger blocks approval while unverified).
-    if (pw) {
-      const { error: wErr } = await admin.from("partner_workers").update({ certification_status: data.status, ...(data.status === "rejected" ? { approval_status: "pending" } : {}) }).eq("id", pw.id);
-      if (wErr) throw new WorkflowError(`Check recorded, but the worker record was not updated. (${wErr.message})`);
+    // One transaction: append the office decision and keep any activated worker record in step.
+    // A rejection of an already-approved installer moves them to rejected (never blocked by their prior approval).
+    const { error } = await admin.rpc("record_worker_certification" as never, {
+      _app_id: data.applicationId, _email: data.workerEmail, _status: data.status, _source: data.evidenceSource,
+      _note: data.evidenceNote, _number: data.certificateNumber || null, _issuer: data.issuer || null, _actor: context.userId,
+    } as never);
+    if (error) {
+      const m = error.message;
+      if (m.includes("cert:not_nominated")) throw new WorkflowError("That person is not a nominated installer on this application.");
+      if (m.includes("cert:not_found")) throw new WorkflowError("Installer application not found.");
+      throw new WorkflowError(`Could not record the check; nothing was changed. (${m})`);
     }
     return { ok: true as const };
   });
