@@ -21,6 +21,13 @@ const TERMS: { term: string; re: RegExp; action: string }[] = [
 
 // Approved exceptions: locked Xero reference and already-signed agreement texts (see project rules).
 const ALLOWED = [/Home Insulation Victoria <job>/, /HI VIC <job>/, /business_unit/, /'hivic'/];
+// Retained internal identifiers (renaming needs separate approval): locked Xero reference prefix, rule codes,
+// and Mitti question labels that the label-based sync parser matches on.
+const RETAINED: { file: RegExp; re: RegExp; why: string }[] = [
+  { file: /^src\/lib\/xero\.core\.ts$/, re: /HI VIC/, why: "Locked Xero invoice reference prefix" },
+  { file: /./, re: /"HIVIC-[A-Z-]+"/, why: "Internal rule code" },
+  { file: /^src\/lib\/mitti-forms\.core\.ts$/, re: /HI VIC/, why: "Mitti label matched by sync parser" },
+];
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", ".output", ".lovable", "drizzle", "integrations", ".vinxi", ".tanstack", ".workspace"]);
 const EXT = /\.(tsx?|md|html|sql|json)$/;
 const SELF = new Set(["scripts/scan-retired-terms.ts", "docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md", "src/config/workflow-decisions.ts", "src/routeTree.gen.ts"]);
@@ -29,7 +36,9 @@ function kindOf(file: string, text: string): Kind {
   if (file.startsWith("tests/")) return "test-only";
   if (file.startsWith("docs/") || file.endsWith(".md")) return "doc-only";
   const line = text.trim();
+  if (RETAINED.some((r) => r.file.test(file) && r.re.test(text))) return "internal-identifier";
   if (/^(\/\/|\*|\/\*|--)/.test(line)) return "internal-identifier";
+  if (/^src\/(routes|components)\/.*\.tsx$/.test(file)) return "customer-visible";
   if (/["'`>][^"'`<]*HI ?VIC|HI ?VIC[^"'`<]*["'`<]/.test(text) || file.endsWith(".html")) return "customer-visible";
   return "internal-identifier";
 }
