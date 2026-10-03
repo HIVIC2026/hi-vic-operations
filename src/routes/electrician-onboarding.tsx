@@ -187,7 +187,7 @@ function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = fals
         <ul id={`${id}-options`} role="listbox" aria-label="Address suggestions" style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #D7DCE8", borderRadius: 12, boxShadow: "0 12px 30px -12px rgba(34,55,107,.35)", overflow: "hidden" }}>
           {items.map((s, i) => (
             <li id={`${id}-option-${i}`} onMouseEnter={() => setActive(i)} role="option" aria-selected={active === i} key={s.id} style={{ padding: "12px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F0F2F8", background: active === i ? "#F2F4FC" : "#fff" }}
-              onPointerDown={(e) => { e.preventDefault(); void choose(s); }}>{s.label}</li>
+              onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); void choose(s); }}>{s.label}</li>
           ))}
         </ul>
       )}
