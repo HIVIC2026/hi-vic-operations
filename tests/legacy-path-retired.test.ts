@@ -72,9 +72,11 @@ describe("legacy electrician-assessment path retired", () => {
     expect(src("src/lib/teaming.server.ts")).toContain('if (stage !== "piesa_and_install_window_pending") return false;');
   });
 
-  test("assessment appointments and bookings are refused server-side", () => {
-    expect(src("src/lib/pilot.functions.ts")).toContain('if (data.kind === "assessment") throw new WorkflowError("Assessment appointments are retired.');
-    expect(src("src/lib/booking.server.ts")).toContain('if ((kind as string) === "assessment") throw new WorkflowError("Assessment bookings are retired.');
+  test("legacy 'assessment' appointments/bookings are only the payment-gated PIESA visit", () => {
+    for (const p of ["src/lib/pilot.functions.ts", "src/lib/booking.server.ts"]) {
+      expect(src(p)).toContain('["piesa_and_install_window_pending", "piesa_scheduled"]');
+      expect(src(p)).toContain("piesaRequestBlockers(await piesaRequestFacts(");
+    }
   });
 
   test("Mitti PIESA forms are created only in the Ready Check-first PIESA stages", () => {

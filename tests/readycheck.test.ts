@@ -69,7 +69,7 @@ describe("workflow", () => {
     expect(booking).toContain('ready_check: [["ready_check_ready_to_schedule", "ready_check_scheduled"], "ready_check_scheduled"]');
     expect(booking).toContain("assignment_id: contractor.id");
     expect(booking).toContain("business_id: contractor.business_id");
-    expect(booking).toContain('kind !== "assessment" && kind !== "ready_check"');
+    expect(booking).toContain('kind === "installation" || kind === "ready_check" ? "installer" : "electrician"');
     expect(booking).toContain("requireApprovedPartner");
     expect(portalFunctions).toContain("Do not assign an electrician for the Ready Check");
   });
