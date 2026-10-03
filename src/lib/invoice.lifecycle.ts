@@ -1,4 +1,5 @@
-// Pure ONE-invoice lifecycle: one full Xero invoice per accepted quote. The 50% deposit is raised in Xero with its
+import { splitForOption } from "./payment-gate.core";
+// Pure ONE-invoice lifecycle: one full Xero invoice per accepted quote. The configured deposit is raised in Xero with its
 // native "Request Deposit" (manual, recorded here) and is CONFIRMED only by cumulative AmountPaid on this invoice.
 // No database or Xero imports: the server passes a Supabase-backed InvoiceStore; tests pass an in-memory one.
 
@@ -27,11 +28,10 @@ export const CUSTOMER_INVOICE_COLUMNS = [
 
 const cents = (n: number | string) => Math.round(Number(n) * 100);
 
-/** Currency-safe 50/50 split: deposit = round(total*0.5, 2), balance = total − deposit. */
+/** Currency-safe split: deposit = configured minimum upfront payment (10% / 5%), balance = total − deposit. */
 export function splitTotal(total: number | string) {
-  const t = cents(total);
-  const d = Math.round(t / 2);
-  return { deposit: d / 100, balance: (t - d) / 100 };
+  const { deposit, balance, depositPct } = splitForOption(total);
+  return { deposit, balance, depositPct };
 }
 
 /** One invoice per accepted quote – safe to call repeatedly or concurrently. */
@@ -40,8 +40,8 @@ export async function ensureInvoice(store: InvoiceStore, quote: { id: string; jo
   const existing = await store.find(quote.id);
   if (existing) return { row: existing, created: false };
   const total = Number(quote.customer_total_inc_gst);
-  const { deposit, balance } = splitTotal(total);
-  const row = { job_id: quote.job_id, quote_id: quote.id, kind: quote.kind, status: "invoice_not_created", total_inc_gst: total, deposit_pct: 0.5, deposit_amount: deposit, balance_amount: balance, deposit_due_date: today };
+  const { deposit, balance, depositPct } = splitTotal(total);
+  const row = { job_id: quote.job_id, quote_id: quote.id, kind: quote.kind, status: "invoice_not_created", total_inc_gst: total, deposit_pct: depositPct, deposit_amount: deposit, balance_amount: balance, deposit_due_date: today };
   try {
     return { row: await store.insert(row), created: true };
   } catch (e) {
@@ -68,7 +68,7 @@ export function clearInstallDueDatePatch(row: InvoiceRow): Partial<InvoiceRow> |
 /** Xero due date for the invoice: install date once known, otherwise the acceptance date (deposit due immediately). */
 export const xeroDueDate = (row: Pick<InvoiceRow, "balance_due_date" | "deposit_due_date">) => row.balance_due_date ?? row.deposit_due_date;
 
-/** Cumulative AmountPaid on the ONE invoice → patch. deposit_paid_at (the gate) is set only at ≥ 50% of the accepted total. */
+/** Cumulative AmountPaid on the ONE invoice → patch. deposit_paid_at is set once the configured minimum upfront payment is reached (the gate itself is evaluatePaymentGate). */
 export function paymentPatch(row: InvoiceRow, paid: number, depositReachedAt: string | null, nowIso: string) {
   const patch: Partial<InvoiceRow> = { total_paid: paid };
   const events: string[] = [];
@@ -86,14 +86,14 @@ export function paymentPatch(row: InvoiceRow, paid: number, depositReachedAt: st
   return { patch, events };
 }
 
-/** Deposit gate: ≥ 50% paid per Xero, or an audited admin override. The deposit-request flag is deliberately ignored. */
+/** Minimum-deposit fact: configured minimum paid per Xero, or an audited admin override. The deposit-request flag is deliberately ignored. */
 export const depositGateCleared = (row: Pick<InvoiceRow, "deposit_paid_at"> | null, overrideCount: number) =>
   !!row && (!!row.deposit_paid_at || overrideCount > 0);
 
-/** Admin records that the native Xero 50% deposit request was raised. Operational only – never unlocks scheduling. */
+/** Admin records that the native Xero deposit request was raised. Operational only – never unlocks scheduling. */
 export function depositRequestPatch(row: Pick<InvoiceRow, "deposit_request_raised_at" | "deposit_amount" | "deposit_pct">, actorId: string, nowIso: string) {
   if (row.deposit_request_raised_at) throw new Error("The Xero deposit request is already recorded as raised.");
-  return { deposit_request_raised_at: nowIso, deposit_request_raised_by: actorId, deposit_request_amount: Number(row.deposit_amount), deposit_request_pct: Math.round(Number(row.deposit_pct ?? 0.5) * 100) };
+  return { deposit_request_raised_at: nowIso, deposit_request_raised_by: actorId, deposit_request_amount: Number(row.deposit_amount), deposit_request_pct: row.deposit_pct == null ? null : Math.round(Number(row.deposit_pct) * 100) };
 }
 
 /** Audited override record (deposit gate only). */
