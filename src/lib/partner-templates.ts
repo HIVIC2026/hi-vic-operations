@@ -1,8 +1,7 @@
 // Canonical reusable partner invitation templates for the office.
 // Presentation only: preview / copy subject / download. Nothing here sends email,
-// configures Resend, or triggers any automation. HTML is stored verbatim (canonical).
-// The installer template embeds the logo as a data-URI PNG; the REC template uses
-// the existing public HTTPS logo (confirmed 200, image/png, 400x171, approved PNG).
+// configures Resend, or triggers any automation. HTML is stored verbatim (canonical),
+// with the logo embedded as a data-URI PNG so the file is fully standalone.
 
 import { REC_INVITATION_HTML } from "./rec-invitation.html";
 
@@ -81,7 +80,7 @@ body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;} table,
 export const REC_TEMPLATE: PartnerTemplate = {
   key: "rec_invitation",
   label: "REC partnership invitation",
-  subject: "We provide the approved jobs. You bring the electrical expertise.",
+  subject: "Hundreds of homeowner enquiries—and we’re looking for great electricians",
   registrationUrl: "https://estimate.homeinsulationvictoria.com.au/electrician-onboarding",
   fileName: "rec-partnership-invitation.html",
   html: REC_INVITATION_HTML,

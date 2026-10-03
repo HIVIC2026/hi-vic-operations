@@ -77,7 +77,7 @@ function PartnerTemplates() {
   const [copied, setCopied] = useState("");
   return <section id="partner-invitation-templates" className="mt-10 scroll-mt-20 rounded-md border bg-card p-5">
     <h2 className="text-lg font-bold">Partner invitation templates</h2>
-    <p className="mt-1 text-sm text-muted-foreground">Reusable, office-approved invitations. Preview, copy the subject or download the HTML template. Nothing here sends email.</p>
+    <p className="mt-1 text-sm text-muted-foreground">Reusable, office-approved invitations. Preview, copy the subject or download the HTML template (logo embedded for standalone viewing; email-client delivery not yet tested). Nothing here sends email.</p>
     <div className="mt-4 grid gap-3 sm:grid-cols-2">
       {PARTNER_TEMPLATES.map((t) => <article key={t.key} className="min-w-0 rounded-md border p-4">
         <div className="font-bold">{t.label}</div>
