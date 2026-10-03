@@ -350,29 +350,15 @@ function InstallerOnboarding() {
         {previewBanner}
         <div style={{ display: "inline-block", fontSize: 12, fontWeight: 800, color: PINK_TEXT, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: DISPLAY, background: BLUSH, borderRadius: 999, padding: "5px 12px" }}>Installer partners</div>
         <h1 style={{ fontSize: 30, fontWeight: 800, margin: "14px 0 8px", color: NAVY, lineHeight: 1.2 }}>Join our <span style={{ textDecoration: "underline", textDecorationColor: PINK, textUnderlineOffset: 5 }}>installer</span> network</h1>
-        <p style={{ fontSize: 15, lineHeight: 1.55, color: MUTED, margin: "0 0 18px" }}>Register your installation business with Home Insulation Victoria and run your Activity 48 ceiling insulation jobs in one app.</p>
-        <div style={{ margin: "0 0 2px", fontFamily: DISPLAY, fontWeight: 800, fontSize: 13, color: NAVY }}>How the Home Insulation Victoria app helps you</div>
-        <TickList items={[
-          "Receive suitable pre-qualified homeowner leads in your area (if you choose to)",
-          "Bring your own customers and we act as the Accredited Person",
-          "See each job's details and progress in one place",
-          "Manage bookings and job communication",
-          "Submit measure-ups, photos and safety evidence from your phone",
-          "Coordinate with an approved electrician for the safety assessment",
-          "We manage the customer quote, invoice and VEU paperwork and lodgement",
-        ]} />
-        <div style={{ margin: "14px 0 2px", fontFamily: DISPLAY, fontWeight: 800, fontSize: 13, color: NAVY }}>Two ways to work with us</div>
-        <TickList items={["Our leads: free Ready Check (measure-up), then supply and install at your agreed rates", "Your customers: bring the job to us for Accredited Person support"]} />
-        <p style={{ ...note, marginTop: 10 }}>No lead fee. Work depends on location, availability and suitable jobs — it isn't guaranteed.</p>
-        <div style={{ margin: "14px 0 6px", fontFamily: DISPLAY, fontWeight: 800, fontSize: 13, color: NAVY }}>What you'll need</div>
-        <div style={{ marginBottom: 14 }}>
+        <p style={{ fontSize: 15, lineHeight: 1.55, color: MUTED, margin: "0 0 22px" }}>Register your installation business with Home Insulation Victoria.</p>
+        <div style={{ margin: "0 0 6px", fontFamily: DISPLAY, fontWeight: 800, fontSize: 13, color: NAVY }}>What you'll need</div>
+        <div style={{ marginBottom: 20 }}>
           {["ABN and business details", "Public liability Certificate of Currency", "Each installer's CII certification details", "Your supplier rates + bank details"].map((t) => (
             <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", padding: "7px 0", fontSize: 14, fontWeight: 600, color: NAVY }}>
               <span aria-hidden="true" style={{ flexShrink: 0, color: GREEN, fontSize: 17, fontWeight: 900 }}>✓</span>{t}
             </div>
           ))}
         </div>
-        <p style={note}>After you register, our office checks your details, insurance and certifications and agrees your rates before your business is activated.</p>
         {error && <p style={{ color: "#B3261E" }}>{error}</p>}
         <button style={{ ...btn(true, busy), width: "100%", minHeight: 52, borderRadius: 16, fontSize: 15 }} disabled={busy} onClick={begin}>{busy ? "Starting…" : resumeState === "invalid" ? "Start a new application →" : resumeState === "retry" ? "Try again →" : token ? "Continue registration →" : "Start registration →"}</button>
         <p style={{ fontSize: 12, color: MUTED, textAlign: "center", margin: "10px 0 0" }}>Save your progress after each step.</p>
