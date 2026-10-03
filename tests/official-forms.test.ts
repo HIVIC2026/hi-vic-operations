@@ -38,11 +38,14 @@ describe("verbatim wording and order against the original Word files", () => {
     expect(bad).toEqual([]);
   });
   test("an invented label is caught", () => expect(docText("piesa").includes(` ${nrm("Totally invented question")} `)).toBe(false));
-  test("portal forms list official items first, in order, then clearly separate supplemental evidence", () => {
+  test("portal forms use the short onsite version first, then clearly separate supplemental evidence", () => {
+    // The Mitti form is the short, plain-sentence onsite version; the portal expands answers into the
+    // official Word form (see tests/official-short.test.ts for the full mapping coverage).
     for (const k of ["piesa", "piisa"] as const) {
       const fields = FORMS[k].fields; const firstSupp = fields.findIndex((f) => f.supplemental);
-      expect(fields.slice(0, firstSupp).map((f) => f.label)).toEqual(OFFICIAL_ITEMS[k].map((i) => i.label));
+      expect(firstSupp).toBeGreaterThan(0);
       expect(fields.slice(firstSupp).every((f) => f.supplemental)).toBe(true);
+      expect(fields.slice(0, firstSupp).every((f) => !f.supplemental)).toBe(true);
     }
     expect(FORMS.piisa.fields.some((f) => /owner name/i.test(f.label))).toBe(false);
   });

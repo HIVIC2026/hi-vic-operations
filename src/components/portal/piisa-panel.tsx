@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getOfficialPrefill, getPiisaPanel, sendPiisaToInstaller } from "@/lib/official-forms.functions";
+import { downloadOfficialDocx, getOfficialPrefill, getPiisaPanel, sendPiisaToInstaller } from "@/lib/official-forms.functions";
 import { Section } from "@/components/portal/panels";
 
 const DUE: Record<string, string> = {
@@ -57,6 +57,7 @@ export function PiisaPanel({ jobId }: { jobId: string }) {
             </div>
           )}
           <PiisaSend jobId={jobId} />
+          <OfficialDocxDownload jobId={jobId} />
           {data.confirmations.length > 0 && <p className="text-xs text-muted-foreground">Held pending official/legal confirmation: {data.confirmations.join(", ")}.</p>}
         </div>
       )}
@@ -65,6 +66,36 @@ export function PiisaPanel({ jobId }: { jobId: string }) {
 }
 
 const MODE: Record<string, string> = { prefill: "Filled in", reminder: "Reminder", cross_check: "Cross-check" };
+
+/** Downloads of the filled official Word forms (PIESA / PIISA) for the job's current signed copies. */
+function OfficialDocxDownload({ jobId }: { jobId: string }) {
+  const run = useServerFn(downloadOfficialDocx);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const onDownload = async (key: "piesa" | "piisa") => {
+    setBusy(key); setMsg(null);
+    try {
+      const r = await run({ data: { jobId, key } });
+      window.open(r.url, "_blank", "noopener");
+      setMsg({ ok: true, text: `${key.toUpperCase()} Word form downloaded (${r.filled} fields filled${r.missed.length ? `; not filled: ${r.missed.join(", ")}` : ""}).` });
+    } catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : "Couldn't prepare the Word form." }); }
+    finally { setBusy(null); }
+  };
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <p className="text-sm font-medium">Official Word forms (filled from the signed copies)</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="h-10 rounded-md border px-3 text-sm font-medium disabled:opacity-50" onClick={() => onDownload("piesa")} disabled={busy !== null}>
+          {busy === "piesa" ? "Preparing…" : "Download official PIESA (Word)"}
+        </button>
+        <button type="button" className="h-10 rounded-md border px-3 text-sm font-medium disabled:opacity-50" onClick={() => onDownload("piisa")} disabled={busy !== null}>
+          {busy === "piisa" ? "Preparing…" : "Download official PIISA (Word)"}
+        </button>
+      </div>
+      {msg && <p className={msg.ok ? "text-sm" : "text-sm text-destructive"} role="status">{msg.text}</p>}
+    </div>
+  );
+}
 
 /** Pre-fill preview and the send-to-installer action. Sending stays blocked while the PIISA is locked. */
 function PiisaSend({ jobId }: { jobId: string }) {

@@ -8,9 +8,12 @@ import { MITTI_BASE_URL, MITTI_TEMPLATE_ID, MittiError, builtLast5YearsOption, c
 import { planMeasurementUpdate, type MeasurementLike } from "./scope.core";
 import { jobScope } from "./requirements.server";
 import { readyCheckVariant } from "./mitti-forms.core";
-import { officialFormUseBlocker, answersFromEntries, evaluatePiesa } from "./official-forms.core";
+import { officialFormUseBlocker, evaluatePiesa } from "./official-forms.core";
+import { shortAnswersFromEntries } from "./official-short.core";
+import { expandPiesa } from "./official-expand.core";
 import { formatPropertyAddress } from "./address";
 import { todayMelbourne } from "./eligibility.server";
+import { officialPrefillContext } from "./official-forms.server";
 import { draftInstallerQuoteFromReadyCheck } from "./installer-quote.server";
 import { applyCobrand } from "./pilot.server";
 
@@ -210,8 +213,11 @@ export async function syncMittiAssessment(jobId: string, actorId: string, call: 
           ...(plan.completed ? { mitti_synced_at: now } : {}),
         }).eq("id", a.id).neq("status", "complete");
         // Printed PIESA rules, checked server-side on every sync (blockers stay as review issues; nothing is completed here).
-        const ev = evaluatePiesa(answersFromEntries("piesa", (plan.snapshot ?? []) as { label: string; value: string | null }[]));
-        issues = [...plan.issues, ...ev.blockers.map((b) => `Official form: ${b.message}${b.confirmation ? ` [${b.confirmation}]` : ""}`)];
+        // The Mitti form is the short onsite version: answers are expanded into the official items first.
+        const prefillCtx = await officialPrefillContext(jobId, todayMelbourne(), null);
+        const expanded = expandPiesa(shortAnswersFromEntries("piesa", (plan.snapshot ?? []) as { label: string; value: string | null }[]), { lifeSupportDeclared: prefillCtx.lifeSupportDeclared, today: todayMelbourne() });
+        const ev = evaluatePiesa(expanded.answers);
+        issues = [...plan.issues, ...expanded.flagged.map((f) => `Official form: ${f}`), ...ev.blockers.map((b) => `Official form: ${b.message}${b.confirmation ? ` [${b.confirmation}]` : ""}`)];
         completed = plan.completed;
         for (const o of plan.others) {
           const { data: ex } = await admin.from("rectification_items").select("id,status").eq("job_id", jobId).eq("external_key", o.external_key).maybeSingle();
