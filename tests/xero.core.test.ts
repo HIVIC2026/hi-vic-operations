@@ -151,7 +151,7 @@ describe("full detailed invoice payload", () => {
   const tracking = { categoryName: "Business Unit", optionName: "Home Insulation Victoria" };
   test("every line once + VEEC discount negative, inclusive GST, totals exact, tracking and reference", () => {
     const inv = buildInvoicePayload({ contactId: "C", jobNumber: "HV-1007", dueDate: "2026-09-28", total: 3330, items, veecDiscount: 1180, tracking }).Invoices[0]!;
-    expect(inv.Reference).toBe("HI VIC HV-1007");
+    expect(inv.Reference).toBe("Home Insulation Victoria HV-1007");
     expect(inv.LineAmountTypes).toBe("Inclusive");
     expect(inv.LineItems.length).toBe(4);
     expect(inv.LineItems.at(-1)).toMatchObject({ UnitAmount: -1180, Quantity: 1 });
@@ -218,7 +218,7 @@ async function push(call: XeroCall, invoiceId: string, jobNumber: string) {
 }
 
 describe("fake Xero: idempotency, contacts, references", () => {
-  test("deterministic reference", () => expect(xeroReference("HV-1007")).toBe("HI VIC HV-1007"));
+  test("deterministic reference", () => expect(xeroReference("HV-1007")).toBe("Home Insulation Victoria HV-1007"));
   test("lost response + retry = exactly one Xero invoice", async () => {
     const m = mockXero({ loseNextInvoiceResponse: true });
     await expect(push(m.call, "inv1", "HV-1007")).rejects.toThrow("504");
@@ -235,7 +235,7 @@ describe("fake Xero: idempotency, contacts, references", () => {
     expect(m.reqs.some((r) => r.method === "POST" && r.path.endsWith("/Contacts"))).toBe(false);
   });
   test("voided invoice with same reference is not adopted", async () => {
-    const m = mockXero({ invoices: [{ InvoiceID: "OLD", Reference: "HI VIC HV-1004", Status: "VOIDED" }] });
+    const m = mockXero({ invoices: [{ InvoiceID: "OLD", Reference: "Home Insulation Victoria HV-1004", Status: "VOIDED" }] });
     expect((await push(m.call, "inv4", "HV-1004")).InvoiceID).not.toBe("OLD");
   });
   test("sync lock held 2 minutes then stale", () => {
@@ -283,11 +283,11 @@ describe("HI VIC business-unit barrier", () => {
     expect(() => assertHivicPayload(p)).not.toThrow();
   });
   test("payload guard fails closed on wrong reference or tracking", () => {
-    expect(() => assertHivicPayload({ Invoices: [{ Reference: "DC 123", LineItems: [{ Tracking: tr }] }] })).toThrow("HI VIC");
-    expect(() => assertHivicPayload({ Invoices: [{ Reference: undefined, LineItems: [{ Tracking: tr }] }] })).toThrow("HI VIC");
-    expect(() => assertHivicPayload({ Invoices: [{ Reference: "HI VIC HV-1", LineItems: [{ Tracking: [{ Name: "Projects", Option: "Home Insulation Victoria" }] }] }] })).toThrow("Home Insulation Victoria");
-    expect(() => assertHivicPayload({ Invoices: [{ Reference: "HI VIC HV-1", LineItems: [{ Tracking: tr }, {}] }] })).toThrow("Home Insulation Victoria");
-    expect(() => assertHivicPayload({ Invoices: [{ Reference: "HI VIC HV-1", LineItems: [] }] })).toThrow();
+    expect(() => assertHivicPayload({ Invoices: [{ Reference: "DC 123", LineItems: [{ Tracking: tr }] }] })).toThrow("Home Insulation Victoria");
+    expect(() => assertHivicPayload({ Invoices: [{ Reference: undefined, LineItems: [{ Tracking: tr }] }] })).toThrow("Home Insulation Victoria");
+    expect(() => assertHivicPayload({ Invoices: [{ Reference: "Home Insulation Victoria HV-1", LineItems: [{ Tracking: [{ Name: "Projects", Option: "Home Insulation Victoria" }] }] }] })).toThrow("Home Insulation Victoria");
+    expect(() => assertHivicPayload({ Invoices: [{ Reference: "Home Insulation Victoria HV-1", LineItems: [{ Tracking: tr }, {}] }] })).toThrow("Home Insulation Victoria");
+    expect(() => assertHivicPayload({ Invoices: [{ Reference: "Home Insulation Victoria HV-1", LineItems: [] }] })).toThrow();
   });
   test("reference lookups/updates only for HI VIC references; no broad search", async () => {
     expect(() => assertHivicReference("INV-0042")).toThrow();
@@ -296,8 +296,8 @@ describe("HI VIC business-unit barrier", () => {
     const call: XeroCall = async (p) => { calls.push(p); return { Invoices: [] }; };
     await expect(findInvoiceByReference(call, "DC job 55")).rejects.toThrow();
     expect(calls.length).toBe(0);
-    await findInvoiceByReference(call, "HI VIC HV-1007");
-    expect(decodeURIComponent(calls[0]!)).toContain('Reference=="HI VIC HV-1007"');
+    await findInvoiceByReference(call, "Home Insulation Victoria HV-1007");
+    expect(decodeURIComponent(calls[0]!)).toContain('Reference=="Home Insulation Victoria HV-1007"');
   });
   test("tracking resolution fails closed when Home Insulation Victoria option is missing", async () => {
     const call: XeroCall = async () => ({ TrackingCategories: [{ Name: "Projects", Status: "ACTIVE", Options: [{ Name: "DC Constructions", Status: "ACTIVE" }] }] });

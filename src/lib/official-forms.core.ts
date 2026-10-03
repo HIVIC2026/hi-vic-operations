@@ -378,12 +378,12 @@ export function piesaHazards(a: OfficialAnswers): PiesaHazard[] {
 export const HAZARD_REVIEW_GUIDANCE_CONFIRMED = false;
 export const HAZARD_UNRESOLVED = "Hazard remains unresolved - office/electrical review required.";
 export const CONDUCTIVITY_UNCONFIRMED = "Existing insulation conductivity must be confirmed.";
-/** HI VIC supporting evidence — not part of the official PIISA. */
+/** Home Insulation Victoria supporting evidence — not part of the official PIISA. */
 export const CONDUCTIVITY_PHOTO_MISSING = "Home Insulation Victoria supporting evidence: add a photo of the existing insulation (separate from the official PIISA).";
 export type PiesaContext = { installStart?: string | null; deliveredToInstallerAt?: string | null; deliveredToOwnerAt?: string | null; hazardResolution?: HazardResolution };
 export type PiisaContext = { piesaCompletionDate?: string | null; piesaReceivedAt?: string | null; electricianRequiredAtStart?: boolean | null;
   /** Explicit recorded answer only — a blank is never treated as "No". */ conductiveExistingInsulation?: boolean | null;
-  /** HI VIC supporting evidence (photo/file id), outside the official form. */ conductivityEvidence?: string | null };
+  /** Home Insulation Victoria supporting evidence (photo/file id), outside the official form. */ conductivityEvidence?: string | null };
 
 function requiredMissing(key: OfficialKey, a: OfficialAnswers, active: (i: OfficialItem) => boolean): RuleResult[] {
   const out: RuleResult[] = [];
@@ -499,10 +499,10 @@ export function evaluatePiisa(a: OfficialAnswers, ctx: PiisaContext = {}): Evalu
   if (present) {
     // The form has no conductivity field: an explicit recorded answer plus evidence is required; blank never means "No".
     // Authority: the printed Part 6 note ("foil backed or electrically conductive insulation cannot be topped up and must be
-    // removed") can't be applied without knowing the answer, so an explicit Yes/No is a HI VIC operational rule implementing it.
+    // removed") can't be applied without knowing the answer, so an explicit Yes/No is a Home Insulation Victoria operational rule implementing it.
     if (ctx.conductiveExistingInsulation !== true && ctx.conductiveExistingInsulation !== false)
       blockers.push({ rule: "P6-FOIL-UNKNOWN", message: CONDUCTIVITY_UNCONFIRMED, confirmation: "NEEDS OFFICIAL/LEGAL CONFIRMATION" });
-    // Authority: HI VIC operational requirement only. The official PIISA asks for no photo; this is separate supporting evidence.
+    // Authority: Home Insulation Victoria operational requirement only. The official PIISA asks for no photo; this is separate supporting evidence.
     if (!ctx.conductivityEvidence) blockers.push({ rule: "HIVIC-CONDUCTIVITY-PHOTO", message: CONDUCTIVITY_PHOTO_MISSING });
     if (ctx.conductiveExistingInsulation === true && treatment.includes("Topped Up")) blockers.push({ rule: "P6-FOIL", message: "\"Note: any foil backed or electrically conductive insulation cannot be topped up and must be removed prior to installation.\"" });
     if (ctx.conductiveExistingInsulation === true && !treatment.includes("Removed")) blockers.push({ rule: "P6-FOIL", message: "\"…must be removed prior to installation.\" Removed is not ticked." });

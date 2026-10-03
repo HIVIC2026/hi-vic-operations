@@ -7,7 +7,9 @@ export const TRACKING_OPTION = "Home Insulation Victoria";
 export const LOCK_STALE_MS = 2 * 60 * 1000;
 
 export const r2 = (n: number) => Math.round(n * 100) / 100;
-export const xeroReference = (jobNumber: string) => `HI VIC ${jobNumber}`;
+/** Locked Xero/customer-facing reference (owner decision 2026-10-03). */
+export const XERO_REFERENCE_PREFIX = "Home Insulation Victoria ";
+export const xeroReference = (jobNumber: string) => `${XERO_REFERENCE_PREFIX}${jobNumber}`;
 
 // ---------- Business-unit barrier (fail closed) ----------
 export const HIVIC_BUSINESS_UNIT = "hivic";
@@ -20,17 +22,17 @@ export function assertHivicJob(job: { business_unit?: string | null } | null | u
 export async function assertHivicInvoice(invoiceId: string, loadJobForInvoice: (id: string) => Promise<{ business_unit?: string | null } | null>) {
   assertHivicJob(await loadJobForInvoice(invoiceId));
 }
-/** Second defensive check on every outgoing invoice payload: HI VIC reference + Business Unit = Home Insulation Victoria on every line. */
+/** Second defensive check on every outgoing invoice payload: Home Insulation Victoria reference + Business Unit = Home Insulation Victoria on every line. */
 export function assertHivicPayload(payload: { Invoices: { Reference?: string; LineItems: { Tracking?: { Name: string; Option: string }[] }[] }[] }) {
   for (const inv of payload.Invoices) {
-    if (!inv.Reference?.startsWith("HI VIC ")) throw new Error("Xero write blocked: invoice reference must start with 'HI VIC '.");
+    if (!inv.Reference?.startsWith(XERO_REFERENCE_PREFIX)) throw new Error(`Xero write blocked: invoice reference must start with '${XERO_REFERENCE_PREFIX}'.`);
     if (!inv.LineItems.length || !inv.LineItems.every((l) => l.Tracking?.some((t) => t.Name === TRACKING_CATEGORY && t.Option === TRACKING_OPTION)))
       throw new Error(`Xero write blocked: every line must be tracked ${TRACKING_CATEGORY} = ${TRACKING_OPTION}.`);
   }
 }
-/** Due-date updates may only touch an invoice whose stored reference is a HI VIC reference. */
+/** Due-date updates may only touch an invoice whose stored reference is a Home Insulation Victoria reference. */
 export function assertHivicReference(reference: string | null | undefined) {
-  if (!reference?.startsWith("HI VIC ")) throw new Error("Xero write blocked: stored invoice reference is not a HI VIC reference.");
+  if (!reference?.startsWith(XERO_REFERENCE_PREFIX)) throw new Error("Xero write blocked: stored invoice reference is not a Home Insulation Victoria reference.");
 }
 /** Due-date updates to existing Xero invoices are prepared but switched off until explicitly enabled. */
 export const XERO_DUE_DATE_UPDATES_ENABLED = false;
@@ -73,7 +75,7 @@ export async function findOrCreateContact(call: XeroCall, owner: { id: string; f
 
 /** Find an existing live invoice for this job reference (adopt after a lost response). */
 export async function findInvoiceByReference(call: XeroCall, reference: string) {
-  assertHivicReference(reference); // exact HI VIC reference only – never a broad DC invoice search
+  assertHivicReference(reference); // exact Home Insulation Victoria reference only – never a broad DC invoice search
   const r = await call(`/api.xro/2.0/Invoices?where=${encodeURIComponent(`Type=="ACCREC"&&Reference=="${q(reference)}"`)}`);
   return (r.Invoices ?? []).find((i: any) => !["VOIDED", "DELETED"].includes(i.Status)) ?? null;
 }

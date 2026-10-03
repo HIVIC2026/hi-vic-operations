@@ -23,7 +23,7 @@ function sample(): JobSources {
   ];
   s.piesaRecords = [{ id: "p1", kind: "assessment", outcome: "pass", completed_date: "2026-09-02", is_current: true, created_at: "2026-09-02T00:00:00Z" }, { id: "p0", kind: "assessment", outcome: "fail", is_current: false, created_at: "2026-08-20T00:00:00Z" }];
   s.quotes = [{ id: "q1", kind: "installation", status: "accepted", version: 2, created_at: "2026-09-01T00:00:00Z" }, { id: "q0", kind: "installation", status: "superseded", version: 1, created_at: "2026-08-25T00:00:00Z" }];
-  s.invoices = [{ id: "i1", xero_invoice_number: "INV-1", xero_reference: "HI VIC HV-1", created_at: "2026-09-01T00:00:00Z" }];
+  s.invoices = [{ id: "i1", xero_invoice_number: "INV-1", xero_reference: "Home Insulation Victoria HV-1", created_at: "2026-09-01T00:00:00Z" }];
   s.assignments = [{ id: "a1", status: "effective_complete", consumer_signed_at: "2026-09-01T00:00:00Z", consumer_copy_path: copy, consumer_snapshot_sha256: "aa", installer_signed_at: "2026-09-19T00:00:00Z", installer_snapshot_sha256: "bb", final_copy_path: `${J}/assignment/final-ffff00001111.txt` }];
   s.authorities = [{ id: "o1", version: 1, status: "accepted", document_path: `${J}/authority/v1.txt` }];
   s.escNotifications = [{ id: "n1", version: 1, status: "sent", submission_reference: "ESC-9", payload_hash: "cc", created_at: "2026-09-05T00:00:00Z", sent_at: "2026-09-05T01:00:00Z" }];
