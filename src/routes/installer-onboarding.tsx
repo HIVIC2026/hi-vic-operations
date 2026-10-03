@@ -446,7 +446,7 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady }: { st
             onChange={(v) => up({ electrician_choice: v as "have" | "match" | "later", preferred_electricians: v === "have" && list.length === 0 ? [{ is_primary: true }] : list })} />
         </Field>
         {d.electrician_choice === "have" && <>
-          <p style={note}>After you sign, we invite them to join. Once their licence, REC and insurance are checked, your jobs go to them.</p>
+          <p style={note}>Nominate your preferred electrician for approval. We’ll confirm the next steps.</p>
           {list.map((x, i) => (
             <Section key={i} title={`Electrician ${i + 1} · ${x.is_primary ? "Main" : "Backup"}`}>
               <Field label="Name" required><input style={input} value={x.name ?? ""} onChange={(e) => set(i, { name: e.target.value })} /></Field>
