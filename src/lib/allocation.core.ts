@@ -243,14 +243,16 @@ export type NeedsInput = {
 
 /** ONE office exception queue: only what automation cannot safely resolve, never routine waiting. */
 export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
-  const jobs = new Map(i.jobs.map((j) => [j.id, j.job_number]));
+  const jobs = new Map(i.jobs.map((j) => [j.id, j]));
   const out = new Map<string, NeedsItem>();
   const add = (code: NeedsCode, jobId: string | null, since: string | null, detail?: string) => {
     if (jobId && !jobs.has(jobId)) return;
-    const it = needsItem(code, jobId, jobId ? jobs.get(jobId) ?? null : null, since, detail);
+    const j = jobId ? jobs.get(jobId) : undefined;
+    const it = needsItem(code, jobId, j?.job_number ?? null, since, detail, j);
     if (!out.has(it.key)) out.set(it.key, it);
   };
   for (const e of i.coverageExhausted) add("rec_coverage_exhausted", e.job_id, e.created_at);
+  for (const r of i.recNoLongerApproved ?? []) add("rec_no_longer_approved", r.job_id, r.since);
   for (const r of i.releases) {
     if (r.visit_kind === "ready_check") continue; // Ready Check keeps its existing follow-up flow
     const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: null, confirmedAt: r.confirmed_at }, i.now);
@@ -267,7 +269,8 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
   for (const e of i.evidenceRejected) add("compliance_correction", e.job_id, e.created_at);
   for (const r of i.registryQueries) add("registry_query", r.job_id, r.updated_at, `Status: ${r.status}.`);
   for (const o of i.officeOverdue) add("office_overdue", o.job_id, o.since, o.title);
-  return [...out.values()].sort((a, b) => (a.since ?? "").localeCompare(b.since ?? ""));
+  const rank: Record<NeedsUrgency, number> = { urgent: 0, today: 1, soon: 2 };
+  return [...out.values()].sort((a, b) => rank[a.urgency] - rank[b.urgency] || (a.since ?? "").localeCompare(b.since ?? ""));
 }
 
 /** Mirrors SQL visit_is_current(): a release is usable only while its visit is the job's current visit. */
