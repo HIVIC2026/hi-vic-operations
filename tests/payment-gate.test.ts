@@ -91,7 +91,7 @@ describe("practice database (PGlite, in-process, TEST rows only)", () => {
     await setPaid(big, PID.hivInv, 1249.99); expect(await cleared(big, PID.hivInv)).toBe(false);
     await setPaid(big, PID.hivInv, 1250); expect(await cleared(big, PID.hivInv)).toBe(true);
     await setPaid(big, PID.hivInv, 25_000); expect(await cleared(big, PID.hivInv)).toBe(true);
-    expect((await big.query<{ a: string }>("SELECT public.required_deposit_amount(19999.99)::text AS a")).rows[0].a).toBe("2000");
+    expect((await big.query<{ a: string }>("SELECT public.required_deposit_amount(19999.99)::text AS a")).rows[0].a).toBe("2000.00");
     // instalment plan
     await setPaid(db, PID.hivInv, 0);
     await db.exec(`INSERT INTO public.instalment_plans (job_id, quote_id, invoice_id, status, office_approved_at) VALUES ('${PID.hivJob}', '${PID.hivQuote}', '${PID.hivInv}', 'active', now())`);

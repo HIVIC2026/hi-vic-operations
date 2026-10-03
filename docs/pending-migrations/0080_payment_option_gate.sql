@@ -32,7 +32,7 @@ CREATE POLICY "Office and the job owner read instalment plans" ON public.instalm
 
 -- Minimum upfront deposit: 10% under $20,000, 5% at/over (pending legal confirmation), rounded UP to the cent.
 CREATE OR REPLACE FUNCTION public.required_deposit_amount(_total numeric) RETURNS numeric LANGUAGE sql IMMUTABLE AS $$
-  SELECT ceil(round(_total * 100) * CASE WHEN _total >= 20000 THEN 5 ELSE 10 END / 100.0) / 100
+  SELECT round(ceil(round(_total * 100) * CASE WHEN _total >= 20000 THEN 5 ELSE 10 END / 100.0) / 100, 2)
 $$;
 
 -- Active only when every condition holds; office approval alone never counts.
