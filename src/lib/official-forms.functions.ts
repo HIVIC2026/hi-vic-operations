@@ -70,6 +70,18 @@ export const supersedeHazardRectification = createServerFn({ method: "POST" }).m
     return { ok: true };
   });
 
+/** Office downloads the filled official Word form for the job's current signed PIESA/PIISA. */
+export const downloadOfficialDocx = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), key: z.enum(["piesa", "piisa"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const { storeOfficialDocx, officialDocxUrl } = await import("./official-docx.server");
+    const r = await storeOfficialDocx(data.jobId, data.key);
+    const url = await officialDocxUrl(context.supabase as never, data.jobId, data.key);
+    return { url, missed: r.missed, filled: r.filled };
+  });
+
 /** Office sends the official PIISA to the assigned installer in Mitti (blocked while the form is locked). */
 export const sendPiisaToInstaller = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
