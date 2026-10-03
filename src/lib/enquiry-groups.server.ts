@@ -73,7 +73,7 @@ export async function loadEnquiryGroups() {
     });
     return {
       ...c, id: j.id, kind: "job", jobNumber: j.job_number, name: owner?.full_name ?? null, email: owner?.email ?? null,
-      address: p ? [p.address_line, p.suburb, p.postcode].filter(Boolean).join(", ") : null, createdAt: j.created_at, stage: j.stage,
+      address: p ? (p.address_line && p.postcode && p.address_line.includes(p.postcode) ? p.address_line : [p.address_line, p.suburb, p.postcode].filter(Boolean).join(", ")) : null, createdAt: j.created_at, stage: j.stage,
       areaLabel: AREA_LABEL[c.area.source],
       lastEmail: last ? { purpose: last.purpose, status: last.status, at: last.sent_at ?? last.created_at, error: last.error } : null,
       consent: cBy.get(j.id)?.slice(-1)[0]?.consent_status ?? null, optedOut: optSet.has(j.id), bounced: bounceSet.has(j.id), source: j.source,
