@@ -1,4 +1,4 @@
-# Slice 1: Enquiry to confirmed Ready Check booking
+# Slice 1: Enquiry to confirmed Ready Check booking (revised with your 8 corrections)
 
 ## Part A. Where each serious finding stands today
 
@@ -8,7 +8,7 @@ Checked against the current code and the live database rules on 3 Oct 2026.
 
 - **Live:**
   - Migrations 0071–0073 are applied.
-  - All 15 outside-action switches are OFF (email, SMS, booking messages, Xero, Mitti and others).
+  - All 15 outside-action switches are OFF.
   - Signed-in users have no direct write access to jobs.
 - **Not live:** the guarded stage step from migration 0073 exists, but no code calls it.
 
@@ -18,14 +18,14 @@ Checked against the current code and the live database rules on 3 Oct 2026.
 |---|---|---|---|
 | S1.1 | Stage change isn't one locked step; hold/resume skip the stage rules | Still present | `workflow.server.ts:324-336`, `portal.functions.ts:951-971`; nothing calls `commit_guarded_stage` |
 | S1.2 | Trades see owner contacts with no record of when they were shared | Still present | Owner phone shown in `field.$jobId.tsx:42`; owners/profiles RLS (live) |
-| S1.3 | PIESA entry has no check on quote version or payment; any signed agreement counts | Still present | No rule for entering `piesa_and_install_window_pending`; `agreementSigned` `:64-67` |
+| S1.3 | PIESA entry has no check on quote version or payment; any signed agreement counts | Still present | `agreementSigned` `:64-67` |
 | S1.4 | 50% rule; paid date never clears after a refund; override unlocks | Still present | `invoice.lifecycle.ts:30-91` |
 | S1.5 | Ready Check completion jumps to estimate with no office review; evidence check passes on read error | Still present | `portal.functions.ts:248-252, 289-292` |
 | S1.6 | Rectification items marked done even when PIESA fails; missing evidence passes | Still present | `portal.functions.ts:517-523` |
-| S1.7 | Booking confirmation isn't tied to the exact other party | Partly fixed | Proposal response checks role and expiry (`pilot.core.ts:332-337`); `confirmBooking` has no check of who is confirming against the assignment or proposal |
+| S1.7 | Booking confirmation isn't tied to the exact other party | Partly fixed | `pilot.core.ts:332-337`; `confirmBooking` has no check of who is confirming |
 | S1.8 | No separate "installation started" step | Still present | No such command |
-| S1.9 | Changed Mitti evidence doesn't cancel later approvals | Unverified | Complete records are locked (`mitti.server.ts:193`); no logic to cancel approvals found |
-| S1.10 | Declared generic "previous upgrade = yes" fails eligibility | Still present (locked Gate 1) | `eligibility.core.ts:145`; needs your decision before changing |
+| S1.9 | Changed Mitti evidence doesn't cancel later approvals | Unverified | `mitti.server.ts:193` |
+| S1.10 | Declared "previous upgrade = yes" fails eligibility | Still present (locked Gate 1) | `eligibility.core.ts:145`; needs your decision |
 | S1.11 | Estimate is emailed without office approval; a failed move after a Ready Check request is only logged | Still present | `followups.server.ts:87-129`; `readycheck-payment.server.ts:93-99` |
 
 ### Sev 2
@@ -33,124 +33,137 @@ Checked against the current code and the live database rules on 3 Oct 2026.
 | ID | Finding | Status | Evidence |
 |---|---|---|---|
 | S2.1 | Old booking is cancelled before the new one is saved | Still present | `booking.server.ts:40-41` |
-| S2.2 | Ready Check template ID mismatch on sync | Unverified | The template is chosen the same way at create and at sync; it could only differ if the job's source changes in between |
-| S2.3 | Follow-up timing comes from the assignment, not each visit; no 24h/48h Ready Check worker | Still present | `pilot.core.ts:298-306` |
-| S2.4 | Failed messages not shown to office | Unverified, likely present | `comms-status.core.ts` tracks reply timing only |
-| S2.5 | PIESA stage name mismatch; bulk hold differs from single hold | Unverified | Needs a read of `bulk.functions.ts` |
-| Added | Every office-only action checks the user is office staff | Unverified (launch blocker) | Needs a full check of all actions |
+| S2.2 | Ready Check template ID mismatch on sync | Unverified | Same selection at create and sync |
+| S2.3 | Follow-up timing comes from the assignment, not each visit | Still present | `pilot.core.ts:298-306` |
+| S2.4 | Failed messages not shown to office | Unverified, likely present | `comms-status.core.ts` |
+| S2.5 | PIESA stage name mismatch; bulk hold differs from single hold | Unverified | `bulk.functions.ts` |
+| Added | Every office-only action checks the user is office staff | Unverified (launch blocker) | Needs real unauthorised-call tests |
 
-Slice 1 fixes S1.1 and S1.7, the booking part of S1.2 (per-visit contact sharing), S1.11, S2.1, S2.3, and S2.4 for this slice. The rest stay listed as open launch blockers.
+Slice 1 fixes S1.1, S1.2 (both directions, for this visit), S1.7, S1.11, S2.1, S2.3 and S2.4. The rest stay open launch blockers.
 
 ## Part B. What you'll see
 
 ```text
-Enquiry -> Preliminary result ("Preliminary: likely eligible")
- -> Office reviews and approves the estimate (estimate only, not binding)
- -> Owner opens their secure page -> presses "Request my free Ready Check"
- -> Installer assigned (or an office alert if no installer fits)
- -> Contact details shared for this visit only (owner sees the notice first)
+Enquiry -> Preliminary result
+ -> Office approves the estimate (estimate only, not binding)
+ -> Owner presses "Request my free Ready Check" on their secure page
+ -> Installer assigned (or office alert if none fits)
+ -> Contacts shared for this visit only, both ways, after each side sees the notice
  -> They talk directly -> one side enters the agreed time
- -> The other side confirms (or office confirms and records how it was agreed)
+ -> The exact other party confirms (or office confirms and records how it was agreed)
  -> Ready Check booked
 ```
 
-- **One next action per job, for each person:**
-  - Office: "Approve estimate", "Assign installer", "Confirm time".
-  - Owner: "Request Ready Check", "Confirm time".
-  - Installer: "Contact owner and enter time".
-- **24 hours after details are shared with no time entered:** both sides get one reminder. While sends are switched off, it's recorded as "held, not sent".
-- **48 hours with no confirmed booking:** a Needs attention item appears for office, even if a time was entered.
-- **Failed or held messages:** they appear in Needs attention with who, what and why, plus a retry button.
-- **Every action is recorded** in the job history.
-- **Opening a page, sending a message or a timer running out never books or moves a job.**
+- **Job page stays simple:** one main next action at the top of the job summary and a short open-task list per person. Approval and visit controls sit inside the summary (no new big cards); full detail stays under Job records.
+- **24 hours after sharing with no time entered:** one reminder to each side. While sends are off it's recorded as "held, not sent".
+- **48 hours with no confirmed booking:** a Needs attention item for office.
+- **Failed or held messages:** shown in Needs attention with who, what and why. Retry resends only to the person it failed for, and only if switches, consent and assignment still allow it.
+- **Opening a page, a message or a timer never books or moves a job.**
 
 ### Wording
 
 - **Owner:** "To arrange this visit, Home Insulation Victoria will share your name, phone number and email with the assigned installer for this job only."
-- **Trade:** "Use these contact details only to arrange and complete this Home Insulation Victoria job."
+- **Trade (full notice, recorded before details show):** "These contact details are shared only so you can arrange and complete this Home Insulation Victoria job. Do not use them for marketing, unrelated work or future work unless the owner separately agrees with you. Do not pass them on. Access ends if the job is reassigned or cancelled."
+- **Installer details shown to owner:** business name, contact name and phone for this visit only, recorded and revoked the same way.
 
-## Part C. Not in this slice
+## Part C. Boundaries
 
-PIESA, payment options, rectification, installation, Mitti writes and Xero are not touched. All outside sends stay OFF. Nothing is published. No production migration runs until you approve the dry-run in a draft.
+- PIESA, payments, rectification, installation, Mitti writes and Xero are untouched. All outside sends stay OFF. Nothing is published. No production migration until you approve the dry-run in a draft.
+- **No running on:** a new database rule stops any job leaving the Ready Check booking stages unless the visit is confirmed for the current assignment. Every route goes through it: auto-advance, eligibility change, hold/resume, bulk actions and booking screens. Tests try each route.
+- **Jobs already in progress:** they get no automatic request, visit or sharing record. Their stage is never treated as the owner asking or agreeing to share contacts. They show "Office review: set up visit" until office records the owner's request and consent, and how it was obtained.
+- **Your decision needed (S1.10):** proposed change: a declared "previous upgrade = yes" goes to office review, marked preliminary, until the earlier activity is established. Gate 1 is locked, so nothing changes without your yes.
 
 ## Technical section
 
-### Database (one additive migration, dry-run in a draft first)
+### 1. Atomic actions
 
-- **`estimate_approvals`:** `job_id`, `estimate_id`, `estimate_version`, `approved_by`, `approved_at` and `note`. Office-only RLS; owners read through the server.
-- **`ready_check_requests`:** `job_id` and `estimate_approval_id`, plus `requested_at`, `ip`, `user_agent` and `idempotency_key` (unique). This reuses or extends `ready_check_acceptances` where it fits.
-- **`visits`:** `id`, `job_id`, `kind` (`ready_check`), `assignment_id`, `assignment_version`, `status` and `coordination_started_at`. Status is one of `awaiting_assignment`, `awaiting_contact`, `awaiting_time`, `awaiting_confirmation`, `booked`, `cancelled`.
-- **`contact_disclosures`:** `visit_id`, `owner_id`, `recipient_user`, `fields[]`, `disclosed_at`, `notice_version`, `revoked_at` and `reason`.
-  - Trades read contacts only through `get_visit_contacts(visit_id)`. This is a security-definer function that re-checks the active assignment and that sharing hasn't been revoked.
-  - The direct trade read of `owners` and `profiles` is removed for contact columns: a policy change plus a safe view.
-- **`appointment_proposals`:** add `visit_id`, `version`, `entered_by_role` and `office_evidence` (method and note). Unique: one open proposal per visit.
-- **`visit_tasks`:** `visit_id`, `kind` (`reminder_24h` or `office_alert_48h`), `episode`, `due_at`, `claimed_at`, `outcome` (`sent`, `suppressed` or `failed`) and `error`. Unique on `(visit_id, kind, episode)`.
-- **`workflow_settings`:** add `ready_check_coordination_enabled` and `appointment_reminders_enabled`, both default false. If either is missing, the check fails closed.
-- **Grants and RLS** on every new table. No drops. Old columns are kept.
+Each action is one `security definer` database function in a single transaction:
 
-### Server (literal createServerFn chains)
+```text
+lock job (FOR UPDATE) -> lock visit / assignment / proposal
+-> verify caller (auth.uid() or owner-token hash) and role
+-> check expected versions (job.updated_at, assignment.version, proposal.version, approval id)
+-> re-check stage rules inside the lock
+-> write request/booking + stage + workflow_events + visit_tasks + outbox
+-> commit, or roll back everything
+```
 
-- **`transition()`:** re-route through `commit_guarded_stage` (expected stage, actor, audit in one transaction). `setHold` resume re-runs `stageEntryBlockers`. This fixes S1.1 for every caller.
-- **New in `src/lib/readycheck-flow.functions.ts`:**
-  - `approveEstimate` (admin).
-  - `requestReadyCheck` (owner token; idempotent; a GET never changes anything).
-  - `releaseVisitContacts` (system, after assignment; writes the sharing record before contacts are returned).
-  - `enterArrangedTime` (owner or installer).
-  - `confirmArrangedTime` (the exact other party, or admin with evidence).
-- **New pure rules in `src/lib/readycheck-flow.core.ts`:** visit status, the next action for each role, the confirmation rule (role, assignment version, proposal version, not stale) and the timer schedule.
-- **`booking.server.ts` `confirmBooking`:** one RPC that keeps the old booking until the new one commits, and binds the proposal version (S2.1).
-- **`sendInitialEstimateEmail`:** requires the current `estimate_approvals` row.
-- **`acceptReadyCheck`:** a blocked transition now returns an office exception instead of silent success.
-- **Timers:** the existing `post-intake` 2-minute worker also claims due `visit_tasks`, so no new cron is added. Reminders go through `external_action_outbox` (`booking_messages` = off, recorded as suppressed). The 48h alert is always created.
-- **Needs attention:** `todo.functions.ts`/`stuck.core.ts` gain rows for failed or suppressed messages (from `job_communications` and the outbox), 48h alerts, and missing installer.
-- **Launch blocker:** a test lists every exported admin server function and asserts it checks the user's role before any `supabaseAdmin` use.
+- Functions: `rc_approve_estimate`, `rc_request_ready_check`, `rc_release_contacts`, `rc_enter_time`, `rc_confirm_time`, `rc_set_hold`. Server code only calls them; no check-then-write in TypeScript.
+- A blocked Ready Check request raises an error, so no acceptance, payment or request row survives. `acceptReadyCheck` moves into the same function.
+- `autoAdvanceJob`, `setEligibility`, `bulkJobAction`, `setHold`, `transition()`, `confirmBooking` and the proposal reply in `pilot.functions.ts` all go through `commit_guarded_stage`. That function gets the rule that `assessment_booked` needs a confirmed visit for the current assignment version. A test finds every write to `jobs.stage` and fails if any skips it.
 
-### UI
+### 2. Contact protection (both directions)
 
-- **Admin job page:** an "Approve estimate" card and a visit card (status, the time entered, who confirms, timer due).
-- **Owner page and estimate token page:** a "Request my free Ready Check" button, the sharing notice, confirm/enter time, and the "estimate only" disclaimer.
-- **`field.$jobId.tsx`:** contacts come only from `get_visit_contacts`, plus the Enter time button.
-- **`nextstep.core.ts`:** takes its action from the visit status.
+- **Column privileges, not RLS:** revoke `SELECT` on contact columns of `owners` and `profiles` (phone, email, address detail) from `authenticated`. Grant only non-contact columns.
+- **Restricted views** (`owners_public`, `profiles_public`) for job lists, exports, documents and form prefills.
+- **Contacts only via `get_visit_contacts(visit_id)`:**
+  - Checks that the caller is the current party, the assignment version matches, nothing is revoked or expired, and the notice was accepted.
+  - Owners get the installer side; trades get the owner side.
+  - Writes the `contact_disclosures` row before returning anything.
+- **`contact_disclosures` records:**
+  - job, visit, and assignment id and version;
+  - who disclosed, and the recipient's user and role;
+  - exact fields shared;
+  - purpose, consent basis and version, notice version;
+  - when shared, expiry, revocation and reason;
+  - follow-up state.
+- Reassignment, cancellation or expiry revokes access in the same transaction.
 
-### Tests (`bun test ./tests/`, plus PGlite for the RPCs and RLS)
+### 3. Owner token actions
 
-- **Normal path:**
-  - Office approval is required before the estimate goes out.
-  - A GET creates no request.
-  - Requesting twice creates one request.
-  - Assignment creates a visit; no installer creates an office alert.
-- **Access:**
-  - Contacts are invisible before sharing, to unrelated users, to an earlier installer, and after revoking.
-  - Sharing is recorded before contacts are returned.
-- **Booking:**
-  - A time entry stays "awaiting confirmation".
-  - Confirmation by the same role, a stale proposal, the wrong job or a reassigned trade fails.
-  - Two confirmations at once create one booking.
-  - A failed replacement keeps the old booking.
-- **Timers (frozen clock):**
-  - 23h59: nothing.
-  - 24h01: one reminder, or suppressed while sends are off.
-  - 48h01: one office alert, even if a time was entered.
-  - Rescheduling or reassignment starts a new episode.
-  - Two workers running together still send once.
-- **Delivery:** a simulated failure keeps the booking and creates Needs attention; unknown results are not re-sent.
-- **State:** one primary action per role; booking never changes eligibility.
-- **Rollback:** a database failure rolls back the state, audit, task and outbox together.
-- **Admin role-guard inventory.**
+- The token is stored as a hash only.
+- Each function checks the job, purpose `ready_check`, expiry and revocation. It also checks that the token is bound to the current approved estimate version, the owner is on file and contact consent is current.
+- A GET only displays. Every change is a POST with an idempotency key.
+- A confirmation is bound to the exact proposal id and version and the exact counterpart party.
+- An estimate change replaces the approval, cancels open requests and proposals, and asks again where needed.
 
-Then: typecheck, lint, full test run and build, with actual results reported.
+### 4. Reminders and delivery
 
-### Rollback
+- The `post-intake` cron is a 2-minute schedule, independent of new enquiries. A test runs the tick with zero enquiries and due visit tasks.
+- `visit_tasks` gets `lease_until`, `attempts` and `last_error`; expired leases can be reclaimed.
+- New `visit_task_recipients` table: one row per person with its own outcome. Retry targets failed recipients only.
+- With sends off, a message is recorded `suppressed` and closed. It never becomes a backlog later. Retry re-checks switches, consent, assignment and delivery-unknown through `enqueue_external_action`.
 
-- The migration is additive, and the new behaviour sits behind the two flags (default off).
-- Turning a flag off restores today's flow.
-- No live data is migrated; existing jobs keep their stage.
+### 5. Database (one additive migration, dry-run in a draft first)
+
+- **New tables:** `estimate_approvals`, `ready_check_requests`, `visits`, `contact_disclosures`, `visit_tasks`, `visit_task_recipients`.
+- **New views and functions:** two public views, the `rc_*` functions and `get_visit_contacts`.
+- **`appointment_proposals`:** gains `visit_id`, `version`, `entered_by_party` and `office_evidence`.
+- **Flags:** two in `workflow_settings`, default off and fail closed.
+- Grants and RLS on every new table. The only removals are the contact-column privileges.
+
+### 6. Tests
+
+- Pure rules run with `bun test ./tests/`. Transaction logic runs on PGlite.
+- A disposable draft database checks the real roles, grants, RLS and exposed functions. It signs in as anon, owner, assigned trade, earlier trade, unrelated trade and office.
+- Cases covered:
+  - non-admins calling each admin action;
+  - contacts read through every API, job list, export, document and prefill;
+  - every alternative route;
+  - blocked requests leaving no rows;
+  - concurrent confirmations;
+  - lease recovery;
+  - retrying only the failed recipient.
+- The report marks each check as ran, passed, failed or unverified.
+
+### 7. Safe rollback
+
+Turning a flag off stops the new automation and moves affected jobs to "Office review: manual coordination". It does not reopen contact access, accept unconfirmed times or skip approvals. Confirmed bookings and all history are kept.
+
+### Acceptance criteria
+
+1. No route reaches `assessment_booked` without all three: an approved estimate, the owner's explicit request and confirmation by the exact counterpart. Each route is tested.
+2. A blocked action leaves no partial rows.
+3. No contact field is readable except through `get_visit_contacts`, with a disclosure row.
+4. Owner token actions fail on expiry, revocation, a stale estimate or the wrong proposal version.
+5. Reminders run with zero enquiries, recover after a crash and retry only failed recipients. Suppressed messages never send later.
+6. Unauthorised-call tests pass on a real database; any gaps are listed.
+7. Jobs already in progress are untouched until office review.
+8. The job page shows one main action plus per-person tasks.
 
 ### Files touched
 
-- **Server:** `workflow.server.ts`, `portal.functions.ts` (`setHold`), `booking.server.ts`, `readycheck-payment.server.ts`, `followups.server.ts`, `postintake.server.ts`, `pilot.functions.ts`/`pilot.core.ts`, `nextstep.core.ts`, `todo.functions.ts`, `stuck.core.ts`.
-- **New files:** `readycheck-flow.core.ts` and `readycheck-flow.functions.ts`.
+- **Server:** `workflow.server.ts`, `autoadvance.server.ts`, `portal.functions.ts`, `bulk.functions.ts`, `booking.server.ts`, `readycheck-payment.server.ts`, `followups.server.ts`, `postintake.server.ts`, `pilot.*`, `nextstep.core.ts`, `todo.functions.ts`, `stuck.core.ts`, estimate-token functions.
+- **New:** `readycheck-flow.core.ts`, `readycheck-flow.functions.ts`.
 - **Screens:** `field.$jobId.tsx`, `owner.$jobId.tsx`, `estimate.$token.tsx`, `admin.jobs.$jobId.tsx`.
-- **Migration:** one new file.
-- **Tests:** new test files.
-- **Records:** `AGENTS.md` and `roadmap.md`.
+- **Other:** one migration, tests, `AGENTS.md`, `roadmap.md`.
