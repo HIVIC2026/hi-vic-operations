@@ -134,7 +134,7 @@ export function scan(): Hit[] {
                 file,
                 line: i + 1,
                 term: t.term,
-                kind: kindOf(file, text),
+                kind: kindOf(file, text, t.strict),
                 action: t.action,
               });
           }
