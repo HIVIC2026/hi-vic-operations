@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getOfficialPrefill, getPiisaPanel, sendPiisaToInstaller } from "@/lib/official-forms.functions";
+import { downloadOfficialDocx, getOfficialPrefill, getPiisaPanel, sendPiisaToInstaller } from "@/lib/official-forms.functions";
 import { Section } from "@/components/portal/panels";
 
 const DUE: Record<string, string> = {
@@ -57,6 +57,7 @@ export function PiisaPanel({ jobId }: { jobId: string }) {
             </div>
           )}
           <PiisaSend jobId={jobId} />
+          <OfficialDocxDownload jobId={jobId} />
           {data.confirmations.length > 0 && <p className="text-xs text-muted-foreground">Held pending official/legal confirmation: {data.confirmations.join(", ")}.</p>}
         </div>
       )}
