@@ -379,7 +379,7 @@ export const HAZARD_REVIEW_GUIDANCE_CONFIRMED = false;
 export const HAZARD_UNRESOLVED = "Hazard remains unresolved - office/electrical review required.";
 export const CONDUCTIVITY_UNCONFIRMED = "Existing insulation conductivity must be confirmed.";
 /** HI VIC supporting evidence — not part of the official PIISA. */
-export const CONDUCTIVITY_PHOTO_MISSING = "HI VIC supporting evidence: add a photo of the existing insulation (separate from the official PIISA).";
+export const CONDUCTIVITY_PHOTO_MISSING = "Home Insulation Victoria supporting evidence: add a photo of the existing insulation (separate from the official PIISA).";
 export type PiesaContext = { installStart?: string | null; deliveredToInstallerAt?: string | null; deliveredToOwnerAt?: string | null; hazardResolution?: HazardResolution };
 export type PiisaContext = { piesaCompletionDate?: string | null; piesaReceivedAt?: string | null; electricianRequiredAtStart?: boolean | null;
   /** Explicit recorded answer only — a blank is never treated as "No". */ conductiveExistingInsulation?: boolean | null;

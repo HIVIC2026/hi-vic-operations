@@ -1,15 +1,15 @@
 -- Slice 1: office-approved estimate -> Ready Check request -> visit -> contact sharing -> confirmed booking.
 -- PENDING. Test-copy (PGlite) only until Jo approves a production run. Additive only.
--- Feature flag workflow_settings.slice1_ready_check_enabled defaults FALSE: every rc_* function refuses
+-- Feature flag workflow_settings.slice1_ready_check_booking_enabled defaults FALSE: every rc_* function refuses
 -- and the new stage guard is inactive, so the live app behaves exactly as today.
 
 -- 1. Flags (fail closed)
 ALTER TABLE public.workflow_settings
-  ADD COLUMN IF NOT EXISTS slice1_ready_check_enabled boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS slice1_ready_check_booking_enabled boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS slice1_contact_sharing_enabled boolean NOT NULL DEFAULT false;
 
 CREATE OR REPLACE FUNCTION public.slice1_enabled() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public AS $$ SELECT coalesce((SELECT slice1_ready_check_enabled FROM public.workflow_settings ORDER BY id LIMIT 1), false) $$;
+SET search_path = public AS $$ SELECT coalesce((SELECT slice1_ready_check_booking_enabled FROM public.workflow_settings ORDER BY id LIMIT 1), false) $$;
 
 -- 2. Tables
 CREATE TABLE public.estimate_approvals (
@@ -172,6 +172,78 @@ BEGIN
   RETURN r;
 END $$;
 
+
+CREATE OR REPLACE FUNCTION public.slice1_contacts_enabled() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public AS $$ SELECT coalesce((SELECT slice1_contact_sharing_enabled FROM public.workflow_settings ORDER BY id LIMIT 1), false) $$;
+
+-- Office allocates the installer's visit for an open request (does not book anything).
+CREATE OR REPLACE FUNCTION public.rc_open_visit(_request uuid, _assignment uuid)
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE r public.ready_check_requests; ja public.job_assignments; v uuid;
+BEGIN
+  IF NOT public.slice1_enabled() THEN RAISE EXCEPTION 'Slice 1 is switched off'; END IF;
+  IF NOT public.has_role(auth.uid(), 'admin') THEN RAISE EXCEPTION 'Admin only'; END IF;
+  SELECT * INTO r FROM public.ready_check_requests WHERE id = _request FOR UPDATE;
+  IF NOT FOUND OR r.status <> 'open' THEN RAISE EXCEPTION 'Request is not open'; END IF;
+  SELECT * INTO ja FROM public.job_assignments WHERE id = _assignment AND job_id = r.job_id AND active;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Assignment is not current for this job'; END IF;
+  INSERT INTO public.visits(job_id, request_id, assignment_id) VALUES (r.job_id, _request, _assignment) RETURNING id INTO v;
+  INSERT INTO public.workflow_events(job_id, actor_id, event_type, summary, details, internal)
+  VALUES (r.job_id, auth.uid(), 'visit_opened', 'Ready Check visit opened for assigned installer', jsonb_build_object('visit_id', v), true);
+  RETURN v;
+END $$;
+
+-- Recipient accepts the notice and receives the counterpart's contacts. Never books the visit.
+CREATE OR REPLACE FUNCTION public.rc_release_contacts(_visit uuid, _recipient_role text, _notice_version text, _consent_basis text, _consent_version text)
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE v public.visits; ja public.job_assignments; d uuid;
+BEGIN
+  IF NOT public.slice1_enabled() OR NOT public.slice1_contacts_enabled() THEN RAISE EXCEPTION 'Contact sharing is switched off'; END IF;
+  SELECT * INTO v FROM public.visits WHERE id = _visit FOR UPDATE;
+  IF NOT FOUND OR v.status NOT IN ('awaiting_time','time_entered') THEN RAISE EXCEPTION 'Visit is not active'; END IF;
+  SELECT * INTO ja FROM public.job_assignments WHERE id = v.assignment_id;
+  IF NOT ja.active THEN RAISE EXCEPTION 'Assignment is no longer current'; END IF;
+  IF _recipient_role = 'trade' AND auth.uid() IS DISTINCT FROM ja.user_id THEN RAISE EXCEPTION 'Only the assigned trade';
+  ELSIF _recipient_role = 'owner' AND NOT public.is_job_owner(v.job_id, auth.uid()) THEN RAISE EXCEPTION 'Only the owner';
+  ELSIF _recipient_role NOT IN ('owner','trade') THEN RAISE EXCEPTION 'Invalid recipient'; END IF;
+  INSERT INTO public.contact_disclosures(job_id, visit_id, assignment_id, assignment_version, disclosed_by, recipient_user_id, recipient_role,
+    fields, consent_basis, consent_version, notice_version, notice_accepted_at)
+  VALUES (v.job_id, _visit, v.assignment_id, v.assignment_version, NULL, auth.uid(), _recipient_role,
+    ARRAY['name','phone','email'], _consent_basis, _consent_version, _notice_version, now()) RETURNING id INTO d;
+  UPDATE public.visits SET contacts_released_at = coalesce(contacts_released_at, now()), updated_at = now() WHERE id = _visit;
+  INSERT INTO public.visit_tasks(visit_id, job_id, kind, due_at) VALUES
+    (_visit, v.job_id, 'reminder_24h', now() + interval '24 hours'),
+    (_visit, v.job_id, 'office_alert_48h', now() + interval '48 hours')
+  ON CONFLICT (visit_id, kind) DO NOTHING;
+  INSERT INTO public.workflow_events(job_id, actor_id, event_type, summary, details, internal)
+  VALUES (v.job_id, auth.uid(), 'contacts_shared', 'Contact details shared for this visit only', jsonb_build_object('visit_id', _visit, 'disclosure_id', d, 'recipient_role', _recipient_role), true);
+  RETURN d;
+END $$;
+
+-- One party enters the agreed time. Never books: the visit becomes time_entered and waits for the other party/office.
+CREATE OR REPLACE FUNCTION public.rc_enter_time(_visit uuid, _starts timestamptz, _ends timestamptz, _party text, _office_evidence text)
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE v public.visits; ja public.job_assignments; p uuid;
+BEGIN
+  IF NOT public.slice1_enabled() THEN RAISE EXCEPTION 'Slice 1 is switched off'; END IF;
+  SELECT * INTO v FROM public.visits WHERE id = _visit FOR UPDATE;
+  IF NOT FOUND OR v.status NOT IN ('awaiting_time','time_entered') THEN RAISE EXCEPTION 'Visit is not active'; END IF;
+  SELECT * INTO ja FROM public.job_assignments WHERE id = v.assignment_id;
+  IF NOT ja.active THEN RAISE EXCEPTION 'Assignment is no longer current'; END IF;
+  IF _party = 'trade' AND auth.uid() IS DISTINCT FROM ja.user_id THEN RAISE EXCEPTION 'Only the assigned trade';
+  ELSIF _party = 'owner' AND NOT public.is_job_owner(v.job_id, auth.uid()) THEN RAISE EXCEPTION 'Only the owner';
+  ELSIF _party = 'office' AND (NOT public.has_role(auth.uid(), 'admin') OR length(trim(coalesce(_office_evidence,''))) = 0) THEN RAISE EXCEPTION 'Office entry needs admin and evidence';
+  ELSIF _party NOT IN ('owner','trade','office') THEN RAISE EXCEPTION 'Invalid party'; END IF;
+  UPDATE public.appointment_proposals SET status = 'superseded' WHERE visit_id = _visit AND status = 'proposed';
+  INSERT INTO public.appointment_proposals(job_id, kind, assignment_id, proposed_by, proposer_role, starts_at, ends_at, status, visit_id, entered_by_party, office_evidence)
+  VALUES (v.job_id, 'ready_check', v.assignment_id, auth.uid(), CASE _party WHEN 'trade' THEN 'installer' WHEN 'office' THEN 'admin' ELSE 'owner' END, _starts, _ends, 'proposed', _visit, _party, _office_evidence) RETURNING id INTO p;
+  UPDATE public.visits SET status = 'time_entered', version = version + 1, updated_at = now() WHERE id = _visit;
+  UPDATE public.visit_tasks SET status = 'cancelled' WHERE visit_id = _visit AND kind = 'reminder_24h' AND status = 'pending';
+  INSERT INTO public.workflow_events(job_id, actor_id, event_type, summary, details, internal)
+  VALUES (v.job_id, auth.uid(), 'visit_time_entered', 'Ready Check time entered; awaiting confirmation', jsonb_build_object('visit_id', _visit, 'proposal_id', p, 'party', _party), false);
+  RETURN p;
+END $$;
+
 CREATE OR REPLACE FUNCTION public.rc_confirm_time(_visit uuid, _proposal uuid, _proposal_version integer, _party text, _office_evidence text)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE v public.visits; p public.appointment_proposals; ja public.job_assignments;
@@ -216,3 +288,9 @@ REVOKE ALL ON FUNCTION public.rc_confirm_time(uuid, uuid, integer, text, text) F
 GRANT EXECUTE ON FUNCTION public.rc_approve_estimate(uuid, uuid, timestamptz, text) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.rc_request_ready_check(uuid, uuid, text, text, text, text) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.rc_confirm_time(uuid, uuid, integer, text, text) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.rc_open_visit(uuid, uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.rc_release_contacts(uuid, text, text, text, text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.rc_enter_time(uuid, timestamptz, timestamptz, text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.rc_open_visit(uuid, uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.rc_release_contacts(uuid, text, text, text, text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.rc_enter_time(uuid, timestamptz, timestamptz, text, text) TO authenticated, service_role;
