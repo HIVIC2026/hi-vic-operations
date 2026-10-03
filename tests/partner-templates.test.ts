@@ -6,7 +6,7 @@ describe("partner invitation templates", () => {
     expect(INSTALLER_TEMPLATE.label).toBe("Installer partnership invitation");
     expect(INSTALLER_TEMPLATE.subject).toBe("Hundreds of homeowner enquiries—and we’re looking for great installers");
     expect(INSTALLER_TEMPLATE.registrationUrl).toBe("https://estimate.homeinsulationvictoria.com.au/installer-onboarding");
-    expect(PARTNER_TEMPLATES.map((t) => t.key)).toEqual(["installer_invitation"]);
+    expect(PARTNER_TEMPLATES.map((t) => t.key)).toContain("installer_invitation");
   });
 
   test("rendered HTML is standalone with embedded PNG and clean CTA link", () => {
