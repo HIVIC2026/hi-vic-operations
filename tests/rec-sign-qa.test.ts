@@ -5,7 +5,7 @@ import {
   blockedMandatoryStep, canonicalStepKey, firstIncompleteStep, pageErrors, stepErrors, validAbn, validCalendarDate, visiblePageForStep, STEPS, type RecData,
 } from "../src/lib/rec-onboarding.core";
 import { REC_INVALID_LINK_MESSAGE, shouldForgetResumeToken } from "../src/lib/rec-onboarding.core";
-import { performRecSign, recSignBlocker, REC_STALE_MESSAGE, type RecSignApp } from "../src/lib/rec-sign.core";
+import { performRecSign, recSignBlocker, signRecWithRecovery, REC_STALE_MESSAGE, type RecSignApp } from "../src/lib/rec-sign.core";
 import { recDb, sha256, PENDING_SQL } from "./helpers/pglite-rec";
 
 const addr = (label: string, state = "VIC", country = "AU") => ({ label, state, postcode: "3000", country: country as "AU", provider: "google_places_au" as const });
@@ -305,6 +305,23 @@ describe("QA-SGN signing against isolated PostgreSQL (PGlite) + pending sign_rec
     expect((await t.enquiries()).length).toBe(0); expect((await t.app(id)).status).toBe("draft");
     await t.db.exec(`DROP TRIGGER zz_boom ON rec_onboarding_applications`);
     await performRecSign(await t.app(id), await reviewedInput(t, id), meta, t.deps(), now); // retry works
+    expect((await t.enquiries()).length).toBe(1);
+  });
+  test("public-path lost response retries the submitted REC with the original reviewed hash", async () => {
+    const t = await recDb(); const id = await t.create(full); const inp = await reviewedInput(t, id);
+    let calls = 0;
+    const result = await signRecWithRecovery(inp.expected_updated_at, inp.agreement_sha256, {
+      load: async () => { const a = await t.app(id); return { status: a.status, updated_at: a.updated_at }; },
+      sign: async (expected_updated_at, agreement_sha256) => {
+        calls++;
+        const committed = await performRecSign(await t.app(id), { ...inp, expected_updated_at, agreement_sha256 }, meta, t.deps(), now);
+        if (calls === 1) throw new Error("response lost after commit");
+        return committed;
+      },
+    });
+    expect(result.outcome).toBe("already_signed_same");
+    expect(calls).toBe(2);
+    expect((await t.app(id)).status).toBe("submitted");
     expect((await t.enquiries()).length).toBe(1);
   });
   test("EXT-3 repro: other tab saves rate 999 + review=false DURING sha256 -> rejected, nothing signed", async () => {

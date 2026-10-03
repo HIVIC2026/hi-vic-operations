@@ -159,10 +159,11 @@ export const signRecAgreement = createServerFn({ method: "POST" })
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { db, app } = await findApp(data.token);
-    if (app.status !== "draft") throw new Error("This application has already been signed.");
-    await (await import("./onboarding-security.server")).purgeQuarantine(db as never, "rec-onboarding", app.id);
+    if (app.status === "draft") await (await import("./onboarding-security.server")).purgeQuarantine(db as never, "rec-onboarding", app.id);
     const { performRecSign } = await import("./rec-sign.core");
-    return performRecSign(app as never, data, { ip: context.ip, userAgent: context.userAgent }, {
+    const same = Date.parse(data.expected_updated_at) === Date.parse(app.updated_at);
+    const { token: _token, ...input } = data;
+    return performRecSign(app as never, { ...input, expected_updated_at: same ? app.updated_at : data.expected_updated_at }, { ip: context.ip, userAgent: context.userAgent }, {
       sha256,
       signAtomic: async ({ appId, expectedUpdatedAt, agreementSha256, enquiry, signed }) => {
         const { data: rows, error } = await db.rpc("sign_rec_application" as never, { _app_id: appId, _expected_updated_at: expectedUpdatedAt, _agreement_sha256: agreementSha256, _enquiry: enquiry, _signed: signed } as never);
