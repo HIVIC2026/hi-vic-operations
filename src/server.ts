@@ -1,6 +1,5 @@
 import "./lib/error-capture";
 import { requestContext } from "./lib/background.server";
-import { customerEntryPoint } from "./lib/customer-entry.core";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage, renderReloadPage } from "./lib/error-page";
@@ -54,22 +53,6 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
-// The customer web address is a marketing entry point, not a portal door: the bare
-// address must SHOW the calculator at "/" itself (an internal rewrite, not a redirect),
-// so the calculator genuinely is the home page of that address and search engines see
-// one canonical URL. Staff reach the portal at /home on any address.
-function customerEntryRewrite(request: Request): Request | undefined {
-  let url: URL;
-  try {
-    url = new URL(request.url);
-  } catch {
-    return undefined;
-  }
-  const target = customerEntryPoint(request.headers.get("host"), url.pathname);
-  if (!target) return undefined;
-  url.pathname = target;
-  return detachedGetRequest(request, url.toString());
-}
 
 // srvx ties its Request.signal to the Node response socket. TanStack reads that
 // signal while rendering, so closing or superseding a page request can dispatch
@@ -93,8 +76,7 @@ function detachedGetRequest(request: Request, url: string): Request {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
-      const rewritten = customerEntryRewrite(request);
-      const incoming = rewritten ?? detachedPageRequest(request);
+      const incoming = detachedPageRequest(request);
       const handler = await getServerEntry();
       const c = ctx as { waitUntil?: (p: Promise<unknown>) => void } | undefined;
       const waitUntil = typeof c?.waitUntil === "function" ? c.waitUntil.bind(c) : undefined;
