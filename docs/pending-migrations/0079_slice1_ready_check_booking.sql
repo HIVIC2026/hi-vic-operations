@@ -236,7 +236,7 @@ BEGIN
   ELSIF _party NOT IN ('owner','trade','office') THEN RAISE EXCEPTION 'Invalid party'; END IF;
   UPDATE public.appointment_proposals SET status = 'superseded' WHERE visit_id = _visit AND status = 'proposed';
   INSERT INTO public.appointment_proposals(job_id, kind, assignment_id, proposed_by, proposer_role, starts_at, ends_at, status, visit_id, entered_by_party, office_evidence)
-  VALUES (v.job_id, 'assessment', v.assignment_id, auth.uid(), _party, _starts, _ends, 'proposed', _visit, _party, _office_evidence) RETURNING id INTO p;
+  VALUES (v.job_id, 'ready_check', v.assignment_id, auth.uid(), CASE _party WHEN 'trade' THEN 'installer' WHEN 'office' THEN 'admin' ELSE 'owner' END, _starts, _ends, 'proposed', _visit, _party, _office_evidence) RETURNING id INTO p;
   UPDATE public.visits SET status = 'time_entered', version = version + 1, updated_at = now() WHERE id = _visit;
   UPDATE public.visit_tasks SET status = 'cancelled' WHERE visit_id = _visit AND kind = 'reminder_24h' AND status = 'pending';
   INSERT INTO public.workflow_events(job_id, actor_id, event_type, summary, details, internal)
