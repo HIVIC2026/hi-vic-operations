@@ -24,25 +24,25 @@ import { filterVisibleJobs } from "@/lib/portal-presentation.core";
 
 const ACCEPTANCE_STAGES = ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"];
 type WorkView = "all" | "active" | "review" | "ineligible" | "finalised" | "cancelled" | "test";
-type Tab = "jobs" | "quotes" | "enquiries" | "ineligible";
+type Tab = "board" | "jobs" | "quotes" | "enquiries" | "ineligible";
 const QUOTE_STAGES = ["awaiting_quote_acceptance", "measured_estimate_ready"];
 const JOB_STAGES = [...ACCEPTANCE_STAGES, "measured_quote_accepted", "piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete", "electrical_variation_pending", "awaiting_owner_rectification_approval"];
 const tabOf = (stage: string | null | undefined): Tab => QUOTE_STAGES.includes(stage ?? "") ? "quotes" : JOB_STAGES.includes(stage ?? "") ? "jobs" : "enquiries";
-const TAB_TITLE: Record<Tab, string> = { jobs: "ACTIVE JOBS", quotes: "PENDING QUOTE APPROVAL", enquiries: "ENQUIRIES", ineligible: "INELIGIBLE" };
+const TAB_TITLE: Record<Tab, string> = { board: "JOB PIPELINE", jobs: "ACTIVE JOBS", quotes: "PENDING QUOTE APPROVAL", enquiries: "ENQUIRIES", ineligible: "INELIGIBLE" };
 
 const PRIMARY_VIEWS: { key: WorkView; label: string }[] = [{ key: "active", label: "In progress" }, { key: "review", label: "Needs review" }, { key: "ineligible", label: "Exceptions" }];
 const SECONDARY_VIEWS: { key: WorkView; label: string }[] = [{ key: "all", label: "All non-test records" }, { key: "finalised", label: "Finalised" }, { key: "cancelled", label: "Cancelled" }, { key: "test", label: "Test records" }];
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({ meta: [{ title: "Enquiries – Home Insulation Victoria Portal" }, { name: "description", content: "Home Insulation Victoria active enquiry workspace." }, { property: "og:title", content: "Enquiries – Home Insulation Victoria Portal" }, { property: "og:description", content: "Home Insulation Victoria active enquiry workspace." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
-  validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (["jobs", "quotes", "enquiries", "ineligible"].includes(s["tab"] as string) ? { tab: s["tab"] as Tab } : {}),
+  validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (["board", "jobs", "quotes", "enquiries", "ineligible"].includes(s["tab"] as string) ? { tab: s["tab"] as Tab } : {}),
   component: Pipeline,
 });
 
 function Pipeline() {
   const [q, setQ] = useState("");
   const [source, setSource] = useState<"all" | "hivic_sourced" | "installer_sourced">("all");
-  const { tab = "enquiries" } = Route.useSearch();
+  const { tab = "board" } = Route.useSearch();
   const [workView, setWorkView] = useState<WorkView>("active");
   useEffect(() => { setWorkView(tab === "ineligible" ? "ineligible" : "active"); }, [tab]);
   const sweep = useServerFn(sweepAuthorities);
