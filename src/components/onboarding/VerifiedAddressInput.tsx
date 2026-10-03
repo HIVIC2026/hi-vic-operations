@@ -3,6 +3,8 @@ import { defaultAddressProvider } from "@/lib/address-provider";
 import { isAustralianAddress, isVictorianAddress, keepPickedNumber, type ResolvedAddress } from "@/lib/rec-onboarding.core";
 import type { AddressDetails, AddressSuggestion } from "@/lib/whatif-location";
 
+const DETAILS_TIMEOUT_MS = 10_000;
+
 type AddressProvider = {
   search: (query: string) => Promise<AddressSuggestion[]>;
   details: (placeId: string) => Promise<AddressDetails | null>;
@@ -36,17 +38,25 @@ export function VerifiedAddressInput({ value, resolved, onChange, onSelect, vict
   const root = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const picking = useRef(false);
+  const pickedLabel = useRef<string | null>(null);
   const mounted = useRef(true);
+  const pendingCb = useRef(onPendingChange);
+  pendingCb.current = onPendingChange;
 
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; searchSeq.current += 1; detailsSeq.current += 1; picking.current = false; };
+    return () => {
+      mounted.current = false; searchSeq.current += 1; detailsSeq.current += 1;
+      if (picking.current) pendingCb.current?.(false);
+      picking.current = false; pickedLabel.current = null;
+    };
   }, []);
   useEffect(() => {
     if (resolved?.label !== value) return;
     searchSeq.current += 1;
     detailsSeq.current += 1;
     picking.current = false;
+    pickedLabel.current = null;
     setEdited(false); setItems([]); setOpen(false); setActive(-1); setLoading(false); setNote("");
   }, [resolved, value]);
   useEffect(() => {
@@ -85,17 +95,30 @@ export function VerifiedAddressInput({ value, resolved, onChange, onSelect, vict
     return () => { clearTimeout(timer); searchSeq.current += 1; };
   }, [edited, focused, provider, resolved, value]);
 
+  function cancelPick() {
+    // Explicit cancel: invalidate the in-flight details request and release every lock.
+    detailsSeq.current += 1;
+    picking.current = false;
+    pickedLabel.current = null;
+    setLoading(false);
+    onPendingChange?.(false);
+  }
+
   async function choose(suggestion: AddressSuggestion) {
     // Set the lock before blur. Mobile browsers dispatch blur/outside events before click.
     picking.current = true;
+    pickedLabel.current = suggestion.label;
     onPendingChange?.(true);
     inputRef.current?.blur();
     searchSeq.current += 1;
     const mine = ++detailsSeq.current;
     onSelect(null); onChange(suggestion.label);
     setFocused(false); setOpen(false); setItems([]); setActive(-1); setLoading(true); setNote("");
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const raw = await provider.details(suggestion.id);
+      // Never let a hung lookup hold the field: give up after a bounded wait.
+      const timeout = new Promise<null>((_, reject) => { timer = setTimeout(() => reject(new Error("timeout")), DETAILS_TIMEOUT_MS); });
+      const raw = await Promise.race([provider.details(suggestion.id), timeout]);
       const verified = raw?.country === "AU" && raw.provider === "google_places_au"
         ? { ...raw, country: "AU" as const, provider: "google_places_au" as const }
         : null;
@@ -112,17 +135,30 @@ export function VerifiedAddressInput({ value, resolved, onChange, onSelect, vict
         onSelect(null); setEdited(true); setNote("We couldn't verify that address. Edit it to try again or choose another result.");
       }
     } finally {
-      if (mine === detailsSeq.current) picking.current = false;
-      if (mounted.current && mine === detailsSeq.current) setLoading(false);
-      if (mine === detailsSeq.current) onPendingChange?.(false);
+      if (timer) clearTimeout(timer);
+      if (mine === detailsSeq.current) {
+        picking.current = false;
+        pickedLabel.current = null;
+        if (mounted.current) setLoading(false);
+        onPendingChange?.(false);
+      }
     }
   }
 
-  const dismiss = () => { searchSeq.current += 1; if (!picking.current) detailsSeq.current += 1; setOpen(false); setItems([]); setActive(-1); if (!picking.current) setLoading(false); };
+  const dismiss = () => { searchSeq.current += 1; if (picking.current) cancelPick(); setOpen(false); setItems([]); setActive(-1); setLoading(false); };
   return (
     <div ref={root} style={{ position: "relative" }}>
       <input ref={inputRef} id={id} style={inputStyle} role="combobox" autoCorrect="off" autoCapitalize="off" spellCheck={false} aria-expanded={open && items.length > 0} aria-controls={`${id}-options`} aria-autocomplete="list" aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined} autoComplete="off" placeholder="Start typing your address…" value={value}
-        onFocus={() => setFocused(true)} onChange={(event) => { if (picking.current) return; searchSeq.current += 1; detailsSeq.current += 1; setLoading(false); setEdited(true); setItems([]); setActive(-1); setOpen(false); setNote(""); setAnnounce(""); onSelect(null); onChange(event.target.value); }} onBlur={() => { setFocused(false); searchSeq.current += 1; setOpen(false); setActive(-1); }}
+        onFocus={() => setFocused(true)} onChange={(event) => {
+          const next = event.target.value;
+          if (picking.current) {
+            // Mobile keyboards may echo the picked label on blur; that must not cancel the pick.
+            if (next === pickedLabel.current) return;
+            // A real edit while details are pending explicitly cancels the pick and unlocks the field.
+            cancelPick();
+          }
+          searchSeq.current += 1; detailsSeq.current += 1; setLoading(false); setEdited(true); setFocused(true); setItems([]); setActive(-1); setOpen(false); setNote(""); setAnnounce(""); onSelect(null); onChange(next);
+        }} onBlur={() => { setFocused(false); searchSeq.current += 1; setOpen(false); setActive(-1); }}
         onKeyDown={(event) => { if (event.key === "ArrowDown" && items.length) { event.preventDefault(); setActive((x) => (x + 1) % items.length); } else if (event.key === "ArrowUp" && items.length) { event.preventDefault(); setActive((x) => (x - 1 + items.length) % items.length); } else if (event.key === "Enter" && open && items[active]) { event.preventDefault(); void choose(items[active]); } else if (event.key === "Escape") { event.preventDefault(); dismiss(); } }} />
       {loading && <div style={{ position: "absolute", right: 14, top: 14, fontSize: 12, color: mutedColor }}>Searching…</div>}
       {open && items.length > 0 && <ul id={`${id}-options`} role="listbox" aria-label="Address suggestions" style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #D7DCE8", borderRadius: 12, boxShadow: "0 12px 30px -12px rgba(34,55,107,.35)", overflow: "hidden" }}>

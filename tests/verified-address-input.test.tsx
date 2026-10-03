@@ -74,4 +74,35 @@ describe("verified address picker", () => {
     expect(r.state.resolved).toBeNull();
     expect(r.getByText(/service area needs to be in Victoria/).textContent).toContain("Victoria");
   });
+  test("ROOT repro: outside click while pending, then new text replaces the pick and unlocks", async () => {
+    const pending = deferred<ResolvedAddress | null>();
+    const r = harness({ search: async (q) => q.startsWith("300") ? [{ id: "p3", label: "300 Collins Street, Melbourne VIC" }] : [{ id: "p2", label: "200 Collins Street, Melbourne VIC" }], details: (id) => id === "p2" ? pending.promise : Promise.resolve(detail("300 Collins St, Melbourne VIC 3000")) });
+    const input = await typeAndWait(r, "200 Collins Street Melbourne");
+    await act(async () => { fireEvent.pointerDown(r.getByRole("option")); });
+    expect(r.state.value).toBe("200 Collins Street, Melbourne VIC");
+    fireEvent.pointerDown(document.body); // click "Business details" heading
+    fireEvent.focus(input); fireEvent.change(input, { target: { value: "300 Collins Street Melbourne" } });
+    expect(r.state.value).toBe("300 Collins Street Melbourne");
+    expect(r.pendingStates).toEqual([true, false]);
+    await act(async () => { await new Promise((done) => setTimeout(done, 330)); });
+    expect(r.getByRole("option").textContent).toBe("300 Collins Street, Melbourne VIC");
+    // The cancelled 200 lookup resolving late must not overwrite the new text.
+    await act(async () => { pending.resolve(detail("200 Collins St, Melbourne VIC 3000")); });
+    expect(r.state.value).toBe("300 Collins Street Melbourne");
+    expect(r.state.resolved).toBeNull();
+    await act(async () => { fireEvent.pointerDown(r.getByRole("option")); });
+    expect(r.state.resolved?.label).toBe("300 Collins St, Melbourne VIC 3000");
+    expect(r.pendingStates).toEqual([true, false, true, false]);
+  });
+
+  test("mobile blur echo of the picked label does not cancel the pending pick", async () => {
+    const pending = deferred<ResolvedAddress | null>();
+    const r = harness({ search: async () => [{ id: "p1", label: "30 Dash Street, Richmond VIC 3121" }], details: () => pending.promise });
+    const input = await typeAndWait(r);
+    await act(async () => { fireEvent.pointerDown(r.getByRole("option")); });
+    fireEvent.change(input, { target: { value: "30 Dash Street, Richmond VIC 3121" } });
+    await act(async () => { pending.resolve(detail()); });
+    expect(r.state.resolved?.postcode).toBe("3121");
+    expect(r.pendingStates).toEqual([true, false]);
+  });
 });
