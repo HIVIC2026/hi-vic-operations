@@ -1,5 +1,6 @@
 // Central stage guards against an in-memory fake database (no network, no real writes).
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { PAYMENT_RULE_PENDING } from "../src/lib/payment-gate.core";
 
 type Row = Record<string, unknown>;
 let tables: Record<string, Row[]> = {};
@@ -79,9 +80,9 @@ describe("existing guards unchanged", () => {
     seed();
     expect(await stageEntryBlockers(J, "ready_for_veec")).toContain(ASSIGNMENT_VEEC_BLOCKER);
     seed({ invoices: [{ id: "inv", job_id: J, kind: "installation", deposit_paid_at: null }] });
-    expect((await stageEntryBlockers(J, "rectification_scheduling")).some((b) => b.startsWith("50% deposit not paid"))).toBe(true);
+    expect((await stageEntryBlockers(J, "rectification_scheduling")).some((b) => b === PAYMENT_RULE_PENDING)).toBe(true); // switch off: no 50% fallback
     seed();
-    expect(await stageEntryBlockers(J, "installation_scheduling")).toEqual([]);
+    expect(await stageEntryBlockers(J, "installation_scheduling")).toEqual([PAYMENT_RULE_PENDING]);
   });
 });
 
