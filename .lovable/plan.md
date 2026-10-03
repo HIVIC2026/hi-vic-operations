@@ -4,7 +4,7 @@
 Each part of the form starts with one clear question written as a full sentence, for example "Is everything in this section safe and compliant?" If the answer is yes, the form moves on. If the answer is no, the form asks the person to tick what the problem is. Each item to tick is also written as a full, plain sentence. The meaning always stays faithful to the official form.
 
 **Short PIESA (electrician):**
-1. "Does anyone at this property rely on life support equipment?" If yes: "Have you received written consent or a medical plan? Please attach a photo of it."
+1. Life support is already known from the enquiry, so the form shows it and asks the electrician to confirm it: "Our records show that [nobody at this property relies on life support equipment / someone at this property relies on life support equipment]. Is this still correct?" If someone does rely on life support and the consent or medical plan hasn't been received yet: "Have you received written consent or a medical plan? Please attach a photo of it." If that is missing, the form says clearly that the installation cannot go ahead.
 2. "Is the mains power set-up safe? This means the mains cable in the ceiling is identified and marked, the main switch works and can be locked off, the ceiling is confirmed dead when the switch is off, and RCDs are fitted and tested." If no: "Please tick each item that is not right," followed by each item as its own sentence.
 3. "Is there solar, a battery or a generator at the property?" If yes: "Can it be safely shut down, and are its cables in the ceiling labelled, in conduit and protected?" If no to that: "Please tick each item that is not right."
 4. "Are the cables, connections and fittings in the ceiling safe to work around and cover with insulation?" If no: "Please tick each problem you found." The list covers each Part 4 and Part 5 item, written as a sentence.
@@ -17,7 +17,7 @@ Each part of the form starts with one clear question written as a full sentence,
 
 **Short PIISA (installer):**
 1. "Please check the installation dates. Has the household been told the power will be off during the installation?" The dates are filled in from the booking.
-2. "The electrical safety assessment recorded the following about life support: … Is this still correct?"
+2. "Our records show that [nobody at this property relies on life support equipment / someone at this property relies on life support equipment, and written consent or a medical plan has been received]. Is this still correct?" If it is no longer correct, the form stops the installer and tells them to call the office before starting.
 3. "Please confirm who is on the crew today." Workers are picked from the approved list, and their EEC numbers are filled in automatically.
 4. "Has the Safe Work Method Statement been completed, have the common hazards been considered, and has the power been isolated, locked out and tagged?" If no, the form says clearly: "The installation cannot go ahead until this is done."
 5. "Have you read the electrical safety assessment, has nobody worked in the ceiling since it was done, and, if an electrician needs to be present today, are they here?" The downlight and cable answers are taken from the signed PIESA.
