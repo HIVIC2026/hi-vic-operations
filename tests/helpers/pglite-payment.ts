@@ -3,7 +3,8 @@
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 
-const read = (f: string) => readFileSync(new URL(`../../docs/pending-migrations/${f}`, import.meta.url), "utf8");
+const read = (f: string) =>
+  readFileSync(new URL(`../../docs/pending-migrations/${f}`, import.meta.url), "utf8");
 export const PAY_SQL = read("0080_payment_option_gate.sql");
 export const PAY_ROLLBACK_SQL = read("0080_payment_option_gate.rollback.sql");
 
@@ -74,10 +75,22 @@ export async function paymentDb(total = 10_000) {
 }
 
 export async function asUser<T>(db: PGlite, user: string, fn: () => Promise<T>): Promise<T> {
-  await db.exec(`SET ROLE authenticated; SELECT set_config('request.jwt.claim.sub', '${user}', false);`);
-  try { return await fn(); } finally { await db.exec(`RESET ROLE; SELECT set_config('request.jwt.claim.sub', '', false);`); }
+  await db.exec(
+    `SET ROLE authenticated; SELECT set_config('request.jwt.claim.sub', '${user}', false);`,
+  );
+  try {
+    return await fn();
+  } finally {
+    await db.exec(`RESET ROLE; SELECT set_config('request.jwt.claim.sub', '', false);`);
+  }
 }
 
 export async function cleared(db: PGlite, inv: string, user = PID.office): Promise<boolean> {
-  return asUser(db, user, async () => (await db.query<{ c: boolean }>(`SELECT public.invoice_deposit_cleared('${inv}') AS c`)).rows[0].c);
+  return asUser(
+    db,
+    user,
+    async () =>
+      (await db.query<{ c: boolean }>(`SELECT public.invoice_deposit_cleared('${inv}') AS c`))
+        .rows[0].c,
+  );
 }
