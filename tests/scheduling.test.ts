@@ -101,7 +101,7 @@ describe("reassignment", () => {
     const b = src("src/lib/booking.server.ts");
     expect(b).toContain("installationDateBlocker(");
     expect(b).toContain("bookingLeadBlocker(");
-    expect(b).toContain("depositCleared(");
+    expect(b).toContain("paymentGate(");
     expect(b).toContain("commercialBlocker(");
   });
 });

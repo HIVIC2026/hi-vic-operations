@@ -35,7 +35,8 @@ describe("one invoice per accepted quote", () => {
     expect(r.created).toBe(true);
     expect(m.rows.length).toBe(1);
     expect(r.row.total_inc_gst).toBe(3330);
-    expect(r.row.deposit_amount).toBe(1665);
+    expect(r.row.deposit_amount).toBe(333); // 10% minimum under $20,000
+    expect(r.row.deposit_pct).toBe(0.1);
     expect(r.row.balance_due_date).toBeNull(); // final due date pending until installation booked
   });
   test("retry / concurrent acceptance never creates a second invoice record", async () => {
@@ -49,7 +50,7 @@ describe("one invoice per accepted quote", () => {
   test("non-accepted quote raises nothing", async () => {
     await expect(ensureInvoice(memStore().store, quote(3330, "issued"), "2026-09-28")).rejects.toThrow("not accepted");
   });
-  test("odd-cent 50% threshold is currency-safe", () => {
+  test("odd-cent minimum-deposit threshold is currency-safe", () => {
     for (const t of [3000.01, 0.01, 1271.57, 999.99]) {
       const { deposit, balance } = splitTotal(t);
       expect(Math.round((deposit + balance) * 100)).toBe(Math.round(t * 100));
@@ -59,19 +60,19 @@ describe("one invoice per accepted quote", () => {
 
 describe("deposit gate on the one invoice", () => {
   async function inv() { return (await ensureInvoice(memStore().store, quote(3330), "2026-09-28")).row; }
-  test("partial payment below 50% does not unlock", async () => {
+  test("one cent below the 10% minimum does not unlock", async () => {
     const r = await inv();
-    const { patch, events } = paymentPatch(r, 1664.99, null, "2026-09-28T00:00:00Z"); apply(r, patch);
+    const { patch, events } = paymentPatch(r, 332.99, null, "2026-09-28T00:00:00Z"); apply(r, patch);
     expect(events).toEqual([]);
     expect(depositGateCleared(r, 0)).toBe(false);
   });
-  test("cumulative ≥ 50% unlocks, dated when Xero payments reached 50%", async () => {
+  test("cumulative ≥ minimum unlocks, dated when Xero payments reached it", async () => {
     const r = await inv();
-    const { patch, events } = paymentPatch(r, 1700, "2026-09-27T01:00:00.000Z", "2026-09-28T00:00:00Z"); apply(r, patch);
+    const { patch, events } = paymentPatch(r, 400, "2026-09-27T01:00:00.000Z", "2026-09-28T00:00:00Z"); apply(r, patch);
     expect(events).toEqual(["deposit_paid"]);
     expect(r.deposit_paid_at).toBe("2026-09-27T01:00:00.000Z");
     expect(depositGateCleared(r, 0)).toBe(true);
-    const ev = evaluateXeroInvoice({ Status: "AUTHORISED", AmountPaid: 1700, Payments: [{ Date: "/Date(1000)/", Amount: 1000 }, { Date: "/Date(2000)/", Amount: 700 }] }, 1665);
+    const ev = evaluateXeroInvoice({ Status: "AUTHORISED", AmountPaid: 400, Payments: [{ Date: "/Date(1000)/", Amount: 300 }, { Date: "/Date(2000)/", Amount: 100 }] }, 333);
     expect(ev.depositPaidAt).toBe(new Date(2000).toISOString());
   });
   test("full payment marks fully paid", async () => {
@@ -83,8 +84,8 @@ describe("deposit gate on the one invoice", () => {
     const r = await inv();
     apply(r, depositRequestPatch(r, "admin1", "2026-09-28T00:00:00Z"));
     expect(r.deposit_request_raised_at).toBe("2026-09-28T00:00:00Z");
-    expect(r.deposit_request_amount).toBe(1665);
-    expect(r.deposit_request_pct).toBe(50);
+    expect(r.deposit_request_amount).toBe(333);
+    expect(r.deposit_request_pct).toBe(10);
     expect(r.deposit_request_raised_by).toBe("admin1");
     expect(depositGateCleared(r, 0)).toBe(false);
     expect(() => depositRequestPatch(r, "admin1", "x")).toThrow("already");

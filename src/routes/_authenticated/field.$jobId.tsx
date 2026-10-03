@@ -95,7 +95,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
   return (
     <>
       {["rectification_scheduling", "rectification_booked", "awaiting_deposit_payment"].includes(stage) && (
-        stage === "awaiting_deposit_payment" ? <Section title="Rectification booking"><p className="text-sm font-medium text-danger">Locked – awaiting owner's 50% deposit. Booking details will appear here once paid.</p></Section> : <BookingPanel jobId={jobId} kind="rectification" canBook />
+        stage === "awaiting_deposit_payment" ? <Section title="Rectification booking"><p className="text-sm font-medium text-danger">Locked – awaiting the owner's approved payment option. Booking details will appear here once paid.</p></Section> : <BookingPanel jobId={jobId} kind="rectification" canBook />
       )}
       {stage === "rectification_booked" && <PiesaForm jobId={jobId} kind="post_rectification" title="Rectification complete – record PIESA sign-off" />}
       {expired && <PiesaForm jobId={jobId} kind="reassessment" title="PIESA window expired – record reassessment" />}
@@ -223,7 +223,7 @@ function InstallerFlow({ jobId, stage }: { jobId: string; stage: string }) {
           </dl>
         </Section>
       )}
-      {stage === "awaiting_deposit_payment" && <Section title="Installation booking"><p className="text-sm font-medium text-danger">Locked – awaiting owner's 50% deposit.</p></Section>}
+      {stage === "awaiting_deposit_payment" && <Section title="Installation booking"><p className="text-sm font-medium text-danger">Locked – awaiting the owner's approved payment option.</p></Section>}
       {["installation_scheduling", "installation_booked"].includes(stage) && <BookingPanel jobId={jobId} kind="installation" canBook />}
       {a && ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling"].includes(stage) && <Section title="Scope">
         <p className="text-sm">Install ceiling insulation to {Number(a.measured_area_m2)} m²{a.removal_required ? `, remove ${a.removal_m2} m² existing` : ""}. Access: {a.access_difficulty}.</p></Section>}

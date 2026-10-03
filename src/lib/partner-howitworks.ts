@@ -16,7 +16,7 @@ export const OPTION_OWN_CUSTOMER: { title: string; tagline: string; steps: HowSt
     { n: 3, title: "We contact the owner", body: "As the Accredited Person, the law makes us responsible for the owner's eligibility, consent, the electrical safety check and the VEEC assignment. We must hear it from the owner directly — we can't take it second-hand." },
     { n: 4, title: "Electrical safety assessment (PIESA)", body: "The owner is charged our standard $349 inc GST electrical assessment fee. We pay the approved electrician the supplier rate agreed at onboarding." },
     { n: 5, title: "One co-branded quote", body: "Your branding plus ours, showing your price, the safety check, our Accredited Person fee and the VEU discount. The owner e-signs it in their portal." },
-    { n: 6, title: "We invoice and chase payment", body: "Including the 50% deposit before any work is scheduled. You never chase money." },
+    { n: 6, title: "We invoice and chase payment", body: "Including the approved upfront payment before any work is scheduled. You never chase money." },
     { n: 7, title: "You install", body: "Submit your photos and installer declaration through the app the same day. We do the Accredited Person review and lodge the VEECs." },
     { n: 8, title: "You get paid", body: "Your quoted price, once the owner's invoice is paid in full. Home Insulation Victoria does not charge installers or electricians a lead fee." },
   ],
@@ -52,7 +52,7 @@ export const PAYMENT_TERMS = {
   title: "Payment terms — both options",
   points: [
     "One co-branded invoice goes to the owner.",
-    "50% deposit before any work is scheduled — no deposit, no booking.",
+    "An approved payment option before any work is scheduled — no verified payment, no booking.",
     "The balance is due on the install day.",
     "We chase all payment. You never have to.",
     "You're paid your agreed amount once the owner's invoice is paid in full.",
@@ -163,7 +163,7 @@ export const PARTNER_FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: "Who sends the quote? Who chases payment?",
-    a: "We do both. One co-branded quote and invoice, the 50% deposit before scheduling, the balance on install day. You never chase money.",
+    a: "We do both. One co-branded quote and invoice, an approved payment option before scheduling, the balance on install day. You never chase money.",
   },
   {
     q: "The owner turns out ineligible — what happens to my time and fees?",

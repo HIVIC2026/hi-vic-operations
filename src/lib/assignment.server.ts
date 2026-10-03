@@ -1,3 +1,5 @@
+import { requiredDepositCents } from "./payment-gate.core";
+import { depositPctFor } from "@/config/workflow-decisions";
 // CENTRAL signing records (server-only, service role, after caller checks):
 //   customer_agreements  – Customer Agreement / Quote Acceptance (commercial; unlocks invoice/deposit only)
 //   installer_declarations – post-install installer declaration with installed product / R-value / area
@@ -70,7 +72,7 @@ export async function buildAcceptancePackage(quoteId: string) {
     quoted_product: product, quoted_area_m2: m?.measured_area_m2 != null ? Number(m.measured_area_m2) : null,
     price_before_benefit_inc_gst: Number(q.subtotal_inc_gst), veu_benefit_inc_gst: Number(q.veec_discount_inc_gst), final_customer_price_inc_gst: total,
     rectification_scope: (rect ?? []).map((r) => r.description),
-    payment_terms: `One Xero invoice for ${total.toFixed(2)} inc GST. 50% deposit (${(total / 2).toFixed(2)}) due immediately; balance due on the installation day. No rectification or installation can be scheduled until the deposit is paid.`,
+    payment_terms: `One Xero invoice for ${total.toFixed(2)} inc GST. An approved payment option is required before the PIESA or any rectification or installation is scheduled: minimum upfront deposit ${(requiredDepositCents(total) / 100).toFixed(2)} (${depositPctFor(total)}%), paid in full, or an active 3-instalment plan. Remaining balance due on the installation day.`,
     ap_legal_entity: AP_LEGAL_ENTITY,
   };
 }

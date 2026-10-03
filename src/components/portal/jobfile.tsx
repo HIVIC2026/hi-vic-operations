@@ -36,7 +36,7 @@ export function JobFileHeader({ jobId, job }: { jobId: string; job: JobRow }) {
   if (job.piesa_expired) warnings.push({ t: "bad", text: "PIESA expired – reassess before install" });
   else if (job.install_deadline) warnings.push({ t: job.urgency === "urgent" ? "bad" : "info", text: `Install by ${fmtDate(job.install_deadline)} (PIESA +30 days)` });
   if (h?.escDueBy && h.escStatus !== "sent") warnings.push({ t: "warn", text: `ESC notice due by ${fmtDT(h.escDueBy)}` });
-  if (job.payment_status && !job.deposit_cleared && ["deposit_due", "invoice_created", "overdue"].includes(job.payment_status)) warnings.push({ t: "bad", text: "50% deposit outstanding" });
+  if (job.payment_status && !job.deposit_cleared && ["deposit_due", "invoice_created", "overdue"].includes(job.payment_status)) warnings.push({ t: "bad", text: "Approved payment option not yet verified" });
   const showReady = ["installation_scheduling", "installation_booked", "evidence_outstanding"].includes(job.stage ?? "");
   return (
     <div className="mb-4 rounded-xl border bg-card p-4">

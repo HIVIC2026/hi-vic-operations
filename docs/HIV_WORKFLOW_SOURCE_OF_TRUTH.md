@@ -47,7 +47,9 @@ Preliminary labels: "Preliminary: likely eligible", "Looking good - needs onsite
 - Missing, conflicting or unclear evidence → needs_review.
 
 ## Payment gate
-Retired: 50% deposit gate; `AmountPaid >= 50%` as PIESA unlock.
+Retired: 50% deposit gate; `AmountPaid >= 50%` as PIESA unlock; `total / 2`; `deposit_pct: 0.5`; and the texts "Waiting on 50% deposit payment in Xero", "Owner to pay 50% deposit", "Booking opens as soon as your 50% deposit", "Locked - awaiting owner's 50% deposit".
+
+Implementation (pending live migration 0080): pure rule `evaluatePaymentGate` / `piesaRequestBlockers` in `src/lib/payment-gate.core.ts`, mirrored by `invoice_deposit_cleared` in SQL. Switch `payment_option_gate_enabled` defaults OFF; while OFF, PIESA and scheduling are blocked with "payment rule pending activation" (no 50% fallback). 10%/5% is the minimum upfront payment (rounded up to the cent); paying more counts, one cent short does not. A 3-instalment plan counts only when office approved the current quote's plan, the owner accepted the terms, the first instalment is verified in Xero, a payment method/collection arrangement is recorded, and it is not cancelled/failed/overdue/superseded. Installer-supplied and unknown sources: payment-rule exception.
 PIESA only after: Ready Check complete, verified eligible, current confirmed quote version approved, approved payment option verified:
 1. Upfront deposit paid — 10% under $20,000, 5% at/over $20,000 (pending legal confirmation);
 2. Paid in full; or

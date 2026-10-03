@@ -7,22 +7,21 @@ const ROOT = new URL("..", import.meta.url).pathname;
 type Kind = "customer-visible" | "test-only" | "doc-only" | "internal-identifier";
 type Hit = { file: string; line: number; term: string; kind: Kind; action: string };
 
-const TERMS: { term: string; re: RegExp; action: string }[] = [
+const TERMS: { term: string; re: RegExp; action: string; strict?: boolean }[] = [
   {
     term: "HI VIC / HI VIC! / HIVIC",
     re: /\bHI ?VIC!?(?![a-z_])/g,
     action: 'Replace visible text with "Home Insulation Victoria"',
   },
-  {
-    term: "50% deposit",
-    re: /50 ?% deposit|deposit[^.\n]{0,20}50 ?%/gi,
-    action: "Replace with the approved payment-option gate",
-  },
-  {
-    term: "AmountPaid >= 50%",
-    re: /AmountPaid\s*>=\s*(50|0?\.5)\b/gi,
-    action: "Retired PIESA unlock rule",
-  },
+  // Retired payment rule (owner decision 2026-10-03). strict = fails in ANY src file, comments included.
+  { term: "50% deposit", re: /50 ?% deposit|deposit[^.\n]{0,20}50 ?%|50 ?% of (this|the) invoice/gi, action: "Replace with the approved payment-option gate", strict: true },
+  { term: "total / 2", re: /total(_inc_gst)?\)? ?\/ ?2\b/g, action: "Deposit is the configured minimum (requiredDepositCents)", strict: true },
+  { term: "deposit_pct: 0.5", re: /deposit_pct:? ?0?\.50*\b|deposit_pct \?\? 0\.5/g, action: "Deposit % comes from depositPctFor", strict: true },
+  { term: "AmountPaid >= 50%", re: /AmountPaid\s*(>=|≥)\s*(50 ?%?|0?\.5)/gi, action: "Retired PIESA unlock rule", strict: true },
+  { term: "Waiting on 50% deposit payment in Xero", re: /Waiting on 50 ?% deposit/gi, action: "Retired status text", strict: true },
+  { term: "Owner to pay 50% deposit", re: /Owner to pay 50 ?%/gi, action: "Retired next action", strict: true },
+  { term: "Booking opens as soon as your 50% deposit", re: /Booking opens as soon as your 50/gi, action: "Retired owner text", strict: true },
+  { term: "Locked - awaiting owner's 50% deposit", re: /awaiting owner'?s 50/gi, action: "Retired trade text", strict: true },
   {
     term: "combined Ready Check + PIESA",
     re: /combined ready check|ready check \+ piesa/gi,
@@ -61,6 +60,8 @@ const ALLOWED = [/business_unit/, /'hivic'/];
 // and Mitti question labels that the label-based sync parser matches on.
 const RETAINED: { file: RegExp; re: RegExp; why: string }[] = [
   { file: /./, re: /"HIVIC-[A-Z-]+"/, why: "Internal rule code" },
+  // Signed installer agreement text: changes only with a new admin-approved agreement version (hash-locked).
+  { file: /^src\/lib\/installer-agreement\.text\.ts$/, re: /50 ?% deposit/, why: "Signed agreement text – needs approved new version" },
   {
     file: /^src\/lib\/mitti-forms\.core\.ts$/,
     re: /HI VIC/,
@@ -87,11 +88,12 @@ const SELF = new Set([
   "src/routeTree.gen.ts",
 ]);
 
-function kindOf(file: string, text: string): Kind {
+function kindOf(file: string, text: string, strict = false): Kind {
   if (file.startsWith("tests/")) return "test-only";
   if (file.startsWith("docs/") || file.endsWith(".md")) return "doc-only";
   const line = text.trim();
   if (RETAINED.some((r) => r.file.test(file) && r.re.test(text))) return "internal-identifier";
+  if (strict && /^(src|scripts)\//.test(file)) return "customer-visible";
   if (/^(\/\/|\*|\/\*|--)/.test(line)) return "internal-identifier";
   if (/^src\/(routes|components)\/.*\.tsx$/.test(file)) return "customer-visible";
   if (/["'`>][^"'`<]*HI ?VIC|HI ?VIC[^"'`<]*["'`<]/.test(text) || file.endsWith(".html"))
@@ -132,7 +134,7 @@ export function scan(): Hit[] {
                 file,
                 line: i + 1,
                 term: t.term,
-                kind: kindOf(file, text),
+                kind: kindOf(file, text, t.strict),
                 action: t.action,
               });
           }

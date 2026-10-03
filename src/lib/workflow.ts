@@ -97,7 +97,7 @@ export const DEFAULT_NEXT_ACTION: Record<Stage, string> = {
   assessment_complete: "Review assessment outcome",
   rectification_required: "Issue rectification quote",
   awaiting_owner_rectification_approval: "Owner to approve rectification quote",
-  awaiting_deposit_payment: "Owner to pay 50% deposit (Xero invoice)",
+  awaiting_deposit_payment: "Owner to complete approved payment option (Xero invoice)",
   rectification_scheduling: "Owner & electrician to book rectification",
   rectification_booked: "Electrician to complete rectification & PIESA",
   ready_for_installer_quotes: "Generate installer quotes",

@@ -1,4 +1,6 @@
 import { useRef, useState } from "react";
+import { requiredDepositCents } from "@/lib/payment-gate.core";
+import { depositPctFor } from "@/config/workflow-decisions";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, FileUp, Lock, Paperclip, ShieldAlert } from "lucide-react";
@@ -274,7 +276,7 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
               {Number(q.veec_discount_inc_gst) > 0 && <li className="flex justify-between text-success"><span>VEEC discount</span><span>−{aud(q.veec_discount_inc_gst)}</span></li>}
             </ul>
             <div className="mt-2 border-t pt-2 text-lg font-bold">{aud(q.customer_total_inc_gst)} <span className="text-xs font-normal text-muted-foreground">inc GST</span></div>
-            <div className="text-xs text-muted-foreground">{q.kind === "rectification" ? "Scope approval – included in your final installation quote (no payment yet)" : `50% deposit ${aud(Number(q.customer_total_inc_gst) / 2)} due on acceptance · balance on installation day`}</div>
+            <div className="text-xs text-muted-foreground">{q.kind === "rectification" ? "Scope approval – included in your final installation quote (no payment yet)" : `Minimum upfront deposit ${aud(requiredDepositCents(q.customer_total_inc_gst) / 100)} (${depositPctFor(Number(q.customer_total_inc_gst))}%), paid in full, or an approved 3-instalment plan · balance on installation day`}</div>
             {canRespond && q.status === "issued" && (
               <div className="mt-3 flex gap-2">
                 {q.kind === "installation"
@@ -306,7 +308,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
   const { data: internals } = useQuery({ queryKey: ["invoice-internals", jobId], enabled: isAdmin, queryFn: () => internalsFn({ data: { jobId } }) });
   return (
     <Section title="Xero invoice & payments">
-      {!data?.length && <p className="text-sm text-muted-foreground">No invoice yet – one Xero invoice for the full accepted price is raised when the owner accepts the final installation quote. 50% is required before scheduling; the rest is due on installation day.</p>}
+      {!data?.length && <p className="text-sm text-muted-foreground">No invoice yet – one Xero invoice for the full accepted price is raised when the owner accepts the final installation quote. An approved payment option (minimum upfront deposit, paid in full, or an active 3-instalment plan) is required before the PIESA or any scheduling; the rest is due on installation day.</p>}
       <div className="space-y-3">
         {(data ?? []).map((i) => {
           const x = internals?.invoices.find((v) => v.id === i.id);
@@ -320,18 +322,18 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
               </div>
               <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 <div><dt className="text-xs text-muted-foreground">Total accepted price (inc GST)</dt><dd className="font-medium">{aud(i.total_inc_gst)}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">50% deposit required</dt><dd className="font-medium">{aud(i.deposit_amount)} {i.deposit_paid_at ? <span className="text-xs text-success">paid {fmtDate(i.deposit_paid_at)}</span> : i.deposit_cleared ? <span className="text-xs text-success">cleared</span> : <span className="text-xs text-danger">not yet paid</span>}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Minimum upfront deposit</dt><dd className="font-medium">{aud(i.deposit_amount)} {i.deposit_paid_at ? <span className="text-xs text-success">paid {fmtDate(i.deposit_paid_at)}</span> : i.deposit_cleared ? <span className="text-xs text-success">cleared</span> : <span className="text-xs text-danger">not yet paid</span>}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Paid to date</dt><dd className="font-medium">{aud(i.total_paid)}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Remaining balance</dt><dd className="font-medium">{aud(remaining)} {i.balance_paid_at && <span className="text-xs text-success">fully paid {fmtDate(i.balance_paid_at)}</span>}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Final due date (installation day)</dt><dd className="font-medium">{i.balance_due_date ? fmtDate(i.balance_due_date) : <span className="text-xs text-muted-foreground">Pending – set when installation is booked</span>}</dd></div>
               </dl>
               {i.xero_online_url && <a href={i.xero_online_url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-semibold text-primary underline">View / pay invoice</a>}
-              {!i.deposit_cleared && <p className="mt-2 flex items-center gap-1 rounded bg-danger-soft px-2 py-1 text-xs font-semibold text-danger"><Lock className="h-3 w-3" /> Rectification and installation scheduling are locked until at least 50% of this invoice is paid.</p>}
+              {!i.deposit_cleared && <p className="mt-2 flex items-center gap-1 rounded bg-danger-soft px-2 py-1 text-xs font-semibold text-danger"><Lock className="h-3 w-3" /> PIESA, rectification and installation scheduling are locked until an approved payment option is verified.</p>}
               {isAdmin && x && (
                 <>
                   {x.deposit_request_raised_at
                     ? <p className="mt-2 rounded bg-muted px-2 py-1 text-xs">Native Xero {Number(x.deposit_request_pct ?? 50)}% deposit request raised ({aud(x.deposit_request_amount)}) by {x.deposit_request_raised_by_name ?? "admin"} on {fmtDateTime(x.deposit_request_raised_at)}. Scheduling still waits for Xero to confirm payment.</p>
-                    : <p className="mt-2 rounded bg-warning-soft px-2 py-1 text-xs font-semibold">50% deposit request must be raised in Xero (Invoice → Request deposit), then mark it raised here.</p>}
+                    : <p className="mt-2 rounded bg-warning-soft px-2 py-1 text-xs font-semibold">Deposit request must be raised in Xero (Invoice → Request deposit), then mark it raised here.</p>}
                   <dl className="mt-3 grid grid-cols-2 gap-1 rounded bg-muted p-2 text-xs sm:grid-cols-3">
                     <div><dt className="text-muted-foreground">Xero contact</dt><dd className="break-all">{x.xero_contact_id ?? "—"}</dd></div>
                     <div><dt className="text-muted-foreground">Xero invoice ID</dt><dd className="break-all">{x.xero_invoice_id ?? "—"}</dd></div>
@@ -348,7 +350,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
               {isAdmin && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {internals?.xeroAllowed !== false && <Button size="sm" variant="outline" disabled={!!x?.sync_lock_at && Date.now() - Date.parse(x.sync_lock_at) < 120000} onClick={() => sync({ invoiceId: i.id }, "Xero sync finished")}>{x?.xero_invoice_id ? "Sync with Xero" : "Send to Xero (safe retry)"}</Button>}
-                  {internals?.xeroAllowed && x?.xero_invoice_id && !x.deposit_request_raised_at && <Button id="target-deposit-request" data-portal-focus="target" size="sm" variant="outline" onClick={() => { if (confirm(`Confirm the native Xero 50% deposit request (${aud(i.deposit_amount)}) has been raised in Xero? This does not unlock scheduling.`)) markRaised({ invoiceId: i.id }, "Deposit request recorded"); }}>Mark deposit request raised</Button>}
+                  {internals?.xeroAllowed && x?.xero_invoice_id && !x.deposit_request_raised_at && <Button id="target-deposit-request" data-portal-focus="target" size="sm" variant="outline" onClick={() => { if (confirm(`Confirm the native Xero deposit request (${aud(i.deposit_amount)}) has been raised in Xero? This does not unlock scheduling.`)) markRaised({ invoiceId: i.id }, "Deposit request recorded"); }}>Mark deposit request raised</Button>}
                   {!i.deposit_cleared && <Button size="sm" variant="outline" onClick={() => { const r = prompt("Reason for overriding the deposit gate (required, permanently audited)"); if (r) override({ invoiceId: i.id, reason: r }, "Override recorded"); }}>Override deposit gate</Button>}
                 </div>
               )}

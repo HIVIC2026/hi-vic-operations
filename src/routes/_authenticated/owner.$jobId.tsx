@@ -43,7 +43,7 @@ function OwnerJob() {
         <QuotesPanel jobId={jobId} canRespond />
         <PaymentsPanel jobId={jobId} isAdmin={false} />
         {bookKind && job.deposit_cleared && <BookingPanel jobId={jobId} kind={bookKind} canBook />}
-        {s === "awaiting_deposit_payment" && <p className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">Booking opens as soon as your 50% deposit is received.</p>}
+        {s === "awaiting_deposit_payment" && <p className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">Booking opens once your approved payment option is confirmed: minimum upfront deposit, paid in full, or an active 3-instalment plan.</p>}
         {job.installer_name && !["assessment_booking", "assessment_booked", "awaiting_electrician"].includes(s) && <ChangeTrade jobId={jobId} />}
         <DocumentsPanel jobId={jobId} />
         <MessagesPanel jobId={jobId} isAdmin={false} role="owner" />

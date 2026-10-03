@@ -12,7 +12,7 @@ type Sb = SupabaseClient<Database>;
 /**
  * Allowed forward/back transitions. on_hold/cancelled handled separately by admin.
  * Rectification path: owner approves scope -> installer quotes (incl. rectification lines, one combined total)
- * -> owner accepts -> Xero invoice -> 50% deposit -> rectification scheduling -> PIESA -> installation scheduling.
+ * -> owner accepts -> Xero invoice -> approved payment option verified -> PIESA -> rectification -> installation scheduling.
  */
 export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
   // Eligible jobs go to the free installer Ready Check first; the electrician PIESA comes later (piesa_and_install_window_pending).
@@ -26,7 +26,7 @@ export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
   ready_check_scheduled: ["ready_check_complete", "ready_check_ready_to_schedule"],
   ready_check_complete: ["measured_estimate_ready"],
   measured_estimate_ready: ["measured_quote_accepted"],
-  // The existing final-quote → one Xero invoice → 50% deposit machinery stays separate and later.
+  // PIESA entry requires Ready Check complete + verified eligible + current quote approved + approved payment option (piesaRequestBlockers).
   measured_quote_accepted: ["piesa_and_install_window_pending", "awaiting_quote_acceptance"],
   piesa_and_install_window_pending: ["piesa_scheduled"],
   piesa_scheduled: ["piesa_complete", "piesa_and_install_window_pending"],
@@ -120,20 +120,55 @@ export async function piesaStatus(jobId: string) {
   return data;
 }
 
-/** Deposit gate: the accepted installation invoice's 50% deposit is paid (Xero) OR an audited admin override exists. */
-export async function depositCleared(jobId: string) {
-  const { data: inv } = await admin
-    .from("invoices")
-    .select("id, deposit_paid_at")
-    .eq("job_id", jobId)
-    .eq("kind", "installation")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (!inv) return false;
-  if (inv.deposit_paid_at) return true;
-  const { count } = await admin.from("payment_overrides").select("id", { count: "exact", head: true }).eq("invoice_id", inv.id).eq("gate", "deposit");
-  return (count ?? 0) > 0;
+/** Feature switch for the approved payment-option gate. Missing column/row = OFF (fails closed). */
+async function paymentGateEnabled(): Promise<boolean> {
+  const { data, error } = await admin.from("workflow_settings").select("payment_option_gate_enabled" as never).eq("id", 1).maybeSingle();
+  if (error || !data) return false;
+  return (data as { payment_option_gate_enabled?: boolean }).payment_option_gate_enabled === true;
+}
+
+/** Owner-approved CURRENT confirmed installation quote: the newest issued/accepted version must be the accepted one. */
+async function currentApprovedQuote(jobId: string) {
+  const { data } = await admin.from("quotes").select("id, status, customer_total_inc_gst").eq("job_id", jobId).eq("kind", "installation")
+    .in("status", ["issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return data?.status === "accepted" ? data : null;
+}
+
+/** Approved payment-option gate (pure rule: evaluatePaymentGate). Route-aware; flag OFF blocks with "payment rule pending activation". */
+export async function paymentGate(jobId: string) {
+  const { evaluatePaymentGate, paymentRouteFor } = await import("./payment-gate.core");
+  const [enabled, quote, { data: job }] = await Promise.all([
+    paymentGateEnabled(), currentApprovedQuote(jobId), admin.from("jobs").select("channel").eq("id", jobId).single(),
+  ]);
+  const { data: inv } = quote
+    ? await admin.from("invoices").select("id, quote_id, total_inc_gst, total_paid").eq("quote_id", quote.id).maybeSingle()
+    : { data: null };
+  let plan = null; let overrideCount = 0;
+  if (inv) {
+    const [{ data: p }, { count }] = await Promise.all([
+      admin.from("instalment_plans" as never).select("quote_id, status, instalment_count, office_approved_at, owner_accepted_at, first_instalment_verified_at, collection_recorded_at" as never)
+        .eq("invoice_id" as never, inv.id as never).eq("status" as never, "active" as never).maybeSingle(),
+      admin.from("payment_overrides").select("id", { count: "exact", head: true }).eq("invoice_id", inv.id).eq("gate", "deposit"),
+    ]);
+    plan = (p as never) ?? null; overrideCount = count ?? 0;
+  }
+  return evaluatePaymentGate({ enabled, route: paymentRouteFor(job?.channel), currentQuote: quote, invoice: inv, plan, overrideCount });
+}
+
+/** True only when an approved payment option is verified (see paymentGate). */
+export async function paymentOptionCleared(jobId: string) {
+  return (await paymentGate(jobId)).cleared;
+}
+
+/** PIESA request facts: Ready Check complete, verified eligible, current quote approved, payment option verified. */
+async function piesaRequestFacts(jobId: string) {
+  const [{ count: rc }, { data: ev }, quote, payment] = await Promise.all([
+    admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("to_stage", "ready_check_complete"),
+    admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "eligibility_verified").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    currentApprovedQuote(jobId), paymentGate(jobId),
+  ]);
+  const outcome = (ev?.details as { outcome?: string } | null)?.outcome;
+  return { readyCheckComplete: (rc ?? 0) > 0, verifiedEligible: outcome === "eligible", currentQuoteApproved: !!quote, payment };
 }
 
 /** Ready Check pathway guards (pure rules in readycheck.core.ts). */
@@ -251,9 +286,14 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
     const { count } = await admin.from("quotes").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted");
     if (!count) blockers.push("Owner has not accepted the final installation quote.");
   }
-  // LOCKED PAYMENT RULE: no rectification or installation scheduling until the 50% deposit is cleared.
+  // APPROVED PAYMENT RULE: PIESA request and all scheduling require a verified approved payment option.
+  if (to === "piesa_and_install_window_pending" || to === "piesa_scheduled") {
+    const { piesaRequestBlockers } = await import("./payment-gate.core");
+    blockers.push(...piesaRequestBlockers(await piesaRequestFacts(jobId)));
+  }
   if (["rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {
-    if (!(await depositCleared(jobId))) blockers.push("50% deposit not paid – scheduling locked until Xero confirms payment.");
+    const g = await paymentGate(jobId);
+    if (!g.cleared) blockers.push(g.blocker);
   }
   if (to === "installation_scheduling" || to === "installation_booked") {
     if (rect > 0) blockers.push("Rectification works not yet completed.");

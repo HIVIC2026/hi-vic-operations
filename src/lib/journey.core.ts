@@ -19,7 +19,7 @@ export const GATES: GateDef[] = [
   { key: "enquiry", title: "Enquiry & eligibility", steps: ["new_enquiry", "eligibility_review"] },
   { key: "ready_check", title: "Ready Check / measure-up", steps: ["preliminary_estimate_ready", "ready_check_awaiting_acceptance", "ready_check_ready_to_schedule", "ready_check_scheduled", "ready_check_complete"], legacy: ["ready_check_awaiting_payment"] },
   { key: "quote", title: "Quote & acceptance", steps: ["measured_estimate_ready", "measured_quote_accepted"], legacy: ["ready_for_installer_quotes", "awaiting_quote_acceptance"] },
-  { key: "deposit", title: "50% deposit", steps: ["awaiting_deposit_payment"] },
+  { key: "deposit", title: "Payment", steps: ["awaiting_deposit_payment"] },
   { key: "piesa", title: "PIESA (electrical safety)", steps: ["piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete"], legacy: ["awaiting_electrician", "assessment_booking", "assessment_booked", "assessment_complete"] },
   { key: "rectification", title: "Rectification (only if needed)", steps: ["electrical_variation_pending", "rectification_required", "awaiting_owner_rectification_approval", "rectification_scheduling", "rectification_booked"] },
   { key: "install", title: "Installation", steps: ["installation_scheduling", "installation_booked"] },

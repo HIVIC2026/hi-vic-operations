@@ -189,7 +189,7 @@ describe("pricing & co-branding", () => {
 describe("existing gates unchanged", () => {
   test("quote acceptance stays commercial only; deposit/PIESA/ESC guards still in the single booking path", () => {
     const b = src("src/lib/booking.server.ts");
-    expect(b).toContain("installationDateBlocker"); expect(b).toContain("bookingLeadBlocker"); expect(b).toContain("depositCleared"); expect(b).toContain("commercialBlocker");
+    expect(b).toContain("installationDateBlocker"); expect(b).toContain("bookingLeadBlocker"); expect(b).toContain("paymentGate"); expect(b).toContain("commercialBlocker");
     const f = src("src/lib/pilot.functions.ts");
     expect(f).not.toMatch(/createInvoiceForQuote|pushInvoiceToXero|mitti/i);
   });

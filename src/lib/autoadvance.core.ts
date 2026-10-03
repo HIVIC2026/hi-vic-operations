@@ -60,10 +60,10 @@ export function planStep(stage: Stage, f: AdvanceFacts, opts: { allowApPromotion
       if (!f.installQuoteAccepted) return stop("Owner must accept an installation quote");
       if (!f.consumerSigned) return stop("Customer Agreement / Quote Acceptance not signed");
       if (!f.invoiceExists) return stop("Xero invoice not yet created");
-      return t("awaiting_deposit_payment", "Owner accepted final installation quote – 50% deposit due");
+      return t("awaiting_deposit_payment", "Owner accepted final installation quote – approved payment option due");
     case "awaiting_deposit_payment":
-      if (!f.depositCleared) return stop("Waiting on 50% deposit payment in Xero");
-      return f.openRectItems > 0 ? t("rectification_scheduling", "Deposit cleared – rectification scheduling unlocked") : t("installation_scheduling", "Deposit cleared – installation scheduling unlocked");
+      if (!f.depositCleared) return stop("Waiting on approved payment option (minimum deposit, paid in full or active 3-instalment plan)");
+      return f.openRectItems > 0 ? t("rectification_scheduling", "Payment option verified – rectification scheduling unlocked") : t("installation_scheduling", "Payment option verified – installation scheduling unlocked");
     case "rectification_scheduling":
       return f.rectBookingConfirmed ? t("rectification_booked", "Rectification booking confirmed") : stop("Rectification booking not confirmed");
     case "rectification_booked":

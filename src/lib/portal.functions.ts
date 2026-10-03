@@ -12,7 +12,7 @@ import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
 import { applyPaidAmount, clearInstallDueDate, createInvoiceForQuote, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
 import { buildDepositOverride, depositRequestPatch } from "./invoice.lifecycle";
-import { commercialBlocker, depositCleared } from "./workflow.server";
+import { commercialBlocker, paymentOptionCleared } from "./workflow.server";
 import { assertAgreementCanSign, assignmentEffective, buildAcceptancePackage, currentAgreement, currentAssignment, currentInstallerDeclaration, loadTemplates, prepareFinalAssignment, raiseVariation, reconfirmVariation, signCustomerAgreement, signFinalAssignment, signInstallerDecl } from "./assignment.server";
 import { ASSIGNMENT_EVENTS, parseFormFields, prefillRows, setupStatus, templateBlockers, type TemplateKey } from "./assignment.core";
 import { consentValidityBlockers } from "./consent.core";
@@ -629,10 +629,10 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
       return { ok: true };
     }
 
-    await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): 50% deposit due now, balance due on installation day.` }, { onConflict: "job_id,kind" });
+    await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): approved payment option due now (minimum upfront deposit, paid in full, or active 3-instalment plan), balance due on installation day.` }, { onConflict: "job_id,kind" });
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", q.job_id).eq("check_key", "owner_consent");
     await logEvent(q.job_id, context.userId, ASSIGNMENT_EVENTS.QUOTE_ACCEPTED, `${q.option_label} accepted with signed Customer Agreement / Quote Acceptance`, { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst });
-    await transition(q.job_id, "awaiting_deposit_payment", context.userId, "Owner accepted final installation quote – 50% deposit due");
+    await transition(q.job_id, "awaiting_deposit_payment", context.userId, "Owner accepted final installation quote – approved payment option duesit due");
     await createInvoiceForQuote(q.id, context.userId);
     await advanceAfterDeposit(q.job_id, context.userId);
     return { ok: true };
@@ -641,8 +641,8 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
 // ---------- Payments (Xero mirror + gates) ----------
 /** Deposit routing now lives in the central auto-advance helper (never bypasses blockers). */
 async function advanceAfterDeposit(jobId: string, actorId: string) {
-  if ((await getStage(jobId)) === "awaiting_deposit_payment" && (await depositCleared(jobId)))
-    await logEvent(jobId, actorId, ASSIGNMENT_EVENTS.DEPOSIT_PAID, "50% deposit confirmed – scheduling can unlock");
+  if ((await getStage(jobId)) === "awaiting_deposit_payment" && (await paymentOptionCleared(jobId)))
+    await logEvent(jobId, actorId, ASSIGNMENT_EVENTS.DEPOSIT_PAID, "Approved payment option verified – scheduling can unlock");
   await autoAdvanceJob(jobId, actorId, "payment update");
 }
 
@@ -682,7 +682,7 @@ export const overrideDepositGate = createServerFn({ method: "POST" }).middleware
     return { ok: true };
   });
 
-/** Admin records that the native Xero 50% deposit request was raised in Xero. Audited; never unlocks scheduling. */
+/** Admin records that the native Xero deposit request was raised in Xero. Audited; never unlocks scheduling. */
 export const markDepositRequestRaised = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ invoiceId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
