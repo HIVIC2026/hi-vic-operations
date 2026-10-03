@@ -14,7 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import type { Tables } from "@/integrations/supabase/types";
 import { useServerFn } from "@tanstack/react-start";
 import { getAdminPartnerEnquiries } from "@/lib/admin-records.functions";
-import { activatePartnerApplication } from "@/lib/partner-activation.functions";
+import { activatePartnerApplication, listWorkerCertifications, recordWorkerCertification } from "@/lib/partner-activation.functions";
+import type { InstData } from "@/lib/installer-onboarding.core";
 import { OnboardingDrafts } from "@/components/portal/onboarding-drafts";
 
 type Row = Tables<"partner_enquiries">;
@@ -186,6 +187,7 @@ function SignedRecAgreement({ id }: { id: string }) {
           <div>Version <b>{r.agreement_version}</b> · signed {r.signed_at ? new Date(r.signed_at).toLocaleString("en-AU") : "—"} by <b>{r.signer_name}</b> ({r.signer_position}, {r.signer_email})</div>
           <div className="break-all text-xs text-muted-foreground">SHA-256 {r.agreement_sha256} · IP {r.signed_ip ?? "—"}</div>
           {r.certificateUrl && <a className="text-primary underline" href={r.certificateUrl} target="_blank" rel="noreferrer">Open Certificate of Currency (link expires in 10 min)</a>}
+          {((r.data as InstData | null)?.installers ?? []).length > 0 && <WorkerCertifications applicationId={id} installers={(r.data as InstData).installers ?? []} />}
           {r.activation ? <p className="rounded bg-success-soft p-2 font-semibold text-success">Activated as an approved partner business on {new Date(r.activation.activated_at).toLocaleDateString("en-AU")}.</p> : <div className="space-y-2"><p className="text-xs text-muted-foreground">Approval accepts the proposed supplier rates shown in the signed agreement and creates the partner file. It does not create worker logins.</p><Button onClick={async () => { await activate({ applicationId: id }, "Partner activated"); await q.refetch(); }}>Accept rates and activate partner</Button></div>}
           <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded bg-muted p-3 text-xs">{r.agreement_text}</pre>
         </div>
@@ -194,3 +196,41 @@ function SignedRecAgreement({ id }: { id: string }) {
   );
 }
 
+
+/** Office CII verification per nominated installer. Self-declared answers are shown but never count. */
+function WorkerCertifications({ applicationId, installers }: { applicationId: string; installers: NonNullable<InstData["installers"]> }) {
+  const record = useAction(recordWorkerCertification);
+  const list = useServerFn(listWorkerCertifications);
+  const q = useQuery({ queryKey: ["worker-certs", applicationId], queryFn: () => list({ data: { applicationId } }) });
+  const [form, setForm] = useState<Record<string, { source: "certificate_sighted" | "issuer_register_checked"; note: string; number: string }>>({});
+  return (
+    <div className="rounded border p-2">
+      <div className="mb-1 font-semibold">EEC CII certification checks</div>
+      <p className="mb-2 text-xs text-muted-foreground">Activation needs at least one office-verified installer. Installers who are not verified can never be assigned. There is no override for this check.</p>
+      {q.error && <p className="text-destructive">{(q.error as Error).message}</p>}
+      {installers.map((w) => {
+        const email = (w.email ?? "").trim().toLowerCase();
+        const latest = (q.data ?? []).find((c) => c.worker_email === email);
+        const f = form[email] ?? { source: "certificate_sighted" as const, note: "", number: w.cii_certificate_number ?? "" };
+        const set = (p: Partial<typeof f>) => setForm((x) => ({ ...x, [email]: { ...f, ...p } }));
+        const submit = async (status: "verified" | "rejected") => { await record({ applicationId, workerEmail: email, status, evidenceSource: f.source, evidenceNote: f.note, certificateNumber: f.number || undefined, issuer: w.cii_issuer || undefined }, status === "verified" ? "Certification verified" : "Certification rejected"); await q.refetch(); };
+        return (
+          <div key={email} className="mt-2 border-t pt-2">
+            <div><b>{w.full_legal_name}</b> · {email}</div>
+            <div className="text-xs text-muted-foreground">Applicant declared: {w.cii_holds === "held" ? `holds CII ${w.cii_certificate_number ?? ""}, ${w.cii_issuer ?? ""}, ${w.cii_issue_date ?? ""}` : w.cii_holds === "in_training" ? "training in progress" : w.cii_holds === "not_held" ? "not certified" : "not provided (older application)"}</div>
+            <div className="mt-1">{latest ? <Badge variant={latest.status === "verified" ? "default" : "destructive"}>{latest.status === "verified" ? "Office verified" : "Rejected"} {new Date(latest.recorded_at).toLocaleDateString("en-AU")}</Badge> : <Badge variant="outline">Not verified</Badge>}</div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <select aria-label="How it was checked" className="h-9 rounded border px-2" value={f.source} onChange={(e) => set({ source: e.target.value as typeof f.source })}>
+                <option value="certificate_sighted">Certificate sighted</option>
+                <option value="issuer_register_checked">Issuer register checked</option>
+              </select>
+              <input aria-label="Certificate number checked" className="h-9 rounded border px-2" placeholder="Certificate number checked" value={f.number} onChange={(e) => set({ number: e.target.value })} />
+            </div>
+            <Textarea className="mt-2" rows={2} aria-label="Evidence checked" placeholder="What you checked (at least 10 characters)" value={f.note} onChange={(e) => set({ note: e.target.value })} />
+            <div className="mt-2 flex gap-2"><Button size="sm" onClick={() => submit("verified")}>Record verified</Button><Button size="sm" variant="outline" onClick={() => submit("rejected")}>Record not verified</Button></div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

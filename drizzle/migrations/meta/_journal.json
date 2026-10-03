@@ -568,6 +568,13 @@
       "when": 1791006704935,
       "tag": "0080_eligibility_verifications",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1791012851400,
+      "tag": "0081_installer_sign_activation",
+      "breakpoints": true
     }
   ]
 }
