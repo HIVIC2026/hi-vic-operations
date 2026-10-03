@@ -12,7 +12,7 @@ import {
   agreementText, applyMaterialReset, firstIncompleteStep, pageErrors, pageFieldErrors, resolvedBusinessAddress, parseInstallerSampleStep, visiblePageForStep, visibleSteps,
   type InstData, type ResolvedAddress, type StepKey,
 } from "@/lib/installer-onboarding.core";
-import { isAustralianAddress, isVictorianAddress, validBusinessEmail, resumeFailureMode } from "@/lib/rec-onboarding.core";
+import { isAustralianAddress, isVictorianAddress, keepPickedNumber, validBusinessEmail, resumeFailureMode } from "@/lib/rec-onboarding.core";
 import {
   confirmInstallerInsuranceUpload, getInstallerAgreement, installerInsuranceUploadUrl,
   loadInstallerOnboarding, saveInstallerOnboarding, signInstallerAgreement, startInstallerOnboarding,
