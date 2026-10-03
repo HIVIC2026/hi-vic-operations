@@ -165,14 +165,14 @@ function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = fals
   return (
     <div ref={root} style={{ position: "relative" }}>
       <input id={id} style={input} role="combobox" aria-expanded={open && items.length > 0} aria-controls={`${id}-options`} aria-autocomplete="list" aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined} autoComplete="off" placeholder="Start typing your address…" value={value}
-        onFocus={() => setFocused(true)} onChange={(e) => { searchSeq.current += 1; detailsSeq.current += 1; setLoading(false); setEdited(true); setItems([]); setActive(-1); setOpen(false); setNote(""); setAnnounce(""); onSelect(null); onChange(e.target.value); }} onBlur={() => { setFocused(false); dismiss(); }}
+        onFocus={() => setFocused(true)} onChange={(e) => { searchSeq.current += 1; detailsSeq.current += 1; setLoading(false); setEdited(true); setItems([]); setActive(-1); setOpen(false); setNote(""); setAnnounce(""); onSelect(null); onChange(e.target.value); }} onBlur={() => { setFocused(false); searchSeq.current += 1; setOpen(false); setActive(-1); }}
         onKeyDown={(e) => { if (e.key === "ArrowDown" && items.length) { e.preventDefault(); setActive((x) => (x + 1) % items.length); } else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((x) => (x - 1 + items.length) % items.length); } else if (e.key === "Enter" && open && items[active]) { e.preventDefault(); void choose(items[active]); } else if (e.key === "Escape") { e.preventDefault(); dismiss(); } }} />
       {loading && <div style={{ position: "absolute", right: 14, top: 14, fontSize: 12, color: MUTED }}>Searching…</div>}
       {open && items.length > 0 && (
         <ul id={`${id}-options`} role="listbox" aria-label="Address suggestions" style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #D7DCE8", borderRadius: 12, boxShadow: "0 12px 30px -12px rgba(34,55,107,.35)", overflow: "hidden" }}>
           {items.map((s, i) => (
             <li id={`${id}-option-${i}`} onMouseEnter={() => setActive(i)} role="option" aria-selected={active === i} key={s.id} style={{ padding: "12px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F0F2F8", background: active === i ? "#F2F4FC" : "#fff" }}
-              onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); void choose(s); }}>{s.label}</li>
+              onMouseDown={(e) => e.preventDefault()} onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); void choose(s); }}>{s.label}</li>
           ))}
         </ul>
       )}
