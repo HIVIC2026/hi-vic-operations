@@ -146,6 +146,11 @@ export function visiblePageForStep(step: string | null | undefined): StepKey {
   return REC_VISIBLE_PAGES.find((page) => page.members.some((member) => member === step))?.key ?? "about";
 }
 
+/** Canonical persisted legacy anchor for a visible page; unknown input fails safe to About you. */
+export function canonicalStepKey(step: string | null | undefined): StepKey {
+  return visiblePageForStep(step);
+}
+
 export function pageMembers(step: StepKey): readonly StepKey[] {
   return REC_VISIBLE_PAGES.find((page) => page.key === visiblePageForStep(step))?.members ?? ["about"];
 }
@@ -164,7 +169,8 @@ export const isAlwaysMandatoryStep = (step: StepKey) => ALWAYS_MANDATORY_STEPS.i
  */
 export function blockedMandatoryStep(targetStep: string, d: RecData, now = new Date()): StepKey | null {
   const order = REC_VISIBLE_PAGES.map((s) => s.key as string);
-  const target = order.indexOf(visiblePageForStep(targetStep));
+  const known = STEPS.some((step) => step.key === targetStep);
+  const target = known ? order.indexOf(visiblePageForStep(targetStep)) : -1;
   for (const m of ALWAYS_MANDATORY_STEPS) {
     const at = order.indexOf(visiblePageForStep(m));
     if ((target === -1 || target > at) && stepErrors(m, d, now).length) return m;
