@@ -10,7 +10,7 @@ const complete: InstData = {
   insurance_uploaded: true, insurer: "X", insurance_policy_number: "P1", public_liability_cover_amount: 5_000_000, public_liability_expiry: "2099-12-31",
   installers: [{ full_legal_name: "A B", qualification: "CII", mobile: "0412345679", email: "a@example.com" }],
   electrician_choice: "match", wants_hivic_leads: false, service_origin: "1 Main St, Melbourne VIC 3000", travel_radius_km: 50,
-  typical_days: ["Mon"], normal_attendance_speed: "Within 1 week", capacity_band: "4-8", gst_registered: true, r5_rate: 20, batts_removal_rate: 8, loose_fill_removal_rate: 10,
+  typical_days: ["Mon"], normal_attendance_speed: "1-2 weeks", capacity_band: "4-8", gst_registered: true, r5_rate: 20, batts_removal_rate: 8, loose_fill_removal_rate: 10,
   bank_account_name: "S", bank_bsb: "123-456", bank_account_number: "12345678", agreement_reviewed: true,
 };
 
