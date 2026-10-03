@@ -81,7 +81,7 @@ body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;} table,
 export const REC_TEMPLATE: PartnerTemplate = {
   key: "rec_invitation",
   label: "REC partnership invitation",
-  subject: "We provide the approved jobs. You bring the electrical expertise.",
+  subject: "Hundreds of homeowner enquiries—and we’re looking for great electricians",
   registrationUrl: "https://estimate.homeinsulationvictoria.com.au/electrician-onboarding",
   fileName: "rec-partnership-invitation.html",
   html: REC_INVITATION_HTML,
