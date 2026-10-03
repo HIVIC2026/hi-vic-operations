@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
   acknowledgementsFor, agreementText, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION, MIN_REC_PL_COVER,
-  applyMaterialReset, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, pageErrors, parseRecSampleStep, firstIncompleteStep, validAbn, visiblePageForStep, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
+  applyMaterialReset, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, pageErrors, pageMembers, parseRecSampleStep, firstIncompleteStep, validAbn, visiblePageForStep, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
@@ -256,7 +256,7 @@ function RecOnboarding() {
       setD(SAMPLE_REC_DATA); setToken("sample-preview-token"); setTestMode(false);
       if (sampleStep === "welcome") { setStarted(false); setStatus("draft"); }
       else if (sampleStep === "submitted") { setStarted(true); setStatus("submitted"); }
-      else { setStarted(true); setStatus("draft"); setStep(sampleStep); }
+      else { setStarted(true); setStatus("draft"); setStep(visiblePageForStep(sampleStep)); }
       setLoaded(true); return;
     }
     if (new URLSearchParams(window.location.search).get("reset") === "1") { localStorage.removeItem(TOKEN_KEY); setLoaded(true); return; }
@@ -266,18 +266,18 @@ function RecOnboarding() {
       setToken(t); setD(r.data as RecData); setBaseUpdatedAt(r.updated_at); setStatus(r.status as "draft" | "submitted"); setStarted(true);
       setIsTest(!!r.test_mode); setTestMode(!!r.relaxed);
       const first = firstIncompleteStep(r.data as RecData);
-      setStep(r.status === "submitted" ? "sign" : ((first ?? r.step_key ?? "about") as StepKey));
+      setStep(r.status === "submitted" ? "sign" : (first ?? visiblePageForStep(r.step_key)));
     }).catch(() => localStorage.removeItem(TOKEN_KEY)).finally(() => setLoaded(true));
   }, [invalidSample, sampleStep]);
   useEffect(() => {
     if (!started || status !== "draft") return;
-    const onPop = (event: PopStateEvent) => { const candidate = event.state?.recStep as StepKey | undefined; if (candidate && visibleSteps(latestData.current).some((item) => item.key === candidate)) setStep(candidate); };
+    const onPop = (event: PopStateEvent) => { const candidate = visiblePageForStep(event.state?.recStep); if (visibleSteps(latestData.current).some((item) => item.key === candidate)) setStep(candidate); };
     window.addEventListener("popstate", onPop); return () => window.removeEventListener("popstate", onPop);
   }, [started, status]);
 
   const steps = useMemo(() => visibleSteps(d), [d]);
   const idx = Math.max(0, steps.findIndex((s) => s.key === step));
-  const errs = stepErrors(step, d);
+  const errs = pageErrors(step, d);
   const up = (patch: Partial<RecData>) => setD((x) => applyMaterialReset(x, { ...x, ...patch }));
 
   async function begin() {
@@ -309,7 +309,8 @@ function RecOnboarding() {
     try {
       if (delta === 1 && d.works_under_rec === true) return;
       const underCover = step === "insurance" && d.works_under_rec !== true && typeof d.public_liability_cover_amount === "number" && d.public_liability_cover_amount < MIN_REC_PL_COVER;
-      if (delta === 1 && (underCover || (isAlwaysMandatoryStep(step) && errs.length > 0) || (errs.length && !testMode && !sampleMode))) { setShowErrors(true); return; }
+      const mandatoryGroupError = pageMembers(step).some((member) => isAlwaysMandatoryStep(member) && pageErrors(member, d).length > 0);
+      if (delta === 1 && (underCover || mandatoryGroupError || (errs.length && !testMode && !sampleMode))) { setShowErrors(true); return; }
       setShowErrors(false);
       const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "about";
       if (delta === -1) { setStep(target); window.history.pushState({ recStep: target }, ""); window.scrollTo({ top: 0 }); }
@@ -364,45 +365,28 @@ function RecOnboarding() {
   if (!started) return shell(
     <div style={{ ...card, padding: 0, overflow: "hidden" }}>
       <div style={{ height: 6, background: `linear-gradient(90deg, ${GREEN}, ${BLUE})` }} />
-      <div style={{ padding: "32px 28px 28px" }}>
+      <div style={{ padding: "28px 26px 26px" }}>
         {previewBanner}
-        <div style={{ display: "inline-block", fontSize: 12, fontWeight: 800, color: BLUE, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: DISPLAY, background: "#F2F4FC", border: `1px solid ${BLUE}22`, borderRadius: 999, padding: "5px 14px" }}>REC Partner Network</div>
-        <h1 style={{ fontSize: 30, fontWeight: 800, margin: "14px 0 10px", color: NAVY, lineHeight: 1.2 }}>Grow your electrical business with us</h1>
-        <p style={{ fontSize: 15, lineHeight: 1.65, color: MUTED, margin: 0 }}>Join Home Insulation Victoria's REC partner network for electrical safety assessments, rectification and installation-day support.</p>
-
-        <div style={{ margin: "26px 0 8px", fontFamily: DISPLAY, fontWeight: 800, fontSize: 13, color: NAVY, textTransform: "uppercase", letterSpacing: 0.8 }}>How it works</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 26 }}>
-          {[
-            { n: "1", t: "Business details", s: "Your REC, ABN and contact details" },
-            { n: "2", t: "Coverage & rates", s: "Your service area and proposed rates" },
-            { n: "3", t: "Review & sign", s: "Check everything and sign the agreement" },
-          ].map((x) => (
-            <div key={x.n} style={{ border: "1px solid #E4E8F0", borderRadius: 14, padding: "14px 14px 12px", background: "#FBFCFE" }}>
-              <div style={{ width: 26, height: 26, borderRadius: "50%", background: BLUE, color: "#fff", fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 8 }}>{x.n}</div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: NAVY, marginBottom: 3 }}>{x.t}</div>
-              <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.45 }}>{x.s}</div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ margin: "0 0 8px", fontFamily: DISPLAY, fontWeight: 800, fontSize: 13, color: NAVY, textTransform: "uppercase", letterSpacing: 0.8 }}>What you'll need</div>
-        <div style={{ border: "1px solid #E4E8F0", borderRadius: 14, padding: "6px 16px", marginBottom: 22, background: "#fff" }}>
+        <div style={{ display: "inline-block", fontSize: 12, fontWeight: 800, color: "#7B3553", textTransform: "uppercase", letterSpacing: 1.2, fontFamily: DISPLAY, background: "#FCE7F0", borderRadius: 999, padding: "5px 12px" }}>REC partners</div>
+        <h1 style={{ fontSize: 30, fontWeight: 800, margin: "14px 0 8px", color: NAVY, lineHeight: 1.2 }}>Join our <span style={{ textDecoration: "underline", textDecorationColor: "#F4A9C7", textUnderlineOffset: 5 }}>electrical</span> network</h1>
+        <p style={{ fontSize: 15, lineHeight: 1.55, color: MUTED, margin: "0 0 22px" }}>Register your REC with Home Insulation Victoria.</p>
+        <div style={{ margin: "0 0 6px", fontFamily: DISPLAY, fontWeight: 800, fontSize: 13, color: NAVY }}>What you'll need</div>
+        <div style={{ marginBottom: 20 }}>
           {[
             "REC registration + ABN",
             "Your personal Victorian electrician licence",
             "Public liability Certificate of Currency",
             "Your supplier rates + bank details",
           ].map((t, i, arr) => (
-            <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid #F0F2F8" : "none", fontSize: 14, fontWeight: 600, color: NAVY }}>
-              <span aria-hidden="true" style={{ flexShrink: 0, width: 22, height: 22, borderRadius: "50%", background: "#EAF8F0", border: `1px solid ${GREEN}55`, color: GREEN, fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>✓</span>
+            <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", padding: "7px 0", fontSize: 14, fontWeight: 600, color: NAVY }}>
+              <span aria-hidden="true" style={{ flexShrink: 0, color: GREEN, fontSize: 17, fontWeight: 900 }}>✓</span>
               {t}
             </div>
           ))}
         </div>
-
-        <p style={{ fontSize: 13, color: MUTED, lineHeight: 1.55, margin: "0 0 18px" }}>Competitive rates help us bring you more opportunities. Select <strong>Save &amp; continue</strong> after each step to save your progress on this device.</p>
         {error && <p style={{ color: "#B3261E" }}>{error}</p>}
         <button style={{ ...btn(true, busy), width: "100%", minHeight: 52, borderRadius: 16, fontSize: 15 }} disabled={busy} onClick={begin}>{busy ? "Starting…" : token ? "Continue registration →" : "Start registration →"}</button>
+        <p style={{ fontSize: 12, color: MUTED, textAlign: "center", margin: "10px 0 0" }}>Save your progress after each step.</p>
       </div>
     </div>,
   );
@@ -440,8 +424,7 @@ function RecOnboarding() {
       {previewBanner}
       {isTest && !sampleMode && <div style={{ background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#7A5A00", marginBottom: 14 }}>TEST MODE — staff test link. This application is marked as a test and won't count as a real applicant. The services confirmation is always required.</div>}
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
-      {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Nice one, {firstName(d)} — next up: {steps[idx]?.title?.toLowerCase()}.</div>}
-      {!firstName(d) && <div style={{ marginBottom: 12 }} />}
+      <div style={{ width: 34, height: 3, borderRadius: 99, background: "#F4A9C7", margin: "10px 0 18px" }} />
       <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onRevision={setBaseUpdatedAt} showErrors={showErrors} />
       {step === "sign" && <SignStep d={d} token={token ?? ""} onSigned={() => setStatus("submitted")} preview={sampleMode} />}
       {showErrors && errs.length > 0 && (
