@@ -6,7 +6,7 @@ import { withRequestMeta, withStartLimitStatus, withVisitorId } from "./request-
 import { mayRelaxRequiredSteps } from "./onboarding-security.core";
 import {
   acknowledgementsFor, REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, agreementText, applyMaterialReset,
-  blockedMandatoryStep, effectiveElectricians, firstIncompleteStep, isRecRevisionTimestamp, validBusinessEmail, type RecData,
+  blockedMandatoryStep, canonicalStepKey, effectiveElectricians, firstIncompleteStep, isRecRevisionTimestamp, validBusinessEmail, type RecData,
 } from "./rec-onboarding.core";
 
 async function sha256(s: string) {
@@ -103,7 +103,7 @@ export const saveRecOnboarding = createServerFn({ method: "POST" })
     const sec = await import("./onboarding-security.server");
     const contact = app.test_mode ? null : await sec.contactHash(next, "rec");
     if (!(app as { authorisation_id?: string | null }).authorisation_id) await sec.enforceContactCap(db as never, app.id, "rec", contact); // office/test links are staff-cleared
-    let update = db.from("rec_onboarding_applications").update({ data: next as never, step_key: data.step_key, ...(contact ? { contact_hash: contact } : {}) } as never).eq("id", app.id).eq("status", "draft");
+    let update = db.from("rec_onboarding_applications").update({ data: next as never, step_key: canonicalStepKey(data.step_key), ...(contact ? { contact_hash: contact } : {}) } as never).eq("id", app.id).eq("status", "draft");
     if (data.base_updated_at) update = update.eq("updated_at", data.base_updated_at);
     const { data: row, error } = await update.select("*").maybeSingle();
     if (!row && !error) throw new Error("Your application changed in another tab. Reload before saving again.");

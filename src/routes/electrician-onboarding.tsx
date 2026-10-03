@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
   acknowledgementsFor, agreementText, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION, MIN_REC_PL_COVER,
-  applyMaterialReset, firstName, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, parseRecSampleStep, stepErrors, firstIncompleteStep, validAbn, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
+  applyMaterialReset, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, pageErrors, pageMembers, parseRecSampleStep, firstIncompleteStep, validAbn, visiblePageForStep, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
@@ -41,7 +41,7 @@ export const Route = createFileRoute("/electrician-onboarding")({
 });
 
 const input: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #D7DCE8", fontSize: 15, fontFamily: "inherit", color: NAVY, background: "#fff", boxSizing: "border-box", minHeight: 48 };
-const card: React.CSSProperties = { background: "#fff", borderRadius: 24, padding: 24, border: `1px solid ${BLUE}1A`, boxShadow: "0 10px 30px -18px rgba(34,55,107,.35)" };
+const card: React.CSSProperties = { background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E9ECF3", boxShadow: "0 6px 20px -18px rgba(34,55,107,.32)" };
 const DISPLAY = "'Outfit', 'Figtree', system-ui, sans-serif";
 const infoCard: React.CSSProperties = { background: "#EAF8F0", border: `1px solid ${GREEN}55`, borderRadius: 14, padding: "12px 14px", fontSize: 14, color: NAVY, lineHeight: 1.5, marginBottom: 18 };
 const btn = (primary: boolean, disabled = false): React.CSSProperties => ({ minHeight: 48, padding: "0 20px", borderRadius: 12, border: primary ? "none" : `1px solid #D7DCE8`, background: primary ? (disabled ? "#9AA6D8" : BLUE) : "#fff", color: primary ? "#fff" : NAVY, fontWeight: 800, fontSize: 14, letterSpacing: 0.6, textTransform: "uppercase", cursor: disabled ? "default" : "pointer", fontFamily: "inherit" });
@@ -56,7 +56,7 @@ function Field({ label, required, hint, children }: { label: string; required?: 
   );
 }
 function Check({ checked, onChange, children, required = false, error = null }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode; required?: boolean; error?: string | null }) {
-  const box: React.CSSProperties = { display: "flex", gap: 12, alignItems: "flex-start", padding: "12px 14px", borderRadius: 12, cursor: "pointer", fontSize: 14, lineHeight: 1.5, border: error ? "1px solid #F0A6A0" : "1px solid #D7DCE8", background: error ? "#FEF4F3" : checked ? "#F2F4FC" : "#fff" };
+  const box: React.CSSProperties = { display: "flex", gap: 10, alignItems: "flex-start", padding: "7px 0", cursor: "pointer", fontSize: 14, lineHeight: 1.5, color: error ? "#8C1D18" : NAVY };
   return (
     <div style={{ marginBottom: 10 }}>
       <label style={box}>
@@ -94,7 +94,7 @@ function TickList({ items }: { items: string[] }) {
 /** A titled block that groups related fields, so a pricing step reads as sections instead of one long list. */
 function Group({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
-    <section style={{ border: "1px solid #E4E8F0", borderRadius: 16, padding: 16, marginBottom: 18, background: "#FBFCFE" }}>
+    <section style={{ borderTop: "1px solid #E4E8F0", paddingTop: 16, marginTop: 18, marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
         <strong style={{ fontFamily: DISPLAY, fontSize: 15, color: NAVY }}>{title}</strong>
         {note && <span style={{ background: "#fff", border: `1px solid ${GREEN}66`, borderRadius: 999, padding: "4px 12px", fontSize: 12.5, fontWeight: 700, color: NAVY, whiteSpace: "nowrap" }}>{note}</span>}
@@ -114,61 +114,76 @@ function RateRow({ label, unit, value, onChange, last = false }: { label: string
   );
 }
 
-/** Australian address lookup. A selected suggestion is resolved before it is accepted. */
-function AddressInput({ value, onChange, onSelect, victoriaOnly = false, id = "address" }: { value: string; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean; id?: string }) {
+/** Australian address lookup. Free text is never treated as a verified address. */
+function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = false, id = "address" }: { value: string; resolved?: ResolvedAddress | null | undefined; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean; id?: string }) {
   const [announce, setAnnounce] = useState("");
   const [items, setItems] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [note, setNote] = useState("");
   const [active, setActive] = useState(-1);
+  const [focused, setFocused] = useState(false);
+  const [edited, setEdited] = useState(false);
   const seq = useRef(0);
-  const selectedLabel = useRef<string | null>(null);
+  const root = useRef<HTMLDivElement | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; seq.current += 1; }; }, []);
+  useEffect(() => {
+    const close = (event: PointerEvent) => {
+      if (root.current && !root.current.contains(event.target as Node)) {
+        seq.current += 1; setOpen(false); setItems([]); setActive(-1); setLoading(false);
+      }
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, []);
   useEffect(() => {
     const q = value.trim();
-    if (selectedLabel.current !== null && selectedLabel.current === value) { setItems([]); setOpen(false); return; } // stays suppressed until the person edits
-    if (q.length < 4) { setItems([]); setOpen(false); return; }
+    if (!focused || !edited || (resolved && resolved.label === value)) { setItems([]); setOpen(false); return; }
+    if (q.length < 4) { setItems([]); setOpen(false); setNote(""); return; }
     const mine = ++seq.current;
     const t = setTimeout(async () => {
+      if (!mounted.current || mine !== seq.current) return;
       setLoading(true);
       try {
         const r = (await defaultAddressProvider.search(q)).slice(0, 6);
-        if (mine !== seq.current) return;
+        if (!mounted.current || mine !== seq.current) return;
         setItems(r); setActive(r.length ? 0 : -1); setOpen(true); setNote(r.length ? "" : "No Australian address matched. Keep typing and include the postcode.");
-      } catch { if (mine === seq.current) { setItems([]); setOpen(true); setNote("Address lookup is unavailable right now. Please try again."); } }
-      finally { if (mine === seq.current) setLoading(false); }
+      } catch { if (mounted.current && mine === seq.current) { setItems([]); setOpen(true); setNote("Address lookup is unavailable right now. Please try again."); } }
+      finally { if (mounted.current && mine === seq.current) setLoading(false); }
     }, 300);
-    return () => clearTimeout(t);
-  }, [value]);
+    return () => { clearTimeout(t); seq.current += 1; };
+  }, [edited, focused, resolved, value]);
   async function choose(s: AddressSuggestion) {
     const mine = ++seq.current;
-    setOpen(false); setItems([]); setActive(-1); setLoading(true); setNote("");
+    setOpen(false); setItems([]); setActive(-1); setEdited(false); setLoading(true); setNote("");
     try {
       const details = await defaultAddressProvider.details(s.id) as ResolvedAddress;
-      if (mine !== seq.current) return;
+      if (!mounted.current || mine !== seq.current) return;
       if (!isAustralianAddress(details)) throw new Error("incomplete");
       if (victoriaOnly && !isVictorianAddress(details)) {
-        onSelect(null); setOpen(true); setNote("Sorry, your service area needs to be in Victoria."); return;
+        onSelect(null); setOpen(false); setNote("Sorry, your service area needs to be in Victoria."); return;
       }
-      selectedLabel.current = details.label; onChange(details.label); onSelect(details); setOpen(false); setItems([]); setAnnounce(`Selected ${details.label}`);
-    } catch { if (mine === seq.current) { onSelect(null); setOpen(true); setNote("We couldn't verify that address. Please choose another result."); } }
-    finally { if (mine === seq.current) setLoading(false); }
+      onChange(details.label); onSelect(details); setOpen(false); setItems([]); setEdited(false); setAnnounce(`Selected ${details.label}`);
+    } catch { if (mounted.current && mine === seq.current) { onSelect(null); setOpen(false); setNote("We couldn't verify that address. Please choose another result."); } }
+    finally { if (mounted.current && mine === seq.current) setLoading(false); }
   }
+  const dismiss = () => { seq.current += 1; setOpen(false); setItems([]); setActive(-1); setLoading(false); };
   return (
-    <div style={{ position: "relative" }}>
+    <div ref={root} style={{ position: "relative" }}>
       <input id={id} style={input} role="combobox" aria-expanded={open && items.length > 0} aria-controls={`${id}-options`} aria-autocomplete="list" aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined} autoComplete="off" placeholder="Start typing your address…" value={value}
-        onChange={(e) => { seq.current++; selectedLabel.current = null; setAnnounce(""); onChange(e.target.value); onSelect(null); }} onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onKeyDown={(e) => { if (e.key === "ArrowDown" && items.length) { e.preventDefault(); setActive((x) => (x + 1) % items.length); } else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((x) => (x - 1 + items.length) % items.length); } else if (e.key === "Enter" && open && items[active]) { e.preventDefault(); void choose(items[active]!); } else if (e.key === "Escape" && open) { e.preventDefault(); setOpen(false); } }} />
+        onFocus={() => setFocused(true)} onChange={(e) => { seq.current += 1; setEdited(true); setItems([]); setOpen(false); setNote(""); setAnnounce(""); onSelect(null); onChange(e.target.value); }} onBlur={() => { setFocused(false); dismiss(); }}
+        onKeyDown={(e) => { if (e.key === "ArrowDown" && items.length) { e.preventDefault(); setActive((x) => (x + 1) % items.length); } else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((x) => (x - 1 + items.length) % items.length); } else if (e.key === "Enter" && open && items[active]) { e.preventDefault(); void choose(items[active]); } else if (e.key === "Escape") { e.preventDefault(); dismiss(); } }} />
       {loading && <div style={{ position: "absolute", right: 14, top: 14, fontSize: 12, color: MUTED }}>Searching…</div>}
       {open && items.length > 0 && (
         <ul id={`${id}-options`} role="listbox" aria-label="Address suggestions" style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #D7DCE8", borderRadius: 12, boxShadow: "0 12px 30px -12px rgba(34,55,107,.35)", overflow: "hidden" }}>
           {items.map((s, i) => (
             <li id={`${id}-option-${i}`} onMouseEnter={() => setActive(i)} role="option" aria-selected={active === i} key={s.id} style={{ padding: "12px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F0F2F8", background: active === i ? "#F2F4FC" : "#fff" }}
-              onMouseDown={(e) => { e.preventDefault(); void choose(s); }}>{s.label}</li>
+              onPointerDown={(e) => { e.preventDefault(); void choose(s); }}>{s.label}</li>
           ))}
         </ul>
       )}
-      {open && note && <div role="status" style={{ marginTop: 5, color: victoriaOnly ? "#8C1D18" : MUTED, fontSize: 12 }}>{note}</div>}
+      {note && <div role="status" style={{ marginTop: 5, color: victoriaOnly ? "#8C1D18" : MUTED, fontSize: 12 }}>{note}</div>}
       <span role="status" aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{announce}</span>
     </div>
   );
@@ -241,7 +256,7 @@ function RecOnboarding() {
       setD(SAMPLE_REC_DATA); setToken("sample-preview-token"); setTestMode(false);
       if (sampleStep === "welcome") { setStarted(false); setStatus("draft"); }
       else if (sampleStep === "submitted") { setStarted(true); setStatus("submitted"); }
-      else { setStarted(true); setStatus("draft"); setStep(sampleStep); }
+      else { setStarted(true); setStatus("draft"); setStep(visiblePageForStep(sampleStep)); }
       setLoaded(true); return;
     }
     if (new URLSearchParams(window.location.search).get("reset") === "1") { localStorage.removeItem(TOKEN_KEY); setLoaded(true); return; }
@@ -251,18 +266,18 @@ function RecOnboarding() {
       setToken(t); setD(r.data as RecData); setBaseUpdatedAt(r.updated_at); setStatus(r.status as "draft" | "submitted"); setStarted(true);
       setIsTest(!!r.test_mode); setTestMode(!!r.relaxed);
       const first = firstIncompleteStep(r.data as RecData);
-      setStep(r.status === "submitted" ? "sign" : ((first ?? r.step_key ?? "about") as StepKey));
+      setStep(r.status === "submitted" ? "sign" : (first ?? visiblePageForStep(r.step_key)));
     }).catch(() => localStorage.removeItem(TOKEN_KEY)).finally(() => setLoaded(true));
   }, [invalidSample, sampleStep]);
   useEffect(() => {
     if (!started || status !== "draft") return;
-    const onPop = (event: PopStateEvent) => { const candidate = event.state?.recStep as StepKey | undefined; if (candidate && visibleSteps(latestData.current).some((item) => item.key === candidate)) setStep(candidate); };
+    const onPop = (event: PopStateEvent) => { const candidate = visiblePageForStep(event.state?.recStep); if (visibleSteps(latestData.current).some((item) => item.key === candidate)) setStep(candidate); };
     window.addEventListener("popstate", onPop); return () => window.removeEventListener("popstate", onPop);
   }, [started, status]);
 
   const steps = useMemo(() => visibleSteps(d), [d]);
   const idx = Math.max(0, steps.findIndex((s) => s.key === step));
-  const errs = stepErrors(step, d);
+  const errs = pageErrors(step, d);
   const up = (patch: Partial<RecData>) => setD((x) => applyMaterialReset(x, { ...x, ...patch }));
 
   async function begin() {
@@ -294,7 +309,8 @@ function RecOnboarding() {
     try {
       if (delta === 1 && d.works_under_rec === true) return;
       const underCover = step === "insurance" && d.works_under_rec !== true && typeof d.public_liability_cover_amount === "number" && d.public_liability_cover_amount < MIN_REC_PL_COVER;
-      if (delta === 1 && (underCover || (isAlwaysMandatoryStep(step) && errs.length > 0) || (errs.length && !testMode && !sampleMode))) { setShowErrors(true); return; }
+      const mandatoryGroupError = pageMembers(step).some((member) => isAlwaysMandatoryStep(member) && pageErrors(member, d).length > 0);
+      if (delta === 1 && (underCover || mandatoryGroupError || (errs.length && !testMode && !sampleMode))) { setShowErrors(true); return; }
       setShowErrors(false);
       const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "about";
       if (delta === -1) { setStep(target); window.history.pushState({ recStep: target }, ""); window.scrollTo({ top: 0 }); }
@@ -349,45 +365,28 @@ function RecOnboarding() {
   if (!started) return shell(
     <div style={{ ...card, padding: 0, overflow: "hidden" }}>
       <div style={{ height: 6, background: `linear-gradient(90deg, ${GREEN}, ${BLUE})` }} />
-      <div style={{ padding: "32px 28px 28px" }}>
+      <div style={{ padding: "28px 26px 26px" }}>
         {previewBanner}
-        <div style={{ display: "inline-block", fontSize: 12, fontWeight: 800, color: BLUE, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: DISPLAY, background: "#F2F4FC", border: `1px solid ${BLUE}22`, borderRadius: 999, padding: "5px 14px" }}>REC Partner Network</div>
-        <h1 style={{ fontSize: 30, fontWeight: 800, margin: "14px 0 10px", color: NAVY, lineHeight: 1.2 }}>Grow your electrical business with us</h1>
-        <p style={{ fontSize: 15, lineHeight: 1.65, color: MUTED, margin: 0 }}>Join Home Insulation Victoria's REC partner network for electrical safety assessments, rectification and installation-day support.</p>
-
-        <div style={{ margin: "26px 0 8px", fontFamily: DISPLAY, fontWeight: 800, fontSize: 13, color: NAVY, textTransform: "uppercase", letterSpacing: 0.8 }}>How it works</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 26 }}>
-          {[
-            { n: "1", t: "Business details", s: "Your REC, ABN and contact details" },
-            { n: "2", t: "Coverage & rates", s: "Your service area and proposed rates" },
-            { n: "3", t: "Review & sign", s: "Check everything and sign the agreement" },
-          ].map((x) => (
-            <div key={x.n} style={{ border: "1px solid #E4E8F0", borderRadius: 14, padding: "14px 14px 12px", background: "#FBFCFE" }}>
-              <div style={{ width: 26, height: 26, borderRadius: "50%", background: BLUE, color: "#fff", fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 8 }}>{x.n}</div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: NAVY, marginBottom: 3 }}>{x.t}</div>
-              <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.45 }}>{x.s}</div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ margin: "0 0 8px", fontFamily: DISPLAY, fontWeight: 800, fontSize: 13, color: NAVY, textTransform: "uppercase", letterSpacing: 0.8 }}>What you'll need</div>
-        <div style={{ border: "1px solid #E4E8F0", borderRadius: 14, padding: "6px 16px", marginBottom: 22, background: "#fff" }}>
+        <div style={{ display: "inline-block", fontSize: 12, fontWeight: 800, color: "#7B3553", textTransform: "uppercase", letterSpacing: 1.2, fontFamily: DISPLAY, background: "#FCE7F0", borderRadius: 999, padding: "5px 12px" }}>REC partners</div>
+        <h1 style={{ fontSize: 30, fontWeight: 800, margin: "14px 0 8px", color: NAVY, lineHeight: 1.2 }}>Join our <span style={{ textDecoration: "underline", textDecorationColor: "#F4A9C7", textUnderlineOffset: 5 }}>electrical</span> network</h1>
+        <p style={{ fontSize: 15, lineHeight: 1.55, color: MUTED, margin: "0 0 22px" }}>Register your REC with Home Insulation Victoria.</p>
+        <div style={{ margin: "0 0 6px", fontFamily: DISPLAY, fontWeight: 800, fontSize: 13, color: NAVY }}>What you'll need</div>
+        <div style={{ marginBottom: 20 }}>
           {[
             "REC registration + ABN",
             "Your personal Victorian electrician licence",
             "Public liability Certificate of Currency",
             "Your supplier rates + bank details",
           ].map((t, i, arr) => (
-            <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: i < arr.length - 1 ? "1px solid #F0F2F8" : "none", fontSize: 14, fontWeight: 600, color: NAVY }}>
-              <span aria-hidden="true" style={{ flexShrink: 0, width: 22, height: 22, borderRadius: "50%", background: "#EAF8F0", border: `1px solid ${GREEN}55`, color: GREEN, fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>✓</span>
+            <div key={t} style={{ display: "flex", gap: 10, alignItems: "center", padding: "7px 0", fontSize: 14, fontWeight: 600, color: NAVY }}>
+              <span aria-hidden="true" style={{ flexShrink: 0, color: GREEN, fontSize: 17, fontWeight: 900 }}>✓</span>
               {t}
             </div>
           ))}
         </div>
-
-        <p style={{ fontSize: 13, color: MUTED, lineHeight: 1.55, margin: "0 0 18px" }}>Competitive rates help us bring you more opportunities. Select <strong>Save &amp; continue</strong> after each step to save your progress on this device.</p>
         {error && <p style={{ color: "#B3261E" }}>{error}</p>}
         <button style={{ ...btn(true, busy), width: "100%", minHeight: 52, borderRadius: 16, fontSize: 15 }} disabled={busy} onClick={begin}>{busy ? "Starting…" : token ? "Continue registration →" : "Start registration →"}</button>
+        <p style={{ fontSize: 12, color: MUTED, textAlign: "center", margin: "10px 0 0" }}>Save your progress after each step.</p>
       </div>
     </div>,
   );
@@ -425,8 +424,7 @@ function RecOnboarding() {
       {previewBanner}
       {isTest && !sampleMode && <div style={{ background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "#7A5A00", marginBottom: 14 }}>TEST MODE — staff test link. This application is marked as a test and won't count as a real applicant. The services confirmation is always required.</div>}
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
-      {firstName(d) && step !== "about" && <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Nice one, {firstName(d)} — next up: {steps[idx]?.title?.toLowerCase()}.</div>}
-      {!firstName(d) && <div style={{ marginBottom: 12 }} />}
+      <div style={{ width: 34, height: 3, borderRadius: 99, background: "#F4A9C7", margin: "10px 0 18px" }} />
       <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onRevision={setBaseUpdatedAt} showErrors={showErrors} />
       {step === "sign" && <SignStep d={d} token={token ?? ""} onSigned={() => setStatus("submitted")} preview={sampleMode} />}
       {showErrors && errs.length > 0 && (
@@ -453,7 +451,6 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
           <button type="button" style={{ ...btn(false), marginTop: 12 }} onClick={() => up({ works_under_rec: false })}>Register my REC business instead</button>
         </>}
         {d.works_under_rec === false && <>
-          <div style={infoCard}>So we know who we're talking to. We'll use your name throughout.</div>
           <Field label="Your name" required><input style={input} placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
           <Check checked={d.contact_is_licensed_electrician === true} onChange={(v) => up({ contact_is_licensed_electrician: v ? true : null })} required error={showErrors && d.contact_is_licensed_electrician !== true ? "Confirm you are a licensed electrician to continue." : null}>I am a licensed electrician.</Check>
           <Field label="Your Victorian electrician licence number" required hint="Your personal Energy Safe Victoria electrical licence number."><input style={input} {...t("licence_number", true)} /></Field>
@@ -473,34 +470,20 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
           <Field label="Trading name"><input style={input} {...t("trading_name")} /></Field>
           <Field label="ABN" required hint="11 digits"><input style={input} inputMode="numeric" {...t("abn")} /></Field>
           <Field label="REC number" required hint="Your Victorian REC registration"><input style={input} {...t("rec_registration_number", true)} /></Field>
-          {validAbn(d.abn) && (d.rec_registration_number ?? "").trim() && <div style={{ ...infoCard, display: "inline-block" }}>✓ Ready for verification</div>}
+          <Field label="Australian business address" required hint="Choose a verified address"><AddressInput id="business-address" value={d.business_address ?? ""} resolved={d.business_address_details} onChange={(v) => up({ business_address: v })} onSelect={(v) => up({ business_address_details: v })} /></Field>
+          {validAbn(d.abn) && (d.rec_registration_number ?? "").trim() && <p style={{ color: GREEN, fontWeight: 700, fontSize: 13 }}>✓ Ready for verification</p>}
         </> : null}
-      </>;
-    case "contact":
-      return <>
-         <Field label="Australian business address" required hint="Start typing and choose the verified address from the list"><AddressInput id="business-address" value={d.business_address ?? ""} onChange={(v) => up({ business_address: v })} onSelect={(v) => up({ business_address_details: v })} /></Field>
-        <div style={{ ...infoCard, marginBottom: 16 }}>Contact: <strong>{d.primary_contact_name}</strong> · {d.business_phone} · {d.business_email} — if any of these are wrong, go back to "About you".</div>
       </>;
     case "insurance":
       return <InsuranceStep d={d} up={up} token={token} setError={setError} preview={preview} onRevision={onRevision} />;
     case "services":
       return <>
-        <div style={infoCard}>
-          <strong>Home Insulation Victoria provides pre-installation electrical safety assessment (PIESA) jobs in your service area.</strong>
-          <TickList items={[
-            "Complete the electrical safety assessment and submit the PIESA through our portal.",
-            "Identify and quote only the electrical rectification required for the ceiling insulation to be installed safely. Complete that work once the scope and price are approved through Home Insulation Victoria.",
-            "Attend the installation on site when electrical attendance is required.",
-          ]} />
-        </div>
+        <TickList items={["PIESA electrical safety assessments", "Approved electrical rectification", "Installation-day electrical attendance when required"]} />
         <Check required checked={d.services_all_confirmed === true} error={showErrors && d.services_all_confirmed !== true ? "Confirm your REC can provide all three electrical services." : null} onChange={(v) => up({ services_all_confirmed: v })}>I confirm our REC can provide all three electrical services listed above, as required for each job.</Check>
-      </>;
-    case "coverage":
-      return <>
-         <Field label="Victorian service starting location" required hint="Choose a verified Victorian address"><AddressInput id="service-origin" victoriaOnly value={d.service_origin ?? ""} onChange={(v) => up({ service_origin: v })} onSelect={(v) => up({ service_origin_details: v })} /></Field>
+        <div style={{ borderTop: "1px solid #E4E8F0", margin: "18px 0 16px" }} />
+         <Field label="Victorian service starting location" required hint="Choose a verified Victorian address"><AddressInput id="service-origin" victoriaOnly value={d.service_origin ?? ""} resolved={d.service_origin_details} onChange={(v) => up({ service_origin: v })} onSelect={(v) => up({ service_origin_details: v })} /></Field>
          {d.business_address && d.service_origin !== d.business_address && <button type="button" style={{ ...btn(false), marginBottom: 16 }} onClick={() => up({ service_origin: d.business_address ?? "", service_origin_details: d.business_address_details ?? null })}>Use business address</button>}
         <Field label="Travel radius" required><Choice options={RADII.map((r) => ({ v: r.v as number, l: r.l }))} value={d.travel_radius_km ?? null} onChange={(v) => up({ travel_radius_km: v })} /></Field>
-        {d.travel_radius_km != null && <div style={infoCard}>You'll be offered jobs {d.travel_radius_km === 9999 ? "anywhere in Victoria" : `within ${d.travel_radius_km} km of your starting location`}.</div>}
         <Field label="Need to exclude a particular area?"><textarea style={{ ...input, minHeight: 70 }} {...t("excluded_areas")} /></Field>
       </>;
     case "availability": {
@@ -511,38 +494,19 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
         </Field>
         <Field label="Usual lead time" required><Choice options={LEAD_TIMES.map((l) => ({ v: l as string, l }))} value={d.normal_attendance_speed} onChange={(v) => up({ normal_attendance_speed: v })} /></Field>
          <Field label="Are you accepting new Home Insulation Victoria work now?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "Not right now" }]} value={d.accepting_jobs ?? null} onChange={(v) => up({ accepting_jobs: v })} /></Field>
+        <Field label="Weekly assessment visits" required><Choice options={CAPACITY_BANDS.map((b) => ({ v: b.v as string, l: b.v }))} value={d.capacity_band} onChange={(v) => up({ capacity_band: v })} /></Field>
       </>;
     }
-    case "capacity":
-      return <>
-        <Field label="Weekly assessment visits" required><Choice options={CAPACITY_BANDS.map((b) => ({ v: b.v as string, l: b.v }))} value={d.capacity_band} onChange={(v) => up({ capacity_band: v })} /></Field>
-         <div style={infoCard}>This helps our office understand your indicative capacity. It does not promise or guarantee job volume.</div>
-      </>;
     case "assessment_pricing": {
       const unit = d.gst_registered === false ? "total rate" : "inc GST";
-      return <>
-        <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
-        <div style={infoCard}>{d.gst_registered === false ? "Enter your total supplier rate." : "Enter your supplier rate including GST."} Home Insulation Victoria reviews proposed rates before they apply. Approved supplier rates are separate from the customer price.</div>
-        <div style={{ border: `2px solid ${BLUE}`, background: "#EEF1FB", borderRadius: 12, padding: "12px 14px", margin: "0 0 16px" }}>
-          <strong style={{ color: BLUE, display: "block", marginBottom: 4 }}>Sharper rates can support more work</strong>
-          <span style={{ fontSize: 14, lineHeight: 1.5 }}>Competitive supplier rates help Home Insulation Victoria keep projects affordable and can support more customers proceeding—and more work for your business. Offer your best sustainable rates while maintaining safety and quality. Job volume depends on customer demand, location, availability and performance; no minimum volume is guaranteed.</span>
-        </div>
-        <Field label={`Pre-Insulation Electrical Safety Assessment (PIESA) visit (${unit})`} required hint="Formal electrical safety assessment, required tests, evidence and PIESA submission."><Money value={d.assessment_rate} onChange={(v) => up({ assessment_rate: v })} unit="visit" /></Field>
-        {<Field label={`Installation-day attendance (${unit})`} required><Money value={d.installation_attendance_rate} onChange={(v) => up({ installation_attendance_rate: v })} unit="visit" /></Field>}
-      </>;
-    }
-    case "rectification_pricing": {
       const r = d.rectification_rates ?? {};
       return <>
-        <div style={{ ...infoCard, fontWeight: 600 }}>Use the same sharp, sustainable approach for your rectification rates.</div>
-        <div style={infoCard}>
-          <strong>We provide an assessment app for your PIESA visit.</strong>
-          <TickList items={[
-            "Select the mandatory electrical rectification items and enter the quantity of each.",
-            "The app uses your agreed rates to calculate an itemised rectification quote when you finish the assessment.",
-            "Home Insulation Victoria manages the customer quote and approval through the portal.",
-          ]} />
-        </div>
+        <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
+        <p style={{ color: MUTED, fontSize: 13, lineHeight: 1.5 }}>{d.gst_registered === false ? "Enter total supplier rates." : "Enter supplier rates including GST."} Home Insulation Victoria approves rates separately from customer prices.</p>
+        <p style={{ background: "#FCE7F0", color: "#7B3553", borderRadius: 8, padding: "9px 11px", fontSize: 13, fontWeight: 700, lineHeight: 1.45 }}>Sharper rates can help win more work. Keep them sustainable—job volume isn’t guaranteed.</p>
+        <Field label={`Pre-Insulation Electrical Safety Assessment (PIESA) visit (${unit})`} required hint="Formal electrical safety assessment, required tests, evidence and PIESA submission."><Money value={d.assessment_rate} onChange={(v) => up({ assessment_rate: v })} unit="visit" /></Field>
+        {<Field label={`Installation-day attendance (${unit})`} required><Money value={d.installation_attendance_rate} onChange={(v) => up({ installation_attendance_rate: v })} unit="visit" /></Field>}
+        <p style={{ color: MUTED, fontSize: 13 }}>Your approved rates calculate rectification quotes; Home Insulation Victoria manages customer approval.</p>
         <Group title="Mandatory item rates" note={d.gst_registered === false ? "Enter total rates (not GST registered)." : "Enter rates including GST."}>
           {RECT_ITEMS.map((it, i) => <RateRow key={it.key} label={it.label} unit={it.unit} value={r[it.key]} last={i === RECT_ITEMS.length - 1} onChange={(v) => up({ rectification_rates: { ...r, [it.key]: v } })} />)}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "10px 0", borderTop: "1px solid #EDF0F7" }}>
@@ -566,7 +530,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
     }
     case "bank":
       return <>
-        <div style={infoCard}>These details stay in your private partner application and are used only for approved Home Insulation Victoria payments.</div>
+        <p style={{ color: MUTED, fontSize: 13 }}>Kept private and used only for approved Home Insulation Victoria payments.</p>
         <Field label="Account name" required><input style={input} autoComplete="off" {...t("bank_account_name")} /></Field>
         <Field label="BSB" required hint="6 digits"><input style={input} inputMode="numeric" autoComplete="off" {...t("bank_bsb")} /></Field>
         <Field label="Account number" required><input style={input} inputMode="numeric" autoComplete="off" {...t("bank_account_number")} /></Field>
@@ -689,7 +653,7 @@ const SAMPLE_REC_DATA: RecData = {
   works_under_rec: false, primary_contact_name: "Sample REC representative", contact_is_licensed_electrician: true, licence_number: "ESV SAMPLE", business_phone: "0400 000 000", business_email: "sample@example.com",
   legal_entity_name: "Sample Electrical Pty Ltd", trading_name: "Sample Electrical", abn: "51824753556", rec_registration_number: "REC SAMPLE", business_address: "100 Sample Road, Melbourne VIC 3000", business_address_details: { label: "100 Sample Road, Melbourne VIC 3000", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU", provider: "google_places_au" },
   insurance_uploaded: true, insurer: "Sample insurer", insurance_policy_number: "SAMPLE-001", public_liability_cover_amount: 5_000_000, public_liability_expiry: "2099-12-31",
-  service_origin: "100 Sample Road, Melbourne VIC 3000", service_origin_details: { label: "100 Sample Road, Melbourne VIC 3000", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU", provider: "google_places_au" }, travel_radius_km: 50, typical_days: ["Mon", "Tue", "Wed"], normal_attendance_speed: "3-5 business days", capacity_band: "6-10", accepting_jobs: true,
+  services_all_confirmed: true, service_origin: "100 Sample Road, Melbourne VIC 3000", service_origin_details: { label: "100 Sample Road, Melbourne VIC 3000", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU", provider: "google_places_au" }, travel_radius_km: 50, typical_days: ["Mon", "Tue", "Wed"], normal_attendance_speed: "3-5 business days", capacity_band: "6-10", accepting_jobs: true,
   gst_registered: true, assessment_rate: 330, installation_attendance_rate: 220, rectification_rates: { prohibited_luminaires: 55, circuit_protection: 110, rcd_installation: 220, tps_cable_replacement: 11, basic_protection: 165 }, coes_fee_choice: "included",
   bank_account_name: "Sample Electrical Pty Ltd", bank_bsb: "123-456", bank_account_number: "12345678", agreement_reviewed: true,
 };

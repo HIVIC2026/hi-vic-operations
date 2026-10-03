@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Now
+- [x] Group REC onboarding into nine concise screens, fix verified-address races, and apply the lighter pink-accented presentation (preview only)
 - [x] Restore-point check guide for applying 0071–0073 (report only)
 - [x] Launch fixes in test copy (booking atomic, licence guard, Ready Check order proof); pricing questions shown verbatim
 - [x] Migrations 0071, 0072, 0073 applied to live with checks
