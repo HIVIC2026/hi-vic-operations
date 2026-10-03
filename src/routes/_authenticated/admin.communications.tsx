@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAction } from "@/hooks/use-me";
 import { approveCustomerCommunicationDraft, listCustomerCommunicationTemplates, saveCustomerCommunicationDraft } from "@/lib/customer-communications.functions";
 import { PARTNER_TEMPLATES, renderPartnerTemplate, type PartnerTemplate } from "@/lib/partner-templates";
-import { useMemo } from "react";
+import { useEffect, useState as useState2 } from "react";
 
 // [key, label, purpose, when it is sent, mandatory forms attached, preview available]
 const CATALOG = [
@@ -66,9 +66,24 @@ function CustomerCommunications() {
   </AppShell>;
 }
 
+function useLogoBase64(): string {
+  const [logo, setLogo] = useState("");
+  useEffectX(() => {
+    let cancelled = false;
+    fetch("/email-preview/hi-vic-logo.png")
+      .then((r) => r.blob())
+      .then((blob) => new Promise<string>((res) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1] ?? ""); fr.readAsDataURL(blob); }))
+      .then((b64) => { if (!cancelled) setLogo(b64); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  return logo;
+}
+
 function PartnerTemplates() {
   const [open, setOpen] = useState<PartnerTemplate | null>(null);
   const [copied, setCopied] = useState("");
+  const logo = useLogoBase64();
   return <section className="mt-10 rounded-md border bg-card p-5">
     <h2 className="text-lg font-bold">Partner invitation templates</h2>
     <p className="mt-1 text-sm text-muted-foreground">Reusable, office-approved invitations. Preview, copy the subject or download the ready-to-send file. Nothing here sends email.</p>
@@ -80,31 +95,21 @@ function PartnerTemplates() {
         <div className="mt-3 flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={() => setOpen(open?.key === t.key ? null : t)}>{open?.key === t.key ? "Close preview" : "Preview"}</Button>
           <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(t.subject); setCopied(t.key); }}>{copied === t.key ? "Copied" : "Copy subject"}</Button>
-          <DownloadTemplate t={t} />
+          <DownloadTemplate t={t} logo={logo} />
         </div>
       </article>)}
     </div>
-    {open && <TemplatePreview t={open} />}
+    {open && <TemplatePreview t={open} logo={logo} />}
   </section>;
 }
 
-function useTemplateHtml(t: PartnerTemplate): string {
-  const [logo, setLogo] = useState("");
-  useMemo(() => {
-    let cancelled = false;
-    fetch("/email-preview/hi-vic-logo.png").then((r) => r.blob()).then((blob) => new Promise<string>((res) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1] ?? ""); fr.readAsDataURL(blob); })).then((b64) => { if (!cancelled) setLogo(b64); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-  return useMemo(() => renderPartnerTemplate(t, logo), [t, logo]);
-}
-
-function TemplatePreview({ t }: { t: PartnerTemplate }) {
-  const html = useTemplateHtml(t);
+function TemplatePreview({ t, logo }: { t: PartnerTemplate; logo: string }) {
+  const html = renderPartnerTemplate(t, logo);
   return <div className="mt-4 overflow-hidden rounded-md border"><iframe title={t.label} srcDoc={html} className="h-[560px] w-full bg-white" sandbox="" /></div>;
 }
 
-function DownloadTemplate({ t }: { t: PartnerTemplate }) {
-  const html = useTemplateHtml(t);
+function DownloadTemplate({ t, logo }: { t: PartnerTemplate; logo: string }) {
+  const html = renderPartnerTemplate(t, logo);
   return <Button size="sm" variant="outline" disabled={!html} onClick={() => {
     const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
