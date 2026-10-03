@@ -125,9 +125,11 @@ describe("5/6/7 certification gate, atomic activation, preferences", () => {
   });
   test("preferences persisted separately from approval and respected by offers", () => {
     expect(partnerPreferences("installer", { ...complete, wants_hivic_leads: false, accepting_jobs: false })).toMatchObject({ receives_hivic_leads: false, accepting_new_jobs: false });
-    const base = { channel: "hivic_sourced", stage: "assessment_complete" } as never;
-    expect(offerBlocker(base, { receives_hivic_leads: false } as never, null, false)).toContain("own customers");
-    expect(offerBlocker(base, { accepting_new_jobs: false } as never, null, false)).toContain("not accepting");
+    const base = { channel: "hivic_sourced", stage: "assessment_complete", hasActiveInstaller: false, hasPendingOffer: false };
+    expect(offerBlocker(base, { onboarding_status: "approved", receives_hivic_leads: false })).toContain("own customers");
+    expect(offerBlocker(base, { onboarding_status: "approved", accepting_new_jobs: false })).toContain("not accepting");
+    expect(offerBlocker(base, { onboarding_status: "approved", receives_hivic_leads: true, accepting_new_jobs: true })).toBeNull();
+    expect(offerBlocker(base)).toBeNull();
   });
   test("activation is one transaction: injected failure leaves nothing approved; retry succeeds once", async () => {
     const t = await installerDb();

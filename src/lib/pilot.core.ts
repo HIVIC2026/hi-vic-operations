@@ -338,11 +338,19 @@ export function proposalResponse(p: Proposal, responderRole: string, action: "ac
 
 // ---------- Partner offers ----------
 export type OfferStatus = "pending" | "accepted" | "declined" | "expired" | "withdrawn";
-export function offerBlocker(job: { channel: string; stage: string; hasActiveInstaller: boolean; hasPendingOffer: boolean }): string | null {
+export type OfferPartnerPrefs = { onboarding_status?: string | null; is_active?: boolean | null; receives_hivic_leads?: boolean | null; accepting_new_jobs?: boolean | null };
+export function offerBlocker(job: { channel: string; stage: string; hasActiveInstaller: boolean; hasPendingOffer: boolean }, partner?: OfferPartnerPrefs): string | null {
   if (job.channel !== "hivic_sourced") return "Only Home Insulation Victoria-sourced jobs can be offered to a partner.";
   if (["complete", "cancelled", "ready_for_veec", "ap_review", "evidence_outstanding", "installation_booked"].includes(job.stage)) return "Job is too far through the workflow to offer.";
   if (job.hasActiveInstaller) return "Job already has an installer.";
   if (job.hasPendingOffer) return "Job already has a pending offer.";
+  if (partner) {
+    if (partner.onboarding_status != null && partner.onboarding_status !== "approved") return "Partner is not approved yet.";
+    if (partner.is_active === false) return "Partner is inactive.";
+    // Approval is not availability: an approved partner can still be own-customers-only or paused.
+    if (partner.receives_hivic_leads === false) return "Partner works with their own customers only and does not receive Home Insulation Victoria leads.";
+    if (partner.accepting_new_jobs === false) return "Partner is not accepting new jobs right now.";
+  }
   return null;
 }
 /** Only summary facts are shown before acceptance (no owner name/contact/street number). */
