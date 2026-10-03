@@ -9,11 +9,11 @@ import type { InstData } from "./installer-onboarding.core";
 
 const uuid = z.string().uuid();
 
-async function loadCertifications(admin: { from: (t: string) => unknown }, applicationId: string) {
-  const { data, error } = await (admin as never as { from: (t: "partner_worker_certifications") => { select: (c: string) => { eq: (k: string, v: string) => Promise<{ data: CertVerification[] | null; error: unknown }> } } })
-    .from("partner_worker_certifications").select("id, worker_email, status, recorded_at").eq("application_id", applicationId);
+type AdminDb = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
+async function loadCertifications(admin: AdminDb, applicationId: string) {
+  const { data, error } = await admin.from("partner_worker_certifications").select("id, worker_email, status, recorded_at").eq("application_id", applicationId);
   if (error) throw new WorkflowError("Could not load certification checks.");
-  return latestCertifications(data ?? []);
+  return latestCertifications((data ?? []) as CertVerification[]);
 }
 
 export const activatePartnerApplication = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -29,7 +29,7 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
     if (app.test_mode) throw new WorkflowError("Test applications can never be approved as real partners.");
     const type = app.partner_type as PartnerType;
     const application = app.data as RecData | InstData;
-    const certs = await loadCertifications(admin as never, app.id);
+    const certs = await loadCertifications(admin, app.id);
     // Mandatory qualification can never be overridden.
     const mandatory = mandatoryActivationBlockers(type, application, certs);
     if (mandatory.length) throw new WorkflowError(mandatory.join(" "));
