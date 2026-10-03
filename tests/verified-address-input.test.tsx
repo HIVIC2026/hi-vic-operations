@@ -57,7 +57,7 @@ describe("verified address picker", () => {
     const input = await typeAndWait(r);
     await act(async () => { fireEvent.pointerDown(r.getByRole("option")); });
     expect(r.state.resolved).toBeNull();
-    expect(r.getByRole("status").textContent).toContain("couldn't verify");
+    expect(r.getByText(/couldn't verify/).textContent).toContain("couldn't verify");
     fireEvent.focus(input); fireEvent.change(input, { target: { value: "30 dash again" } });
     await act(async () => { await new Promise((done) => setTimeout(done, 330)); });
     await act(async () => { fireEvent.pointerDown(r.getByRole("option")); });
@@ -69,6 +69,6 @@ describe("verified address picker", () => {
     await typeAndWait(r, "1 george");
     await act(async () => { fireEvent.pointerDown(r.getByRole("option")); });
     expect(r.state.resolved).toBeNull();
-    expect(r.getByRole("status").textContent).toContain("Victoria");
+    expect(r.getByText(/service area needs to be in Victoria/).textContent).toContain("Victoria");
   });
 });
