@@ -40,6 +40,7 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
     if (!plan.items.length) throw new WorkflowError("No valid agreed rates were found in the signed application.");
     if (!plan.bank.account_name || !plan.bank.bsb || !plan.bank.account_number) throw new WorkflowError("Complete bank details are required in the signed onboarding application.");
     const { data: rows, error: rpcError } = await admin.rpc("activate_partner_application", { _app_id: app.id, _actor: context.userId, _override: data.overrideReason ?? null, _plan: plan as unknown as Json } as never);
+    if (rpcError?.message.includes("activate:no_verified_installer")) throw new WorkflowError("No installer on this application has a current office-verified CII certification (a later check may have rejected it). Nothing was approved.");
     if (rpcError) throw new WorkflowError(`Activation did not complete; nothing was approved. (${rpcError.message})`);
     const r = (rows as unknown as { outcome: string; business_id: string; rate_card_id: string }[])[0]!;
     return { business_id: r.business_id, rate_card_id: r.rate_card_id, alreadyActivated: r.outcome === "already_activated" };
