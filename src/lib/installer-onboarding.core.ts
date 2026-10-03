@@ -2,9 +2,10 @@
 // Mirrors rec-onboarding.core.ts (same design/rules); shared validators are reused from there.
 import { INSTALLER_AGREEMENT_SECTIONS } from "./installer-agreement.text";
 import { electricianStepErrors, type ElectricianChoice, type PreferredElectrician } from "./teaming.core";
-import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, DAYS, LEAD_TIMES, RADII } from "./rec-onboarding.core";
+import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, DAYS, LEAD_TIMES, RADII, type ResolvedAddress } from "./rec-onboarding.core";
 
 export { DAYS, LEAD_TIMES, RADII, validAbn };
+export type { ResolvedAddress };
 export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.10-2026-10-02";
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
@@ -37,12 +38,12 @@ export const CAPACITY_BANDS = [{ v: "1-3", n: 3 }, { v: "4-8", n: 8 }, { v: "9-1
 export type Installer = { full_legal_name?: string; qualification?: string; mobile?: string; email?: string };
 export type InstData = {
   legal_entity_name?: string; trading_name?: string; abn?: string; cii_status?: string; cii_details?: string;
-  business_address?: string; primary_contact_name?: string; business_phone?: string; business_email?: string; authorised_to_register?: boolean;
+  business_address?: string; business_address_details?: ResolvedAddress | null; primary_contact_name?: string; business_phone?: string; business_email?: string; authorised_to_register?: boolean;
   works_for_business?: boolean | null;
   insurer?: string; insurance_policy_number?: string; public_liability_cover_amount?: number | null; public_liability_expiry?: string; insurance_uploaded?: boolean;
   installers?: Installer[];
   service_batts_removal?: boolean; service_loose_fill_removal?: boolean; wants_hivic_leads?: boolean | null; free_quotes_for_hivic_leads?: boolean | null; free_measureups_for_hivic_quote_leads?: boolean | null;
-  service_origin?: string; travel_radius_km?: number | null; excluded_areas?: string;
+  service_origin?: string; service_origin_details?: ResolvedAddress | null; travel_radius_km?: number | null; excluded_areas?: string;
   typical_days?: string[]; normal_attendance_speed?: string;
   capacity_band?: string; accepting_jobs?: boolean;
   gst_registered?: boolean | null; r5_rate?: number | null; batts_removal_rate?: number | null; loose_fill_removal_rate?: number | null;
@@ -76,7 +77,43 @@ export const STEPS = [
   { key: "sign", title: "Sign agreement" },
 ] as const;
 export type StepKey = (typeof STEPS)[number]["key"];
-export const visibleSteps = (_d: InstData) => STEPS;
+
+export type VisibleInstallerPage = { key: StepKey; title: string; members: readonly StepKey[] };
+
+/**
+ * Public presentation only: nine visible pages. Persisted drafts keep the legacy StepKey anchors
+ * (the first member of each page); every member step is validated together.
+ */
+export const INSTALLER_VISIBLE_PAGES: readonly VisibleInstallerPage[] = [
+  { key: "about", title: "Business & contact", members: ["about", "business", "contact"] },
+  { key: "insurance", title: "Insurance", members: ["insurance"] },
+  { key: "installers", title: "Your installers", members: ["installers"] },
+  { key: "electrician", title: "Electrical partner", members: ["electrician"] },
+  { key: "services", title: "Work & coverage", members: ["services", "coverage"] },
+  { key: "availability", title: "Availability", members: ["availability", "capacity"] },
+  { key: "install_pricing", title: "Rates", members: ["install_pricing", "extras_pricing"] },
+  { key: "bank", title: "Bank details", members: ["bank"] },
+  { key: "review", title: "Review & sign", members: ["review", "sign"] },
+] as const;
+export const visibleSteps = (_d: InstData) => INSTALLER_VISIBLE_PAGES;
+
+/** Any legacy or current step key -> its visible page anchor; unknown input fails safe to the first page. */
+export function visiblePageForStep(step: string | null | undefined): StepKey {
+  return INSTALLER_VISIBLE_PAGES.find((p) => p.members.some((m) => m === step))?.key ?? "about";
+}
+export function pageMembers(step: StepKey): readonly StepKey[] {
+  return INSTALLER_VISIBLE_PAGES.find((p) => p.key === visiblePageForStep(step))?.members ?? ["about"];
+}
+export function pageErrors(step: StepKey, d: InstData, now = new Date()): string[] {
+  return [...new Set(pageMembers(step).flatMap((m) => stepErrors(m, d, now)))];
+}
+
+export type InstallerSampleStep = StepKey | "welcome" | "submitted";
+/** Read-only sample preview: only allow-listed keys are accepted. */
+export function parseInstallerSampleStep(value: string | null): InstallerSampleStep | null {
+  if (value === "welcome" || value === "submitted") return value;
+  return STEPS.some((s) => s.key === value) ? visiblePageForStep(value) : null;
+}
 
 const txt = (s?: string) => (s ?? "").trim().length > 0;
 const pos = (n?: number | null) => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= 100000;
@@ -86,6 +123,7 @@ export function stepErrors(step: StepKey, d: InstData, now = new Date()): string
   const e: string[] = [];
   switch (step) {
     case "about":
+      if (d.works_for_business !== false) e.push("Choose whether you're registering your business.");
       if (!txt(d.primary_contact_name)) e.push("Enter your name.");
       if (!validPhone(d.business_phone)) e.push("Enter a valid Australian mobile.");
       if (!validBusinessEmail(d.business_email)) e.push("Enter a real email address.");
@@ -97,11 +135,8 @@ export function stepErrors(step: StepKey, d: InstData, now = new Date()): string
       if (d.cii_status === "certified" && !txt(d.cii_details)) e.push("Enter your CII certification / training details.");
       break;
     case "contact":
+      // Contact name/mobile/email are validated once under "about"; signing authority is acknowledged at signing.
       if (!txt(d.business_address)) e.push("Enter your business address.");
-      if (!txt(d.primary_contact_name)) e.push("Enter a contact name.");
-      if (!validPhone(d.business_phone)) e.push("Enter a valid Australian phone number.");
-      if (!validBusinessEmail(d.business_email)) e.push("Enter a real business email address.");
-      if (d.authorised_to_register !== true) e.push("Confirm you're authorised to set up this business.");
       break;
     case "insurance":
       if (d.insurance_uploaded !== true) e.push("Upload your Certificate of Currency.");
@@ -162,7 +197,7 @@ export function stepErrors(step: StepKey, d: InstData, now = new Date()): string
 }
 
 export function firstIncompleteStep(d: InstData, now = new Date()): StepKey | null {
-  for (const s of visibleSteps(d)) if (s.key !== "sign" && stepErrors(s.key, d, now).length) return s.key;
+  for (const s of STEPS) if (s.key !== "sign" && stepErrors(s.key, d, now).length) return visiblePageForStep(s.key);
   return null;
 }
 
