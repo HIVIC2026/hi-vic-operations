@@ -6,7 +6,12 @@ import { WORKFLOW_DECISIONS, depositPctFor } from "../src/config/workflow-decisi
 import { scan } from "../scripts/scan-retired-terms";
 
 describe("failed messages appear in Needs attention", () => {
-  const base = { jobId: "TEST-J", recipient: "TEST Owner", channel: "sms" as const, template: "ready_check_reminder_24h" };
+  const base = {
+    jobId: "TEST-J",
+    recipient: "TEST Owner",
+    channel: "sms" as const,
+    template: "ready_check_reminder_24h",
+  };
   test("failed, undelivered and held-for-follow-up rows surface with who/what/why", () => {
     const items = failedMessageAttention([
       { ...base, id: "1", outcome: "failed", reason: "Invalid number" },
@@ -17,7 +22,12 @@ describe("failed messages appear in Needs attention", () => {
       { ...base, id: "6", outcome: "suppressed" },
     ]);
     expect(items.map((i) => i.messageId)).toEqual(["1", "2", "3"]);
-    expect(items[0]).toMatchObject({ code: "failed_message", who: "TEST Owner", what: "sms · ready_check_reminder_24h", why: "Invalid number" });
+    expect(items[0]).toMatchObject({
+      code: "failed_message",
+      who: "TEST Owner",
+      what: "sms · ready_check_reminder_24h",
+      why: "Invalid number",
+    });
     expect(items[2]!.why).toBe("Held: sending is switched off");
   });
 });
@@ -34,12 +44,15 @@ describe("server-side role guards", () => {
     const unguarded: string[] = [];
     let total = 0;
     for (const f of readdirSync(dir).filter((n) => n.endsWith(".functions.ts"))) {
-      const parts = readFileSync(dir + f, "utf8").split(/(?=export const \w+ = createServerFn)/).slice(1);
+      const parts = readFileSync(dir + f, "utf8")
+        .split(/(?=export const \w+ = createServerFn)/)
+        .slice(1);
       for (const p of parts) {
         total++;
         const name = /export const (\w+)/.exec(p)![1]!;
         const elevated = p.includes("client.server") || p.includes("supabaseAdmin");
-        const guarded = /require\w*(Admin|Office|Role|Staff|Member)\w*\(|has_role|is_admin|isAdmin/.test(p);
+        const guarded =
+          /require\w*(Admin|Office|Role|Staff|Member)\w*\(|has_role|is_admin|isAdmin/.test(p);
         if (elevated && !guarded && !REVIEWED[name]) unguarded.push(`${f}:${name}`);
       }
     }
@@ -60,8 +73,13 @@ describe("source of truth", () => {
     const visible = scan().filter((h) => h.kind === "customer-visible");
     expect(visible.filter((h) => h.term.startsWith("HI VIC"))).toEqual([]);
     // Known: screens still describing the live 50% gate. They change together with the payment-gate logic (separate approval).
-    const known = new Set(["src/components/portal/job-workspace.tsx", "src/components/portal/jobfile.tsx", "src/components/portal/panels.tsx",
-      "src/routes/_authenticated/field.$jobId.tsx", "src/routes/_authenticated/owner.$jobId.tsx"]);
+    const known = new Set([
+      "src/components/portal/job-workspace.tsx",
+      "src/components/portal/jobfile.tsx",
+      "src/components/portal/panels.tsx",
+      "src/routes/_authenticated/field.$jobId.tsx",
+      "src/routes/_authenticated/owner.$jobId.tsx",
+    ]);
     expect(visible.filter((h) => !known.has(h.file))).toEqual([]);
   });
 });

@@ -4,12 +4,16 @@
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 
-const read = (f: string) => readFileSync(new URL(`../../docs/pending-migrations/${f}`, import.meta.url), "utf8");
+const read = (f: string) =>
+  readFileSync(new URL(`../../docs/pending-migrations/${f}`, import.meta.url), "utf8");
 export const SLICE1_SQL = read("0079_slice1_ready_check_booking.sql");
 export const SLICE1_ROLLBACK_SQL = read("0079_slice1_ready_check_booking.rollback.sql");
 
-const STAGES = "new_enquiry,eligibility_review,awaiting_electrician,assessment_booking,assessment_booked,assessment_complete,rectification_required,awaiting_owner_rectification_approval,awaiting_deposit_payment,rectification_scheduling,rectification_booked,ready_for_installer_quotes,awaiting_quote_acceptance,installation_scheduling,installation_booked,evidence_outstanding,ap_review,ready_for_veec,complete,cancelled,on_hold,preliminary_estimate_ready,ready_check_awaiting_acceptance,ready_check_awaiting_payment,ready_check_ready_to_schedule,ready_check_scheduled,ready_check_complete,measured_estimate_ready,measured_quote_accepted,piesa_and_install_window_pending,piesa_scheduled,piesa_complete,electrical_variation_pending"
-  .split(",").map((s) => `'${s}'`).join(",");
+const STAGES =
+  "new_enquiry,eligibility_review,awaiting_electrician,assessment_booking,assessment_booked,assessment_complete,rectification_required,awaiting_owner_rectification_approval,awaiting_deposit_payment,rectification_scheduling,rectification_booked,ready_for_installer_quotes,awaiting_quote_acceptance,installation_scheduling,installation_booked,evidence_outstanding,ap_review,ready_for_veec,complete,cancelled,on_hold,preliminary_estimate_ready,ready_check_awaiting_acceptance,ready_check_awaiting_payment,ready_check_ready_to_schedule,ready_check_scheduled,ready_check_complete,measured_estimate_ready,measured_quote_accepted,piesa_and_install_window_pending,piesa_scheduled,piesa_complete,electrical_variation_pending"
+    .split(",")
+    .map((s) => `'${s}'`)
+    .join(",");
 
 const BASE = `
 CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
@@ -62,7 +66,9 @@ export async function slice1Db() {
     INSERT INTO public.job_assignments(id, job_id, user_id) VALUES ('40000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001','${ID.installer}');
   `);
   const as = async (user: string | null) => {
-    await db.exec(`RESET ROLE; SELECT set_config('request.jwt.claim.sub', '${user ?? ""}', false);`);
+    await db.exec(
+      `RESET ROLE; SELECT set_config('request.jwt.claim.sub', '${user ?? ""}', false);`,
+    );
     if (user) await db.exec(`SET ROLE authenticated`);
   };
   const reset = () => db.exec(`RESET ROLE; SELECT set_config('request.jwt.claim.sub', '', false);`);
