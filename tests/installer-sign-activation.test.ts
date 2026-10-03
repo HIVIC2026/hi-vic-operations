@@ -3,7 +3,7 @@ import { ACKNOWLEDGEMENTS, INSTALLER_AGREEMENT_VERSION, agreementText, firstInco
 import { performInstallerSign, signedData, INSTALLER_STALE_MESSAGE } from "../src/lib/installer-sign.core";
 import { activationBlockers, latestCertifications, mandatoryActivationBlockers, planActivation, partnerPreferences, certificationRecordErrors, approvedRateItems, type CertVerification } from "../src/lib/partner-activation.core";
 import { offerBlocker } from "../src/lib/pilot.core";
-import { installerDb, sha256, ADMIN } from "./helpers/pglite-installer";
+import { installerDb, sha256, ADMIN, OTHER, CORRECTION_SQL } from "./helpers/pglite-installer";
 
 const addr = (label: string, state = "VIC") => ({ label, street: "1 Main St", suburb: "Melbourne", postcode: "3000", state, country: "AU" as const, provider: "google_places_au" as const });
 export const complete: InstData = {
@@ -142,12 +142,14 @@ describe("5/6/7 certification gate, atomic activation, preferences", () => {
     const biz = (await t.db.query<{ id: string }>(`INSERT INTO businesses(name, abn, business_type, capabilities, onboarding_status) VALUES ('Old', '51824753556', 'rec', '{electrician}', 'approved') RETURNING id`)).rows[0]!.id;
     await t.db.query(`INSERT INTO rate_cards(kind, business_id, name, version, is_active) VALUES ('installer', $1, 'old', 1, true)`, [biz]);
     const plan = planActivation("installer", signed as never, signed.data as InstData, certs, []);
-    const broken = { ...plan, items: [...plan.items, { ...plan.items[0], code: "BAD", unit_price_ex_gst: 0 }] };
+    // Real production failure: unique(rate_card_id, code) — a duplicated item code fails after the business, workers and card were written.
+    const broken = { ...plan, items: [...plan.items, { ...plan.items[0] }] };
     await expect(t.activate(id, broken)).rejects.toThrow();
     expect(await t.count("partner_activations")).toBe(0);
     expect((await t.db.query<{ n: string }>(`SELECT count(*)::text n FROM rate_cards WHERE is_active`)).rows[0]!.n).toBe("1");
     expect(await t.count("partner_workers")).toBe(0);
-    await expect(t.activate(id, plan, "22222222-2222-2222-2222-222222222222")).rejects.toThrow("activate:forbidden");
+    expect((await t.db.query<{ onboarding_status: string; name: string }>(`SELECT * FROM businesses WHERE id=$1`, [biz])).rows[0]).toMatchObject({ onboarding_status: "approved", name: "Old" });
+    await expect(t.activate(id, plan, OTHER)).rejects.toThrow("activate:forbidden");
     const r = await t.activate(id, plan);
     expect(r.outcome).toBe("activated");
     expect(r.business_id).toBe(biz);
@@ -155,17 +157,98 @@ describe("5/6/7 certification gate, atomic activation, preferences", () => {
     const b = (await t.db.query<{ capabilities: string[]; receives_hivic_leads: boolean; accepting_new_jobs: boolean; onboarding_status: string }>(`SELECT * FROM businesses WHERE id=$1`, [biz])).rows[0]!;
     expect(b.capabilities).toEqual(["electrician", "installer"]);
     expect(b).toMatchObject({ receives_hivic_leads: true, accepting_new_jobs: true, onboarding_status: "approved" });
+    expect((b as unknown as { name: string }).name).toBe("Sample Pty Ltd"); // display name refreshed from the signed application
     expect((await t.db.query<{ n: string }>(`SELECT count(*)::text n FROM rate_cards WHERE is_active AND business_id=$1`, [biz])).rows[0]!.n).toBe("1");
     expect((await t.db.query<{ certification_status: string }>(`SELECT certification_status FROM partner_workers`)).rows[0]!.certification_status).toBe("verified");
   });
   test("database refuses approving an unverified installer worker", async () => {
     const t = await installerDb();
     const biz = (await t.db.query<{ id: string }>(`INSERT INTO businesses(name, business_type) VALUES ('B','eec_installer') RETURNING id`)).rows[0]!.id;
-    await t.db.query(`INSERT INTO partner_workers(business_id, trade_role, full_legal_name, email, certification_status) VALUES ($1,'installer','W','w@x.au','unverified')`, [biz]);
+    await t.db.query(`INSERT INTO partner_workers(business_id, trade_role, full_legal_name, email, qualification, certification_status) VALUES ($1,'installer','W','w@x.au','EEC CII 1','unverified')`, [biz]);
     await expect(t.db.query(`UPDATE partner_workers SET approval_status='approved'`)).rejects.toThrow("worker_cert:unverified");
     await t.db.query(`UPDATE partner_workers SET certification_status='verified'`);
     await t.db.query(`UPDATE partner_workers SET approval_status='approved'`);
     await expect(t.db.query(`UPDATE partner_workers SET certification_status='rejected'`)).rejects.toThrow("worker_cert:unverified");
     void ADMIN;
+  });
+
+  const signedApp = async (t: Awaited<ReturnType<typeof installerDb>>, data: InstData = complete) => {
+    const id = await t.create(data);
+    const a = await t.app(id);
+    await performInstallerSign(a, await input(a), meta, t.deps());
+    return { id, signed: await t.app(id) };
+  };
+  test("NEW business (no existing ABN) activates under the real onboarding_status check; starts as inactive draft", async () => {
+    const t = await installerDb();
+    const { id, signed } = await signedApp(t, { ...complete, installers: [{ ...complete.installers![0]!, qualification: undefined }] } as InstData);
+    const plan = planActivation("installer", signed as never, signed.data as InstData, latestCertifications([cert("a@samplebiz.com.au")]), []);
+    expect(plan.workers[0]!.qualification).toBe("EEC CII CII-1"); // satisfies partner_workers_check without inventing training
+    // Mid-transaction state: before the final approval the new business is 'draft' and inactive.
+    await t.db.exec(`CREATE FUNCTION peek() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+      IF (SELECT onboarding_status FROM businesses WHERE id = (SELECT business_id FROM rate_cards WHERE id = NEW.rate_card_id)) <> 'draft' OR (SELECT is_active FROM businesses WHERE id = (SELECT business_id FROM rate_cards WHERE id = NEW.rate_card_id)) THEN RAISE EXCEPTION 'approved too early'; END IF; RETURN NEW; END $$;
+      CREATE TRIGGER peek BEFORE INSERT ON rate_card_items FOR EACH ROW EXECUTE FUNCTION peek();`);
+    const r = await t.activate(id, plan);
+    expect(r.outcome).toBe("activated");
+    const b = (await t.db.query<{ onboarding_status: string; is_active: boolean; abn: string; business_type: string }>(`SELECT * FROM businesses`)).rows;
+    expect(b.length).toBe(1);
+    expect(b[0]).toMatchObject({ onboarding_status: "approved", is_active: true, abn: "51824753556", business_type: "eec_installer" });
+  });
+  test("same ABN from a second application reuses one business (advisory lock + digits-only match)", async () => {
+    const t = await installerDb();
+    const one = await signedApp(t);
+    const two = await signedApp(t, { ...complete, abn: "51 824 753 556", installers: [{ ...complete.installers![0]!, email: "b@samplebiz.com.au" }] } as InstData);
+    const c = latestCertifications([cert("a@samplebiz.com.au"), cert("b@samplebiz.com.au")]);
+    const r1 = await t.activate(one.id, planActivation("installer", one.signed as never, one.signed.data as InstData, c, []));
+    const r2 = await t.activate(two.id, planActivation("installer", two.signed as never, two.signed.data as InstData, c, []));
+    expect(r2.business_id).toBe(r1.business_id);
+    expect(await t.count("businesses")).toBe(1);
+    expect(await t.count("partner_workers")).toBe(2);
+    expect(CORRECTION_SQL.includes("pg_advisory_xact_lock(hashtextextended('partner_abn:'")).toBe(true);
+  });
+  test("trade-role collision on unique(business_id,email) is refused, not overwritten; nothing written", async () => {
+    const t = await installerDb();
+    const { id, signed } = await signedApp(t);
+    const biz = (await t.db.query<{ id: string }>(`INSERT INTO businesses(name, abn, business_type, capabilities, onboarding_status) VALUES ('Sparks', '51824753556', 'rec', '{electrician}', 'approved') RETURNING id`)).rows[0]!.id;
+    await t.db.query(`INSERT INTO partner_workers(business_id, trade_role, full_legal_name, email, licence_number, approval_status) VALUES ($1,'electrician','A B','A@samplebiz.com.au','L1','approved')`, [biz]);
+    const plan = planActivation("installer", signed as never, signed.data as InstData, latestCertifications([cert("a@samplebiz.com.au")]), []);
+    await expect(t.activate(id, plan)).rejects.toThrow("activate:worker_role_conflict");
+    expect(await t.count("partner_activations")).toBe(0);
+    expect((await t.db.query<{ trade_role: string; approval_status: string }>(`SELECT * FROM partner_workers`)).rows[0]).toMatchObject({ trade_role: "electrician", approval_status: "approved" });
+    expect((await t.db.query<{ capabilities: string[] }>(`SELECT capabilities FROM businesses`)).rows[0]!.capabilities).toEqual(["electrician"]);
+  });
+  test("certification rejection of an APPROVED installer is recorded and moves them to rejected atomically", async () => {
+    const t = await installerDb();
+    const { id, signed } = await signedApp(t);
+    await t.recordCert(id, "a@samplebiz.com.au", "verified");
+    const certs = latestCertifications((await t.db.query<CertVerification>(`SELECT id, worker_email, status, recorded_at::text, certificate_number FROM partner_worker_certifications`)).rows);
+    await t.activate(id, planActivation("installer", signed as never, signed.data as InstData, certs, []));
+    await t.db.query(`UPDATE partner_workers SET approval_status='approved', approved_by=$1, approved_at=now()`, [ADMIN]);
+    await t.recordCert(id, "A@samplebiz.com.au", "rejected", null);
+    const w = (await t.db.query<{ approval_status: string; certification_status: string; approved_by: string | null }>(`SELECT * FROM partner_workers`)).rows[0]!;
+    expect(w).toMatchObject({ approval_status: "rejected", certification_status: "rejected", approved_by: null });
+    expect(await t.count("partner_worker_certifications")).toBe(2);
+    // Not nominated / not admin: refused, nothing appended.
+    await expect(t.recordCert(id, "x@other.au", "verified")).rejects.toThrow("cert:not_nominated");
+    await expect(t.recordCert(id, "a@samplebiz.com.au", "verified", "CII-1", OTHER)).rejects.toThrow("cert:forbidden");
+    // If the worker update fails, the history row is rolled back too (one transaction).
+    await t.db.exec(`CREATE FUNCTION nope() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'nope'; END $$; CREATE TRIGGER nope BEFORE UPDATE ON partner_workers FOR EACH ROW EXECUTE FUNCTION nope();`);
+    await expect(t.recordCert(id, "a@samplebiz.com.au", "verified")).rejects.toThrow();
+    expect(await t.count("partner_worker_certifications")).toBe(2);
+  });
+});
+
+describe("sign replay through the public server path (performInstallerSign)", () => {
+  test("same reviewed hash on a signed application returns the original signature; different hash refused", async () => {
+    const t = await installerDb();
+    const id = await t.create(complete);
+    const a = await t.app(id);
+    const inp = await input(a);
+    const first = await performInstallerSign(a, inp, meta, t.deps());
+    const signed = await t.app(id);
+    const again = await performInstallerSign(signed, inp, meta, t.deps());
+    expect(again.outcome).toBe("already_signed_same");
+    expect(again.signed_at).toBe(first.signed_at);
+    await expect(performInstallerSign(signed, { ...inp, agreement_sha256: "0".repeat(64) }, meta, t.deps())).rejects.toThrow("already been signed");
+    expect(await t.count("partner_enquiries")).toBe(1);
   });
 });

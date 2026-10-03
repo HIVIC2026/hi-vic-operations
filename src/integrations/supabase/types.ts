@@ -9922,6 +9922,19 @@ export type Database = {
         Returns: string
       }
       record_expired_onboarding_authorisations: { Args: never; Returns: number }
+      record_worker_certification: {
+        Args: {
+          _actor: string
+          _app_id: string
+          _email: string
+          _issuer: string
+          _note: string
+          _number: string
+          _source: string
+          _status: string
+        }
+        Returns: string
+      }
       required_deposit_amount: { Args: { _total: number }; Returns: number }
       review_external_action: {
         Args: {
