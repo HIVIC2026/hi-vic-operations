@@ -19,14 +19,27 @@ export function activationWorkers(type: PartnerType, application: RecData | Inst
       full_legal_name: worker.full_legal_name?.trim() ?? "", email,
       mobile: worker.mobile?.trim() || null, licence_number: null,
       // partner_workers_check requires a qualification for installers: use stated training, else the CII certificate the office checks.
-      qualification: worker.qualification?.trim()
-        || ((v?.certificate_number ?? worker.cii_certificate_number)?.trim() ? `EEC CII ${(v?.certificate_number ?? worker.cii_certificate_number)!.trim()}` : null),
+      qualification: installerQualification(worker, v),
       source_application_id: applicationId,
       // Only an office verification counts; the applicant's own answer is kept as "declared".
       certification_status: v?.status ?? "unverified",
       certification: { declared: { holds: worker.cii_holds ?? null, certificate_number: worker.cii_certificate_number ?? null, issuer: worker.cii_issuer ?? null, issue_date: worker.cii_issue_date ?? null }, verification_id: v?.id ?? null },
     };
   });
+}
+
+/**
+ * Compatibility value for partner_workers.qualification (live CHECK: non-null for installers).
+ * Descriptive only — never a verification; `certification_status` alone decides approval/assignment.
+ */
+export function installerQualification(worker: { qualification?: string | null; cii_holds?: string | null; cii_certificate_number?: string | null }, v?: CertVerification | null): string {
+  const stated = worker.qualification?.trim();
+  if (stated) return stated.slice(0, 300);
+  const num = (v?.status === "verified" ? v.certificate_number : null)?.trim() || worker.cii_certificate_number?.trim();
+  const basis = v?.status === "verified" ? "office-verified" : v?.status === "rejected" ? "not accepted" : "declared, not verified";
+  if (num) return `EEC CII ${num} (${basis})`;
+  const held = worker.cii_holds === "held" ? "held" : worker.cii_holds === "in_training" ? "in training" : worker.cii_holds === "not_held" ? "not held" : "not stated";
+  return `EEC CII ${held} (${basis})`;
 }
 
 export type CertVerification = { id: string; worker_email: string; status: "verified" | "rejected"; recorded_at: string; certificate_number?: string | null };
@@ -116,9 +129,13 @@ export function approvedRateItems(type: PartnerType, raw: RecData | InstData) {
       { code: "R5_BATTS", description: "R5.0 ceiling batts supply & install", category: "product", unit: "m2", value: d.r5_rate, r_value: 5, sort: 1 },
       { code: "BATTS_REMOVAL", description: "Batts removal and disposal", category: "removal", unit: "m2", value: d.batts_removal_rate, r_value: null, sort: 2 },
       { code: "LOOSE_FILL_REMOVAL", description: "Loose-fill removal and disposal", category: "removal", unit: "m2", value: d.loose_fill_removal_rate, r_value: null, sort: 3 },
-      ...EXTRA_ITEMS.map((item, i) => ({ code: item.key.toUpperCase(), description: item.label, category: item.key.includes("access") ? "access" : "travel", unit: "flat", value: d.extra_rates?.[item.key], r_value: null, sort: 10 + i })),
+      ...EXTRA_ITEMS.map((item, i) => ({ code: item.key.toUpperCase(), description: item.label, category: item.key.includes("access") ? "access" : "travel", unit: "flat", value: d.extra_rates?.[item.key], r_value: null, sort: 10 + i, optional: true })),
     ];
-    return rows.filter((r): r is typeof r & { value: number } => typeof r.value === "number" && Number.isFinite(r.value) && r.value > 0).map(({ value, ...r }) => ({ ...r, unit_price_ex_gst: ex(value) }));
+    // Required base/removal rates must be > 0; an OPTIONAL extra keeps an explicit $0 ("no extra charge").
+    // A blank extra has no row: it is quoted separately on the job (see installerExtraPricing).
+    return rows
+      .filter((r): r is typeof r & { value: number } => typeof r.value === "number" && Number.isFinite(r.value) && ("optional" in r && r.optional ? r.value >= 0 : r.value > 0))
+      .map(({ value, ...r }) => { const { optional: _o, ...rest } = r as typeof r & { optional?: boolean }; return { ...rest, unit_price_ex_gst: ex(value) }; });
   }
   const d = raw as RecData;
   const rows = [
@@ -129,4 +146,13 @@ export function approvedRateItems(type: PartnerType, raw: RecData | InstData) {
     { code: "COES", description: "Certificate of Electrical Safety", category: "electrical", unit: "flat", value: d.coes_fee_choice === "separate" ? d.coes_fee : null, r_value: null, sort: 20 },
   ];
   return rows.filter((r): r is typeof r & { value: number } => typeof r.value === "number" && Number.isFinite(r.value) && r.value > 0).map(({ value, ...r }) => ({ ...r, unit_price_ex_gst: ex(value) }));
+}
+/** How an approved installer card prices an optional extra: rated, included at $0, or quoted separately (no row). */
+export function installerExtraPricing(items: { code: string; unit_price_ex_gst: number | string }[], key: (typeof EXTRA_ITEMS)[number]["key"]):
+  { kind: "rated"; unit_price_ex_gst: number } | { kind: "no_extra_charge"; unit_price_ex_gst: 0 } | { kind: "quoted_separately" } {
+  const row = items.find((i) => i.code === key.toUpperCase());
+  if (!row) return { kind: "quoted_separately" };
+  const p = Number(row.unit_price_ex_gst);
+  if (!Number.isFinite(p) || p < 0) return { kind: "quoted_separately" };
+  return p === 0 ? { kind: "no_extra_charge", unit_price_ex_gst: 0 } : { kind: "rated", unit_price_ex_gst: p };
 }

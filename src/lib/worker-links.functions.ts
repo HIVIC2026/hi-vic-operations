@@ -130,7 +130,7 @@ export const createWorkerJobLink = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ jobId: uuid, workerId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const { data: w } = await admin.from("partner_workers").select("id, business_id, full_legal_name, approval_status, removed_at").eq("id", data.workerId).maybeSingle();
+    const { data: w } = await admin.from("partner_workers").select("id, business_id, full_legal_name, trade_role, approval_status, certification_status, removed_at").eq("id", data.workerId).maybeSingle();
     if (!w) throw new Error("Worker not found.");
     if (!(await isAdminCaller(context.supabase))) await requireMember(context.userId, w.business_id);
     const block = assignBlocker(w, await jobBusinesses(data.jobId));
@@ -166,10 +166,10 @@ async function resolveLink(token: string) {
   const st = linkState(l, Date.now());
   if (st !== "active") throw new Error(st === "revoked" ? "This link has been switched off. Ask your company for a new one." : "This link has expired. Ask your company for a new one.");
   const [{ data: w }, { data: b }] = await Promise.all([
-    admin.from("partner_workers").select("full_legal_name, trade_role, approval_status, removed_at").eq("id", l.worker_id).maybeSingle(),
+    admin.from("partner_workers").select("full_legal_name, trade_role, approval_status, certification_status, removed_at").eq("id", l.worker_id).maybeSingle(),
     admin.from("businesses").select("name, trading_name").eq("id", l.business_id).maybeSingle(),
   ]);
-  if (!w || w.removed_at || w.approval_status !== "approved") throw new Error("This link has been switched off. Ask your company for a new one.");
+  if (!w || w.removed_at || w.approval_status !== "approved" || certificationBlocker(w)) throw new Error("This link has been switched off. Ask your company for a new one.");
   if (!(await jobBusinesses(l.job_id)).includes(l.business_id)) throw new Error("Your company is no longer on this job.");
   return { admin, l, w, bizName: b?.trading_name || b?.name || null };
 }
