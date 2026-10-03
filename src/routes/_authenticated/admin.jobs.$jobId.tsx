@@ -1,3 +1,4 @@
+import { OfficeAllocationPanel } from "@/components/portal/allocation";
 import { OfficeInstalmentPlanCard } from "@/components/portal/instalment-plan";
 import { VerifiedEligibilityCard } from "@/components/portal/verified-eligibility";
 import { AdminEstimateCard } from "@/components/portal/estimate";
@@ -90,7 +91,7 @@ function JobDetail() {
           <div id="panel-intake-consent" className="scroll-mt-4"><IntakeSummary jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Property"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("ready_check")} title="Ready Check" summary="Requirements, appointment, booking, Mitti and measure-up">
-          <RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><VerifiedEligibilityCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Measure-up"]} />
+          <RequirementCards jobId={jobId} isAdmin job={job} /><OfficeAllocationPanel jobId={jobId} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><VerifiedEligibilityCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Measure-up"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("quote")} title="Quote" summary="Quotes, invoice & deposit, electronic signing">
           <div id="target-quotes" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} /></div><InstallerQuoteDraftPanel jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><div id="panel-deposit-request" className="scroll-mt-4"><PaymentsPanel jobId={jobId} isAdmin /></div><OfficeInstalmentPlanCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />

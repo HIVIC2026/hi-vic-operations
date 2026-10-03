@@ -415,7 +415,16 @@ export const proposeTime = createServerFn({ method: "POST" }).middleware([requir
   .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["assessment", "ready_check", "rectification", "installation"]).default("assessment"), start: z.string().datetime({ offset: true }), note: txt(500) }).parse(d))
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "owner", "electrician", "installer"]);
-    if (data.kind === "assessment") throw new WorkflowError("Assessment appointments are retired. The free Ready Check comes first; the PIESA is booked after quote acceptance.");
+    if (data.kind === "assessment") {
+      // "assessment" = the PIESA visit. Only once the PIESA gate has been passed and an electrician accepted.
+      if (!["piesa_and_install_window_pending", "piesa_scheduled"].includes(await getStage(data.jobId))) throw new WorkflowError("The PIESA can only be arranged after the confirmed quote is approved and the payment option is cleared.");
+    }
+    if (data.kind === "installation") {
+      const { clearanceFacts } = await import("./allocation.server");
+      const { electricalClearance, installationCoordinationBlocker } = await import("./allocation.core");
+      const b0 = installationCoordinationBlocker(electricalClearance(await clearanceFacts(data.jobId)));
+      if (b0) throw new WorkflowError(b0);
+    }
     if (Date.parse(data.start) <= Date.now()) throw new WorkflowError("Propose a time in the future.");
     const { data: a } = await admin.from("job_assignments").select("id, user_id, first_response_at").eq("job_id", data.jobId).eq("role", data.kind === "installation" || data.kind === "ready_check" ? "installer" : "electrician").eq("active", true).maybeSingle();
     if (!a) throw new WorkflowError("No trade is assigned yet.");
@@ -488,7 +497,7 @@ export const offerToPartner = createServerFn({ method: "POST" }).middleware([req
     if (!j) throw new WorkflowError("Job not found");
     const [{ count: inst }, { count: pend }, { data: m }] = await Promise.all([
       admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("role", "installer").eq("active", true),
-      admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("status", "pending"),
+      admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("kind", "installer").eq("status", "pending"),
       admin.from("ceiling_measurements").select("measured_area_m2, status").eq("job_id", data.jobId).eq("is_current", true).maybeSingle(),
     ]);
     // Preference columns arrive with pending migration 0082; until then they are undefined and do not block.
@@ -521,6 +530,11 @@ export const respondToOffer = createServerFn({ method: "POST" }).middleware([req
     await requireMember(context.userId, o.business_id);
     const b = offerRespondBlocker(o);
     if (b) { if (b.includes("expired")) await admin.from("partner_offers").update({ status: "expired" }).eq("id", o.id); throw new WorkflowError(b); }
+    if (o.kind !== "installer") {
+      // PIESA / rectification offers go through the atomic electrician allocation path.
+      const { respondToRecOffer } = await import("./allocation.server");
+      return respondToRecOffer(o.id, context.userId, data.accept, data.reason ?? null);
+    }
     const now = new Date().toISOString();
     if (!data.accept) {
       await admin.from("partner_offers").update({ status: "declined", responded_by: context.userId, responded_at: now, decline_reason: data.reason ?? null }).eq("id", o.id);
@@ -580,7 +594,7 @@ export const partnerDashboard = createServerFn({ method: "GET" }).middleware([re
     const bizId = ids[0]!;
     const isBizAdmin = mine.get(bizId) === "business_admin";
     const { business, credentials } = await loadBusiness(bizId);
-    const { data: offers } = await admin.from("partner_offers").select("id, status, summary, offered_at, expires_at").eq("business_id", bizId).eq("status", "pending");
+    const { data: offers } = await admin.from("partner_offers").select("id, kind, status, summary, offered_at, expires_at").eq("business_id", bizId).eq("status", "pending");
     let q = admin.from("job_assignments").select("job_id, user_id, role").eq("business_id", bizId).eq("active", true);
     if (!isBizAdmin) q = q.eq("user_id", context.userId);
     const { data: asg } = await q;

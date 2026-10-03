@@ -11,12 +11,13 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   const need = kind === "installation" || kind === "ready_check" ? "installer" : "electrician";
   const stage = await getStage(jobId);
   const map: Record<BookingKind, [Stage[], Stage]> = {
-    assessment: [["assessment_booking", "assessment_booked"], "assessment_booked"],
+    // "assessment" booking kind = the PIESA visit (legacy enum name). Only after the PIESA gate.
+    assessment: [["piesa_and_install_window_pending", "piesa_scheduled"], "piesa_scheduled"],
     ready_check: [["ready_check_ready_to_schedule", "ready_check_scheduled"], "ready_check_scheduled"],
     rectification: [["rectification_scheduling", "rectification_booked"], "rectification_booked"],
     installation: [["installation_scheduling", "installation_booked"], "installation_booked"],
   };
-  if ((kind as string) === "assessment") throw new WorkflowError("Assessment bookings are retired. The free Ready Check comes first; the PIESA is booked after quote acceptance.");
+  if (kind === "assessment" && !["piesa_and_install_window_pending", "piesa_scheduled"].includes(stage)) throw new WorkflowError("The PIESA can only be booked after the confirmed quote is approved and the payment option is cleared.");
   const [allowed, target] = map[kind];
   if (!allowed.includes(stage)) throw new WorkflowError(`A ${kind} booking can't be made at ${STAGE_LABEL[stage]}.`);
   const { data: contractor } = await admin.from("job_assignments").select("id, user_id, business_id, businesses(business_type, onboarding_status, is_active, capabilities)").eq("job_id", jobId).eq("role", need).eq("active", true).maybeSingle();
@@ -29,14 +30,18 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     await requireApprovedPartner(contractor.business_id);
   }
   if (kind === "installation") {
+    const { clearanceFacts } = await import("./allocation.server");
+    const { electricalClearance, installationCoordinationBlocker } = await import("./allocation.core");
+    const cb0 = installationCoordinationBlocker(electricalClearance(await clearanceFacts(jobId)));
+    if (cb0) throw new WorkflowError(cb0);
     const blocked = installationDateBlocker(await piesaStatus(jobId), start);
     if (blocked) throw new WorkflowError(blocked);
     const { bookingLeadBlocker } = await import("./esc.core");
     const lead = bookingLeadBlocker(start, new Date().toISOString());
     if (lead) throw new WorkflowError(lead);
   }
-  if (kind !== "assessment" && kind !== "ready_check") { const cb = await commercialBlocker(jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
-  if (kind !== "assessment" && kind !== "ready_check") { const g = await paymentGate(jobId); if (!g.cleared) throw new WorkflowError(`Blocked: ${g.blocker}`); }
+  if (kind !== "ready_check") { const cb = await commercialBlocker(jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
+  if (kind !== "ready_check") { const g = await paymentGate(jobId); if (!g.cleared) throw new WorkflowError(`Blocked: ${g.blocker}`); }
   await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).eq("kind", kind).in("status", ["proposed", "confirmed"]);
   await admin.from("bookings").insert({ job_id: jobId, kind, contractor_id: contractor.user_id, assignment_id: contractor.id, business_id: contractor.business_id, scheduled_start: start, booked_by: actorId, notes: notes ?? null, status: "confirmed" });
   const nowIso = new Date().toISOString();
@@ -49,9 +54,13 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     await reevaluateIntelligence(jobId, actorId, "installation date set");
   }
   const when = new Date(start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
-  if (stage === target) await logEvent(jobId, actorId, "booking_rescheduled", `${kind === "ready_check" ? "Ready Check" : kind} rescheduled to ${when} by ${roleLabel}`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id });
-  else await transition(jobId, target, actorId, `${kind === "ready_check" ? "Ready Check" : kind.charAt(0).toUpperCase() + kind.slice(1)} booked for ${when} by ${roleLabel}`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id, scheduled_start: start });
+  if (stage === target) await logEvent(jobId, actorId, "booking_rescheduled", `${kind === "ready_check" ? "Ready Check" : kind === "assessment" ? "PIESA" : kind} rescheduled to ${when} by ${roleLabel}`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id });
+  else await transition(jobId, target, actorId, `${kind === "ready_check" ? "Ready Check" : kind === "assessment" ? "PIESA" : kind.charAt(0).toUpperCase() + kind.slice(1)} booked for ${when} by ${roleLabel}`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id, scheduled_start: start });
   if (kind === "assessment") {
+    // Installer planning visibility only — never an installation booking.
+    const { INSTALLER_PLANNING_NOTICE } = await import("./allocation.core");
+    const { data: inst } = await admin.from("job_assignments").select("id, user_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+    if (inst) await logEvent(jobId, actorId, "installer_planning_notice", INSTALLER_PLANNING_NOTICE, { assignment_id: inst.id, installer_user_id: inst.user_id, piesa_start: start });
     const { recordBookingCompleted } = await import("./engagement.server");
     await recordBookingCompleted(jobId).catch((e) => console.error("engagement booking record failed", (e as Error).message));
   }

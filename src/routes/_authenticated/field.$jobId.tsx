@@ -1,3 +1,4 @@
+import { VisitContactsCard } from "@/components/portal/allocation";
 import { ElectricianChoicePanel, PartnerProposalForm } from "@/components/portal/partner";
 import { nextStep } from "@/lib/nextstep.core";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -54,7 +55,7 @@ function FieldJob() {
                 {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage!} />}
         {role === "installer" && ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(job.stage!) && <PartnerProposalForm jobId={jobId} />}
         <WorkerLinksPanel jobId={jobId} />
-        <MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" || role === "installer" ? { role } : {})} />
+        <VisitContactsCard jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" || role === "installer" ? { role } : {})} />
       </div>
     </AppShell>
   );
