@@ -105,7 +105,7 @@ describe("installer visible pages", () => {
   test("address lookup mirrors REC race guards", () => {
     const src = readFileSync("src/routes/installer-onboarding.tsx", "utf8");
     const shared = readFileSync("src/components/onboarding/VerifiedAddressInput.tsx", "utf8");
-    for (const s of ["mine !== detailsSeq.current", "mine !== searchSeq.current", "resolved?.label !== value", "onSelect(null); onChange(e.target.value)"]) expect(shared).toContain(s);
+    for (const s of ["mine !== detailsSeq.current", "mine !== searchSeq.current", "resolved?.label !== value", "onSelect(null); onChange(next)"]) expect(shared).toContain(s);
     expect(src).toContain("service_origin_details: d.business_address_details");
   });
 });
