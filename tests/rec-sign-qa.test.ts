@@ -307,6 +307,23 @@ describe("QA-SGN signing against isolated PostgreSQL (PGlite) + pending sign_rec
     await performRecSign(await t.app(id), await reviewedInput(t, id), meta, t.deps(), now); // retry works
     expect((await t.enquiries()).length).toBe(1);
   });
+  test("EXT-3 repro: other tab saves rate 999 + review=false DURING sha256 -> rejected, nothing signed", async () => {
+    const t = await recDb(); const id = await t.create(full); const inp = await reviewedInput(t, id);
+    const snap = await t.app(id);
+    const deps = { ...t.deps(), sha256: async (x: string) => { await t.save(id, { ...full, assessment_rate: 999, agreement_reviewed: false }); return sha256(x); } };
+    await expect(performRecSign(snap, inp, meta, deps, now)).rejects.toThrow(REC_STALE_MESSAGE);
+    const a = await t.app(id);
+    expect(a.status).toBe("draft"); expect(a.agreement_text).toBeNull(); expect((await t.enquiries()).length).toBe(0);
+  });
+  test("EXT-3 repro: orphan raw_payload OLD_HASH/OLD_SIGNER -> enquiry matches the new signed hash and signer", async () => {
+    const t = await recDb(); const id = await t.create(full);
+    await t.db.query(`INSERT INTO partner_enquiries(source_system, enquiry_type, submission_id, raw_payload) VALUES ('portal_form','electrician_rec',$1,$2)`,
+      [`portal-rec-onboarding-${id}`, JSON.stringify({ agreement_sha256: "OLD_HASH", signer: { name: "OLD_SIGNER" } })]);
+    const r = await performRecSign(await t.app(id), await reviewedInput(t, id), meta, t.deps(), now);
+    const [pe] = await t.enquiries();
+    expect(pe!.raw_payload.agreement_sha256).toBe(r.agreement_sha256); expect(pe!.raw_payload.agreement_sha256).not.toBe("OLD_HASH");
+    expect(pe!.raw_payload.signer.name).toBe("Sam Smith"); expect(String((await t.app(id)).agreement_sha256)).toBe(r.agreement_sha256);
+  });
   test("RPC rejects mismatched submission id and malformed hash", async () => {
     const t = await recDb(); const id = await t.create(full); const a = await t.app(id);
     await expect(t.db.query(`SELECT * FROM sign_rec_application($1,$2,$3,$4,$5)`, [id, a.updated_at, "c".repeat(64), JSON.stringify({ submission_id: "other" }), JSON.stringify({ agreement_sha256: "c".repeat(64) })])).rejects.toThrow(/bad_submission/);
