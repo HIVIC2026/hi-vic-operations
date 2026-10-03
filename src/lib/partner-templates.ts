@@ -1,8 +1,7 @@
 // Canonical reusable partner invitation templates for the office.
 // Presentation only: preview / copy subject / download. Nothing here sends email,
-// configures Resend, or triggers any automation. HTML is stored verbatim (canonical).
-// The installer template embeds the logo as a data-URI PNG; the REC template uses
-// the existing public HTTPS logo (confirmed 200, image/png, 400x171, approved PNG).
+// configures Resend, or triggers any automation. HTML is stored verbatim (canonical),
+// with the logo embedded as a data-URI PNG so the file is fully standalone.
 
 import { REC_INVITATION_HTML } from "./rec-invitation.html";
 
