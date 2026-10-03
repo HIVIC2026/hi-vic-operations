@@ -10105,6 +10105,13 @@ export type Database = {
           signed_at: string
         }[]
       }
+      visit_is_current: {
+        Args: {
+          _stage: Database["public"]["Enums"]["job_stage"]
+          _visit: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       access_difficulty: "easy" | "moderate" | "difficult"
