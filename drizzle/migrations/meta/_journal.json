@@ -547,6 +547,13 @@
       "when": 1790982646726,
       "tag": "0077_mitti_membership_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1790990862062,
+      "tag": "0078_sign_rec_application",
+      "breakpoints": true
     }
   ]
 }

@@ -9635,6 +9635,20 @@ export type Database = {
         Returns: undefined
       }
       shares_job_with: { Args: { _profile: string }; Returns: boolean }
+      sign_rec_application: {
+        Args: {
+          _agreement_sha256: string
+          _app_id: string
+          _enquiry: Json
+          _expected_updated_at: string
+          _signed: Json
+        }
+        Returns: {
+          outcome: string
+          partner_enquiry_id: string
+          signed_at: string
+        }[]
+      }
     }
     Enums: {
       access_difficulty: "easy" | "moderate" | "difficult"
