@@ -17,6 +17,7 @@ import {
 import { signRecWithRecovery } from "@/lib/rec-sign.core";
 import { loadTeamInvite, respondTeamInvite } from "@/lib/teaming.functions";
 import { newResumeToken, takeStaffLink } from "@/lib/onboarding-security.core";
+import { prepareCertificate } from "@/lib/certificate-file";
 import { VerifiedAddressInput } from "@/components/onboarding/VerifiedAddressInput";
 
 // Public REC (electrician) onboarding + partner agreement signing. Progress is saved
@@ -481,19 +482,19 @@ function InsuranceStep({ d, up, token, setError, preview, onRevision }: { d: Rec
   const [found, setFound] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [reading, setReading] = useState<InsuranceExtract | null>(null);
-  async function onFile(f: File | undefined) {
-    if (!f) return;
+  async function onFile(picked: File | undefined) {
+    if (!picked) return;
     if (preview) { setError("Sample preview only — certificate upload is disabled."); return; }
     setError(null);
-    if (!["application/pdf", "image/jpeg", "image/png"].includes(f.type)) { setError("Upload a PDF, JPG or PNG."); return; }
-    if (f.size > 10 * 1024 * 1024) { setError("File must be 10 MB or smaller."); return; }
+    let f: File; let mime: "application/pdf" | "image/jpeg" | "image/png";
+    try { ({ file: f, mime } = await prepareCertificate(picked)); } catch (e) { setError(e instanceof Error ? e.message : "Upload a PDF, JPG or PNG."); return; }
     setUploading(true);
     try {
-      const u = await insuranceUploadUrl({ data: { token, content_type: f.type as "application/pdf", size: f.size, filename: f.name } });
-      const { error } = await supabase.storage.from("partner-files").uploadToSignedUrl(u.path, u.token, f, { contentType: f.type });
+      const u = await insuranceUploadUrl({ data: { token, content_type: mime, size: f.size, filename: f.name } });
+      const { error } = await supabase.storage.from("partner-files").uploadToSignedUrl(u.path, u.token, f, { contentType: mime });
       if (error) throw new Error("Upload failed. Please try again.");
       setChecking(true);
-      const r = await confirmInsuranceUpload({ data: { token, path: u.path, content_type: f.type as "application/pdf" } });
+      const r = await confirmInsuranceUpload({ data: { token, path: u.path, content_type: mime } });
       onRevision?.(r.updated_at);
       const x = r.extracted;
       const patch: Partial<RecData> = { insurance_uploaded: true };
@@ -517,9 +518,9 @@ function InsuranceStep({ d, up, token, setError, preview, onRevision }: { d: Rec
   }
   return <>
     {d.insurance_uploaded
-      ? <div style={{ ...infoCard }}>✓ Certificate uploaded. It's stored privately — only the Home Insulation Victoria office can view it. {!preview && <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label>}</div>
+      ? <div style={{ ...infoCard }}>✓ Certificate uploaded. It's stored privately — only the Home Insulation Victoria office can view it. {!preview && <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif" onChange={(e) => onFile(e.target.files?.[0])} /></label>}</div>
       : <Field label="Certificate of Currency" required hint="PDF, JPG or PNG, up to 10 MB">
-          <label style={{ ...btn(false, uploading), display: "inline-flex", alignItems: "center" }}>{checking ? "Checking certificate…" : uploading ? "Uploading…" : "Upload certificate"}<input type="file" hidden disabled={uploading} accept="application/pdf,image/jpeg,image/png" onChange={(e) => onFile(e.target.files?.[0])} /></label>
+          <label style={{ ...btn(false, uploading), display: "inline-flex", alignItems: "center" }}>{checking ? "Checking certificate…" : uploading ? "Uploading…" : "Upload certificate"}<input type="file" hidden disabled={uploading} accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif" onChange={(e) => onFile(e.target.files?.[0])} /></label>
         </Field>}
     {checking && <div style={{ ...infoCard }}>Checking your certificate…</div>}
     {found && !checking && <div style={{ ...infoCard }}>{found}</div>}
