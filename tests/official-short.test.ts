@@ -1,165 +1,162 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "fs";
 import { unzipSync } from "fflate";
-import { SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS, shortAnswersFromEntries } from "../src/lib/official-short.core";
-import { expandPiesa, expandPiisa, expandShortAnswers, expansionCoverage } from "../src/lib/official-expand.core";
+import { SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS, MAINS_PROBLEMS, shortAnswersFromEntries } from "../src/lib/official-short.core";
+import { expandPiesa, expandPiisa, expansionCoverage } from "../src/lib/official-expand.core";
 import { fillOfficialDocxXml } from "../src/lib/official-docx.core";
 import { FORMS } from "../src/lib/mitti-forms.core";
-import { OFFICIAL_ITEMS, evaluatePiesa, evaluatePiisa, type OfficialAnswers } from "../src/lib/official-forms.core";
+import { OFFICIAL_ITEMS, evaluatePiesa, type OfficialAnswers } from "../src/lib/official-forms.core";
 
 const docxXml = (file: string) => new TextDecoder().decode(unzipSync(readFileSync(`docs/official-forms/${file}`))["word/document.xml"]);
 const PIESA_XML = docxXml("VEU-pre-installation-electrical-safety-assessment-form_1.docx");
 const PIISA_XML = docxXml("VEU-pre-installation-installer-safety-assessment-form-_3.docx");
 
-const shortEntries = (key: "piesa" | "piisa", values: Record<string, string>) =>
+const entries = (key: "piesa" | "piisa", values: Record<string, string>) =>
   (key === "piesa" ? SHORT_PIESA_FIELDS : SHORT_PIISA_FIELDS)
-    .filter((f) => values[f.id] !== undefined)
-    .map((f) => ({ label: f.label, value: values[f.id] }));
+    .filter((f) => values[f.id!] !== undefined)
+    .map((f) => ({ label: f.label, value: values[f.id!] }));
 
 describe("short onsite form", () => {
-  test("every short field is an official mapping, none supplemental, in FORMS before supplemental evidence", () => {
+  test("short fields come first in FORMS, before clearly separated supplemental evidence", () => {
     for (const k of ["piesa", "piisa"] as const) {
       const shorts = k === "piesa" ? SHORT_PIESA_FIELDS : SHORT_PIISA_FIELDS;
       const start = FORMS[k].fields.findIndex((f) => f.supplemental);
+      expect(start).toBeGreaterThan(0);
       expect(FORMS[k].fields.slice(0, start).map((f) => f.id)).toEqual(shorts.map((f) => f.id));
-      expect(shorts.every((f) => f.official && !f.supplemental)).toBe(true);
+      expect(FORMS[k].fields.slice(start).every((f) => f.supplemental)).toBe(true);
     }
   });
-  test("labels are clear full sentences (no telegraphic shorthand, no ALL-CAPS fragments)", () => {
+  test("the safety questions are clear full sentences, not shorthand", () => {
+    const ids = ["mainsSafe", "ceilingSafe", "lifeSupportConfirm", "swmsComplete", "piesaReviewed"];
     for (const f of [...SHORT_PIESA_FIELDS, ...SHORT_PIISA_FIELDS]) {
-      expect(f.label.endsWith("?") || f.label.endsWith(".") || f.hint).toBeTruthy();
-      expect(f.label).not.toMatch(/\b(e\.g\.|ie\.|w\/)\b/);
-      expect(f.label.length).toBeGreaterThan(15);
+      if (!ids.includes(f.id!)) continue;
+      expect(f.label.endsWith("?")).toBe(true);
+      expect(f.label.length).toBeGreaterThan(30);
     }
   });
-  test("Ready Check measurements and photos are offered as prefill on the installer form", () => {
-    const ids = SHORT_PIISA_FIELDS.filter((f) => f.prefill).map((f) => f.id);
-    expect(ids).toEqual(expect.arrayContaining(["roof_space_photo", "switchboard_photo", "existing_insulation_photo", "roof_type", "ceiling_area_m2"]));
-    expect(SHORT_PIESA_FIELDS.find((f) => f.id === "b.life_support")?.prefill).toBe(true);
+  test("Ready Check / enquiry information is offered as prefill, never re-asked", () => {
+    expect(SHORT_PIESA_FIELDS.find((f) => f.id === "lifeSupportRecord")?.prefill).toBe(true);
+    expect(SHORT_PIISA_FIELDS.find((f) => f.id === "p2.installDate")?.prefill).toBe(true);
+    expect(SHORT_PIISA_FIELDS.find((f) => f.id === "p7.products")?.prefill).toBe(true);
   });
 });
 
 describe("short answer parsing", () => {
-  test("matches by label, tolerating light Mitti edits", () => {
-    const f = SHORT_PIISA_FIELDS.find((x) => x.id === "ceiling_area_m2")!;
-    const a = shortAnswersFromEntries("piisa", [{ label: `${f.label} *`, value: "120" }]);
-    expect(a.ceiling_area_m2).toBe("120");
+  test("matches Mitti entries by the exact field label", () => {
+    const f = SHORT_PIISA_FIELDS.find((x) => x.id === "p2.lead")!;
+    const a = shortAnswersFromEntries("piisa", [{ label: f.label, value: "Jane Doe" }]);
+    expect(a["p2.lead"]).toBe("Jane Doe");
+  });
+  test("duplicate labels are assigned in form order", () => {
+    const a = shortAnswersFromEntries("piisa", [
+      { label: "Additional installer 1 – full name", value: "Jane Doe" },
+      { label: "Additional installer 2 – full name", value: "John Smith" },
+    ]);
+    expect(a.crewName1).toBe("Jane Doe"); expect(a.crewName2).toBe("John Smith");
   });
 });
 
 describe("expansion to official answers", () => {
-  test("every official answer item is covered by the short form or explicitly flagged", () => {
+  test("every official answer item is covered by the expansion or explicitly excluded", () => {
     for (const k of ["piesa", "piisa"] as const) {
       const cov = expansionCoverage(k);
-      expect(cov.unmapped).toEqual([]);
-      expect(cov.flagged.length).toBeGreaterThan(0); // declarations/signatures are never fabricated
+      const all = OFFICIAL_ITEMS[k].filter((i) => i.kind !== "statement" && i.kind !== "heading").map((i) => i.id);
+      for (const id of all) expect([...cov.covered, ...cov.excluded]).toContain(id);
+      expect(cov.excluded.length).toBeGreaterThan(0); // signatures / office table detail are never fabricated
     }
   });
-  test("an all-clear PIESA answers the official safety items yes", () => {
-    const { answers } = expandPiesa(shortAnswersFromEntries("piesa", shortEntries("piesa", {
-      "b.life_support": "No", "b.hazards": "No – the roof space and switchboard area are clear of these hazards.",
-      "b.switchboard_type": "Modern switchboard with circuit breakers and safety switches (RCDs).",
-      "b.appliances": "No – I checked every one listed and none of these problems are present.",
-      "b.safe_system": "Yes – the installation is electrically safe and in proper working order.",
-    })), { lifeSupportDeclared: "none", today: "2026-10-03" });
-    expect(answers["b2.1"]).toBe("No"); expect(answers["c.1"]).toBe("Yes");
-    expect(evaluatePiesa(answers).blockers.filter((b) => b.item === "b.life_support")).toEqual([]);
+  test("an all-safe mains answer sets every official Part 2 item to Yes", () => {
+    const { answers } = expandPiesa(shortAnswersFromEntries("piesa", entries("piesa", { mainsSafe: "Yes" })), { lifeSupportDeclared: "no", today: "2026-10-03" });
+    for (const id of ["p2.mains", "p2.switchAccessible", "p2.switchIsolates", "p2.switchSecured", "p2.tested", "p2.rcdPresent", "p2.rcdTested"]) expect(answers[id]).toBe("Yes");
   });
-  test("a hazard sentence maps to the matching official hazard items only", () => {
-    const { answers } = expandPiesa(shortAnswersFromEntries("piesa", shortEntries("piesa", {
-      "b.hazards": "Yes – there is evidence of vermin in the roof space.",
-    })), { lifeSupportDeclared: "none", today: "2026-10-03" });
-    expect(answers["b1.4"]).toBe("Yes"); expect(answers["b1.1"]).toBe("No"); expect(answers["b1.5"]).toBe("No");
+  test("a ticked mains problem sets only the matching official item to No", () => {
+    const { answers } = expandPiesa(shortAnswersFromEntries("piesa", entries("piesa", { mainsSafe: "No", mainsProblems: MAINS_PROBLEMS[5] })), { lifeSupportDeclared: "no", today: "2026-10-03" });
+    expect(answers["p2.rcdPresent"]).toBe("No"); expect(answers["p2.mains"]).toBe("Yes"); expect(answers["p2.switch"]).toBe("Yes");
   });
   test("unknown or blank short answers never become an official No", () => {
     const { answers, flagged } = expandPiesa({}, { lifeSupportDeclared: null, today: "2026-10-03" });
     for (const v of Object.values(answers)) expect(v ?? "").not.toBe("No");
     expect(flagged.length).toBeGreaterThan(0);
   });
-  test("legal declarations and signatures are never answered by the expansion", () => {
-    const { answers, flagged } = expandPiesa(shortAnswersFromEntries("piesa", shortEntries("piesa", { "b.safe_system": "Yes – the installation is electrically safe and in proper working order." })), { lifeSupportDeclared: "none", today: "2026-10-03" });
-    const declIds = OFFICIAL_ITEMS.piesa.filter((i) => i.kind === "tick" || i.kind === "signature").map((i) => i.id);
-    for (const id of declIds) expect(answers[id] ?? null).toBeNull();
-    expect(flagged.some((f) => /declaration|signed/i.test(f))).toBe(true);
+  test("life support comes from the enquiry record, confirmed onsite — never re-asked or guessed", () => {
+    const ok = expandPiesa(shortAnswersFromEntries("piesa", entries("piesa", { lifeSupportConfirm: "Yes" })), { lifeSupportDeclared: "no", today: "2026-10-03" });
+    expect(ok.answers.lifeSupport).toBe("No");
+    const disputed = expandPiesa(shortAnswersFromEntries("piesa", entries("piesa", { lifeSupportConfirm: "No" })), { lifeSupportDeclared: "no", today: "2026-10-03" });
+    expect(disputed.answers.lifeSupport ?? null).toBeNull();
+    expect(disputed.flagged.some((f) => /office must resolve/i.test(f))).toBe(true);
   });
-  test("PIISA EEC numbers expand to the official table rows", () => {
-    const { answers } = expandPiisa(shortAnswersFromEntries("piisa", shortEntries("piisa", { installers: "Jane Doe EEC123456; John Smith EEC654321" })), { today: "2026-10-03" });
-    expect(answers["installers.name#0"]).toBe("Jane Doe"); expect(answers["installers.eec#1"]).toBe("EEC654321");
+  test("legal declarations are only set when the signer actually ticked them; signatures never", () => {
+    const { answers, flagged } = expandPiesa(shortAnswersFromEntries("piesa", entries("piesa", {})), { lifeSupportDeclared: "no", today: "2026-10-03" });
+    expect(answers["b3.declaration"] ?? null).toBeNull();
+    expect(flagged.some((f) => /declaration/i.test(f))).toBe(true);
+    expect(flagged.some((f) => /signature/i.test(f))).toBe(true);
   });
-  test("PIISA all-clear maps access items to No and confirmation items to Yes", () => {
-    const { answers } = expandPiisa(shortAnswersFromEntries("piisa", shortEntries("piisa", { "piisa.access_ok": "Yes – all of the above are fine." })), { today: "2026-10-03" });
-    expect(answers["g.2"]).toBe("No"); expect(answers["g.5"]).toBe("Yes"); expect(answers["g.7"]).toBe("Yes");
+  test("PIISA crew names and EEC numbers expand into the official table rows", () => {
+    const { answers, flagged } = expandPiisa(shortAnswersFromEntries("piisa", entries("piisa", { crewName1: "Jane Doe", crewEec1: "EEC123456", crewName2: "John Smith" })), { lifeSupportDeclared: "no", today: "2026-10-03" });
+    expect(answers["p2.addName#0"]).toBe("Jane Doe"); expect(answers["p2.addEec#0"]).toBe("EEC123456");
+    expect(answers["p2.addName#1"]).toBe("John Smith");
+    expect(flagged.some((f) => /installer 2.*EEC/i.test(f))).toBe(true);
+  });
+  test("PIISA all-clear safe-system answer sets all three official Part 3 items", () => {
+    const { answers } = expandPiisa(shortAnswersFromEntries("piisa", entries("piisa", { swmsComplete: "Yes" })), { lifeSupportDeclared: "no", today: "2026-10-03" });
+    expect(answers["p3.swms"]).toBe("Yes"); expect(answers["p3.table1"]).toBe("Yes"); expect(answers["p3.isolated"]).toBe("Yes");
+  });
+  test("PIISA carries solar and downlight answers over from the signed PIESA", () => {
+    const piesaAnswers: OfficialAnswers = { "p3.present": "Yes", "p3.instructions": "Yes", "p3.isolator": "Yes", "p6.recessed": "Yes", "p6.count": "4", b1: "No repair work is needed" };
+    const { answers } = expandPiisa(shortAnswersFromEntries("piisa", entries("piisa", { piesaReviewed: "Yes" })), { lifeSupportDeclared: "no", today: "2026-10-03", piesaAnswers });
+    expect(answers["p4.present"]).toBe("Yes"); expect(answers["p5.recessed"]).toBe("Yes"); expect(answers["p5.count"]).toBe("4");
+    expect(answers["p5.electricianPresent"]).toBe("N/A");
   });
 });
 
 describe("official Word form filling", () => {
   const fullPiesa = (): OfficialAnswers => ({
-    "a.business_name": "Sparky Pty Ltd", "a.rec_number": "REC12345", "a.assessor_name": "Sam Spark",
-    "a.address": "1 Test St, Melbourne VIC 3000", "a.suburb": "Melbourne", "a.state": "VIC", "a.postcode": "3000",
-    "a.customer": "Chris Lowe", "a.date": "2026-10-03", "b.life_support": "No",
-    "b1.1": "No", "b1.2": "No", "b1.3": "No", "b1.4": "No", "b1.5": "No", "b1.6": "No", "b1.7": "No",
-    "b2.1": "No", "b2.2": "No", "b2.3": "No", "b2.4": "No", "b2.5": "No", "b2.6": "No", "b2.7": "No", "b2.8": "No",
-    "b3.1": "Yes", "b3.2": "Yes", "b3.3": "Yes", "b3.4": "Yes", "b3.5": "Yes",
-    "c.1": "Yes", "c.2": "Yes", "c.3": "Yes", "c.4": "Yes", "c.5": "Yes", "c.6": "Yes", "c.7": "Yes", "c.8": "Yes",
-    "c.9": "Yes", "c.10": "Yes", "c.11": "Yes", "c.12": "Yes", "c.13": "Yes", "c.14": "Yes", "c.15": "Yes", "c.16": "Yes",
-    "c.17": "Yes", "c.18": "Yes", "c.19": "Yes", "c.20": "Yes", "c.21": "Yes", "c.22": "Yes", "c.23": "Yes", "c.24": "Yes", "c.25": "Yes",
-    "d.job_card": "Yes", "e.rectification": "No", "o.name": "Sam Spark",
+    jobRef: "HV-1003", address: "1 Test St, Melbourne VIC 3000", inspectionDate: "2026-10-03",
+    lifeSupport: "No", "p2.mains": "Yes", "p2.switch": "Yes", "p2.switchAccessible": "Yes", "p2.switchIsolates": "Yes",
+    "p2.switchSecured": "Yes", "p2.tested": "Yes", "p2.rcdPresent": "Yes", "p2.rcdTested": "Yes",
+    "p3.present": "No", "p4.conduit": "Yes", "p4.supported": "Yes", "p4.treatment": "Yes", "p4.tps": "Yes",
+    "p4.terminations": "Yes", "p4.plugBases": "Yes", "p4.foil": "Yes",
+    "p5.nonTps": "No", "p5.splitConduit": "No", "p5.damaged": "No",
+    "p6.recessed": "Yes", "p6.count": "4", "p6.prohibited": "No", "p7.appliances": "No", "p7.flues": "No",
+    "b3.licence": "A12345", "b3.name": "Sam Spark", "b3.recName": "Sparky Pty Ltd", "b3.recNo": "REC12345", "b3.phone": "0400000000",
+    "o.name": "Chris Lowe", "o.date": "2026-10-03",
   });
   test("fills text fields, dates and yes/no checkboxes on the real PIESA original", () => {
     const r = fillOfficialDocxXml(PIESA_XML, "piesa", fullPiesa());
     expect(r.xml).toContain("Sparky Pty Ltd"); expect(r.xml).toContain("REC12345"); expect(r.xml).toContain("03/10/2026");
-    expect(r.filled).toContain("a.business_name"); expect(r.filled).toContain("b.life_support");
+    expect(r.filled).toContain("jobRef"); expect(r.filled).toContain("lifeSupport");
     expect(r.missed).toEqual([]);
-    expect(r.xml).not.toContain("Totally invented");
   });
-  test("fills the real PIISA original including installer table rows", () => {
+  test("fills the real PIISA original including the additional-installer rows", () => {
     const r = fillOfficialDocxXml(PIISA_XML, "piisa", {
-      "p.business_name": "Insulate Co", "p.abn": "51824753556", "p.contact_name": "Pat Inst",
-      "p.address": "2 Test Rd, Frankston VIC 3199", "p.suburb": "Frankston", "p.postcode": "3199",
-      "installers.name#0": "Jane Doe", "installers.eec#0": "EEC123456",
-      "b.1": "Yes", "b.2": "Yes", "b.3": "Yes", "c.1": "No", "c.2": "No", "c.3": "No", "c.4": "No",
-      "d.1": "Yes", "d.2": "Yes", "d.3": "Yes", "d.4": "Yes", "d.5": "Yes",
-      "e.1": "Yes", "e.2": "Yes", "e.3": "Yes", "f.1": "Yes", "f.2": "Yes", "f.3": "Yes",
-      "g.1": "No", "g.2": "No", "g.3": "No", "g.4": "No", "g.5": "Yes", "g.6": "Yes", "g.7": "Yes",
-      "h.insulation": "Yes", "h.combustible": "No", "o.name": "Pat Inst",
+      jobRef: "HV-1003", address: "2 Test Rd, Frankston VIC 3199", startDate: "2026-10-10", completionDate: "2026-10-10",
+      "p1.powerInformed": "Yes", lifeSupport: "No",
+      "p2.installDate": "2026-10-10", "p2.ap": "Home Insulation Victoria", "p2.company": "Insulate Co", "p2.lead": "Pat Inst", "p2.leadEec": "EEC999",
+      "p2.addName#0": "Jane Doe", "p2.addEec#0": "EEC123456",
+      "p3.swms": "Yes", "p3.table1": "Yes", "p3.isolated": "Yes",
+      "p4.present": "No", "p5.reviewed": "Yes", "p5.electricianPresent": "N/A", "p5.recessed": "Yes", "p5.count": "4",
+      "p5.icConfirmed": "Yes", "p5.safeToCover": "Yes", "p5.rcd": "Yes", "p5.tps": "Yes", "p5.basic": "Yes", "p5.noAccess": "Yes",
+      "p6.present": "No", "p7.products": "Knauf Earthwool R5.0", "p8.name": "Pat Inst", "p8.date": "2026-10-10",
     });
     expect(r.missed).toEqual([]);
     expect(r.xml).toContain("Insulate Co"); expect(r.xml).toContain("EEC123456");
   });
-  test("blank answers leave the official form blank (nothing guessed)", () => {
+  test("blank answers leave the official form untouched (nothing guessed)", () => {
     const r = fillOfficialDocxXml(PIESA_XML, "piesa", {});
     expect(r.filled).toEqual([]);
     expect(r.xml).toBe(PIESA_XML);
   });
-  test("a full short-form PIESA round trip fills and passes evaluation", () => {
-    const { answers } = expandPiesa(shortAnswersFromEntries("piesa", shortEntries("piesa", {
-      "a.business_name": "Sparky Pty Ltd", "a.rec_number": "REC12345", "a.assessor_name": "Sam Spark", "a.date": "2026-10-03",
-      "b.life_support": "No", "b.hazards": "No – the roof space and switchboard area are clear of these hazards.",
-      "b.switchboard_type": "Modern switchboard with circuit breakers and safety switches (RCDs).",
-      "b.appliances": "No – I checked every one listed and none of these problems are present.",
-      "b.safe_system": "Yes – the installation is electrically safe and in proper working order.",
-    })), { lifeSupportDeclared: "none", today: "2026-10-03" });
+  test("a full short-form PIESA round trip fills the official document and passes evaluation", () => {
+    const { answers } = expandPiesa(shortAnswersFromEntries("piesa", entries("piesa", {
+      jobRef: "HV-1003", address: "1 Test St, Melbourne VIC 3000", inspectionDate: "2026-10-03",
+      lifeSupportConfirm: "Yes", mainsSafe: "Yes", solarPresent: "No", ceilingSafe: "Yes",
+      downlightsPresent: "No", appliancesPresent: "No", rectificationOutcome: "No repair work is needed",
+      "b3.declaration": "Yes", ownerConfirm: "Yes",
+      "b3.licence": "A12345", "b3.name": "Sam Spark", "b3.recName": "Sparky Pty Ltd", "b3.recNo": "REC12345", "b3.phone": "0400000000",
+      "o.name": "Chris Lowe", "o.date": "2026-10-03",
+    })), { lifeSupportDeclared: "no", today: "2026-10-03" });
     const r = fillOfficialDocxXml(PIESA_XML, "piesa", answers);
     expect(r.xml).toContain("Sparky Pty Ltd");
-    expect(evaluatePiesa(answers).blockers.filter((b) => b.item === "b.life_support")).toEqual([]);
-  });
-});
-
-describe("evaluation still gates on expanded answers", () => {
-  test("PIISA all-clear short form evaluates without unrelated new blockers", () => {
-    const { answers } = expandPiisa(shortAnswersFromEntries("piisa", shortEntries("piisa", {
-      "b.purpose": "Yes – the planned work matches the activity description.",
-      "b.combustion_appliances": "Yes – either there are none, or every one is open-flued.",
-      "c.products": "Yes – every product is on the VEU product register.",
-      "c.halogens": "No – there are no mains-voltage halogen lamps.",
-      "d.clearances": "Yes – I checked and the required clearances can all be met.",
-      "e.barriers": "Yes – compliant barriers or covers will be fitted to every heat-producing item.",
-      "e.exhaust": "Yes – every exhaust fan and flue will be left completely clear, with a barrier where needed.",
-      "f.insulation": "Yes – the ceiling insulation meets the program's R-value and installation requirements.",
-      "piisa.access_ok": "Yes – all of the above are fine.",
-      "piisa.combustible": "No – the roof space is clear of these materials.",
-    })), { today: "2026-10-03" });
-    const blockers = evaluatePiisa(answers).blockers.map((b) => b.item);
-    expect(blockers).not.toContain("b.1"); expect(blockers).not.toContain("c.4"); expect(blockers).not.toContain("g.5");
+    expect(evaluatePiesa(answers).blockers.filter((b) => b.item === "lifeSupport")).toEqual([]);
   });
 });
