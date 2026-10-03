@@ -56,7 +56,7 @@ export function buildTodos(i: TodoInput): TodoItem[] {
     }
     if (v.xero_invoice_id && !v.deposit_request_raised_at && !v.deposit_cleared && v.status !== "fully_paid") {
       const amt = v.deposit_amount != null ? ` for $${Number(v.deposit_amount).toFixed(2)}` : "";
-      push(v.job_id, { key: `inv-dep:${v.id}`, category: "Payments", title: "Request deposit in Xero", action: `In Xero open invoice ${v.xero_invoice_number ?? ""} → "Request deposit" (50%${amt}). Then press "Mark deposit request raised" on the Quotes tab.`, tab: "quotes", since: v.created_at, urgent: older(v.created_at, 1, i.now) });
+      push(v.job_id, { key: `inv-dep:${v.id}`, category: "Payments", title: "Request deposit in Xero", action: `In Xero open invoice ${v.xero_invoice_number ?? ""} → "Request deposit" (minimum deposit${amt}). Then press "Mark deposit request raised" on the Quotes tab.`, tab: "quotes", since: v.created_at, urgent: older(v.created_at, 1, i.now) });
     }
     if (v.xero_update_pending) {
       push(v.job_id, { key: `inv-due:${v.id}`, category: "Payments", title: "Update invoice due date in Xero", action: `The install date changed. Set invoice ${v.xero_invoice_number ?? ""} due date in Xero to the new install date.`, tab: "quotes", since: v.created_at, urgent: false });

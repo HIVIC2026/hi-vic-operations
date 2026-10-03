@@ -1,5 +1,5 @@
 // Xero integration boundary – ONE full invoice per accepted quote. The configured minimum deposit is requested with Xero's native
-// "Request Deposit" (raised manually by an admin, recorded in the portal) and confirmed only by Xero AmountPaid ≥ 50%.
+// "Request Deposit" (raised manually by an admin, recorded in the portal) and confirmed only by Xero AmountPaid (gate: evaluatePaymentGate).
 // Xero is the system of record; the portal mirrors state and enforces gates.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
