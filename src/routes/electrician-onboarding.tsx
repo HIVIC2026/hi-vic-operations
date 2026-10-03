@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
   acknowledgementsFor, agreementText, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION, MIN_REC_PL_COVER,
-  applyMaterialReset, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, pageErrors, pageMembers, parseRecSampleStep, firstIncompleteStep, stepErrors, validAbn, visiblePageForStep, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
+  applyMaterialReset, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, pageErrors, pageMembers, parseRecSampleStep, firstIncompleteStep, stepErrors, validAbn, validBusinessEmail, visiblePageForStep, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
@@ -55,12 +55,12 @@ function Field({ label, required, hint, children }: { label: string; required?: 
     </div>
   );
 }
-function Check({ checked, onChange, children, required = false, error = null }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode; required?: boolean; error?: string | null }) {
-  const box: React.CSSProperties = { display: "flex", gap: 10, alignItems: "flex-start", padding: "7px 0", cursor: "pointer", fontSize: 14, lineHeight: 1.5, color: error ? "#8C1D18" : NAVY };
+function Check({ checked, onChange, children, required = false, error = null, disabled = false }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode; required?: boolean; error?: string | null; disabled?: boolean }) {
+  const box: React.CSSProperties = { display: "flex", gap: 10, alignItems: "flex-start", padding: "7px 0", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.55 : 1, fontSize: 14, lineHeight: 1.5, color: error ? "#8C1D18" : NAVY };
   return (
     <div style={{ marginBottom: 10 }}>
       <label style={box}>
-        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} style={{ width: 20, height: 20, marginTop: 1, accentColor: BLUE, flexShrink: 0 }} />
+        <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} style={{ width: 20, height: 20, marginTop: 1, accentColor: BLUE, flexShrink: 0 }} />
         <span>{children}{required && <span style={{ color: BLUE, fontWeight: 800 }}> *</span>}</span>
       </label>
       {error && <div style={{ color: "#8C1D18", fontSize: 13, fontWeight: 700, marginTop: 6 }}>{error}</div>}
@@ -612,18 +612,39 @@ function InsuranceStep({ d, up, token, setError, preview, onRevision }: { d: Rec
 function ReviewStep({ d, up, token, preview }: { d: RecData; up: (p: Partial<RecData>) => void; token: string; preview: boolean }) {
   const [text, setText] = useState<string | null>(null);
   const [version, setVersion] = useState("");
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const generation = useRef(0);
+  // Reload only when the schedules could change; ticking the review box must not refetch.
+  const { agreement_reviewed: _r, ...scheduleData } = d;
+  const signature = JSON.stringify(scheduleData);
+  const upRef = useRef(up); upRef.current = up;
   useEffect(() => {
+    const mine = ++generation.current;
+    setText(null); setFailed(false);
     if (preview) { setText(agreementText(d)); setVersion(REC_AGREEMENT_VERSION); return; }
-    // Save first so the schedules reflect the latest answers, then load the exact text.
-    getRecAgreement({ data: { token } }).then((a) => { setText(a.text); setVersion(a.version); }).catch(() => setText("Could not load the agreement. Please go back and try again."));
-  }, [d, preview, token]);
+    getRecAgreement({ data: { token } }).then((a) => {
+      if (mine !== generation.current) return;
+      if (a.version !== REC_AGREEMENT_VERSION) { setFailed(true); upRef.current({ agreement_reviewed: false }); return; }
+      setText(a.text); setVersion(a.version);
+    }).catch(() => {
+      if (mine !== generation.current) return;
+      setFailed(true); upRef.current({ agreement_reviewed: false });
+    });
+    return () => { generation.current++; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature, preview, token, attempt]);
+  const loaded = text !== null && !failed;
   return <>
     <div style={{ fontSize: 12, fontWeight: 800, color: GREEN, textTransform: "uppercase", letterSpacing: 0.8 }}>Activity 48 · VEU</div>
-    <div style={{ fontSize: 13, color: MUTED, marginBottom: 6 }}>Version {version}</div>
+    <div style={{ fontSize: 13, color: MUTED, marginBottom: 6 }}>Version {version || "—"}</div>
     <div style={{ fontSize: 14, marginBottom: 4 }}><strong>AP:</strong> DC Construction Solutions Pty Ltd trading as Home Insulation Victoria</div>
     <div style={{ fontSize: 14, marginBottom: 12 }}><strong>REC:</strong> {d.trading_name || d.legal_entity_name} · {d.rec_registration_number}</div>
-    <div style={{ maxHeight: 420, overflowY: "auto", border: "1px solid #E4E8F0", borderRadius: 14, padding: 16, fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap", background: "#FBFCFA", marginBottom: 16 }}>{text ?? "Loading agreement…"}</div>
-    <Check checked={d.agreement_reviewed === true} onChange={(v) => up({ agreement_reviewed: v })}>I've reviewed the REC partner agreement and the schedules above.</Check>
+    {failed ? <div role="alert" style={{ border: "1px solid #F3B4AE", borderRadius: 14, padding: 16, fontSize: 14, color: "#8C1D18", background: "#FFF5F4", marginBottom: 16 }}>
+      Could not load the agreement, so it can't be reviewed yet.{" "}
+      <button type="button" onClick={() => setAttempt((x) => x + 1)} style={{ ...btn(false), minHeight: 40, marginTop: 8 }}>Try again</button>
+    </div> : <div data-testid="agreement-text" style={{ maxHeight: 420, overflowY: "auto", border: "1px solid #E4E8F0", borderRadius: 14, padding: 16, fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap", background: "#FBFCFA", marginBottom: 16 }}>{text ?? "Loading agreement…"}</div>}
+    <Check disabled={!loaded} checked={loaded && d.agreement_reviewed === true} onChange={(v) => up({ agreement_reviewed: v })}>I've reviewed the REC partner agreement and the schedules above.</Check>
   </>;
 }
 
@@ -637,7 +658,7 @@ function SignStep({ d, token, onSigned, preview }: { d: RecData; token: string; 
   const ackList = acknowledgementsFor(d);
   const acknowledgementRevision = `${REC_AGREEMENT_VERSION}:${agreementText(d)}`;
   useEffect(() => setAcks({}), [acknowledgementRevision]);
-  const ready = ackList.every((a) => acks[a.key]) && name.trim().length > 1 && position.trim().length > 1 && email.includes("@");
+  const ready = ackList.every((a) => acks[a.key]) && name.trim().length > 1 && position.trim().length > 1 && validBusinessEmail(email);
   async function sign() {
     if (preview) { setErr("Sample preview only — no agreement was signed or submitted."); return; }
     setBusy(true); setErr(null);
@@ -663,5 +684,5 @@ const SAMPLE_REC_DATA: RecData = {
   insurance_uploaded: true, insurer: "Sample insurer", insurance_policy_number: "SAMPLE-001", public_liability_cover_amount: 5_000_000, public_liability_expiry: "2099-12-31",
   service_origin: "100 Sample Road, Melbourne VIC 3000", service_origin_details: { label: "100 Sample Road, Melbourne VIC 3000", suburb: "Melbourne", postcode: "3000", state: "VIC", country: "AU", provider: "google_places_au" }, travel_radius_km: 50, typical_days: ["Mon", "Tue", "Wed"], normal_attendance_speed: "3-5 business days", capacity_band: "6-10", accepting_jobs: true,
   gst_registered: true, assessment_rate: 330, installation_attendance_rate: 220, rectification_rates: { prohibited_luminaires: 55, circuit_protection: 110, rcd_installation: 220, tps_cable_replacement: 11, basic_protection: 165 }, coes_fee_choice: "included",
-  bank_account_name: "Sample Electrical Pty Ltd", bank_bsb: "123-456", bank_account_number: "12345678", agreement_reviewed: true,
+  bank_account_name: "Sample Electrical Pty Ltd", bank_bsb: "123-456", bank_account_number: "12345678", agreement_reviewed: false,
 };
