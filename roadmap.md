@@ -206,3 +206,10 @@
 - [x] Installer partnership invitation template (canonical HTML, preview/copy/download in office Communications) — DONE 2026-10-03
 - [x] REC partnership invitation template saved (3 Oct)
 - [x] Resend key saved as RESEND_API (not used by any send yet)
+
+## Installer onboarding repair (3 Oct)
+- [ ] Save CAS + reviewed revision/hash signing via atomic database step (0082)
+- [ ] Atomic activation + office CII verification screen + offer guards
+- [ ] Installer pages matched to REC components; "leads" wording; field errors/focus
+- [ ] PGlite, regression, typecheck, build; apply 0082 after PGlite passes
+- [ ] Installer email HTML matching REC v7 (exact HTML not found in uploads)

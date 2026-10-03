@@ -4,11 +4,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { withRequestMeta, withStartLimitStatus, withVisitorId } from "./request-meta";
 import { mayRelaxRequiredSteps } from "./onboarding-security.core";
-import { validBusinessEmail } from "./rec-onboarding.core";
 import {
-  ACKNOWLEDGEMENTS, INSTALLER_AGREEMENT_TITLE, INSTALLER_AGREEMENT_VERSION, agreementText, applyMaterialReset,
-  firstIncompleteStep, INSTALLER_VISIBLE_PAGES, type InstData,
+  INSTALLER_AGREEMENT_TITLE, INSTALLER_AGREEMENT_VERSION, agreementText, applyMaterialReset, isInstallerRevisionTimestamp, normaliseInstallerDraft, type InstData,
 } from "./installer-onboarding.core";
+import { performInstallerSign, signedData } from "./installer-sign.core";
 
 async function sha256(s: string) {
   const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
@@ -42,10 +41,10 @@ const dataSchema = z.object({
   legal_entity_name: s(200), trading_name: s(200), abn: s(20), cii_status: s(20), cii_details: s(1000),
   business_address: s(300), primary_contact_name: s(200), business_phone: s(30), business_email: s(320), authorised_to_register: z.boolean().optional(), works_for_business: z.boolean().nullable().optional(),
   insurer: s(200), insurance_policy_number: s(100), public_liability_cover_amount: n, public_liability_expiry: s(10),
-  installers: z.array(z.object({ full_legal_name: s(200), qualification: s(300), mobile: s(30), email: s(320) })).max(50).optional(),
+  installers: z.array(z.object({ full_legal_name: s(200), qualification: s(300), mobile: s(30), email: s(320), cii_holds: z.enum(["held", "in_training", "not_held"]).nullable().optional(), cii_certificate_number: s(80), cii_issuer: s(200), cii_issue_date: s(10) })).max(50).optional(),
   service_batts_removal: z.boolean().optional(), service_loose_fill_removal: z.boolean().optional(), wants_hivic_leads: z.boolean().nullable().optional(), free_quotes_for_hivic_leads: z.boolean().nullable().optional(), free_measureups_for_hivic_quote_leads: z.boolean().nullable().optional(),
   service_origin: s(300), travel_radius_km: n, excluded_areas: s(2000),
-  typical_days: z.array(z.string().max(3)).max(7).optional(), normal_attendance_speed: s(50),
+  typical_days: z.array(z.enum(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])).max(7).optional(), normal_attendance_speed: s(50),
   capacity_band: s(10), accepting_jobs: z.boolean().optional(),
   gst_registered: z.boolean().nullable().optional(), r5_rate: n, batts_removal_rate: n, loose_fill_removal_rate: n,
   extra_rates: z.record(z.string().max(40), n).optional(),
@@ -59,7 +58,7 @@ const dataSchema = z.object({
 
 function publicView(app: { status: string; step_key: string | null; data: unknown; insurance_certificate_path: string | null; signed_at: string | null; agreement_version: string | null; test_mode?: boolean | null }) {
   const relaxed = mayRelaxRequiredSteps({ test_mode: !!app.test_mode, allow_incomplete_sign: (app as { allow_incomplete_sign?: boolean | null }).allow_incomplete_sign ?? null });
-  return { status: app.status, step_key: app.step_key, data: { ...(app.data as InstData), insurance_uploaded: !!app.insurance_certificate_path }, signed_at: app.signed_at, agreement_version: app.agreement_version, test_mode: !!app.test_mode, relaxed };
+  return { status: app.status, step_key: app.step_key, data: { ...(app.data as InstData), insurance_uploaded: !!app.insurance_certificate_path }, signed_at: app.signed_at, agreement_version: app.agreement_version, updated_at: (app as { updated_at?: string }).updated_at ?? null, test_mode: !!app.test_mode, relaxed };
 }
 
 // Public start: browser-supplied random resume token (replay-safe) plus optional staff link; never a test flag.
@@ -95,16 +94,19 @@ export const loadInstallerOnboarding = createServerFn({ method: "POST" })
 
 export const saveInstallerOnboarding = createServerFn({ method: "POST" })
   .middleware([withStartLimitStatus])
-  .inputValidator((d) => z.object({ token: tokenSchema, step_key: z.string().max(40), data: dataSchema }).parse(d))
+  .inputValidator((d) => z.object({ token: tokenSchema, step_key: z.string().max(40), data: dataSchema, base_updated_at: z.string().max(40).refine(isInstallerRevisionTimestamp) }).parse(d))
   .handler(async ({ data }) => {
     const { db, app } = await findApp(data.token);
     if (app.status !== "draft") throw new Error("This application has already been signed and submitted.");
-    const next = applyMaterialReset(app.data as InstData, data.data as InstData);
+    // Compare-and-swap: a save from a tab holding an older revision never overwrites newer answers.
+    if (Date.parse(data.base_updated_at) !== Date.parse(app.updated_at)) throw new Error("Your application changed in another tab. Reload to continue.");
+    const next = normaliseInstallerDraft(applyMaterialReset(app.data as InstData, data.data as InstData));
     const sec = await import("./onboarding-security.server");
     const contact = app.test_mode ? null : await sec.contactHash(next, "installer");
     if (!(app as { authorisation_id?: string | null }).authorisation_id) await sec.enforceContactCap(db as never, app.id, "installer", contact); // office/test links are staff-cleared
-    const { data: row, error } = await db.from("rec_onboarding_applications").update({ data: next as never, step_key: data.step_key, ...(contact ? { contact_hash: contact } : {}) } as never).eq("id", app.id).eq("status", "draft").select("*").single();
+    const { data: row, error } = await db.from("rec_onboarding_applications").update({ data: next as never, step_key: data.step_key, ...(contact ? { contact_hash: contact } : {}) } as never).eq("id", app.id).eq("status", "draft").eq("updated_at", app.updated_at).select("*").maybeSingle();
     if (error) throw new Error("Could not save your progress. Please try again.");
+    if (!row) throw new Error("Your application changed in another tab. Reload to continue.");
     return publicView(row);
   });
 
@@ -135,9 +137,10 @@ export const confirmInstallerInsuranceUpload = createServerFn({ method: "POST" }
 export const getInstallerAgreement = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ token: tokenSchema }).parse(d))
   .handler(async ({ data }) => {
-    const { db, app } = await findApp(data.token);
-    const d = { ...(app.data as InstData), insurance_uploaded: !!app.insurance_certificate_path };
-    return { title: INSTALLER_AGREEMENT_TITLE, version: INSTALLER_AGREEMENT_VERSION, text: app.agreement_text ?? agreementText(d) };
+    const { app } = await findApp(data.token);
+    const text = app.agreement_text ?? agreementText(signedData(app as never));
+    // The tab keeps this exact revision + hash; signing is refused if either has moved on.
+    return { title: INSTALLER_AGREEMENT_TITLE, version: INSTALLER_AGREEMENT_VERSION, text, sha256: await sha256(text), updated_at: app.updated_at };
   });
 
 export const signInstallerAgreement = createServerFn({ method: "POST" })
@@ -148,66 +151,27 @@ export const signInstallerAgreement = createServerFn({ method: "POST" })
     signer_position: z.string().trim().min(2).max(100),
     signer_email: z.string().trim().max(320),
     acknowledgements: z.record(z.string(), z.boolean()),
-    agreement_version: z.string(),
-  }).parse(d))
+    agreement_version: z.string().max(80),
+    expected_updated_at: z.string().max(40).refine(isInstallerRevisionTimestamp),
+    agreement_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  }).strict().parse(d))
   .handler(async ({ data, context }) => {
     const { db, app } = await findApp(data.token);
-    if (app.status !== "draft") throw new Error("This application has already been signed.");
-    await (await import("./onboarding-security.server")).purgeQuarantine(db as never, "installer-onboarding", app.id);
-    if (data.agreement_version !== INSTALLER_AGREEMENT_VERSION) throw new Error("The agreement has been updated. Please reload and review it again.");
-    if (!validBusinessEmail(data.signer_email)) throw new Error("Enter a real business email for the signer.");
-    for (const a of ACKNOWLEDGEMENTS) if (data.acknowledgements[a.key] !== true) throw new Error("Tick every acknowledgement to sign.");
-    const d: InstData = { ...(app.data as InstData), insurance_uploaded: !!app.insurance_certificate_path };
-    // Test applications skip mandatory-field checks so staff can run the flow end to end.
-    const relax = mayRelaxRequiredSteps({ test_mode: !!app.test_mode, allow_incomplete_sign: (app as { allow_incomplete_sign?: boolean | null }).allow_incomplete_sign ?? null });
-    const missing = relax ? null : firstIncompleteStep(d);
-    if (missing) throw new Error(`Please complete the "${INSTALLER_VISIBLE_PAGES.find((p) => p.key === missing)?.title ?? missing}" page before signing.`);
-
-    const text = agreementText(d);
-    const signedAt = new Date().toISOString();
-    const acks = Object.fromEntries(ACKNOWLEDGEMENTS.map((a) => [a.key, { text: a.text, accepted: true }]));
-    const hash = await sha256(text);
-
-    // Partner enquiry row so the application appears in the existing admin review list.
-    const services = ["supply_install", d.service_batts_removal && "batts_removal", d.service_loose_fill_removal && "loose_fill_removal"].filter(Boolean) as string[];
-    const { data: pe, error: peErr } = await db.from("partner_enquiries").insert({
-      source_system: "portal_form", enquiry_type: "installer", submission_id: `portal-installer-onboarding-${app.id}`,
-      source: app.test_mode ? "portal_installer_onboarding_test" : "portal_installer_onboarding", name: d.primary_contact_name ?? null, email: d.business_email ?? null, phone: d.business_phone ?? null,
-      company: d.trading_name || d.legal_entity_name || null, service_areas: [d.service_origin, d.travel_radius_km === 9999 ? "Anywhere in Victoria" : `${d.travel_radius_km} km radius`].filter(Boolean) as string[],
-      cii_certification_status: d.cii_status ?? null, cii_certification_details: d.cii_details ?? null,
-      services, estimated_r5_install_rate_per_sqm_inc_gst: d.r5_rate ?? null,
-      estimated_batts_removal_rate_per_sqm_inc_gst: d.service_batts_removal ? d.batts_removal_rate ?? null : null,
-      estimated_loose_fill_removal_rate_per_sqm_inc_gst: d.service_loose_fill_removal ? d.loose_fill_removal_rate ?? null : null,
-      free_quotes_for_hivic_leads: d.free_quotes_for_hivic_leads ?? null,
-      free_measureups_for_hivic_quote_leads: d.free_measureups_for_hivic_quote_leads ?? null,
-      booking_lead_time: d.normal_attendance_speed ?? null, weekly_capacity: d.capacity_band ?? null,
-      source_created_at: app.created_at, source_updated_at: signedAt,
-      raw_payload: { rec_onboarding_id: app.id, partner_type: "installer", wants_hivic_leads: d.wants_hivic_leads ?? null, agreement_version: INSTALLER_AGREEMENT_VERSION, agreement_sha256: hash, signed_at: signedAt, signer: { name: data.signer_name, position: data.signer_position, email: data.signer_email } } as never,
-    }).select("id").single();
-    if (peErr) throw new Error("Could not submit your application. Please try again.");
-
-    const { error } = await db.from("rec_onboarding_applications").update({
-      status: "submitted", step_key: "sign", agreement_version: INSTALLER_AGREEMENT_VERSION, agreement_title: INSTALLER_AGREEMENT_TITLE,
-      agreement_text: text, agreement_sha256: hash, acknowledgements: acks as never,
-      signer_name: data.signer_name, signer_position: data.signer_position, signer_email: data.signer_email.toLowerCase(),
-      signed_at: signedAt, signed_ip: context.ip, signed_user_agent: context.userAgent, partner_enquiry_id: pe.id,
-    }).eq("id", app.id).eq("status", "draft");
-    if (error) {
-      await db.from("partner_enquiries").delete().eq("id", pe.id);
-      throw new Error("Could not record your signature. Please try again.");
-    }
-    // Preferred electricians are queued for an immediate invite on signing; the email goes out as soon as
-    // communications are switched on (nothing is sent while they're locked). Idempotent per application+email.
-    if (d.electrician_choice === "have" && d.electrician_contact_consent) {
-      const rows = (d.preferred_electricians ?? []).filter((p) => p.email && p.name).map((p) => ({
-        installer_application_id: app.id, nominated_for: "installer_team", contact_name: p.name!.trim(), email: p.email!.trim().toLowerCase(), phone: p.mobile ?? null,
-        business_name: p.business_name || null, licence_number: p.licence_number || null, rec_number: p.rec_number || null, is_primary: !!p.is_primary,
-        consent_confirmed_at: signedAt, status: "invite_pending_comms",
-      }));
-      for (const r of rows) {
-        const { data: ex } = await db.from("electrician_nominations").select("id").eq("installer_application_id", app.id).is("job_id", null).ilike("email", r.email).maybeSingle();
-        if (!ex) await db.from("electrician_nominations").insert(r);
-      }
-    }
-    return { ok: true as const, signed_at: signedAt, agreement_sha256: hash };
+    if (app.status === "draft") await (await import("./onboarding-security.server")).purgeQuarantine(db as never, "installer-onboarding", app.id);
+    // Compare revisions as instants (PostgREST and the tab may format the same timestamp differently).
+    const same = Date.parse(data.expected_updated_at) === Date.parse(app.updated_at);
+    const { token: _t, ...input } = data;
+    return performInstallerSign(app as never, { ...input, expected_updated_at: same ? app.updated_at : data.expected_updated_at }, { ip: context.ip, userAgent: context.userAgent }, {
+      sha256,
+      signAtomic: async (a) => {
+        const { data: rows, error } = await db.rpc("sign_installer_application" as never, {
+          _app_id: a.appId, _expected_updated_at: a.expectedUpdatedAt, _agreement_sha256: a.agreementSha256,
+          _enquiry: a.enquiry, _signed: a.signed, _nominations: a.nominations,
+        } as never);
+        if (error) throw new Error(error.message);
+        const r = (rows as unknown as { outcome: "signed" | "already_signed_same"; partner_enquiry_id: string; signed_at: string }[])[0];
+        if (!r) throw new Error("installer_sign:no_result");
+        return r;
+      },
+    });
   });
