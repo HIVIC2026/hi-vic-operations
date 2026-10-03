@@ -35,7 +35,15 @@ describe("partner invitation templates", () => {
     expect(html).toContain("Your job information in one place");
     expect(html).toContain("Our online portal gives you access to job details, required documents and next steps, so you can see what each job needs.");
     expect(html).toContain('<strong style="color:#22376B;background:#FFDDEB;">We take care of the paperwork, so you can focus on installing.</strong> We handle customer quotes');
-    expect(html).toContain("Tell us where you work, how much capacity you have and your supplier rates. We’ll agree the details with you before allocating work.");
+    expect(html).toContain("Tell us where you work and how much capacity you have. We’ll confirm our rates with you before you accept jobs from us.");
+    expect(html).toContain("then install approved jobs at Home Insulation Victoria’s rates.");
+    expect(html).toContain("Your coverage. Your capacity.");
+    expect(html).toContain("Have your ABN, insurance certificate and installer certification<br>details ready.");
+    expect(html).toContain("We’ll review your business, insurance and installer certification, then confirm approval before allocating work.");
+    expect(html).not.toContain("supplier rates");
+    expect(html).not.toContain("agreed supplier rates");
+    expect(html).not.toContain("proposed supplier rates");
+    expect(html).not.toContain("and agreed rates");
     // No in-app messaging claims and no "app" wording: the job view is the online portal.
     expect(html).not.toMatch(/\bapp\b/i);
     expect(html).not.toContain("manage bookings and messages");
