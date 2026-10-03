@@ -47,6 +47,9 @@ type OfficeView = { route: string; proposeBlocker: string | null; plans: OfficeP
 
 /** Office-only. Nothing here sends messages, calls Xero, books work or moves the job. */
 export function OfficeInstalmentPlanCard({ jobId }: { jobId: string }) {
+  const me = useMe();
+  const isAdmin = (me.data?.roles ?? []).includes("admin");
+  if (!isAdmin) return null; // Office controls never render for owners/trades; server fns also refuse them.
   const load = useServerFn(getOfficeInstalmentPlans);
   const propose = useAction(proposeInstalmentPlan);
   const act = useAction(officeInstalmentAction);
