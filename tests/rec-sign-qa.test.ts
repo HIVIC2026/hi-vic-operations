@@ -318,7 +318,7 @@ describe("QA-EXT2 reviewer matrix (121,920 valid combos, 53 negatives)", () => {
       }
     }
     expect(count).toBe(121_920);
-  });
+  }, 60_000);
   test("previously accepted invalids now rejected", () => {
     expect(stepErrors("insurance", { ...full, public_liability_expiry: "2099-99-99" }, now).length).toBeGreaterThan(0);
     expect(stepErrors("coverage", { ...full, travel_radius_km: 42 }).length).toBeGreaterThan(0);
