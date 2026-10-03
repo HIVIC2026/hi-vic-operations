@@ -160,7 +160,7 @@ export function pageMembers(step: StepKey): readonly StepKey[] {
  * mode — sample previews and test mode included — because they are the REC's own
  * undertaking, not data entry we can prefill for them.
  */
-export const ALWAYS_MANDATORY_STEPS: readonly StepKey[] = ["services"];
+export const ALWAYS_MANDATORY_STEPS: readonly StepKey[] = ["services", "review"];
 export const isAlwaysMandatoryStep = (step: StepKey) => ALWAYS_MANDATORY_STEPS.includes(step);
 
 /**
@@ -240,6 +240,14 @@ export function customRectificationRateErrors(rows: CustomRectificationRate[] | 
   return [...new Set(errors)];
 }
 
+/** A real YYYY-MM-DD calendar date (rejects 2026-02-30 etc). */
+export function validCalendarDate(v?: string | null): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v ?? "")) return false;
+  const [y, m, d] = (v as string).split("-").map(Number);
+  const t = new Date(Date.UTC(y!, m! - 1, d!));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m! - 1 && t.getUTCDate() === d;
+}
+
 /** Today in Melbourne as YYYY-MM-DD. */
 export function melbourneToday(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(now);
@@ -282,7 +290,7 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (!txt(d.insurer)) e.push("Enter the insurer.");
       if (!txt(d.insurance_policy_number)) e.push("Enter the policy number.");
       if (!(typeof d.public_liability_cover_amount === "number" && d.public_liability_cover_amount >= MIN_REC_PL_COVER)) e.push("Public liability cover must be at least $5,000,000.");
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(d.public_liability_expiry ?? "") || (d.public_liability_expiry as string) < melbourneToday(now)) e.push("Insurance expiry must be today or later.");
+      if (!validCalendarDate(d.public_liability_expiry) || (d.public_liability_expiry as string) < melbourneToday(now)) e.push("Insurance expiry must be today or later.");
       break;
     case "services":
       if (d.services_all_confirmed !== true) e.push("Confirm your REC can provide all three electrical services.");
@@ -290,10 +298,11 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
     case "coverage":
       if (!txt(d.service_origin)) e.push("Enter your service starting location.");
       if (!isVictorianAddress(d.service_origin_details) || d.service_origin_details?.label !== d.service_origin) e.push("Sorry, your service area needs to be in Victoria.");
-      if (!pos(d.travel_radius_km ?? null) && d.travel_radius_km !== 9999) e.push("Choose a travel radius.");
+      if (!RADII.some((r) => r.v === d.travel_radius_km)) e.push("Choose a travel radius.");
       break;
     case "availability":
       if (!(d.typical_days ?? []).length) e.push("Select at least one day.");
+      else if ((d.typical_days ?? []).some((x) => !DAYS.includes(x as never)) || new Set(d.typical_days).size !== d.typical_days!.length) e.push("Choose days from the list.");
       if (!LEAD_TIMES.includes((d.normal_attendance_speed ?? "") as never)) e.push("Choose your usual lead time.");
       if (typeof d.accepting_jobs !== "boolean") e.push("Tell us if you're accepting new Home Insulation Victoria work now.");
       break;
