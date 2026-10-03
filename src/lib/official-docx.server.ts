@@ -3,8 +3,8 @@
 // at fill time); the filled copy lands in the private official-form-copies bucket next to the signed snapshot.
 import { createHash } from "crypto";
 import { unzipSync, zipSync } from "fflate";
-import piesaDocx from "./assets/piesa.docx?inline";
-import piisaDocx from "./assets/piisa.docx?inline";
+import piesaDocx from "./official-docx-piesa.data";
+import piisaDocx from "./official-docx-piisa.data";
 import { OFFICIAL_TEMPLATES, officialFormUseBlocker, type OfficialKey } from "./official-forms.core";
 import { fillOfficialDocxXml } from "./official-docx.core";
 
