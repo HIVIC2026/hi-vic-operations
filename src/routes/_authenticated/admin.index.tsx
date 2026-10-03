@@ -304,8 +304,9 @@ function PipelineBoard({ jobs }: { jobs: JobRow[] }) {
   );
 }
 
-function BoardCard({ job }: { job: JobRow }) {
+function BoardCard({ job, readyCheckAt }: { job: JobRow; readyCheckAt?: string | null }) {
   const step = nextStep(job);
+  const booked = job.stage === "ready_check_scheduled";
   return (
     <Link to="/admin/jobs/$jobId" params={{ jobId: job.id! }} className="block rounded-xl border bg-card p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md">
       <div className="flex items-center justify-between gap-2">
@@ -314,6 +315,11 @@ function BoardCard({ job }: { job: JobRow }) {
       </div>
       <p className="mt-1.5 font-bold leading-tight text-foreground">{job.property_address}</p>
       <p className="mt-0.5 truncate text-xs text-muted-foreground">{job.owner_name}</p>
+      {booked && (
+        <p className="mt-2 rounded-md bg-success-soft px-2 py-1 text-[11px] font-semibold text-success">
+          Booked{readyCheckAt ? `: ${new Date(readyCheckAt).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : " — date on the job page"}
+        </p>
+      )}
       <div className="mt-3 border-t pt-3">
         <p className="text-xs font-semibold text-foreground">{step.next}</p>
         {step.waitingOn && <p className="mt-1 text-[11px] text-muted-foreground">Waiting on {step.waitingOn}</p>}
