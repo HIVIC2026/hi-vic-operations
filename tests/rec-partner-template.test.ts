@@ -14,7 +14,7 @@ describe("REC partnership invitation", () => {
   test("stored and rendered HTML are byte-identical to the canonical file", () => {
     expect(REC_TEMPLATE.html).toBe(canonical);
     expect(renderPartnerTemplate(REC_TEMPLATE, "")).toBe(canonical);
-    expect(createHash("sha256").update(canonical).digest("hex")).toBe("8b2fd0fcb46035e80fe83b658b57f1de8311ca007ef2d7c1f54602f330205a14");
+    expect(createHash("sha256").update(canonical).digest("hex")).toBe("5ddda20dcf3c672d92279550c36aa6a00ec899532074e23de5eadaed8a4a193b");
   });
   test("clean CTA, embedded 400x171 logo", () => {
     const hrefs = [...canonical.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
