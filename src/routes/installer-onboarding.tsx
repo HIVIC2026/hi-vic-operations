@@ -540,12 +540,8 @@ function InsuranceStep({ d, up, token, setError, preview, revision, onUploadBusy
     {d.insurance_uploaded
       ? <p style={okLine}>✓ Certificate uploaded — only the Home Insulation Victoria office can view it. {!preview && <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif" onChange={(e) => onFile(e.target.files?.[0])} /></label>}</p>
       : <Field label="Certificate of Currency" required hint="PDF, JPG or PNG, up to 10 MB">
-          <label style={{ ...btn(false, uploading), display: "inline-flex", alignItems: "center" }}>{checking ? "Checking certificate…" : uploading ? "Uploading…" : "Upload certificate"}<input type="file" hidden disabled={uploading} accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif" onChange={(e) => onFile(e.target.files?.[0])} /></label>
+          <label style={{ ...btn(false, uploading), display: "inline-flex", alignItems: "center" }}>{uploading ? "Uploading…" : "Upload certificate"}<input type="file" hidden disabled={uploading} accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif" onChange={(e) => onFile(e.target.files?.[0])} /></label>
         </Field>}
-    {checking && <p style={note}>Checking your certificate…</p>}
-    {found && !checking && <p style={note}>{found}</p>}
-    {warnings.map((w) => <div key={w} style={warn}>⚠ {w}</div>)}
-    {reading && !checking && <InsuranceReadReview extracted={reading} accent={BLUE} typed={{ insurer: d.insurer ?? null, insurance_policy_number: d.insurance_policy_number ?? null, public_liability_cover_amount: d.public_liability_cover_amount ?? null, public_liability_expiry: d.public_liability_expiry ?? null }} onAccept={(p) => up(p as Partial<InstData>)} />}
     <Field label="Insurer" required><input style={input} value={d.insurer ?? ""} onChange={(e) => up({ insurer: e.target.value })} /></Field>
     <Field label="Policy number" required><input style={input} value={d.insurance_policy_number ?? ""} onChange={(e) => up({ insurance_policy_number: e.target.value })} /></Field>
     <Field label="Public liability cover" required hint="Minimum $5,000,000"><Money value={d.public_liability_cover_amount} onChange={(v) => up({ public_liability_cover_amount: v })} />
