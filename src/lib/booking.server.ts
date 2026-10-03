@@ -18,6 +18,12 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     installation: [["installation_scheduling", "installation_booked"], "installation_booked"],
   };
   if (kind === "assessment" && !["piesa_and_install_window_pending", "piesa_scheduled"].includes(stage)) throw new WorkflowError("The PIESA can only be booked after the confirmed quote is approved and the payment option is cleared.");
+  if (kind === "assessment") {
+    const { piesaRequestFacts } = await import("./workflow.server");
+    const { piesaRequestBlockers } = await import("./payment-gate.core");
+    const gate = piesaRequestBlockers(await piesaRequestFacts(jobId));
+    if (gate.length) throw new WorkflowError(`The PIESA cannot be booked yet: ${gate.join(" ")}`);
+  }
   const [allowed, target] = map[kind];
   if (!allowed.includes(stage)) throw new WorkflowError(`A ${kind} booking can't be made at ${STAGE_LABEL[stage]}.`);
   const { data: contractor } = await admin.from("job_assignments").select("id, user_id, business_id, businesses(business_type, onboarding_status, is_active, capabilities)").eq("job_id", jobId).eq("role", need).eq("active", true).maybeSingle();

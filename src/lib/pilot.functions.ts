@@ -418,6 +418,10 @@ export const proposeTime = createServerFn({ method: "POST" }).middleware([requir
     if (data.kind === "assessment") {
       // "assessment" = the PIESA visit. Only once the PIESA gate has been passed and an electrician accepted.
       if (!["piesa_and_install_window_pending", "piesa_scheduled"].includes(await getStage(data.jobId))) throw new WorkflowError("The PIESA can only be arranged after the confirmed quote is approved and the payment option is cleared.");
+      const { piesaRequestFacts } = await import("./workflow.server");
+      const { piesaRequestBlockers } = await import("./payment-gate.core");
+      const gate = piesaRequestBlockers(await piesaRequestFacts(data.jobId));
+      if (gate.length) throw new WorkflowError(`The PIESA cannot be arranged yet: ${gate.join(" ")}`);
     }
     if (data.kind === "installation") {
       const { clearanceFacts } = await import("./allocation.server");
