@@ -127,7 +127,7 @@ function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = fals
   const seq = useRef(0);
   const root = useRef<HTMLDivElement | null>(null);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; seq.current += 1; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; seq.current += 1; }; }, []);
   useEffect(() => {
     const close = (event: PointerEvent) => {
       if (root.current && !root.current.contains(event.target as Node)) {
@@ -183,7 +183,7 @@ function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = fals
           ))}
         </ul>
       )}
-      {open && note && <div role="status" style={{ marginTop: 5, color: victoriaOnly ? "#8C1D18" : MUTED, fontSize: 12 }}>{note}</div>}
+      {note && <div role="status" style={{ marginTop: 5, color: victoriaOnly ? "#8C1D18" : MUTED, fontSize: 12 }}>{note}</div>}
       <span role="status" aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{announce}</span>
     </div>
   );
