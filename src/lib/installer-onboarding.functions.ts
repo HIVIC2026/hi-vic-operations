@@ -131,9 +131,7 @@ export const confirmInstallerInsuranceUpload = createServerFn({ method: "POST" }
     // Revision-aware: the tab's own upload advances the revision it holds; another tab's edit is still refused.
     if (Date.parse(data.base_updated_at) !== Date.parse(app.updated_at)) throw new Error(sec.UPLOAD_STALE_MESSAGE);
     const done = await sec.verifyAndPromote(db as never, "installer-onboarding", app.id, data.path, data.content_type, app.updated_at);
-    const { extractInsurance } = await import("./insurance-extract.server");
-    const extracted = await extractInsurance(db as never, done.finalPath);
-    return { ok: true, extracted, updated_at: done.updated_at };
+    return { ok: true, updated_at: done.updated_at };
   });
 
 export const getInstallerAgreement = createServerFn({ method: "POST" })

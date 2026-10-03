@@ -1,7 +1,5 @@
 import { BLUE, GREEN, NAVY, MUTED, btn, Check } from "@/components/rec/rec-ui";
 import { WorkerStop } from "@/components/portal/worker-stop";
-import { InsuranceReadReview } from "@/components/onboarding/InsuranceReadReview";
-import type { InsuranceExtract } from "@/lib/insurance-reading.core";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -521,53 +519,27 @@ function ReviewPanel({ d, up, preview, load, onReady }: { d: InstData; up: (p: P
 
 function InsuranceStep({ d, up, token, setError, preview, revision, onUploadBusy }: { d: InstData; up: (p: Partial<InstData>) => void; token: string; setError: (s: string | null) => void; preview: boolean; revision: RevisionRef; onUploadBusy: (b: boolean) => void }) {
   const [uploading, setUploading] = useState(false);
-  const [checking, setChecking] = useState(false);
-  const [found, setFound] = useState<string | null>(null);
-  const [warnings, setWarnings] = useState<string[]>([]);
-  const [reading, setReading] = useState<InsuranceExtract | null>(null);
   async function onFile(picked: File | undefined) {
     if (!picked) return;
     if (preview) { setError("Sample preview only — certificate upload is disabled."); return; }
     setError(null);
     let f: File; let mime: "application/pdf" | "image/jpeg" | "image/png";
     try { ({ file: f, mime } = await prepareCertificate(picked)); } catch (e) { setError(e instanceof Error ? e.message : "Upload a PDF, JPG or PNG."); return; }
-    setUploading(true); onUploadBusy(true); // Back / Save & continue wait until the upload and check finish.
+    setUploading(true); onUploadBusy(true); // Back / Save & continue wait until the upload finishes.
     try {
       const u = await installerInsuranceUploadUrl({ data: { token, content_type: mime, size: f.size, filename: f.name } });
       const { error } = await supabase.storage.from("partner-files").uploadToSignedUrl(u.path, u.token, f, { contentType: mime });
       if (error) throw new Error("Upload failed. Please try again.");
-      setChecking(true);
-      const r = await uploadWithRevision(revision, (base) => confirmInstallerInsuranceUpload({ data: { token, path: u.path, content_type: mime, base_updated_at: base } }));
-      const x = r.extracted;
-      const patch: Partial<InstData> = { insurance_uploaded: true };
-      const notes: string[] = [];
-      if (x) {
-        const norm = (v?: string | null) => (v ?? "").toLowerCase().replace(/pty|ltd|limited|the|[^a-z0-9]/g, "");
-        if (x.insured_name) {
-          const n = norm(x.insured_name);
-          const ok = [d.legal_entity_name, d.trading_name].some((b) => { const m = norm(b); return !!m && (n.includes(m) || m.includes(n)); });
-          if (!ok) notes.push(`The certificate is in the name "${x.insured_name}", which doesn't match your business name. Please check you uploaded the right certificate.`);
-        } else notes.push("We couldn't read the insured business name — please check the certificate.");
-        if (x.is_public_liability === false) notes.push("This doesn't look like a public liability certificate.");
-        if (x.cover_amount && x.cover_amount < 5_000_000) notes.push("Cover shown is under the $5,000,000 minimum.");
-        if (x.expiry && x.expiry < new Date().toISOString().slice(0, 10)) notes.push("This certificate appears to have expired.");
-        setFound(x.insured_name ? `We read the certificate for ${x.insured_name}. Check the details below and choose which to use.` : "Check what we could read below and choose which details to use.");
-      } else setFound("We couldn't read the certificate automatically — please enter the details below.");
-      setWarnings(notes);
-      setReading(x ?? null);
-      up(patch);
-    } catch (e) { setError(e instanceof Error ? e.message : "Upload failed."); } finally { setUploading(false); setChecking(false); onUploadBusy(false); }
+      await uploadWithRevision(revision, (base) => confirmInstallerInsuranceUpload({ data: { token, path: u.path, content_type: mime, base_updated_at: base } }));
+      up({ insurance_uploaded: true });
+    } catch (e) { setError(e instanceof Error ? e.message : "Upload failed."); } finally { setUploading(false); onUploadBusy(false); }
   }
   return <>
     {d.insurance_uploaded
       ? <p style={okLine}>✓ Certificate uploaded — only the Home Insulation Victoria office can view it. {!preview && <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif" onChange={(e) => onFile(e.target.files?.[0])} /></label>}</p>
       : <Field label="Certificate of Currency" required hint="PDF, JPG or PNG, up to 10 MB">
-          <label style={{ ...btn(false, uploading), display: "inline-flex", alignItems: "center" }}>{checking ? "Checking certificate…" : uploading ? "Uploading…" : "Upload certificate"}<input type="file" hidden disabled={uploading} accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif" onChange={(e) => onFile(e.target.files?.[0])} /></label>
+          <label style={{ ...btn(false, uploading), display: "inline-flex", alignItems: "center" }}>{uploading ? "Uploading…" : "Upload certificate"}<input type="file" hidden disabled={uploading} accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif" onChange={(e) => onFile(e.target.files?.[0])} /></label>
         </Field>}
-    {checking && <p style={note}>Checking your certificate…</p>}
-    {found && !checking && <p style={note}>{found}</p>}
-    {warnings.map((w) => <div key={w} style={warn}>⚠ {w}</div>)}
-    {reading && !checking && <InsuranceReadReview extracted={reading} accent={BLUE} typed={{ insurer: d.insurer ?? null, insurance_policy_number: d.insurance_policy_number ?? null, public_liability_cover_amount: d.public_liability_cover_amount ?? null, public_liability_expiry: d.public_liability_expiry ?? null }} onAccept={(p) => up(p as Partial<InstData>)} />}
     <Field label="Insurer" required><input style={input} value={d.insurer ?? ""} onChange={(e) => up({ insurer: e.target.value })} /></Field>
     <Field label="Policy number" required><input style={input} value={d.insurance_policy_number ?? ""} onChange={(e) => up({ insurance_policy_number: e.target.value })} /></Field>
     <Field label="Public liability cover" required hint="Minimum $5,000,000"><Money value={d.public_liability_cover_amount} onChange={(v) => up({ public_liability_cover_amount: v })} />

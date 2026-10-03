@@ -18,3 +18,9 @@ Why: the gate already needs all four plan conditions, but there is no way to rec
 - Plan states: proposed → approved → accepted → active. It can also be cancelled, failed, overdue or superseded. A new quote version supersedes the plan automatically.
 - Tests: each condition missing on its own, one cent short on the first instalment, overdue/superseded clear nothing, access rules, PIESA unlock end-to-end.
 - Blocker before build: Jo-approved owner plan terms wording.
+
+## Release notes — instalment-plan UI slice published 3 Oct 2026
+
+- Published: office instalment-plan card + owner secure-page plan acceptance card. `payment_option_gate_enabled` stays OFF; PIESA, rectification and installation scheduling remain blocked; all outbound sending switches OFF.
+- Resolved access/UI defect: the office instalment-plan card briefly rendered for non-staff signed-in users on the office job page in preview. Server/database actions were already protected (admin-only checks); the UI now renders the card only for office staff. Verified post-publish on TEST job HV-1003.
+- Same deploy: certificate upload fix (dotted file names, iPhone HEIC photos, missing file type) and removal of automatic certificate reading — installers/electricians now type insurer, policy number, cover and expiry themselves.
