@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAction } from "@/hooks/use-me";
 import { approveCustomerCommunicationDraft, listCustomerCommunicationTemplates, saveCustomerCommunicationDraft } from "@/lib/customer-communications.functions";
-import { PARTNER_TEMPLATES, renderPartnerTemplate, type PartnerTemplate } from "@/lib/partner-templates";
+import { PARTNER_TEMPLATES, previewPartnerTemplate, renderPartnerTemplate, type PartnerTemplate } from "@/lib/partner-templates";
 
 // [key, label, purpose, when it is sent, mandatory forms attached, preview available]
 const CATALOG = [
@@ -66,20 +66,6 @@ function CustomerCommunications() {
   </AppShell>;
 }
 
-function useLogoBase64(): string {
-  const [logo, setLogo] = useState("");
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/email-preview/hi-vic-logo.png")
-      .then((r) => r.blob())
-      .then((blob) => new Promise<string>((res) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1] ?? ""); fr.readAsDataURL(blob); }))
-      .then((b64) => { if (!cancelled) setLogo(b64); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-  return logo;
-}
-
 function OfficeOnlyPartnerTemplates() {
   const { data: me } = useMe();
   return (me?.roles ?? []).includes("admin") ? <PartnerTemplates /> : null;
@@ -88,10 +74,9 @@ function OfficeOnlyPartnerTemplates() {
 function PartnerTemplates() {
   const [open, setOpen] = useState<PartnerTemplate | null>(null);
   const [copied, setCopied] = useState("");
-  const logo = useLogoBase64();
-  return <section className="mt-10 rounded-md border bg-card p-5">
+  return <section id="partner-invitation-templates" className="mt-10 scroll-mt-20 rounded-md border bg-card p-5">
     <h2 className="text-lg font-bold">Partner invitation templates</h2>
-    <p className="mt-1 text-sm text-muted-foreground">Reusable, office-approved invitations. Preview, copy the subject or download the ready-to-send file. Nothing here sends email.</p>
+    <p className="mt-1 text-sm text-muted-foreground">Reusable, office-approved invitations. Preview, copy the subject or download the HTML template (logo embedded for standalone viewing; email-client delivery not yet tested). Nothing here sends email.</p>
     <div className="mt-4 grid gap-3 sm:grid-cols-2">
       {PARTNER_TEMPLATES.map((t) => <article key={t.key} className="min-w-0 rounded-md border p-4">
         <div className="font-bold">{t.label}</div>
@@ -100,26 +85,24 @@ function PartnerTemplates() {
         <div className="mt-3 flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={() => setOpen(open?.key === t.key ? null : t)}>{open?.key === t.key ? "Close preview" : "Preview"}</Button>
           <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(t.subject); setCopied(t.key); }}>{copied === t.key ? "Copied" : "Copy subject"}</Button>
-          <DownloadTemplate t={t} logo={logo} />
+          <DownloadTemplate t={t} />
         </div>
       </article>)}
     </div>
-    {open && <TemplatePreview t={open} logo={logo} />}
+    {open && <TemplatePreview t={open} />}
   </section>;
 }
 
-function TemplatePreview({ t, logo }: { t: PartnerTemplate; logo: string }) {
-  const html = renderPartnerTemplate(t, logo);
-  return <div className="mt-4 overflow-hidden rounded-md border"><iframe title={t.label} srcDoc={html} className="h-[560px] w-full bg-white" sandbox="" /></div>;
+function TemplatePreview({ t }: { t: PartnerTemplate }) {
+  return <div className="mt-4 overflow-hidden rounded-md border"><iframe title={t.label} srcDoc={previewPartnerTemplate(t)} className="h-[560px] w-full bg-white" sandbox="allow-popups allow-popups-to-escape-sandbox" /></div>;
 }
 
-function DownloadTemplate({ t, logo }: { t: PartnerTemplate; logo: string }) {
-  const html = renderPartnerTemplate(t, logo);
-  return <Button size="sm" variant="outline" disabled={!html} onClick={() => {
-    const blob = new Blob([html], { type: "text/html" });
+function DownloadTemplate({ t }: { t: PartnerTemplate }) {
+  return <Button size="sm" variant="outline" onClick={() => {
+    const blob = new Blob([renderPartnerTemplate(t)], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = t.fileName; a.click();
-    URL.revokeObjectURL(url);
-  }}>Download file</Button>;
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }}>Download HTML template</Button>;
 }
