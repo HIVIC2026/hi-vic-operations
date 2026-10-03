@@ -2,29 +2,40 @@
 // Mirrors rec-onboarding.core.ts (same design/rules); shared validators are reused from there.
 import { INSTALLER_AGREEMENT_SECTIONS } from "./installer-agreement.text";
 import { electricianStepErrors, type ElectricianChoice, type PreferredElectrician } from "./teaming.core";
-import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, DAYS, LEAD_TIMES, RADII, type ResolvedAddress } from "./rec-onboarding.core";
+import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, validCalendarDate, isAustralianAddress, isVictorianAddress, DAYS, LEAD_TIMES, RADII, type ResolvedAddress } from "./rec-onboarding.core";
 
 export { DAYS, LEAD_TIMES, RADII, validAbn };
 export type { ResolvedAddress };
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.11-2026-10-03";
+// 1.12: acknowledgement wording aligned with clause 13 (Accredited Person fee variations recorded before quote acceptance)
+// and EEC Certified Insulation Installer (CII) wording. Earlier signed versions stay immutable and remain activatable.
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.12-2026-10-03";
+export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", INSTALLER_AGREEMENT_VERSION];
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
   { key: "authority", text: "I am authorised to bind the Installer business to this agreement." },
-  { key: "personnel", text: "The Installer will ensure every nominated installer and worker on Home Insulation Victoria jobs is trained, competent and complies with the obligations that apply to them." },
+  { key: "personnel", text: "The Installer will ensure every person who installs on Home Insulation Victoria jobs is competent, holds a current EEC Certified Insulation Installer (CII) certification verified by Home Insulation Victoria before they are assigned, and complies with the obligations that apply to them." },
   { key: "compliance", text: "I understand the Installer and its personnel must comply with current VEU, Code of Conduct, Activity 48, AS 3999, safety and Home Insulation Victoria requirements, and must not install without a current signed VEU pre-installation electrical safety assessment and Home Insulation Victoria ready-to-install confirmation." },
   { key: "records", text: "I confirm the Installer will provide truthful measurements, records and evidence and cooperate with Home Insulation Victoria, ESC and regulator compliance checks." },
   { key: "no_bypass", text: "I understand that removal, access, extras and other work identified through a Home Insulation Victoria Activity 48 job must be quoted, approved, scheduled and completed through the Home Insulation Victoria workflow and must not be taken off-platform or dealt with directly." },
-  { key: "pricing", text: "I understand our approved rates are supplier rates, not customer prices. On Home Insulation Victoria-sourced jobs, Home Insulation Victoria sets the customer price and may include its own margin, which it is not required to disclose to us. On jobs we bring in ourselves, we set our own price and Home Insulation Victoria adds no lead fee and no margin — the only Home Insulation Victoria fee on those jobs is its $349 Accredited Person fee (the $349 electrical safety assessment is shown separately in the quote). I will not share our rates with customers." },
+  { key: "pricing", text: "I understand our approved rates are supplier rates, not customer prices. On Home Insulation Victoria-sourced jobs, Home Insulation Victoria sets the customer price and may include its own margin, which it is not required to disclose to us. On jobs we bring in ourselves, we set our own price and Home Insulation Victoria adds no lead fee and no margin to it; the customer quote adds Home Insulation Victoria's Accredited Person fee ($349 including GST unless an authorised staff member records a job-specific amount before quote acceptance) and the separate $349 electrical safety assessment, and both are fixed once the customer accepts the quote. I will not share our rates with customers." },
   { key: "same_day", text: "I understand the signed VEU pre-installation installer safety assessment and install-day evidence must be submitted through the Home Insulation Victoria portal on the day of each installation." },
   { key: "electronic_signature", text: "I agree to electronic execution and to the signed agreement, exact wording, version and audit record being stored by Home Insulation Victoria." },
 ] as const;
 
+/** Legacy business-level answer (kept for old drafts/history only — never treated as certification). */
 export const CII_STATUSES = [
   { v: "certified", l: "Yes — trained / certified" },
   { v: "in_progress", l: "In progress" },
   { v: "not_yet", l: "Not yet" },
 ] as const;
+/** Per-person EEC Certified Insulation Installer (CII) status — self-declared; only office verification counts. */
+export const WORKER_CII = [
+  { v: "held", l: "Holds a current CII certification" },
+  { v: "in_training", l: "Training in progress" },
+  { v: "not_held", l: "Not certified" },
+] as const;
+export type WorkerCii = (typeof WORKER_CII)[number]["v"];
 
 export const EXTRA_ITEMS = [
   { key: "tile_roof_access", label: "Tile roof access (lift & relay tiles)", unit: "job" },
@@ -35,7 +46,7 @@ export const EXTRA_ITEMS = [
 
 export const CAPACITY_BANDS = [{ v: "1-3", n: 3 }, { v: "4-8", n: 8 }, { v: "9-15", n: 15 }, { v: "15+", n: 20 }] as const;
 
-export type Installer = { full_legal_name?: string; qualification?: string; mobile?: string; email?: string };
+export type Installer = { full_legal_name?: string; qualification?: string; mobile?: string; email?: string; cii_holds?: WorkerCii | null; cii_certificate_number?: string; cii_issuer?: string; cii_issue_date?: string };
 export type InstData = {
   legal_entity_name?: string; trading_name?: string; abn?: string; cii_status?: string; cii_details?: string;
   business_address?: string; business_address_details?: ResolvedAddress | null; primary_contact_name?: string; business_phone?: string; business_email?: string; authorised_to_register?: boolean;
@@ -105,7 +116,7 @@ export function pageMembers(step: StepKey): readonly StepKey[] {
   return INSTALLER_VISIBLE_PAGES.find((p) => p.key === visiblePageForStep(step))?.members ?? ["about"];
 }
 export function pageErrors(step: StepKey, d: InstData, now = new Date()): string[] {
-  return [...new Set(pageMembers(step).flatMap((m) => stepErrors(m, d, now)))];
+  return pageFieldErrors(step, d, now).map((x) => x.message);
 }
 
 export type InstallerSampleStep = StepKey | "welcome" | "submitted";
@@ -116,84 +127,127 @@ export function parseInstallerSampleStep(value: string | null): InstallerSampleS
 }
 
 const txt = (s?: string) => (s ?? "").trim().length > 0;
-const pos = (n?: number | null) => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= 100000;
-const optPos = (n?: number | null) => n == null || pos(n);
+const cents = (n: number) => Math.abs(Math.round(n * 100) - n * 100) < 1e-6;
+/** Required supplier rate: positive, whole cents, at most $100,000. */
+export const validRequiredRate = (n?: number | null) => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= 100000 && cents(n);
+/** Optional extra: blank or $0 both mean "no extra charge"; otherwise a positive whole-cent amount. */
+export const validOptionalRate = (n?: number | null) => n == null || (typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 100000 && cents(n));
+export const resolvedBusinessAddress = (d: InstData) => isAustralianAddress(d.business_address_details) && d.business_address_details?.label === d.business_address;
+export const resolvedServiceOrigin = (d: InstData) => isVictorianAddress(d.service_origin_details) && d.service_origin_details?.label === d.service_origin;
 
-export function stepErrors(step: StepKey, d: InstData, now = new Date()): string[] {
-  const e: string[] = [];
+/** Field-level error: `field` is the DOM id of the input that fixes it (used for focus + aria). */
+export type FieldError = { field: string; message: string };
+
+export function stepFieldErrors(step: StepKey, d: InstData, now = new Date()): FieldError[] {
+  const e: FieldError[] = [];
+  const add = (field: string, message: string) => e.push({ field, message });
+  // Business/contact questions only exist on the "register my business" branch.
+  if ((step === "business" || step === "contact") && d.works_for_business !== false) return e;
   switch (step) {
     case "about":
-      if (d.works_for_business !== false) e.push("Choose whether you're registering your business.");
-      if (!txt(d.primary_contact_name)) e.push("Enter your name.");
-      if (!validPhone(d.business_phone)) e.push("Enter a valid Australian mobile.");
-      if (!validBusinessEmail(d.business_email)) e.push("Enter a real email address.");
+      if (d.works_for_business !== false) { add("works_for_business", "Choose whether you're registering your business."); break; }
+      if (!txt(d.primary_contact_name)) add("primary_contact_name", "Enter your name.");
+      if (!validPhone(d.business_phone)) add("business_phone", "Enter a valid Australian mobile.");
+      if (!validBusinessEmail(d.business_email)) add("business_email", "Enter a real email address.");
       break;
     case "business":
-      if (!txt(d.legal_entity_name)) e.push("Enter the legal entity name.");
-      if (!validAbn(d.abn)) e.push("Enter a valid 11-digit ABN.");
-      if (!CII_STATUSES.some((c) => c.v === d.cii_status)) e.push("Tell us your ceiling insulation installation (CII) training / certification status.");
-      if (d.cii_status === "certified" && !txt(d.cii_details)) e.push("Enter your CII certification / training details.");
+      if (!txt(d.legal_entity_name)) add("legal_entity_name", "Enter the legal entity name.");
+      if (!validAbn(d.abn)) add("abn", "Enter a valid 11-digit ABN.");
       break;
     case "contact":
-      // Contact name/mobile/email are validated once under "about"; signing authority is acknowledged at signing.
-      if (!txt(d.business_address)) e.push("Enter your business address.");
+      if (!txt(d.business_address)) add("business-address", "Enter your business address.");
+      else if (!resolvedBusinessAddress(d)) add("business-address", "Select an Australian business address from the list.");
       break;
     case "insurance":
-      if (d.insurance_uploaded !== true) e.push("Upload your Certificate of Currency.");
-      if (!txt(d.insurer)) e.push("Enter the insurer.");
-      if (!txt(d.insurance_policy_number)) e.push("Enter the policy number.");
-      if (!(typeof d.public_liability_cover_amount === "number" && d.public_liability_cover_amount >= MIN_PL_COVER)) e.push("Public liability cover must be at least $5,000,000.");
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(d.public_liability_expiry ?? "") || (d.public_liability_expiry as string) < melbourneToday(now)) e.push("Insurance expiry must be today or later.");
+      if (d.insurance_uploaded !== true) add("insurance-upload", "Upload your Certificate of Currency.");
+      if (!txt(d.insurer)) add("insurer", "Enter the insurer.");
+      if (!txt(d.insurance_policy_number)) add("insurance_policy_number", "Enter the policy number.");
+      if (!(typeof d.public_liability_cover_amount === "number" && Number.isFinite(d.public_liability_cover_amount) && d.public_liability_cover_amount >= MIN_PL_COVER)) add("public_liability_cover_amount", "Public liability cover must be at least $5,000,000.");
+      if (!validCalendarDate(d.public_liability_expiry)) add("public_liability_expiry", "Enter a real insurance expiry date.");
+      else if ((d.public_liability_expiry as string) < melbourneToday(now)) add("public_liability_expiry", "Insurance expiry must be today or later.");
       break;
     case "installers": {
       const list = d.installers ?? [];
-      if (list.length < 1) e.push("Add at least one installer.");
+      if (list.length < 1) add("add-installer", "Add at least one installer.");
+      const today = melbourneToday(now);
       list.forEach((x, i) => {
-        if (!txt(x.full_legal_name) || !txt(x.qualification) || !validPhone(x.mobile) || !validBusinessEmail(x.email)) e.push(`Installer ${i + 1}: complete name, training / certification, a valid mobile and email.`);
+        const n = `Installer ${i + 1}`;
+        if (!txt(x.full_legal_name)) add(`installer-${i}-name`, `${n}: enter their full legal name.`);
+        if (!validPhone(x.mobile)) add(`installer-${i}-mobile`, `${n}: enter a valid Australian mobile.`);
+        if (!validBusinessEmail(x.email)) add(`installer-${i}-email`, `${n}: enter a real email address.`);
+        if (!WORKER_CII.some((c) => c.v === x.cii_holds)) add(`installer-${i}-cii`, `${n}: tell us their CII certification status.`);
+        if (x.cii_holds === "held") {
+          if (!txt(x.cii_certificate_number)) add(`installer-${i}-cii-number`, `${n}: enter the CII certificate or ID number.`);
+          if (!txt(x.cii_issuer)) add(`installer-${i}-cii-issuer`, `${n}: enter who issued the certification.`);
+          if (!validCalendarDate(x.cii_issue_date) || (x.cii_issue_date as string) > today) add(`installer-${i}-cii-date`, `${n}: enter a real issue date (not in the future).`);
+        }
       });
       const emails = list.map((x) => (x.email ?? "").trim().toLowerCase()).filter(Boolean);
-      if (new Set(emails).size !== emails.length) e.push("Each installer needs a different email.");
+      if (new Set(emails).size !== emails.length) add("add-installer", "Each installer needs a different email.");
       break;
     }
     case "electrician":
-      e.push(...electricianStepErrors(d));
+      for (const m of electricianStepErrors(d)) add("electrician_choice", m);
       break;
     case "services":
-      if (typeof d.wants_hivic_leads !== "boolean") e.push("Tell us if you want to receive pre-qualified leads from Home Insulation Victoria.");
-      if (d.wants_hivic_leads === true && d.free_measureups_for_hivic_quote_leads !== true) e.push("Free Home Insulation Ready Checks (measure-up) are required to receive pre-qualified Home Insulation Victoria leads.");
+      if (typeof d.wants_hivic_leads !== "boolean") add("wants_hivic_leads", "Tell us if you want to receive pre-qualified leads from Home Insulation Victoria.");
+      if (d.wants_hivic_leads === true && d.free_measureups_for_hivic_quote_leads !== true) add("free_measureups", "Free Home Insulation Ready Checks (measure-up) are required to receive pre-qualified Home Insulation Victoria leads.");
       break;
     case "coverage":
-      if (!txt(d.service_origin)) e.push("Enter your service starting location.");
-      if (!pos(d.travel_radius_km ?? null) && d.travel_radius_km !== 9999) e.push("Choose a travel radius.");
+      if (!txt(d.service_origin)) add("service-origin", "Enter your service starting location.");
+      else if (!resolvedServiceOrigin(d)) add("service-origin", "Select a Victorian service starting location from the list.");
+      if (!RADII.some((r) => r.v === d.travel_radius_km)) add("travel_radius_km", "Choose a travel radius.");
       break;
-    case "availability":
-      if (!(d.typical_days ?? []).length) e.push("Select at least one day.");
-      if (!LEAD_TIMES.includes((d.normal_attendance_speed ?? "") as never)) e.push("Choose your usual lead time.");
+    case "availability": {
+      const days = d.typical_days ?? [];
+      if (!days.length) add("typical_days", "Select at least one day.");
+      else if (days.some((x) => !DAYS.includes(x as never)) || new Set(days).size !== days.length) add("typical_days", "Choose days from the list.");
+      if (!LEAD_TIMES.includes((d.normal_attendance_speed ?? "") as never)) add("normal_attendance_speed", "Choose your usual lead time.");
+      if (typeof d.accepting_jobs !== "boolean") add("accepting_jobs", "Tell us if you're available for new work now.");
       break;
+    }
     case "capacity":
-      if (!CAPACITY_BANDS.some((b) => b.v === d.capacity_band)) e.push("Choose your weekly capacity.");
+      if (!CAPACITY_BANDS.some((b) => b.v === d.capacity_band)) add("capacity_band", "Choose your weekly capacity.");
       break;
     case "install_pricing":
-      if (typeof d.gst_registered !== "boolean") e.push("Tell us if you're GST registered.");
-      if (!pos(d.r5_rate)) e.push("Enter your R5.0 supply & install rate per m².");
-      if (!pos(d.batts_removal_rate)) e.push("Enter your batts removal rate per m² — removal is required for all installer partners.");
-      if (!pos(d.loose_fill_removal_rate)) e.push("Enter your loose fill removal rate per m² — removal is required for all installer partners.");
+      if (typeof d.gst_registered !== "boolean") add("gst_registered", "Tell us if you're GST registered.");
+      if (!validRequiredRate(d.r5_rate)) add("rate-r5", "Enter your R5.0 supply & install rate per m².");
+      if (!validRequiredRate(d.batts_removal_rate)) add("rate-batts", "Enter your batts removal rate per m² — removal is required for all installer partners.");
+      if (!validRequiredRate(d.loose_fill_removal_rate)) add("rate-loose", "Enter your loose fill removal rate per m² — removal is required for all installer partners.");
       break;
     case "extras_pricing":
-      for (const it of EXTRA_ITEMS) if (!optPos(d.extra_rates?.[it.key] ?? null)) e.push(`${it.label}: enter a valid amount or leave it blank.`);
+      for (const it of EXTRA_ITEMS) if (!validOptionalRate(d.extra_rates?.[it.key] ?? null)) add(`rate-${it.key}`, `${it.label}: enter a valid amount, $0, or leave it blank.`);
       break;
     case "bank":
-      if (!txt(d.bank_account_name)) e.push("Enter the bank account name.");
-      if (!/^\d{3}-?\d{3}$/.test(d.bank_bsb ?? "")) e.push("Enter a valid 6-digit BSB.");
-      if (!/^\d{5,10}$/.test(d.bank_account_number ?? "")) e.push("Enter a valid bank account number.");
+      if (!txt(d.bank_account_name)) add("bank_account_name", "Enter the bank account name.");
+      if (!/^\d{3}-?\d{3}$/.test(d.bank_bsb ?? "")) add("bank_bsb", "Enter a valid 6-digit BSB.");
+      if (!/^\d{5,10}$/.test(d.bank_account_number ?? "")) add("bank_account_number", "Enter a valid bank account number.");
       break;
     case "review":
-      if (d.agreement_reviewed !== true) e.push("Confirm you've reviewed the agreement and schedules.");
+      if (d.agreement_reviewed !== true) add("agreement_reviewed", "Confirm you've reviewed the agreement and schedules.");
       break;
     case "sign":
       break;
   }
   return e;
+}
+export const stepErrors = (step: StepKey, d: InstData, now = new Date()) => [...new Set(stepFieldErrors(step, d, now).map((x) => x.message))];
+export function pageFieldErrors(step: StepKey, d: InstData, now = new Date()): FieldError[] {
+  const seen = new Set<string>();
+  return pageMembers(step).flatMap((m) => stepFieldErrors(m, d, now)).filter((x) => (seen.has(x.message) ? false : (seen.add(x.message), true)));
+}
+
+/**
+ * Server-side normalisation of every loaded/saved draft:
+ *  - removal is mandatory, so both removal services are always on (old drafts left the booleans unset);
+ *  - an address whose text no longer matches its verified lookup loses the lookup, so the applicant must re-select it.
+ */
+export function normaliseInstallerDraft(d: InstData): InstData {
+  const n: InstData = { ...d, service_batts_removal: true, service_loose_fill_removal: true };
+  if (n.business_address_details && n.business_address_details.label !== n.business_address) n.business_address_details = null;
+  if (n.service_origin_details && n.service_origin_details.label !== n.service_origin) n.service_origin_details = null;
+  if (n.extra_rates) n.extra_rates = Object.fromEntries(Object.entries(n.extra_rates).map(([k, v]) => [k, v === 0 ? null : v])) as InstData["extra_rates"];
+  return n;
 }
 
 export function firstIncompleteStep(d: InstData, now = new Date()): StepKey | null {
@@ -201,30 +255,32 @@ export function firstIncompleteStep(d: InstData, now = new Date()): StepKey | nu
   return null;
 }
 
-export const MATERIAL_FIELDS = [
-  "legal_entity_name", "trading_name", "abn", "cii_status", "cii_details", "business_email", "service_origin", "travel_radius_km",
-  "excluded_areas", "typical_days", "normal_attendance_speed", "capacity_band", "service_batts_removal", "service_loose_fill_removal",
-  "wants_hivic_leads", "free_quotes_for_hivic_leads", "free_measureups_for_hivic_quote_leads", "gst_registered", "r5_rate", "batts_removal_rate", "loose_fill_removal_rate", "extra_rates", "installers",
-] as const;
-
-export function applyMaterialReset(prev: InstData, next: InstData): InstData {
-  const changed = MATERIAL_FIELDS.some((k) => JSON.stringify(prev[k] ?? null) !== JSON.stringify(next[k] ?? null));
-  return changed && prev.agreement_reviewed ? { ...next, agreement_reviewed: false } : next;
+/** Fields that never appear in the signed agreement text; every other answer requires the agreement to be reviewed again. */
+export const NON_MATERIAL_FIELDS = ["agreement_reviewed", "how_it_works_acknowledged", "bank_account_name", "bank_bsb", "bank_account_number", "insurance_uploaded"] as const;
+export function materiallyChanged(prev: InstData, next: InstData): boolean {
+  const strip = (d: InstData) => { const o: Record<string, unknown> = { ...d }; for (const k of NON_MATERIAL_FIELDS) delete o[k]; return JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k] ?? null]).filter(([, v]) => v !== null)); };
+  return strip(prev) !== strip(next);
 }
+export function applyMaterialReset(prev: InstData, next: InstData): InstData {
+  return materiallyChanged(prev, next) && prev.agreement_reviewed ? { ...next, agreement_reviewed: false } : next;
+}
+export const isInstallerRevisionTimestamp = (v: string) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(v) && Number.isFinite(Date.parse(v));
 
 const money = (n?: number | null) => (typeof n === "number" ? `$${n.toFixed(2)}` : "—");
-const ciiLabel = (v?: string) => CII_STATUSES.find((c) => c.v === v)?.l ?? "—";
+const workerCiiLabel = (x: Installer) => x.cii_holds === "held"
+  ? `CII declared held — certificate ${x.cii_certificate_number ?? ""}, issued by ${x.cii_issuer ?? ""} on ${x.cii_issue_date ?? ""} (subject to Home Insulation Victoria verification)`
+  : x.cii_holds === "in_training" ? "CII training in progress — cannot be assigned until certified and verified" : x.cii_holds === "not_held" ? "Not CII certified — cannot be assigned" : "CII status not provided";
 
 export function scheduleText(d: InstData): string {
   const gst = d.gst_registered ? "inc GST" : "total rate (not GST registered)";
   const L: string[] = [];
   L.push("SCHEDULE 1 — INSTALLER DETAILS");
   L.push(`Legal entity: ${d.legal_entity_name ?? ""}`, `Trading name: ${d.trading_name || "—"}`, `ABN: ${d.abn ?? ""}`,
-    `CII training / certification: ${ciiLabel(d.cii_status)}${d.cii_details ? ` — ${d.cii_details}` : ""}`,
     `Business address: ${d.business_address ?? ""}`, `Contact: ${d.primary_contact_name ?? ""}, ${d.business_phone ?? ""}, ${d.business_email ?? ""}`,
     `Public liability: ${d.insurer ?? ""} policy ${d.insurance_policy_number ?? ""}, cover ${money(d.public_liability_cover_amount)}, expires ${d.public_liability_expiry ?? ""}`);
   L.push("", "Nominated installers:");
-  (d.installers ?? []).forEach((x, i) => L.push(`${i + 1}. ${x.full_legal_name} — ${x.qualification}`));
+  (d.installers ?? []).forEach((x, i) => L.push(`${i + 1}. ${x.full_legal_name} — ${workerCiiLabel(x)}`));
+  L.push("Only people whose EEC Certified Insulation Installer (CII) certification Home Insulation Victoria has verified may be assigned to install.");
   L.push("", "SCHEDULE 2 — SERVICES, COVERAGE AND CAPACITY");
   L.push("Free Home Insulation Ready Check: installer eligibility check, ceiling measure-up and required site evidence; no electrical assessment or PIESA");
   L.push("Ceiling insulation supply & installation: included");
@@ -233,11 +289,12 @@ export function scheduleText(d: InstData): string {
   if (d.wants_hivic_leads) L.push("Free Home Insulation Ready Checks (measure-up) for those leads: yes — the installer receives the job if it proceeds, unless the owner specifies otherwise");
   L.push(`Service origin: ${d.service_origin ?? ""}; radius: ${d.travel_radius_km === 9999 ? "anywhere in Victoria" : `${d.travel_radius_km} km`}${d.excluded_areas ? `; excluded: ${d.excluded_areas}` : ""}`);
   L.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}; weekly installations: ${d.capacity_band ?? ""}`);
+  L.push(`Available for new work at signing: ${d.accepting_jobs === true ? "yes" : "no — Home Insulation Victoria will not offer new leads until the Installer updates this"}`);
   L.push("", `SCHEDULE 3 — PROPOSED SUPPLIER RATES (${gst}; not binding until accepted by Home Insulation Victoria under clause 17)`);
   L.push(`R5.0 ceiling insulation supply & install: ${money(d.r5_rate)} / m²`);
   L.push(`Batts removal: ${money(d.batts_removal_rate)} / m²`);
   L.push(`Loose fill removal: ${money(d.loose_fill_removal_rate)} / m²`);
-  for (const it of EXTRA_ITEMS) { const v = d.extra_rates?.[it.key]; if (typeof v === "number") L.push(`${it.label}: ${money(v)} / ${it.unit}`); }
+  for (const it of EXTRA_ITEMS) { const v = d.extra_rates?.[it.key]; L.push(`${it.label}: ${typeof v === "number" && v > 0 ? `${money(v)} / ${it.unit}` : "no extra charge"}`); }
   L.push("Any other extras are quoted separately on the specific job before owner approval.");
   return L.join("\n");
 }
