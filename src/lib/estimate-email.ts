@@ -320,3 +320,38 @@ export const V2_THEME = {
   shell: likelyV2Shell, header: v2Header, button: v2Button, footer: v2Footer, footerPlain: v2FooterPlain, footerRow: v2FooterRow, neutralItem,
   F, FH, colors: { BLUE, GREEN, INK, TEXT_GREEN, MIST, MINT, BLUSH, LINE, WHITE }, site: SITE,
 } as const;
+
+// ---------------------------------------------------------------------------
+// DRAFT (not yet approved for sending): existing-insulation calculator + optional phone video invitation.
+// Same visual system; existing renderers above are untouched.
+// ---------------------------------------------------------------------------
+export type InsulationVideoEmailInput = { captureUrl: string; firstName?: string | null; reference?: string | null; referralUrl?: string | null };
+export function renderInsulationVideoEmail(input: InsulationVideoEmailInput): EstimateEmail {
+  const u = new URL(input.captureUrl);
+  if (u.origin !== BASE || !/^\/estimate\/[A-Za-z0-9_-]{43,128}\/video$/.test(u.pathname) || u.search || u.hash) throw new Error("A secure Home Insulation Victoria video link is required.");
+  const referralUrl = validReferralUrl(input.referralUrl ?? null);
+  const name = input.firstName?.trim().replace(/\s+/g, " ").slice(0, 60) || null;
+  const subject = `${name ? `${name}, a` : "A"} quick next step for your insulation enquiry`;
+  const previewText = "Check your estimate, and optionally send a short phone video of your existing insulation.";
+  const row = (content: string, pad: string) => `<tr><td class="lx-pad" style="padding:${pad};${F}">${content}</td></tr>`;
+  const intro = "You told us there’s already some insulation in your ceiling. Everything else you shared looks good, so the next step is checking that existing insulation.";
+  const hero = `<p style="margin:0 0 8px;${F}color:${TEXT_GREEN};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">Your next step</p><h1 class="lx-h1" style="margin:0 0 14px;${FH}color:${INK};font-size:32px;line-height:37px;font-weight:800;">${name ? `${escape(name)}, help` : "Help"} us check your existing insulation</h1><p style="margin:0;${F}color:${INK};font-size:15px;line-height:1.6;">${escape(intro)}</p>`;
+  const card = (bg: string, title: string, body: string, button: string) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${bg}" style="width:100%;border-collapse:separate;background-color:${bg};border-radius:18px;"><tr><td class="lx-result-pad" style="padding:20px;${F}"><h2 style="margin:0 0 8px;${FH}color:${INK};font-size:19px;line-height:1.25;font-weight:800;">${title}</h2>${body}<div style="height:14px;line-height:14px;">&nbsp;</div>${button}</td></tr></table>`;
+  const p = (t: string) => `<p style="margin:0 0 6px;${F}color:${INK};font-size:14px;line-height:1.55;">${t}</p>`;
+  const calc = card(MIST, "1. Check your estimate", p("Use our online calculator to see your potential VEU rebate."), v2Button(PUBLIC_CALCULATOR_URL, "Open the calculator"));
+  const video = card(MINT, "2. Optional: send a short phone video", `${p("If you can do it safely — for example, holding your phone up through the ceiling hatch from a stable ladder — a 20–60 second video helps us review your enquiry sooner.")}${p("<strong>Please don’t climb into or walk through the roof space.</strong> If you can’t record safely, skip this step and we’ll check everything at your free onsite visit.")}`, v2Button(input.captureUrl, "Record or upload a video"));
+  const note = `<p style="margin:0;${F}color:#5A6785;font-size:12.5px;line-height:1.55;text-align:center;">A video helps us prioritise your enquiry. It doesn’t confirm eligibility on its own — that is still confirmed at the free onsite check.</p>`;
+  const reason = "You’re receiving this because you requested an eligibility check.";
+  const html = likelyV2Shell(`${row(v2Header("Next step"), "22px 36px 18px")}${row(hero, "8px 36px 22px")}${row(calc, "0 28px 16px")}${row(video, "0 28px 16px")}${row(note, "4px 36px 22px")}${v2FooterRow(v2Footer(input.reference, referralUrl, reason))}`, previewText, null);
+  const plainText = [
+    subject, "", intro, "",
+    "1. CHECK YOUR ESTIMATE", `Open the calculator: ${PUBLIC_CALCULATOR_URL}`, "",
+    "2. OPTIONAL: SEND A SHORT PHONE VIDEO",
+    "If you can do it safely — for example, holding your phone up through the ceiling hatch from a stable ladder — a 20–60 second video helps us review your enquiry sooner.",
+    "Please don’t climb into or walk through the roof space. If you can’t record safely, skip this step and we’ll check everything at your free onsite visit.",
+    `Record or upload a video: ${input.captureUrl}`, "",
+    "A video helps us prioritise your enquiry. It doesn’t confirm eligibility on its own — that is still confirmed at the free onsite check.", "",
+    ...v2FooterPlain(input.reference, referralUrl, reason),
+  ].join("\n");
+  return { subject, previewText, html, plainText };
+}
