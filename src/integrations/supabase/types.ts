@@ -2924,6 +2924,95 @@ export type Database = {
           },
         ]
       }
+      eligibility_verifications: {
+        Row: {
+          evidence_complete: boolean
+          evidence_snapshot: Json
+          flags: Json
+          id: string
+          is_current: boolean
+          job_id: string
+          note: string | null
+          outcome: string
+          ready_check_ref: string
+          ready_check_version: number
+          reason: string | null
+          recorded_at: string
+          recorded_by: string
+          review_reasons: Json
+          ruleset: string
+          superseded_at: string | null
+          supersedes: string | null
+        }
+        Insert: {
+          evidence_complete: boolean
+          evidence_snapshot?: Json
+          flags?: Json
+          id?: string
+          is_current?: boolean
+          job_id: string
+          note?: string | null
+          outcome: string
+          ready_check_ref: string
+          ready_check_version: number
+          reason?: string | null
+          recorded_at?: string
+          recorded_by: string
+          review_reasons?: Json
+          ruleset: string
+          superseded_at?: string | null
+          supersedes?: string | null
+        }
+        Update: {
+          evidence_complete?: boolean
+          evidence_snapshot?: Json
+          flags?: Json
+          id?: string
+          is_current?: boolean
+          job_id?: string
+          note?: string | null
+          outcome?: string
+          ready_check_ref?: string
+          ready_check_version?: number
+          reason?: string | null
+          recorded_at?: string
+          recorded_by?: string
+          review_reasons?: Json
+          ruleset?: string
+          superseded_at?: string | null
+          supersedes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eligibility_verifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eligibility_verifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "eligibility_verifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eligibility_verifications_supersedes_fkey"
+            columns: ["supersedes"]
+            isOneToOne: false
+            referencedRelation: "eligibility_verifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       engagement_tracking_tokens: {
         Row: {
           created_at: string
@@ -9728,6 +9817,22 @@ export type Database = {
       }
       my_job_role: { Args: { _job: string }; Returns: string }
       post_intake_tick: { Args: { _url: string }; Returns: number }
+      record_eligibility_verification: {
+        Args: {
+          _evidence_complete: boolean
+          _flags: Json
+          _job: string
+          _note: string
+          _outcome: string
+          _reason: string
+          _ref: string
+          _reviews: Json
+          _ruleset: string
+          _snapshot: Json
+          _version: number
+        }
+        Returns: string
+      }
       record_expired_onboarding_authorisations: { Args: never; Returns: number }
       required_deposit_amount: { Args: { _total: number }; Returns: number }
       review_external_action: {
