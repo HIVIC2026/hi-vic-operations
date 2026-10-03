@@ -130,8 +130,10 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
     role: "installer",
     fields: [...READY_CHECK_FIELDS, ...PRICING_FIELDS],
   },
-  piesa: { title: "VEU pre-installation electrical safety assessment form", role: "electrician", fields: [...officialFields("piesa"), ...PIESA_SUPPLEMENTAL] },
-  piisa: { title: "VEU pre-installation installer safety assessment form", role: "installer", fields: [...officialFields("piisa"), ...PIISA_SUPPLEMENTAL] },
+  // Short onsite forms (approved 3 Oct 2026): clear full-sentence questions. The portal expands the answers
+  // into every official Word-form item (official-expand.core.ts) and fills the official document itself.
+  piesa: { title: "VEU pre-installation electrical safety assessment form", role: "electrician", fields: [...SHORT_PIESA_FIELDS, ...PIESA_SUPPLEMENTAL] },
+  piisa: { title: "VEU pre-installation installer safety assessment form", role: "installer", fields: [...SHORT_PIISA_FIELDS, ...PIISA_SUPPLEMENTAL] },
 };
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
