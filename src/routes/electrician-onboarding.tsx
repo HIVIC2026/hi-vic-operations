@@ -399,7 +399,7 @@ function RecOnboarding() {
           ))}
         </div>
         {error && <p style={{ color: "#B3261E" }}>{error}</p>}
-        <button style={{ ...btn(true, busy), width: "100%", minHeight: 52, borderRadius: 16, fontSize: 15 }} disabled={busy} onClick={begin}>{busy ? "Starting…" : token ? "Continue registration →" : "Start registration →"}</button>
+        <button style={{ ...btn(true, busy), width: "100%", minHeight: 52, borderRadius: 16, fontSize: 15 }} disabled={busy} onClick={begin}>{busy ? "Starting…" : resumeLoadFailed.current ? "Try again →" : token ? "Continue registration →" : "Start registration →"}</button>
         <p style={{ fontSize: 12, color: MUTED, textAlign: "center", margin: "10px 0 0" }}>Save your progress after each step.</p>
       </div>
     </div>,

@@ -22,6 +22,7 @@ Root `/` → staff sign-in change preserved (untouched).
 | B7 | Arbitrary/duplicate day values accepted | Days must be unique values from the list |
 | B8 | Sign button enabled for any text containing "@" while the server rejected it | Client uses the same `validBusinessEmail` |
 | B10 | 21 custom rate items passed page validation (only the server schema capped at 20) | Page/sign validation caps at 20 |
+| B11 | Any load error (network blip, server 5xx) deleted the saved resume link, so a temporary outage lost the applicant's draft from this device | Only the exact "link no longer valid" error forgets it; otherwise keep link, show "Your progress is safe", button becomes "Try again" and reloads — never starts a blank draft over the saved one |
 | B9 | Sample data pre-ticked "reviewed" | Removed; preview requires an explicit tick |
 
 ## Matrix
@@ -75,11 +76,16 @@ Root `/` → staff sign-in change preserved (untouched).
 ## Independently reproduced evidence (reviewer, base ba756b2d, Node 24 on the pure core)
 `stepErrors` returned [] for expiry `2099-99-99` (B5), radius 42 (B6), days `["Funday"]` (B7), 21 distinct custom items (B10). Case EXT-1 in `tests/rec-sign-qa.test.ts` asserts all four now fail and 20 items still pass: **PASS**. Reviewer also confirmed: baseline full fixture complete, Infinity rate rejected, GST no + CoES included omits stale fee — matching RAT-2/RAT-3.
 
+## Independent reviewer evidence #2 (pure rules only, NOT end-to-end)
+Reviewer ran the ba756 core over all 121,920 valid combinations (127 non-empty day sets × 6 lead times × 5 radii × 4 capacities × accepting yes/no × GST yes/no × CoES included/separate): all accepted. A 53-case negative matrix rejected 48; accepted 2099-99-99, radius 42, day "Bad", duplicate days Mon+Mon (fixed as B5–B7) and example@example.com.
+Reproduced here as EXT2 in `tests/rec-sign-qa.test.ts`: all 121,920 accepted on the current code; the four invalid choices now rejected. **PASS**. Policy: example.com / reserved domains are NOT blocked (not specified; real valid emails must never be blocked) — test pins this.
+RES-1 (`shouldForgetResumeToken`): only the invalid-link error forgets the token — PASS. RES-2 browser: saved token + every server call forced to 503 → token kept in browser, "Your progress is safe" shown — PASS (screenshot checked).
+
 ## Submission idempotency vs production unique keys
 Read-only `pg_indexes` (confirmed by me and independently by the reviewer): UNIQUE `partner_enquiries(source_system, enquiry_type, submission_id)` and UNIQUE `rec_onboarding_applications(resume_token_hash)`. Signing relies on the first: `submission_id = portal-rec-onboarding-<application id>`, so a duplicate insert returns unique-conflict (23505), which `performRecSign` treats as "entry already exists" → looks it up and re-uses it (SGN-6, SGN-8). The application update is conditional on `status = 'draft'` and must change a row. The harness's fake database enforces the same unique key.
 
 ## Commands and results
-- `bun test tests/rec-sign-qa.test.ts tests/rec-onboarding.test.ts tests/partner-activation.test.ts tests/insurance-reading.test.ts` → **67 pass, 0 fail, 504 expects** (rerun after EXT-1) (first run 65/1: old test asserted services-only mandatory list; updated for B2).
+- `bun test tests/rec-sign-qa.test.ts tests/rec-onboarding.test.ts tests/partner-activation.test.ts tests/insurance-reading.test.ts` → **70 pass, 0 fail, 516 expects** (rerun after EXT-1, EXT2, RES-1) (first run 65/1: old test asserted services-only mandatory list; updated for B2).
 - `tsgo --noEmit` → no errors.
 - Preview build log → `build OK`.
 - `python3 /tmp/browser/recqa/smoke.py` → 18/18 screens ok, 0 page errors; review box unticked, sign disabled in preview.
