@@ -31,6 +31,14 @@ describe("admin record reliability", () => {
     expect(users).not.toContain('supabase.from("profiles")');
   });
 
+  it("puts signed portal applications in a distinct pending approval queue", () => {
+    expect(partners).toContain("Pending approval");
+    expect(partners).toContain('queue === "approval"');
+    expect(partners).toContain("&& isOnboarding(row)");
+    expect(partners).toContain("Website enquiries");
+    expect(partners).toContain("Onboarding form (signed application)");
+  });
+
   it("keeps a failed job read distinct from a missing job", () => {
     expect(functions).toContain("export const getJobOverview");
     expect(functions).toContain("await requireJobRole(context.supabase");
