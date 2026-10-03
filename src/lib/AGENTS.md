@@ -2,8 +2,8 @@
 
 ## Architecture rules
 - All admin reads/writes use authenticated server functions with explicit errors; non-admin reads stay RLS-scoped. Why: no false-empty records or weak access.
-- Stage-entry guards (Owner Authority, PIESA window, 50% deposit, evidence, compliance) live only in `stageEntryBlockers`; authority rules live in `authority.server.ts`. Why: rules change centrally.
-- One combined installation quote (rectification lines folded in) carries the single Xero invoice and 50% deposit. Why: deposit must precede rectification scheduling.
+- Stage-entry guards (Owner Authority, PIESA window, approved payment option, evidence, compliance) live only in `stageEntryBlockers`; authority rules live in `authority.server.ts`. Why: rules change centrally.
+- One combined installation quote (rectification lines folded in) carries the single Xero invoice and its configured minimum deposit. Why: deposit must precede rectification scheduling.
 - PIESA window length lives in `workflow_settings`; deadline/urgency computed by the `job_piesa_deadlines` view. Why: single source for UI and server.
 - Payment display state is derived by the `invoice_status` view (customer-safe columns; internal Xero IDs admin-only via server fn); Xero is the system of record. Why: time-based states need no cron.
 - Internal pricing (cost/margin/fee) lives only in admin-only `quote_internals`; customer-facing prices in `quote_items` are inc GST. Why: never expose margins.

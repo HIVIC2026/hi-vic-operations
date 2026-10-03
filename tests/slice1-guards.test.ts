@@ -69,17 +69,10 @@ describe("source of truth", () => {
     expect(WORKFLOW_DECISIONS.eligibility.rules.previousUpgradeYes).toBe("office_review");
     expect(WORKFLOW_DECISIONS.routes.installer_supplied.leadFee).toBe("none");
   });
-  test("no retired brand names in customer-visible files; 50% wording does not spread beyond the known list", () => {
+  test("no retired brand names in customer-visible files; retired payment wording nowhere in src", () => {
     const visible = scan().filter((h) => h.kind === "customer-visible");
     expect(visible.filter((h) => h.term.startsWith("HI VIC"))).toEqual([]);
-    // Known: screens still describing the live 50% gate. They change together with the payment-gate logic (separate approval).
-    const known = new Set([
-      "src/components/portal/job-workspace.tsx",
-      "src/components/portal/jobfile.tsx",
-      "src/components/portal/panels.tsx",
-      "src/routes/_authenticated/field.$jobId.tsx",
-      "src/routes/_authenticated/owner.$jobId.tsx",
-    ]);
-    expect(visible.filter((h) => !known.has(h.file))).toEqual([]);
+    // The payment-option gate replaced the retired half-deposit rule: zero tolerated customer-visible hits.
+    expect(visible).toEqual([]);
   });
 });
