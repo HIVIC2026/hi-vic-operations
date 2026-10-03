@@ -25,6 +25,7 @@ Each part of the form starts with one clear question written as a full sentence,
 7. "Please read the installer declaration and sign." The official declaration wording is shown in full at this step.
 
 ## What the portal does automatically
+- Everything measured and photographed at the Ready Check (ceiling area, existing insulation, downlights, access, photos) is carried into the PIESA and PIISA automatically, so the electrician and installer only confirm it instead of measuring again.
 - Reads the short answers back from Mitti, using the existing sync.
 - A "yes, all safe" answer becomes every matching official Yes/No answer. A "no" sets only the items that were ticked.
 - Fills the **official March 2026 government Word form** with its wording untouched and the boxes ticked. The form is saved privately on the job.
