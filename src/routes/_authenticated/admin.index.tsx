@@ -21,28 +21,30 @@ import { getAdminCoverage } from "@/lib/coverage.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { toast } from "sonner";
 import { filterVisibleJobs } from "@/lib/portal-presentation.core";
+import { nextStep } from "@/lib/nextstep.core";
+import { Pill } from "@/components/portal/badges";
 
 const ACCEPTANCE_STAGES = ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"];
 type WorkView = "all" | "active" | "review" | "ineligible" | "finalised" | "cancelled" | "test";
-type Tab = "jobs" | "quotes" | "enquiries" | "ineligible";
+type Tab = "board" | "jobs" | "quotes" | "enquiries" | "ineligible";
 const QUOTE_STAGES = ["awaiting_quote_acceptance", "measured_estimate_ready"];
 const JOB_STAGES = [...ACCEPTANCE_STAGES, "measured_quote_accepted", "piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete", "electrical_variation_pending", "awaiting_owner_rectification_approval"];
 const tabOf = (stage: string | null | undefined): Tab => QUOTE_STAGES.includes(stage ?? "") ? "quotes" : JOB_STAGES.includes(stage ?? "") ? "jobs" : "enquiries";
-const TAB_TITLE: Record<Tab, string> = { jobs: "ACTIVE JOBS", quotes: "PENDING QUOTE APPROVAL", enquiries: "ENQUIRIES", ineligible: "INELIGIBLE" };
+const TAB_TITLE: Record<Tab, string> = { board: "JOB PIPELINE", jobs: "ACTIVE JOBS", quotes: "PENDING QUOTE APPROVAL", enquiries: "ENQUIRIES", ineligible: "INELIGIBLE" };
 
 const PRIMARY_VIEWS: { key: WorkView; label: string }[] = [{ key: "active", label: "In progress" }, { key: "review", label: "Needs review" }, { key: "ineligible", label: "Exceptions" }];
 const SECONDARY_VIEWS: { key: WorkView; label: string }[] = [{ key: "all", label: "All non-test records" }, { key: "finalised", label: "Finalised" }, { key: "cancelled", label: "Cancelled" }, { key: "test", label: "Test records" }];
 
 export const Route = createFileRoute("/_authenticated/admin/")({
-  head: () => ({ meta: [{ title: "Enquiries – Home Insulation Victoria Portal" }, { name: "description", content: "Home Insulation Victoria active enquiry workspace." }, { property: "og:title", content: "Enquiries – Home Insulation Victoria Portal" }, { property: "og:description", content: "Home Insulation Victoria active enquiry workspace." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
-  validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (["jobs", "quotes", "enquiries", "ineligible"].includes(s["tab"] as string) ? { tab: s["tab"] as Tab } : {}),
+  head: () => ({ meta: [{ title: "Job Pipeline – Home Insulation Victoria Portal" }, { name: "description", content: "Home Insulation Victoria job pipeline and enquiry workspace." }, { property: "og:title", content: "Job Pipeline – Home Insulation Victoria Portal" }, { property: "og:description", content: "Home Insulation Victoria job pipeline and enquiry workspace." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (["board", "jobs", "quotes", "enquiries", "ineligible"].includes(s["tab"] as string) ? { tab: s["tab"] as Tab } : {}),
   component: Pipeline,
 });
 
 function Pipeline() {
   const [q, setQ] = useState("");
   const [source, setSource] = useState<"all" | "hivic_sourced" | "installer_sourced">("all");
-  const { tab = "enquiries" } = Route.useSearch();
+  const { tab = "board" } = Route.useSearch();
   const [workView, setWorkView] = useState<WorkView>("active");
   useEffect(() => { setWorkView(tab === "ineligible" ? "ineligible" : "active"); }, [tab]);
   const sweep = useServerFn(sweepAuthorities);
@@ -87,6 +89,7 @@ function Pipeline() {
     review: allJobs.filter((job) => job.source !== "qa_test" && job.eligibility_review_required && !["complete", "cancelled", "on_hold"].includes(job.stage ?? "")),
     active: allJobs.filter((job) => job.source !== "qa_test" && !job.eligibility_review_required && job.eligibility_outcome !== "does_not_appear_eligible" && !["complete", "cancelled", "on_hold"].includes(job.stage ?? "")),
   }), [allJobs]);
+  const boardJobs = useMemo(() => [...groups.review, ...groups.active], [groups]);
   const jobs = workView === "active" && tab !== "ineligible" ? groups.active.filter((j) => tabOf(j.stage) === tab) : groups[workView];
   const filtered = useMemo(() => {
     const s = q.toLowerCase();
@@ -140,18 +143,18 @@ function Pipeline() {
         </div>
          <div className="flex shrink-0 flex-col items-end gap-2 sm:ml-auto sm:flex-row sm:items-center"><span className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-xs font-bold ${comms?.enabled === true ? "border-success/30 bg-success-soft text-success" : "border-workspace-sun-strong/40 bg-workspace-sun text-foreground"}`}><span className={`h-2 w-2 rounded-full ${comms?.enabled === true ? "bg-success" : "bg-warning"}`} />Messages {comms?.enabled === true ? "on" : "off"}</span><NewEnquiry /></div>
       </div>
-      <section className="mb-2 flex flex-wrap items-center gap-1.5" aria-label="Work views">
+      {tab !== "board" && <section className="mb-2 flex flex-wrap items-center gap-1.5" aria-label="Work views">
         {PRIMARY_VIEWS.map((item) => <Button key={item.key} type="button" size="sm" variant={workView === item.key ? "default" : "outline"} onClick={() => { setWorkView(item.key); setPhase("all"); }} aria-pressed={workView === item.key}>{item.label} <Badge variant="secondary">{cardCount(item.key)}</Badge></Button>)}
         <label className="sr-only" htmlFor="retained-view">Retained records view</label><select id="retained-view" aria-label="Retained and complete records" className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm" value={SECONDARY_VIEWS.some((item) => item.key === workView) ? workView : ""} onChange={(e) => { if (e.target.value) { setWorkView(e.target.value as WorkView); setPhase("all"); } }}><option value="">More records…</option>{SECONDARY_VIEWS.map((item) => <option key={item.key} value={item.key}>{item.label} ({cardCount(item.key)})</option>)}</select>
         <span className="text-xs text-muted-foreground">Ineligible {ineligibleOnly} · On hold {onHoldOnly}</span>
-      </section>
-      {workView === "active" && tab !== "ineligible" && activeHere !== activeCount && <p data-testid="active-split" className="mb-3 text-xs text-muted-foreground">{activeCount} records are in progress in total: {activeByTab.enquiries} at enquiry stage, {activeByTab.quotes} at quote stage, {activeByTab.jobs} at job stage. {tab !== "enquiries" && activeByTab.enquiries > 0 && <Link to="/admin" search={{ tab: "enquiries" }} className="font-semibold text-primary underline">View the {activeByTab.enquiries} enquiries</Link>}</p>}
-      {(q || source !== "all" || phase !== "all") && <div data-testid="active-filters" className="mb-3 flex flex-wrap items-center gap-2 text-xs"><span className="font-semibold">Filters on:</span>{q && <Badge variant="outline">Search “{q}”</Badge>}{source !== "all" && <Badge variant="outline">{source === "hivic_sourced" ? "Home Insulation Victoria-sourced" : "Installer-sourced"}</Badge>}{phase !== "all" && <Badge variant="outline">Phase: {PIPELINE_PHASES.find((p) => p.key === phase)?.label ?? phase}</Badge>}<Button type="button" size="sm" variant="ghost" onClick={() => { setQ(""); setSource("all"); setPhase("all"); }}>Clear filters</Button></div>}
+      </section>}
+      {workView === "active" && tab !== "ineligible" && tab !== "board" && activeHere !== activeCount && <p data-testid="active-split" className="mb-3 text-xs text-muted-foreground">{activeCount} records are in progress in total: {activeByTab.enquiries} at enquiry stage, {activeByTab.quotes} at quote stage, {activeByTab.jobs} at job stage. {tab !== "enquiries" && activeByTab.enquiries > 0 && <Link to="/admin" search={{ tab: "enquiries" }} className="font-semibold text-primary underline">View the {activeByTab.enquiries} enquiries</Link>}</p>}
+      {tab !== "board" && (q || source !== "all" || phase !== "all") && <div data-testid="active-filters" className="mb-3 flex flex-wrap items-center gap-2 text-xs"><span className="font-semibold">Filters on:</span>{q && <Badge variant="outline">Search “{q}”</Badge>}{source !== "all" && <Badge variant="outline">{source === "hivic_sourced" ? "Home Insulation Victoria-sourced" : "Installer-sourced"}</Badge>}{phase !== "all" && <Badge variant="outline">Phase: {PIPELINE_PHASES.find((p) => p.key === phase)?.label ?? phase}</Badge>}<Button type="button" size="sm" variant="ghost" onClick={() => { setQ(""); setSource("all"); setPhase("all"); }}>Clear filters</Button></div>}
       {uncounted > 0 && <div role="alert" className="mb-3 rounded-md border-l-4 border-destructive bg-destructive/10 px-4 py-2 text-sm font-semibold text-destructive">{uncounted} non-test record{uncounted === 1 ? " is" : "s are"} not in any status group. Open “All non-test records” to find {uncounted === 1 ? "it" : "them"}.</div>}
        {workView === "active" && warnings > 0 && <div className="mb-4 rounded-md border-l-4 border-warning bg-warning-soft px-4 py-3 text-sm"><b>{warnings} active job{warnings === 1 ? "" : "s"} need attention.</b> {[piesaCount && `${piesaCount} PIESA`, paymentCount && `${paymentCount} payment`, acceptanceCount && `${acceptanceCount} agreement`].filter(Boolean).join(" · ")}</div>}
       {comms?.enabled !== true && <p className="mb-3 text-xs text-muted-foreground">Pre-launch safety is active: no email, SMS or notification is sent to customers or trades.</p>}
       {intakeHealth && <details data-testid="post-intake-health" className="mb-2 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground"><summary className="cursor-pointer font-semibold text-foreground">System health {intakeHealth.counts.stale > 0 || intakeHealth.counts.failed > 0 ? `— ${intakeHealth.counts.stale + intakeHealth.counts.failed} need attention` : "— normal"}</summary><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1"><span>Queued <b className="text-foreground">{intakeHealth.counts.queued}</b></span><span>Running <b className="text-foreground">{intakeHealth.counts.running}</b></span><span className={intakeHealth.counts.stale > 0 ? "font-semibold text-warning" : ""}>Stale <b>{intakeHealth.counts.stale}</b></span><span className={intakeHealth.counts.failed > 0 ? "font-semibold text-danger" : ""}>Failed <b>{intakeHealth.counts.failed}</b></span></div></details>}
-      <details className="group mb-3 rounded-md border bg-card sm:hidden" open>
+      {tab !== "board" && <details className="group mb-3 rounded-md border bg-card sm:hidden" open>
         <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm font-semibold sm:hidden">Search and filters <ChevronDown className="h-4 w-4 transition group-open:rotate-180" /></summary>
       <div className="flex flex-wrap items-center gap-2 border-t p-3">
           <div className="relative min-w-0 basis-full sm:min-w-64 sm:basis-auto sm:flex-1"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search job number, address or person" className="pl-8" /></div>
@@ -162,8 +165,8 @@ function Pipeline() {
              <option value="all">All phases</option>{lanes.map((p) => <option key={p.key} value={p.key}>{p.label} ({byPhase(p.key).length})</option>)}
           </select>
       </div>
-      </details>
-      <div className="mb-3 hidden flex-wrap items-center gap-2 rounded-md border bg-card p-3 sm:flex">
+      </details>}
+      {tab !== "board" && <div className="mb-3 hidden flex-wrap items-center gap-2 rounded-md border bg-card p-3 sm:flex">
           <div className="relative min-w-64 flex-1"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search job number, address or person" className="pl-8" /></div>
           <select aria-label="Job source" className="h-9 rounded-md border bg-background px-2 text-sm" value={source} onChange={(e) => setSource(e.target.value as typeof source)}>
             <option value="all">All sources</option><option value="hivic_sourced">Home Insulation Victoria-sourced</option><option value="installer_sourced">Installer-sourced</option>
@@ -171,8 +174,8 @@ function Pipeline() {
           <select aria-label="Phase" className="h-9 rounded-md border bg-background px-2 text-sm" value={phase} onChange={(e) => setPhase(e.target.value as typeof phase)} disabled={workView !== "active"}>
             <option value="all">All phases</option>{lanes.map((p) => <option key={p.key} value={p.key}>{p.label} ({byPhase(p.key).length})</option>)}
           </select>
-      </div>
-      {(() => {
+      </div>}
+      {tab !== "board" && (() => {
         const all = visibleJobs.length > 0 && visibleJobs.every((j) => selected.has(j.id!));
         return <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
           <label className="flex items-center gap-2 font-medium"><Checkbox checked={all} onCheckedChange={() => setSelected(all ? new Set() : new Set(visibleJobs.map((j) => j.id!)))} aria-label="Select all shown" />Select all shown</label>
@@ -203,7 +206,13 @@ function Pipeline() {
           }}>Confirm</Button>
         </DialogContent>
       </Dialog>
-      {pipelinePending ? (
+      {tab === "board" ? (
+        pipelinePending ? (
+          <div role="status" className="rounded-md border bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">Loading pipeline…</div>
+        ) : (
+          <PipelineBoard jobs={boardJobs} />
+        )
+      ) : pipelinePending ? (
         <div role="status" className="rounded-md border bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">Loading enquiries…</div>
       ) : (
          <ul aria-label="Records" className="divide-y overflow-hidden rounded-md border bg-card">
@@ -256,5 +265,48 @@ function NewEnquiry() {
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PipelineBoard({ jobs }: { jobs: JobRow[] }) {
+  const columns = PIPELINE_PHASES.filter((p) => p.key !== "complete");
+  return (
+    <div className="-mx-4 overflow-x-auto px-4 pb-6 sm:-mx-7 sm:px-7">
+      <div className="flex min-w-max items-start gap-4">
+        {columns.map((col) => {
+          const cards = jobs.filter((j) => phaseForStage(j.stage) === col.key);
+          return (
+            <section key={col.key} className="flex w-72 shrink-0 flex-col" aria-label={`${col.label} (${cards.length})`}>
+              <h3 className="mb-3 flex items-center gap-2 px-1 text-sm font-bold text-foreground">
+                {col.label}
+                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">{cards.length}</span>
+              </h3>
+              <div className="flex min-h-24 flex-col gap-3 rounded-xl border border-dashed border-border bg-muted/30 p-2">
+                {cards.map((j) => <BoardCard key={j.id} job={j} />)}
+                {cards.length === 0 && <p className="px-2 py-6 text-center text-xs text-muted-foreground">No jobs here</p>}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BoardCard({ job }: { job: JobRow }) {
+  const step = nextStep(job);
+  return (
+    <Link to="/admin/jobs/$jobId" params={{ jobId: job.id! }} className="block rounded-xl border bg-card p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold text-primary">{job.job_number}</span>
+        <Pill t={step.tone}>{step.label}</Pill>
+      </div>
+      <p className="mt-1.5 font-bold leading-tight text-foreground">{job.property_address}</p>
+      <p className="mt-0.5 truncate text-xs text-muted-foreground">{job.owner_name}</p>
+      <div className="mt-3 border-t pt-3">
+        <p className="text-xs font-semibold text-foreground">{step.next}</p>
+        {step.waitingOn && <p className="mt-1 text-[11px] text-muted-foreground">Waiting on {step.waitingOn}</p>}
+      </div>
+    </Link>
   );
 }

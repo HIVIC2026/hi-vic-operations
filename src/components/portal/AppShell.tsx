@@ -32,25 +32,26 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
     <>
       {roles.includes("admin") && (
         <>
-          <div className={group}>Work</div>
+          <div className={group}>Jobs</div>
+          <Link to="/admin" search={{}} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><LayoutDashboard className="h-4 w-4" /> Pipeline</Link>
           <Link to="/admin/todo" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><ListTodo className="h-4 w-4" /> To action{todoCount > 0 && <span className="ml-auto rounded-full bg-destructive px-2 text-xs font-bold text-destructive-foreground">{todoCount}</span>}</Link>
-          <Link to="/admin" search={{ tab: "jobs" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><BriefcaseBusiness className="h-4 w-4" /> Active jobs</Link>
+          <Link to="/admin" search={{ tab: "enquiries" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Enquiries</Link>
           <Link to="/admin" search={{ tab: "quotes" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><FileCheck2 className="h-4 w-4" /> Pending quote approval</Link>
-          <Link to="/admin" search={{ tab: "enquiries" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><LayoutDashboard className="h-4 w-4" /> Enquiries</Link>
+          <Link to="/admin" search={{ tab: "jobs" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><BriefcaseBusiness className="h-4 w-4" /> Active jobs</Link>
           <Link to="/admin" search={{ tab: "ineligible" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><X className="h-4 w-4" /> Ineligible</Link>
           <Link to="/admin/interests" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Registered interest</Link>
-          <Link to="/admin/veec" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Calculator className="h-4 w-4" /> VEECs</Link>
           <Link to="/admin/coverage" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><MapPinned className="h-4 w-4" /> Service coverage</Link>
           <Link to="/admin/team-ups" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Users className="h-4 w-4" /> Electrician team-ups</Link>
-          <div className={group}>Partners</div>
+          <div className={group}>People</div>
           <Link to="/admin/businesses" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><BriefcaseBusiness className="h-4 w-4" /> Approved partners</Link>
           <Link to="/admin/partners" search={{ enquiry: undefined }} className={link} activeProps={active} onClick={() => setMobileOpen(false)}><ClipboardCheck className="h-4 w-4" /> Partner applications</Link>
           <Link to="/admin/workers" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Users className="h-4 w-4" /> Staff approvals</Link>
-          <div className={group}>Governance</div>
+          <Link to="/admin/users" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Users className="h-4 w-4" /> Users & access</Link>
+          <div className={group}>Money</div>
+          <Link to="/admin/veec" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Calculator className="h-4 w-4" /> VEECs</Link>
+          <div className={group}>Settings</div>
           <Link to="/admin/compliance" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><FileCheck2 className="h-4 w-4" /> Compliance</Link>
           <Link to="/admin/communications" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Customer communications</Link>
-          <Link to="/admin/users" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Users className="h-4 w-4" /> Users & access</Link>
-          <div className={group}>Tools</div>
           <Link to="/admin/test-centre" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><FlaskConical className="h-4 w-4" /> Test Centre</Link>
           <a href="/calculator" target="_blank" rel="noopener" className={link}>
              <Calculator className="h-4 w-4" /> Customer calculator <ExternalLink className="ml-auto h-3.5 w-3.5" />
