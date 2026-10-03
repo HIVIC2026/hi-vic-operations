@@ -1,9 +1,12 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { PublicCalculatorPage, publicCalculatorHead } from "@/components/portal/public-calculator-page";
 
-// The bare address is the staff sign-in on every host. The public calculator
-// lives at /calculator; signed-in staff are bounced from /auth to /home.
+// The bare address is the public calculator — customers already have this
+// link. The same calculator also answers at /calculator, and staff sign in
+// at /auth (signed-in staff are bounced from /auth to /home).
 export const Route = createFileRoute("/")({
-  beforeLoad: () => {
-    throw redirect({ to: "/auth" });
-  },
+  ssr: false,
+  headers: () => ({ "Cache-Control": "no-store" }),
+  head: publicCalculatorHead,
+  component: PublicCalculatorPage,
 });
