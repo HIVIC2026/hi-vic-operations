@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { createHash } from "crypto";
 import { PARTNER_TEMPLATES, REC_TEMPLATE, renderPartnerTemplate } from "../src/lib/partner-templates";
 
-const canonical = readFileSync(new URL("../src/lib/templates/rec-partnership-invitation.html", import.meta.url), "utf8");
+const canonical = readFileSync(new URL("../src/lib/templates/rec-partnership-invitation.html", import.meta.url), "utf8").replace(/\n$/, "");
 
 describe("REC partnership invitation", () => {
   test("metadata and catalogue entry", () => {
