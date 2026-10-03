@@ -1,7 +1,7 @@
 // ONE authoritative auto-progression entry point. Uses transition() + stageEntryBlockers() only; never
 // calls Xero or Mitti — it evaluates portal state already stored.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { agreementSigned, getStage, stageEntryBlockers, transition, depositCleared, WorkflowError } from "./workflow.server";
+import { agreementSigned, getStage, stageEntryBlockers, transition, paymentOptionCleared, WorkflowError } from "./workflow.server";
 import { generateInstallerQuotes } from "./quotes.server";
 import { eligibilityConfirmedFor } from "./eligibility.core";
 import { todayMelbourne } from "./eligibility.server";
@@ -39,7 +39,7 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
     installQuoteAccepted: iqa > 0,
     consumerSigned: st,
     invoiceExists: inv > 0,
-    depositCleared: await depositCleared(jobId),
+    depositCleared: await paymentOptionCleared(jobId),
     rectBookingConfirmed: rb > 0,
     installBookingConfirmed: ib > 0,
     installationCompleted: !!job?.installation_completed_at,
