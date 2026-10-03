@@ -130,4 +130,27 @@ describe("sign retry after a lost successful response", () => {
       revision: () => null, sign: async () => { throw new Error("must not sign"); },
     })).rejects.toThrow("review it again");
   });
+  test("a response lost after the database commit is reconciled in the same click", async () => {
+    const t = await installerDb();
+    const id = await t.create(complete);
+    const reviewed = await sha256(agreementText(signedData((await t.app(id)) as never)));
+    const startRev = (await t.app(id)).updated_at as string;
+    let calls = 0;
+    const result = await signWithRecovery(reviewed, {
+      load: async () => { const a = await t.app(id); return { status: a.status as string, updated_at: a.updated_at as string }; },
+      saveReviewed: async () => {},
+      agreement: async () => ({ sha256: reviewed, updated_at: startRev }),
+      revision: () => startRev,
+      sign: async (expected, hash) => {
+        calls++;
+        const committed = await performInstallerSign(await t.app(id), { signer_name: "Sam Taylor", signer_position: "Director", signer_email: "sam@samplebiz.com.au", acknowledgements: acks, agreement_version: INSTALLER_AGREEMENT_VERSION, expected_updated_at: expected, agreement_sha256: hash }, { ip: null, userAgent: null }, t.deps());
+        if (calls === 1) throw new Error("response lost after commit");
+        return committed;
+      },
+    });
+    expect(result.outcome).toBe("already_signed_same");
+    expect(calls).toBe(2);
+    expect(await t.count("partner_enquiries")).toBe(1);
+    expect(await t.count("electrician_nominations")).toBe(0);
+  });
 });

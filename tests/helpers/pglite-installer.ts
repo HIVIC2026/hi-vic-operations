@@ -8,6 +8,7 @@ import type { InstallerSignApp, InstallerSignDeps } from "../../src/lib/installe
 export const PENDING_SQL = readFileSync(new URL("../../docs/pending-migrations/0082_installer_sign_activation.sql", import.meta.url), "utf8");
 export const CORRECTION_SQL = readFileSync(new URL("../../docs/pending-migrations/0083_activation_corrections.sql", import.meta.url), "utf8");
 export const CERT_CONSISTENCY_SQL = readFileSync(new URL("../../docs/pending-migrations/0084_certification_consistency.sql", import.meta.url), "utf8");
+export const SIGN_NOMINATION_SQL = readFileSync(new URL("../../docs/pending-migrations/0085_installer_sign_nomination_value.sql", import.meta.url), "utf8");
 const SCHEMA = `
 CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
 CREATE TYPE app_role AS ENUM ('admin','electrician','installer','owner');
@@ -48,7 +49,9 @@ CREATE TRIGGER rec_onboarding_signed_guard BEFORE DELETE OR UPDATE ON public.rec
 CREATE TABLE public.electrician_nominations (
   id uuid primary key default gen_random_uuid(), job_id uuid, installer_application_id uuid, nominated_for text not null default 'installer', contact_name text not null,
   business_name text, email text, phone text, licence_number text, rec_number text, status text not null default 'invite_pending_comms', is_primary boolean not null default false,
-  consent_confirmed_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+  consent_confirmed_at timestamptz, created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
+  CONSTRAINT electrician_nominations_nominated_for_check CHECK (nominated_for IN ('installer','customer')),
+  CONSTRAINT electrician_nominations_status_check CHECK (status IN ('invite_pending_comms','invited','onboarding','approved','declined')));
 CREATE UNIQUE INDEX electrician_nominations_app_email_uidx ON public.electrician_nominations (installer_application_id, lower(email)) WHERE installer_application_id IS NOT NULL AND job_id IS NULL AND email IS NOT NULL;
 CREATE TABLE public.businesses (
   id uuid primary key default gen_random_uuid(), name text not null, legal_name text, trading_name text, abn text, business_type business_type not null,
@@ -102,6 +105,7 @@ export async function installerDb() {
   await db.exec(PENDING_SQL);
   await db.exec(CORRECTION_SQL);
   await db.exec(CERT_CONSISTENCY_SQL);
+  await db.exec(SIGN_NOMINATION_SQL);
   await db.query(`INSERT INTO profiles(id) VALUES ($1), ($2)`, [ADMIN, OTHER]);
   await db.query(`INSERT INTO user_roles(user_id, role) VALUES ($1, 'admin')`, [ADMIN]);
   const app = async (id: string): Promise<InstallerSignApp & Record<string, unknown>> =>
