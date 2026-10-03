@@ -254,14 +254,14 @@ export function firstIncompleteStep(d: InstData, now = new Date()): StepKey | nu
   return null;
 }
 
-export type InstallerSignUiBlocker = { key: string; message: string; page?: StepKey };
+export type InstallerSignUiBlocker = { key: string; message: string; page?: StepKey; target?: string };
 /** Complete applicant-facing signing checklist. It explains disabled signing without weakening server validation. */
 export function installerSignUiBlockers(input: {
   data: InstData; reviewed: boolean; acknowledgements: Record<string, boolean>;
   signerName: string; signerPosition: string; signerEmail: string; relaxed?: boolean; preview?: boolean; now?: Date;
 }): InstallerSignUiBlocker[] {
   const blockers: InstallerSignUiBlocker[] = [];
-  if (!input.reviewed || input.data.agreement_reviewed !== true) blockers.push({ key: "review", message: "Review the agreement and tick the review confirmation above.", page: "review" });
+  if (!input.reviewed || input.data.agreement_reviewed !== true) blockers.push({ key: "review", message: "Review the agreement and tick the review confirmation above.", page: "review", target: "agreement-review" });
   if (!input.relaxed && !input.preview) {
     for (const page of INSTALLER_VISIBLE_PAGES) {
       if (page.key === "review") continue;
@@ -270,10 +270,10 @@ export function installerSignUiBlockers(input: {
     }
   }
   const unticked = ACKNOWLEDGEMENTS.filter((a) => input.acknowledgements[a.key] !== true).length;
-  if (unticked) blockers.push({ key: "acknowledgements", message: `Tick all ${ACKNOWLEDGEMENTS.length} signing acknowledgements (${unticked} remaining).`, page: "review" });
-  if (input.signerName.trim().length < 2) blockers.push({ key: "signer-name", message: "Enter the signer's full legal name.", page: "review" });
-  if (input.signerPosition.trim().length < 2) blockers.push({ key: "signer-position", message: "Enter the signer's position or title.", page: "review" });
-  if (!validBusinessEmail(input.signerEmail)) blockers.push({ key: "signer-email", message: "Enter a valid business email for the signer.", page: "review" });
+  if (unticked) blockers.push({ key: "acknowledgements", message: `Tick all ${ACKNOWLEDGEMENTS.length} signing acknowledgements (${unticked} remaining).`, page: "review", target: "signing-acknowledgements" });
+  if (input.signerName.trim().length < 2) blockers.push({ key: "signer-name", message: "Enter the signer's full legal name.", page: "review", target: "signer-name" });
+  if (input.signerPosition.trim().length < 2) blockers.push({ key: "signer-position", message: "Enter the signer's position or title.", page: "review", target: "signer-position" });
+  if (!validBusinessEmail(input.signerEmail)) blockers.push({ key: "signer-email", message: "Enter a valid business email for the signer.", page: "review", target: "signer-email" });
   return blockers;
 }
 
