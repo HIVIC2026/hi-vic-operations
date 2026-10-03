@@ -25,6 +25,7 @@ Each part of the form starts with one clear question written as a full sentence,
 7. "Please read the installer declaration and sign." The official declaration wording is shown in full at this step.
 
 ## What the portal does automatically
+- Everything measured and photographed at the Ready Check (ceiling area, existing insulation, downlights, access, photos) is carried into the PIESA and PIISA automatically, so the electrician and installer only confirm it instead of measuring again.
 - Reads the short answers back from Mitti, using the existing sync.
 - A "yes, all safe" answer becomes every matching official Yes/No answer. A "no" sets only the items that were ticked.
 - Fills the **official March 2026 government Word form** with its wording untouched and the boxes ticked. The form is saved privately on the job.
@@ -44,3 +45,14 @@ Each part of the form starts with one clear question written as a full sentence,
 - New `official-docx.server.ts`: fills the bundled official .docx and stores it in private job files. This replaces the superseded PDF blocker.
 - `evaluatePiesa`/`evaluatePiisa`, signed snapshots and gates are reused unchanged. The rule is recorded in `src/lib/AGENTS.md`.
 - Mitti template IDs are reconnected after Jo builds the short templates.
+
+## AP evidence checklist (from the official ESC requirements)
+The portal's evidence list for each job is updated to match the current official record-keeping requirements:
+- Geotagged photo of the cables at the switchboard, taken by the electrician during the PIESA ([ESC update, 30 July 2026](https://www.esc.vic.gov.au/victorian-energy-upgrades/updates-reports-reviews-and-data/updates-veu-program/veu-ceiling-insulation-activity-updated-requirements-accreditation-conditions-and-veu-registry)).
+- Video footage of the ceiling space before and after the installation (same ESC update).
+- A diagram or floor plan of the ceiling space being upgraded (same ESC update).
+- Written owner consent to share information with the ESC, WorkSafe and Energy Safe Victoria, at least 24 hours before installation, plus the installation notification to the ESC ([ESC, 14 April 2026](https://www.esc.vic.gov.au/victorian-energy-upgrades/updates-reports-reviews-and-data/updates-veu-program/new-veu-ceiling-insulation-activity-veu-registry-changes-guides-and-forms-now-available)).
+- EEC certification number for every installer on site (already required by the PIISA form).
+- Tax invoice meeting the ESC's record-keeping rules (already handled through Xero).
+
+One caution: I could not find any official requirement for a geotagged photo of the installers themselves holding their licences. The official rules require EEC certification numbers for each installer, and geotagged photos of the switchboard cables and the ceiling space. If the AP has asked for installer photos as their own extra check, I can add it as an optional evidence item — just confirm.
