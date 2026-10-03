@@ -38,7 +38,8 @@ export function installerSignBlocker(app: InstallerSignApp, input: InstallerSign
   if (d.agreement_reviewed !== true) return "Please review the agreement before signing.";
   // Test applications may skip optional detail, but never review, services or the staff branch above.
   const relax = !!app.test_mode && app.allow_incomplete_sign === true;
-  const missing = relax ? (["services"] as const).find(() => d.wants_hivic_leads === true && d.free_measureups_for_hivic_quote_leads !== true) ?? null : firstIncompleteStep(d, now);
+  const servicesOpen = typeof d.wants_hivic_leads !== "boolean" || (d.wants_hivic_leads === true && d.free_measureups_for_hivic_quote_leads !== true);
+  const missing = relax ? (servicesOpen ? "services" : null) : firstIncompleteStep(d, now);
   if (missing) return `Please complete the "${INSTALLER_VISIBLE_PAGES.find((p) => p.key === missing)?.title ?? missing}" page before signing.`;
   return null;
 }
