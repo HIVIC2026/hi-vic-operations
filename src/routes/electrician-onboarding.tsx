@@ -277,7 +277,8 @@ function RecOnboarding() {
       setStep(r.status === "submitted" ? "sign" : (first ?? visiblePageForStep(r.step_key)));
     }).catch((e) => {
       if (shouldForgetResumeToken(e)) { localStorage.removeItem(TOKEN_KEY); return; }
-      setToken(t); setError("We couldn't load your saved application just now. Your progress is safe — refresh the page to try again.");
+      resumeLoadFailed.current = true; // never start blank over a saved draft
+      setError("We couldn't load your saved application just now. Your progress is safe — try again in a moment.");
     }).finally(() => setLoaded(true));
   }, [invalidSample, sampleStep]);
   useEffect(() => {
@@ -291,7 +292,9 @@ function RecOnboarding() {
   const errs = pageErrors(step, d);
   const up = (patch: Partial<RecData>) => setD((x) => applyMaterialReset(x, { ...x, ...patch }));
 
+  const resumeLoadFailed = useRef(false);
   async function begin() {
+    if (resumeLoadFailed.current) { window.location.reload(); return; }
     if (token) { setStarted(true); setError(null); return; }
     if (sampleMode) { setD(SAMPLE_REC_DATA); setToken("sample-preview-token"); setStep("about"); setStarted(true); setError(null); return; }
     setBusy(true); setError(null);

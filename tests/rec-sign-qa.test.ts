@@ -4,6 +4,7 @@ import {
   ACKNOWLEDGEMENTS, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, REC_AGREEMENT_VERSION, acknowledgementsFor, agreementText, applyMaterialReset,
   blockedMandatoryStep, canonicalStepKey, firstIncompleteStep, pageErrors, stepErrors, validAbn, validCalendarDate, visiblePageForStep, STEPS, type RecData,
 } from "../src/lib/rec-onboarding.core";
+import { REC_INVALID_LINK_MESSAGE, shouldForgetResumeToken } from "../src/lib/rec-onboarding.core";
 import { performRecSign, recSignBlocker, type RecSignApp, type RecSignDeps } from "../src/lib/rec-sign.core";
 
 const addr = (label: string, state = "VIC", country = "AU") => ({ label, state, postcode: "3000", country: country as "AU", provider: "google_places_au" as const });
@@ -295,6 +296,35 @@ describe("QA-EXT externally reproduced boundaries (base ba756b2d)", () => {
     expect(stepErrors("rectification_pricing", { ...full, custom_rectification_rates: rows(21) })).toContain("Add no more than 20 custom items.");
     expect(stepErrors("rectification_pricing", { ...full, custom_rectification_rates: rows(20) })).toEqual([]);
     expect(firstIncompleteStep(full, now)).toBeNull();
+  });
+});
+
+describe("QA-RES resume token survives transient failures", () => {
+  test("only the definitive invalid-link error forgets the token", () => {
+    expect(shouldForgetResumeToken(new Error(REC_INVALID_LINK_MESSAGE))).toBe(true);
+    for (const e of [new Error("Could not load your application."), new Error("Failed to fetch"), new TypeError("NetworkError"), "x", null]) expect(shouldForgetResumeToken(e)).toBe(false);
+  });
+});
+
+describe("QA-EXT2 reviewer matrix (121,920 valid combos, 53 negatives)", () => {
+  test("all valid availability/coverage/GST/CoES combinations accepted", () => {
+    let count = 0;
+    for (let mask = 1; mask < 128; mask++) {
+      const days = DAYS.filter((_, i) => mask & (1 << i));
+      for (const lead of LEAD_TIMES) for (const r of RADII) for (const c of CAPACITY_BANDS) for (const acc of [true, false]) for (const gst of [true, false]) for (const coes of ["included", "separate"] as const) {
+        const d = { ...full, typical_days: [...days], normal_attendance_speed: lead, travel_radius_km: r.v, capacity_band: c.v, accepting_jobs: acc, gst_registered: gst, coes_fee_choice: coes, coes_fee: coes === "separate" ? 50 : null };
+        if (firstIncompleteStep(d, now) !== null) throw new Error(`rejected valid combo ${JSON.stringify(d.typical_days)} ${lead} ${r.v} ${c.v}`);
+        count++;
+      }
+    }
+    expect(count).toBe(121_920);
+  });
+  test("previously accepted invalids now rejected", () => {
+    expect(stepErrors("insurance", { ...full, public_liability_expiry: "2099-99-99" }, now).length).toBeGreaterThan(0);
+    expect(stepErrors("coverage", { ...full, travel_radius_km: 42 }).length).toBeGreaterThan(0);
+    expect(stepErrors("availability", { ...full, typical_days: ["Bad"] }).length).toBeGreaterThan(0);
+    expect(stepErrors("availability", { ...full, typical_days: ["Mon", "Mon"] }).length).toBeGreaterThan(0);
+    expect(stepErrors("about", { ...full, business_email: "example@example.com" })).toEqual([]); // policy: not blocked (optional, not specified)
   });
 });
 
