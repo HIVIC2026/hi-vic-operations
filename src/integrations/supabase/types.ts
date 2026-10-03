@@ -1535,6 +1535,78 @@ export type Database = {
           },
         ]
       }
+      contact_releases: {
+        Row: {
+          assignment_id: string
+          id: string
+          job_id: string
+          owner_notice: string
+          released_at: string
+          released_by: string | null
+          revoked_at: string | null
+          trade_notice: string
+          visit_kind: string
+        }
+        Insert: {
+          assignment_id: string
+          id?: string
+          job_id: string
+          owner_notice: string
+          released_at?: string
+          released_by?: string | null
+          revoked_at?: string | null
+          trade_notice: string
+          visit_kind: string
+        }
+        Update: {
+          assignment_id?: string
+          id?: string
+          job_id?: string
+          owner_notice?: string
+          released_at?: string
+          released_by?: string | null
+          revoked_at?: string | null
+          trade_notice?: string
+          visit_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_releases_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "job_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_releases_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_releases_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "contact_releases_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_releases_released_by_fkey"
+            columns: ["released_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cron_nonces: {
         Row: {
           created_at: string
@@ -6114,43 +6186,52 @@ export type Database = {
       }
       partner_offers: {
         Row: {
+          batch: number
           business_id: string
           decline_reason: string | null
           expires_at: string | null
           id: string
           job_id: string
+          kind: string
           offered_at: string
           offered_by: string | null
           responded_at: string | null
           responded_by: string | null
           status: string
           summary: Json
+          superseded_at: string | null
         }
         Insert: {
+          batch?: number
           business_id: string
           decline_reason?: string | null
           expires_at?: string | null
           id?: string
           job_id: string
+          kind?: string
           offered_at?: string
           offered_by?: string | null
           responded_at?: string | null
           responded_by?: string | null
           status?: string
           summary?: Json
+          superseded_at?: string | null
         }
         Update: {
+          batch?: number
           business_id?: string
           decline_reason?: string | null
           expires_at?: string | null
           id?: string
           job_id?: string
+          kind?: string
           offered_at?: string
           offered_by?: string | null
           responded_at?: string | null
           responded_by?: string | null
           status?: string
           summary?: Json
+          superseded_at?: string | null
         }
         Relationships: [
           {
@@ -6862,6 +6943,8 @@ export type Database = {
           kind: string
           notes: string | null
           outcome: Database["public"]["Enums"]["pass_fail"]
+          rectification_completed_at: string | null
+          section_c_signed_at: string | null
           signed_off_by: string | null
         }
         Insert: {
@@ -6875,6 +6958,8 @@ export type Database = {
           kind?: string
           notes?: string | null
           outcome: Database["public"]["Enums"]["pass_fail"]
+          rectification_completed_at?: string | null
+          section_c_signed_at?: string | null
           signed_off_by?: string | null
         }
         Update: {
@@ -6888,6 +6973,8 @@ export type Database = {
           kind?: string
           notes?: string | null
           outcome?: Database["public"]["Enums"]["pass_fail"]
+          rectification_completed_at?: string | null
+          section_c_signed_at?: string | null
           signed_off_by?: string | null
         }
         Relationships: [
@@ -7837,6 +7924,8 @@ export type Database = {
           job_id: string
           kind: Database["public"]["Enums"]["quote_kind"]
           manually_adjusted: boolean
+          office_reviewed_at: string | null
+          office_reviewed_by: string | null
           option_code: string | null
           option_label: string
           partner_business_id: string | null
@@ -7860,6 +7949,8 @@ export type Database = {
           job_id: string
           kind: Database["public"]["Enums"]["quote_kind"]
           manually_adjusted?: boolean
+          office_reviewed_at?: string | null
+          office_reviewed_by?: string | null
           option_code?: string | null
           option_label: string
           partner_business_id?: string | null
@@ -7883,6 +7974,8 @@ export type Database = {
           job_id?: string
           kind?: Database["public"]["Enums"]["quote_kind"]
           manually_adjusted?: boolean
+          office_reviewed_at?: string | null
+          office_reviewed_by?: string | null
           option_code?: string | null
           option_label?: string
           partner_business_id?: string | null
@@ -7928,6 +8021,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_office_reviewed_by_fkey"
+            columns: ["office_reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -9255,6 +9355,8 @@ export type Database = {
           payment_option_gate_enabled: boolean
           photo_max_distance_m: number
           piesa_install_window_days: number
+          rec_offer_batch_size: number
+          rec_offer_expiry_hours: number
           updated_at: string
           urgency_amber_days: number
           urgency_red_days: number
@@ -9286,6 +9388,8 @@ export type Database = {
           payment_option_gate_enabled?: boolean
           photo_max_distance_m?: number
           piesa_install_window_days?: number
+          rec_offer_batch_size?: number
+          rec_offer_expiry_hours?: number
           updated_at?: string
           urgency_amber_days?: number
           urgency_red_days?: number
@@ -9317,6 +9421,8 @@ export type Database = {
           payment_option_gate_enabled?: boolean
           photo_max_distance_m?: number
           piesa_install_window_days?: number
+          rec_offer_batch_size?: number
+          rec_offer_expiry_hours?: number
           updated_at?: string
           urgency_amber_days?: number
           urgency_red_days?: number
@@ -9613,6 +9719,13 @@ export type Database = {
       }
     }
     Functions: {
+      accept_partner_offer: {
+        Args: { _offer: string; _user: string }
+        Returns: {
+          assignment_id: string
+          outcome: string
+        }[]
+      }
       accept_pre_assessment_test: {
         Args: {
           _accepted_ip?: unknown
@@ -9867,6 +9980,10 @@ export type Database = {
           _suburb: string
         }
         Returns: string
+      }
+      has_contact_release: {
+        Args: { _job: string; _user: string }
+        Returns: boolean
       }
       has_role: {
         Args: {

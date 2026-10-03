@@ -65,11 +65,24 @@ function Dashboard() {
   );
 }
 
-function Offer({ o, onDone }: { o: { id: string; summary: unknown; expires_at: string | null }; onDone: () => void }) {
+function Offer({ o, onDone }: { o: { id: string; kind?: string; summary: unknown; expires_at: string | null }; onDone: () => void }) {
   const respond = useAction(respondToOffer);
   const [reason, setReason] = useState("");
   const [declining, setDeclining] = useState(false);
-  const s = o.summary as { job_number: string; suburb: string | null; postcode: string | null; area_m2: number | null; area_basis: string; eligibility: string | null };
+  const s = o.summary as { job_number: string; suburb: string | null; postcode: string | null; area_m2: number | null; area_basis: string; eligibility: string | null; approx_area_m2?: number | null; access_summary?: string | null; observations?: string[]; piesa_rate_inc_gst?: number | null };
+  if (o.kind === "piesa" || o.kind === "rectification") return (
+    <div className="rounded-xl border bg-card p-3 text-sm">
+      <div className="font-semibold">{o.kind === "piesa" ? "PIESA electrical safety visit" : "Electrical rectification"} · {s.suburb ?? "Victoria"} {s.postcode}</div>
+      <div className="text-muted-foreground">{s.job_number} · {s.approx_area_m2 ? `About ${s.approx_area_m2} m² ceiling (measured)` : "Ceiling area not recorded"}</div>
+      {s.access_summary && <div className="text-xs text-muted-foreground">{s.access_summary}</div>}
+      {!!s.observations?.length && <ul className="mt-1 list-disc pl-4 text-xs text-muted-foreground">{s.observations.map((x, i) => <li key={i}>{x}</li>)}</ul>}
+      {s.piesa_rate_inc_gst != null && <div className="text-xs">Agreed fee: ${s.piesa_rate_inc_gst.toFixed(2)} inc GST</div>}
+      {o.expires_at && <div className="text-xs text-muted-foreground">Offer open until {new Date(o.expires_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}</div>}
+      <p className="mt-1 text-xs text-muted-foreground">The owner's name and contact details are shared only once you accept. The first approved electrician to accept gets the job.</p>
+      {declining ? <div className="mt-2 space-y-2"><Input placeholder="Reason (optional)" value={reason} onChange={(e) => setReason(e.target.value)} /><Button size="sm" variant="outline" onClick={async () => { await respond({ offerId: o.id, accept: false, reason: reason || null }, "Declined"); onDone(); }}>Confirm decline</Button></div> :
+        <div className="mt-2 grid grid-cols-2 gap-2"><Button size="field" onClick={async () => { await respond({ offerId: o.id, accept: true, reason: null }, "Job accepted"); onDone(); }}>Accept</Button><Button size="field" variant="outline" onClick={() => setDeclining(true)}>Decline</Button></div>}
+    </div>
+  );
   return (
     <div className="rounded-xl border bg-card p-3 text-sm">
       <div className="font-semibold">{s.suburb ?? "Victoria"} {s.postcode}</div>

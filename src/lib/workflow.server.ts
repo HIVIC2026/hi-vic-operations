@@ -161,7 +161,7 @@ export async function paymentOptionCleared(jobId: string) {
 }
 
 /** PIESA request facts: Ready Check complete, verified eligible, current quote approved, payment option verified. */
-async function piesaRequestFacts(jobId: string) {
+export async function piesaRequestFacts(jobId: string) {
   const { verifiedEligible } = await import("./verified-eligibility.server");
   const [{ count: rc }, eligible, quote, payment] = await Promise.all([
     admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("to_stage", "ready_check_complete"),

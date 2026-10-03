@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
 import { Button } from "@/components/ui/button";
 import { getTodos } from "@/lib/todo.functions";
+import { getNeedsHivic } from "@/lib/allocation.functions";
 import type { TodoItem } from "@/lib/todo.core";
 
 const categoryStyle: Record<TodoItem["category"], string> = {
@@ -34,7 +35,32 @@ export function useTodos() {
   return useQuery({ queryKey: ["todos"], queryFn: () => load(), refetchInterval: 60_000, refetchOnWindowFocus: true, retry: 3 });
 }
 
+function NeedsQueue({ overdue }: { overdue: TodoItem[] }) {
+  const load = useServerFn(getNeedsHivic);
+  const q = useQuery({ queryKey: ["needs-hivic"], queryFn: () => load(), refetchInterval: 60_000, retry: 3 });
+  if (q.error) return <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-4 text-sm text-destructive"><p className="font-semibold">The exception queue could not be checked — do not assume nothing is waiting.</p><p>{(q.error as Error).message}</p></div>;
+  if (q.isPending) return <p className="text-sm text-muted-foreground">Checking for exceptions…</p>;
+  const rows = [
+    ...q.data.items,
+    ...overdue.map((t) => ({ key: `overdue:${t.key}`, jobId: t.jobId, jobNumber: t.jobNumber, why: `Overdue office task: ${t.title}.`, next: t.action, tab: t.tab ?? "overview", since: t.since })),
+  ];
+  if (!rows.length) return <div className="flex items-center gap-3 rounded-xl border bg-card p-6"><CheckCircle2 className="h-6 w-6 text-primary" /><p className="font-semibold">No exceptions. Routine waiting is handled automatically.</p></div>;
+  return (
+    <ul className="space-y-3">
+      {rows.map((r) => (
+        <li key={r.key} className="rounded-xl border border-destructive/40 bg-card p-4 text-sm">
+          <div className="flex items-center gap-2 text-xs font-semibold"><AlertTriangle className="h-4 w-4 text-destructive" />{r.jobNumber ?? "Office"}</div>
+          <p className="mt-1"><span className="font-semibold">Why: </span>{r.why}</p>
+          <p className="mt-1"><span className="font-semibold">Do next: </span>{r.next}</p>
+          {r.jobId && <Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="mt-2 inline-block text-xs font-semibold underline">Open job</Link>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function TodoPage() {
+  const [view, setView] = useState<"needs" | "all">("needs");
   const q = useTodos();
   const items = q.data?.items ?? [];
   const [filter, setFilter] = useState<"All" | TodoItem["category"]>("All");
@@ -48,8 +74,13 @@ function TodoPage() {
           <h1 className="font-display text-3xl font-bold tracking-tight">TO ACTION</h1>
           <p className="text-sm text-muted-foreground">Everything waiting on Home Insulation Victoria. Items clear themselves once the job shows the step is done.</p>
         </div>
+        <div className="flex gap-2" role="tablist" aria-label="Office views">
+          <Button size="sm" role="tab" aria-selected={view === "needs"} variant={view === "needs" ? "default" : "outline"} onClick={() => setView("needs")}>Needs Home Insulation Victoria</Button>
+          <Button size="sm" role="tab" aria-selected={view === "all"} variant={view === "all" ? "default" : "outline"} onClick={() => setView("all")}>All actions</Button>
+        </div>
         <Button variant="outline" size="sm" onClick={() => q.refetch()} disabled={q.isFetching}><RefreshCw className={`mr-2 h-4 w-4 ${q.isFetching ? "animate-spin" : ""}`} />Refresh</Button>
       </div>
+      {view === "needs" ? <NeedsQueue overdue={items.filter((t) => t.urgent)} /> : <>
       {!q.error && !q.isPending && items.length > 0 && (
         <div className="mb-4" aria-label="Filter tasks by status">
           <div className="mb-2 text-xs font-bold uppercase text-muted-foreground">Filter by status</div>
@@ -103,6 +134,7 @@ function TodoPage() {
           ))}
         </ul>
       )}
+      </>}
     </AppShell>
   );
 }

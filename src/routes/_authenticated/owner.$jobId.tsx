@@ -1,3 +1,4 @@
+import { VisitContactsCard } from "@/components/portal/allocation";
 import { OwnerInstalmentPlanCard } from "@/components/portal/instalment-plan";
 import { OwnerEstimateCard } from "@/components/portal/estimate";
 import { nextStep } from "@/lib/nextstep.core";
@@ -47,6 +48,7 @@ function OwnerJob() {
         {s === "awaiting_deposit_payment" && <p className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">Booking opens once your approved payment option is confirmed: minimum upfront deposit, paid in full, or an active 3-instalment plan.</p>}
         {job.installer_name && !["assessment_booking", "assessment_booked", "awaiting_electrician"].includes(s) && <ChangeTrade jobId={jobId} />}
         <DocumentsPanel jobId={jobId} />
+        <VisitContactsCard jobId={jobId} />
         <MessagesPanel jobId={jobId} isAdmin={false} role="owner" />
         <TimelinePanel jobId={jobId} />
       </div>

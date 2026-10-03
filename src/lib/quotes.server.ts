@@ -204,13 +204,13 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "rectification").in("status", ["draft", "issued"]);
   const { data: q, error } = await admin
     .from("quotes")
-    .insert({ job_id: jobId, kind: "rectification", option_label: "Electrical rectification", status: "issued", rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: 0, customer_total_inc_gst: subtotal, created_by: actorId })
+    .insert({ job_id: jobId, kind: "rectification", option_label: "Electrical rectification", status: "draft", rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: 0, customer_total_inc_gst: subtotal, created_by: actorId })
     .select("id")
     .single();
   if (error || !q) throw new Error(error?.message);
   await admin.from("quote_items").insert(lines.map((l) => ({ ...l, quote_id: q.id })));
   await admin.from("quote_internals").insert({ quote_id: q.id, cost_ex_gst: r2(cost), calc_snapshot: { rate_card_version: card.version } });
-  await logEvent(jobId, actorId, "rectification_quote_generated", `Rectification quote generated (${lines.length} lines)`, { quote_id: q.id });
+  await logEvent(jobId, actorId, "rectification_quote_generated", `Rectification quote drafted (${lines.length} lines) — office review required before it is sent`, { quote_id: q.id });
   return q.id;
 }
 
