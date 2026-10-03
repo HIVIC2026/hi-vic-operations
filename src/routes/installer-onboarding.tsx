@@ -230,7 +230,7 @@ function InstallerOnboarding() {
     if (invalidSample) { setLoaded(true); return; }
     if (sampleStep) {
       setD(SAMPLE_INSTALLER_DATA); setToken("sample-preview-token"); setTestMode(false);
-      if (sampleStep === "welcome") { setStarted(false); setStatus("draft"); }
+      if (sampleStep === "welcome") { setToken(null); setStarted(false); setStatus("draft"); }
       else if (sampleStep === "submitted") { setStarted(true); setStatus("submitted"); }
       else { setStarted(true); setStatus("draft"); setStep(visiblePageForStep(sampleStep)); }
       setLoaded(true); return;
