@@ -24,13 +24,25 @@ async function facts(jobId: string) {
   ]);
   if (!job) throw new WorkflowError("Job not found");
   const { data: inv } = quote
-    ? await admin.from("invoices").select("id, quote_id, total_inc_gst").eq("quote_id", quote.id).maybeSingle()
+    ? await admin
+        .from("invoices")
+        .select("id, quote_id, total_inc_gst")
+        .eq("quote_id", quote.id)
+        .maybeSingle()
     : { data: null };
-  return { route: paymentRouteFor(job.channel as string), quote, invoice: inv as { id: string; quote_id: string; total_inc_gst: number } | null };
+  return {
+    route: paymentRouteFor(job.channel as string),
+    quote,
+    invoice: inv as { id: string; quote_id: string; total_inc_gst: number } | null,
+  };
 }
 
 async function plans(jobId: string): Promise<(PlanRow & { created_at: string })[]> {
-  const { data, error } = await admin.from("instalment_plans").select(COLS).eq("job_id", jobId).order("created_at", { ascending: false });
+  const { data, error } = await admin
+    .from("instalment_plans")
+    .select(COLS)
+    .eq("job_id", jobId)
+    .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []) as never;
 }
@@ -47,7 +59,12 @@ export async function officeView(jobId: string) {
     route: f.route,
     currentQuote: f.quote,
     invoice: f.invoice,
-    proposeBlocker: proposeBlocker({ route: f.route, currentQuoteId: f.quote?.id ?? null, invoiceQuoteId: f.invoice?.quote_id ?? null, openPlanExists: !!open }),
+    proposeBlocker: proposeBlocker({
+      route: f.route,
+      currentQuoteId: f.quote?.id ?? null,
+      invoiceQuoteId: f.invoice?.quote_id ?? null,
+      openPlanExists: !!open,
+    }),
     plans: list.map((p) => ({ ...p, checklist: planChecklist(p, f.quote?.id ?? null) })),
   };
 }
@@ -70,41 +87,83 @@ export async function ownerView(jobId: string) {
 export async function proposePlan(jobId: string, actorId: string) {
   const [f, list] = await Promise.all([facts(jobId), plans(jobId)]);
   const open = list.some((p) => p.status === "proposed" || p.status === "active");
-  const b = proposeBlocker({ route: f.route, currentQuoteId: f.quote?.id ?? null, invoiceQuoteId: f.invoice?.quote_id ?? null, openPlanExists: open });
+  const b = proposeBlocker({
+    route: f.route,
+    currentQuoteId: f.quote?.id ?? null,
+    invoiceQuoteId: f.invoice?.quote_id ?? null,
+    openPlanExists: open,
+  });
   if (b) throw new WorkflowError(b);
   const { data, error } = await admin
     .from("instalment_plans")
-    .insert({ job_id: jobId, quote_id: f.quote!.id, invoice_id: f.invoice!.id, status: "proposed", instalment_count: 3 })
+    .insert({
+      job_id: jobId,
+      quote_id: f.quote!.id,
+      invoice_id: f.invoice!.id,
+      status: "proposed",
+      instalment_count: 3,
+    })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
-  await logEvent(jobId, actorId, "instalment_plan_proposed", "3-instalment plan proposed (does not clear the payment gate).", { plan_id: data.id, quote_id: f.quote!.id }, { internal: true });
+  await logEvent(
+    jobId,
+    actorId,
+    "instalment_plan_proposed",
+    "3-instalment plan proposed (does not clear the payment gate).",
+    { plan_id: data.id, quote_id: f.quote!.id },
+    { internal: true },
+  );
   return { id: data.id as string };
 }
 
-export async function actOnPlan(planId: string, action: PlanAction, actorId: string, asOwner: boolean) {
-  const { data: row, error } = await admin.from("instalment_plans").select(COLS).eq("id", planId).maybeSingle();
+export async function actOnPlan(
+  planId: string,
+  action: PlanAction,
+  actorId: string,
+  asOwner: boolean,
+) {
+  const { data: row, error } = await admin
+    .from("instalment_plans")
+    .select(COLS)
+    .eq("id", planId)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   if (!row) throw new WorkflowError("Plan not found");
   const plan = row as unknown as PlanRow;
   if (asOwner) {
-    if (action.kind !== "owner_accept") throw new WorkflowError("Owners can only accept plan terms.");
+    if (action.kind !== "owner_accept")
+      throw new WorkflowError("Owners can only accept plan terms.");
     await assertOwner(plan.job_id, actorId);
-    if (!plan.office_approved_at) throw new WorkflowError("This plan is not yet available to accept.");
+    if (!plan.office_approved_at)
+      throw new WorkflowError("This plan is not yet available to accept.");
   } else if (action.kind === "owner_accept") {
     throw new WorkflowError("Only the owner can accept the plan terms.");
   }
   const f = await facts(plan.job_id);
-  const res = applyPlanAction(plan, action, { route: f.route, currentQuoteId: f.quote?.id ?? null, now: new Date().toISOString(), actorId });
+  const res = applyPlanAction(plan, action, {
+    route: f.route,
+    currentQuoteId: f.quote?.id ?? null,
+    now: new Date().toISOString(),
+    actorId,
+  });
   if (!res.ok) throw new WorkflowError(res.error);
-  const { error: uerr } = await admin.from("instalment_plans").update({ ...res.patch, updated_at: new Date().toISOString() }).eq("id", planId).eq("status", plan.status);
+  const { error: uerr } = await admin
+    .from("instalment_plans")
+    .update({ ...res.patch, updated_at: new Date().toISOString() })
+    .eq("id", planId)
+    .eq("status", plan.status);
   if (uerr) throw new Error(uerr.message);
   await logEvent(
     plan.job_id,
     actorId,
     `instalment_plan_${action.kind === "mark" ? action.status : action.kind}`,
     `Instalment plan: ${action.kind === "mark" ? `marked ${action.status}` : action.kind.replace(/_/g, " ")}${res.patch.status === "active" ? " – all conditions met, plan active" : ""}.`,
-    { plan_id: planId, ...res.patch, ...(action.kind === "owner_accept" ? { terms_version: OWNER_PLAN_TERMS_VERSION } : {}) },
+    {
+      plan_id: planId,
+      ...res.patch,
+      ...(action.kind === "owner_accept" ? { terms_version: OWNER_PLAN_TERMS_VERSION } : {}),
+    },
     { internal: !asOwner },
   );
   return { status: (res.patch.status ?? plan.status) as string };

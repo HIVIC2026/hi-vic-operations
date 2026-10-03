@@ -7,7 +7,11 @@ const officeAction = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("approve") }),
   z.object({ kind: z.literal("record_collection"), arrangement: z.string().max(1000) }),
   z.object({ kind: z.literal("verify_first"), amount: z.number().positive().max(1_000_000) }),
-  z.object({ kind: z.literal("mark"), status: z.enum(["failed", "overdue", "cancelled", "superseded"]), reason: z.string().max(2000) }),
+  z.object({
+    kind: z.literal("mark"),
+    status: z.enum(["failed", "overdue", "cancelled", "superseded"]),
+    reason: z.string().max(2000),
+  }),
 ]);
 
 export const getOfficeInstalmentPlans = createServerFn({ method: "POST" })

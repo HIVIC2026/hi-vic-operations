@@ -15,7 +15,8 @@ export const OWNER_PLAN_TERMS = [
   "any electrical rectification work is quoted separately unless expressly included in a later approved quote;",
   "if the quote is changed or superseded, this payment plan may need to be replaced.",
 ] as const;
-export const OWNER_PLAN_CHECKBOX = "I have read and accept the 3-instalment payment plan for this quote.";
+export const OWNER_PLAN_CHECKBOX =
+  "I have read and accept the 3-instalment payment plan for this quote.";
 export const OWNER_PLAN_BUTTON = "Accept payment plan";
 
 export const OFFICE_PLAN_TITLE = "Approve instalment plan";
@@ -98,9 +99,17 @@ export function applyPlanAction(plan: PlanRow, action: PlanAction, ctx: PlanCont
     return { ok: true, patch: { status: action.status, status_reason: reason } };
   }
   if (ctx.route !== "hiv_lead")
-    return { ok: false, error: "Payment rule exception – instalment plans apply to Home Insulation Victoria leads only." };
+    return {
+      ok: false,
+      error:
+        "Payment rule exception – instalment plans apply to Home Insulation Victoria leads only.",
+    };
   if (plan.quote_id !== ctx.currentQuoteId)
-    return { ok: false, error: "This plan belongs to an older quote version. Mark it superseded and propose a new plan." };
+    return {
+      ok: false,
+      error:
+        "This plan belongs to an older quote version. Mark it superseded and propose a new plan.",
+    };
   let patch: Partial<PlanRow>;
   switch (action.kind) {
     case "approve":
@@ -108,7 +117,8 @@ export function applyPlanAction(plan: PlanRow, action: PlanAction, ctx: PlanCont
       patch = { office_approved_at: ctx.now, office_approved_by: ctx.actorId };
       break;
     case "owner_accept":
-      if (!action.confirmed) return { ok: false, error: "Tick the box to accept the payment plan." };
+      if (!action.confirmed)
+        return { ok: false, error: "Tick the box to accept the payment plan." };
       if (plan.owner_accepted_at) return { ok: false, error: "Payment plan already accepted." };
       patch = { owner_accepted_at: ctx.now, owner_accepted_by: ctx.actorId };
       break;
@@ -119,8 +129,12 @@ export function applyPlanAction(plan: PlanRow, action: PlanAction, ctx: PlanCont
       break;
     }
     case "verify_first":
-      if (!(action.amount > 0)) return { ok: false, error: "Enter the first instalment amount shown in Xero." };
-      patch = { first_instalment_amount: Math.round(action.amount * 100) / 100, first_instalment_verified_at: ctx.now };
+      if (!(action.amount > 0))
+        return { ok: false, error: "Enter the first instalment amount shown in Xero." };
+      patch = {
+        first_instalment_amount: Math.round(action.amount * 100) / 100,
+        first_instalment_verified_at: ctx.now,
+      };
       break;
   }
   const next = { ...plan, ...patch };
@@ -144,7 +158,10 @@ export function planChecklist(plan: PlanRow, currentQuoteId: string | null) {
       { label: "Owner accepted plan terms", done: !!plan.owner_accepted_at },
       { label: "First instalment verified in Xero", done: !!plan.first_instalment_verified_at },
       { label: "Collection arrangement recorded", done: !!plan.collection_recorded_at },
-      { label: "Belongs to current confirmed quote", done: !!currentQuoteId && plan.quote_id === currentQuoteId },
+      {
+        label: "Belongs to current confirmed quote",
+        done: !!currentQuoteId && plan.quote_id === currentQuoteId,
+      },
     ],
     clearsGate: !!currentQuoteId && instalmentPlanActive(plan, currentQuoteId),
   };
