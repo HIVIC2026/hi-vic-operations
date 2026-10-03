@@ -130,7 +130,7 @@ const txt = (s?: string) => (s ?? "").trim().length > 0;
 const cents = (n: number) => Math.abs(Math.round(n * 100) - n * 100) < 1e-6;
 /** Required supplier rate: positive, whole cents, at most $100,000. */
 export const validRequiredRate = (n?: number | null) => typeof n === "number" && Number.isFinite(n) && n > 0 && n <= 100000 && cents(n);
-/** Optional extra: blank or $0 both mean "no extra charge"; otherwise a positive whole-cent amount. */
+/** Optional extra: $0 = "no extra charge", blank = quoted separately on the job; otherwise a positive whole-cent amount. */
 export const validOptionalRate = (n?: number | null) => n == null || (typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 100000 && cents(n));
 export const resolvedBusinessAddress = (d: InstData) => isAustralianAddress(d.business_address_details) && d.business_address_details?.label === d.business_address;
 export const resolvedServiceOrigin = (d: InstData) => isVictorianAddress(d.service_origin_details) && d.service_origin_details?.label === d.service_origin;
@@ -246,7 +246,6 @@ export function normaliseInstallerDraft(d: InstData): InstData {
   const n: InstData = { ...d, service_batts_removal: true, service_loose_fill_removal: true };
   if (n.business_address_details && n.business_address_details.label !== n.business_address) n.business_address_details = null;
   if (n.service_origin_details && n.service_origin_details.label !== n.service_origin) n.service_origin_details = null;
-  if (n.extra_rates) n.extra_rates = Object.fromEntries(Object.entries(n.extra_rates).map(([k, v]) => [k, v === 0 ? null : v])) as NonNullable<InstData["extra_rates"]>;
   return n;
 }
 
@@ -294,7 +293,7 @@ export function scheduleText(d: InstData): string {
   L.push(`R5.0 ceiling insulation supply & install: ${money(d.r5_rate)} / m²`);
   L.push(`Batts removal: ${money(d.batts_removal_rate)} / m²`);
   L.push(`Loose fill removal: ${money(d.loose_fill_removal_rate)} / m²`);
-  for (const it of EXTRA_ITEMS) { const v = d.extra_rates?.[it.key]; L.push(`${it.label}: ${typeof v === "number" && v > 0 ? `${money(v)} / ${it.unit}` : "no extra charge"}`); }
+  for (const it of EXTRA_ITEMS) { const v = d.extra_rates?.[it.key]; L.push(`${it.label}: ${typeof v === "number" && v > 0 ? `${money(v)} / ${it.unit}` : v === 0 ? "no extra charge ($0)" : "no set rate — quoted separately on the job before owner approval"}`); }
   L.push("Any other extras are quoted separately on the specific job before owner approval.");
   return L.join("\n");
 }

@@ -551,7 +551,7 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
         </Section>
         <Section title={`Access & extras — optional (${unit})`}>
           {EXTRA_ITEMS.map((it, i) => <RateRow key={it.key} label={it.label} unit={it.unit} value={r[it.key]} last={i === EXTRA_ITEMS.length - 1} onChange={(v) => up({ extra_rates: { ...r, [it.key]: v } })} />)}
-          <p style={{ ...note, marginTop: 6 }}>Leave blank if you don't charge for it. Anything else is quoted on the job before owner approval.</p>
+          <p style={{ ...note, marginTop: 6 }}>Enter $0 if it's included at no extra charge. Leave blank to quote it separately on the job before owner approval.</p>
         </Section>
       </>;
     }
