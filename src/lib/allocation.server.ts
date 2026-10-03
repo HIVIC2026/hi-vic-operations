@@ -133,6 +133,12 @@ export async function respondToRecOffer(offerId: string, userId: string, accept:
   }
   const { data: isElec } = await admin.rpc("has_role", { _user_id: userId, _role: "electrician" });
   if (!isElec) throw new WorkflowError("Only a licensed electrician team member can accept this job.");
+  if (o.kind === "piesa") {
+    const { piesaRequestFacts } = await import("./workflow.server");
+    const { piesaRequestBlockers } = await import("./payment-gate.core");
+    const gate = piesaRequestBlockers(await piesaRequestFacts(o.job_id));
+    if (gate.length) throw new WorkflowError(`This job is not ready for a PIESA: ${gate.join(" ")}`);
+  }
   const { data, error } = await admin.rpc("accept_partner_offer" as never, { _offer: offerId, _user: userId } as never);
   if (error) throw new Error(error.message);
   const outcome = ((data as unknown as { outcome: string }[] | null)?.[0]?.outcome) ?? "not_found";
@@ -144,8 +150,9 @@ export async function respondToRecOffer(offerId: string, userId: string, accept:
 /** Contacts for the caller's active visit only. Server-side: no release = nothing returned. */
 export async function visitContacts(jobId: string, userId: string, role: string) {
   const { data: rel } = await admin.from("contact_releases").select("id, visit_kind, released_at, assignment_id, job_assignments!inner(user_id, role, business_id, active)").eq("job_id", jobId).is("revoked_at", null);
-  const live = (rel ?? []).filter((r) => (r.job_assignments as { active: boolean }).active);
-  const { data: job } = await admin.from("jobs").select("owners(user_id, full_name, phone, email)").eq("id", jobId).single();
+  const { data: job } = await admin.from("jobs").select("stage, owners(user_id, full_name, phone, email)").eq("id", jobId).single();
+  const { visitIsCurrent } = await import("./allocation.core");
+  const live = (rel ?? []).filter((r) => (r.job_assignments as { active: boolean }).active && visitIsCurrent(r.visit_kind, job?.stage ?? ""));
   const owner = job?.owners as { user_id: string | null; full_name: string | null; phone: string | null; email: string | null } | null;
   if (role === "owner") {
     if (owner?.user_id !== userId) return { releases: [] };

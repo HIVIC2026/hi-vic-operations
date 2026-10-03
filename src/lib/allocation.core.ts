@@ -103,6 +103,9 @@ export const ACCEPT_OUTCOME_MESSAGE: Record<string, string> = {
   partner_not_approved: "Your business is not approved to accept work yet.",
   wrong_kind: "This offer cannot be accepted here.",
   not_found: "Offer not found.",
+  not_qualified: "Your business needs a recorded licence and an approved licensed electrician before accepting.",
+  out_of_area: "This job is outside your verified service area.",
+  job_not_ready: "This job is no longer ready for this visit.",
 };
 
 // ---------- B. Direct coordination SLA ----------
@@ -261,4 +264,16 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
   for (const r of i.registryQueries) add("registry_query", r.job_id, r.updated_at, `Status: ${r.status}.`);
   for (const o of i.officeOverdue) add("office_overdue", o.job_id, o.since, o.title);
   return [...out.values()].sort((a, b) => (a.since ?? "").localeCompare(b.since ?? ""));
+}
+
+/** Mirrors SQL visit_is_current(): a release is usable only while its visit is the job's current visit. */
+const LEGACY = ["awaiting_electrician","assessment_booking","assessment_booked","assessment_complete","ready_for_installer_quotes","awaiting_quote_acceptance","awaiting_deposit_payment"];
+const VISIT_STAGES: Record<VisitKind, string[]> = {
+  ready_check: ["ready_check_awaiting_acceptance","ready_check_awaiting_payment","ready_check_ready_to_schedule","ready_check_scheduled","ready_check_complete","measured_estimate_ready","measured_quote_accepted"],
+  piesa: ["piesa_and_install_window_pending","piesa_scheduled","piesa_complete","electrical_variation_pending","rectification_required","awaiting_owner_rectification_approval","rectification_scheduling","rectification_booked"],
+  rectification: ["rectification_scheduling","rectification_booked"],
+  installation: ["installation_scheduling","installation_booked","evidence_outstanding"],
+};
+export function visitIsCurrent(visit: string, stage: string): boolean {
+  return LEGACY.includes(stage) || (VISIT_STAGES[visit as VisitKind]?.includes(stage) ?? false);
 }
