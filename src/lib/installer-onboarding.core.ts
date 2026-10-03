@@ -246,7 +246,7 @@ export function normaliseInstallerDraft(d: InstData): InstData {
   const n: InstData = { ...d, service_batts_removal: true, service_loose_fill_removal: true };
   if (n.business_address_details && n.business_address_details.label !== n.business_address) n.business_address_details = null;
   if (n.service_origin_details && n.service_origin_details.label !== n.service_origin) n.service_origin_details = null;
-  if (n.extra_rates) n.extra_rates = Object.fromEntries(Object.entries(n.extra_rates).map(([k, v]) => [k, v === 0 ? null : v])) as InstData["extra_rates"];
+  if (n.extra_rates) n.extra_rates = Object.fromEntries(Object.entries(n.extra_rates).map(([k, v]) => [k, v === 0 ? null : v])) as NonNullable<InstData["extra_rates"]>;
   return n;
 }
 
