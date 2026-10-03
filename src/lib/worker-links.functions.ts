@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, logEvent } from "./workflow.server";
 import { myBusinesses, requireMember } from "./pilot.server";
-import { assignBlocker, firstName, hashToken, isTokenShape, linkExpiry, linkState, needsReapproval, newToken, senderLabel } from "./worker-links.core";
+import { assignBlocker, certificationBlocker, firstName, hashToken, isTokenShape, linkExpiry, linkState, needsReapproval, newToken, senderLabel } from "./worker-links.core";
 
 const uuid = z.string().uuid();
 const workerInput = z.object({
