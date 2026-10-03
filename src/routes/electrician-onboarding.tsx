@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
   acknowledgementsFor, agreementText, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION, MIN_REC_PL_COVER,
-  applyMaterialReset, firstName, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, parseRecSampleStep, stepErrors, firstIncompleteStep, validAbn, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
+  applyMaterialReset, isAustralianAddress, isVictorianAddress, isAlwaysMandatoryStep, pageErrors, parseRecSampleStep, firstIncompleteStep, validAbn, visiblePageForStep, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
   confirmInsuranceUpload, getRecAgreement, insuranceUploadUrl, loadRecOnboarding, saveRecOnboarding, signRecAgreement, startRecOnboarding,
@@ -41,7 +41,7 @@ export const Route = createFileRoute("/electrician-onboarding")({
 });
 
 const input: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #D7DCE8", fontSize: 15, fontFamily: "inherit", color: NAVY, background: "#fff", boxSizing: "border-box", minHeight: 48 };
-const card: React.CSSProperties = { background: "#fff", borderRadius: 24, padding: 24, border: `1px solid ${BLUE}1A`, boxShadow: "0 10px 30px -18px rgba(34,55,107,.35)" };
+const card: React.CSSProperties = { background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E9ECF3", boxShadow: "0 6px 20px -18px rgba(34,55,107,.32)" };
 const DISPLAY = "'Outfit', 'Figtree', system-ui, sans-serif";
 const infoCard: React.CSSProperties = { background: "#EAF8F0", border: `1px solid ${GREEN}55`, borderRadius: 14, padding: "12px 14px", fontSize: 14, color: NAVY, lineHeight: 1.5, marginBottom: 18 };
 const btn = (primary: boolean, disabled = false): React.CSSProperties => ({ minHeight: 48, padding: "0 20px", borderRadius: 12, border: primary ? "none" : `1px solid #D7DCE8`, background: primary ? (disabled ? "#9AA6D8" : BLUE) : "#fff", color: primary ? "#fff" : NAVY, fontWeight: 800, fontSize: 14, letterSpacing: 0.6, textTransform: "uppercase", cursor: disabled ? "default" : "pointer", fontFamily: "inherit" });
@@ -56,7 +56,7 @@ function Field({ label, required, hint, children }: { label: string; required?: 
   );
 }
 function Check({ checked, onChange, children, required = false, error = null }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode; required?: boolean; error?: string | null }) {
-  const box: React.CSSProperties = { display: "flex", gap: 12, alignItems: "flex-start", padding: "12px 14px", borderRadius: 12, cursor: "pointer", fontSize: 14, lineHeight: 1.5, border: error ? "1px solid #F0A6A0" : "1px solid #D7DCE8", background: error ? "#FEF4F3" : checked ? "#F2F4FC" : "#fff" };
+  const box: React.CSSProperties = { display: "flex", gap: 10, alignItems: "flex-start", padding: "7px 0", cursor: "pointer", fontSize: 14, lineHeight: 1.5, color: error ? "#8C1D18" : NAVY };
   return (
     <div style={{ marginBottom: 10 }}>
       <label style={box}>
@@ -94,7 +94,7 @@ function TickList({ items }: { items: string[] }) {
 /** A titled block that groups related fields, so a pricing step reads as sections instead of one long list. */
 function Group({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
-    <section style={{ border: "1px solid #E4E8F0", borderRadius: 16, padding: 16, marginBottom: 18, background: "#FBFCFE" }}>
+    <section style={{ borderTop: "1px solid #E4E8F0", paddingTop: 16, marginTop: 18, marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
         <strong style={{ fontFamily: DISPLAY, fontSize: 15, color: NAVY }}>{title}</strong>
         {note && <span style={{ background: "#fff", border: `1px solid ${GREEN}66`, borderRadius: 999, padding: "4px 12px", fontSize: 12.5, fontWeight: 700, color: NAVY, whiteSpace: "nowrap" }}>{note}</span>}
@@ -114,57 +114,72 @@ function RateRow({ label, unit, value, onChange, last = false }: { label: string
   );
 }
 
-/** Australian address lookup. A selected suggestion is resolved before it is accepted. */
-function AddressInput({ value, onChange, onSelect, victoriaOnly = false, id = "address" }: { value: string; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean; id?: string }) {
+/** Australian address lookup. Free text is never treated as a verified address. */
+function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = false, id = "address" }: { value: string; resolved?: ResolvedAddress | null; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean; id?: string }) {
   const [announce, setAnnounce] = useState("");
   const [items, setItems] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [note, setNote] = useState("");
   const [active, setActive] = useState(-1);
+  const [focused, setFocused] = useState(false);
+  const [edited, setEdited] = useState(false);
   const seq = useRef(0);
-  const selectedLabel = useRef<string | null>(null);
+  const root = useRef<HTMLDivElement | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; seq.current += 1; }, []);
+  useEffect(() => {
+    const close = (event: PointerEvent) => {
+      if (root.current && !root.current.contains(event.target as Node)) {
+        seq.current += 1; setOpen(false); setItems([]); setActive(-1); setLoading(false);
+      }
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, []);
   useEffect(() => {
     const q = value.trim();
-    if (selectedLabel.current !== null && selectedLabel.current === value) { setItems([]); setOpen(false); return; } // stays suppressed until the person edits
-    if (q.length < 4) { setItems([]); setOpen(false); return; }
+    if (!focused || !edited || (resolved && resolved.label === value)) { setItems([]); setOpen(false); return; }
+    if (q.length < 4) { setItems([]); setOpen(false); setNote(""); return; }
     const mine = ++seq.current;
     const t = setTimeout(async () => {
+      if (!mounted.current || mine !== seq.current) return;
       setLoading(true);
       try {
         const r = (await defaultAddressProvider.search(q)).slice(0, 6);
-        if (mine !== seq.current) return;
+        if (!mounted.current || mine !== seq.current) return;
         setItems(r); setActive(r.length ? 0 : -1); setOpen(true); setNote(r.length ? "" : "No Australian address matched. Keep typing and include the postcode.");
-      } catch { if (mine === seq.current) { setItems([]); setOpen(true); setNote("Address lookup is unavailable right now. Please try again."); } }
-      finally { if (mine === seq.current) setLoading(false); }
+      } catch { if (mounted.current && mine === seq.current) { setItems([]); setOpen(true); setNote("Address lookup is unavailable right now. Please try again."); } }
+      finally { if (mounted.current && mine === seq.current) setLoading(false); }
     }, 300);
-    return () => clearTimeout(t);
-  }, [value]);
+    return () => { clearTimeout(t); seq.current += 1; };
+  }, [edited, focused, resolved, value]);
   async function choose(s: AddressSuggestion) {
     const mine = ++seq.current;
-    setOpen(false); setItems([]); setActive(-1); setLoading(true); setNote("");
+    setOpen(false); setItems([]); setActive(-1); setEdited(false); setLoading(true); setNote("");
     try {
       const details = await defaultAddressProvider.details(s.id) as ResolvedAddress;
-      if (mine !== seq.current) return;
+      if (!mounted.current || mine !== seq.current) return;
       if (!isAustralianAddress(details)) throw new Error("incomplete");
       if (victoriaOnly && !isVictorianAddress(details)) {
-        onSelect(null); setOpen(true); setNote("Sorry, your service area needs to be in Victoria."); return;
+        onSelect(null); setOpen(false); setNote("Sorry, your service area needs to be in Victoria."); return;
       }
-      selectedLabel.current = details.label; onChange(details.label); onSelect(details); setOpen(false); setItems([]); setAnnounce(`Selected ${details.label}`);
-    } catch { if (mine === seq.current) { onSelect(null); setOpen(true); setNote("We couldn't verify that address. Please choose another result."); } }
-    finally { if (mine === seq.current) setLoading(false); }
+      onChange(details.label); onSelect(details); setOpen(false); setItems([]); setEdited(false); setAnnounce(`Selected ${details.label}`);
+    } catch { if (mounted.current && mine === seq.current) { onSelect(null); setOpen(false); setNote("We couldn't verify that address. Please choose another result."); } }
+    finally { if (mounted.current && mine === seq.current) setLoading(false); }
   }
+  const dismiss = () => { seq.current += 1; setOpen(false); setItems([]); setActive(-1); setLoading(false); };
   return (
-    <div style={{ position: "relative" }}>
+    <div ref={root} style={{ position: "relative" }}>
       <input id={id} style={input} role="combobox" aria-expanded={open && items.length > 0} aria-controls={`${id}-options`} aria-autocomplete="list" aria-activedescendant={open && active >= 0 ? `${id}-option-${active}` : undefined} autoComplete="off" placeholder="Start typing your address…" value={value}
-        onChange={(e) => { seq.current++; selectedLabel.current = null; setAnnounce(""); onChange(e.target.value); onSelect(null); }} onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onKeyDown={(e) => { if (e.key === "ArrowDown" && items.length) { e.preventDefault(); setActive((x) => (x + 1) % items.length); } else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((x) => (x - 1 + items.length) % items.length); } else if (e.key === "Enter" && open && items[active]) { e.preventDefault(); void choose(items[active]!); } else if (e.key === "Escape" && open) { e.preventDefault(); setOpen(false); } }} />
+        onFocus={() => setFocused(true)} onChange={(e) => { seq.current += 1; setEdited(true); setItems([]); setOpen(false); setNote(""); setAnnounce(""); onSelect(null); onChange(e.target.value); }} onBlur={() => { setFocused(false); dismiss(); }}
+        onKeyDown={(e) => { if (e.key === "ArrowDown" && items.length) { e.preventDefault(); setActive((x) => (x + 1) % items.length); } else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); setActive((x) => (x - 1 + items.length) % items.length); } else if (e.key === "Enter" && open && items[active]) { e.preventDefault(); void choose(items[active]); } else if (e.key === "Escape") { e.preventDefault(); dismiss(); } }} />
       {loading && <div style={{ position: "absolute", right: 14, top: 14, fontSize: 12, color: MUTED }}>Searching…</div>}
       {open && items.length > 0 && (
         <ul id={`${id}-options`} role="listbox" aria-label="Address suggestions" style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #D7DCE8", borderRadius: 12, boxShadow: "0 12px 30px -12px rgba(34,55,107,.35)", overflow: "hidden" }}>
           {items.map((s, i) => (
             <li id={`${id}-option-${i}`} onMouseEnter={() => setActive(i)} role="option" aria-selected={active === i} key={s.id} style={{ padding: "12px 14px", fontSize: 14, cursor: "pointer", borderBottom: "1px solid #F0F2F8", background: active === i ? "#F2F4FC" : "#fff" }}
-              onMouseDown={(e) => { e.preventDefault(); void choose(s); }}>{s.label}</li>
+              onPointerDown={(e) => { e.preventDefault(); void choose(s); }}>{s.label}</li>
           ))}
         </ul>
       )}
