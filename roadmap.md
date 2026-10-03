@@ -13,3 +13,9 @@
 - [ ] Confirm PIESA still blocked (payment_option_gate_enabled OFF); no PIESA/booking/quote/invoice/message/Xero/Mitti records created.
 - [ ] Access: non-office users cannot reach office plan controls; owner cannot approve office-only steps or verify payments.
 - [ ] Desktop + phone layout checks; before/after counts; build/test/wording scan.
+
+## Publish instalment-plan UI slice (approved 3 Oct 21:15)
+
+- [ ] Publish office + owner instalment-plan cards (insurance upload fix rides along); gate switch stays OFF, all outbound OFF.
+- [ ] Post-publish checks on TEST job HV-1003 only: office card visible to staff only, owner acceptance card, four conditions complete, PIESA/scheduling still blocked, no new records, switches OFF.
+- [ ] Log resolved defect: office plan card briefly visible to non-staff in preview (server actions were already protected); UI now staff-only.
