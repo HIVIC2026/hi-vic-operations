@@ -1,4 +1,4 @@
-// DRAFT installer agreement v1.13 (2026-10-03). Lawyer review required before live use.
+// DRAFT installer agreement v1.14 (2026-10-03). Lawyer review required before live use.
 // Any wording change needs a NEW version string so earlier signatures keep their exact text.
 export const INSTALLER_AGREEMENT_SECTIONS: { n: number; title: string; paras: string[] }[] = [
  {
