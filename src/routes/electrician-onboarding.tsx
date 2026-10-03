@@ -115,7 +115,7 @@ function RateRow({ label, unit, value, onChange, last = false }: { label: string
 }
 
 /** Australian address lookup. Free text is never treated as a verified address. */
-function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = false, id = "address" }: { value: string; resolved?: ResolvedAddress | null; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean; id?: string }) {
+function AddressInput({ value, resolved, onChange, onSelect, victoriaOnly = false, id = "address" }: { value: string; resolved?: ResolvedAddress | null | undefined; onChange: (v: string) => void; onSelect: (v: ResolvedAddress | null) => void; victoriaOnly?: boolean; id?: string }) {
   const [announce, setAnnounce] = useState("");
   const [items, setItems] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
@@ -471,7 +471,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
           <Field label="ABN" required hint="11 digits"><input style={input} inputMode="numeric" {...t("abn")} /></Field>
           <Field label="REC number" required hint="Your Victorian REC registration"><input style={input} {...t("rec_registration_number", true)} /></Field>
           <Field label="Australian business address" required hint="Choose a verified address"><AddressInput id="business-address" value={d.business_address ?? ""} resolved={d.business_address_details} onChange={(v) => up({ business_address: v })} onSelect={(v) => up({ business_address_details: v })} /></Field>
-          {validAbn(d.abn) && (d.rec_registration_number ?? "").trim() && <div style={{ ...infoCard, display: "inline-block" }}>✓ Ready for verification</div>}
+          {validAbn(d.abn) && (d.rec_registration_number ?? "").trim() && <p style={{ color: GREEN, fontWeight: 700, fontSize: 13 }}>✓ Ready for verification</p>}
         </> : null}
       </>;
     case "insurance":
@@ -530,7 +530,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
     }
     case "bank":
       return <>
-        <div style={infoCard}>These details stay in your private partner application and are used only for approved Home Insulation Victoria payments.</div>
+        <p style={{ color: MUTED, fontSize: 13 }}>Kept private and used only for approved Home Insulation Victoria payments.</p>
         <Field label="Account name" required><input style={input} autoComplete="off" {...t("bank_account_name")} /></Field>
         <Field label="BSB" required hint="6 digits"><input style={input} inputMode="numeric" autoComplete="off" {...t("bank_bsb")} /></Field>
         <Field label="Account number" required><input style={input} inputMode="numeric" autoComplete="off" {...t("bank_account_number")} /></Field>

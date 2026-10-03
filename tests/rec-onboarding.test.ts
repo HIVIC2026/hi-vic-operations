@@ -124,8 +124,8 @@ describe("rec onboarding", () => {
   test("PIESA rate always required", () => {
     expect(stepErrors("assessment_pricing", { ...full, service_piesa: false, installation_attendance_rate: 150, assessment_rate: undefined })).toContain("Enter your PIESA visit rate.");
   });
-  test("rectification pricing step is always shown and requires all rates", () => {
-    expect(visibleSteps(full).some((s) => s.key === "rectification_pricing")).toBe(true);
+  test("rectification pricing is included in the visible Rates page and requires all rates", () => {
+    expect(pageMembers("assessment_pricing")).toContain("rectification_pricing");
     expect(firstIncompleteStep({ ...full, rectification_rates: undefined })).toBe("assessment_pricing");
   });
   test("material change resets review", () => {
