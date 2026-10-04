@@ -2665,6 +2665,30 @@ export type Database = {
           },
         ]
       }
+      daily_briefs: {
+        Row: {
+          brief_date: string
+          content: Json
+          created_at: string
+          delivery_status: string
+          id: string
+        }
+        Insert: {
+          brief_date: string
+          content: Json
+          created_at?: string
+          delivery_status?: string
+          id?: string
+        }
+        Update: {
+          brief_date?: string
+          content?: Json
+          created_at?: string
+          delivery_status?: string
+          id?: string
+        }
+        Relationships: []
+      }
       declarations: {
         Row: {
           declared_at: string

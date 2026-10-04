@@ -90,6 +90,20 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           out['ok'] = false;
           (out as Record<string, unknown>)['prestart'] = "failed";
         }
+        try {
+          const { sweepVisitReminders } = await import("@/lib/daily-brief.server");
+          (out as Record<string, unknown>)['reminders'] = await sweepVisitReminders();
+        } catch (e) {
+          console.error("allocation tick: visit reminder sweep failed", (e as Error).message);
+          out['ok'] = false;
+        }
+        try {
+          const { sweepDailyBrief } = await import("@/lib/daily-brief.server");
+          (out as Record<string, unknown>)['dailyBrief'] = await sweepDailyBrief();
+        } catch (e) {
+          console.error("allocation tick: daily brief failed", (e as Error).message);
+          out['ok'] = false;
+        }
         return Response.json(out, { status: out['ok'] ? 200 : 500 });
       },
     },
