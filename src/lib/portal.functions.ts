@@ -905,7 +905,7 @@ export const verifyEvidence = createServerFn({ method: "POST" }).middleware([req
       const { recordEvidenceRejected } = await import("./visit-events.server");
       await recordEvidenceRejected(data.requirementId, context.userId, data.notes ?? null).catch((e) => console.error("evidence rejection not counted", (e as Error).message));
     }
-    await autoAdvanceJob(req.job_id, context.userId, "evidence reviewed", { allowApPromotion: true });
+    await autoAdvanceJob(req.job_id, context.userId, "evidence reviewed");
     return { ok: true };
   });
 
@@ -932,7 +932,7 @@ export const runComplianceReview = createServerFn({ method: "POST" }).middleware
     for (const [key, ok] of Object.entries(auto))
       await admin.from("compliance_checks").update({ status: ok ? "pass" : "fail", checked_by: context.userId, checked_at: new Date().toISOString(), notes: "Automated check" }).eq("job_id", data.jobId).eq("check_key", key);
     await logEvent(data.jobId, context.userId, "compliance_reviewed", "Automated compliance review run", auto, { internal: true });
-    await autoAdvanceJob(data.jobId, context.userId, "compliance review", { allowApPromotion: true });
+    await autoAdvanceJob(data.jobId, context.userId, "compliance review");
     return { ok: true };
   });
 
@@ -942,7 +942,7 @@ export const setComplianceCheck = createServerFn({ method: "POST" }).middleware(
     await requireAdmin(context.supabase);
     const { data: c } = await admin.from("compliance_checks").update({ status: data.status, notes: data.notes ?? null, checked_by: context.userId, checked_at: new Date().toISOString() }).eq("id", data.checkId).select("job_id,label").single();
     if (c) await logEvent(c.job_id, context.userId, "compliance_check", `${c.label}: ${data.status}`, { notes: data.notes }, { internal: true });
-    if (c) await autoAdvanceJob(c.job_id, context.userId, "compliance check", { allowApPromotion: true });
+    if (c) await autoAdvanceJob(c.job_id, context.userId, "compliance check");
     return { ok: true };
   });
 
@@ -950,6 +950,7 @@ export const markReadyForVeec = createServerFn({ method: "POST" }).middleware([r
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
+    if ((await getStage(data.jobId)) === "ap_review") throw new WorkflowError("Final AP approval happens only in the AP approval queue. Approve this job there.");
     await transition(data.jobId, "ready_for_veec", context.userId, "All compliance requirements passed – Ready for VEEC");
     return { ok: true };
   });

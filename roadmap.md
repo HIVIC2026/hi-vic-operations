@@ -60,7 +60,7 @@
 - [x] Re-prove step 5 quote-expiry migration on practice database
 - [x] 48h escalation fix: booking-based SLA + Ready Check in office sweep
 - [x] Electrician matching (OM v2): window/daily-limit eligibility, new ranking, 4 business-hour offers, office booking clears 48h flag
-- [ ] Office screen box to set an electrician daily job limit (field exists; empty = no limit)
+- [x] Office screen box to set an electrician daily job limit
 - [x] Record no-shows per electrician (visit events, Part 1)
 
 ## Step 9 installer capacity + install booking
@@ -86,3 +86,5 @@
 - [x] Part 2: 24h/2h visit reminders + 7am daily AP brief (queued, portal "Today")
 - [x] Part 3: AP approval queue clean/flagged, per-job approval, never auto
 - Trade payouts: blocked until Xero connected (not building)
+- [x] Tidy-up: final AP approval only via AP queue (compliance/evidence actions no longer promote)
+- [x] Tidy-up: office-only electrician daily job limit field (empty = no limit, 0 refused)

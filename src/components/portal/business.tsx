@@ -77,10 +77,11 @@ function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unkno
   const [f, setF] = useState<Record<string, string>>({});
   useEffect(() => setF({
     name: s("name"), legal_name: s("legal_name"), trading_name: s("trading_name"), abn: s("abn"), acn: s("acn"), email: s("email"), phone: s("phone"), address: s("address"),
-    service_postcodes: csv(b["service_postcodes"] as string[]), service_regions: csv(b["service_regions"] as string[]), weekly_capacity: s("weekly_capacity"), daily_capacity_m2: s("daily_capacity_m2"), lead_time_days: s("lead_time_days"),
+    service_postcodes: csv(b["service_postcodes"] as string[]), service_regions: csv(b["service_regions"] as string[]), weekly_capacity: s("weekly_capacity"), daily_capacity_m2: s("daily_capacity_m2"), lead_time_days: s("lead_time_days"), daily_job_limit: s("daily_job_limit"),
     availability_notes: s("availability_notes"), rec_number: s("rec_number"), licence_number: s("licence_number"), logo_url: String((b["branding"] as { logo_url?: string } | null)?.logo_url ?? ""),
     default_comms_owner: s("default_comms_owner") || "installer", caps: csv(b["capabilities"] as string[]), gst: b["gst_registered"] === true ? "yes" : b["gst_registered"] === false ? "no" : "",
   }), [b.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const isElectrician = b["business_type"] === "rec" || ((b["capabilities"] as string[] | null) ?? []).includes("electrician");
   const field = (k: string, label: string, ph = "") => <label className="text-sm"><span className="text-muted-foreground">{label}</span><Input disabled={!canEdit} value={f[k] ?? ""} placeholder={ph} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></label>;
   const onSave = async () => {
     await save({
@@ -90,6 +91,7 @@ function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unkno
       weekly_capacity: f["weekly_capacity"] ? Number(f["weekly_capacity"]) : null, daily_capacity_m2: f["daily_capacity_m2"] ? Number(f["daily_capacity_m2"]) : null, lead_time_days: f["lead_time_days"] ? Number(f["lead_time_days"]) : null,
       availability_notes: f["availability_notes"] || null, rec_number: f["rec_number"] || null, licence_number: f["licence_number"] || null,
       ...(f["logo_url"] ? { branding: { logo_url: f["logo_url"] } } : {}), default_comms_owner: f["default_comms_owner"] === "hivic" ? "hivic" : "installer",
+      ...(isHivicAdmin && isElectrician ? { daily_job_limit: (f["daily_job_limit"] ?? "").trim() === "" ? null : Number(f["daily_job_limit"]) } : {}),
       ...(isHivicAdmin ? { capabilities: list(f["caps"] ?? "").filter((c): c is "installer" | "electrician" => c === "installer" || c === "electrician") } : {}),
     }, "Business details saved");
     onDone();
@@ -105,6 +107,7 @@ function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unkno
         {field("rec_number", "REC number (electricians)")}{field("licence_number", "Licence number")}{field("logo_url", "Logo URL (co-branded quotes)", "https://…")}
         <label className="text-sm"><span className="text-muted-foreground">Routine customer contact on your jobs</span><select disabled={!canEdit} className="h-10 w-full rounded border bg-background px-2" value={f["default_comms_owner"]} onChange={(e) => setF({ ...f, default_comms_owner: e.target.value })}><option value="installer">We handle routine customer contact</option><option value="hivic">Home Insulation Victoria handles it</option></select></label>
         {isHivicAdmin && field("caps", "Capabilities (installer, electrician)")}
+        {isHivicAdmin && isElectrician && field("daily_job_limit", "Daily job limit (jobs per day, empty = no limit)")}
         <label className="text-sm sm:col-span-2"><span className="text-muted-foreground">Availability notes</span><Textarea disabled={!canEdit} value={f["availability_notes"] ?? ""} onChange={(e) => setF({ ...f, availability_notes: e.target.value })} /></label>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">Saving as Home Insulation Victoria confirms the postcode list after reviewing the partner's declared radius and exclusions. Regions alone never count as verified coverage. Payment route: full job invoiced by Home Insulation Victoria (pilot). Split invoicing is not available.</p>

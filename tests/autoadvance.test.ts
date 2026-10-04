@@ -89,11 +89,11 @@ describe("autoAdvance", () => {
     const x = fake("evidence_outstanding", { installationCompleted: true, installerDeclarationSigned: true }, { blockers: (to) => to === "ap_review" ? ["Evidence missing: Completed installation"] : [] });
     expect((await runAutoAdvance(x.deps)).to).toBe("evidence_outstanding");
   });
-  test("AP pass action can move to ready_for_veec", async () => {
+  test("compliance actions never move a job out of AP review", async () => {
     const x = fake("ap_review", {});
-    expect((await runAutoAdvance(x.deps, { allowApPromotion: true })).to).toBe("ready_for_veec");
+    expect((await runAutoAdvance(x.deps)).to).toBe("ap_review"); // final approval only in the AP queue
     const y = fake("ap_review", {}, { blockers: () => ["Compliance not passed: Eligibility"] });
-    expect((await runAutoAdvance(y.deps, { allowApPromotion: true })).to).toBe("ap_review");
+    expect((await runAutoAdvance(y.deps)).to).toBe("ap_review");
   });
   test("VEEC submitted -> complete", async () => {
     const x = fake("ready_for_veec", { veecLodged: true });
