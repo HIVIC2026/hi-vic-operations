@@ -663,6 +663,10 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
     if (!pickedWindow) await admin.from("quotes").update({ status: "accepted", accepted_at: new Date().toISOString(), accepted_by: context.userId }).eq("id", q.id);
     await admin.from("quotes").update({ status: "superseded" }).eq("job_id", q.job_id).eq("kind", q.kind).eq("status", "issued");
     if (pickedWindow) await logEvent(q.job_id, context.userId, "rectification_window_picked", `Owner picked the rectification time ${new Date(pickedWindow).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}; it becomes the confirmed booking when rectification scheduling opens`, { quote_id: q.id, starts_at: pickedWindow });
+    if (pickedWindow) {
+      const { moveHoldForRectification } = await import("./install-holds.server");
+      await moveHoldForRectification(q.job_id, pickedWindow, context.userId).catch((e) => console.error("install hold move skipped", (e as Error).message));
+    }
 
     if (q.kind === "rectification") {
       // Scope approval only – no invoice. The rectification lines are folded into the final installation quote.

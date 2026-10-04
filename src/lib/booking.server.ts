@@ -72,6 +72,11 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     const { recordBookingCompleted } = await import("./engagement.server");
     await recordBookingCompleted(jobId).catch((e) => console.error("engagement booking record failed", (e as Error).message));
   }
+  if (kind === "assessment" || kind === "rectification") {
+    const holds = await import("./install-holds.server");
+    const mv = kind === "assessment" ? holds.moveHoldForPiesa : holds.moveHoldForRectification;
+    await mv(jobId, start, actorId).catch((e) => console.error("install hold move skipped", (e as Error).message));
+  }
   await autoAdvanceJob(jobId, actorId, "booking confirmed");
   return { ok: true };
 }
