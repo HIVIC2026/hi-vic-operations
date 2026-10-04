@@ -13,6 +13,8 @@ const TERMS: { term: string; re: RegExp; action: string; strict?: boolean }[] = 
     re: /\bHI ?VIC!?(?![a-z_])/g,
     action: 'Replace visible text with "Home Insulation Victoria"',
   },
+  // $349 is the CUSTOMER PIESA price, never an electrician fee/payout (owner decision 2026-10-04). Strict in all src.
+  { term: "$349 electrician fee", re: /\$?349[^\n]{0,40}(electrician|REC) (fee|payout|rate)|(electrician|REC) (fee|payout|rate)[^\n]{0,40}\$?349|Agreed fee: \$|\$349 fee/gi, action: "Electricians see only their own agreed rate (electricianRateText)", strict: true },
   // Retired payment rule (owner decision 2026-10-03). strict = fails in ANY src file, comments included.
   { term: "50% deposit", re: /50 ?% deposit|deposit[^.\n]{0,20}50 ?%|50 ?% of (this|the) invoice/gi, action: "Replace with the approved payment-option gate", strict: true },
   { term: "total / 2", re: /total(_inc_gst)?\)? ?\/ ?2\b/g, action: "Deposit is the configured minimum (requiredDepositCents)", strict: true },

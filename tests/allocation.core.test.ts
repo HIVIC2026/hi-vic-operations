@@ -141,3 +141,38 @@ describe("Finish pass: deep links, status wording, planning notice", () => {
     expect(fn).not.toMatch(/transition\(|stage:/);
   });
 });
+
+import { offerRateBlocker, electricianRateText } from "../src/lib/allocation.core";
+import { recSlaForAssigned, REC_BUCKETS } from "../src/lib/pilot.core";
+import { readFileSync } from "node:fs";
+describe("electrician rate is never the customer price", () => {
+  it("shows only the electrician's own agreed rate, or Rate to be confirmed", () => {
+    expect(electricianRateText({ electrician_rate_inc_gst: 180 })).toBe("Your agreed rate: $180.00 inc GST");
+    expect(electricianRateText({ electrician_rate_inc_gst: null, rate_to_confirm: true })).toBe("Rate to be confirmed");
+    // A legacy summary carrying only the customer price must not surface it as a payout.
+    expect(electricianRateText({ piesa_rate_inc_gst: 349 } as never)).toBe("Rate to be confirmed");
+  });
+  it("blocks offers/acceptance without a rate unless office marked rate-to-confirm", () => {
+    expect(offerRateBlocker(null, false)).toMatch(/No agreed electrician rate/);
+    expect(offerRateBlocker(null, true)).toBeNull();
+    expect(offerRateBlocker(150, false)).toBeNull();
+  });
+  it("anonymised offer carries the electrician rate field, never a customer price field", () => {
+    const s = anonymisedOffer({ job_number: "HV-1", suburb: null, postcode: null, measured_area_m2: null, access_summary: null, observations: [], electrician_rate_inc_gst: 175 });
+    expect(s.electrician_rate_inc_gst).toBe(175);
+    expect(JSON.stringify(s)).not.toMatch(/349|piesa_rate|customer/);
+  });
+  it("electrician dashboard source never renders the customer price as their fee", () => {
+    const src = readFileSync("src/routes/_authenticated/partner.index.tsx", "utf8");
+    expect(src).not.toMatch(/349|Agreed fee|piesa_rate_inc_gst/);
+    expect(src).toContain("electricianRateText");
+  });
+});
+describe("assigned electrician never sees 'Waiting for electrician'", () => {
+  it("hides the generic ok SLA text but keeps warnings", () => {
+    expect(recSlaForAssigned({ state: "ok", message: "Waiting for electrician" })).toBeNull();
+    expect(recSlaForAssigned({ state: "attention", message: "No response for 24 hours" })?.state).toBe("attention");
+    expect(REC_BUCKETS.join("|")).not.toMatch(/Waiting for electrician/);
+    expect(REC_BUCKETS).toContain("Awaiting owner confirmation");
+  });
+});
