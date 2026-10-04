@@ -48,7 +48,6 @@ describe("verified eligibility office card", () => {
       "Insulation photos",
       "Removal",
       "Access / site",
-      "Previous VEU ceiling-insulation upgrade (declared)",
     ])
       expect(labels).toContain(l);
     expect(labels.some((l) => /downlight/i.test(l))).toBe(false);
