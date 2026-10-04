@@ -376,6 +376,9 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
               <Field label="Certificate or ID number" required htmlFor={`installer-${i}-cii-number`} error={errFor(`installer-${i}-cii-number`)}><input id={`installer-${i}-cii-number`} style={input} value={x.cii_certificate_number ?? ""} onChange={(e) => set(i, { cii_certificate_number: e.target.value })} /></Field>
               <Field label="Issued by" required htmlFor={`installer-${i}-cii-issuer`} error={errFor(`installer-${i}-cii-issuer`)}><input id={`installer-${i}-cii-issuer`} style={input} value={x.cii_issuer ?? ""} onChange={(e) => set(i, { cii_issuer: e.target.value })} /></Field>
               <Field label="Issue date" required htmlFor={`installer-${i}-cii-date`} error={errFor(`installer-${i}-cii-date`)}><input id={`installer-${i}-cii-date`} type="date" style={{ ...input, maxWidth: 220 }} value={x.cii_issue_date ?? ""} onChange={(e) => set(i, { cii_issue_date: e.target.value })} /></Field>
+              <Field label="Certification level" required error={errFor(`installer-${i}-cii-level`)}><Choice options={[{ v: "full", l: "Full" }, { v: "provisional", l: "Provisional" }]} value={x.cii_level ?? null} onChange={(v) => set(i, { cii_level: v as "full" | "provisional" })} /></Field>
+              {x.cii_level === "provisional" && <p style={warn}>Provisional: this person can't receive work until they hold a Full certification.</p>}
+              <Field label="Expiry date" required htmlFor={`installer-${i}-cii-expiry`} error={errFor(`installer-${i}-cii-expiry`)}><input id={`installer-${i}-cii-expiry`} type="date" style={{ ...input, maxWidth: 220 }} value={x.cii_expiry ?? ""} onChange={(e) => set(i, { cii_expiry: e.target.value })} /></Field>
             </>}
             {(x.cii_holds === "in_training" || x.cii_holds === "not_held") && <p style={warn}>You can still register. This person can't be assigned to jobs until they hold a CII certification and our office has verified it.</p>}
             <Field label="Other relevant training (optional)"><input style={input} value={x.qualification ?? ""} onChange={(e) => set(i, { qualification: e.target.value })} /></Field>
@@ -445,8 +448,8 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{DAYS.map((x) => { const on = days.includes(x); return <button key={x} type="button" aria-pressed={on} onClick={() => up({ typical_days: on ? days.filter((y) => y !== x) : DAYS.filter((y) => days.includes(y) || y === x) })} style={{ minWidth: 56, minHeight: 44, borderRadius: 12, border: `1px solid ${on ? BLUE : "#D7DCE8"}`, background: on ? BLUE : "#fff", color: on ? "#fff" : NAVY, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{x}</button>; })}</div>
         </Field>
         <Field label="Usual lead time" required><Choice options={LEAD_TIMES.map((l) => ({ v: l as string, l }))} value={d.normal_attendance_speed} onChange={(v) => up({ normal_attendance_speed: v })} /></Field>
-        <Field label="Weekly installations" required><Choice options={CAPACITY_BANDS.map((b) => ({ v: b.v as string, l: b.v }))} value={d.capacity_band} onChange={(v) => up({ capacity_band: v })} /></Field>
-        <Check checked={d.accepting_jobs === true} onChange={(v) => up({ accepting_jobs: v })}>Accepting new work now (you can change this later)</Check>
+        <Field label="Are you accepting new work now?" required error={errFor("accepting_jobs")}><Choice options={[{ v: "yes", l: "Yes" }, { v: "no", l: "No, not right now" }]} value={d.accepting_jobs === true ? "yes" : d.accepting_jobs === false ? "no" : null} onChange={(v) => up({ accepting_jobs: v === "yes" })} /></Field>
+        <p style={{ margin: 0, fontSize: 13, color: "#5B6478" }}>You can change this later.</p>
       </>;
     }
     case "install_pricing": {
