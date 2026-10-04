@@ -24,7 +24,6 @@ const ev = (o: Partial<ReadyCheckEvidence> = {}): ReadyCheckEvidence => ({
   insulation: { existing: "none", type: null, depthMm: null, rValue: null, photos: false },
   removal: "no",
   access: { level: "standard", evidence: true },
-  previousUpgrade: "no",
   electrical: { downlightCount: 6, downlightType: "led" },
   conflicts: [],
   ...o,
