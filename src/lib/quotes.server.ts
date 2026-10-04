@@ -85,78 +85,66 @@ export function priceInstallerOption(input: {
 }
 
 export async function generateInstallerQuotes(jobId: string, actorId: string) {
+  // Installer-supplied jobs (installer's own customer and price) never use this builder: no installer markup there.
+  const { data: jobRow } = await admin.from("jobs").select("channel, installer_led, ap_fee_override_inc_gst").eq("id", jobId).single();
+  if (!jobRow) throw new WorkflowError("Job not found.");
+  if (jobRow.channel === "installer_sourced" || jobRow.installer_led) throw new WorkflowError("Installer-supplied job: use the installer's own quote (installer price + PIESA + AP fee). This quote builder is for Home Insulation Victoria jobs only.");
   // Two-requirement model: quote inputs come ONLY from the accepted/current ceiling measurement.
   const { data: m } = await admin.from("ceiling_measurements").select("*").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   let qi: ReturnType<typeof quoteInputsFromMeasurement>;
   try { qi = quoteInputsFromMeasurement(m as MeasurementLike | null); } catch (e) { throw new WorkflowError(e instanceof Error ? e.message : "Ceiling measure-up missing."); }
   const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  if (!inst?.business_id) throw new WorkflowError("Assign the installer before quoting – the quote uses that installer's agreed rates.");
   const settings = await activePricing();
-  const card = await activeRateCard("installer", inst?.business_id);
+  const card = await activeRateCard("installer", inst.business_id, false);
   const items = card.rate_card_items as { code: string; description: string; unit_price_ex_gst: number; category: string }[];
-  const byCode = (c: string) => items.find((i) => i.code === c);
+  const rate = (...codes: string[]) => { for (const c of codes) { const it = items.find((i) => i.code === c); if (it) return Number(it.unit_price_ex_gst); } return null; };
+  const { data: rs } = await admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst").eq("is_current", true).maybeSingle();
+  if (!rs) throw new WorkflowError("Owner prices are not set – cannot quote.");
 
-  await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]);
-
-  // Known rectification scope (owner-approved) is folded into every option so the single accepted
-  // total – and therefore the minimum deposit – covers the whole job. Lines stay itemised.
+  // Known rectification scope (owner-approved) is folded in so the single accepted total covers the whole job. Lines stay itemised, no markup.
   const { data: rectQuote } = await admin.from("quotes").select("id, quote_items(*)").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const rectLines = ((rectQuote?.quote_items ?? []) as { code: string | null; description: string; quantity: number; unit: string; unit_price_inc_gst: number; line_total_inc_gst: number; is_other: boolean; explanation: string | null }[])
     .map((l) => ({ code: l.code, description: `Electrical rectification: ${l.description}`, quantity: Number(l.quantity), unit: l.unit, unit_price_inc_gst: Number(l.unit_price_inc_gst), line_total_inc_gst: Number(l.line_total_inc_gst), is_other: l.is_other, explanation: l.explanation }));
   const rectTotal = r2(rectLines.reduce((a, l) => a + l.line_total_inc_gst, 0));
   const gstMul = 1 + Number(settings.gst_rate);
-
-  // Installer-sourced jobs skip the multi-installer option marketplace: one quote from the assigned installer's card.
-  const { data: jobRow } = await admin.from("jobs").select("channel, installer_led, ap_fee_override_inc_gst").eq("id", jobId).single();
-  // Installer-led: the AP fee is its own line (standard fee or audited per-job override) so the Xero invoice matches the co-branded preview.
-  let apLine: { code: string; description: string; quantity: number; unit: string; unit_price_inc_gst: number; line_total_inc_gst: number; is_other: boolean; explanation: string | null } | null = null;
-  if (jobRow?.installer_led) {
-    let fee = jobRow.ap_fee_override_inc_gst != null ? Number(jobRow.ap_fee_override_inc_gst) : null;
-    if (fee == null) {
-      const { data: rs } = await admin.from("retail_estimator_settings").select("ap_management_inc_gst").eq("is_current", true).maybeSingle();
-      if (!rs) throw new WorkflowError("Standard AP fee is not set – cannot quote an installer-led job.");
-      fee = Number(rs.ap_management_inc_gst);
-    }
-    fee = r2(fee);
-    if (fee > 0) apLine = { code: "AP_FEE", description: "Accredited Provider fee (Home Insulation Victoria)", quantity: 1, unit: "flat", unit_price_inc_gst: fee, line_total_inc_gst: fee, is_other: false, explanation: null };
-  }
-  const optionCodes = jobRow?.channel === "installer_sourced" ? settings.installer_option_codes.slice(0, 1) : settings.installer_option_codes;
-  const created: string[] = [];
-  for (const code of optionCodes) {
-    const product = byCode(code);
-    if (!product) continue;
-    const calc = priceInstallerOption({
-      areaM2: qi.areaM2,
-      removalM2: qi.removalM2,
-      access: qi.access,
-      product,
-      removal: byCode("REMOVAL") ?? null,
-      travel: byCode("TRAVEL") ?? null,
-      settings: { ...settings, access_loadings: settings.access_loadings as Record<string, number> },
+  const { priceHivQuote, HIV_PRICING_RULE } = await import("./hiv-quote.core");
+  let calc: ReturnType<typeof priceHivQuote>;
+  try {
+    calc = priceHivQuote({
+      areaM2: qi.areaM2, removalM2: qi.removalM2,
+      accessMultiplier: Number((settings.access_loadings as Record<string, number>)[qi.access] ?? 1),
+      ownerR5IncPerM2: Number(rs.r5_install_inc_gst_per_m2), ownerRemovalIncPerM2: Number(rs.removal_inc_gst_per_m2),
+      piesaIncGst: Number(rs.piesa_assessment_inc_gst),
+      apFeeIncGst: jobRow.ap_fee_override_inc_gst != null ? Number(jobRow.ap_fee_override_inc_gst) : Number(rs.ap_management_inc_gst),
+      gstRate: Number(settings.gst_rate),
+      installerR5ExPerM2: rate("R5_BATTS"), installerRemovalExPerM2: rate("BATTS_REMOVAL", "REMOVAL", "LOOSE_FILL_REMOVAL"), installerTravelEx: rate("TRAVEL"),
     });
-    const subtotal = r2(calc.subtotal_inc_gst + rectTotal + (apLine?.line_total_inc_gst ?? 0));
-    const { data: q, error } = await admin
-      .from("quotes")
-      .insert({
-        job_id: jobId, kind: "installation", option_label: rectLines.length ? `${product.description} + electrical rectification` : product.description, option_code: code, status: "issued", sent_at: new Date().toISOString(),
-        rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal,
-        gst_amount: r2(subtotal - subtotal / gstMul), veec_discount_inc_gst: calc.veec_discount_inc_gst,
-        customer_total_inc_gst: r2(subtotal - calc.veec_discount_inc_gst), created_by: actorId,
-      })
-      .select("id")
-      .single();
-    if (error || !q) throw new Error(error?.message);
-    await admin.from("quote_items").insert([
-      ...calc.items.map((i) => ({ ...i, quote_id: q.id })),
-      ...rectLines.map((l, i) => ({ ...l, quote_id: q.id, sort: 100 + i })),
-      ...(apLine ? [{ ...apLine, quote_id: q.id, sort: 200 }] : []),
-    ]);
-    const { loading, ...internals } = calc.internals;
-    await admin.from("quote_internals").insert({ quote_id: q.id, ...internals, calc_snapshot: { loading, measurement_id: qi.measurementId, area_m2: qi.areaM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access } });
-    created.push(q.id);
-  }
-  if (!created.length) throw new WorkflowError("Rate card has none of the configured quote option products.");
-  await logEvent(jobId, actorId, "installer_quotes_generated", `${created.length} installation quote options generated`, { quote_ids: created, rate_card: card.name, pricing_version: settings.version });
-  return created;
+  } catch (e) { throw new WorkflowError(e instanceof Error ? e.message : "Could not price this quote."); }
+
+  await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]);
+  const ownSubtotal = r2(calc.lines.reduce((a, l) => a + l.line_total_inc_gst, 0));
+  const subtotal = r2(ownSubtotal + rectTotal);
+  // LEGACY flat per-m² VEEC credit, unchanged by this pricing rule.
+  const veec = r2(Math.min(ownSubtotal, qi.areaM2 * Number(settings.veec_credit_per_m2_inc_gst)));
+  const label = rectLines.length ? "R5.0 ceiling insulation + electrical rectification" : "R5.0 ceiling insulation";
+  const { data: q, error } = await admin.from("quotes").insert({
+    job_id: jobId, kind: "installation", option_label: label, option_code: "R5_BATTS", status: "issued", sent_at: new Date().toISOString(),
+    rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal,
+    gst_amount: r2(subtotal - subtotal / gstMul), veec_discount_inc_gst: veec,
+    customer_total_inc_gst: r2(subtotal - veec), created_by: actorId,
+  }).select("id").single();
+  if (error || !q) throw new Error(error?.message);
+  await admin.from("quote_items").insert([
+    ...calc.lines.map((l) => ({ ...l, quote_id: q.id })),
+    ...rectLines.map((l, i) => ({ ...l, quote_id: q.id, sort: 100 + i })),
+  ]);
+  await admin.from("quote_internals").insert({
+    quote_id: q.id, cost_ex_gst: calc.installerCostEx, ap_margin_ex_gst: calc.installerMarkup.markupEx, ap_fee_ex_gst: r2(Number(rs.ap_management_inc_gst) / gstMul),
+    calc_snapshot: { pricing_rule: HIV_PRICING_RULE, installer_markup: calc.installerMarkup, measurement_id: qi.measurementId, area_m2: qi.areaM2, removal_m2: qi.removalM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access },
+  });
+  await logEvent(jobId, actorId, "installer_quotes_generated", "Installation quote generated (fixed owner prices)", { quote_ids: [q.id], rate_card: card.name, pricing_rule: HIV_PRICING_RULE });
+  return [q.id];
 }
 
 /** Derive rectification items from the assessment (replaces previously auto-derived items). */
