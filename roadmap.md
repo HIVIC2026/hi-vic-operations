@@ -45,3 +45,9 @@
 - [x] Focused rate-card tests, wording scan, typecheck, build; no publish, switches unchanged.
 ## Open tasks
 - [x] Deleted previous-VEU-upgrade and occupancy questions from portal eligibility (Gate 1, verified eligibility, intake display, workflow decisions). Base44 form edit must be done in Base44 by Jo — spec delivered in chat. Not published.
+- [x] Activity 48 same-ceiling-area wording locked (4 Oct, accepted): "No confirmed previous Activity 48 for the same ceiling area" / "Previous Activity 48 for the same ceiling area confirmed". Preview checks passed on TEST HV-1003.
+
+## Logged limitations (4 Oct, accepted slice)
+- [ ] Owner/trade pages were inspected via the office test session, not separate owner/trade sign-ins — acceptable this slice (office-only card did not render there), but a separate role smoke check is required before launch.
+- [ ] Base44 TEST enquiry check pending until the two website fields are removed; then submit one TEST enquiry without them and confirm job creation, no blank/stale rows, preliminary eligibility from remaining answers, and the Activity 48 check stays office-only/pending.
+- [ ] No Activity 48 answer was saved to a TEST job during the check.
