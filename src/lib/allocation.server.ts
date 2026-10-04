@@ -6,29 +6,43 @@ import { WorkflowError, logEvent, piesaRequestFacts } from "./workflow.server";
 import { verifiedServiceAreaMatch, partnerWorkBlocker, type BusinessLike } from "./pilot.core";
 import {
   ACCEPT_OUTCOME_MESSAGE, OWNER_CONTACT_NOTICE, TRADE_CONTACT_NOTICE, anonymisedOffer, coordinationState, electricalClearance,
-  nextOfferBatch, offerExpiry, piesaOfferBlockers, rankRecCandidates, recEligibilityBlocker, type RecCandidate, type VisitKind,
+  nextOfferBatch, offerExpiryBusinessHours, piesaOfferBlockers, rankRecCandidates, recEligibilityBlocker, type RecCandidate, type VisitKind,
 } from "./allocation.core";
+import { melbourneYmd } from "./piesa-windows.core";
 
 const NONE = ["00000000-0000-0000-0000-000000000000"];
 
 async function settings() {
-  const { data } = await admin.from("workflow_settings").select("rec_offer_expiry_hours, rec_offer_batch_size").eq("id", 1).maybeSingle();
-  return { expiryHours: Number(data?.rec_offer_expiry_hours ?? 2), batchSize: Number(data?.rec_offer_batch_size ?? 3) };
+  const { data } = await admin.from("workflow_settings").select("rec_offer_business_hours, rec_offer_batch_size").eq("id", 1).maybeSingle();
+  return { businessHours: Number(data?.rec_offer_business_hours ?? 4), batchSize: Number(data?.rec_offer_batch_size ?? 3) };
 }
 
 /** Facts used to judge each REC for a job. Price is loaded for display only. */
-export async function recCandidatesFor(jobId: string): Promise<{ postcode: string | null; candidates: (RecCandidate & { blocker: string | null })[] }> {
-  const { data: job } = await admin.from("jobs").select("id, properties(postcode)").eq("id", jobId).single();
+export async function recCandidatesFor(jobId: string): Promise<{ postcode: string | null; installerSourced: boolean; candidates: (RecCandidate & { blocker: string | null })[] }> {
+  const { data: job } = await admin.from("jobs").select("id, channel, properties(postcode)").eq("id", jobId).single();
   const postcode = (job?.properties as { postcode: string | null } | null)?.postcode ?? null;
+  const installerSourced = job?.channel === "installer_sourced";
   const { data: bizs } = await admin.from("businesses").select("*").or("business_type.eq.rec,capabilities.cs.{electrician}");
   const ids = (bizs ?? []).map((b) => b.id);
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-  const [{ data: creds }, { data: workers }, { data: asg }, { data: offers }, { data: prefs }] = await Promise.all([
+  // Owner's current PIESA windows (if any): availability, daily limit and "nearby that day" are judged on these.
+  const win = await currentWindowRound(jobId);
+  const { data: winRows } = win.round > 0
+    ? await admin.from("appointment_proposals").select("starts_at, ends_at").eq("job_id", jobId).eq("piesa_window_round", win.round).eq("status", "proposed")
+    : { data: [] as { starts_at: string; ends_at: string | null }[] };
+  const windows = (winRows ?? []).map((w) => ({ s: Date.parse(w.starts_at), e: Date.parse(w.ends_at ?? w.starts_at), day: melbourneYmd(new Date(w.starts_at)) }));
+  const windowDays = new Set(windows.map((w) => w.day));
+  const [{ data: creds }, { data: workers }, { data: asg }, { data: offers }, { data: prefs }, { data: bks }] = await Promise.all([
     admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification").in("business_id", ids.length ? ids : NONE),
     admin.from("partner_workers").select("business_id").eq("trade_role", "electrician").eq("approval_status", "approved").in("business_id", ids.length ? ids : NONE),
     admin.from("job_assignments").select("business_id").eq("role", "electrician").eq("active", true).in("business_id", ids.length ? ids : NONE),
-    admin.from("partner_offers").select("business_id, status").in("kind", ["piesa", "rectification"]).gte("offered_at", since).in("business_id", ids.length ? ids : NONE),
+    admin.from("partner_offers").select("business_id, status, offered_at, responded_at").in("kind", ["piesa", "rectification"]).gte("offered_at", since).in("business_id", ids.length ? ids : NONE),
     admin.from("partner_relationships").select("electrician_business_id, installer_business_id").eq("active", true),
+    windows.length
+      ? admin.from("bookings").select("business_id, scheduled_start, scheduled_end, jobs(properties(postcode))").eq("status", "confirmed").in("business_id", ids.length ? ids : NONE)
+          .gte("scheduled_start", new Date(Math.min(...windows.map((w) => w.s)) - 86_400_000).toISOString())
+          .lte("scheduled_start", new Date(Math.max(...windows.map((w) => w.e)) + 86_400_000).toISOString())
+      : Promise.resolve({ data: [] as { business_id: string | null; scheduled_start: string; scheduled_end: string | null; jobs: unknown }[] }),
   ]);
   const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   const preferred = new Set((prefs ?? [])
@@ -37,6 +51,14 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
     const bc = (creds ?? []).filter((c) => c.business_id === b.id);
     const mine = (offers ?? []).filter((o) => o.business_id === b.id);
     const answered = mine.filter((o) => o.status !== "pending");
+    const accepted = mine.filter((o) => o.status === "accepted" && o.responded_at);
+    const myBookings = (bks ?? []).filter((k) => k.business_id === b.id).map((k) => ({
+      s: Date.parse(k.scheduled_start), e: Date.parse(k.scheduled_end ?? k.scheduled_start), day: melbourneYmd(new Date(k.scheduled_start)),
+      postcode: ((k.jobs as { properties?: { postcode?: string | null } | null } | null)?.properties?.postcode) ?? null,
+    }));
+    const perDay = new Map<string, number>();
+    for (const k of myBookings) if (windowDays.has(k.day)) perDay.set(k.day, (perDay.get(k.day) ?? 0) + 1);
+    const covers = (pc: string | null) => !!pc && (pc === postcode || !!b.service_postcodes?.includes(pc));
     const c: RecCandidate = {
       business_id: b.id, name: b.name, is_active: b.is_active, onboarding_status: b.onboarding_status,
       accepting_new_jobs: b.accepting_new_jobs ?? null, receives_hivic_leads: b.receives_hivic_leads ?? null,
@@ -47,6 +69,13 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
       weekly_capacity: b.weekly_capacity ?? null, open_jobs: (asg ?? []).filter((a) => a.business_id === b.id).length,
       recent_offers_30d: mine.length, acceptance_rate: answered.length ? answered.filter((o) => o.status === "accepted").length / answered.length : null,
       preferred: preferred.has(b.id),
+      free_in_window: windows.length ? windows.some((w) => !myBookings.some((k) => k.s < w.e && k.e > w.s)) : null,
+      daily_limit: (b as { daily_job_limit?: number | null }).daily_job_limit ?? null,
+      max_jobs_on_window_day: Math.max(0, ...perDay.values()),
+      nearby_job_that_day: myBookings.some((k) => windowDays.has(k.day) && covers(k.postcode)),
+      no_shows: 0, evidence_rejections: 0, // not recorded per electrician yet
+      recent_jobs_30d: accepted.length,
+      avg_accept_hours: accepted.length ? accepted.reduce((t, o) => t + (Date.parse(o.responded_at!) - Date.parse(o.offered_at)) / 3_600_000, 0) / accepted.length : null,
     };
     return { ...c, blocker: recEligibilityBlocker(c) };
   });
