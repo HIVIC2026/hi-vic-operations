@@ -46,6 +46,7 @@ import { getAdminAssignments, getAdminJobEligibility } from "@/lib/admin-records
 import { getJobCoverage, sendNoCoverageEmail } from "@/lib/coverage.functions";
 import { InstallerLedInvoicePanel } from "@/components/portal/installer-invoice";
 import { InstallerQuoteDraftPanel } from "@/components/portal/installer-quote";
+import { AdminVisitHistory } from "@/components/portal/visit-changes";
 
 export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Portal" }, { name: "description", content: "Job detail and workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Portal" }, { property: "og:description", content: "Job detail and workflow." }] }),
@@ -135,6 +136,7 @@ function JobDetail() {
           <WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin /><div id="target-correspondence" tabIndex={-1} className="scroll-mt-4 outline-none"><Correspondence jobId={jobId} /></div>
           <SubHeading>What's happened</SubHeading>
           <div id="target-history" tabIndex={-1} className="scroll-mt-4 outline-none"><ClearTimeline jobId={jobId} /></div>
+          <AdminVisitHistory jobId={jobId} />
           <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm font-medium">Detailed and raw audit history</summary><div className="mt-3 space-y-4"><JobTimeline jobId={jobId} /><TimelinePanel jobId={jobId} /></div></details>
           <SubHeading>All documents</SubHeading>
           <div id="target-documents" tabIndex={-1} className="scroll-mt-4 outline-none"><AllDocuments jobId={jobId} /></div><ExportJobPack jobId={jobId} />

@@ -1,5 +1,6 @@
 import { RectPlanFields, rectPlanProblems, type RectPlan } from "@/components/portal/rectification-times";
 import { VisitContactsCard } from "@/components/portal/allocation";
+import { TradeVisitCard } from "@/components/portal/visit-changes";
 import { ElectricianChoicePanel, PartnerProposalForm } from "@/components/portal/partner";
 import { nextStep } from "@/lib/nextstep.core";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -57,6 +58,7 @@ function FieldJob() {
                 {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage!} />}
         {role === "installer" && ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(job.stage!) && <PartnerProposalForm jobId={jobId} />}
         <WorkerLinksPanel jobId={jobId} />
+        {(role === "electrician" || role === "installer") && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}
         <VisitContactsCard jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" || role === "installer" ? { role } : {})} />
       </div>
     </AppShell>

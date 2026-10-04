@@ -1,6 +1,7 @@
 import { VisitContactsCard } from "@/components/portal/allocation";
 import { OwnerInstalmentPlanCard } from "@/components/portal/instalment-plan";
 import { PiesaTimesCard } from "@/components/portal/piesa-times";
+import { OwnerVisitChangeCard } from "@/components/portal/visit-changes";
 import { OwnerInstallDaysCard } from "@/components/portal/install-days";
 import { OwnerEstimateCard } from "@/components/portal/estimate";
 import { nextStep } from "@/lib/nextstep.core";
@@ -47,6 +48,7 @@ function OwnerJob() {
         <QuotesPanel jobId={jobId} canRespond />
         <PaymentsPanel jobId={jobId} isAdmin={false} /><OwnerInstalmentPlanCard jobId={jobId} />
         {(s === "measured_quote_accepted" || s === "piesa_and_install_window_pending") && <PiesaTimesCard jobId={jobId} />}
+        {["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(s ?? "") && <OwnerVisitChangeCard jobId={jobId} />}
         {s === "installation_scheduling" && <OwnerInstallDaysCard jobId={jobId} depositCleared={!!job.deposit_cleared} />}
         {bookKind && bookKind !== "installation" && job.deposit_cleared && <BookingPanel jobId={jobId} kind={bookKind} canBook />}
         {s === "installation_booked" && job.deposit_cleared && <BookingPanel jobId={jobId} kind="installation" canBook />}
