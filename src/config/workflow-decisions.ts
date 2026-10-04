@@ -19,7 +19,6 @@ export const WORKFLOW_DECISIONS = {
       ownerAnswersAreDeclaredUntilVerified: true,
       existingInsulationYesIsNeverAutoFail: true,
       r2ExactlyIsNotLessThanR2: true,
-      previousUpgradeYes: "office_review",
       missingOrConflictingEvidence: "needs_review",
     },
   },
@@ -81,7 +80,6 @@ export const WORKFLOW_DECISIONS = {
   hardStops: [
     "missing_eligibility_evidence",
     "conflicting_eligibility_evidence",
-    "previous_upgrade_declared_yes",
     "existing_insulation_unknown_status",
     "no_trade_assigned",
     "payment_rule_missing",

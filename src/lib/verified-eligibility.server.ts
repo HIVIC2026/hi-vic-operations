@@ -53,17 +53,6 @@ export async function gatherEvidence(jobId: string): Promise<ReadyCheckEvidence>
   const { data: prop } = job?.property_id
     ? await admin.from("properties").select("enrichment").eq("id", job.property_id).maybeSingle()
     : { data: null };
-  const enr = (prop?.enrichment ?? {}) as Record<string, unknown>;
-  const declared = ((enr["base44"] as { declared?: Record<string, unknown> } | undefined)
-    ?.declared ?? {}) as Record<string, unknown>;
-  const prev =
-    typeof enr["previous_ceiling_insulation_upgrade"] === "boolean"
-      ? enr["previous_ceiling_insulation_upgrade"]
-        ? "yes"
-        : "no"
-      : declared["previous_upgrade"] === "yes" || declared["previous_upgrade"] === "no"
-        ? (declared["previous_upgrade"] as "yes" | "no")
-        : null;
   const cats = (files ?? []).map((f) => ({
     cat: (f.evidence_requirements as { category?: string } | null)?.category ?? null,
     geo: f.lat !== null,
@@ -98,7 +87,6 @@ export async function gatherEvidence(jobId: string): Promise<ReadyCheckEvidence>
     },
     removal: m?.removal_required == null ? null : m.removal_required ? "yes" : "no",
     access: { level: m?.access_difficulty ?? null, evidence: hasCat("access_manhole") },
-    previousUpgrade: prev,
     electrical: {
       downlightCount: num("elec.downlight_count") ?? num("downlight_count"),
       downlightType: str("elec.downlight_type") ?? str("downlight_type"),

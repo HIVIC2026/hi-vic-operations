@@ -16,7 +16,6 @@ const ev = (o: Partial<ReadyCheckEvidence> = {}): ReadyCheckEvidence => ({
   insulation: { existing: "none", type: null, depthMm: null, rValue: null, photos: false },
   removal: "no",
   access: { level: "standard", evidence: true },
-  previousUpgrade: "no",
   electrical: { downlightCount: 4, downlightType: "led" },
   conflicts: [],
   ...o,
@@ -49,7 +48,6 @@ describe("verified eligibility office card", () => {
       "Insulation photos",
       "Removal",
       "Access / site",
-      "Previous VEU ceiling-insulation upgrade (declared)",
     ])
       expect(labels).toContain(l);
     expect(labels.some((l) => /downlight/i.test(l))).toBe(false);

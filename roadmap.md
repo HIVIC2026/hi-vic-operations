@@ -43,3 +43,5 @@
 ## Electrician rate card UI cleanup (4 Oct, preview only)
 - [x] Discarded draft rows hide the spread and read "Discarded draft - not used for offers."; row visually inactive.
 - [x] Focused rate-card tests, wording scan, typecheck, build; no publish, switches unchanged.
+## Open tasks
+- [x] Deleted previous-VEU-upgrade and occupancy questions from portal eligibility (Gate 1, verified eligibility, intake display, workflow decisions). Base44 form edit must be done in Base44 by Jo — spec delivered in chat. Not published.

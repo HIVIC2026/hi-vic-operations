@@ -137,13 +137,10 @@ export function evaluateGate1(f: Gate1Facts): Gate1Decision {
   else if (f.declaredOverMinAge === "no") rule("ceiling_age", L, "review", "Owner declares the ceiling may be under 5 years – verify before deciding (not an auto-fail)", age);
   else rule("ceiling_age", L, "review", "Relevant ceiling age not evidenced", age);
 
-  // Previous Activity 48
+  // Previous Activity 48 — the homeowner previous-upgrade question is retired; only confirmed Activity 48 evidence can fail.
   const PL = "Previous Activity 48";
-  const pu = ev("previous_activity", { fact: f.previousCeilingUpgrade == null ? "unknown" : f.previousCeilingUpgrade ? "yes" : "no", source: "properties.enrichment", basis: f.previousCeilingUpgrade == null ? "unknown" : "recorded" });
-  if (f.previousActivity48Confirmed === true) rule("previous_activity", PL, "fail", "Previous Activity 48 at the premises confirmed", { fact: "previous Activity 48 confirmed", source: f.evidence?.previous_activity?.basis === "verified" ? pu.source : "properties.enrichment.previous_activity_48_confirmed", basis: "verified" });
-  else if (f.previousCeilingUpgrade === false) rule("previous_activity", PL, "pass", pu.basis === "declared" ? "Owner declares no previous ceiling insulation upgrade" : "No previous upgrade recorded", pu);
-  else if (f.previousCeilingUpgrade === true) rule("previous_activity", PL, "fail", "Owner declares a previous VEU ceiling insulation upgrade", pu);
-  else rule("previous_activity", PL, "review", "Previous upgrade history unknown", pu);
+  if (f.previousActivity48Confirmed === true) rule("previous_activity", PL, "fail", "Previous Activity 48 at the premises confirmed", { fact: "previous Activity 48 confirmed", source: "properties.enrichment.previous_activity_48_confirmed", basis: "verified" });
+  else rule("previous_activity", PL, "pass", "No confirmed previous Activity 48 at the premises", ev("previous_activity", { fact: "none confirmed", source: "properties.enrichment", basis: "recorded" }));
 
   // Existing insulation above the relevant ceiling
   const IL = "Existing insulation";
@@ -170,7 +167,7 @@ export function evaluateGate1(f: Gate1Facts): Gate1Decision {
   if (f.lifeSupportStatus === "yes") flags.push({ key: "life_support", type: "safety", severity: "high", reason: "Life-support arrangements must be managed before electrical work/power interruption" });
   else if (f.lifeSupportStatus !== "no") flags.push({ key: "life_support_unknown", type: "safety", severity: "medium", reason: "Life-support status unknown – confirm before electrical work/power interruption" });
 
-  rule("occupancy", "Occupancy", "info", f.occupancy ? `Occupancy: ${f.occupancy.replace("_", " ")}` : "Occupancy not recorded", ev("occupancy", { fact: f.occupancy ?? "unknown", source: "properties.occupancy", basis: f.occupancy ? "declared" : "unknown" }));
+  // Occupancy question retired from homeowner intake — no longer reported.
 
   // Area – never an eligibility failure
   rule("area", "Ceiling area", "info", "Final relevant ceiling area measured onsite", { fact: f.areaKnown ? "owner estimate" : "unknown", source: "jobs.estimated_area_m2", basis: f.areaKnown ? "declared" : "unknown" });

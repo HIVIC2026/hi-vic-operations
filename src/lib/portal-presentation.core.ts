@@ -54,7 +54,7 @@ export function ownerAnswerForGate1(key: string, intake: IntakeAnswers | null | 
     return propertyType === "Not answered / unknown" && topFloor === "Not answered / unknown" ? propertyType : `${propertyType}; ${topFloor}`;
   }
   if (key === "ceiling_age") return answer(intake.declared?.over_five_years, { yes: "Owner says over five years", no: "Owner says not over five years" });
-  if (key === "previous_activity") return answer(intake.declared?.previous_upgrade, { yes: "Previous VEU upgrade: Yes", no: "Previous VEU upgrade: No" });
+  if (key === "previous_activity") return "Not asked (question retired)";
   if (key === "existing_insulation") return answer(intake.declaredExtras?.existing_insulation, { none: "Owner says none", present: "Owner says insulation is present" });
   return "Not answered / unknown";
 }

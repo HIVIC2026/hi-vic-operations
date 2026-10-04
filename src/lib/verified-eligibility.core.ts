@@ -41,8 +41,6 @@ export type ReadyCheckEvidence = {
   };
   removal: "yes" | "no" | "uncertain" | null;
   access: { level: string | null; evidence: boolean };
-  /** Owner's declared previous VEU ceiling-insulation upgrade. */
-  previousUpgrade: "yes" | "no" | null;
   /** Section D — shown and flagged, never property-eligibility evidence on its own. */
   electrical: { downlightCount: number | null; downlightType: string | null };
   /** Conflicting / amended evidence noted by sync or office. */
@@ -111,10 +109,6 @@ export function assessEligibility(e: ReadyCheckEvidence): EligibilityAssessment 
   if (e.removal === null) missing.push("Removal answer");
   else if (e.removal === "uncertain") review.push("Removal requirement is uncertain.");
 
-  if (e.previousUpgrade === "yes")
-    review.push(
-      "Owner declared a previous VEU ceiling-insulation upgrade — office review required.",
-    );
   for (const c of e.conflicts) review.push(`Conflicting or amended evidence: ${c}`);
 
   if (
@@ -262,11 +256,6 @@ export function evidenceSummary(e: ReadyCheckEvidence): SummaryRow[] {
           ? null
           : true
         : false,
-    },
-    {
-      label: "Previous VEU ceiling-insulation upgrade (declared)",
-      value: e.previousUpgrade ?? "Not answered",
-      ok: e.previousUpgrade === "yes" ? null : e.previousUpgrade === "no" ? true : null,
     },
   );
   return rows;

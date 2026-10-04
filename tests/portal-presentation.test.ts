@@ -14,7 +14,7 @@ describe("staff portal presentation helpers", () => {
     const intake = { declared: { property_type: "townhouse", over_five_years: "yes", previous_upgrade: "no" }, declaredExtras: { top_floor: "unknown", existing_insulation: "present" } };
     expect(ownerAnswerForGate1("residential", intake)).toBe("townhouse");
     expect(ownerAnswerForGate1("ceiling_age", intake)).toBe("Owner says over five years");
-    expect(ownerAnswerForGate1("previous_activity", intake)).toBe("Previous VEU upgrade: No");
+    expect(ownerAnswerForGate1("previous_activity", intake)).toBe("Not asked (question retired)");
     expect(ownerAnswerForGate1("existing_insulation", intake)).toBe("Owner says insulation is present");
     expect(ownerAnswerForGate1("residential", null)).toBe("Not answered / unknown");
     expect(ownerAnswerForGate1("location", intake)).toBe("No owner answer stored here");

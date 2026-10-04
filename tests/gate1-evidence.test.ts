@@ -43,9 +43,9 @@ describe("Base44 Gate 1 evidence", () => {
     expect(decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "no", property_research: { ...research, flat_roof_detected: true } })).outcome).toBe("needs_onsite_confirmation");
     expect(decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "no", property_research: { ...research, state: "NSW" } }), { postcode: null }).outcome).toBe("does_not_appear_eligible");
   });
-  test("owner yes to previous upgrade -> fail; unknown -> review", () => {
-    expect(decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "yes", property_research: research })).outcome).toBe("does_not_appear_eligible");
-    expect(decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "unknown", property_research: research })).outcome).toBeNull();
+  test("retired declared previous-upgrade answer no longer decides eligibility", () => {
+    expect(decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "yes", property_research: research })).outcome).not.toBe("does_not_appear_eligible");
+    expect(decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "unknown", property_research: research })).outcome).not.toBeNull();
   });
   test("recorded portal facts take precedence over Base44", () => {
     const d = decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "no", property_research: research }), { is_residential: false });
