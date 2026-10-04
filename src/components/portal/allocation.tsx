@@ -26,7 +26,7 @@ export function OfficeAllocationPanel({ jobId }: { jobId: string }) {
       <div className="space-y-3 text-sm">
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={async () => { await start({ jobId }, "PIESA offers sent to approved electricians"); refresh(); }}>Offer PIESA to approved electricians</Button>
-          <Button size="sm" variant="outline" onClick={async () => { if (!window.confirm("Offer to approved electricians without a recorded rate? They will see \"Rate to be confirmed\".")) return; await start({ jobId, rateToConfirm: true }, "PIESA offered with rate to be confirmed"); refresh(); }}>Offer with rate to be confirmed</Button>
+          <Button size="sm" variant="outline" onClick={async () => { const reason = window.prompt("Reason for offering without a recorded electrician rate? (required — electricians will see \"Rate to be confirmed\")"); if (!reason || reason.trim().length < 5) return; await start({ jobId, rateToConfirm: true, reason }, "PIESA offered with rate to be confirmed"); refresh(); }}>Offer with rate to be confirmed</Button>
           <Button size="sm" variant="outline" onClick={() => cands.refetch()}>Show matching electricians</Button>
           <Button size="sm" variant="outline" onClick={async () => { await release({ jobId }, "Installation contacts shared with the agreed installer"); }}>Share installation contacts</Button>
         </div>

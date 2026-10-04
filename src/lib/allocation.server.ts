@@ -110,7 +110,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   const batchNo = Math.max(0, ...(prior ?? []).map((o) => o.batch)) + 1;
   const rates = await agreedElectricianRates(candidates.map((c) => c.business_id), kind);
   const { offerRateBlocker } = await import("./allocation.core");
-  const noRate = candidates.filter((c) => offerRateBlocker(rates.get(c.business_id) ?? null, rateToConfirm));
+  const noRate = candidates.filter((c) => offerRateBlocker(rates.get(c.business_id)?.rate ?? null, rateToConfirm));
   if (noRate.length) await logEvent(jobId, actorId, "rec_offer_rate_missing", `${noRate.length} electrician(s) skipped: no agreed electrician rate recorded`, { kind, businesses: noRate.map((c) => c.business_id) }, { internal: true });
   const priced = candidates.filter((c) => !noRate.includes(c));
   const batch = nextOfferBatch(rankRecCandidates(priced), offered, batchSize);
@@ -122,7 +122,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   const summary = await offerFacts(jobId);
   const expires = offerExpiry(new Date(), expiryHours);
   const { error } = await admin.from("partner_offers").insert(batch.map((b) => ({ job_id: jobId, business_id: b.business_id, kind, batch: batchNo,
-    summary: { ...summary, electrician_rate_inc_gst: rates.get(b.business_id) ?? null, rate_to_confirm: !rates.has(b.business_id) && rateToConfirm } as unknown as Json, offered_by: actorId, expires_at: expires })));
+    summary: { ...summary, electrician_rate_inc_gst: rates.get(b.business_id)?.rate ?? null, electrician_rate_id: rates.get(b.business_id)?.id ?? null, electrician_rate_snapshot_at: new Date().toISOString(), rate_to_confirm: !rates.has(b.business_id) && rateToConfirm } as unknown as Json, offered_by: actorId, expires_at: expires })));
   if (error) throw new Error(error.message);
   await logEvent(jobId, actorId, "rec_offers_made", `${kind === "piesa" ? "PIESA" : "Rectification"} offered to ${batch.length} approved electrician(s), batch ${batchNo}`, { kind, batch: batchNo, businesses: batch.map((b) => b.business_id), expires_at: expires }, { internal: true });
   return { offered: batch.length, exhausted: false };
