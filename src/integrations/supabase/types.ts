@@ -713,6 +713,130 @@ export type Database = {
           },
         ]
       }
+      bulk_import_batches: {
+        Row: {
+          business_id: string
+          confirmed_at: string | null
+          created_at: string
+          created_by: string
+          file_manifest: Json
+          id: string
+          list_filename: string | null
+          on_behalf: boolean
+          status: string
+          summary: Json | null
+        }
+        Insert: {
+          business_id: string
+          confirmed_at?: string | null
+          created_at?: string
+          created_by: string
+          file_manifest?: Json
+          id?: string
+          list_filename?: string | null
+          on_behalf?: boolean
+          status?: string
+          summary?: Json | null
+        }
+        Update: {
+          business_id?: string
+          confirmed_at?: string | null
+          created_at?: string
+          created_by?: string
+          file_manifest?: Json
+          id?: string
+          list_filename?: string | null
+          on_behalf?: boolean
+          status?: string
+          summary?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_import_batches_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bulk_import_rows: {
+        Row: {
+          batch_id: string
+          created_at: string
+          duplicate_note: string | null
+          extracted: Json
+          id: string
+          job_id: string | null
+          match_confidence: string | null
+          matched_files: Json
+          missing_evidence: Json
+          row_index: number
+          sort_reasons: Json
+          sort_result: string | null
+          status: string
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          duplicate_note?: string | null
+          extracted?: Json
+          id?: string
+          job_id?: string | null
+          match_confidence?: string | null
+          matched_files?: Json
+          missing_evidence?: Json
+          row_index: number
+          sort_reasons?: Json
+          sort_result?: string | null
+          status?: string
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          duplicate_note?: string | null
+          extracted?: Json
+          id?: string
+          job_id?: string | null
+          match_confidence?: string | null
+          matched_files?: Json
+          missing_evidence?: Json
+          row_index?: number
+          sort_reasons?: Json
+          sort_result?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_import_rows_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "bulk_import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_import_rows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_import_rows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "bulk_import_rows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_bank_detail_events: {
         Row: {
           actor_id: string
