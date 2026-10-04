@@ -41,7 +41,6 @@ export type ReadyCheckEvidence = {
   };
   removal: "yes" | "no" | "uncertain" | null;
   access: { level: string | null; evidence: boolean };
-  removal: "yes" | "no" | "uncertain" | null;
   /** Section D — shown and flagged, never property-eligibility evidence on its own. */
   electrical: { downlightCount: number | null; downlightType: string | null };
   /** Conflicting / amended evidence noted by sync or office. */
