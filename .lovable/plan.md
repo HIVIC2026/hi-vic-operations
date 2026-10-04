@@ -1,73 +1,60 @@
-# Step 6: Owner picks PIESA times, and the electrician's tap is the booking
+# 48-hour escalation fix (plan only)
 
-New standing rule (I'll save it to project memory on "go"): every database change is proven on a practice database before it touches the real one. Step 5's change went straight onto the real database. On "go" I'll also run it on a practice database and tell you the result.
+## 1. Real bug or out-of-date test?
 
-## 1. What I would add or change
+It's a real bug, and it has two parts.
 
-**Owner side**
-- A new last step in the owner's acceptance flow, after the quote is accepted, the consents are signed and a payment option is chosen: "Pick 3–5 times for your electrical safety check (PIESA)."
-- The owner must choose 3 to 5 times, on at least 3 different days.
-- Allowed times start at least 2 business days ahead and fall within the next 21 days. There are no capacity holds yet, so this simpler rule applies. Weekends and Victorian public holidays don't count as business days.
-- Times are morning or afternoon slots in Melbourne time.
-- The times are saved in the existing appointment-times list as owner-proposed times for the PIESA.
+**The rule** (workflow source of truth and the workflow settings): "48h without confirmed booking → office Needs attention", for all four visits: Ready Check, PIESA, rectification and installation. A reply or a suggested time does not count as a booking.
 
-**Electrician side**
-- Each PIESA offer shows the owner's times as buttons, plus the electrician's own agreed rate (unchanged).
-- Tapping a time, if they're first, does three things in one locked step:
-  - accepts the offer
-  - confirms the booking for that time
-  - closes all other offers for the job
-- If someone else got there first, they see "This job has just been taken." Nothing else changes.
-- The tapped time is marked accepted and the owner's other times are closed.
-- Owner contact details are released only at that moment, for the PIESA visit only. This uses the existing release record.
-- Booking confirmation reuses the existing booking step, so the PIESA payment check, the PIESA window rules and the installer planning notice all still apply.
+**Part A: the job-page timer stops the clock too early.**
+- The timer on the job page that decides when "Request another electrician" appears treats any first reply as enough.
+- So an electrician who replied at hour 40 but never booked shows "Electrician made contact". There is no 48-hour flag and no "request another" option.
+- Two tests disagree about this:
+  - One says a first reply stops the clock. It is out of date and matches neither the written rule nor the workflow settings.
+  - The other expects the 48-hour flag, which matches the rule. That is the one failing.
 
-**When nobody accepts**
-- Offers expire as they do now and the next batch goes out with the same times.
-- If every approved electrician has been tried and no one accepted, the owner is asked for more times. That request is queued only, because sending stays off. Earlier times that have passed are closed, and the offers restart with the new times.
-- If the second round also gets no acceptance, the job goes on the Needs Home Insulation Victoria list as "No electrician could take the owner's times."
+**Part B: the office check skips Ready Checks.**
+- The office check that fills the Needs Home Insulation Victoria list (and sends the 24h reminders) only looks at PIESA, rectification and installation visits. Ready Check visits are left out.
+- Database evidence: 10 Ready Check visits have contacts shared, no booking, and are more than 48 hours old. They have never been flagged. All 10 are TEST jobs.
+- PIESA, rectification and installation are already handled correctly, using 48 hours since contacts were shared with no confirmed booking.
 
-**Fallback (old path kept)**
-- On an offer, the electrician can tap "None of these times work — accept and arrange a time."
-- This is the current path: accept, contact details released, then a time is agreed afterwards with the existing 24h reminder and 48h exception.
-- It's also used automatically when a job has no owner-picked times, which covers every job already in progress.
+## 2. Smallest fix
 
-## 2. Existing parts it touches
-- Owner acceptance flow: one extra step at the end.
-- The appointment-times list: reused, with one new optional link to the offer round.
-- Electrician offer cards on the partner dashboard: new time buttons and the fallback button.
-- The locked "accept offer" step in the database: a new version that also takes a chosen time. The old version stays for the fallback.
-- Existing booking confirmation, contact release, next-batch and coverage-exhausted logic: reused.
-- The 15-minute timer: also checks for the "ask the owner for more times" case.
-- The Needs Home Insulation Victoria list: one new reason.
-- Database: additions only. That's one new optional column, one new database step and one new owner request type. Nothing is renamed or deleted.
-- It is proven on a practice database first, then applied for preview.
+**Part A:**
+- After 48 hours with no confirmed booking, the job shows the exception "No booking confirmed after 48 hours — request another electrician", whether or not anyone replied.
+- With no reply at all, it keeps the existing message "No meaningful contact after 48 hours — request another electrician".
+- The 24-hour "monitoring" message stays as it is: a reply still clears that one.
+- A confirmed booking, or "can't attend", behaves as it does today.
 
-## 3. Jobs already mid-PIESA under the old flow
-- Today there are 4, all TEST jobs:
-  - 3 waiting on the PIESA, with 2 electricians already assigned and 1 open offer
-  - 1 PIESA already booked
-- No real jobs are affected.
-- They have no owner-picked times, so they carry on exactly as now through the old "accept then arrange a time" path. I won't change or backfill any existing record.
-- New times are only asked for on quotes accepted after this goes live.
+**Part B:**
+- Add Ready Check to the visits the office check covers, so it gets the same 24h reminder and 48h Needs Home Insulation Victoria entry as the others.
+- Ready Check bookings match Ready Check proposals.
+- The reminder stays queued only, because sending stays off.
 
-## 4. How to undo it
-- Hide the time-picker step and the time buttons, and offers fall back to the old path straight away. Or roll back to this version in History.
-- The new column and database step can stay unused without harm. A rollback script is tested on the practice database as well.
+**Tests:**
+- Correct the out-of-date test.
+- Add tests for every visit type: a reply with no booking after 48 hours is flagged, and a confirmed booking is never flagged.
+- Add a Ready Check case to the office check.
 
-## Checks after building (preview only, no publish)
-- Practice database tests:
-  - first tap wins
-  - two electricians tapping at once leaves only one booked
-  - expired, wrong-area and unapproved electricians are refused
-  - contacts are released only to the winner, for the PIESA only
-  - the fallback still works
-  - the ask-for-more-times and needs-attention order is right
-- Rule tests for the time limits: at least 3 different days, between 3 and 5 times, 2 business days to 21 days ahead.
-- Browser check on TEST jobs as a TEST owner and TEST Delta Electrical.
-- Then typecheck, wording scan, build and the full test suite.
-- Sending, the payment gate, Xero and Mitti stay off. Nothing else changes.
+**Not changing:** no database change, no new reminder types, no changes to job stages, payment, PIESA times or switches.
 
-## Questions to confirm
-- Slot shape: morning (8am–12pm) and afternoon (12pm–4pm) windows, or exact start times? I'd assume windows.
-- The second "no acceptance" goes straight to the needs-attention list, with no third request to the owner. I'd assume yes.
+## 3. Existing records
+
+- No stored record changes. Both parts only change what's worked out when a job is looked at, or when the office check runs.
+- **Part A:** no job is affected right now. No active electrician has replied, not booked, and passed 48 hours.
+- **Part B:** the 10 TEST Ready Check visits will appear on the Needs Home Insulation Victoria list, and get a queued (not sent) reminder record, the next time the check runs. No real jobs are affected.
+
+## 4. Undo
+
+Put back the old version of the two rules, or roll back to the current version in History. Nothing in the database needs undoing. The only lasting trace is the office-list entries and queued reminders on the TEST jobs, which nobody receives.
+
+## Technical details
+
+- `src/lib/pilot.core.ts` `appointmentSla`: the 48h branch uses `!a.booking_confirmed_at` instead of `!responded`, with the message chosen by `responded`. The order stays: cannot_attend, then booked, then 48h exception, then 24h attention.
+  - Keeps the existing test case where an office-entered booking doesn't count as REC contact.
+- `src/lib/allocation.server.ts` `sweepCoordination`: the `visit_kind` filter includes `ready_check`. Map `ready_check` to the matching proposal kind (check the `booking_kind` enum value `ready_check`, or the assessment kind used by the Ready Check flow, before building). The reminder outbox key is unchanged.
+- Tests:
+  - `tests/scheduling.test.ts`: update the "meaningful first contact" case.
+  - `tests/pilot.test.ts`: should then pass.
+  - `tests/allocation*.test.ts`: add the Ready Check case and the four-visit cases.
+- Checks: focused tests, typecheck, wording scan, build, and the full suite one file at a time.
