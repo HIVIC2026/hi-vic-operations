@@ -33,7 +33,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { RECORD_LABELS, type RecordKey } from "@/lib/compliance-timeline.core";
 import {
   adjustQuote, assignContractor, generateInstallerQuotes, markReadyForVeec, regenerateRectificationQuote, runComplianceReview,
-  setCommercialModel, setComplianceCheck, setEligibility, setHold, updateVeec, listComplianceRecords, recordComplianceItem,
+  setCommercialModel, setComplianceCheck, setEligibility, setHold, updateVeec, draftVeecReply, markVeecReplySent, listComplianceRecords, recordComplianceItem,
 } from "@/lib/portal.functions";
 import { ELIGIBILITY_LABEL, aud, fmtDate, type EligibilityOutcome } from "@/lib/workflow";
 import { Button } from "@/components/ui/button";
@@ -427,7 +427,7 @@ function Veec({ jobId }: { jobId: string }) {
       <form key={data.updated_at} className="space-y-2" onSubmit={(e) => {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
-        save({ jobId, quantity: f.get("quantity") ? Number(f.get("quantity")) : null, status: f.get("status") as "not_submitted", submission_reference: (f.get("ref") as string) || null, submitted_date: (f.get("date") as string) || null, notes: (f.get("notes") as string) || null, reason: (f.get("reason") as string) || null }, "VEEC saved");
+        save({ jobId, quantity: f.get("quantity") ? Number(f.get("quantity")) : null, status: f.get("status") as "not_submitted", submission_reference: (f.get("ref") as string) || null, submitted_date: (f.get("date") as string) || null, notes: (f.get("notes") as string) || null, query_text: (f.get("query_text") as string) || null, query_received_at: (f.get("query_received_at") as string) || null, reason: (f.get("reason") as string) || null }, "VEEC saved");
       }}>
         <p className="text-xs text-muted-foreground">Submitted or approved needs quantity, ESC reference and submitted date. Approved is final. Changing lodged details needs a reason.</p>
         <div className="grid grid-cols-2 gap-2">
