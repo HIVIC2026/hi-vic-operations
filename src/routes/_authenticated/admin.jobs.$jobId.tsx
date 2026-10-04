@@ -165,7 +165,6 @@ function EligibilityForm({ jobId }: { jobId: string }) {
   return (
     <Section title="Gate 1 · Eligibility">
       <dl className="mb-3 grid grid-cols-2 gap-1 text-sm">
-        <dt className="text-muted-foreground">Occupancy</dt><dd>{p?.occupancy?.replace("_", "-") ?? "—"}</dd>
         <dt className="text-muted-foreground">Residential</dt><dd>{p?.is_residential == null ? "To verify" : p.is_residential ? "Yes" : "No (commercial)"}</dd>
         <dt className="text-muted-foreground">Year built (relevant ceiling may differ)</dt><dd>{p?.year_built ?? "To verify"}{p?.year_built && new Date().getFullYear() - p.year_built < 5 && <Pill t="bad" className="ml-1">&lt; 5 yrs</Pill>}</dd>
         <dt className="text-muted-foreground">Est. area</dt><dd>{data.estimated_area_unknown ? "Unknown" : `${data.estimated_area_m2} m²`}</dd>
