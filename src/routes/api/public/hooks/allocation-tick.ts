@@ -1,0 +1,42 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
+
+// Scheduled allocation timer (pg_cron, every 15 min). Runs exactly the sweeps the office queue already runs:
+// expire overdue electrician offers + next batch, 24h coordination reminders (queued only). Counts only — never PII.
+export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const nonce = request.headers.get("x-hivic-cron-nonce");
+        if (nonce) {
+          if (!/^[0-9a-f]{64}$/.test(nonce)) return new Response("Unauthorized", { status: 401 });
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { data: ok } = await supabaseAdmin.rpc("consume_cron_nonce", { _nonce: nonce, _purpose: "allocation_tick" });
+          if (ok !== true) return new Response("Unauthorized", { status: 401 });
+        } else {
+          const denied = await authenticateCronRequest(request);
+          if (denied) return denied;
+        }
+        const { sweepRecOffers, sweepCoordination } = await import("@/lib/allocation.server");
+        const out: Record<string, unknown> = { ok: true };
+        try {
+          const o = await sweepRecOffers();
+          out.offers = { expired: o.expired, started: Array.isArray(o.started) ? o.started.length : o.started };
+        } catch (e) {
+          console.error("allocation tick: offer sweep failed", (e as Error).message);
+          out.ok = false;
+          out.offers = "failed";
+        }
+        try {
+          const c = await sweepCoordination();
+          out.coordination = typeof c === "object" && c ? Object.fromEntries(Object.entries(c).filter(([, v]) => typeof v === "number")) : null;
+        } catch (e) {
+          console.error("allocation tick: coordination sweep failed", (e as Error).message);
+          out.ok = false;
+          out.coordination = "failed";
+        }
+        return Response.json(out, { status: out.ok ? 200 : 500 });
+      },
+    },
+  },
+});
