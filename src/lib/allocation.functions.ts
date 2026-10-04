@@ -26,7 +26,7 @@ export const listRecCandidates = createServerFn({ method: "POST" }).middleware([
     const { recCandidatesFor } = await import("./allocation.server");
     const { rankRecCandidates } = await import("./allocation.core");
     const r = await recCandidatesFor(data.jobId);
-    const order = new Map(rankRecCandidates(r.candidates).map((c, i) => [c.business_id, i]));
+    const order = new Map(rankRecCandidates(r.candidates, { installerSourced: r.installerSourced }).map((c, i) => [c.business_id, i]));
     return r.candidates.map((c) => ({ id: c.business_id, name: c.name, blocker: c.blocker, rank: order.get(c.business_id) ?? null, preferred: !!c.preferred }))
       .sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
   });

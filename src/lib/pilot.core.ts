@@ -299,8 +299,9 @@ export function appointmentSla(a: SlaInput, now = new Date()) {
   const since = (now.getTime() - Date.parse(a.assigned_at)) / 3_600_000;
   const responded = !!a.first_response_at;
   if (a.cannot_attend_at) return { state: "exception" as const, hours: since, canRequestAnother: true, message: "Electrician can't attend in time — request another electrician" };
-  if (since >= SLA_BREACH_H && !responded) return { state: "exception" as const, hours: since, canRequestAnother: true, message: "No meaningful contact after 48 hours — request another electrician" };
+  // A confirmed booking (including one entered by the office) clears the 48h flag.
   if (a.booking_confirmed_at) return { state: "booked" as const, hours: 0, canRequestAnother: false, message: "Confirmed" };
+  if (since >= SLA_BREACH_H && !responded) return { state: "exception" as const, hours: since, canRequestAnother: true, message: "No meaningful contact after 48 hours — request another electrician" };
   // 48h rule is about a CONFIRMED booking: a reply alone does not stop the clock.
   if (since >= SLA_BREACH_H) return { state: "exception" as const, hours: since, canRequestAnother: true, message: "No booking confirmed after 48 hours — request another electrician" };
   if (since >= SLA_WARN_H && !responded) return { state: "attention" as const, hours: since, canRequestAnother: false, message: "No response for 24 hours — Home Insulation Victoria is monitoring this" };

@@ -79,7 +79,7 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
     };
     return { ...c, blocker: recEligibilityBlocker(c) };
   });
-  return { postcode, candidates };
+  return { postcode, installerSourced, candidates };
 }
 
 async function offerFacts(jobId: string) {
@@ -130,8 +130,8 @@ export async function startPiesaAllocation(jobId: string, actorId: string | null
 }
 
 async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false) {
-  const { expiryHours, batchSize } = await settings();
-  const [{ candidates }, { data: prior }] = await Promise.all([
+  const { businessHours, batchSize } = await settings();
+  const [{ candidates, installerSourced }, { data: prior }] = await Promise.all([
     recCandidatesFor(jobId),
     admin.from("partner_offers").select("business_id, batch, offered_at").eq("job_id", jobId).eq("kind", kind),
   ]);
@@ -145,7 +145,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   const noRate = candidates.filter((c) => offerRateBlocker(rates.get(c.business_id)?.rate ?? null, rateToConfirm));
   if (noRate.length) await logEvent(jobId, actorId, "rec_offer_rate_missing", `${noRate.length} electrician(s) skipped: no agreed electrician rate recorded`, { kind, businesses: noRate.map((c) => c.business_id) }, { internal: true });
   const priced = candidates.filter((c) => !noRate.includes(c));
-  const batch = nextOfferBatch(rankRecCandidates(priced), offered, batchSize);
+  const batch = nextOfferBatch(rankRecCandidates(priced, { installerSourced }), offered, batchSize, { installerSourced });
   if (!batch.length) {
     if (win && win.round > 0 && await windowsNoTaker(jobId, actorId, win.round)) return { offered: 0, exhausted: true };
     await logEvent(jobId, actorId, "rec_coverage_exhausted", `No approved electrician left to offer the ${kind} to — needs Home Insulation Victoria`, { kind, offered: [...offered] }, { internal: true });
@@ -153,7 +153,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
     return { offered: 0, exhausted: true };
   }
   const summary = await offerFacts(jobId);
-  const expires = offerExpiry(new Date(), expiryHours);
+  const expires = offerExpiryBusinessHours(new Date(), businessHours);
   const { error } = await admin.from("partner_offers").insert(batch.map((b) => ({ job_id: jobId, business_id: b.business_id, kind, batch: batchNo,
     summary: { ...summary, electrician_rate_inc_gst: rates.get(b.business_id)?.rate ?? null, electrician_rate_id: rates.get(b.business_id)?.id ?? null, electrician_rate_snapshot_at: new Date().toISOString(), rate_to_confirm: !rates.has(b.business_id) && rateToConfirm } as unknown as Json, offered_by: actorId, expires_at: expires })));
   if (error) throw new Error(error.message);
