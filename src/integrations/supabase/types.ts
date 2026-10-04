@@ -48,6 +48,7 @@ export type Database = {
           electrician_window: boolean
           ends_at: string | null
           id: string
+          install_day: boolean
           job_id: string
           kind: Database["public"]["Enums"]["booking_kind"]
           note: string | null
@@ -66,6 +67,7 @@ export type Database = {
           electrician_window?: boolean
           ends_at?: string | null
           id?: string
+          install_day?: boolean
           job_id: string
           kind?: Database["public"]["Enums"]["booking_kind"]
           note?: string | null
@@ -84,6 +86,7 @@ export type Database = {
           electrician_window?: boolean
           ends_at?: string | null
           id?: string
+          install_day?: boolean
           job_id?: string
           kind?: Database["public"]["Enums"]["booking_kind"]
           note?: string | null
@@ -4923,6 +4926,7 @@ export type Database = {
           external_refs: Json
           hold_reason: string | null
           id: string
+          install_10day_flagged_at: string | null
           installation_completed_at: string | null
           installer_led: boolean
           job_number: string
@@ -4971,6 +4975,7 @@ export type Database = {
           external_refs?: Json
           hold_reason?: string | null
           id?: string
+          install_10day_flagged_at?: string | null
           installation_completed_at?: string | null
           installer_led?: boolean
           job_number?: string
@@ -5019,6 +5024,7 @@ export type Database = {
           external_refs?: Json
           hold_reason?: string | null
           id?: string
+          install_10day_flagged_at?: string | null
           installation_completed_at?: string | null
           installer_led?: boolean
           job_number?: string
@@ -9935,6 +9941,15 @@ export type Database = {
       }
     }
     Functions: {
+      accept_install_day: {
+        Args: {
+          _assignment: string
+          _deadline: string
+          _proposal: string
+          _user: string
+        }
+        Returns: string
+      }
       accept_partner_offer: {
         Args: { _offer: string; _user: string }
         Returns: {

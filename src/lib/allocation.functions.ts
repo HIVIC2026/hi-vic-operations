@@ -108,6 +108,7 @@ export const getNeedsHivic = createServerFn({ method: "GET" }).middleware([requi
       admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "rec_no_longer_approved"),
       admin.from("quotes").select("job_id, sent_at").eq("kind", "rectification").eq("status", "issued").not("sent_at", "is", null),
     ]);
+    const { data: instEv } = await admin.from("workflow_events").select("job_id, event_type, created_at, details").in("event_type", ["install_ten_days_left", "install_days_declined"]).order("created_at", { ascending: false });
     const jobRows = ok(jobs, "jobs").filter((j) => j.source !== "qa_test");
     const withElec = new Set(ok(elec, "assignments").map((a) => a.job_id));
     const seen = new Set<string>();
@@ -136,6 +137,7 @@ export const getNeedsHivic = createServerFn({ method: "GET" }).middleware([requi
       registryQueries: ok(veec, "VEEC lodgements"),
       officeOverdue: [],
       rectUnanswered: ok(rsent, "rectification quotes sent"),
+      installFlags: (instEv ?? []).filter((e) => !!e.job_id).map((e) => ({ job_id: e.job_id!, code: e.event_type as "install_ten_days_left" | "install_days_declined", created_at: e.created_at, detail: e.event_type === "install_ten_days_left" ? `Last day ${(e.details as { deadline?: string } | null)?.deadline ?? "?"}.` : undefined })),
     });
     return { items, checkedAt: now.toISOString() };
   });
@@ -205,4 +207,49 @@ export const getInstallHold = createServerFn({ method: "POST" }).middleware([req
     await requireAdmin(context.supabase);
     const { getActiveHold } = await import("./install-holds.server");
     return (await getActiveHold(data.jobId)) ?? null;
+  });
+
+// ---------- Owner install days + quoted installer one-tap booking ----------
+const ownerOnly = async (supabase: Parameters<typeof requireJobRole>[0], jobId: string, userId: string) => {
+  await requireJobRole(supabase, jobId, ["owner"]);
+  const { data: isOwner } = await supabase.rpc("is_job_owner", { _job: jobId, _user: userId });
+  if (!isOwner) throw new WorkflowError("Only the owner can choose install days.");
+};
+
+export const getOwnerInstallDays = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, data.jobId, ["owner", "admin"]);
+    const { ownerInstallDayState } = await import("./install-days.server");
+    return ownerInstallDayState(data.jobId);
+  });
+
+export const chooseOwnerInstallDays = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, days: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(5) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await ownerOnly(context.supabase, data.jobId, context.userId);
+    const { submitOwnerInstallDays } = await import("./install-days.server");
+    return submitOwnerInstallDays(data.jobId, context.userId, data.days);
+  });
+
+export const ownerNoneInstallDays = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await ownerOnly(context.supabase, data.jobId, context.userId);
+    const { ownerNoInstallDays } = await import("./install-days.server");
+    return ownerNoInstallDays(data.jobId, context.userId);
+  });
+
+export const installerTakeInstallDay = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, proposalId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { installerTakeDay } = await import("./install-days.server");
+    return installerTakeDay(data.jobId, data.proposalId, context.userId);
+  });
+
+export const installerDeclineInstallDays = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, reason: z.string().trim().max(500).nullable() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { installerDeclineDays } = await import("./install-days.server");
+    return installerDeclineDays(data.jobId, context.userId, data.reason || null);
   });

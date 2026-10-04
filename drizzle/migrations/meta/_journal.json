@@ -673,6 +673,13 @@
       "when": 1791120316216,
       "tag": "0095_install_holds",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1791120959179,
+      "tag": "0096_install_days",
+      "breakpoints": true
     }
   ]
 }

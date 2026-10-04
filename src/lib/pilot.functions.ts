@@ -639,8 +639,16 @@ export const partnerDashboard = createServerFn({ method: "GET" }).middleware([re
         bookings: (bookings ?? []).filter((b) => b.job_id === j.id), proposal_pending: (props ?? []).some((x) => x.job_id === j.id), deposit_cleared: deposit?.deposit_cleared ?? null, blockers: blockers.slice(0, 3),
       };
     }));
+    // Owner install days for jobs where this business is the quoted installer: days only, never owner details.
+    const instJobs = [...new Set((asg ?? []).filter((a) => a.role === "installer").map((a) => a.job_id))];
+    const { installerOpenDays } = await import("./install-days.server");
+    const dayRows = await installerOpenDays(instJobs);
+    const installDays = instJobs.map((id) => {
+      const c = cards.find((x) => x.id === id);
+      return { job_id: id, job_number: c?.job_number ?? null, suburb: (c?.property as { suburb?: string | null } | undefined)?.suburb ?? null, postcode: (c?.property as { postcode?: string | null } | undefined)?.postcode ?? null, days: dayRows.filter((d) => d.job_id === id).map((d) => ({ id: d.id, starts_at: d.starts_at })) };
+    }).filter((x) => x.days.length);
     const { xero_contact_id: _x, xero_contact_error: _e, ...safeBiz } = business ?? ({} as never);
-    return { business: safeBiz, isBizAdmin, blocker: (await import("./pilot.core")).partnerWorkBlocker(business as BusinessLike, credentials), offers: (offers ?? []).map(({ job_id, ...o }) => ({ ...o, windows: o.kind === "piesa" ? (winRows ?? []).filter((w) => w.job_id === job_id).map((w) => ({ id: w.id, starts_at: w.starts_at, ends_at: w.ends_at })) : [] })), jobs: cards, jobIds };
+    return { business: safeBiz, isBizAdmin, blocker: (await import("./pilot.core")).partnerWorkBlocker(business as BusinessLike, credentials), offers: (offers ?? []).map(({ job_id, ...o }) => ({ ...o, windows: o.kind === "piesa" ? (winRows ?? []).filter((w) => w.job_id === job_id).map((w) => ({ id: w.id, starts_at: w.starts_at, ends_at: w.ends_at })) : [] })), jobs: cards, jobIds, installDays };
   });
 
 export const listDraftImports = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])

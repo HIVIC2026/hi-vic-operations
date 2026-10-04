@@ -3,7 +3,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { chooseHoldWeek, formatHoldWeek, holdShouldRelease, initialHoldWeek, piesaHoldWeek, rectificationHoldWeek } from "./install-holds.core";
 
-async function quotedAreaM2(jobId: string): Promise<number> {
+export async function quotedAreaM2(jobId: string): Promise<number> {
   const { data: q } = await admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle();
   if (q) {
     const { data: items } = await admin.from("quote_items").select("quantity, unit").eq("quote_id", q.id);
@@ -16,7 +16,7 @@ async function quotedAreaM2(jobId: string): Promise<number> {
   return Number(j?.estimated_area_m2 ?? 0) || 0;
 }
 
-async function quotedInstaller(jobId: string): Promise<string | null> {
+export async function quotedInstaller(jobId: string): Promise<string | null> {
   const { data: a } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   if (a?.business_id) return a.business_id;
   const { data: q } = await admin.from("quotes").select("partner_business_id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted").limit(1).maybeSingle();
