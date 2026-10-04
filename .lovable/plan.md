@@ -1,60 +1,46 @@
-# 48-hour escalation fix (plan only)
+# Step 7: Electrician matching (Operating Model v2)
 
-## 1. Real bug or out-of-date test?
+Plus the approved one-liner: an office-entered **confirmed** booking clears the 48-hour flag.
 
-It's a real bug, and it has two parts.
+## What exists today
+- Offers already go out in batches of 3 (setting), with "next batch" when nobody accepts, and the step 6 "ask owner for more times" then needs-attention flow.
+- Eligibility check already covers: approved and active, accepting jobs, verified postcode coverage, current licence/REC, at least one approved licensed electrician, weekly capacity.
+- Ranking today: preferred partner, exact postcode, spare capacity, fewest recent offers, acceptance rate. Price is not used.
+- Offers expire after a plain number of clock hours (setting, default 2), checked by the existing 15-minute timer.
+- Not tracked today: daily job limit, no-shows, acceptance speed, "job nearby that day".
 
-**The rule** (workflow source of truth and the workflow settings): "48h without confirmed booking → office Needs attention", for all four visits: Ready Check, PIESA, rectification and installation. A reply or a suggested time does not count as a booking.
+## What I would change
+1. **Eligibility** – add two checks:
+   - Free in at least one of the owner's PIESA windows (no confirmed booking for that electrician in that window). If the owner hasn't given times yet, this check is skipped.
+   - Under their daily limit, only if one is set (new optional field, empty = no limit).
+2. **Ranking** (new order, price still never used):
+   1. Already has a confirmed job in a nearby postcode on one of the owner's window days (same postcode, or one of their verified service postcodes).
+   2. Reliability: acceptance rate, minus no-shows and rejected evidence where recorded. Missing history = neutral.
+   3. Fewest jobs in the last 30 days (fair spread).
+   4. Fastest average acceptance time.
+   The existing "preferred electrician of the installer" rule stays first — please confirm or tell me to drop it.
+3. **4 business hours to accept** – Melbourne time, weekdays 8am–5pm (please confirm hours), skipping Vic public holidays (reuses the step 6 holiday list). An offer sent Friday 4pm expires Monday 11am.
+4. **Next 3** – unchanged batches of 3 with the same owner times; when everyone has been tried, step 6's flow runs as today.
+5. **Office booking** – an office-entered confirmed booking clears the 48-hour flag (one line in the job-page timer).
+6. Uses the existing 15-minute timer; no new schedule.
 
-**Part A: the job-page timer stops the clock too early.**
-- The timer on the job page that decides when "Request another electrician" appears treats any first reply as enough.
-- So an electrician who replied at hour 40 but never booked shows "Electrician made contact". There is no 48-hour flag and no "request another" option.
-- Two tests disagree about this:
-  - One says a first reply stops the clock. It is out of date and matches neither the written rule nor the workflow settings.
-  - The other expects the 48-hour flag, which matches the rule. That is the one failing.
+## Parts touched
+- Electrician eligibility/ranking rules and offer expiry (pure, tested).
+- The candidate list builder that gathers facts for each electrician.
+- Office REC settings: one optional "daily job limit" box.
+- Job-page 48-hour timer (office booking line).
+- Tests for each rule, plus a business-hours expiry test across a weekend and a public holiday.
 
-**Part B: the office check skips Ready Checks.**
-- The office check that fills the Needs Home Insulation Victoria list (and sends the 24h reminders) only looks at PIESA, rectification and installation visits. Ready Check visits are left out.
-- Database evidence: 10 Ready Check visits have contacts shared, no booking, and are more than 48 hours old. They have never been flagged. All 10 are TEST jobs.
-- PIESA, rectification and installation are already handled correctly, using 48 hours since contacts were shared with no confirmed booking.
+## Database change (practice first)
+One small additive change: an optional daily limit on businesses, and a "business hours" offer time setting (default 4). Proven on a practice database first (existing rows unchanged, rollback clean), then applied only after you say go. No-shows: counted from existing booking records where marked; if no such marker exists I count none and say so, rather than invent one.
 
-## 2. Smallest fix
+## Effect on existing offers and records
+- Offers already sent keep their current expiry time; the new 4-business-hour rule applies only to new offers.
+- No existing records changed. No backfill. Sending stays off.
 
-**Part A:**
-- After 48 hours with no confirmed booking, the job shows the exception "No booking confirmed after 48 hours — request another electrician", whether or not anyone replied.
-- With no reply at all, it keeps the existing message "No meaningful contact after 48 hours — request another electrician".
-- The 24-hour "monitoring" message stays as it is: a reply still clears that one.
-- A confirmed booking, or "can't attend", behaves as it does today.
+## Undo
+Revert ranking/expiry functions in History; the new optional field and setting can be left unused (empty = old behaviour).
 
-**Part B:**
-- Add Ready Check to the visits the office check covers, so it gets the same 24h reminder and 48h Needs Home Insulation Victoria entry as the others.
-- Ready Check bookings match Ready Check proposals.
-- The reminder stays queued only, because sending stays off.
-
-**Tests:**
-- Correct the out-of-date test.
-- Add tests for every visit type: a reply with no booking after 48 hours is flagged, and a confirmed booking is never flagged.
-- Add a Ready Check case to the office check.
-
-**Not changing:** no database change, no new reminder types, no changes to job stages, payment, PIESA times or switches.
-
-## 3. Existing records
-
-- No stored record changes. Both parts only change what's worked out when a job is looked at, or when the office check runs.
-- **Part A:** no job is affected right now. No active electrician has replied, not booked, and passed 48 hours.
-- **Part B:** the 10 TEST Ready Check visits will appear on the Needs Home Insulation Victoria list, and get a queued (not sent) reminder record, the next time the check runs. No real jobs are affected.
-
-## 4. Undo
-
-Put back the old version of the two rules, or roll back to the current version in History. Nothing in the database needs undoing. The only lasting trace is the office-list entries and queued reminders on the TEST jobs, which nobody receives.
-
-## Technical details
-
-- `src/lib/pilot.core.ts` `appointmentSla`: the 48h branch uses `!a.booking_confirmed_at` instead of `!responded`, with the message chosen by `responded`. The order stays: cannot_attend, then booked, then 48h exception, then 24h attention.
-  - Keeps the existing test case where an office-entered booking doesn't count as REC contact.
-- `src/lib/allocation.server.ts` `sweepCoordination`: the `visit_kind` filter includes `ready_check`. Map `ready_check` to the matching proposal kind (check the `booking_kind` enum value `ready_check`, or the assessment kind used by the Ready Check flow, before building). The reminder outbox key is unchanged.
-- Tests:
-  - `tests/scheduling.test.ts`: update the "meaningful first contact" case.
-  - `tests/pilot.test.ts`: should then pass.
-  - `tests/allocation*.test.ts`: add the Ready Check case and the four-visit cases.
-- Checks: focused tests, typecheck, wording scan, build, and the full suite one file at a time.
+## Questions
+- Business hours: 8am–5pm OK?
+- Keep the installer's preferred electrician at the top?
