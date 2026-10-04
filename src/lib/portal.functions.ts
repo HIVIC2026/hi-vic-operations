@@ -466,7 +466,10 @@ export const priceRectItem = createServerFn({ method: "POST" }).middleware([requ
 
 /** Complete the ELECTRICAL / PIESA requirement. The electrician never completes the installer measure-up. */
 export const completeAssessment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .inputValidator((d) => z.object({
+    jobId: uuid, rectHours: z.number().optional(),
+    rectWindows: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["morning", "afternoon"]) })).max(5).optional(),
+  }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
     const { data: a } = await admin.from("assessments").select("*").eq("job_id", data.jobId).maybeSingle();
@@ -493,6 +496,12 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     if (!rectCount && a.no_rectification_confirmed !== true) throw new WorkflowError("Add the rectification items for today's quote, or tick \"No rectification required\", before completing the PIESA.");
     if (rectCount && a.no_rectification_confirmed === true) throw new WorkflowError("You ticked \"No rectification required\" but rectification items are listed – untick it or remove the items.");
 
+    // Rectification needed: the electrician also gives estimated hours + 3-5 windows (asked once, here).
+    if (rectCount) {
+      const { rectPlanBlockers } = await import("./rectification.core");
+      const rb = rectPlanBlockers(data.rectHours, data.rectWindows ?? []);
+      if (rb.length) throw new WorkflowError(`Rectification times: ${rb.join(" ")}`);
+    }
     const stage = await getStage(data.jobId);
     if (stage !== "assessment_booked") throw new WorkflowError(`Assessment can be completed from "Assessment Booked" (current: ${STAGE_LABEL[stage]}).`);
     const now = new Date().toISOString();
@@ -501,6 +510,18 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     await admin.from("piesa_records").insert({ job_id: data.jobId, assessment_id: a.id, kind: "initial", outcome: a.piesa_outcome, completed_date: a.assessed_on!, signed_off_by: context.userId, external_mitti_id: a.external_mitti_id });
     await logEvent(data.jobId, context.userId, "electrical_assessment_complete", `Electrical assessment complete – PIESA ${a.piesa_outcome} (${s.label})`, { scope: s.scope });
     const res = await advanceSiteRequirements(data.jobId, context.userId);
+    if (rectCount && data.rectWindows?.length) {
+      const { windowBounds } = await import("./piesa-windows.core");
+      const { data: rq } = await admin.from("quotes").select("id").eq("job_id", data.jobId).eq("kind", "rectification").eq("status", "draft").order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (rq) await admin.from("quotes").update({ rect_estimated_hours: data.rectHours ?? null }).eq("id", rq.id);
+      const { data: asg } = await admin.from("job_assignments").select("id").eq("job_id", data.jobId).eq("role", "electrician").eq("active", true).maybeSingle();
+      const { error: we } = await admin.from("appointment_proposals").insert(data.rectWindows.map((w) => ({
+        job_id: data.jobId, kind: "rectification" as const, assignment_id: asg?.id ?? null, proposed_by: context.userId, proposer_role: "electrician",
+        ...windowBounds(w.date, w.slot), electrician_window: true, note: `Electrician's rectification window (est. ${data.rectHours} h)`,
+      })));
+      if (we) throw new WorkflowError(we.message);
+      await logEvent(data.jobId, context.userId, "rectification_windows_given", `Electrician gave ${data.rectWindows.length} rectification windows and an estimate of ${data.rectHours} hours`, { hours: data.rectHours });
+    }
     await autoAdvanceJob(data.jobId, context.userId, "assessment completed");
     return res;
   });
@@ -575,6 +596,7 @@ export const adjustQuote = createServerFn({ method: "POST" }).middleware([requir
 export const respondToQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
   .inputValidator((d) => z.object({
     quoteId: uuid, accept: z.boolean(), consent: z.boolean().optional(), reason: z.string().max(1000).optional(),
+    windowId: uuid.optional(), noneSuit: z.boolean().optional(),
     signing: z.object({
       signatoryName: z.string().trim().min(2).max(200), authorityType: z.enum(["owner", "authorised_representative"]), over18: z.boolean(),
       readConsumerInfo: z.boolean(), acceptAgreement: z.boolean(), signatureName: z.string().trim().max(200),
@@ -620,8 +642,27 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
       const { assistance, ...input } = data.signing;
       await signCustomerAgreement({ quoteId: q.id, actorId: context.userId, input, assistance, ip: context.ip, userAgent: context.userAgent });
     }
-    await admin.from("quotes").update({ status: "accepted", accepted_at: new Date().toISOString(), accepted_by: context.userId }).eq("id", q.id);
+    let pickedWindow: string | null = null;
+    if (q.kind === "rectification") {
+      // New path: if the electrician gave windows, the owner must pick one (24h+ away) or say none suit.
+      const { data: ws } = await admin.from("appointment_proposals").select("id, starts_at, status").eq("job_id", q.job_id).eq("kind", "rectification").eq("electrician_window", true).eq("status", "proposed");
+      const { pickableRectWindows } = await import("./rectification.core");
+      const open = pickableRectWindows(ws ?? []);
+      if (data.windowId) {
+        if (!open.some((w) => w.id === data.windowId)) throw new WorkflowError("That time is no longer available. Please choose another.");
+        const { error: re } = await admin.rpc("approve_rectification_with_window", { _quote: q.id, _proposal: data.windowId, _user: context.userId });
+        if (re) throw new WorkflowError(re.message);
+        pickedWindow = open.find((w) => w.id === data.windowId)!.starts_at;
+      } else if (ws?.length && !data.noneSuit) {
+        throw new WorkflowError("Please choose one of the electrician's times, or tap \"None of these work\".");
+      } else if (ws?.length) {
+        await admin.from("appointment_proposals").update({ status: "superseded", response_note: "Owner: none of these work" }).eq("job_id", q.job_id).eq("electrician_window", true).eq("status", "proposed");
+        await logEvent(q.job_id, context.userId, "rectification_windows_declined", "Owner said none of the electrician's times work — contacts will be shared for the rectification visit when scheduling opens");
+      }
+    }
+    if (!pickedWindow) await admin.from("quotes").update({ status: "accepted", accepted_at: new Date().toISOString(), accepted_by: context.userId }).eq("id", q.id);
     await admin.from("quotes").update({ status: "superseded" }).eq("job_id", q.job_id).eq("kind", q.kind).eq("status", "issued");
+    if (pickedWindow) await logEvent(q.job_id, context.userId, "rectification_window_picked", `Owner picked the rectification time ${new Date(pickedWindow).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}; it becomes the confirmed booking when rectification scheduling opens`, { quote_id: q.id, starts_at: pickedWindow });
 
     if (q.kind === "rectification") {
       // Scope approval only – no invoice. The rectification lines are folded into the final installation quote.

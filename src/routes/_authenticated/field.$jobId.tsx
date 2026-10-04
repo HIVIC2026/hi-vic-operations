@@ -1,3 +1,4 @@
+import { RectPlanFields, rectPlanProblems, type RectPlan } from "@/components/portal/rectification-times";
 import { VisitContactsCard } from "@/components/portal/allocation";
 import { ElectricianChoicePanel, PartnerProposalForm } from "@/components/portal/partner";
 import { nextStep } from "@/lib/nextstep.core";
@@ -73,6 +74,11 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
   const [saved, setSaved] = useState<string | null>(null);
   useEffect(() => { if (a) setF(a as unknown as A); }, [a]);
   const locked = a?.status === "complete";
+  const [plan, setPlan] = useState<RectPlan>({ hours: "", picks: [] });
+  const { data: rectCount } = useQuery({ queryKey: ["rect-items-count", jobId], queryFn: async () => (await supabase.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "required")).count ?? 0, refetchInterval: 5000 });
+  const needsPlan = !!rectCount && f["no_rectification_confirmed"] !== true;
+  const finish = () => complete(needsPlan ? { jobId, rectHours: Number(plan.hours), rectWindows: plan.picks } : { jobId }, "PIESA complete");
+  const planBlock = !locked && needsPlan ? <Section title="Rectification time and hours"><RectPlanFields value={plan} onChange={setPlan} /></Section> : null;
   const put = async (k: string, v: string | number | boolean | null) => {
     setF((p) => ({ ...p, [k]: v }));
     if (locked) return;
@@ -109,7 +115,8 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
           {<MittiSyncedFields a={a as unknown as Record<string, unknown>} />}
           {!locked && <EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} />}
           {!locked && <OtherItems jobId={jobId} editable />}
-          {!locked && <Button size="field" className="w-full" onClick={() => complete({ jobId }, "PIESA complete")}><Check /> Complete PIESA</Button>}
+          {planBlock}
+          {!locked && <Button size="field" className="w-full" disabled={needsPlan && rectPlanProblems(plan).length > 0} onClick={finish}><Check /> Complete PIESA</Button>}
         </>
       )}
       {!a?.external_mitti_id && (assessing || locked) && (
@@ -148,7 +155,8 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
               No rectification required at this property
             </label>
           </Section>
-           {!locked && <Button size="field" className="w-full" onClick={() => complete({ jobId }, "PIESA complete")}><Check /> Complete PIESA</Button>}
+          {planBlock}
+           {!locked && <Button size="field" className="w-full" disabled={needsPlan && rectPlanProblems(plan).length > 0} onClick={finish}><Check /> Complete PIESA</Button>}
           </div>
         </details>
       )}

@@ -1,4 +1,5 @@
 // Electrician allocation, job-only contact sharing and rectification review cards.
+import { RectWindowsSummary } from "./rectification-times";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +37,7 @@ export function OfficeAllocationPanel({ jobId }: { jobId: string }) {
         {rect.data && (
           <div className="rounded-lg border p-3">
             <div className="font-semibold">Draft rectification quote — office review required before the owner sees it</div>
+            <RectWindowsSummary jobId={jobId} />
             <div className="mt-2 flex gap-2">
               {!rect.data.office_reviewed_at
                 ? <Button size="sm" onClick={async () => { await review({ quoteId: rect.data!.id }, "Marked reviewed"); refresh(); }}>Mark reviewed</Button>

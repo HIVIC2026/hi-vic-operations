@@ -1,3 +1,4 @@
+import { rectQuoteUnanswered } from "./rectification.core";
 // Contractor allocation + direct self-scheduling (pure rules, no I/O).
 // The portal never becomes a diary-booking desk: trades accept work, owner and trade contact each other
 // directly for the active visit, and a time is booked only when the OTHER party (or office) confirms it.
@@ -295,7 +296,7 @@ export function installerUnavailableOutcome(f: { reason: string | null | undefin
 export type NeedsCode =
   | "rec_coverage_exhausted" | "piesa_booking_overdue" | "delivery_failed" | "rectification_declined"
   | "rectification_pricing_review" | "installer_unavailable" | "installation_booking_overdue" | "ready_check_booking_overdue"
-  | "piesa_timing_invalid" | "esc_or_distribution_timing" | "compliance_correction" | "registry_query" | "office_overdue"
+  | "piesa_timing_invalid" | "esc_or_distribution_timing" | "compliance_correction" | "registry_query" | "office_overdue" | "rectification_quote_unanswered"
   | "rec_no_longer_approved";
 export type NeedsUrgency = "urgent" | "today" | "soon";
 export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency: NeedsUrgency; stage: string | null; suburb: string | null };
@@ -312,6 +313,7 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   piesa_timing_invalid: { why: "Installation may not commence within 30 days of the PIESA timing date.", next: "Check the PIESA tab; bring installation forward or arrange a new PIESA.", tab: "piesa", urgency: "urgent" },
   esc_or_distribution_timing: { why: "Installation is close but the PIESA copy or ESC pre-install notice is not done in time.", next: "Send the PIESA copy / ESC notice from the Compliance tab, or move the installation date.", tab: "compliance", urgency: "urgent" },
   compliance_correction: { why: "A compliance record needs correcting before the job can continue.", next: "Open the Evidence tab and fix or request the missing/incorrect item.", tab: "evidence", urgency: "soon" },
+  rectification_quote_unanswered: { why: "Rectification quote unanswered — 30-day clock at risk. The owner has not responded 5 days after it was sent.", next: "Call the owner about the rectification quote on the Quotes tab.", tab: "quotes", urgency: "today" },
   registry_query: { why: "The ESC/VEEC Registry raised a query or rejected the lodgement.", next: "Answer the query or correct and resubmit on the VEEC tab.", tab: "veec", urgency: "soon" },
   office_overdue: { why: "A task owned by Home Insulation Victoria is overdue.", next: "Open the job and complete the overdue office step.", tab: "overview", urgency: "soon" },
   rec_no_longer_approved: { why: "The assigned electrician is no longer an approved, active REC, so the electrical work cannot continue with them.", next: "Release the electrician on the PIESA tab and re-offer the work to another approved REC (the owner keeps the approved quote).", tab: "piesa", urgency: "today" },
@@ -361,6 +363,7 @@ export type NeedsInput = {
   evidenceRejected: { job_id: string; created_at: string | null }[];
   registryQueries: { job_id: string; status: string; updated_at: string | null; query_received_at?: string | null; reply_sent_at?: string | null }[];
   officeOverdue: { job_id: string | null; title: string; since: string | null }[];
+  rectUnanswered?: { job_id: string; sent_at: string | null }[];
 };
 
 /** ONE office exception queue: only what automation cannot safely resolve, never routine waiting. */
@@ -394,6 +397,7 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
     add("registry_query", r.job_id, r.updated_at, `Status: ${r.status}.${overdue ? " Unanswered 3+ days." : ""}`);
   }
   for (const o of i.officeOverdue) add("office_overdue", o.job_id, o.since, o.title);
+  for (const q of i.rectUnanswered ?? []) if (rectQuoteUnanswered({ kind: "rectification", status: "issued", sent_at: q.sent_at }, i.now)) add("rectification_quote_unanswered", q.job_id, q.sent_at);
   const rank: Record<NeedsUrgency, number> = { urgent: 0, today: 1, soon: 2 };
   return [...out.values()].sort((a, b) => rank[a.urgency] - rank[b.urgency] || (a.since ?? "").localeCompare(b.since ?? ""));
 }

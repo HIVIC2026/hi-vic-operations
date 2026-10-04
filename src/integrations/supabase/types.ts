@@ -45,6 +45,7 @@ export type Database = {
         Row: {
           assignment_id: string | null
           created_at: string
+          electrician_window: boolean
           ends_at: string | null
           id: string
           job_id: string
@@ -62,6 +63,7 @@ export type Database = {
         Insert: {
           assignment_id?: string | null
           created_at?: string
+          electrician_window?: boolean
           ends_at?: string | null
           id?: string
           job_id: string
@@ -79,6 +81,7 @@ export type Database = {
         Update: {
           assignment_id?: string | null
           created_at?: string
+          electrician_window?: boolean
           ends_at?: string | null
           id?: string
           job_id?: string
@@ -8025,6 +8028,7 @@ export type Database = {
           job_id: string
           kind: Database["public"]["Enums"]["quote_kind"]
           manually_adjusted: boolean
+          nudge_24h_at: string | null
           nudge_day10_at: string | null
           nudge_day3_at: string | null
           office_reviewed_at: string | null
@@ -8035,6 +8039,7 @@ export type Database = {
           prices_include_gst: boolean
           pricing_settings_id: string | null
           rate_card_id: string | null
+          rect_estimated_hours: number | null
           sent_at: string | null
           status: Database["public"]["Enums"]["quote_status"]
           subtotal_inc_gst: number
@@ -8054,6 +8059,7 @@ export type Database = {
           job_id: string
           kind: Database["public"]["Enums"]["quote_kind"]
           manually_adjusted?: boolean
+          nudge_24h_at?: string | null
           nudge_day10_at?: string | null
           nudge_day3_at?: string | null
           office_reviewed_at?: string | null
@@ -8064,6 +8070,7 @@ export type Database = {
           prices_include_gst?: boolean
           pricing_settings_id?: string | null
           rate_card_id?: string | null
+          rect_estimated_hours?: number | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal_inc_gst: number
@@ -8083,6 +8090,7 @@ export type Database = {
           job_id?: string
           kind?: Database["public"]["Enums"]["quote_kind"]
           manually_adjusted?: boolean
+          nudge_24h_at?: string | null
           nudge_day10_at?: string | null
           nudge_day3_at?: string | null
           office_reviewed_at?: string | null
@@ -8093,6 +8101,7 @@ export type Database = {
           prices_include_gst?: boolean
           pricing_settings_id?: string | null
           rate_card_id?: string | null
+          rect_estimated_hours?: number | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal_inc_gst?: number
@@ -9949,6 +9958,10 @@ export type Database = {
           paid_at: string
           payment_status: string
         }[]
+      }
+      approve_rectification_with_window: {
+        Args: { _proposal: string; _quote: string; _user: string }
+        Returns: string
       }
       begin_quarantine_validation: {
         Args: { _app: string; _path: string }

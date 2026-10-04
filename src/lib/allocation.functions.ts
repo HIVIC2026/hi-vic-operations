@@ -92,7 +92,7 @@ export const getNeedsHivic = createServerFn({ method: "GET" }).middleware([requi
       if (r.error) throw new Error(`Could not load ${what}: ${r.error.message}`);
       return (r.data ?? []) as T;
     };
-    const [jobs, exh, elec, rel, comms, rq, rp, unav, timing, esc, ev, veec, unappr] = await Promise.all([
+    const [jobs, exh, elec, rel, comms, rq, rp, unav, timing, esc, ev, veec, unappr, rsent] = await Promise.all([
       admin.from("jobs").select("id, job_number, source, stage, properties(suburb, postcode)").not("stage", "in", "(complete,cancelled)"),
       admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "rec_coverage_exhausted").order("created_at", { ascending: false }),
       admin.from("job_assignments").select("job_id").eq("role", "electrician").eq("active", true),
@@ -106,6 +106,7 @@ export const getNeedsHivic = createServerFn({ method: "GET" }).middleware([requi
       admin.from("evidence_requirements").select("job_id, verified_at").eq("status", "rejected"),
       admin.from("veec_lodgements").select("job_id, status, updated_at, query_received_at, reply_sent_at").in("status", ["query", "rejected"]),
       admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "rec_no_longer_approved"),
+      admin.from("quotes").select("job_id, sent_at").eq("kind", "rectification").eq("status", "issued").not("sent_at", "is", null),
     ]);
     const jobRows = ok(jobs, "jobs").filter((j) => j.source !== "qa_test");
     const withElec = new Set(ok(elec, "assignments").map((a) => a.job_id));
@@ -134,6 +135,7 @@ export const getNeedsHivic = createServerFn({ method: "GET" }).middleware([requi
       evidenceRejected: ok(ev, "evidence").map((e) => ({ job_id: e.job_id, created_at: e.verified_at })),
       registryQueries: ok(veec, "VEEC lodgements"),
       officeOverdue: [],
+      rectUnanswered: ok(rsent, "rectification quotes sent"),
     });
     return { items, checkedAt: now.toISOString() };
   });
@@ -150,7 +152,7 @@ export const sendRectificationQuote = createServerFn({ method: "POST" }).middlew
     const { count } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("needs_office_pricing", true);
     const b = rectificationSendBlocker({ kind: q.kind, status: q.status, office_reviewed_at: q.office_reviewed_at, has_unpriced_items: !!count }, true);
     if (b) throw new WorkflowError(b);
-    const { data: u } = await admin.from("quotes").update({ status: "issued" }).eq("id", q.id).eq("status", "draft").select("id").maybeSingle();
+    const { data: u } = await admin.from("quotes").update({ status: "issued", sent_at: new Date().toISOString() }).eq("id", q.id).eq("status", "draft").select("id").maybeSingle();
     if (!u) throw new WorkflowError("This quote is no longer a draft.");
     await logEvent(q.job_id, context.userId, "rectification_quote_issued", "Office sent the reviewed rectification quote to the owner for approval", { quote_id: q.id });
     return { ok: true };
@@ -174,4 +176,24 @@ export const chooseOwnerPiesaWindows = createServerFn({ method: "POST" }).middle
     if (!isOwner) throw new WorkflowError("Only the owner can choose PIESA times.");
     const { submitOwnerPiesaWindows } = await import("./allocation.server");
     return submitOwnerPiesaWindows(data.jobId, context.userId, data.picks);
+  });
+
+/** Owner/office: the electrician's rectification windows the owner may still pick (24h+ away), plus estimated hours. */
+export const getRectificationWindows = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, data.jobId, ["owner", "admin"]);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { pickableRectWindows } = await import("./rectification.core");
+    const [{ data: ws }, { data: q }] = await Promise.all([
+      admin.from("appointment_proposals").select("id, starts_at, ends_at, status").eq("job_id", data.jobId).eq("kind", "rectification").eq("electrician_window", true),
+      admin.from("quotes").select("rect_estimated_hours").eq("job_id", data.jobId).eq("kind", "rectification").in("status", ["draft", "issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    const all = (ws ?? []).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+    return {
+      hasWindows: all.length > 0,
+      pickable: pickableRectWindows(all).map((w) => ({ id: w.id, starts_at: w.starts_at, ends_at: w.ends_at })),
+      all: all.map((w) => ({ id: w.id, starts_at: w.starts_at, ends_at: w.ends_at, status: w.status })),
+      hours: q?.rect_estimated_hours ?? null,
+    };
   });
