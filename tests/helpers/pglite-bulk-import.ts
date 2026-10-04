@@ -46,5 +46,6 @@ export async function bulkDb() {
 }
 
 export async function asUser(db: PGlite, userId: string) {
-  await db.exec(`SET request.jwt.claim.sub = '${userId}'`);
+  // postgres bypasses RLS; switch to the authenticated role so policies are exercised
+  await db.exec(`RESET ROLE; SET ROLE authenticated; SET request.jwt.claim.sub = '${userId}'`);
 }
