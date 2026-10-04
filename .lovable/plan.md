@@ -1,80 +1,54 @@
-# Step 10: ESC pre-install notification and day-before pre-start check
+# Step 11: Ready Check booking (owner windows + installer one-tap), plus step 10 tests
+
+## Also in this build: tests for step 10
+- The installer safety form is not sent to Mitti while the day-before check is failed or missing, and is sent once it passes.
+- Installation evidence uploads are refused (request and confirm) while locked. Measure-up photos still work.
+- Recording the ESC submission re-runs the check straight away, so the lock lifts when everything else is fine.
 
 ## What exists today
-- **ESC notification details are already prepared automatically** when an install is booked: address, owner, installer, lead installer name, business, ABN, date and so on.
-- **The 5-day / 24-hour rule** is already checked when a submission is recorded.
-- **"Submitted"** is already recorded by hand, with a reference and date. It is never marked sent without one.
-- **If the install date or address changes**, the old notification is marked out of date and a new one is prepared.
-- **There is one general needs-attention entry** ("PIESA copy / ESC notice not done in time"). It only appears after the 24-hour deadline has passed or an error happened. There is nothing when the window opens, no "urgent at 2 days", and no "update in Registry" or "withdraw and resubmit" wording.
-- **An install can't move to evidence** until the 24-hour conditions are met: consent, ESC notification, PIESA copies delivered, and the PIESA still valid.
-- **Installer certification:** the office records "verified" or "rejected", but not full or provisional, and not an expiry date.
-- **The installer's safety form (PIISA)** can only be sent to Mitti once the install is booked. It does not check the 30-day rule or the certification.
+- The owner requests a Ready Check (estimate page, then "Ready Check - Awaiting Acceptance"). The office then assigns an installer by hand. The installer phones the owner, and the time is set through propose/confirm. The 24h reminder and 48h flag already cover Ready Checks.
+- The PIESA side already has everything this step needs:
+  - owner morning/afternoon windows (3–5 windows, 3 different days, 2 business days to 21 days out, Vic public holidays)
+  - matching of electricians, with price never counted
+  - offers to 3 at a time, with 4 business hours to accept
+  - the 15-minute timer
+  - one tap books the visit and closes the other offers
+  - contact details released for one visit only
+  - two rounds, then needs-attention
+- Installer offers today allow only one open offer per job. That blocks offering a Ready Check to 3 installers at once.
+- Estimate views are already recorded ("estimate_viewed").
 
 ## What changes
-
-### 1. ESC notification as an AP task
-The details are still prepared automatically. Everything below is worked out from the stored dates.
-- **Window opens** (5 days before install): needs-attention shows "Submit ESC notification by <date, 24h before install>". The ready-to-copy details are on the job's Installation section.
-- **The AP taps "Submitted"** and enters the date and reference. This already exists; it now also clears the entry.
-- **2 days before install and still not submitted:** the entry turns urgent.
-- **Install date moves after it was submitted:**
-  - New date still inside the 5-day / 24-hour window from the original submission: "Update notification in Registry".
-  - New date more than 5 days after the submission: "Withdraw and resubmit".
-  - In both cases the AP records the update or new submission the same way.
-- The general "ESC notice not done in time" entry is replaced by these clearer ones for the ESC part. The PIESA-copy part stays as it is.
-
-### 2. Day-before pre-start check (hard gate)
-The existing 15-minute timer runs it from 24 hours before the install start. It is also re-run whenever a related record changes. All of these must pass:
-- electrical clearance is valid
-- the 30-day clock is valid on the install day
-- the ESC notification is marked submitted, within its window, for the current date
-- the lead installer has a **full** EEC CII certification (not provisional) that is still current on the install day
-- the owner consent is signed
-- the install day (when the PIISA is done) is within 30 days of the PIESA
-
-**If anything fails:**
-- The installer safety form can't be sent to Mitti for that job, and installation evidence uploads for that job are locked. Both are refused on the server.
-- Owner and installer messages are queued only. Sending stays off.
-- The job goes on needs-attention with "Pre-start check failed: <reasons>".
-
-**When it passes:** a "Cleared to start" record is saved and the form and uploads unlock. Each run is kept as a permanent record.
-
-### 3. Mitti itself is not changed
-The portal only decides whether the job is cleared before it sends the form or accepts evidence.
-
-### 4. Certification detail (needed for the check)
-- The office's certification record gains two optional fields: "Full" or "Provisional", and an expiry date. New records only.
-- **Lead installer for a job:** the installer person assigned to the job, matched to their worker record by email.
-
-### 5. Task list
-Note the accepted limit from Part B: two different jobs booked for the same installer at almost the same moment could exceed that day's m².
+1. **Owner picks windows when requesting the Ready Check.** It uses the same picker and rules as PIESA, with the wording changed to "Ready Check".
+2. **Price seen first.** If the job has an estimate and the owner hasn't viewed it yet, the estimate is shown before they can submit, and the view is recorded. If there is no estimate, nothing is blocked.
+3. **Matching installers.** The PIESA matching is reused for installers.
+   - Eligible: approved, a FULL and current EEC certification, covers the postcode, free in at least one window, and under their m²-per-day capacity if set. The Ready Check counts as one visit, not m².
+   - Ranked by: a job nearby that day, then reliability, then fewest Ready Checks in the last 30 days, then acceptance speed. Price is never used.
+4. **Offers and timing.** Top 3 at once, 4 business hours to accept, then the next 3. With no taker, the owner is asked once for more times. After that round, the job goes to needs-attention ("No installer could take the owner's Ready Check times").
+5. **One tap = booked.** It uses the same safe first-tap-wins booking as PIESA. That tap books the Ready Check, makes the installer the assigned installer, closes the other offers, and releases contact details for the Ready Check only. Messages are queued only.
+6. **Quoted installer by default.** Whatever happens today when the Ready Check installer becomes the quoting installer stays as it is. If no such link exists today, I'll tell you rather than add one.
+7. **Fallback.** "None of these work — accept and arrange a time" assigns the installer, releases contact for the Ready Check only, and uses the old propose/confirm path with the 24h/48h checks.
+8. **No payment to installers.** The offer shows "Free Ready Check — unpaid". No rate is shown or needed, and no rate-card check applies.
+9. The office can still assign an installer by hand.
 
 ## Parts touched
-- ESC rules and the readiness check
-- the needs-attention list
-- the job's Installation section (the details to copy, Submitted, and the pre-start result)
-- the 15-minute timer
-- the installer safety form send to Mitti, and evidence upload
-- the office certification form
-- queued owner and installer messages
-- tests
-
-## Database changes (practice database first, then apply)
-Additive only:
-- two empty fields on certification records: level (full / provisional) and expiry date
-- a new pre-start check record (job, booking, when checked, passed or failed, reasons), office-only and never edited
-- no change to existing ESC notifications
-
-The practice proof covers: existing rows unchanged, running it twice is safe, check records can't be edited, and undo is clean.
+- The owner estimate and Ready Check request page, and the shared window picker.
+- Matching, offers and timer code (reused, with an installer/Ready Check version added).
+- The installer dashboard: a "Ready Check times" offer card, like the PIESA card.
+- The office needs-attention list: one new entry.
+- One small additive database change, proved on a practice database first. It allows up to 3 open Ready Check offers per job instead of one, and adds a first-tap-wins booking action for Ready Checks. It adds no tables and changes no rows.
 
 ## Effect on existing jobs and records
-- No backfill and nothing changed.
-- Installs already booked get the new needs-attention entries and the pre-start check from now on.
-- Until the office re-records certifications with "Full", any booked install would fail the certification check (see question 1).
+- Nothing existing is changed and nothing is filled in after the fact.
+- Jobs already assigned or booked for a Ready Check stay on the old path.
+- Existing open installer offers stay as they are.
+- Sending and the payment gate stay off.
 
 ## Undo
-Roll back to the previous version in History. The database change has a ready undo file. The new fields and table can stay empty and unused.
+Roll back to the previous version in History, and run the ready undo file for the database change. That puts back the one-open-installer-offer rule and removes the new booking action.
 
-## Questions
-1. Existing "verified" certifications have no full/provisional level or expiry. Should the check treat them as **not confirmed**, so the office must re-record them as Full with an expiry (safest), or accept them as full until re-recorded?
-2. Should the pre-start check be done 24 hours before start, or at a fixed time the day before (for example 12pm Melbourne)?
+## Technical details
+- Reuse `piesa-windows.core` (generalise labels by visit kind), `rankRecCandidates`/`nextOfferBatch` (installer facts: EEC from `worker_certification_levels`, capacity from `daily_capacity_m2`), `offerExpiryBusinessHours`, `noTakerStep`.
+- Migration: replace the `partner_offers_one_pending_installer` partial index with a kind-aware one (one pending per business stays). Add a Ready Check variant of the accept-slot SQL function (`booking_kind = ready_check`, stage moves to `ready_check_scheduled`, contact release `ready_check`).
+- Gate: price-seen comes from `estimate_viewed` engagement or estimate link `last_viewed_at`.
+- New tests: window rules for Ready Checks, installer eligibility/ranking (price excluded), the round flow, a practice-database first-tap race, the price-seen gate, and the three step 10 tests.
