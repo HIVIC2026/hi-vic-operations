@@ -20,6 +20,7 @@ CREATE TABLE public.user_roles (id uuid primary key default gen_random_uuid(), u
 CREATE TABLE public.businesses (id uuid primary key default gen_random_uuid(), name text);
 CREATE TABLE public.business_members (id uuid primary key default gen_random_uuid(), business_id uuid not null references public.businesses(id), user_id uuid not null, role text default 'member');
 CREATE TABLE public.jobs (id uuid primary key default gen_random_uuid(), job_number text);
+GRANT ALL ON public.jobs, public.businesses, public.user_roles, public.business_members TO authenticated;
 CREATE FUNCTION public.has_role(_user_id uuid, _role public.app_role) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$ SELECT exists(SELECT 1 FROM public.user_roles WHERE user_id=_user_id AND role=_role) $$;
 CREATE FUNCTION public.is_admin() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$ SELECT public.has_role(auth.uid(), 'admin') $$;
 CREATE FUNCTION public.is_business_member(_biz uuid, _admin_only boolean DEFAULT false) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$ SELECT exists(SELECT 1 FROM public.business_members WHERE business_id=_biz AND user_id=auth.uid()) $$;
