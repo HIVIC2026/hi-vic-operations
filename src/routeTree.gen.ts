@@ -51,6 +51,7 @@ import { Route as EstimateTokenVideoRouteImport } from './routes/estimate_.$toke
 import { Route as TETokenRouteImport } from './routes/t.e.$token'
 import { Route as TOFileRouteImport } from './routes/t.o.$file'
 import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authenticated/admin.jobs.$jobId'
+import { Route as ApiPublicHooksAllocationTickRouteImport } from './routes/api/public/hooks/allocation-tick'
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
 import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/public/hooks/post-intake'
 import { Route as ApiPublicReferralsRecordSubmissionRouteImport } from './routes/api/public/referrals/record-submission'
@@ -281,6 +282,12 @@ const AuthenticatedAdminJobsJobIdRoute =
     path: '/admin/jobs/$jobId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicHooksAllocationTickRoute =
+  ApiPublicHooksAllocationTickRouteImport.update({
+    id: '/api/public/hooks/allocation-tick',
+    path: '/api/public/hooks/allocation-tick',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksCustomerFollowupsRoute =
   ApiPublicHooksCustomerFollowupsRouteImport.update({
     id: '/api/public/hooks/customer-followups',
@@ -348,6 +355,7 @@ export interface FileRoutesByFullPath {
   '/owner/': typeof AuthenticatedOwnerIndexRoute
   '/partner/': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
+  '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
@@ -395,6 +403,7 @@ export interface FileRoutesByTo {
   '/owner': typeof AuthenticatedOwnerIndexRoute
   '/partner': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
+  '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
@@ -444,6 +453,7 @@ export interface FileRoutesById {
   '/_authenticated/owner/': typeof AuthenticatedOwnerIndexRoute
   '/_authenticated/partner/': typeof AuthenticatedPartnerIndexRoute
   '/_authenticated/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
+  '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
@@ -493,6 +503,7 @@ export interface FileRouteTypes {
     | '/owner/'
     | '/partner/'
     | '/admin/jobs/$jobId'
+    | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
@@ -540,6 +551,7 @@ export interface FileRouteTypes {
     | '/owner'
     | '/partner'
     | '/admin/jobs/$jobId'
+    | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
@@ -588,6 +600,7 @@ export interface FileRouteTypes {
     | '/_authenticated/owner/'
     | '/_authenticated/partner/'
     | '/_authenticated/admin/jobs/$jobId'
+    | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
@@ -612,6 +625,7 @@ export interface RootRouteChildren {
   EstimateTokenVideoRoute: typeof EstimateTokenVideoRoute
   TETokenRoute: typeof TETokenRoute
   TOFileRoute: typeof TOFileRoute
+  ApiPublicHooksAllocationTickRoute: typeof ApiPublicHooksAllocationTickRoute
   ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
   ApiPublicHooksPostIntakeRoute: typeof ApiPublicHooksPostIntakeRoute
   ApiPublicReferralsRecordSubmissionRoute: typeof ApiPublicReferralsRecordSubmissionRoute
@@ -914,6 +928,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminJobsJobIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/hooks/allocation-tick': {
+      id: '/api/public/hooks/allocation-tick'
+      path: '/api/public/hooks/allocation-tick'
+      fullPath: '/api/public/hooks/allocation-tick'
+      preLoaderRoute: typeof ApiPublicHooksAllocationTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/customer-followups': {
       id: '/api/public/hooks/customer-followups'
       path: '/api/public/hooks/customer-followups'
@@ -1023,6 +1044,7 @@ const rootRouteChildren: RootRouteChildren = {
   EstimateTokenVideoRoute: EstimateTokenVideoRoute,
   TETokenRoute: TETokenRoute,
   TOFileRoute: TOFileRoute,
+  ApiPublicHooksAllocationTickRoute: ApiPublicHooksAllocationTickRoute,
   ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,
   ApiPublicHooksPostIntakeRoute: ApiPublicHooksPostIntakeRoute,
   ApiPublicReferralsRecordSubmissionRoute:

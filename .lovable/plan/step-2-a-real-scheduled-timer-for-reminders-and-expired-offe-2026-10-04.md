@@ -21,6 +21,12 @@ The existing check includes "start PIESA offers for jobs that are ready". While 
 ## Cost
 Every 15 minutes is 96 checks a day. That keeps the database a little busier even when there's nothing to do. Hourly (24 a day) would be cheaper, but an offer could then sit expired for up to an hour before the next batch. 15 minutes fits the 4-hour offer window well.
 
+## What it adds, what it touches, what it leaves alone
+- Adds: one new timed check, and one schedule that calls it every 15 minutes.
+- Touches: nothing existing is edited. It reuses the two checks the office queue already runs.
+- Leaves alone: no tables, fields or saved records are changed or removed. No screens, wording, rules or switches change. The office queue, follow-up emails and enquiry checks keep working as they do now.
+- To undo: delete the schedule, and everything goes back to how it works today.
+
 ## Technical details
 - New route `src/routes/api/public/hooks/allocation-tick.ts`, secured the same way as the existing `customer-followups` hook (one-time cron nonce via `consume_cron_nonce`, fallback `authenticateCronRequest`). Calls existing `sweepRecOffers()` and `sweepCoordination()`; returns counts only, no personal data.
 - One `pg_cron` job (every 15 min) calling the published URL, created with the same nonce pattern as the existing follow-up cron. Data-only setup; no table changes, no migration.
