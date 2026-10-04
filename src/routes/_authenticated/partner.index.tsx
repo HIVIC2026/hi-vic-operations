@@ -77,6 +77,7 @@ function Offer({ o, onDone }: { o: { id: string; kind?: string; summary: unknown
   const s = o.summary as { job_number: string; suburb: string | null; postcode: string | null; area_m2: number | null; area_basis: string; eligibility: string | null; approx_area_m2?: number | null; access_summary?: string | null; observations?: string[]; piesa_rate_inc_gst?: number | null };
   if (o.kind === "piesa" || o.kind === "rectification") return (
     <div className="rounded-xl border bg-card p-3 text-sm">
+      <div className="mb-1"><Badge variant="secondary">Offered</Badge></div>
       <div className="font-semibold">{o.kind === "piesa" ? "PIESA electrical safety visit" : "Electrical rectification"} · {s.suburb ?? "Victoria"} {s.postcode}</div>
       <div className="text-muted-foreground">{s.job_number} · {s.approx_area_m2 ? `About ${s.approx_area_m2} m² ceiling (measured)` : "Ceiling area not recorded"}</div>
       {s.access_summary && <div className="text-xs text-muted-foreground">{s.access_summary}</div>}
