@@ -10,13 +10,20 @@ Preview only, no publishing. Existing records stay as they are. Sending and the 
 | Rectification has no markup | **Matches.** The owner pays the electrician's agreed price plus GST. Folding it into the installation quote adds nothing. |
 | PIESA markup on both sources | **Partly.** Installer-supplied jobs: the owner pays $349 and the electrician (including the installer's own electrician) is paid their agreed rate. Matches. HIV jobs: I found no separate $349 PIESA line on the installation quote; only one $349 (the AP fee) is built in. Needs a decision, see below. |
 | AP fee $349 inc GST, both sources | **Matches on amount** (setting is $349, or $317.27 before GST). On HIV jobs it's spread into the installation prices, not shown as its own line. Installer-supplied jobs show it as its own line. |
-| $3/m² installer markup, HIV jobs only | **Does not match.** HIV quotes add a **12% markup** on the installer's price, not $3/m². The same quote builder adds the 12% and spreads the AP fee into prices for any job it quotes, even installer-supplied jobs, which also get their own AP fee line. That risks charging the AP fee twice and adding a markup on the installer's price. Installer-supplied jobs normally use their own quote builder (installer price + $349 PIESA + AP fee, no markup), which matches. |
+| HIV jobs: owner pays $30/m², markup = ($30 − installer's agreed rate) × m² | **Estimate matches, final quote does not.** The estimate uses $30/m² inc GST for every installer. The final installation quote instead takes **that installer's agreed rate + 12%**, spreads the AP fee into the prices, then adds GST. So the owner's price per m² changes with the installer (for example, the TEST installers' R5 rates of $10.75–$12.90 give different final prices) and is not $30. |
+| Installer-supplied jobs: no installer markup | **Matches on the normal path:** the installer's own price + $349 PIESA + AP fee, no markup. **Risk:** if the office presses "Generate installer quotes" on one of these jobs, the HIV quote builder still adds its 12% and spreads the AP fee into prices, on top of a separate AP fee line. That could charge the AP fee twice. |
 
-**Questions for Jo before any money change is built:**
-1. Should HIV quotes switch from 12% to $3/m²?
-2. On HIV jobs, should the $349 PIESA be its own quote line, separate from the $349 AP fee?
+**Fixes proposed (built only once you say go):**
+1. HIV installation quotes: the owner's price is $30/m² inc GST (the current estimate setting) for any installer. The markup is $30 minus that installer's agreed rate, kept on the office's own figures only. The 12% is no longer used.
+2. Installer-supplied jobs can't use the HIV quote builder. They always use their own.
+3. The "lead fee" note is corrected to "none".
 
-Until she answers, Part C will show today's real figures, with a warning wherever they differ from her rules.
+**Questions for Jo:**
+1. Installers enter their agreed rates **including GST**. Should the markup be worked out as $30 minus that rate, both including GST? This is what's assumed.
+2. Should removal ($15/m² on the estimate) and access extras follow the same rule, with the owner price fixed and the markup being that price minus the installer's agreed rate?
+3. On HIV jobs, should the $349 PIESA be its own quote line, separate from the $349 AP fee?
+
+Until fix 1 is built, Part C shows each job's real quoted figures and flags any HIV job not at $30/m².
 
 ## A. Onboarding form fixes
 
