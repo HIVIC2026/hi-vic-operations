@@ -219,6 +219,30 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   rec_no_longer_approved: { why: "The assigned electrician is no longer an approved, active REC, so the electrical work cannot continue with them.", next: "Release the electrician on the PIESA tab and re-offer the work to another approved REC (the owner keeps the approved quote).", tab: "piesa", urgency: "today" },
 };
 
+/** Office job page section each Needs tab opens (deep link ?section=). */
+export const NEEDS_TAB_SECTION: Record<string, "people" | "quote" | "piesa" | "installation" | "ap_veec" | "history"> = {
+  overview: "people", piesa: "piesa", quotes: "quote", communications: "history", compliance: "installation", evidence: "ap_veec", veec: "ap_veec",
+};
+export const JOB_SECTIONS = ["enquiry", "ready_check", "quote", "piesa", "installation", "ap_veec", "history", "people"] as const;
+export function parseJobSection(v: unknown): (typeof JOB_SECTIONS)[number] | undefined {
+  return typeof v === "string" && (JOB_SECTIONS as readonly string[]).includes(v) ? (v as (typeof JOB_SECTIONS)[number]) : undefined;
+}
+
+/** Trade-facing electrical status wording (source-of-truth labels). Presentation only. */
+export function electricalStatusLabel(i: { offerPending?: boolean; stage: string; hasBooking?: boolean; proposalPending?: boolean }): string {
+  if (i.offerPending) return "Offered";
+  switch (i.stage) {
+    case "piesa_and_install_window_pending": return i.proposalPending ? "Awaiting confirmation" : "Accepted · Arrange visit";
+    case "piesa_scheduled": return "Booked";
+    case "piesa_complete": return "PIESA complete";
+    case "electrical_variation_pending": case "rectification_required": case "awaiting_owner_rectification_approval": return "Rectification required";
+    case "rectification_scheduling": return i.proposalPending ? "Awaiting confirmation" : "Rectification required · Arrange visit";
+    case "rectification_booked": return "Booked";
+    case "installation_scheduling": case "installation_booked": case "evidence_outstanding": return "Electrically cleared";
+    default: return "Accepted";
+  }
+}
+
 export function needsItem(code: NeedsCode, jobId: string | null, jobNumber: string | null, since: string | null, detail?: string, job?: { stage?: string | null; suburb?: string | null }): NeedsItem {
   const t = NEEDS_TEXT[code];
   return { key: `${code}:${jobId ?? "-"}`, code, jobId, jobNumber, why: detail ? `${t.why} ${detail}` : t.why, next: t.next, tab: t.tab, since, urgency: t.urgency, stage: job?.stage ?? null, suburb: job?.suburb ?? null };

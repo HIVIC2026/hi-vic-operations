@@ -610,6 +610,11 @@ export const partnerDashboard = createServerFn({ method: "GET" }).middleware([re
       admin.from("bookings").select("job_id, kind, scheduled_start").eq("status", "confirmed").in("job_id", jobIds.length ? jobIds : none),
       admin.from("invoice_status" as never).select("job_id, deposit_cleared" as never).in("job_id" as never, (jobIds.length ? jobIds : none) as never),
     ]);
+    // Owner name / exact address only while this business holds a current, unrevoked visit release (same rule as SQL visit_is_current).
+    const { data: rels } = await admin.from("contact_releases").select("job_id, visit_kind, job_assignments!inner(business_id, active)").is("revoked_at", null).in("job_id", jobIds.length ? jobIds : none).eq("job_assignments.business_id", bizId);
+    const { visitIsCurrent } = await import("./allocation.core");
+    const canSeeContact = (jobId: string, stage: string, channel: string | null) => channel === "installer_sourced" ||
+      (rels ?? []).some((r) => r.job_id === jobId && (r.job_assignments as { active: boolean }).active && visitIsCurrent(r.visit_kind, stage));
     const { stageEntryBlockers } = await import("./workflow.server");
     const cards = await Promise.all((jobs ?? []).map(async (j) => {
       const e = elec?.find((x) => x.job_id === j.id);
@@ -620,7 +625,9 @@ export const partnerDashboard = createServerFn({ method: "GET" }).middleware([re
       return {
         id: j.id, job_number: j.job_number, stage: j.stage, bucket: bucketFor(j.stage), next_action: j.next_action, last_activity_at: j.last_activity_at,
         channel: j.channel, relationship_owner: j.customer_relationship_owner,
-        owner: (j.owners as { full_name: string } | null)?.full_name ?? null, property: j.properties,
+        ...(canSeeContact(j.id, j.stage, j.channel)
+          ? { owner: (j.owners as { full_name: string } | null)?.full_name ?? null, property: j.properties }
+          : { owner: null, property: { address_line: null, suburb: (j.properties as { suburb: string | null } | null)?.suburb ?? null, postcode: (j.properties as { postcode: string | null } | null)?.postcode ?? null } }),
         electrician: e ? (e.profiles as { full_name: string | null } | null)?.full_name ?? "Assigned" : null, sla: e ? appointmentSla(e) : null,
         bookings: (bookings ?? []).filter((b) => b.job_id === j.id), deposit_cleared: deposit?.deposit_cleared ?? null, blockers: blockers.slice(0, 3),
       };

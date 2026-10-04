@@ -251,8 +251,8 @@ export async function sweepCoordination(actorId: string | null = null) {
       const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", r.job_id).eq("event_type", "coordination_reminder").contains("details", { assignment_id: r.assignment_id, visit_kind: r.visit_kind }).order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (ev) {
         const { error } = await admin.rpc("enqueue_external_action", {
-          _job: r.job_id, _event: ev.id, _action: "coordination_reminder", _target: `job_assignment:${r.assignment_id}`, _basis: "transactional_job_coordination",
-          _version: "coordination-reminder-v1", _payload: `contact_release:${r.visit_kind}`, _facts: `${r.assignment_id}-${r.visit_kind}`, _key: `coord-reminder-${r.assignment_id}-${r.visit_kind}`,
+          _job: r.job_id, _event: ev.id, _action: "booking_messages", _target: `job_assignment:${r.assignment_id}`, _basis: "transactional_job_coordination",
+          _version: "coordination-reminder-v1", _payload: `contact_release:${r.visit_kind}`, _facts: await sha256Hex(`${r.assignment_id}-${r.visit_kind}`), _key: `coord-reminder-${r.assignment_id}-${r.visit_kind}`,
         });
         if (error) console.error("reminder outbox enqueue skipped", error.message); // e.g. TEST job suppression
       }
@@ -260,4 +260,26 @@ export async function sweepCoordination(actorId: string | null = null) {
     }
   }
   return { reminders };
+}
+
+/** Installer planning-only notice after a CONFIRMED PIESA booking. Queued in the launch-control outbox
+ *  (EXECUTION_NOT_RELEASED until sending is released). Idempotent per assignment + PIESA time. Never changes stage. */
+export async function queueInstallerPlanningNotice(jobId: string, installerAssignmentId: string, piesaStart: string) {
+  const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "installer_planning_notice")
+    .contains("details", { assignment_id: installerAssignmentId, piesa_start: piesaStart }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (!ev) throw new Error("planning notice event missing");
+  const raw = `${installerAssignmentId}-${Date.parse(piesaStart)}`;
+  const facts = await sha256Hex(raw);
+  const { data, error } = await admin.rpc("enqueue_external_action", {
+    _job: jobId, _event: ev.id, _action: "partner_notifications", _target: `job_assignment:${installerAssignmentId}`,
+    _basis: "transactional_job_coordination", _version: "installer-planning-notice-v1", _payload: "notice:installer_planning_notice",
+    _facts: facts, _key: `installer-planning-${raw}`,
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+async function sha256Hex(s: string) {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
