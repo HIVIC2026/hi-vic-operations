@@ -935,7 +935,7 @@ export const draftVeecReply = createServerFn({ method: "POST" }).middleware([req
       body: JSON.stringify({
         model: "openai/gpt-6-astra",
         reasoning: { effort: "low" },
-        input: `You draft a factual reply to an Essential Services Commission (VEU program) Registry query about a lodged VEEC creation for Home Insulation Victoria, the Accredited Person. Reply in plain Australian English, under 200 words, no invented facts, list anything that must be verified before sending.\n\nJob: ${j?.job_number ?? ""}, ${j?.property_address ?? ""}.\nLodgement: quantity ${v.quantity ?? "?"}, reference ${v.submission_reference ?? "?"}, submitted ${v.submitted_date ?? "?"}.\nRegistry query: ${v.query_text}`,
+        input: `You draft a factual reply to an Essential Services Commission (VEU program) Registry query about a lodged VEEC creation for Home Insulation Victoria, the Accredited Person. Reply in plain Australian English, under 200 words, no invented facts, list anything that must be verified before sending.\n\nJob: ${jobLabel}.\nLodgement: quantity ${v.quantity ?? "?"}, reference ${v.submission_reference ?? "?"}, submitted ${v.submitted_date ?? "?"}.\nRegistry query: ${v.query_text}`,
       }),
     });
     if (!res.ok) {
