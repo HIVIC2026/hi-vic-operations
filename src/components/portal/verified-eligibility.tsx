@@ -8,10 +8,14 @@ import { Section } from "@/components/portal/panels";
 import { useAction } from "@/hooks/use-me";
 import {
   getVerifiedEligibility,
+  recordPriorActivityCheck,
   recordVerifiedEligibility,
 } from "@/lib/verified-eligibility.functions";
 import {
+  PRIOR_ACTIVITY_CHECKS,
+  PRIOR_ACTIVITY_LABEL,
   VERIFIED_LABEL,
+  type PriorActivityCheck,
   electricalSummary,
   evidenceSummary,
   readyCheckPresent,
@@ -83,6 +87,9 @@ export function VerifiedEligibilityCard({ jobId }: { jobId: string }) {
   });
   const [outcome, setOutcome] = useState<VerifiedOutcome | null>(null);
   const [text, setText] = useState("");
+  const recordPrior = useAction(recordPriorActivityCheck);
+  const [prior, setPrior] = useState<PriorActivityCheck | null>(null);
+  const [priorNote, setPriorNote] = useState("");
   if (isPending)
     return (
       <Section title="Verified eligibility">
@@ -100,6 +107,18 @@ export function VerifiedEligibilityCard({ jobId }: { jobId: string }) {
   if (!readyCheckPresent(data.evidence)) return null;
   const a = data.assessment;
   const needsText = outcome === "not_eligible" || outcome === "needs_review";
+  const submitPrior = async () => {
+    if (!prior) return;
+    const ok = await recordPrior(
+      { jobId, answer: prior, note: priorNote.trim() || null },
+      "Previous Activity 48 check recorded",
+    );
+    if (ok) {
+      setPrior(null);
+      setPriorNote("");
+      await queryClient.invalidateQueries({ queryKey: ["verified-eligibility", jobId] });
+    }
+  };
   const submit = async () => {
     if (!outcome) return;
     const t = text.trim() || null;
@@ -145,6 +164,51 @@ export function VerifiedEligibilityCard({ jobId }: { jobId: string }) {
           <p className="mt-1 text-sm text-warning">
             Conflicting evidence: {data.evidence.conflicts.join("; ")}
           </p>
+        )}
+      </div>
+      <div className="mt-3 border-t pt-2">
+        <div className="mb-1 text-sm font-semibold">
+          Office check: previous Activity 48 / VEU ceiling insulation
+        </div>
+        <p className="text-sm">
+          Recorded:{" "}
+          <strong>
+            {data.evidence.priorActivity
+              ? PRIOR_ACTIVITY_LABEL[data.evidence.priorActivity]
+              : "Not checked yet"}
+          </strong>
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Check the VEU register, Ready Check findings and any office records for this property.
+          Needed before verified eligibility and before VEEC creation.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {PRIOR_ACTIVITY_CHECKS.map((c) => (
+            <Button
+              key={c}
+              size="sm"
+              variant={prior === c ? "default" : "outline"}
+              onClick={() => setPrior(c)}
+            >
+              {PRIOR_ACTIVITY_LABEL[c]}
+            </Button>
+          ))}
+        </div>
+        {prior && (
+          <div className="mt-2">
+            <Label htmlFor="pa-note">
+              {prior === "none_known" ? "Note (optional)" : "Describe the evidence (required)"}
+            </Label>
+            <Textarea id="pa-note" value={priorNote} onChange={(e) => setPriorNote(e.target.value)} />
+            <Button
+              className="mt-2"
+              size="sm"
+              disabled={prior !== "none_known" && !priorNote.trim()}
+              onClick={() => void submitPrior()}
+            >
+              Record check
+            </Button>
+          </div>
         )}
       </div>
       <div className="mt-3 border-t pt-2">
