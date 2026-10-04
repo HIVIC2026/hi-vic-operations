@@ -84,85 +84,11 @@ export const reviewRectificationQuote = createServerFn({ method: "POST" }).middl
 export const getNeedsHivic = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireAdmin(context.supabase);
-    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { sweepRecOffers, sweepCoordination } = await import("./allocation.server");
     await sweepRecOffers().catch((e) => console.error("rec offer sweep failed", (e as Error).message));
     await sweepCoordination().catch((e) => console.error("coordination sweep failed", (e as Error).message));
-    const ok = <T,>(r: { data: T | null; error: { message: string } | null }, what: string): T => {
-      if (r.error) throw new Error(`Could not load ${what}: ${r.error.message}`);
-      return (r.data ?? []) as T;
-    };
-    const [jobs, exh, elec, rel, comms, rq, rp, unav, timing, esc, ev, veec, unappr, rsent] = await Promise.all([
-      admin.from("jobs").select("id, job_number, source, stage, properties(suburb, postcode)").not("stage", "in", "(complete,cancelled)"),
-      admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "rec_coverage_exhausted").order("created_at", { ascending: false }),
-      admin.from("job_assignments").select("job_id").eq("role", "electrician").eq("active", true),
-      admin.from("contact_releases").select("job_id, visit_kind, released_at, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null),
-      admin.from("job_communications").select("job_id, created_at").in("delivery_status", ["failed", "undelivered"]),
-      admin.from("quotes").select("job_id, created_at").eq("kind", "rectification").eq("status", "declined"),
-      admin.from("quotes").select("job_id, created_at").eq("kind", "rectification").eq("status", "draft").is("office_reviewed_at", null),
-      admin.from("job_assignments").select("job_id, cannot_attend_at").eq("role", "installer").eq("active", true).not("cannot_attend_at", "is", null),
-      admin.from("job_piesa_deadlines").select("job_id, urgency, piesa_expired, days_remaining"),
-      admin.from("esc_notifications").select("job_id, created_at, due_by, last_error").is("sent_at", null),
-      admin.from("evidence_requirements").select("job_id, verified_at").eq("status", "rejected"),
-      admin.from("veec_lodgements").select("job_id, status, updated_at, query_received_at, reply_sent_at").in("status", ["query", "rejected"]),
-      admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "rec_no_longer_approved"),
-      admin.from("quotes").select("job_id, sent_at").eq("kind", "rectification").eq("status", "issued").not("sent_at", "is", null),
-    ]);
-    const { data: instEv } = await admin.from("workflow_events").select("job_id, event_type, created_at, details").in("event_type", ["install_ten_days_left", "install_days_declined"]).order("created_at", { ascending: false });
-    const { data: rcEv } = await admin.from("workflow_events").select("job_id, created_at").eq("event_type", "ready_check_no_taker").order("created_at", { ascending: false });
-    // Visit flags (cancellations / no-shows): open until a newer booking of that visit type exists, or the no-show is cleared.
-    const { data: vEv } = await admin.from("workflow_events").select("job_id, created_at, details, summary").eq("event_type", "visit_needs_office").gte("created_at", new Date(Date.now() - 60 * 86_400_000).toISOString());
-    const vJobs = [...new Set((vEv ?? []).map((e) => e.job_id).filter(Boolean))] as string[];
-    const [{ data: vBk }, { data: vNs }, { data: vCl }] = await Promise.all([
-      admin.from("bookings").select("job_id, kind, created_at").in("job_id", vJobs.length ? vJobs : ["00000000-0000-0000-0000-000000000000"]),
-      admin.from("visit_events").select("id, booking_id").eq("event", "trade_no_show").in("job_id", vJobs.length ? vJobs : ["00000000-0000-0000-0000-000000000000"]),
-      admin.from("visit_events").select("clears_event_id").eq("event", "no_show_cleared").in("job_id", vJobs.length ? vJobs : ["00000000-0000-0000-0000-000000000000"]),
-    ]);
-    const clearedIds = new Set((vCl ?? []).map((c) => c.clears_event_id));
-    const clearedBookings = new Set((vNs ?? []).filter((n) => clearedIds.has(n.id)).map((n) => n.booking_id));
-    const visitFlags = (vEv ?? []).flatMap((e) => {
-      const d = (e.details ?? {}) as { code?: string; kind?: string; booking_id?: string };
-      if (!e.job_id || !d.code) return [];
-      if (d.code === "trade_no_show" && d.booking_id && clearedBookings.has(d.booking_id)) return [];
-      if ((vBk ?? []).some((b) => b.job_id === e.job_id && b.kind === d.kind && b.created_at > e.created_at)) return [];
-      return [{ job_id: e.job_id, code: d.code as "trade_no_show", created_at: e.created_at, detail: e.summary ?? undefined }];
-    });
-    const { data: rcInst } = await admin.from("job_assignments").select("job_id").eq("role", "installer").eq("active", true);
-    const withInst = new Set((rcInst ?? []).map((a) => a.job_id));
-    const jobRows = ok(jobs, "jobs").filter((j) => j.source !== "qa_test");
-    const withElec = new Set(ok(elec, "assignments").map((a) => a.job_id));
-    const seen = new Set<string>();
-    const coverage = ok(exh, "allocation events").filter((e) => !withElec.has(e.job_id) && !seen.has(e.job_id) && seen.add(e.job_id))
-      .map((e) => ({ job_id: e.job_id, created_at: e.created_at, detail: (e.details as { reason?: string } | null)?.reason === "owner_times" ? "No electrician could take the owner's times." : undefined }));
-    // Still-relevant "no longer approved" events: the flagged business is still the active electrician.
-    const { data: activeElec } = await admin.from("job_assignments").select("job_id, business_id").eq("role", "electrician").eq("active", true);
-    const activeKey = new Set((activeElec ?? []).map((a) => `${a.job_id}:${a.business_id}`));
-    const recNoLongerApproved = ok(unappr, "electrician approval events")
-      .filter((e) => activeKey.has(`${e.job_id}:${(e.details as { business_id?: string } | null)?.business_id}`))
-      .map((e) => ({ job_id: e.job_id, since: e.created_at }));
-    const now = new Date();
-    const { buildNeedsHivic } = await import("./allocation.core");
-    const items = buildNeedsHivic({
-      recNoLongerApproved,
-      now, jobs: jobRows.map((j) => { const p = j.properties as { suburb: string | null; postcode: string | null } | null; return { id: j.id, job_number: j.job_number, stage: j.stage, suburb: p ? [p.suburb, p.postcode].filter(Boolean).join(" ") : null }; }),
-      coverageExhausted: coverage,
-      releases: ok(rel, "contact releases").filter((r) => (r.job_assignments as { active: boolean }).active).map((r) => ({ job_id: r.job_id, visit_kind: r.visit_kind as never, released_at: r.released_at, confirmed_at: (r.job_assignments as { booking_confirmed_at: string | null }).booking_confirmed_at })),
-      failedComms: ok(comms, "communications"),
-      rectDeclined: ok(rq, "rectification quotes"),
-      rectPricing: ok(rp, "rectification drafts"),
-      installerUnavailable: ok(unav, "installer assignments").map((a) => ({ job_id: a.job_id, at: a.cannot_attend_at!, reason: null })),
-      piesaTiming: ok(timing, "PIESA timing").filter((t): t is typeof t & { job_id: string } => !!t.job_id),
-      escTiming: ok(esc, "ESC notices").filter((e) => e.last_error || (e.due_by && Date.parse(e.due_by) < now.getTime())),
-      evidenceRejected: ok(ev, "evidence").map((e) => ({ job_id: e.job_id, created_at: e.verified_at })),
-      registryQueries: ok(veec, "VEEC lodgements"),
-      officeOverdue: [],
-      rectUnanswered: ok(rsent, "rectification quotes sent"),
-      prestart: await (await import("./prestart.server")).prestartNeeds(now).catch((e) => { console.error("pre-start needs failed", (e as Error).message); return undefined; }),
-      visitFlags,
-      readyCheckNoTaker: (rcEv ?? []).filter((e): e is { job_id: string; created_at: string } => !!e.job_id && !withInst.has(e.job_id)),
-      installFlags: (instEv ?? []).filter((e) => !!e.job_id).map((e) => ({ job_id: e.job_id!, code: e.event_type as "install_ten_days_left" | "install_days_declined", created_at: e.created_at, detail: e.event_type === "install_ten_days_left" ? `Last day ${(e.details as { deadline?: string } | null)?.deadline ?? "?"}.` : undefined })),
-    });
-    return { items, checkedAt: now.toISOString() };
+    const { loadNeedsHivic } = await import("./needs.server");
+    return loadNeedsHivic();
   });
 
 /** Office: send an office-reviewed rectification quote to the owner (status draft -> issued). */
