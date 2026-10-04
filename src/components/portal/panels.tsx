@@ -1,3 +1,4 @@
+import { RectWindowChoice, useRectWindows } from "./rectification-times";
 import { useRef, useState } from "react";
 import { requiredDepositCents } from "@/lib/payment-gate.core";
 import { QUOTE_EXPIRED_OWNER_MESSAGE, quoteExpiresAt, quoteIsExpired } from "@/lib/quote-expiry.core";
@@ -256,6 +257,8 @@ export function BookingPanel({ jobId, kind, canBook, isAdmin = false }: { jobId:
 export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: boolean }) {
   const [consent, setConsent] = useState(false);
   const [accepting, setAccepting] = useState<string | null>(null);
+  const [rectPick, setRectPick] = useState<string | "none" | null>(null);
+  const rectWin = useRectWindows(jobId);
   const respond = useAction(respondToQuote);
   const { data } = useQuery({
     queryKey: ["quotes", jobId],
@@ -286,7 +289,7 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
               <div className="mt-3 flex gap-2">
                 {q.kind === "installation"
                   ? <Button size="field" className="flex-1" onClick={() => setAccepting(q.id)}>Review & accept</Button>
-                  : <Button size="field" className="flex-1" disabled={!consent} onClick={() => respond({ quoteId: q.id, accept: true, consent }, "Scope approved")}>Approve scope</Button>}
+                  : <Button size="field" className="flex-1" disabled={!consent || (!!rectWin.data?.hasWindows && !rectPick)} onClick={() => respond({ quoteId: q.id, accept: true, consent, ...(rectPick === "none" ? { noneSuit: true } : rectPick ? { windowId: rectPick } : {}) }, rectPick && rectPick !== "none" ? "Scope approved and time chosen" : "Scope approved")}>Approve scope</Button>}
                 {q.kind === "rectification" && <Button size="field" variant="outline" onClick={() => respond({ quoteId: q.id, accept: false }, "Declined")}>Decline</Button>}
               </div>
             )}
@@ -294,7 +297,8 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
         ))}
       </div>
       {canRespond && open && (
-        <label className="mt-3 flex items-start gap-2 text-sm"><Checkbox checked={consent} onCheckedChange={(v) => setConsent(!!v)} className="mt-0.5" /> I have reviewed the rectification scope and prices (inc GST). Nothing is payable yet – these lines are included in my final installation quote.</label>
+        <><RectWindowChoice jobId={jobId} value={rectPick} onChange={setRectPick} />
+        <label className="mt-3 flex items-start gap-2 text-sm"><Checkbox checked={consent} onCheckedChange={(v) => setConsent(!!v)} className="mt-0.5" /> I have reviewed the rectification scope and prices (inc GST). Nothing is payable yet – these lines are included in my final installation quote.</label></>
       )}
     </Section>
   );

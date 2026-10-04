@@ -462,6 +462,7 @@ export const respondToProposal = createServerFn({ method: "POST" }).middleware([
   .handler(async ({ data, context }) => {
     const { data: p } = await admin.from("appointment_proposals").select("*").eq("id", data.proposalId).single();
     if (!p) throw new WorkflowError("Proposal not found.");
+    if (p.electrician_window) throw new WorkflowError("Pick rectification times when approving the rectification quote.");
     const role = await requireJobRole(context.supabase, p.job_id, ["admin", "owner", "electrician", "installer"]);
     const b = proposalResponse(p, role, data.action);
     if (b) throw new WorkflowError(b);
@@ -482,7 +483,7 @@ export const coordinationState = createServerFn({ method: "POST" }).middleware([
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "owner", "electrician", "installer"]);
     const [{ data: a }, { data: props }] = await Promise.all([
       admin.from("job_assignments").select("id, assigned_at, first_response_at, booking_confirmed_at, cannot_attend_at, profiles!job_assignments_user_id_fkey(full_name)").eq("job_id", data.jobId).eq("role", "electrician").eq("active", true).maybeSingle(),
-      admin.from("appointment_proposals").select("id, kind, proposer_role, starts_at, note, status, response_note, created_at").eq("job_id", data.jobId).order("created_at", { ascending: false }).limit(30),
+      admin.from("appointment_proposals").select("id, kind, proposer_role, starts_at, note, status, response_note, created_at").eq("job_id", data.jobId).eq("electrician_window", false).order("created_at", { ascending: false }).limit(30),
     ]);
     const [{ data: bk }, { data: rr }] = await Promise.all([
       admin.from("bookings").select("kind, scheduled_start, status").eq("job_id", data.jobId).eq("status", "confirmed"),
