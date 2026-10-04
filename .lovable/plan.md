@@ -1,37 +1,73 @@
-# Step 5: Quote expiry and owner nudges
+# Step 6: Owner picks PIESA times, and the electrician's tap is the booking
+
+New standing rule (I'll save it to project memory on "go"): every database change is proven on a practice database before it touches the real one. Step 5's change went straight onto the real database. On "go" I'll also run it on a practice database and tell you the result.
 
 ## 1. What I would add or change
-- **Record when a quote is sent.** Right now quotes don't store a "sent" date. I'd add a new empty "sent at" date, filled in when the office (or installer) sends a quote. The 14-day count starts from that date.
-- **Expiry after 14 days.** If a sent quote isn't accepted within 14 days, the 15-minute timer marks it "Expired". It doesn't change the job stage, doesn't add it to the Needs Home Insulation Victoria list, and doesn't contact anyone.
-- **Expired quotes can't be accepted.** The owner's accept button is replaced with "This quote has expired — please contact us for an updated quote." The server also refuses it, so an old link can't get round this.
-- **Nudges on day 3 and day 10.** The timer queues an owner reminder on day 3 and on day 10, using the existing reminder queue. Sending stays off, so they're only queued, like the other reminders. Each nudge happens once per quote. No nudge goes out if the quote has been accepted, declined, replaced or has expired, or if the owner has opted out or not given contact consent.
-- **Nudge wording.** Short plain text that I'd draft. You or Jo approve it before sending is ever switched on.
+
+**Owner side**
+- A new last step in the owner's acceptance flow, after the quote is accepted, the consents are signed and a payment option is chosen: "Pick 3–5 times for your electrical safety check (PIESA)."
+- The owner must choose 3 to 5 times, on at least 3 different days.
+- Allowed times start at least 2 business days ahead and fall within the next 21 days. There are no capacity holds yet, so this simpler rule applies. Weekends and Victorian public holidays don't count as business days.
+- Times are morning or afternoon slots in Melbourne time.
+- The times are saved in the existing appointment-times list as owner-proposed times for the PIESA.
+
+**Electrician side**
+- Each PIESA offer shows the owner's times as buttons, plus the electrician's own agreed rate (unchanged).
+- Tapping a time, if they're first, does three things in one locked step:
+  - accepts the offer
+  - confirms the booking for that time
+  - closes all other offers for the job
+- If someone else got there first, they see "This job has just been taken." Nothing else changes.
+- The tapped time is marked accepted and the owner's other times are closed.
+- Owner contact details are released only at that moment, for the PIESA visit only. This uses the existing release record.
+- Booking confirmation reuses the existing booking step, so the PIESA payment check, the PIESA window rules and the installer planning notice all still apply.
+
+**When nobody accepts**
+- Offers expire as they do now and the next batch goes out with the same times.
+- If every approved electrician has been tried and no one accepted, the owner is asked for more times. That request is queued only, because sending stays off. Earlier times that have passed are closed, and the offers restart with the new times.
+- If the second round also gets no acceptance, the job goes on the Needs Home Insulation Victoria list as "No electrician could take the owner's times."
+
+**Fallback (old path kept)**
+- On an offer, the electrician can tap "None of these times work — accept and arrange a time."
+- This is the current path: accept, contact details released, then a time is agreed afterwards with the existing 24h reminder and 48h exception.
+- It's also used automatically when a job has no owner-picked times, which covers every job already in progress.
 
 ## 2. Existing parts it touches
-- The 15-minute timer: adds one more check next to the offer and reminder checks.
-- The "send quote" actions (office and installer): they also save the sent date.
-- Quote acceptance: adds a "not expired" check.
-- The owner quote page: shows the expired message.
-- The office job page: shows "Expired on (date)" on the quote.
-- The existing reminder queue, consent rules and opt-out rules: reused, not changed.
-- Database: one addition only. It adds an "Expired" quote status plus new empty columns for the sent date and nudge dates. Nothing is renamed or deleted. I'd test it on a practice database first.
+- Owner acceptance flow: one extra step at the end.
+- The appointment-times list: reused, with one new optional link to the offer round.
+- Electrician offer cards on the partner dashboard: new time buttons and the fallback button.
+- The locked "accept offer" step in the database: a new version that also takes a chosen time. The old version stays for the fallback.
+- Existing booking confirmation, contact release, next-batch and coverage-exhausted logic: reused.
+- The 15-minute timer: also checks for the "ask the owner for more times" case.
+- The Needs Home Insulation Victoria list: one new reason.
+- Database: additions only. That's one new optional column, one new database step and one new owner request type. Nothing is renamed or deleted.
+- It is proven on a practice database first, then applied for preview.
 
-## 3. Quotes already sent and older than 14 days
-- There are none right now. There are 3 sent quotes, all on TEST jobs and all under 14 days old.
-- Existing quotes have no sent date, so the timer leaves them alone: they won't expire and won't get nudges. I won't backfill dates or change any existing record unless you ask.
+## 3. Jobs already mid-PIESA under the old flow
+- Today there are 4, all TEST jobs:
+  - 3 waiting on the PIESA, with 2 electricians already assigned and 1 open offer
+  - 1 PIESA already booked
+- No real jobs are affected.
+- They have no owner-picked times, so they carry on exactly as now through the old "accept then arrange a time" path. I won't change or backfill any existing record.
+- New times are only asked for on quotes accepted after this goes live.
 
-## 4. Fresh quote after expiry
-- Yes. The office uses the existing "new quote version" action on the job page to create and send a new version. That starts a fresh 14 days with new day-3 and day-10 nudges.
-- The expired quote stays in the history as Expired. The owner never sees an automatic replacement; the office decides.
+## 4. How to undo it
+- Hide the time-picker step and the time buttons, and offers fall back to the old path straight away. Or roll back to this version in History.
+- The new column and database step can stay unused without harm. A rollback script is tested on the practice database as well.
 
-## 5. How to undo it
-- Remove the expiry check from the timer and restore the acceptance check, or roll back to this version in History.
-- The new columns and status can stay unused without harming anything. Any quote that was marked Expired can be set back to Sent by the office if needed.
-
-## After building (preview only, no publish)
-- Focused tests: day 3 and day 10 nudges once each; no nudge after accept, decline or expiry; expiry at 14 days; expired quotes refused; no stage change; nothing added to the needs-attention list.
-- Then typecheck, wording scan and build. TEST jobs only, sending stays off, nothing else changes.
+## Checks after building (preview only, no publish)
+- Practice database tests:
+  - first tap wins
+  - two electricians tapping at once leaves only one booked
+  - expired, wrong-area and unapproved electricians are refused
+  - contacts are released only to the winner, for the PIESA only
+  - the fallback still works
+  - the ask-for-more-times and needs-attention order is right
+- Rule tests for the time limits: at least 3 different days, between 3 and 5 times, 2 business days to 21 days ahead.
+- Browser check on TEST jobs as a TEST owner and TEST Delta Electrical.
+- Then typecheck, wording scan, build and the full test suite.
+- Sending, the payment gate, Xero and Mitti stay off. Nothing else changes.
 
 ## Questions to confirm
-- Does "14 days" mean 14 full days, so a quote sent on the 1st expires at the end of the 15th? I'd assume yes.
-- Does this cover installation quotes only, or rectification quotes too? I'd assume both.
+- Slot shape: morning (8am–12pm) and afternoon (12pm–4pm) windows, or exact start times? I'd assume windows.
+- The second "no acceptance" goes straight to the needs-attention list, with no third request to the owner. I'd assume yes.
