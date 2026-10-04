@@ -3008,6 +3008,100 @@ export type Database = {
           },
         ]
       }
+      electrician_rate_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          details: Json
+          event_type: string
+          id: string
+          rate_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type: string
+          id?: string
+          rate_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type?: string
+          id?: string
+          rate_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "electrician_rate_events_rate_id_fkey"
+            columns: ["rate_id"]
+            isOneToOne: false
+            referencedRelation: "electrician_rates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      electrician_rates: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          business_id: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          gst_included: boolean
+          id: string
+          rate_inc_gst: number
+          service_type: string
+          source_note: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          gst_included?: boolean
+          id?: string
+          rate_inc_gst: number
+          service_type: string
+          source_note: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          gst_included?: boolean
+          id?: string
+          rate_inc_gst?: number
+          service_type?: string
+          source_note?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "electrician_rates_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       eligibility_verifications: {
         Row: {
           evidence_complete: boolean
@@ -9771,6 +9865,10 @@ export type Database = {
           payment_id: string
           payment_status: string
         }[]
+      }
+      activate_electrician_rate: {
+        Args: { _actor: string; _rate_id: string }
+        Returns: string
       }
       activate_partner_application: {
         Args: {
