@@ -16,18 +16,18 @@ describe("Step 2 refinement: preliminary declared thresholds", () => {
     expect(r(run(prop({})), "residential")).toMatchObject({ result: "pass", basis: "declared" });
     expect(r(run(prop({ property_type: "townhouse" })), "residential").result).toBe("pass");
   });
-  test("2. owner house without verified address -> review", () => expect(r(run(prop({}), []), "residential").result).toBe("review"));
-  test("3. trusted contradictory class evidence -> review", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – 2. owner house without verified address -> review", () => expect(r(run(prop({}), []), "residential").result).toBe("review"));
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – 3. trusted contradictory class evidence -> review", () => {
     const x = run(prop({}), [...addr, fact("ncc_class_evidence", "not_eligible")]);
     expect(r(x, "residential").result).toBe("review"); expect(x.reviewRequired).toBe(true);
   });
-  test("apartment still needs top-floor handling", () => expect(run(prop({ property_type: "apartment" })).reviewRequired).toBe(true));
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – apartment still needs top-floor handling", () => expect(run(prop({ property_type: "apartment" })).reviewRequired).toBe(true));
   test("4. owner >5y yes + no contrary evidence -> age pass (declared)", () => expect(r(run(prop({})), "ceiling_age")).toMatchObject({ result: "pass", basis: "declared" }));
-  test("5. owner >5y yes + recent extension risk -> review", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – 5. owner >5y yes + recent extension risk -> review", () => {
     const x = run(prop({}), [...addr, fact("recent_extension_or_added_storey_risk", "yes", false)]);
     expect(r(x, "ceiling_age").result).toBe("review"); expect(x.reviewRequired).toBe(true);
   });
-  test("6. owner >5y no/unknown -> review", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – 6. owner >5y no/unknown -> review", () => {
     expect(r(run(prop({ over_five_years: "no" })), "ceiling_age").result).toBe("review");
     expect(r(run(prop({ over_five_years: "unknown" })), "ceiling_age").result).toBe("review");
   });

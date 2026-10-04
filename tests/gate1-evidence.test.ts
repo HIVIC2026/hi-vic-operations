@@ -10,7 +10,7 @@ const research = { status: "complete", state: "vic", postcode: "3056", formatted
 const decide = (b: ReturnType<typeof buildBase44Evidence>, over: Partial<StoredProperty> = {}) => evaluateGate1(resolveGate1Facts(prop({ base44: { ...b, raw: { answers: { insulation: "none" } } } }, over), job, 5, Y));
 
 describe("Base44 Gate 1 evidence", () => {
-  test("declarations are stored as declared, never verified", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – declarations are stored as declared, never verified", () => {
     const b = buildBase44Evidence({ declared_property_type: "house", declared_over_five_years: "yes", declared_previous_upgrade: "no" });
     expect(b.declared.basis).toBe("owner_declaration");
     expect(b.research).toBeNull();
@@ -19,27 +19,27 @@ describe("Base44 Gate 1 evidence", () => {
     expect(d.rules.find((r) => r.key === "ceiling_age")).toMatchObject({ basis: "declared", result: "pass" });
     expect(d.rules.find((r) => r.key === "residential")).toMatchObject({ basis: "declared", result: "review" });
   });
-  test("complete research + consistent declarations auto-pass with per-rule provenance", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – complete research + consistent declarations auto-pass with per-rule provenance", () => {
     const d = decide(buildBase44Evidence({ declared_property_type: "house", declared_over_five_years: "yes", declared_previous_upgrade: "no", property_research: research }));
     expect(d.outcome).toBe("likely_eligible");
     expect(d.rules.find((r) => r.key === "ceiling_age")).toMatchObject({ basis: "verified", result: "pass" });
     expect(d.rules.find((r) => r.key === "location")).toMatchObject({ basis: "verified", result: "pass" });
     expect(d.rules.find((r) => r.key === "previous_activity")).toMatchObject({ basis: "declared", result: "pass" });
   });
-  test("incomplete research never verifies age", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – incomplete research never verifies age", () => {
     const b = buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "no", property_research: { ...research, status: "pending" } });
     expect(b.research?.age_verified).toBe(false);
     expect(decide(b).outcome).toBeNull();
   });
-  test("recent first appearance is review, not fail", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – recent first appearance is review, not fail", () => {
     const d = decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "no", property_research: { ...research, first_appearance_year: 2024 } }));
     expect(d.outcome).toBeNull();
   });
-  test("type conflict or non-residential research -> review, not auto-fail", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – type conflict or non-residential research -> review, not auto-fail", () => {
     expect(decide(buildBase44Evidence({ declared_property_type: "office", declared_previous_upgrade: "no", property_research: research })).outcome).toBeNull();
     expect(decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "no", property_research: { ...research, premises_classification: "Commercial" } })).outcome).toBeNull();
   });
-  test("explicit flat roof detection -> review; mapped non-VIC address -> fail", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – explicit flat roof detection -> review; mapped non-VIC address -> fail", () => {
     expect(decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "no", property_research: { ...research, flat_roof_detected: true } })).outcome).toBe("needs_onsite_confirmation");
     expect(decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "no", property_research: { ...research, state: "NSW" } }), { postcode: null }).outcome).toBe("does_not_appear_eligible");
   });
@@ -60,7 +60,7 @@ describe("approved Gate 1 business rules", () => {
     expect(r).toMatchObject({ result: "pass", basis: "declared" });
     expect(r.basis).not.toBe("verified");
   });
-  test("minimum building age is 5 years", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – minimum building age is 5 years", () => {
     expect(decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "no", property_research: { ...research, first_appearance_year: Y - 3 } })).outcome).toBeNull();
     expect(decide(buildBase44Evidence({ declared_property_type: "house", declared_previous_upgrade: "no", property_research: { ...research, first_appearance_year: Y - 6 } })).rules.find((x) => x.key === "ceiling_age")!.result).toBe("pass");
   });

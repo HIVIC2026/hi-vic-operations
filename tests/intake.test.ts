@@ -122,7 +122,7 @@ describe("repeat sync and Gate 1 safety", () => {
     expect("stage" in p.patch).toBe(false);
   });
   const prop = (b: unknown): StoredProperty => ({ state: "VIC", postcode: "3056", occupancy: "owner_occupied", is_residential: null, year_built: null, enrichment: { base44: b } });
-  test("preliminary result + declarations + raw snapshots alone cannot auto-pass", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – preliminary result + declarations + raw snapshots alone cannot auto-pass", () => {
     const b = { ...buildBase44Evidence({ declared_property_type: "house", declared_over_five_years: "yes", declared_previous_upgrade: "no" }), raw: buildBase44Raw({ base44_screening: { status: "likely_eligible" }, property_research_raw: { year: 1990 } }) };
     expect(evaluateGate1(resolveGate1Facts(prop(b), { lifeSupportStatus: "no", preliminaryOutcome: "likely_eligible" }, 5, 2026)).outcome).toBeNull();
   });

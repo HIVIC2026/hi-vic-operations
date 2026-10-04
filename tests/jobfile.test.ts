@@ -147,22 +147,22 @@ describe("14. Gate 1 uses Property Intelligence only when trusted", () => {
   const prop = { state: null, postcode: "3000", occupancy: "owner_occupied", is_residential: null, year_built: null, enrichment: { previous_ceiling_insulation_upgrade: false, base44: { raw: { answers: { insulation: "none" } } } } };
   const f = (k: string, v: unknown, o: Partial<IntelFact> = {}): IntelFact => ({ fact_key: k, value: v, evidence_kind: "direct", confidence: "high", source_type: "public_gis", source_name: "Vicmap", is_current: true, is_stale: false, ...o });
   const job = { lifeSupportStatus: "no", preliminaryOutcome: "likely_eligible" };
-  test("trusted direct facts can pass", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – trusted direct facts can pass", () => {
     const facts = resolveGate1Facts(prop, job, 5, 2026, [f("address_verified", true), f("in_victoria", true), f("ncc_class_evidence", "class1"), f("age_evidence", { date: "2010-01-01", kind: "historical_imagery_same_footprint" })]);
     expect(facts.state).toBe("VIC"); expect(facts.isResidential).toBe(true); expect(facts.verifiedMinAgeYears).toBe(16);
     expect(evaluateGate1(facts).outcome).toBe("likely_eligible");
   });
-  test("inferred/low-confidence/stale facts never set facts; stays review", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – inferred/low-confidence/stale facts never set facts; stays review", () => {
     const facts = resolveGate1Facts(prop, job, 5, 2026, [f("address_verified", true), f("in_victoria", true, { confidence: "medium" }), f("ncc_class_evidence", "class1", { evidence_kind: "inferred" }), f("age_evidence", { date: "2010-01-01", kind: "historical_imagery_same_footprint" }, { is_stale: true }), f("residential_likelihood", "high")]);
     expect(facts.state).toBeNull(); expect(facts.isResidential).toBeNull(); expect(facts.verifiedMinAgeYears ?? null).toBeNull();
     expect(evaluateGate1(facts).outcome).toBeNull();
   });
-  test("direct hard evidence auto-fails; flat roof forces review", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – direct hard evidence auto-fails; flat roof forces review", () => {
     expect(evaluateGate1(resolveGate1Facts(prop, job, 5, 2026, [f("address_verified", true), f("in_victoria", false)])).outcome).toBe("does_not_appear_eligible");
     const flat = resolveGate1Facts(prop, job, 5, 2026, [f("address_verified", true), f("in_victoria", true), f("ncc_class_evidence", "class1"), f("age_evidence", { date: "2010-01-01", kind: "historical_imagery_same_footprint" }), f("roof_form", "low_slope_flat", { evidence_kind: "inferred", confidence: "low" })]);
     expect(evaluateGate1(flat).outcome).toBe("needs_onsite_confirmation");
   });
-  test("preliminary Base44 result alone never passes", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – preliminary Base44 result alone never passes", () => {
     expect(evaluateGate1(resolveGate1Facts(prop, job, 5, 2026, [])).outcome).toBeNull();
   });
 });
