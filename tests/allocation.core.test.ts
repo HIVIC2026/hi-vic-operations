@@ -30,7 +30,8 @@ describe("PIESA allocation", () => {
   test("small batch, preferred REC alone, configurable expiry", () => {
     const r = [rec({ business_id: "a" }), rec({ business_id: "b2" }), rec({ business_id: "c" }), rec({ business_id: "d" })];
     expect(nextOfferBatch(r, new Set(), 3)).toHaveLength(3);
-    expect(nextOfferBatch([rec({ business_id: "p", preferred: true }), ...r], new Set(), 3).map((c) => c.business_id)).toEqual(["p"]);
+    expect(nextOfferBatch([rec({ business_id: "p", preferred: true }), ...r], new Set(), 3, { installerSourced: true }).map((c) => c.business_id)).toEqual(["p"]);
+    expect(nextOfferBatch([rec({ business_id: "p", preferred: true }), ...r], new Set(), 3)).toHaveLength(3);
     expect(nextOfferBatch(r, new Set(["a", "b2", "c", "d"]), 3)).toHaveLength(0);
     expect(offerExpiry(now, 2)).toBe(hAgo(-2));
   });
