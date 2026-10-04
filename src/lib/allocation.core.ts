@@ -313,7 +313,7 @@ export type NeedsInput = {
   piesaTiming: { job_id: string; urgency: string | null; piesa_expired: boolean | null; days_remaining: number | null }[];
   escTiming: { job_id: string; created_at: string | null }[];
   evidenceRejected: { job_id: string; created_at: string | null }[];
-  registryQueries: { job_id: string; status: string; updated_at: string | null }[];
+  registryQueries: { job_id: string; status: string; updated_at: string | null; query_received_at?: string | null; reply_sent_at?: string | null }[];
   officeOverdue: { job_id: string | null; title: string; since: string | null }[];
 };
 
@@ -343,7 +343,10 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
   for (const p of i.piesaTiming) if (p.piesa_expired || p.urgency === "red") add("piesa_timing_invalid", p.job_id, null, p.days_remaining != null ? `${p.days_remaining} day(s) left.` : undefined);
   for (const e of i.escTiming) add("esc_or_distribution_timing", e.job_id, e.created_at);
   for (const e of i.evidenceRejected) add("compliance_correction", e.job_id, e.created_at);
-  for (const r of i.registryQueries) add("registry_query", r.job_id, r.updated_at, `Status: ${r.status}.`);
+  for (const r of i.registryQueries) {
+    const overdue = r.status === "query" && veecQueryOverdue(r.query_received_at, r.reply_sent_at, new Date());
+    add("registry_query", r.job_id, r.updated_at, `Status: ${r.status}.${overdue ? " Unanswered 3+ days." : ""}`);
+  }
   for (const o of i.officeOverdue) add("office_overdue", o.job_id, o.since, o.title);
   const rank: Record<NeedsUrgency, number> = { urgent: 0, today: 1, soon: 2 };
   return [...out.values()].sort((a, b) => rank[a.urgency] - rank[b.urgency] || (a.since ?? "").localeCompare(b.since ?? ""));
