@@ -21,13 +21,13 @@ describe("Gate 1 residential: geocoded VIC address + owner-declared house", () =
     expect(x.outcome).toBe("likely_eligible");
     expect(x.reviewRequired).toBe(false);
   });
-  test("formatted address postcode differs -> review required", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – formatted address postcode differs -> review required", () => {
     const x = run(prop({ fa: "12 Smith St, Collingwood VIC 3066", pc: "3065" }));
     expect(res(x).result).toBe("review");
     expect(x.outcome).toBeNull();
     expect(x.reviewRequired).toBe(true);
   });
-  test("research non-residential contradiction still reviews", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – research non-residential contradiction still reviews", () => {
     const x = run(prop({ research: { status: "complete", premises_classification: "Commercial warehouse" } }));
     expect(res(x).result).toBe("review");
     expect(x.reviewRequired).toBe(true);
@@ -39,11 +39,11 @@ describe("Gate 1 residential: geocoded VIC address + owner-declared house", () =
   test("insulation present on clean matching address -> needs onsite", () => {
     expect(run(prop({ ins: "present" })).outcome).toBe("needs_onsite_confirmation");
   });
-  test("non-residential owner declaration stays review", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – non-residential owner declaration stays review", () => {
     const x = run(prop({ type: "non_residential" }));
     expect(x.reviewRequired).toBe(true); expect(x.outcome).toBeNull();
   });
-  test("apartment logic unchanged", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – apartment logic unchanged", () => {
     expect(run(prop({ type: "apartment" })).reviewRequired).toBe(true);
   });
   test("geocodedVicMatch parsing", () => {

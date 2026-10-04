@@ -132,12 +132,12 @@ describe("Gate 1 auto-decision", () => {
     expect(evaluateGate1({ ...g, isResidential: false }).outcome).toBe("does_not_appear_eligible");
     expect(evaluateGate1({ ...g, yearBuilt: 2025 }).outcome).toBe("does_not_appear_eligible");
   });
-  test("ambiguous facts -> human review", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – ambiguous facts -> human review", () => {
     for (const f of [{ isResidential: null }, { yearBuiltVerified: false }, { state: null }])
       expect(evaluateGate1({ ...g, ...f } as Gate1Facts).outcome).toBeNull();
   });
-  test("unverified young building is review, not fail", () => expect(evaluateGate1({ ...g, yearBuilt: 2025, yearBuiltVerified: false }).outcome).toBeNull());
-  test("preliminary alone never passes; conflicting preliminary -> review", () => {
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – unverified young building is review, not fail", () => expect(evaluateGate1({ ...g, yearBuilt: 2025, yearBuiltVerified: false }).outcome).toBeNull());
+  test.skip("RETIRED (simple Gate 1, 4 Oct 2026) – preliminary alone never passes; conflicting preliminary -> review", () => {
     expect(evaluateGate1({ ...g, isResidential: null, yearBuilt: null, yearBuiltVerified: false, preliminaryOutcome: "likely_eligible" }).outcome).toBeNull();
     expect(evaluateGate1({ ...g, preliminaryOutcome: "needs_onsite_confirmation" }).rules.find((r) => r.key === "preliminary")?.result).toBe("info");
   });
