@@ -902,13 +902,13 @@ export const updateVeec = createServerFn({ method: "POST" }).middleware([require
   .inputValidator((d) => z.object({ jobId: uuid, quantity: z.number().min(0).nullable(), status: z.enum(["not_submitted", "submitted", "query", "approved", "rejected"]), submission_reference: z.string().trim().max(100).nullable(), submitted_date: z.string().nullable(), notes: z.string().max(2000).nullable(), query_text: z.string().max(4000).nullable().optional(), query_received_at: z.string().nullable().optional(), reply_draft: z.string().max(8000).nullable().optional(), reason: z.string().max(500).nullable().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { jobId, reason, ...rest } = data;
+    const { jobId, reason, query_text, query_received_at, reply_draft, ...rest } = data;
     const patch = {
       ...rest,
       // Optional fields: only written when the form supplies them, so saving other details never wipes a recorded query or draft.
-      ...(rest.query_text !== undefined ? { query_text: rest.query_text } : {}),
-      ...(rest.query_received_at !== undefined ? { query_received_at: rest.query_received_at } : {}),
-      ...(rest.reply_draft !== undefined ? { reply_draft: rest.reply_draft } : {}),
+      ...(query_text !== undefined ? { query_text } : {}),
+      ...(query_received_at !== undefined ? { query_received_at } : {}),
+      ...(reply_draft !== undefined ? { reply_draft } : {}),
     };
     if (["submitted", "approved"].includes(data.status) && !["ready_for_veec", "complete"].includes(await getStage(jobId)))
       throw new WorkflowError("VEEC can only be lodged once the job is Ready for VEEC.");
