@@ -71,17 +71,20 @@ async function offerFacts(jobId: string) {
 
 /** Office starts (or continues) PIESA allocation. Refuses before the PIESA gate is satisfied. */
 /** Each electrician's own agreed rate for this visit, from their active (non-test) approved rate card. Missing = null. */
+/** Current ACTIVE office-approved rate per business for this offer kind (electrician_rates, migration 0089).
+ *  Fails closed: if the rate table is missing or unreadable every electrician counts as "rate missing". */
 async function agreedElectricianRates(businessIds: string[], kind: "piesa" | "rectification") {
-  const out = new Map<string, number>();
+  const out = new Map<string, { id: string; rate: number }>();
   if (!businessIds.length) return out;
-  const { data } = await admin.from("rec_rate_card_items").select("code, rate_inc_gst, rec_rate_cards!inner(provider_business_id, active, test_only)")
-    .eq("rec_rate_cards.active", true).in("rec_rate_cards.provider_business_id", businessIds);
-  for (const it of data ?? []) {
-    const card = it.rec_rate_cards as { provider_business_id: string | null; test_only: boolean | null };
-    if (!card.provider_business_id || card.test_only) continue;
-    const code = String(it.code ?? "").toLowerCase();
-    if (kind === "piesa" ? !code.includes("piesa") : !code.includes("rectification_callout")) continue;
-    if (it.rate_inc_gst != null) out.set(card.provider_business_id, Number(it.rate_inc_gst));
+  const { OFFER_RATE_SERVICE, selectAgreedRate } = await import("./allocation.core");
+  const service = OFFER_RATE_SERVICE[kind];
+  const { data, error } = await (admin as unknown as { from: (t: string) => any }).from("electrician_rates") // eslint-disable-line @typescript-eslint/no-explicit-any
+    .select("id, business_id, service_type, rate_inc_gst, status, effective_from, effective_to").eq("status", "active").eq("service_type", service).in("business_id", businessIds);
+  if (error) return out;
+  const today = new Date().toISOString().slice(0, 10);
+  for (const b of businessIds) {
+    const r = selectAgreedRate(data ?? [], b, service, today);
+    if (r) out.set(b, { id: r.id, rate: Number(r.rate_inc_gst) });
   }
   return out;
 }
