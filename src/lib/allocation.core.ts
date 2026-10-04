@@ -305,7 +305,7 @@ export type NeedsInput = {
   now: Date;
   jobs: { id: string; job_number: string | null; stage?: string | null; suburb?: string | null }[];
   recNoLongerApproved?: { job_id: string; since: string | null }[];
-  coverageExhausted: { job_id: string; created_at: string; detail?: string }[]; // latest exhaustion with no active electrician since
+  coverageExhausted: { job_id: string; created_at: string; detail?: string | undefined }[]; // latest exhaustion with no active electrician since
   releases: { job_id: string; visit_kind: VisitKind; released_at: string; confirmed_at: string | null }[];
   failedComms: { job_id: string; created_at: string }[];
   rectDeclined: { job_id: string; created_at: string | null }[];
