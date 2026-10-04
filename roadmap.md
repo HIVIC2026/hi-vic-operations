@@ -32,3 +32,10 @@
 - [x] Full-page direct-link privacy audit HV-1414..HV-1421 desktop+phone
 - [x] Investigate full-suite "1 error"
 - [x] Focused tests, scan, typecheck, full suite, build; no publish
+
+## Launch blockers (open)
+- [ ] Real PIESA offers cannot go live until approved electrician PIESA rates are entered for every active electrician/REC, or office explicitly uses rate-to-confirm with an audit reason.
+- [ ] No real scheduled timer for reminders/expired offers.
+- [ ] No rectification reassignment when REC loses approval.
+- [ ] VEEC query/rejected statuses missing.
+- [ ] PIESA path not fully browser-tested (payment_option_gate_enabled OFF).
