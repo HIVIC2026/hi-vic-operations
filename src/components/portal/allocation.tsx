@@ -26,10 +26,11 @@ export function OfficeAllocationPanel({ jobId }: { jobId: string }) {
       <div className="space-y-3 text-sm">
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={async () => { await start({ jobId }, "PIESA offers sent to approved electricians"); refresh(); }}>Offer PIESA to approved electricians</Button>
+          <Button size="sm" variant="outline" onClick={async () => { if (!window.confirm("Offer to approved electricians without a recorded rate? They will see \"Rate to be confirmed\".")) return; await start({ jobId, rateToConfirm: true }, "PIESA offered with rate to be confirmed"); refresh(); }}>Offer with rate to be confirmed</Button>
           <Button size="sm" variant="outline" onClick={() => cands.refetch()}>Show matching electricians</Button>
           <Button size="sm" variant="outline" onClick={async () => { await release({ jobId }, "Installation contacts shared with the agreed installer"); }}>Share installation contacts</Button>
         </div>
-        <p className="text-xs text-muted-foreground">Offers start only after the PIESA gate is satisfied. Contacts are shared for the active visit only; sharing contacts is not a booking.</p>
+        <p className="text-xs text-muted-foreground">Offers start only after the PIESA gate is satisfied. Electricians without a recorded agreed rate are skipped unless you choose rate to be confirmed. Contacts are shared for the active visit only; sharing contacts is not a booking.</p>
         {cands.data && <ul className="space-y-1">{cands.data.map((c) => <li key={c.id} className="flex justify-between gap-2"><span>{c.name}{c.preferred ? " (preferred)" : ""}</span><span className="text-xs text-muted-foreground">{c.blocker ?? `Eligible · order ${(c.rank ?? 0) + 1}`}</span></li>)}</ul>}
         {!!offers.data?.length && <ul className="space-y-1">{offers.data.map((o) => <li key={o.id} className="flex justify-between gap-2"><span>{(o.businesses as { name: string } | null)?.name} · {o.kind} · batch {o.batch}</span><Pill t={o.status === "accepted" ? "good" : o.status === "pending" ? "info" : "bad"}>{o.status}</Pill></li>)}</ul>}
         {rect.data && (

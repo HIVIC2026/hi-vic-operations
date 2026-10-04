@@ -42,7 +42,7 @@ export function useJob(jobId: string) {
   return useQuery({
     queryKey: ["job", jobId],
     queryFn: () => load({ data: { jobId } }),
-    retry: 3,
+    retry: (n, e) => !/permission|not found/i.test(String((e as Error)?.message)) && n < 3,
     staleTime: 30_000,
   });
 }

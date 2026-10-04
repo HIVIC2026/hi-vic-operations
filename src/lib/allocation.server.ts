@@ -65,12 +65,28 @@ async function offerFacts(jobId: string) {
     measured_area_m2: m?.verified_area_m2 ?? m?.measured_area_m2 ?? null,
     access_summary: m?.access_difficulty ? `Ceiling access: ${String(m.access_difficulty).replace(/_/g, " ")}` : null,
     observations: (rc ?? []).map((r) => r.description).filter((d): d is string => !!d),
-    piesa_rate_inc_gst: null, // shown only once a live agreed per-partner PIESA rate exists
+    electrician_rate_inc_gst: null, // filled per electrician from their own agreed rate card (never the customer price)
   });
 }
 
 /** Office starts (or continues) PIESA allocation. Refuses before the PIESA gate is satisfied. */
-export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa") {
+/** Each electrician's own agreed rate for this visit, from their active (non-test) approved rate card. Missing = null. */
+async function agreedElectricianRates(businessIds: string[], kind: "piesa" | "rectification") {
+  const out = new Map<string, number>();
+  if (!businessIds.length) return out;
+  const { data } = await admin.from("rec_rate_card_items").select("code, rate_inc_gst, rec_rate_cards!inner(provider_business_id, active, test_only)")
+    .eq("rec_rate_cards.active", true).in("rec_rate_cards.provider_business_id", businessIds);
+  for (const it of data ?? []) {
+    const card = it.rec_rate_cards as { provider_business_id: string | null; test_only: boolean | null };
+    if (!card.provider_business_id || card.test_only) continue;
+    const code = String(it.code ?? "").toLowerCase();
+    if (kind === "piesa" ? !code.includes("piesa") : !code.includes("rectification_callout")) continue;
+    if (it.rate_inc_gst != null) out.set(card.provider_business_id, Number(it.rate_inc_gst));
+  }
+  return out;
+}
+
+export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean } = {}) {
   const [facts, { count: elec }, { count: open }] = await Promise.all([
     piesaRequestFacts(jobId),
     admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
@@ -78,10 +94,10 @@ export async function startPiesaAllocation(jobId: string, actorId: string | null
   ]);
   const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec, hasOpenOffers: !!open });
   if (blockers.length) throw new WorkflowError(`PIESA offers cannot start: ${blockers.join(" ")}`);
-  return offerNextBatch(jobId, actorId, kind);
+  return offerNextBatch(jobId, actorId, kind, !!opts.rateToConfirm);
 }
 
-async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification") {
+async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false) {
   const { expiryHours, batchSize } = await settings();
   const [{ candidates }, { data: prior }] = await Promise.all([
     recCandidatesFor(jobId),
@@ -89,7 +105,12 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   ]);
   const offered = new Set((prior ?? []).map((o) => o.business_id));
   const batchNo = Math.max(0, ...(prior ?? []).map((o) => o.batch)) + 1;
-  const batch = nextOfferBatch(rankRecCandidates(candidates), offered, batchSize);
+  const rates = await agreedElectricianRates(candidates.map((c) => c.business_id), kind);
+  const { offerRateBlocker } = await import("./allocation.core");
+  const noRate = candidates.filter((c) => offerRateBlocker(rates.get(c.business_id) ?? null, rateToConfirm));
+  if (noRate.length) await logEvent(jobId, actorId, "rec_offer_rate_missing", `${noRate.length} electrician(s) skipped: no agreed electrician rate recorded`, { kind, businesses: noRate.map((c) => c.business_id) }, { internal: true });
+  const priced = candidates.filter((c) => !noRate.includes(c));
+  const batch = nextOfferBatch(rankRecCandidates(priced), offered, batchSize);
   if (!batch.length) {
     await logEvent(jobId, actorId, "rec_coverage_exhausted", `No approved electrician left to offer the ${kind} to — needs Home Insulation Victoria`, { kind, offered: [...offered] }, { internal: true });
     await admin.from("jobs").update({ next_action: "Needs Home Insulation Victoria: no approved electrician coverage" }).eq("id", jobId);
@@ -97,7 +118,8 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   }
   const summary = await offerFacts(jobId);
   const expires = offerExpiry(new Date(), expiryHours);
-  const { error } = await admin.from("partner_offers").insert(batch.map((b) => ({ job_id: jobId, business_id: b.business_id, kind, batch: batchNo, summary: summary as unknown as Json, offered_by: actorId, expires_at: expires })));
+  const { error } = await admin.from("partner_offers").insert(batch.map((b) => ({ job_id: jobId, business_id: b.business_id, kind, batch: batchNo,
+    summary: { ...summary, electrician_rate_inc_gst: rates.get(b.business_id) ?? null, rate_to_confirm: !rates.has(b.business_id) && rateToConfirm } as unknown as Json, offered_by: actorId, expires_at: expires })));
   if (error) throw new Error(error.message);
   await logEvent(jobId, actorId, "rec_offers_made", `${kind === "piesa" ? "PIESA" : "Rectification"} offered to ${batch.length} approved electrician(s), batch ${batchNo}`, { kind, batch: batchNo, businesses: batch.map((b) => b.business_id), expires_at: expires }, { internal: true });
   return { offered: batch.length, exhausted: false };
@@ -154,8 +176,13 @@ async function refillIfNeeded(jobId: string, kind: "piesa" | "rectification", ac
 
 /** Electrician accepts/declines a PIESA or rectification offer. Acceptance is atomic in SQL. */
 export async function respondToRecOffer(offerId: string, userId: string, accept: boolean, reason: string | null) {
-  const { data: o } = await admin.from("partner_offers").select("id, job_id, kind, status, business_id").eq("id", offerId).single();
+  const { data: o } = await admin.from("partner_offers").select("id, job_id, kind, status, business_id, summary").eq("id", offerId).single();
   if (!o) throw new WorkflowError("Offer not found.");
+  if (accept) {
+    const { offerRateBlocker } = await import("./allocation.core");
+    const sm = (o.summary ?? {}) as { electrician_rate_inc_gst?: number | null; rate_to_confirm?: boolean };
+    if (offerRateBlocker(sm.electrician_rate_inc_gst ?? null, !!sm.rate_to_confirm)) throw new WorkflowError("This offer has no agreed electrician rate yet. Home Insulation Victoria will confirm the rate before it can be accepted.");
+  }
   if (!accept) {
     const { data: d } = await admin.from("partner_offers").update({ status: "declined", responded_by: userId, responded_at: new Date().toISOString(), decline_reason: reason }).eq("id", o.id).eq("status", "pending").select("id").maybeSingle();
     if (!d) throw new WorkflowError("This offer is no longer open.");

@@ -82,3 +82,11 @@ See `hardStops` in `src/config/workflow-decisions.ts`.
 
 ## Xero reference (locked 2026-10-03)
 Xero invoice and all customer/trade/financial-facing references use "Home Insulation Victoria <job>". HI VIC, HI VIC! and HIVIC are retired visible names. Internal-only identifiers (business_unit value `hivic`, `hivic-` idempotency keys, `assertHivic*` function names) stay for compatibility and never appear on invoices, quotes, receipts, emails, SMS, portal screens or exports.
+
+## Electrician rate vs customer PIESA price (owner decision 2026-10-04)
+- $349 inc GST is the CUSTOMER-facing PIESA charge. It is never an electrician fee, payout, REC fee or amount payable to the electrician.
+- The electrician's payable rate comes only from their onboarding agreement / approved REC rate card / the specific job offer. Home Insulation Victoria keeps the difference.
+- Electrician-facing screens show only that electrician's own agreed rate ("Your agreed rate: $X inc GST") or "Rate to be confirmed".
+- Customer-facing screens may show the customer price. Office screens may show customer price, electrician rate and the spread.
+- A PIESA/rectification offer is not made to an electrician without a recorded agreed rate, unless office explicitly marks it "rate to be confirmed"; acceptance is blocked when neither applies.
+- Enforced by `offerRateBlocker` / `electricianRateText` (allocation.core.ts), the retired-term scan, and tests/allocation.core.test.ts.

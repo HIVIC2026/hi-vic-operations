@@ -417,8 +417,14 @@ export function bucketFor(stage: string): PartnerBucket {
 }
 
 /** Electrician (REC) dashboard groups, in source-of-truth wording. Presentation only. */
-export const REC_BUCKETS = ["Accepted · Arrange visit", "Awaiting confirmation", "Booked", "PIESA complete", "Rectification required", "Electrically cleared", "Other"] as const;
+export const REC_BUCKETS = ["Accepted · Arrange visit", "Awaiting owner confirmation", "Booked", "PIESA complete", "Rectification required", "Electrically cleared", "Other"] as const;
 export function recBucketFor(label: string): (typeof REC_BUCKETS)[number] {
   if (label === "Rectification required · Arrange visit") return "Rectification required";
   return (REC_BUCKETS as readonly string[]).includes(label) ? (label as (typeof REC_BUCKETS)[number]) : "Other";
+}
+
+/** Electrician dashboard: the generic "Waiting for electrician" SLA text is meaningless to the assigned electrician
+ *  (their status line already says what to do). Only warnings/exceptions are shown to them. */
+export function recSlaForAssigned<T extends { state: string } | null>(sla: T): T | null {
+  return sla && (sla.state === "attention" || sla.state === "exception") ? sla : null;
 }

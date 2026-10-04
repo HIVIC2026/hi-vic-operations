@@ -18,7 +18,7 @@ describe("PIESA allocation", () => {
     expect(piesaOfferBlockers({ ...base, currentQuoteApproved: false }).length).toBeGreaterThan(0);
   });
   test("pre-accept summary carries no owner PII or exact address", () => {
-    const s = anonymisedOffer({ job_number: "HV-1", suburb: "Frankston", postcode: "3199", measured_area_m2: 121, access_summary: "Manhole", observations: [], piesa_rate_inc_gst: null, address_line: "1 Secret St", owner_name: "Jo", owner_phone: "0400", owner_email: "a@b" });
+    const s = anonymisedOffer({ job_number: "HV-1", suburb: "Frankston", postcode: "3199", measured_area_m2: 121, access_summary: "Manhole", observations: [], electrician_rate_inc_gst: null, address_line: "1 Secret St", owner_name: "Jo", owner_phone: "0400", owner_email: "a@b" });
     const t = JSON.stringify(s);
     for (const x of ["Secret", "Jo", "0400", "a@b"]) expect(t).not.toContain(x);
     expect(s.approx_area_m2).toBe(120);
@@ -126,7 +126,7 @@ describe("Finish pass: deep links, status wording, planning notice", () => {
     const { electricalStatusLabel: l } = await import("../src/lib/allocation.core");
     expect(l({ offerPending: true, stage: "piesa_and_install_window_pending" })).toBe("Offered");
     expect(l({ stage: "piesa_and_install_window_pending" })).toBe("Accepted · Arrange visit");
-    expect(l({ stage: "piesa_and_install_window_pending", proposalPending: true })).toBe("Awaiting confirmation");
+    expect(l({ stage: "piesa_and_install_window_pending", proposalPending: true })).toBe("Awaiting owner confirmation");
     expect(l({ stage: "piesa_scheduled" })).toBe("Booked");
     expect(l({ stage: "piesa_complete" })).toBe("PIESA complete");
     expect(l({ stage: "rectification_required" })).toBe("Rectification required");
@@ -139,5 +139,48 @@ describe("Finish pass: deep links, status wording, planning notice", () => {
     const fn = readFileSync("src/lib/allocation.server.ts", "utf8").split("export async function queueInstallerPlanningNotice")[1]!.split("\nasync function")[0]!;
     expect(fn).toContain("enqueue_external_action");
     expect(fn).not.toMatch(/transition\(|stage:/);
+  });
+});
+
+import { offerRateBlocker, electricianRateText } from "../src/lib/allocation.core";
+import { recSlaForAssigned, REC_BUCKETS } from "../src/lib/pilot.core";
+describe("electrician rate is never the customer price", () => {
+  test("shows only the electrician's own agreed rate, or Rate to be confirmed", () => {
+    expect(electricianRateText({ electrician_rate_inc_gst: 180 })).toBe("Your agreed rate: $180.00 inc GST");
+    expect(electricianRateText({ electrician_rate_inc_gst: null, rate_to_confirm: true })).toBe("Rate to be confirmed");
+    // A legacy summary carrying only the customer price must not surface it as a payout.
+    expect(electricianRateText({ piesa_rate_inc_gst: 349 } as never)).toBe("Rate to be confirmed");
+  });
+  test("blocks offers/acceptance without a rate unless office marked rate-to-confirm", () => {
+    expect(offerRateBlocker(null, false)).toMatch(/No agreed electrician rate/);
+    expect(offerRateBlocker(null, true)).toBeNull();
+    expect(offerRateBlocker(150, false)).toBeNull();
+  });
+  test("anonymised offer carries the electrician rate field, never a customer price field", () => {
+    const s = anonymisedOffer({ job_number: "HV-1", suburb: null, postcode: null, measured_area_m2: null, access_summary: null, observations: [], electrician_rate_inc_gst: 175 });
+    expect(s.electrician_rate_inc_gst).toBe(175);
+    expect(JSON.stringify(s)).not.toMatch(/349|piesa_rate|customer/);
+  });
+  test("electrician dashboard source never renders the customer price as their fee", () => {
+    const src = readFileSync("src/routes/_authenticated/partner.index.tsx", "utf8");
+    expect(src).not.toMatch(/349|Agreed fee|piesa_rate_inc_gst/);
+    expect(src).toContain("electricianRateText");
+  });
+});
+describe("assigned electrician never sees 'Waiting for electrician'", () => {
+  test("hides the generic ok SLA text but keeps warnings", () => {
+    expect(recSlaForAssigned({ state: "ok", message: "Waiting for electrician" })).toBeNull();
+    expect(recSlaForAssigned({ state: "attention", message: "No response for 24 hours" })?.state).toBe("attention");
+    expect(REC_BUCKETS.join("|")).not.toMatch(/Waiting for electrician/);
+    expect(REC_BUCKETS).toContain("Awaiting owner confirmation");
+  });
+});
+describe("electrician-facing screens wording scan", () => {
+  test("no '$349 fee' or customer price shown as electrician pay on electrician-facing screens", () => {
+    const files = ["src/routes/_authenticated/partner.index.tsx", "src/routes/_authenticated/field.$jobId.tsx", "src/routes/_authenticated/field.index.tsx", "src/routes/w.$token.tsx", "src/components/portal/partner.tsx"];
+    for (const f of files) {
+      const src = readFileSync(f, "utf8");
+      expect({ f, hit: /\$349 fee|Agreed fee|349[^\n]{0,40}(payout|electrician fee|REC fee)/i.test(src) }).toEqual({ f, hit: false });
+    }
   });
 });
