@@ -53,3 +53,6 @@
 - [ ] No Activity 48 answer was saved to a TEST job during the check.
 - Step 3 (approved): VEEC Registry query status + AI draft reply + mark reply sent + 3-day overdue flag. Next step after: 'Submitted moves job to Complete' change.
 - Step 4 done (4 Oct, preview only): job becomes Complete only when VEEC is Approved; Submitted/Query/Rejected keep it at Ready for VEEC; stage guard for Complete now requires approved VEEC. HV-1001 (TEST) left Complete as-is per Jo. Not published.
+
+- [x] Step 5: installation quote expiry (14 full days) + day 3/10 owner nudges, queued only
+- [ ] Rectification quote timing (24h, day 3 nudges, escalate day 5) — separate step
