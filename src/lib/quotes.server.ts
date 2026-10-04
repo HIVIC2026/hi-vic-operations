@@ -99,7 +99,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   const card = await activeRateCard("installer", inst.business_id, false);
   const items = card.rate_card_items as { code: string; description: string; unit_price_ex_gst: number; category: string }[];
   const rate = (...codes: string[]) => { for (const c of codes) { const it = items.find((i) => i.code === c); if (it) return Number(it.unit_price_ex_gst); } return null; };
-  const { data: rs } = await admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst").eq("is_current", true).maybeSingle();
+  const { data: rs } = await admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst, access_standard_multiplier, access_moderate_multiplier, access_difficult_multiplier").eq("is_current", true).maybeSingle();
   if (!rs) throw new WorkflowError("Owner prices are not set – cannot quote.");
 
   // Known rectification scope (owner-approved) is folded in so the single accepted total covers the whole job. Lines stay itemised, no markup.
@@ -113,7 +113,8 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   try {
     calc = priceHivQuote({
       areaM2: qi.areaM2, removalM2: qi.removalM2,
-      accessMultiplier: Number((settings.access_loadings as Record<string, number>)[qi.access] ?? 1),
+      // Owner access loading comes from the office-set owner prices (same as the estimate).
+      accessMultiplier: Number(qi.access === "difficult" ? rs.access_difficult_multiplier : qi.access === "moderate" ? rs.access_moderate_multiplier : rs.access_standard_multiplier),
       ownerR5IncPerM2: Number(rs.r5_install_inc_gst_per_m2), ownerRemovalIncPerM2: Number(rs.removal_inc_gst_per_m2),
       piesaIncGst: Number(rs.piesa_assessment_inc_gst),
       apFeeIncGst: jobRow.ap_fee_override_inc_gst != null ? Number(jobRow.ap_fee_override_inc_gst) : Number(rs.ap_management_inc_gst),

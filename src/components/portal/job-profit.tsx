@@ -22,7 +22,7 @@ export function OfficeJobProfitCard({ jobId }: { jobId: string }) {
   const { expected: e, actual: a, hivJob } = q.data;
   const rows: [string, number | null, number | null][] = [
     ["Accredited Provider fee", e.apFeeInc, a.apFeeInc],
-    [`VEEC spread (VEECs × (price − $70))`, e.veecSpread, a.veecSpread],
+    [`VEEC spread (VEECs × (sale − buy price))`, e.veecSpread, a.veecSpread],
     ["PIESA markup (owner PIESA price − agreed rate)", e.piesaMarkupInc, a.piesaMarkupInc],
     [hivJob ? "Installer markup (owner price − installer rate)" : "Installer markup (none on installer-supplied jobs)", e.installerMarkupInc, a.installerMarkupInc],
   ];

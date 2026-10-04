@@ -25,6 +25,7 @@ export type ProfitInput = {
   installerR5IncPerM2: number | null; installerRemovalIncPerM2: number | null;
   apFeeInc: number; piesaCustomerInc: number; electricianPiesaRateInc: number | null;
   currentVeecPrice: number;
+  veecBuyPrice?: number; // office setting, default $70
   // actuals
   acceptedQuoteMarkupInc: number | null; acceptedQuoteLegacy: boolean;
   lodgedVeecs: number | null; saleVeecPrice: number | null;
@@ -45,7 +46,7 @@ function side(i: ProfitInput, actual: boolean): ProfitSide {
   if (actual && i.lodgedVeecs != null) veecs = i.lodgedVeecs;
   const sold = actual && i.saleVeecPrice != null;
   const veecPrice = sold ? i.saleVeecPrice! : i.currentVeecPrice;
-  const veecSpread = veecs == null ? null : r2(veecs * (veecPrice - VEEC_BOUGHT_PRICE));
+  const veecSpread = veecs == null ? null : r2(veecs * (veecPrice - (i.veecBuyPrice ?? VEEC_BOUGHT_PRICE)));
   const piesaMarkupInc = i.electricianPiesaRateInc == null ? null : r2(i.piesaCustomerInc - i.electricianPiesaRateInc);
   if (piesaMarkupInc == null) notes.push("Electrician PIESA rate to be confirmed.");
   let installerMarkupInc: number | null = 0;
