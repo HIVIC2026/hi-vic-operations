@@ -223,11 +223,11 @@ function WorkerCertifications({ applicationId, installers }: { applicationId: st
         return (
           <div key={email} className="mt-2 border-t pt-2">
             <div><b>{w.full_legal_name}</b> · {email}</div>
-            <div className="text-xs text-muted-foreground">Applicant declared: {w.cii_holds === "held" ? `holds CII ${w.cii_certificate_number ?? ""}, ${w.cii_issuer ?? ""}, ${w.cii_issue_date ?? ""}` : w.cii_holds === "in_training" ? "training in progress" : w.cii_holds === "not_held" ? "not certified" : "not provided (older application)"}</div>
+            <div className="text-xs text-muted-foreground">Applicant declared: {w.cii_holds === "held" ? `holds CII ${w.cii_certificate_number ?? ""}, ${w.cii_issuer ?? ""}, ${w.cii_issue_date ?? ""}${w.cii_level ? `, ${w.cii_level === "full" ? "Full" : "Provisional (no work until Full)"}` : ""}${w.cii_expiry ? `, expires ${w.cii_expiry}` : ""}` : w.cii_holds === "in_training" ? "training in progress" : w.cii_holds === "not_held" ? "not certified" : "not provided (older application)"}</div>
             <div className="mt-1">{latest ? <Badge variant={latest.status === "verified" ? "default" : "destructive"}>{latest.status === "verified" ? "Office verified" : "Rejected"} {new Date(latest.recorded_at).toLocaleDateString("en-AU")}</Badge> : <Badge variant="outline">Not verified</Badge>}</div>
             {latest?.status === "verified" && (() => {
               const cur = (lv.data ?? []).find((x) => x.certification_id === latest.id);
-              const lf = lvForm[email] ?? { level: "full" as const, expires: "" };
+              const lf = lvForm[email] ?? { level: (w.cii_level === "provisional" ? "provisional" : "full") as "full" | "provisional", expires: w.cii_expiry ?? "" };
               return (
                 <div className="mt-2 rounded border p-2">
                   {cur ? <div className="text-xs">Level: <b>{cur.level === "full" ? "Full" : "Provisional"}</b> · expires {cur.expires_on}</div>
