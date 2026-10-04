@@ -1,54 +1,73 @@
-# Step 11: Ready Check booking (owner windows + installer one-tap), plus step 10 tests
+# Final Operating Model v2 items: cancellations, reminders, AP queue, daily brief
 
-## Also in this build: tests for step 10
-- The installer safety form is not sent to Mitti while the day-before check is failed or missing, and is sent once it passes.
-- Installation evidence uploads are refused (request and confirm) while locked. Measure-up photos still work.
-- Recording the ESC submission re-runs the check straight away, so the lock lifts when everything else is fine.
+The task list gets these items when the build starts. Trade payouts (E) are not built and stay blocked until Xero is connected.
 
 ## What exists today
-- The owner requests a Ready Check (estimate page, then "Ready Check - Awaiting Acceptance"). The office then assigns an installer by hand. The installer phones the owner, and the time is set through propose/confirm. The 24h reminder and 48h flag already cover Ready Checks.
-- The PIESA side already has everything this step needs:
-  - owner morning/afternoon windows (3–5 windows, 3 different days, 2 business days to 21 days out, Vic public holidays)
-  - matching of electricians, with price never counted
-  - offers to 3 at a time, with 4 business hours to accept
-  - the 15-minute timer
-  - one tap books the visit and closes the other offers
-  - contact details released for one visit only
-  - two rounds, then needs-attention
-- Installer offers today allow only one open offer per job. That blocks offering a Ready Check to 3 installers at once.
-- Estimate views are already recorded ("estimate_viewed").
+- Only the office can cancel a booking. There is no self-service cancel or reschedule for the owner, and no record of a no-show.
+- The matching ranking already has places for no-shows and evidence rejections, but both are always 0 because nothing records them.
+- Trades have no "I've arrived" tap.
+- Reminders exist only before a booking is made: the 24h nudge and the 48h flag. Nothing reminds either side before a booked visit.
+- Jobs at AP Review show in the normal office list. There is no clean/flagged grouping and no daily summary.
+- The ESC "update notification" and "withdraw and resubmit" flags already react to a moved install date.
 
-## What changes
-1. **Owner picks windows when requesting the Ready Check.** It uses the same picker and rules as PIESA, with the wording changed to "Ready Check".
-2. **Price seen first.** If the job has an estimate and the owner hasn't viewed it yet, the estimate is shown before they can submit, and the view is recorded. If there is no estimate, nothing is blocked.
-3. **Matching installers.** The PIESA matching is reused for installers.
-   - Eligible: approved, a FULL and current EEC certification, covers the postcode, free in at least one window, and under their m²-per-day capacity if set. The Ready Check counts as one visit, not m².
-   - Ranked by: a job nearby that day, then reliability, then fewest Ready Checks in the last 30 days, then acceptance speed. Price is never used.
-4. **Offers and timing.** Top 3 at once, 4 business hours to accept, then the next 3. With no taker, the owner is asked once for more times. After that round, the job goes to needs-attention ("No installer could take the owner's Ready Check times").
-5. **One tap = booked.** It uses the same safe first-tap-wins booking as PIESA. That tap books the Ready Check, makes the installer the assigned installer, closes the other offers, and releases contact details for the Ready Check only. Messages are queued only.
-6. **Quoted installer by default.** Whatever happens today when the Ready Check installer becomes the quoting installer stays as it is. If no such link exists today, I'll tell you rather than add one.
-7. **Fallback.** "None of these work — accept and arrange a time" assigns the installer, releases contact for the Ready Check only, and uses the old propose/confirm path with the 24h/48h checks.
-8. **No payment to installers.** The offer shows "Free Ready Check — unpaid". No rate is shown or needed, and no rate-card check applies.
-9. The office can still assign an installer by hand.
+## Proposed split (3 builds, one at a time)
 
-## Parts touched
-- The owner estimate and Ready Check request page, and the shared window picker.
-- Matching, offers and timer code (reused, with an installer/Ready Check version added).
-- The installer dashboard: a "Ready Check times" offer card, like the PIESA card.
-- The office needs-attention list: one new entry.
-- One small additive database change, proved on a practice database first. It allows up to 3 open Ready Check offers per job instead of one, and adds a first-tap-wins booking action for Ready Checks. It adds no tables and changes no rows.
+### Part 1: Cancellations, no-shows and real reliability (A)
+- **Owner, more than 24h before:** an owner link in the booking message and on the owner page lets them reschedule or cancel. Rescheduling reopens the owner time picker for that visit type: Ready Check, PIESA or install days. Rectification reopens the electrician's windows.
+- **Owner, under 24h before, or not home:**
+  - A late cancel counts as an owner no-show.
+  - The trade can mark "Owner not home" after the visit start.
+  - First miss: the owner is offered new times once, free.
+  - Second miss: the job goes on the needs-attention list.
+- **Trade cancels:** the booking closes and the owner is automatically offered new times (queued only). One cancellation is recorded against that business.
+- **Trade no-show:** if 4 hours after the visit start there is no "I've arrived" tap and no evidence, the job goes on the needs-attention list straight away and one no-show is recorded against that business. A new large "I've arrived" button goes on the trade's job page.
+- **Install moved:** uses the existing ESC flags and the 30-day hard gate. No change.
+- **Reliability:** no-shows, trade cancellations and evidence rejections are now recorded per business. Matching uses the real counts from the last 90 days for both electricians and installers.
+- **Database:** one new permanent table of visit events (cancelled, no-show, arrived, evidence rejected). Nothing existing changes.
 
-## Effect on existing jobs and records
+### Part 2: Visit reminders and the daily brief (B + D)
+- **Reminders:** 24 hours and 2 hours before every booked visit, to both the owner and the trade, for all four visit types. They are queued only and sent once each. If the visit is moved, new reminders are queued for the new time.
+- **Daily brief at 7am Melbourne:** one message to the AP, and also a "Today" page in the office portal.
+  - What needs them: the needs-attention list grouped by urgency, and the AP approval queue count.
+  - At risk this week: 30-day clocks ending, ESC submit deadlines, and installs without a passed pre-start check.
+  - Yesterday's numbers: enquiries, bookings, installs completed, VEECs submitted and registered.
+- While sending is off, the brief is stored and shown in the portal only.
+- **Database:** one small table that keeps each day's brief, so the brief is produced only once per day. The existing 15-minute timer produces it at 7am, so no new timer is needed.
+
+### Part 3: AP approval queue (C)
+- A new office page lists jobs ready for final AP review in two groups:
+  - **No flags.**
+  - **Flagged**, each with its reasons. Example reasons: measured area more than 15% from the estimate, a provisional or expired certificate, rejected evidence that was re-uploaded, an office override used, a recorded no-show or late change, a manual price edit.
+- The flag reasons come only from existing records. No new rules decide eligibility.
+- Each job is approved one at a time with its own record: who, when and a note.
+- "Approve" stays per job. There is no bulk approve and nothing is ever approved automatically.
+- **Database:** probably none. Approval reuses the existing AP review action and its audit history. If a separate approval record is needed, it will be additive and proved on a practice database first.
+
+## Effect on existing records
 - Nothing existing is changed and nothing is filled in after the fact.
-- Jobs already assigned or booked for a Ready Check stay on the old path.
-- Existing open installer offers stay as they are.
+- Old no-shows aren't known, so everyone starts at 0, the same as now.
+- Existing bookings get reminders only for visits more than 2 hours away once Part 2 is live.
 - Sending and the payment gate stay off.
 
 ## Undo
-Roll back to the previous version in History, and run the ready undo file for the database change. That puts back the one-open-installer-offer rule and removes the new booking action.
+Each part is its own version, so you can roll it back in History. Each database change has a ready undo file that removes only the new tables.
+
+## Assumptions (correct me if wrong)
+1. "Up to 24h before" is measured from the visit start time.
+2. A trade no-show is counted 4 hours after the visit start. The office can clear a wrong no-show, with a reason.
+3. A trade cancellation lowers reliability just like a decline. A no-show counts more: 0.1 each, as already in the ranking.
+4. The daily brief goes to users with the admin (AP) role.
 
 ## Technical details
-- Reuse `piesa-windows.core` (generalise labels by visit kind), `rankRecCandidates`/`nextOfferBatch` (installer facts: EEC from `worker_certification_levels`, capacity from `daily_capacity_m2`), `offerExpiryBusinessHours`, `noTakerStep`.
-- Migration: replace the `partner_offers_one_pending_installer` partial index with a kind-aware one (one pending per business stays). Add a Ready Check variant of the accept-slot SQL function (`booking_kind = ready_check`, stage moves to `ready_check_scheduled`, contact release `ready_check`).
-- Gate: price-seen comes from `estimate_viewed` engagement or estimate link `last_viewed_at`.
-- New tests: window rules for Ready Checks, installer eligibility/ranking (price excluded), the round flow, a practice-database first-tap race, the price-seen gate, and the three step 10 tests.
+- Part 1:
+  - pure `visit-events.core.ts` for the cutoff, the no-show timing and the rebook count
+  - persistence in `visit-events.server.ts`, with an owner link signed like the estimate link
+  - matching facts come from `visit_events` instead of the zeros now in `allocation.server.ts` and `readycheck-booking.server.ts`
+  - new needs codes `owner_no_show_repeat` and `trade_no_show`
+- Part 2:
+  - outbox actions keyed by booking + time, so each reminder is queued once
+  - `daily_briefs` table with a unique day row, built in `daily-brief.server.ts` and run from `allocation-tick` after 7am Melbourne
+- Part 3:
+  - pure `ap-flags.core.ts` that turns existing facts into flags (area variance from `ceiling_measurements` vs the estimate, certification level, evidence history, overrides, visit events)
+  - a route under `_authenticated/admin`
+- Each part: a practice database (PGlite) test, then live; then focused tests, the code check, the wording scan and the preview build.
