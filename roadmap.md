@@ -84,5 +84,5 @@
 ## Operating Model v2 final items
 - [x] Part 1: owner reschedule/cancel link (24h cutoff), owner no-show rebook once, trade cancel → owner new times, trade no-show 4h → needs-attention, per-business visit events feed reliability
 - [x] Part 2: 24h/2h visit reminders + 7am daily AP brief (queued, portal "Today")
-- [ ] Part 3: AP approval queue clean/flagged, per-job approval, never auto
+- [x] Part 3: AP approval queue clean/flagged, per-job approval, never auto
 - Trade payouts: blocked until Xero connected (not building)
