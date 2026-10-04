@@ -458,16 +458,17 @@ function VeecQueryReply({ jobId, draft, sentAt }: { jobId: string; draft: string
   const gen = useAction(draftVeecReply);
   const mark = useAction(markVeecReplySent);
   const [text, setText] = useState(draft);
+  const [busy, setBusy] = useState(false);
   return (
     <div className="mt-2 space-y-2 rounded-md border p-2">
       <p className="text-xs text-muted-foreground">The reply is sent in the Registry's own system. Draft it here, edit it, send it there, then record the date you sent it. Nothing is sent from the portal.</p>
       {sentAt ? <p className="text-sm">Reply sent {sentAt}.</p> : (
         <>
-          <Button type="button" variant="outline" disabled={gen.busy} onClick={async () => { const r = await gen({ jobId }, "Draft ready"); if (r?.draft) setText(r.draft); }}>{gen.busy ? "Drafting…" : "Draft reply (AI)"}</Button>
+          <Button type="button" variant="outline" disabled={busy} onClick={async () => { setBusy(true); try { const r = await gen({ jobId }, "Draft ready"); if (r?.draft) setText(r.draft); } finally { setBusy(false); } }}>{busy ? "Drafting…" : "Draft reply (AI)"}</Button>
           <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Draft reply" rows={6} />
-          <form className="flex items-end gap-2" onSubmit={async (e) => { e.preventDefault(); const f = new FormData(e.currentTarget); await mark({ jobId, replyDraft: text, sentDate: f.get("sent") as string }, "Reply recorded"); void qc.invalidateQueries({ queryKey: ["veec", jobId] }); }}>
+          <form className="flex items-end gap-2" onSubmit={async (e) => { e.preventDefault(); const f = new FormData(e.currentTarget); setBusy(true); try { await mark({ jobId, replyDraft: text, sentDate: f.get("sent") as string }, "Reply recorded"); void qc.invalidateQueries({ queryKey: ["veec", jobId] }); } finally { setBusy(false); } }}>
             <div><Label>Date sent</Label><Input name="sent" type="date" required max={new Date().toISOString().slice(0, 10)} /></div>
-            <Button type="submit" disabled={mark.busy || text.trim().length < 5}>Mark reply sent</Button>
+            <Button type="submit" disabled={busy || text.trim().length < 5}>Mark reply sent</Button>
           </form>
         </>
       )}
