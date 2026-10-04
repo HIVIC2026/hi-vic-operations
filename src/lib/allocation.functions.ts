@@ -104,7 +104,7 @@ export const getNeedsHivic = createServerFn({ method: "GET" }).middleware([requi
       admin.from("job_piesa_deadlines").select("job_id, urgency, piesa_expired, days_remaining"),
       admin.from("esc_notifications").select("job_id, created_at, due_by, last_error").is("sent_at", null),
       admin.from("evidence_requirements").select("job_id, verified_at").eq("status", "rejected"),
-      admin.from("veec_lodgements").select("job_id, status, updated_at").in("status", ["query", "rejected"]),
+      admin.from("veec_lodgements").select("job_id, status, updated_at, query_received_at, reply_sent_at").in("status", ["query", "rejected"]),
       admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "rec_no_longer_approved"),
     ]);
     const jobRows = ok(jobs, "jobs").filter((j) => j.source !== "qa_test");

@@ -631,6 +631,13 @@
       "when": 1791081699501,
       "tag": "0089_discard_draft_rate",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1791112815044,
+      "tag": "0090_veec_registry_query",
+      "breakpoints": true
     }
   ]
 }

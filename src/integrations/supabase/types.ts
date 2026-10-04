@@ -9096,6 +9096,11 @@ export type Database = {
           job_id: string
           notes: string | null
           quantity: number | null
+          query_received_at: string | null
+          query_text: string | null
+          reply_draft: string | null
+          reply_sent_at: string | null
+          reply_sent_by: string | null
           status: string
           submission_reference: string | null
           submitted_date: string | null
@@ -9106,6 +9111,11 @@ export type Database = {
           job_id: string
           notes?: string | null
           quantity?: number | null
+          query_received_at?: string | null
+          query_text?: string | null
+          reply_draft?: string | null
+          reply_sent_at?: string | null
+          reply_sent_by?: string | null
           status?: string
           submission_reference?: string | null
           submitted_date?: string | null
@@ -9116,6 +9126,11 @@ export type Database = {
           job_id?: string
           notes?: string | null
           quantity?: number | null
+          query_received_at?: string | null
+          query_text?: string | null
+          reply_draft?: string | null
+          reply_sent_at?: string | null
+          reply_sent_by?: string | null
           status?: string
           submission_reference?: string | null
           submitted_date?: string | null

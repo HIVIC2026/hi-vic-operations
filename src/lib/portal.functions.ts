@@ -899,21 +899,74 @@ export const markReadyForVeec = createServerFn({ method: "POST" }).middleware([r
   });
 
 export const updateVeec = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, quantity: z.number().min(0).nullable(), status: z.enum(["not_submitted", "submitted", "approved", "rejected"]), submission_reference: z.string().trim().max(100).nullable(), submitted_date: z.string().nullable(), notes: z.string().max(2000).nullable(), reason: z.string().max(500).nullable().optional() }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, quantity: z.number().min(0).nullable(), status: z.enum(["not_submitted", "submitted", "query", "approved", "rejected"]), submission_reference: z.string().trim().max(100).nullable(), submitted_date: z.string().nullable(), notes: z.string().max(2000).nullable(), query_text: z.string().max(4000).nullable().optional(), query_received_at: z.string().nullable().optional(), reply_draft: z.string().max(8000).nullable().optional(), reason: z.string().max(500).nullable().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { jobId, reason, ...rest } = data;
+    const { jobId, reason, query_text, query_received_at, reply_draft, ...rest } = data;
+    const patch = {
+      ...rest,
+      // Optional fields: only written when the form supplies them, so saving other details never wipes a recorded query or draft.
+      ...(query_text !== undefined ? { query_text } : {}),
+      ...(query_received_at !== undefined ? { query_received_at } : {}),
+      ...(reply_draft !== undefined ? { reply_draft } : {}),
+    };
     if (["submitted", "approved"].includes(data.status) && !["ready_for_veec", "complete"].includes(await getStage(jobId)))
       throw new WorkflowError("VEEC can only be lodged once the job is Ready for VEEC.");
-    const { data: prev } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,notes").eq("job_id", jobId).maybeSingle();
+    const { data: prev } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,notes,query_text,query_received_at,reply_draft").eq("job_id", jobId).maybeSingle();
     const { veecUpdateBlockers } = await import("./veec.core");
-    const blockers = veecUpdateBlockers(prev, { ...rest, reason: reason ?? null }, new Date().toISOString().slice(0, 10));
+    const blockers = veecUpdateBlockers(prev, { ...patch, reason: reason ?? null }, new Date().toISOString().slice(0, 10));
     if (blockers.length) throw new WorkflowError(blockers.join(" "));
-    await admin.from("veec_lodgements").update({ ...rest, updated_at: new Date().toISOString() }).eq("job_id", jobId);
+    await admin.from("veec_lodgements").update({ ...patch, updated_at: new Date().toISOString() }).eq("job_id", jobId);
     await logEvent(jobId, context.userId, "veec_updated", `VEEC lodgement ${data.status.replace("_", " ")}`, { ...rest, previous: prev, reason: reason ?? null }, { internal: true });
     if (["submitted", "approved"].includes(data.status) && (await getStage(jobId)) === "ready_for_veec")
       await transition(jobId, "complete", context.userId, "VEEC lodged – job complete");
     await autoAdvanceJob(jobId, context.userId, "VEEC updated");
+    return { ok: true };
+  });
+
+/** Draft a Registry query reply with AI. Office only. Returns text only; never changes the lodgement or sends anything. */
+export const draftVeecReply = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: v } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,query_text").eq("job_id", data.jobId).maybeSingle();
+    if (v?.status !== "query" || !v.query_text) throw new WorkflowError("A Registry query with its text must be recorded first.");
+    const { data: j } = await admin.from("jobs").select("job_number, properties(address_line, suburb, postcode)").eq("id", data.jobId).single();
+    const prop = Array.isArray(j?.properties) ? j?.properties[0] : j?.properties;
+    const jobLabel = [j?.job_number, [prop?.address_line, prop?.suburb, prop?.postcode].filter(Boolean).join(", ")].filter(Boolean).join(" — ");
+    const key = process.env["LOVABLE_API_KEY"];
+    if (!key) throw new WorkflowError("AI drafting is not configured.");
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "fetch" },
+      body: JSON.stringify({
+        model: "openai/gpt-6-astra",
+        reasoning: { effort: "low" },
+        input: `You draft a factual reply to an Essential Services Commission (VEU program) Registry query about a lodged VEEC creation for Home Insulation Victoria, the Accredited Person. Reply in plain Australian English, under 200 words, no invented facts, list anything that must be verified before sending.\n\nJob: ${jobLabel}.\nLodgement: quantity ${v.quantity ?? "?"}, reference ${v.submission_reference ?? "?"}, submitted ${v.submitted_date ?? "?"}.\nRegistry query: ${v.query_text}`,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`AI draft failed [${res.status}]: ${body}`);
+      throw new WorkflowError(`Drafting failed (${res.status}). Try again later.`);
+    }
+    const json = (await res.json()) as { output?: { content?: { text?: string }[] }[] };
+    const draft = (json.output ?? []).flatMap((o) => o.content ?? []).map((c) => c.text ?? "").join("").trim();
+    if (!draft) throw new WorkflowError("The draft came back empty. Try again.");
+    await logEvent(data.jobId, context.userId, "veec_reply_drafted", "AI drafted a Registry query reply (not sent)", { draft }, { internal: true });
+    return { draft };
+  });
+
+/** Record that the AP sent the reply in the Registry's own system. Office only, audited. */
+export const markVeecReplySent = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, replyDraft: z.string().trim().min(5).max(8000), sentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: v } = await admin.from("veec_lodgements").select("status").eq("job_id", data.jobId).maybeSingle();
+    if (v?.status !== "query") throw new WorkflowError("This lodgement is not in Registry query.");
+    if (data.sentDate > new Date().toISOString().slice(0, 10)) throw new WorkflowError("Reply sent date cannot be in the future.");
+    await admin.from("veec_lodgements").update({ reply_draft: data.replyDraft, reply_sent_at: data.sentDate, reply_sent_by: context.userId, updated_at: new Date().toISOString() }).eq("job_id", data.jobId);
+    await logEvent(data.jobId, context.userId, "veec_reply_sent", "Registry query reply sent (recorded by office)", { sent_date: data.sentDate }, { internal: true });
     return { ok: true };
   });
 
