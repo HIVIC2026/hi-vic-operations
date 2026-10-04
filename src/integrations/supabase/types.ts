@@ -10034,6 +10034,10 @@ export type Database = {
         Returns: boolean
       }
       customer_followups_tick: { Args: { _url: string }; Returns: number }
+      discard_electrician_rate: {
+        Args: { _actor: string; _rate_id: string; _reason: string }
+        Returns: undefined
+      }
       enqueue_external_action: {
         Args: {
           _action: string

@@ -48,6 +48,16 @@ export const activateElectricianRate = createServerFn({ method: "POST" }).middle
     return { ok: true };
   });
 
+export const discardElectricianRate = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid(), reason: z.string().trim().min(3).max(500) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await (supabaseAdmin as unknown as Loose).rpc("discard_electrician_rate", { _rate_id: data.id, _actor: context.userId, _reason: data.reason });
+    if (error) throw new WorkflowError(error.message);
+    return { ok: true };
+  });
+
 export const expireElectricianRate = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid(), reason: z.string().trim().min(3).max(500) }).parse(d))
   .handler(async ({ data, context }) => {

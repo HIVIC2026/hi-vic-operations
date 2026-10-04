@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useAction, useMe } from "@/hooks/use-me";
-import { activateElectricianRate, createElectricianRate, expireElectricianRate, listElectricianRates } from "@/lib/electrician-rates.functions";
+import { activateElectricianRate, createElectricianRate, discardElectricianRate, expireElectricianRate, listElectricianRates } from "@/lib/electrician-rates.functions";
 import { ELECTRICIAN_RATE_SERVICES, officeSpread, type ElectricianRateService } from "@/lib/allocation.core";
 
 const TITLE = "Electrician Rates – Home Insulation Victoria Portal";
@@ -32,10 +32,14 @@ function RatesOffice() {
   const create = useAction(createElectricianRate);
   const activate = useAction(activateElectricianRate);
   const expire = useAction(expireElectricianRate);
+  const discard = useAction(discardElectricianRate);
+  const [showDiscarded, setShowDiscarded] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
   const [f, setF] = useState({ businessId: "", serviceType: "piesa" as ElectricianRateService, rate: "", from: today, to: "", note: "" });
   const d = q.data;
-  const rates = (d?.rates ?? []) as Rate[];
+  const allRates = (d?.rates ?? []) as Rate[];
+  const rates = showDiscarded ? allRates : allRates.filter((r) => r.status !== "discarded");
+  const discardedCount = allRates.length - allRates.filter((r) => r.status !== "discarded").length;
   const name = (id: string) => d?.businesses.find((b) => b.id === id)?.name ?? "Unknown business";
   const valid = f.businessId && f.rate !== "" && Number(f.rate) >= 0 && f.note.trim().length >= 3;
   return (
@@ -59,6 +63,8 @@ function RatesOffice() {
           <label className="block">Source / note<Input placeholder="e.g. REC agreement 2.4, office-approved" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></label>
           <Button disabled={!valid} onClick={async () => { const r = await create({ businessId: f.businessId, serviceType: f.serviceType, rateIncGst: Number(f.rate), effectiveFrom: f.from, effectiveTo: f.to || null, sourceNote: f.note }, "Draft rate saved"); if (r) setF({ ...f, rate: "", note: "" }); }}>Save draft</Button>
         </div>
+        <div>
+        <label className="mb-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={showDiscarded} onChange={(e) => setShowDiscarded(e.target.checked)} />Show discarded drafts ({discardedCount})</label>
         <div className="overflow-x-auto rounded-xl border bg-card">
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-muted-foreground"><tr><th className="p-2">Electrician</th><th className="p-2">Service</th><th className="p-2">Rate</th><th className="p-2">Effective</th><th className="p-2">Status</th><th className="p-2">Office spread (PIESA)</th><th className="p-2" /></tr></thead>
@@ -74,12 +80,14 @@ function RatesOffice() {
                   <td className="p-2 text-xs">{r.service_type === "piesa" ? officeSpread(d!.customerPiesaIncGst, Number(r.rate_inc_gst)).text : "—"}</td>
                   <td className="p-2 whitespace-nowrap">
                     {r.status === "draft" && <Button size="sm" onClick={() => { if (window.confirm("Activate this rate? Any current active rate for the same service is superseded.")) void activate({ id: r.id }, "Rate active"); }}>Approve & activate</Button>}
+                    {r.status === "draft" && <Button size="sm" variant="outline" className="ml-2" onClick={() => { const reason = window.prompt("Reason for discarding this draft?"); if (reason && reason.trim().length >= 3) void discard({ id: r.id, reason }, "Draft discarded"); }}>Discard draft</Button>}
                     {r.status === "active" && <Button size="sm" variant="outline" onClick={() => { const reason = window.prompt("Reason for expiring this rate?"); if (reason && reason.trim().length >= 3) void expire({ id: r.id, reason }, "Rate expired"); }}>Expire</Button>}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       </div>
     </AppShell>

@@ -624,6 +624,13 @@
       "when": 1791076709936,
       "tag": "0088_electrician_rates",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1791081699501,
+      "tag": "0089_discard_draft_rate",
+      "breakpoints": true
     }
   ]
 }
