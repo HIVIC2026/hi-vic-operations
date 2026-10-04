@@ -1,3 +1,4 @@
+import { OfficePrestartCard } from "@/components/portal/prestart";
 import { OfficeInstallHoldCard } from "@/components/portal/install-hold";
 import { OfficeAllocationPanel } from "@/components/portal/allocation";
 import { OfficeInstalmentPlanCard } from "@/components/portal/instalment-plan";
@@ -88,6 +89,7 @@ function JobDetail() {
             <JobCoverage jobId={jobId} />
             <Assignments jobId={jobId} />
             <OfficeInstallHoldCard jobId={jobId} />
+            <OfficePrestartCard jobId={jobId} />
             <AdminPartnerPanel jobId={jobId} />
             <HoldControls jobId={jobId} stage={job.stage!} />
             <RetentionCard jobId={jobId} />
