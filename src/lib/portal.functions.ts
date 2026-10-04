@@ -901,6 +901,10 @@ export const verifyEvidence = createServerFn({ method: "POST" }).middleware([req
     if (!req) throw new WorkflowError("Not found");
     await admin.from("evidence_requirements").update({ status: data.status, required: data.status === "not_required" ? false : true, verified_by: context.userId, verified_at: new Date().toISOString(), notes: data.notes ?? null }).eq("id", data.requirementId);
     await logEvent(req.job_id, context.userId, "evidence_reviewed", `Evidence ${data.status.replace("_", " ")}: ${req.label}`, { notes: data.notes });
+    if (data.status === "rejected") {
+      const { recordEvidenceRejected } = await import("./visit-events.server");
+      await recordEvidenceRejected(data.requirementId, context.userId, data.notes ?? null).catch((e) => console.error("evidence rejection not counted", (e as Error).message));
+    }
     await autoAdvanceJob(req.job_id, context.userId, "evidence reviewed", { allowApPromotion: true });
     return { ok: true };
   });

@@ -9452,6 +9452,91 @@ export type Database = {
         }
         Relationships: []
       }
+      visit_events: {
+        Row: {
+          actor_id: string | null
+          booking_id: string | null
+          business_id: string | null
+          clears_event_id: string | null
+          counts_against: string
+          created_at: string
+          event: string
+          id: string
+          job_id: string
+          reason: string | null
+          visit_kind: Database["public"]["Enums"]["booking_kind"] | null
+        }
+        Insert: {
+          actor_id?: string | null
+          booking_id?: string | null
+          business_id?: string | null
+          clears_event_id?: string | null
+          counts_against?: string
+          created_at?: string
+          event: string
+          id?: string
+          job_id: string
+          reason?: string | null
+          visit_kind?: Database["public"]["Enums"]["booking_kind"] | null
+        }
+        Update: {
+          actor_id?: string | null
+          booking_id?: string | null
+          business_id?: string | null
+          clears_event_id?: string | null
+          counts_against?: string
+          created_at?: string
+          event?: string
+          id?: string
+          job_id?: string
+          reason?: string | null
+          visit_kind?: Database["public"]["Enums"]["booking_kind"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visit_events_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visit_events_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visit_events_clears_event_id_fkey"
+            columns: ["clears_event_id"]
+            isOneToOne: false
+            referencedRelation: "visit_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visit_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visit_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "visit_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       worker_access_attempts: {
         Row: {
           at: string

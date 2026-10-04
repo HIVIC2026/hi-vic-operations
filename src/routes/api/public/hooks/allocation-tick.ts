@@ -68,6 +68,13 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['installDays'] = "failed";
         }
         try {
+          const { sweepTradeNoShows } = await import("@/lib/visit-events.server");
+          (out as Record<string, unknown>)['tradeNoShows'] = await sweepTradeNoShows();
+        } catch (e) {
+          console.error("allocation tick: trade no-show sweep failed", (e as Error).message);
+          out['ok'] = false;
+        }
+        try {
           const { sweepReadyCheckOffers } = await import("@/lib/readycheck-booking.server");
           (out as Record<string, unknown>)['readyCheck'] = await sweepReadyCheckOffers();
         } catch (e) {

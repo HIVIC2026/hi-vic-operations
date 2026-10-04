@@ -47,6 +47,8 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
   const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   const preferred = new Set((prefs ?? [])
     .filter((r) => r.installer_business_id === inst?.business_id).map((r) => r.electrician_business_id));
+  const rel = await (await import("./visit-events.server")).reliabilityFor(ids);
+  const { acceptanceWithCancellations } = await import("./visit-events.core");
   const candidates = (bizs ?? []).map((b) => {
     const bc = (creds ?? []).filter((c) => c.business_id === b.id);
     const mine = (offers ?? []).filter((o) => o.business_id === b.id);
@@ -67,13 +69,13 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
       has_valid_licence: !!(b.licence_number || b.rec_number) && !partnerWorkBlocker(b as unknown as BusinessLike, bc),
       approved_workers: (workers ?? []).filter((w) => w.business_id === b.id).length,
       weekly_capacity: b.weekly_capacity ?? null, open_jobs: (asg ?? []).filter((a) => a.business_id === b.id).length,
-      recent_offers_30d: mine.length, acceptance_rate: answered.length ? answered.filter((o) => o.status === "accepted").length / answered.length : null,
+      recent_offers_30d: mine.length, acceptance_rate: acceptanceWithCancellations(answered.filter((o) => o.status === "accepted").length, answered.length, rel.get(b.id)?.trade_cancellations ?? 0),
       preferred: preferred.has(b.id),
       free_in_window: windows.length ? windows.some((w) => !myBookings.some((k) => k.s < w.e && k.e > w.s)) : null,
       daily_limit: (b as { daily_job_limit?: number | null }).daily_job_limit ?? null,
       max_jobs_on_window_day: Math.max(0, ...perDay.values()),
       nearby_job_that_day: myBookings.some((k) => windowDays.has(k.day) && covers(k.postcode)),
-      no_shows: 0, evidence_rejections: 0, // not recorded per electrician yet
+      no_shows: rel.get(b.id)?.no_shows ?? 0, evidence_rejections: rel.get(b.id)?.evidence_rejections ?? 0,
       recent_jobs_30d: accepted.length,
       avg_accept_hours: accepted.length ? accepted.reduce((t, o) => t + (Date.parse(o.responded_at!) - Date.parse(o.offered_at)) / 3_600_000, 0) / accepted.length : null,
     };
@@ -442,8 +444,9 @@ export async function submitOwnerPiesaWindows(jobId: string, userId: string, pic
   if (!job || !["measured_quote_accepted", "piesa_and_install_window_pending"].includes(job.stage)) throw new WorkflowError("PIESA times can be chosen once the quote has been accepted.");
   if (elec) throw new WorkflowError("An electrician is already arranging this visit.");
   if (w.futureOpen > 0) throw new WorkflowError("Your PIESA times are already with our electricians.");
-  if (w.round >= PIESA_MAX_ROUNDS) throw new WorkflowError("Home Insulation Victoria will contact you to arrange this visit.");
-  if (w.round === 1) {
+  const reopened = await (await import("./visit-events.server")).timesReopenedSince(jobId, "assessment", w.roundStart);
+  if (!reopened && w.round >= PIESA_MAX_ROUNDS) throw new WorkflowError("Home Insulation Victoria will contact you to arrange this visit.");
+  if (!reopened && w.round === 1) {
     const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "piesa_more_times_requested");
     if (!count) throw new WorkflowError("Your PIESA times are already with our electricians.");
   }
@@ -454,7 +457,7 @@ export async function submitOwnerPiesaWindows(jobId: string, userId: string, pic
   await logEvent(jobId, userId, "piesa_windows_chosen", `Owner chose ${picks.length} PIESA times (round ${round})`, { round, count: picks.length });
   await admin.from("jobs").update({ next_action: "Waiting for an electrician to take one of the owner's PIESA times" }).eq("id", jobId);
   // Round 2: restart offers straight away if the job is at the PIESA stage (gates re-checked; blocked = stays put).
-  if (round > 1 && job.stage === "piesa_and_install_window_pending") {
+  if ((round > 1 || reopened) && job.stage === "piesa_and_install_window_pending") {
     try { await startPiesaAllocation(jobId, null); } catch { /* gate not cleared: timer retries */ }
   }
   return { ok: true, round };
@@ -470,6 +473,7 @@ export async function ownerPiesaWindowState(jobId: string) {
     admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "piesa_more_times_requested"),
   ]);
   const stageOk = !!job && ["measured_quote_accepted", "piesa_and_install_window_pending"].includes(job.stage);
-  const canPick = stageOk && !elec && w.futureOpen === 0 && (w.round === 0 || (w.round === 1 && !!asked));
+  const reopened = await (await import("./visit-events.server")).timesReopenedSince(jobId, "assessment", w.roundStart);
+  const canPick = stageOk && !elec && w.futureOpen === 0 && (w.round === 0 || (w.round === 1 && !!asked) || reopened);
   return { canPick, moreTimes: w.round === 1 && !!asked, round: w.round, windows: (rows ?? []).filter((r) => r.piesa_window_round === w.round) };
 }

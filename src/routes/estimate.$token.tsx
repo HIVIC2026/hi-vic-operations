@@ -9,6 +9,7 @@ import { ReferralShare } from "@/components/portal/ReferralShare";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
 import type { ReadyCheckAcceptanceState as AssessmentAcceptanceState } from "@/lib/readycheck.core";
 import { ReadyCheckTimesPicker, ReadyCheckTimesStatus } from "@/components/portal/ready-check-times";
+import { ReadyCheckVisitChange } from "@/components/portal/visit-changes";
 import { piesaWindowBlockers, type PiesaWindowPick } from "@/lib/piesa-windows.core";
 
 // Public no-login Step 3 estimate. The token is the only credential; nothing is fetched during SSR.
@@ -66,7 +67,7 @@ function PublicEstimatePage() {
           : <>
              {data.job.job_number && <p className="mb-4 px-1 text-xs font-medium text-estimate-navy/70">Reference {data.job.job_number}</p>}
              {showConfirm
-                ? <ConfirmQuote estimatedPrice={standard.estimated_customer_total} assessmentFee={fee} state={data.assessment} testMode={data.assessmentTestMode} busy={busy} error={actionError} onAccept={acceptCurrent} picker={<ReadyCheckTimesPicker value={picks} onChange={setPicks} disabled={busy} />} canSubmit={piesaWindowBlockers(picks).length === 0} after={<ReadyCheckTimesStatus token={token} />} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
+                ? <ConfirmQuote estimatedPrice={standard.estimated_customer_total} assessmentFee={fee} state={data.assessment} testMode={data.assessmentTestMode} busy={busy} error={actionError} onAccept={acceptCurrent} picker={<ReadyCheckTimesPicker value={picks} onChange={setPicks} disabled={busy} />} canSubmit={piesaWindowBlockers(picks).length === 0} after={<><ReadyCheckTimesStatus token={token} /><ReadyCheckVisitChange token={token} /></>} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
                  : <div className="estimate-offset overflow-hidden rounded-2xl border border-estimate-blue-soft bg-estimate-white px-5 py-7 sm:px-10 sm:py-11"><CustomerEstimate data={data.estimate} publicPage onReadyCheck={openReadyCheck} /></div>}
              {!showConfirm && data.referralShareUrl && <ReferralShare url={data.referralShareUrl} />}
           </>}
