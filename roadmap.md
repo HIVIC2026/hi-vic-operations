@@ -59,3 +59,6 @@
 - [x] Step 6: owner picks 3–5 PIESA windows (morning 8–12 / afternoon 12–4 Melbourne); electrician tap = booking; fallback accept-then-arrange; one more-times request then needs-attention
 - [x] Re-prove step 5 quote-expiry migration on practice database
 - [x] 48h escalation fix: booking-based SLA + Ready Check in office sweep
+- [x] Electrician matching (OM v2): window/daily-limit eligibility, new ranking, 4 business-hour offers, office booking clears 48h flag
+- [ ] Office screen box to set an electrician daily job limit (field exists; empty = no limit)
+- [ ] Record no-shows per electrician (ranking ready, counts 0 until tracked)
