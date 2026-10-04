@@ -196,7 +196,7 @@ async function flagUnapprovedElectricians(actorId: string | null) {
     const { candidates } = await recCandidatesFor(a.job_id);
     const c = candidates.find((x) => x.business_id === a.business_id);
     // Capacity is irrelevant once assigned; only approval, credentials, workers and coverage matter here.
-    const blocker = c ? recEligibilityBlocker({ ...c, accepting_new_jobs: true }) : "Business is no longer an approved REC.";
+    const blocker = c ? recEligibilityBlocker({ ...c, accepting_new_jobs: true, free_in_window: null, daily_limit: null }) : "Business is no longer an approved REC.";
     if (!blocker) continue;
     const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", a.job_id).eq("event_type", "rec_no_longer_approved").contains("details", { business_id: a.business_id });
     if (!count) await logEvent(a.job_id, actorId, "rec_no_longer_approved", "Assigned electrician is no longer an approved REC — needs Home Insulation Victoria", { business_id: a.business_id, blocker }, { internal: true });
