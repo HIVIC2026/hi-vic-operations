@@ -35,6 +35,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           out['ok'] = false;
           out['coordination'] = "failed";
         }
+        try {
+          const { sweepQuoteExpiry } = await import("@/lib/quote-expiry.server");
+          (out as Record<string, unknown>)['quotes'] = await sweepQuoteExpiry();
+        } catch (e) {
+          console.error("allocation tick: quote expiry sweep failed", (e as Error).message);
+          out['ok'] = false;
+          (out as Record<string, unknown>)['quotes'] = "failed";
+        }
         return Response.json(out, { status: out['ok'] ? 200 : 500 });
       },
     },

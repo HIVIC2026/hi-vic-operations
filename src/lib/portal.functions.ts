@@ -585,7 +585,12 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
     const { data: q } = await admin.from("quotes").select("*").eq("id", data.quoteId).single();
     if (!q) throw new WorkflowError("Quote not found");
     await requireJobRole(context.supabase, q.job_id, ["owner", "admin"]);
+    if (q.status === "expired") throw new WorkflowError("This quote has expired. Please contact us for an updated quote.");
     if (q.status !== "issued") throw new WorkflowError("This quote is no longer open.");
+    if (data.accept) {
+      const { quoteIsExpired } = await import("./quote-expiry.core");
+      if (quoteIsExpired(q)) throw new WorkflowError("This quote has expired. Please contact us for an updated quote.");
+    }
     if (data.accept && !data.consent) throw new WorkflowError("Please confirm to proceed.");
     const stage = await getStage(q.job_id);
     const expected: Stage = q.kind === "rectification" ? "awaiting_owner_rectification_approval" : "awaiting_quote_acceptance";

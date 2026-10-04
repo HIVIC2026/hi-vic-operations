@@ -38,7 +38,7 @@ export const sendInstallerQuote = createServerFn({ method: "POST" }).middleware(
     if (!q || q.option_code !== "INSTALLER_A1") throw new WorkflowError("Quote not found.");
     if (q.status !== "draft") throw new WorkflowError("This quote has already been sent.");
     await applyCobrand(data.jobId);
-    const { error } = await admin.from("quotes").update({ status: "issued" }).eq("id", q.id).eq("status", "draft");
+    const { error } = await admin.from("quotes").update({ status: "issued", sent_at: new Date().toISOString() }).eq("id", q.id).eq("status", "draft");
     if (error) throw new Error(error.message);
     const delivery = await customerDeliveryState(data.jobId);
     await logEvent(data.jobId, context.userId, "installer_quote_sent", "Office sent the co-branded owner quote", { quote_id: q.id, email_delivery: delivery });

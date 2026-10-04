@@ -137,7 +137,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
     const { data: q, error } = await admin
       .from("quotes")
       .insert({
-        job_id: jobId, kind: "installation", option_label: rectLines.length ? `${product.description} + electrical rectification` : product.description, option_code: code, status: "issued",
+        job_id: jobId, kind: "installation", option_label: rectLines.length ? `${product.description} + electrical rectification` : product.description, option_code: code, status: "issued", sent_at: new Date().toISOString(),
         rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal,
         gst_amount: r2(subtotal - subtotal / gstMul), veec_discount_inc_gst: calc.veec_discount_inc_gst,
         customer_total_inc_gst: r2(subtotal - calc.veec_discount_inc_gst), created_by: actorId,
