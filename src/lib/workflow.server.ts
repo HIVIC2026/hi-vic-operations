@@ -254,6 +254,13 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {
     if (!(await agreementSigned(jobId))) blockers.push(CONSUMER_SIGN_BLOCKER);
   }
+  if (["ap_review", "ready_for_veec", "complete"].includes(to)) {
+    // Office check for known previous Activity 48 evidence — fails closed when missing or same area.
+    const { priorActivityCheck } = await import("./verified-eligibility.server");
+    const { priorActivityBlocker } = await import("./verified-eligibility.core");
+    const pb = priorActivityBlocker(await priorActivityCheck(jobId));
+    if (pb) blockers.push(pb);
+  }
   if (to === "ready_for_veec") {
     const st = await assignmentStatus(jobId);
     if (st === "variation_required") blockers.push("Assignment variation must be reconfirmed by the customer.");
