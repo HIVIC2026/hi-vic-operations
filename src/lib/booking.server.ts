@@ -56,8 +56,6 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     await setInstallDueDate(jobId, start, actorId);
     const { regenerateEscNotification } = await import("./esc.server");
     await regenerateEscNotification(jobId, actorId);
-    const { reevaluateIntelligence } = await import("./intelligence.server");
-    await reevaluateIntelligence(jobId, actorId, "installation date set");
   }
   const when = new Date(start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
   if (stage === target) await logEvent(jobId, actorId, "booking_rescheduled", `${kind === "ready_check" ? "Ready Check" : kind === "assessment" ? "PIESA" : kind} rescheduled to ${when} by ${roleLabel}`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id });

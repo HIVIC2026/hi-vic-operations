@@ -6,7 +6,7 @@ import { declaredExtras } from "./enquiry.core";
 // D all remote rules satisfied -> likely_eligible (still subject to onsite insulation, lighting and electrical checks).
 // Owner declarations are never "verified" and never hard-fail on their own. Base44 preliminary screening is information only.
 
-export const GATE1_RULESET_VERSION = "gate1-a48-2026.2";
+export const GATE1_RULESET_VERSION = "gate1-a48-2026.3-simple";
 /** General rollout of Activity 48 starts on this date (14 Apr–30 Sep 2026 limited to public/community housing). */
 export const GENERAL_ROLLOUT_START = "2026-10-01";
 
@@ -98,46 +98,32 @@ export function evaluateGate1(f: Gate1Facts): Gate1Decision {
   const st = f.state?.trim().toUpperCase() ?? null;
   const pc = f.postcode?.trim() ?? null;
 
-  // Location (Victoria)
+  // SIMPLE Gate 1 (Jo, 4 Oct 2026): homeowner answers only. Remote property research no longer decides or raises review.
   const loc = ev("location", { fact: [st, pc].filter(Boolean).join(" ") || "—", source: "properties", basis: st || pc ? "recorded" : "unknown" });
   if (st && st !== "VIC") rule("location", "Victorian property", "fail", `Property state is ${st} (Victoria only)`, loc);
   else if (pc && !VIC_POSTCODE.test(pc)) rule("location", "Victorian property", "fail", `Postcode ${pc} is not a Victorian postcode`, loc);
-  else if (st === "VIC" && pc && VIC_POSTCODE.test(pc)) rule("location", "Victorian property", "pass", "Victorian property (state + postcode)", loc);
-  else rule("location", "Victorian property", "review", "Victorian location not confirmed", loc);
-  if (f.addressAmbiguous) rule("address", "Address match", "review", "Address match is ambiguous – confirm the correct premises", ev("address", { fact: "no unique address match", source: "property intelligence", basis: "recorded" }));
+  else if (st || pc) rule("location", "Victorian property", "pass", "Victorian property", loc);
+  else rule("location", "Victorian property", "onsite", "Confirm the property is in Victoria", loc);
 
-  // Premises class (Class 1 / Class 2 sole-occupancy unit)
-  const res = ev("residential", { fact: f.isResidential == null ? "unknown" : String(f.isResidential), source: "properties.is_residential", basis: f.isResidential == null ? "unknown" : "recorded" });
-  if (f.isResidential === false) rule("residential", "Class 1 / Class 2 SOU residential", "fail", "Premises recorded/verified as not Class 1 / Class 2 sole-occupancy residential", res);
-  else if (f.isResidential === true) rule("residential", "Class 1 / Class 2 SOU residential", "pass", "Residential premises supported", res);
-  else if (f.declaredHouse && f.addressVerifiedVic && !f.addressAmbiguous)
-    rule("residential", "Class 1 / Class 2 SOU residential", "pass", `Owner declares ${f.declaredPropertyType}; verified Victorian premises; no contrary property-class evidence (preliminary)`, { ...res, basis: "declared" });
-  else rule("residential", "Class 1 / Class 2 SOU residential", "review", f.residentialNote ?? "Premises class not evidenced", res);
-
-  // Relevant ceiling (roof cavity / exposed roof, no storey above)
+  // Property type (declared)
   const isApartment = !!f.declaredPropertyType && APARTMENT.test(f.declaredPropertyType);
-  const rc = ev("relevant_ceiling", { fact: isApartment ? `${f.declaredPropertyType}; top floor: ${f.declaredTopFloor ?? "unknown"}` : "no contrary evidence", source: isApartment ? "base44 owner declaration" : "—", basis: isApartment ? "declared" : "unknown" });
-  if (f.noRelevantCeilingDirect) rule("relevant_ceiling", "Relevant ceiling", "fail", "Direct evidence: no ceiling with a roof cavity / exposed roof above (another storey above)", rc);
-  else if (f.storeyAboveIndicated) rule("relevant_ceiling", "Relevant ceiling", "review", "Evidence of another storey above part of the ceiling – confirm the relevant ceiling scope", rc);
-  else if (isApartment && f.declaredTopFloor !== "yes") rule("relevant_ceiling", "Relevant ceiling", "review", f.declaredTopFloor === "no" ? "Owner says the unit is not top floor – confirm a qualifying relevant ceiling exists" : "Apartment/unit – top-floor status unclear", rc);
-  else rule("relevant_ceiling", "Relevant ceiling", "info", "No evidence against a qualifying relevant ceiling (roof cavity confirmed onsite)", rc);
+  const res = ev("residential", { fact: f.declaredPropertyType ? `owner: ${f.declaredPropertyType}` : f.isResidential == null ? "unknown" : String(f.isResidential), source: f.declaredPropertyType ? "base44 owner declaration" : "properties.is_residential", basis: f.declaredPropertyType ? "declared" : f.isResidential == null ? "unknown" : "recorded" });
+  if (f.isResidential === false || classifyPremises(f.declaredPropertyType) === "non_residential") rule("residential", "Home (house, townhouse or unit)", "fail", "Property is not a home", res);
+  else if (isApartment && f.declaredTopFloor !== "yes") rule("residential", "Home (house, townhouse or unit)", "onsite", f.declaredTopFloor === "no" ? "Owner says the unit is not top floor – confirm there is a ceiling under the roof" : "Unit – confirm it is top floor with a ceiling under the roof", res);
+  else rule("residential", "Home (house, townhouse or unit)", "pass", f.declaredPropertyType ? `Owner says ${f.declaredPropertyType}` : "Home", res);
 
-  // Relevant ceiling / structure age (not whole-building age)
+  // Building age (declared, or a verified record entered by the office)
   const min = f.minBuildingAgeYears;
-  const L = "Relevant ceiling / structure age";
-  const age = ev("ceiling_age", { fact: f.yearBuilt ? `built ${f.yearBuilt}` : "unknown", source: "properties.year_built", basis: f.yearBuiltVerified ? "verified" : f.yearBuilt ? "recorded" : "unknown" });
+  const L = "Building over 5 years old";
+  const age = ev("ceiling_age", { fact: f.declaredOverMinAge ? `owner: over 5 years = ${f.declaredOverMinAge}` : f.yearBuilt ? `built ${f.yearBuilt}` : "unknown", source: f.declaredOverMinAge ? "base44 owner declaration" : "properties.year_built", basis: f.declaredOverMinAge ? "declared" : f.yearBuiltVerified ? "verified" : "unknown" });
   const verifiedAge = f.yearBuilt != null && f.yearBuiltVerified ? f.currentYear - f.yearBuilt : null;
-  if (verifiedAge != null && verifiedAge < min) rule("ceiling_age", L, "fail", `Direct evidence: relevant structure constructed ${verifiedAge} years ago (within ${min} years)`, age);
-  else if (f.recentExtensionRisk === "yes") rule("ceiling_age", L, "review", "Recent extension / added storey risk – confirm the proposed ceiling is not within the 5-year window", age);
-  else if (verifiedAge != null) rule("ceiling_age", L, "pass", `Relevant structure ${verifiedAge} years old (≥ ${min}), verified`, age);
-  else if (f.verifiedMinAgeYears != null && f.verifiedMinAgeYears >= min) rule("ceiling_age", L, "pass", `At least ${f.verifiedMinAgeYears} years old (≥ ${min}), verified first-appearance evidence`, age);
-  else if (f.verifiedMinAgeYears != null) rule("ceiling_age", L, "review", `First-appearance evidence only shows ${f.verifiedMinAgeYears} years – confirm relevant ceiling age`, age);
-  else if (f.declaredOverMinAge === "yes" && !f.storeyAboveIndicated) rule("ceiling_age", L, "pass", "Owner declares relevant area is over 5 years; no contrary recent-construction evidence (preliminary)", { ...age, basis: "declared" });
-  else if (f.declaredOverMinAge === "yes") rule("ceiling_age", L, "review", "Owner declares over 5 years but another storey above is indicated – confirm relevant ceiling age", age);
-  else if (f.declaredOverMinAge === "no") rule("ceiling_age", L, "review", "Owner declares the ceiling may be under 5 years – verify before deciding (not an auto-fail)", age);
-  else rule("ceiling_age", L, "review", "Relevant ceiling age not evidenced", age);
+  if (verifiedAge != null && verifiedAge < min) rule("ceiling_age", L, "fail", `Building is ${verifiedAge} years old (under ${min} years)`, age);
+  else if (verifiedAge != null) rule("ceiling_age", L, "pass", `Building is ${verifiedAge} years old`, age);
+  else if (f.declaredOverMinAge === "no") rule("ceiling_age", L, "fail", `Owner says the building is under ${min} years old`, age);
+  else if (f.declaredOverMinAge === "yes") rule("ceiling_age", L, "pass", `Owner says the building is over ${min} years old`, age);
+  else rule("ceiling_age", L, "onsite", `Confirm the building is over ${min} years old`, age);
 
-  // Previous Activity 48 — the homeowner previous-upgrade question is retired; only confirmed Activity 48 evidence can fail.
+  // Previous Activity 48 — only confirmed office evidence can fail.
   const PL = "Previous Activity 48";
   if (f.previousActivity48Confirmed === true) rule("previous_activity", PL, "fail", "Previous Activity 48 for the same ceiling area confirmed", { fact: "previous Activity 48 confirmed", source: "properties.enrichment.previous_activity_48_confirmed", basis: "verified" });
   else rule("previous_activity", PL, "pass", "No confirmed previous Activity 48 for the same ceiling area", ev("previous_activity", { fact: "none confirmed", source: "properties.enrichment", basis: "recorded" }));
@@ -185,10 +171,9 @@ export function evaluateGate1(f: Gate1Facts): Gate1Decision {
   let outcome: CustomerOutcome | null, nextAction: string;
   const dispatch = hold ? "Hold until general rollout starts 1 Oct 2026, then assign installer for the free Ready Check" : "Assign installer for the free Ready Check";
   if (failed.length) { outcome = "does_not_appear_eligible"; nextAction = "Review automatic ineligibility evidence before closing / override with reason"; }
-  else if (review.length) { outcome = null; nextAction = `Review required: ${review[0]}`; }
   else if (onsite.length) { outcome = "needs_onsite_confirmation"; nextAction = `${dispatch} – confirm onsite: ${onsite.join("; ")}`; }
   else { outcome = "likely_eligible"; nextAction = `${dispatch} – subject to onsite insulation, lighting and electrical confirmation`; }
-  const reviewRequired = !failed.length && review.length > 0;
+  const reviewRequired = false; // simple Gate 1 never raises internal review
   return {
     ruleset_version: GATE1_RULESET_VERSION, outcome, internalStatus: reviewRequired ? "review_required" : "auto_decided", reviewRequired,
     passed, failed, review, onsite, onsiteRequirements, flags, rolloutHold: hold, rules, nextAction: nextAction.slice(0, 300), referenceDate: f.referenceDate ?? null,
@@ -272,8 +257,8 @@ const intelSrc = (f: IntelFact) => `property intelligence: ${f.source_name ?? f.
 export type Gate1JobInput = { lifeSupportStatus: string | null; preliminaryOutcome: string | null; referenceDate?: string | null; areaUnknown?: boolean | null };
 
 export function resolveGate1Facts(p: StoredProperty | null, job: Gate1JobInput, minAge: number, currentYear: number, intel: IntelFact[] = []): Gate1Facts {
-  const base = resolveBaseFacts(p, job, minAge, currentYear);
-  return applyIntelligence(base, intel, currentYear);
+  void intel; // property intelligence retired (4 Oct 2026) – never feeds Gate 1
+  return resolveBaseFacts(p, job, minAge, currentYear);
 }
 
 /** Property Intelligence feeds Gate 1 only where the portal/Base44 left a fact unknown AND the evidence is trusted. Raising review is always allowed. */
@@ -336,7 +321,7 @@ export function applyIntelligence(f: Gate1Facts, intel: IntelFact[], currentYear
 function resolveBaseFacts(p: StoredProperty | null, job: Gate1JobInput, minAge: number, currentYear: number): Gate1Facts {
   const e = (p?.enrichment ?? {}) as Record<string, unknown>;
   const b = (e["base44"] ?? {}) as { declared?: Record<string, unknown>; research?: Record<string, unknown>; raw?: { answers?: Record<string, unknown> } };
-  const d = b.declared ?? {}, r = b.research ?? {}, answers = b.raw?.answers ?? {};
+  const d = b.declared ?? {}, r: Record<string, unknown> = {}, answers = b.raw?.answers ?? {};
   const researchDone = typeof r["status"] === "string" && RESEARCH_DONE.has((r["status"] as string).toLowerCase());
   const evidence: Partial<Record<RuleKey, FactEvidence>> = {};
 

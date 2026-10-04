@@ -63,16 +63,10 @@ export async function processPostIntakeWork(opts: { jobId?: string; limit?: numb
 async function processItem(item: Claimed) {
   const mine = (patch: TablesUpdate<"post_intake_work">) => admin.from("post_intake_work").update(patch).eq("id", item.id).eq("locked_at", item.locked_at);
   try {
-    const intel = await import("./intelligence.server");
     const { data: p } = await admin.from("jobs").select("properties(address_line, suburb, postcode)").eq("id", item.job_id).single();
     const pr = p?.properties as { address_line: string; suburb: string | null; postcode: string | null } | null;
     if (pr) {
-      const { data: last } = await admin.from("property_intelligence_runs").select("status, address_hash, is_stale, started_at").eq("job_id", item.job_id).order("started_at", { ascending: false }).limit(1).maybeSingle();
-      if (last?.status === "running" && !isAbandonedRun(last, Date.now())) throw new Error("property intelligence already running – retry later");
-      const hash = addressHash(pr.address_line, pr.suburb, pr.postcode);
-      if (last && last.address_hash !== hash) await intel.markIntelligenceStale(item.job_id, "address changed");
-      const why = intelligenceNeeded(last ?? null, hash, Date.now(), STALE_AFTER_DAYS);
-      if (why) await intel.runPropertyIntelligence(item.job_id, null, why); // records complete / partial / error itself
+      // Property intelligence retired (4 Oct 2026): no remote lookups; Gate 1 uses homeowner answers only.
       try { const { regenerateEscNotification } = await import("./esc.server"); await regenerateEscNotification(item.job_id, null); } catch { /* never block Gate 1 */ }
     }
     // The ONE official initial categorisation, after the intelligence attempt, then safe progression.
