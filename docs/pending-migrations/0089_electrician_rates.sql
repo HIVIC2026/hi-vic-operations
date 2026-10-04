@@ -42,11 +42,11 @@ ALTER TABLE public.electrician_rates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.electrician_rate_events ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Office manages electrician rates" ON public.electrician_rates FOR ALL TO authenticated
-  USING (public.is_admin(auth.uid())) WITH CHECK (public.is_admin(auth.uid()));
+  USING (public.is_admin()) WITH CHECK (public.is_admin());
 CREATE POLICY "Electricians read own active rates" ON public.electrician_rates FOR SELECT TO authenticated
-  USING (status = 'active' AND public.is_business_member(auth.uid(), business_id));
+  USING (status = 'active' AND public.is_business_member(business_id, false));
 CREATE POLICY "Office reads rate history" ON public.electrician_rate_events FOR SELECT TO authenticated
-  USING (public.is_admin(auth.uid()));
+  USING (public.is_admin());
 
 CREATE FUNCTION public.guard_electrician_rate() RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
@@ -79,7 +79,7 @@ CREATE FUNCTION public.activate_electrician_rate(_rate_id uuid, _actor uuid) RET
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE r public.electrician_rates; prev uuid;
 BEGIN
-  IF _actor IS NULL OR NOT public.is_admin(_actor) THEN RAISE EXCEPTION 'Only office can activate electrician rates'; END IF;
+  IF _actor IS NULL OR NOT public.has_role(_actor, 'admin') THEN RAISE EXCEPTION 'Only office can activate electrician rates'; END IF;
   SELECT * INTO r FROM public.electrician_rates WHERE id = _rate_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Rate not found'; END IF;
   IF r.status <> 'draft' THEN RAISE EXCEPTION 'Only a draft rate can be activated'; END IF;
