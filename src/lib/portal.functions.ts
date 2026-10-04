@@ -913,7 +913,7 @@ export const updateVeec = createServerFn({ method: "POST" }).middleware([require
     if (["submitted", "approved"].includes(data.status) && !["ready_for_veec", "complete"].includes(await getStage(jobId)))
       throw new WorkflowError("VEEC can only be lodged once the job is Ready for VEEC.");
     const { data: prev } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,notes,query_text,query_received_at,reply_draft").eq("job_id", jobId).maybeSingle();
-    const { veecUpdateBlockers } = await import("./veec.core");
+    const { veecUpdateBlockers, veecCompletesJob } = await import("./veec.core");
     const blockers = veecUpdateBlockers(prev, { ...patch, reason: reason ?? null }, new Date().toISOString().slice(0, 10));
     if (blockers.length) throw new WorkflowError(blockers.join(" "));
     await admin.from("veec_lodgements").update({ ...patch, updated_at: new Date().toISOString() }).eq("job_id", jobId);
