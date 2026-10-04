@@ -903,13 +903,14 @@ export const updateVeec = createServerFn({ method: "POST" }).middleware([require
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { jobId, reason, ...rest } = data;
+    const patch = { ...rest, query_text: rest.query_text ?? null, query_received_at: rest.query_received_at ?? null, reply_draft: rest.reply_draft ?? null };
     if (["submitted", "approved"].includes(data.status) && !["ready_for_veec", "complete"].includes(await getStage(jobId)))
       throw new WorkflowError("VEEC can only be lodged once the job is Ready for VEEC.");
     const { data: prev } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,notes,query_text,query_received_at,reply_draft").eq("job_id", jobId).maybeSingle();
     const { veecUpdateBlockers } = await import("./veec.core");
-    const blockers = veecUpdateBlockers(prev, { ...rest, reason: reason ?? null }, new Date().toISOString().slice(0, 10));
+    const blockers = veecUpdateBlockers(prev, { ...patch, reason: reason ?? null }, new Date().toISOString().slice(0, 10));
     if (blockers.length) throw new WorkflowError(blockers.join(" "));
-    await admin.from("veec_lodgements").update({ ...rest, updated_at: new Date().toISOString() }).eq("job_id", jobId);
+    await admin.from("veec_lodgements").update({ ...patch, updated_at: new Date().toISOString() }).eq("job_id", jobId);
     await logEvent(jobId, context.userId, "veec_updated", `VEEC lodgement ${data.status.replace("_", " ")}`, { ...rest, previous: prev, reason: reason ?? null }, { internal: true });
     if (["submitted", "approved"].includes(data.status) && (await getStage(jobId)) === "ready_for_veec")
       await transition(jobId, "complete", context.userId, "VEEC lodged – job complete");
