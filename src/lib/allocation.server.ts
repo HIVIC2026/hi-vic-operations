@@ -104,9 +104,12 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   const { expiryHours, batchSize } = await settings();
   const [{ candidates }, { data: prior }] = await Promise.all([
     recCandidatesFor(jobId),
-    admin.from("partner_offers").select("business_id, batch").eq("job_id", jobId).eq("kind", kind),
+    admin.from("partner_offers").select("business_id, batch, offered_at").eq("job_id", jobId).eq("kind", kind),
   ]);
-  const offered = new Set((prior ?? []).map((o) => o.business_id));
+  // Owner-picked times: a fresh round (owner gave more times) re-offers to every approved electrician.
+  const win = kind === "piesa" ? await currentWindowRound(jobId) : null;
+  const priorInRound = (prior ?? []).filter((o) => !win?.roundStart || ((o as { offered_at?: string }).offered_at ?? "") >= win.roundStart);
+  const offered = new Set(priorInRound.map((o) => o.business_id));
   const batchNo = Math.max(0, ...(prior ?? []).map((o) => o.batch)) + 1;
   const rates = await agreedElectricianRates(candidates.map((c) => c.business_id), kind);
   const { offerRateBlocker } = await import("./allocation.core");
@@ -115,6 +118,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   const priced = candidates.filter((c) => !noRate.includes(c));
   const batch = nextOfferBatch(rankRecCandidates(priced), offered, batchSize);
   if (!batch.length) {
+    if (win && win.round > 0 && await windowsNoTaker(jobId, actorId, win.round)) return { offered: 0, exhausted: true };
     await logEvent(jobId, actorId, "rec_coverage_exhausted", `No approved electrician left to offer the ${kind} to — needs Home Insulation Victoria`, { kind, offered: [...offered] }, { internal: true });
     await admin.from("jobs").update({ next_action: "Needs Home Insulation Victoria: no approved electrician coverage" }).eq("id", jobId);
     return { offered: 0, exhausted: true };
@@ -135,6 +139,7 @@ export async function sweepRecOffers(actorId: string | null = null) {
   for (const o of expired ?? []) await logEvent(o.job_id, actorId, "partner_offer_expired", `An electrician ${o.kind} offer expired without a response`, { kind: o.kind }, { internal: true });
   const jobs = new Map((expired ?? []).map((o) => [`${o.job_id}:${o.kind}`, o]));
   for (const o of jobs.values()) await refillIfNeeded(o.job_id, o.kind as "piesa" | "rectification", actorId);
+  await sweepPiesaWindows(actorId);
   const started = await autoStartPiesaOffers(actorId);
   await flagUnapprovedElectricians(actorId);
   return { expired: expired?.length ?? 0, started };
@@ -178,7 +183,7 @@ async function refillIfNeeded(jobId: string, kind: "piesa" | "rectification", ac
 }
 
 /** Electrician accepts/declines a PIESA or rectification offer. Acceptance is atomic in SQL. */
-export async function respondToRecOffer(offerId: string, userId: string, accept: boolean, reason: string | null) {
+export async function respondToRecOffer(offerId: string, userId: string, accept: boolean, reason: string | null, proposalId: string | null = null) {
   const { data: o } = await admin.from("partner_offers").select("id, job_id, kind, status, business_id, summary").eq("id", offerId).single();
   if (!o) throw new WorkflowError("Offer not found.");
   if (accept) {
@@ -201,12 +206,34 @@ export async function respondToRecOffer(offerId: string, userId: string, accept:
     const gate = piesaRequestBlockers(await piesaRequestFacts(o.job_id));
     if (gate.length) throw new WorkflowError(`This job is not ready for a PIESA: ${gate.join(" ")}`);
   }
+  if (proposalId && o.kind === "piesa") {
+    // Tapping one of the owner's times: accept + take the time in one locked database step; first tap wins.
+    const { data, error } = await admin.rpc("accept_partner_offer_slot" as never, { _offer: offerId, _user: userId, _proposal: proposalId } as never);
+    if (error) throw new Error(error.message);
+    const outcome = ((data as unknown as { outcome: string }[] | null)?.[0]?.outcome) ?? "not_found";
+    if (outcome === "slot_unavailable") throw new WorkflowError("That time is no longer available. Please choose another time.");
+    if (outcome === "already_assigned" || outcome === "already_withdrawn" || outcome === "already_accepted") throw new WorkflowError("This job has just been taken.");
+    if (outcome !== "accepted") throw new WorkflowError(ACCEPT_OUTCOME_MESSAGE[outcome] ?? "This offer could not be accepted.");
+    const { data: p } = await admin.from("appointment_proposals").select("starts_at").eq("id", proposalId).single();
+    try {
+      const { confirmBooking } = await import("./booking.server");
+      await confirmBooking(o.job_id, "assessment", p!.starts_at, userId, "electrician (owner's chosen time)");
+      return { ok: true, booked: true };
+    } catch (e) {
+      // Accepted but the booking could not be confirmed: fall back to arranging a time (24h reminder / 48h exception apply).
+      await logEvent(o.job_id, userId, "piesa_window_booking_blocked", `Owner's time taken but booking not confirmed: ${(e as Error).message}`, { proposal_id: proposalId }, { internal: true });
+      await admin.from("jobs").update({ next_action: "Owner and electrician to agree a PIESA time" }).eq("id", o.job_id);
+      return { ok: true, booked: false };
+    }
+  }
   const { data, error } = await admin.rpc("accept_partner_offer" as never, { _offer: offerId, _user: userId } as never);
   if (error) throw new Error(error.message);
   const outcome = ((data as unknown as { outcome: string }[] | null)?.[0]?.outcome) ?? "not_found";
   if (outcome !== "accepted") throw new WorkflowError(ACCEPT_OUTCOME_MESSAGE[outcome] ?? "This offer could not be accepted.");
+  // Fallback path (none of the owner's times work, or no times given): close the owner's windows, arrange a time.
+  await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", o.job_id).not("piesa_window_round", "is", null).eq("status", "proposed");
   await admin.from("jobs").update({ next_action: "Owner and electrician to agree a PIESA time" }).eq("id", o.job_id);
-  return { ok: true };
+  return { ok: true, booked: false };
 }
 
 /** Contacts for the caller's active visit only. Server-side: no release = nothing returned. */
@@ -312,4 +339,108 @@ export async function queueInstallerPlanningNotice(jobId: string, installerAssig
 async function sha256Hex(s: string) {
   const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
   return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+
+// ---------- Owner-picked PIESA windows ----------
+/** Latest owner window round for a job: round number, when it started, and how many of its times are still open and in the future. */
+export async function currentWindowRound(jobId: string) {
+  const { data } = await admin.from("appointment_proposals").select("piesa_window_round, created_at, status, starts_at").eq("job_id", jobId).not("piesa_window_round", "is", null);
+  const rows = data ?? [];
+  const round = Math.max(0, ...rows.map((r) => r.piesa_window_round ?? 0));
+  const inRound = rows.filter((r) => r.piesa_window_round === round);
+  const roundStart = inRound.length ? inRound.map((r) => r.created_at).sort()[0]! : null;
+  const now = Date.now();
+  const futureOpen = inRound.filter((r) => r.status === "proposed" && new Date(r.starts_at).getTime() > now).length;
+  return { round, roundStart, futureOpen };
+}
+
+/** Nobody took the owner's times: round 1 -> ask the owner for more times (queued only); round 2 -> needs attention. Idempotent per round. */
+async function windowsNoTaker(jobId: string, actorId: string | null, round: number): Promise<boolean> {
+  const { noTakerStep, PIESA_NO_TAKER_DETAIL } = await import("./piesa-windows.core");
+  const step = noTakerStep(round);
+  if (step === "none") return false;
+  if (step === "ask_owner_for_more_times") {
+    const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "piesa_more_times_requested").contains("details", { round });
+    if (count) return true;
+    await admin.from("partner_offers").update({ status: "withdrawn", superseded_at: new Date().toISOString() }).eq("job_id", jobId).eq("kind", "piesa").eq("status", "pending");
+    await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", jobId).eq("piesa_window_round", round).eq("status", "proposed");
+    await logEvent(jobId, actorId, "piesa_more_times_requested", "No electrician could take the owner's PIESA times — owner asked to pick more times (prepared; delivery follows the sending switches)", { round }, { internal: true });
+    const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "piesa_more_times_requested").contains("details", { round }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (ev) {
+      const { error } = await admin.rpc("enqueue_external_action", {
+        _job: jobId, _event: ev.id, _action: "customer_email", _target: `job:${jobId}`, _basis: "transactional_job_coordination",
+        _version: "piesa-more-times-v1", _payload: `piesa_windows:round${round}`, _facts: await sha256Hex(`${jobId}-piesa-more-times-${round}`), _key: `piesa-more-times-${jobId}-r${round}`,
+      });
+      if (error) console.error("more-times outbox enqueue skipped", error.message); // e.g. TEST job suppression
+    }
+    await admin.from("jobs").update({ next_action: "Waiting for the owner to pick more PIESA times" }).eq("id", jobId);
+    return true;
+  }
+  const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "rec_coverage_exhausted").contains("details", { owner_times_round: round });
+  if (!count) await logEvent(jobId, actorId, "rec_coverage_exhausted", `${PIESA_NO_TAKER_DETAIL} Needs Home Insulation Victoria`, { kind: "piesa", owner_times_round: round, reason: "owner_times" }, { internal: true });
+  await admin.from("partner_offers").update({ status: "withdrawn", superseded_at: new Date().toISOString() }).eq("job_id", jobId).eq("kind", "piesa").eq("status", "pending");
+  await admin.from("jobs").update({ next_action: "Needs Home Insulation Victoria: no electrician could take the owner's times" }).eq("id", jobId);
+  return true;
+}
+
+/** Timer: close owner times that have passed; if a whole round has passed with no electrician, run the no-taker step. */
+async function sweepPiesaWindows(actorId: string | null) {
+  const nowIso = new Date().toISOString();
+  const { data: passed } = await admin.from("appointment_proposals").update({ status: "superseded" }).not("piesa_window_round", "is", null).eq("status", "proposed").lt("starts_at", nowIso).select("job_id");
+  const jobs = new Set((passed ?? []).map((p) => p.job_id));
+  for (const jobId of jobs) {
+    const [{ count: elec }, { data: job }] = await Promise.all([
+      admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
+      admin.from("jobs").select("stage").eq("id", jobId).single(),
+    ]);
+    if (elec || job?.stage !== "piesa_and_install_window_pending") continue;
+    const w = await currentWindowRound(jobId);
+    if (w.round > 0 && w.futureOpen === 0) await windowsNoTaker(jobId, actorId, w.round);
+  }
+}
+
+/** Owner submits 3–5 PIESA windows (round 1 at acceptance; round 2 only when asked for more times). */
+export async function submitOwnerPiesaWindows(jobId: string, userId: string, picks: { date: string; slot: "morning" | "afternoon" }[]) {
+  const { piesaWindowBlockers, windowBounds, PIESA_MAX_ROUNDS } = await import("./piesa-windows.core");
+  const b = piesaWindowBlockers(picks);
+  if (b.length) throw new WorkflowError(b.join(" "));
+  const [{ data: job }, { count: elec }, w] = await Promise.all([
+    admin.from("jobs").select("stage, source").eq("id", jobId).single(),
+    admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
+    currentWindowRound(jobId),
+  ]);
+  if (!job || !["measured_quote_accepted", "piesa_and_install_window_pending"].includes(job.stage)) throw new WorkflowError("PIESA times can be chosen once the quote has been accepted.");
+  if (elec) throw new WorkflowError("An electrician is already arranging this visit.");
+  if (w.futureOpen > 0) throw new WorkflowError("Your PIESA times are already with our electricians.");
+  if (w.round >= PIESA_MAX_ROUNDS) throw new WorkflowError("Home Insulation Victoria will contact you to arrange this visit.");
+  if (w.round === 1) {
+    const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "piesa_more_times_requested");
+    if (!count) throw new WorkflowError("Your PIESA times are already with our electricians.");
+  }
+  const round = w.round + 1;
+  const rows = picks.map((p) => ({ job_id: jobId, kind: "assessment" as const, proposed_by: userId, proposer_role: "owner", piesa_window_round: round, ...windowBounds(p.date, p.slot) }));
+  const { error } = await admin.from("appointment_proposals").insert(rows as never);
+  if (error) throw new Error(error.message);
+  await logEvent(jobId, userId, "piesa_windows_chosen", `Owner chose ${picks.length} PIESA times (round ${round})`, { round, count: picks.length });
+  await admin.from("jobs").update({ next_action: "Waiting for an electrician to take one of the owner's PIESA times" }).eq("id", jobId);
+  // Round 2: restart offers straight away if the job is at the PIESA stage (gates re-checked; blocked = stays put).
+  if (round > 1 && job.stage === "piesa_and_install_window_pending") {
+    try { await startPiesaAllocation(jobId, null); } catch { /* gate not cleared: timer retries */ }
+  }
+  return { ok: true, round };
+}
+
+/** Owner view: whether to show the time picker, plus their chosen times (no electrician details). */
+export async function ownerPiesaWindowState(jobId: string) {
+  const [{ data: job }, { count: elec }, w, { data: rows }, { count: asked }] = await Promise.all([
+    admin.from("jobs").select("stage").eq("id", jobId).single(),
+    admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
+    currentWindowRound(jobId),
+    admin.from("appointment_proposals").select("id, starts_at, ends_at, status, piesa_window_round").eq("job_id", jobId).not("piesa_window_round", "is", null).order("starts_at"),
+    admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "piesa_more_times_requested"),
+  ]);
+  const stageOk = !!job && ["measured_quote_accepted", "piesa_and_install_window_pending"].includes(job.stage);
+  const canPick = stageOk && !elec && w.futureOpen === 0 && (w.round === 0 || (w.round === 1 && !!asked));
+  return { canPick, moreTimes: w.round === 1 && !!asked, round: w.round, windows: (rows ?? []).filter((r) => r.piesa_window_round === w.round) };
 }

@@ -94,7 +94,7 @@ export const getNeedsHivic = createServerFn({ method: "GET" }).middleware([requi
     };
     const [jobs, exh, elec, rel, comms, rq, rp, unav, timing, esc, ev, veec, unappr] = await Promise.all([
       admin.from("jobs").select("id, job_number, source, stage, properties(suburb, postcode)").not("stage", "in", "(complete,cancelled)"),
-      admin.from("workflow_events").select("job_id, created_at").eq("event_type", "rec_coverage_exhausted").order("created_at", { ascending: false }),
+      admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "rec_coverage_exhausted").order("created_at", { ascending: false }),
       admin.from("job_assignments").select("job_id").eq("role", "electrician").eq("active", true),
       admin.from("contact_releases").select("job_id, visit_kind, released_at, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null),
       admin.from("job_communications").select("job_id, created_at").in("delivery_status", ["failed", "undelivered"]),
@@ -110,7 +110,8 @@ export const getNeedsHivic = createServerFn({ method: "GET" }).middleware([requi
     const jobRows = ok(jobs, "jobs").filter((j) => j.source !== "qa_test");
     const withElec = new Set(ok(elec, "assignments").map((a) => a.job_id));
     const seen = new Set<string>();
-    const coverage = ok(exh, "allocation events").filter((e) => !withElec.has(e.job_id) && !seen.has(e.job_id) && seen.add(e.job_id));
+    const coverage = ok(exh, "allocation events").filter((e) => !withElec.has(e.job_id) && !seen.has(e.job_id) && seen.add(e.job_id))
+      .map((e) => ({ job_id: e.job_id, created_at: e.created_at, detail: (e.details as { reason?: string } | null)?.reason === "owner_times" ? "No electrician could take the owner's times." : undefined }));
     // Still-relevant "no longer approved" events: the flagged business is still the active electrician.
     const { data: activeElec } = await admin.from("job_assignments").select("job_id, business_id").eq("role", "electrician").eq("active", true);
     const activeKey = new Set((activeElec ?? []).map((a) => `${a.job_id}:${a.business_id}`));
@@ -153,4 +154,24 @@ export const sendRectificationQuote = createServerFn({ method: "POST" }).middlew
     if (!u) throw new WorkflowError("This quote is no longer a draft.");
     await logEvent(q.job_id, context.userId, "rectification_quote_issued", "Office sent the reviewed rectification quote to the owner for approval", { quote_id: q.id });
     return { ok: true };
+  });
+
+/** Owner: their PIESA time picker state (own job only). */
+export const getOwnerPiesaWindows = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, data.jobId, ["owner", "admin"]);
+    const { ownerPiesaWindowState } = await import("./allocation.server");
+    return ownerPiesaWindowState(data.jobId);
+  });
+
+/** Owner: choose 3–5 PIESA times (morning or afternoon windows) on at least 3 different days. */
+export const chooseOwnerPiesaWindows = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, picks: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["morning", "afternoon"]) })).min(1).max(5) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireJobRole(context.supabase, data.jobId, ["owner"]);
+    const { data: isOwner } = await context.supabase.rpc("is_job_owner", { _job: data.jobId, _user: context.userId });
+    if (!isOwner) throw new WorkflowError("Only the owner can choose PIESA times.");
+    const { submitOwnerPiesaWindows } = await import("./allocation.server");
+    return submitOwnerPiesaWindows(data.jobId, context.userId, data.picks);
   });

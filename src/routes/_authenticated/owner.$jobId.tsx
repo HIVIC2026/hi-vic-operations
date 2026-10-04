@@ -1,5 +1,6 @@
 import { VisitContactsCard } from "@/components/portal/allocation";
 import { OwnerInstalmentPlanCard } from "@/components/portal/instalment-plan";
+import { PiesaTimesCard } from "@/components/portal/piesa-times";
 import { OwnerEstimateCard } from "@/components/portal/estimate";
 import { nextStep } from "@/lib/nextstep.core";
 import { createFileRoute } from "@tanstack/react-router";
@@ -44,6 +45,7 @@ function OwnerJob() {
         <OwnerAssignmentCard jobId={jobId} />
         <QuotesPanel jobId={jobId} canRespond />
         <PaymentsPanel jobId={jobId} isAdmin={false} /><OwnerInstalmentPlanCard jobId={jobId} />
+        {(s === "measured_quote_accepted" || s === "piesa_and_install_window_pending") && <PiesaTimesCard jobId={jobId} />}
         {bookKind && job.deposit_cleared && <BookingPanel jobId={jobId} kind={bookKind} canBook />}
         {s === "awaiting_deposit_payment" && <p className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">Booking opens once your approved payment option is confirmed: minimum upfront deposit, paid in full, or an active 3-instalment plan.</p>}
         {job.installer_name && !["assessment_booking", "assessment_booked", "awaiting_electrician"].includes(s) && <ChangeTrade jobId={jobId} />}
