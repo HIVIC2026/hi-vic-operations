@@ -91,8 +91,8 @@ export async function installerTakeDay(jobId: string, proposalId: string, userId
   const c = await context(jobId);
   if (!c.clearance.cleared) throw new WorkflowError(`Installation cannot be arranged yet: ${c.clearance.blocker}`);
   const p = c.open.find((x) => x.id === proposalId);
-  if (!p) throw new WorkflowError(OUTCOME.not_found!);
-  if (installDayOutsideWindow(p.starts_at, c.deadline)) throw new WorkflowError(OUTCOME.outside_window!);
+  if (!p) throw new WorkflowError(OUTCOME["not_found"]!);
+  if (installDayOutsideWindow(p.starts_at, c.deadline)) throw new WorkflowError(OUTCOME["outside_window"]!);
   const { data, error } = await admin.rpc("accept_install_day", { _proposal: proposalId, _assignment: a.id, _user: userId, _deadline: c.deadline as string });
   if (error) throw new Error(error.message);
   if (data !== "accepted") throw new WorkflowError(OUTCOME[data as string] ?? "That day could not be booked.");
