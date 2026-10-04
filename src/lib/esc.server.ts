@@ -114,6 +114,7 @@ export async function recordEscSubmission(p: { notificationId: string; reference
   let patch;
   try { patch = submissionPatch({ ...p }, new Date().toISOString()); } catch (e) { throw new WorkflowError((e as Error).message); }
   await admin.from("esc_notifications").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", n.id);
+  await import("./prestart.server").then((m) => m.runPrestart(n.job_id, "esc_submitted")).catch((e) => console.error("pre-start re-run skipped", (e as Error).message));
   await logEvent(n.job_id, p.actorId, "esc_notification_sent", `ESC notification recorded as submitted by admin (${p.method.replace("_", " ")}, ref ${patch.submission_reference}, at ${p.sentAt})`, { notification_id: n.id, ...patch });
 }
 

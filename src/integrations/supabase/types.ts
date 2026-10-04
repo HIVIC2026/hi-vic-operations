@@ -7274,6 +7274,61 @@ export type Database = {
           },
         ]
       }
+      pre_start_checks: {
+        Row: {
+          booking_id: string | null
+          checked_at: string
+          failures: Json
+          id: string
+          job_id: string
+          passed: boolean
+          scheduled_start: string
+          trigger: string
+        }
+        Insert: {
+          booking_id?: string | null
+          checked_at?: string
+          failures?: Json
+          id?: string
+          job_id: string
+          passed: boolean
+          scheduled_start: string
+          trigger: string
+        }
+        Update: {
+          booking_id?: string | null
+          checked_at?: string
+          failures?: Json
+          id?: string
+          job_id?: string
+          passed?: boolean
+          scheduled_start?: string
+          trigger?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pre_start_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pre_start_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "pre_start_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pricing_settings: {
         Row: {
           access_loadings: Json
@@ -9382,6 +9437,44 @@ export type Database = {
           requests?: number
         }
         Relationships: []
+      }
+      worker_certification_levels: {
+        Row: {
+          certification_id: string
+          expires_on: string
+          id: string
+          level: string
+          recorded_at: string
+          recorded_by: string
+          worker_email: string
+        }
+        Insert: {
+          certification_id: string
+          expires_on: string
+          id?: string
+          level: string
+          recorded_at?: string
+          recorded_by: string
+          worker_email: string
+        }
+        Update: {
+          certification_id?: string
+          expires_on?: string
+          id?: string
+          level?: string
+          recorded_at?: string
+          recorded_by?: string
+          worker_email?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_certification_levels_certification_id_fkey"
+            columns: ["certification_id"]
+            isOneToOne: false
+            referencedRelation: "partner_worker_certifications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       worker_job_links: {
         Row: {

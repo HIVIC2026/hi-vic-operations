@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import type { Tables } from "@/integrations/supabase/types";
 import { useServerFn } from "@tanstack/react-start";
 import { getAdminPartnerEnquiries } from "@/lib/admin-records.functions";
-import { activatePartnerApplication, listWorkerCertifications, recordWorkerCertification } from "@/lib/partner-activation.functions";
+import { activatePartnerApplication, listCertificationLevels, listWorkerCertifications, recordCertificationLevel, recordWorkerCertification } from "@/lib/partner-activation.functions";
 import type { InstData } from "@/lib/installer-onboarding.core";
 import { OnboardingDrafts } from "@/components/portal/onboarding-drafts";
 
@@ -202,6 +202,10 @@ function WorkerCertifications({ applicationId, installers }: { applicationId: st
   const record = useAction(recordWorkerCertification);
   const list = useServerFn(listWorkerCertifications);
   const q = useQuery({ queryKey: ["worker-certs", applicationId], queryFn: () => list({ data: { applicationId } }) });
+  const listLv = useServerFn(listCertificationLevels);
+  const recordLv = useAction(recordCertificationLevel);
+  const lv = useQuery({ queryKey: ["worker-cert-levels", applicationId], queryFn: () => listLv({ data: { applicationId } }) });
+  const [lvForm, setLvForm] = useState<Record<string, { level: "full" | "provisional"; expires: string }>>({});
   const [form, setForm] = useState<Record<string, { source: "certificate_sighted" | "issuer_register_checked"; note: string; number: string }>>({});
   return (
     <div className="rounded border p-2">
@@ -219,6 +223,21 @@ function WorkerCertifications({ applicationId, installers }: { applicationId: st
             <div><b>{w.full_legal_name}</b> · {email}</div>
             <div className="text-xs text-muted-foreground">Applicant declared: {w.cii_holds === "held" ? `holds CII ${w.cii_certificate_number ?? ""}, ${w.cii_issuer ?? ""}, ${w.cii_issue_date ?? ""}` : w.cii_holds === "in_training" ? "training in progress" : w.cii_holds === "not_held" ? "not certified" : "not provided (older application)"}</div>
             <div className="mt-1">{latest ? <Badge variant={latest.status === "verified" ? "default" : "destructive"}>{latest.status === "verified" ? "Office verified" : "Rejected"} {new Date(latest.recorded_at).toLocaleDateString("en-AU")}</Badge> : <Badge variant="outline">Not verified</Badge>}</div>
+            {latest?.status === "verified" && (() => {
+              const cur = (lv.data ?? []).find((x) => x.certification_id === latest.id);
+              const lf = lvForm[email] ?? { level: "full" as const, expires: "" };
+              return (
+                <div className="mt-2 rounded border p-2">
+                  {cur ? <div className="text-xs">Level: <b>{cur.level === "full" ? "Full" : "Provisional"}</b> · expires {cur.expires_on}</div>
+                    : <p className="text-xs font-medium text-danger">Re-record certification as Full with expiry date.</p>}
+                  <div className="mt-1 grid gap-2 sm:grid-cols-3">
+                    <select aria-label="Certification level" className="h-9 rounded border px-2" value={lf.level} onChange={(e) => setLvForm((x) => ({ ...x, [email]: { ...lf, level: e.target.value as "full" | "provisional" } }))}><option value="full">Full</option><option value="provisional">Provisional</option></select>
+                    <input aria-label="Certification expiry date" type="date" className="h-9 rounded border px-2" value={lf.expires} onChange={(e) => setLvForm((x) => ({ ...x, [email]: { ...lf, expires: e.target.value } }))} />
+                    <Button size="sm" disabled={!lf.expires} onClick={async () => { await recordLv({ applicationId, workerEmail: email, level: lf.level, expiresOn: lf.expires }, "Certification level recorded"); await lv.refetch(); }}>Record level and expiry</Button>
+                  </div>
+                </div>
+              );
+            })()}
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               <select aria-label="How it was checked" className="h-9 rounded border px-2" value={f.source} onChange={(e) => set({ source: e.target.value as typeof f.source })}>
                 <option value="certificate_sighted">Certificate sighted</option>

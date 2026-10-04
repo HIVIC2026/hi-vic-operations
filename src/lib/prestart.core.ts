@@ -1,0 +1,79 @@
+// ESC pre-install AP task + day-before pre-start check (Operating Model v2, step 10). Pure rules only.
+import { EARLIEST_MS, LEAD_MS, sendTimingBlocker } from "./esc.core";
+import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
+
+export const ESC_URGENT_MS = 2 * 24 * 3600_000;
+export const PRESTART_HOUR = 12; // 12pm Melbourne, the day before the install
+export const PIISA_FROM_PIESA_DAYS = 30;
+
+const fmt = (iso: string) => new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+function addDays(ymd: string, n: number) { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+
+export type EscNotice = { status: string; sent_at: string | null; submission_reference: string | null; scheduled_start: string };
+export type EscTaskCode = "esc_submit_due" | "esc_submit_urgent" | "esc_update_registry" | "esc_withdraw_resubmit";
+
+/** What the AP must do for the ESC notification right now, if anything. */
+export function escTask(i: { start: string; current: EscNotice | null; previousSent: EscNotice | null; now: Date }): { code: EscTaskCode; detail: string } | null {
+  const s = Date.parse(i.start), now = i.now.getTime();
+  if (now >= s) return null;
+  const c = i.current;
+  const curSent = !!c && (c.status === "sent" || c.status === "accepted") && !!c.sent_at && !!c.submission_reference && Date.parse(c.scheduled_start) === s;
+  if (curSent) return null;
+  const by = new Date(s - LEAD_MS).toISOString();
+  if (i.previousSent?.sent_at && Date.parse(i.previousSent.scheduled_start) !== s) {
+    const ok = sendTimingBlocker(i.previousSent.sent_at, i.start) === null;
+    return ok
+      ? { code: "esc_update_registry", detail: `Install moved to ${fmt(i.start)}. Update the notification in the Registry by ${fmt(by)}, then record it.` }
+      : { code: "esc_withdraw_resubmit", detail: `Install moved to ${fmt(i.start)}, outside the original notification's window. Withdraw it and resubmit by ${fmt(by)}.` };
+  }
+  if (now < s - EARLIEST_MS) return null;
+  return now >= s - ESC_URGENT_MS
+    ? { code: "esc_submit_urgent", detail: `Submit ESC notification by ${fmt(by)} — install is in 2 days or less.` }
+    : { code: "esc_submit_due", detail: `Submit ESC notification by ${fmt(by)}.` };
+}
+
+/** 12pm Melbourne on the day before the install. */
+export function prestartRunAt(startIso: string): string {
+  return melbourneAt(addDays(melbourneYmd(new Date(startIso)), -1), PRESTART_HOUR).toISOString();
+}
+
+export type LeadCert = { found: boolean; status: string | null; level: string | null; expiresOn: string | null; name: string | null };
+export type PrestartFacts = {
+  start: string;
+  clearance: { cleared: boolean; blocker: string | null };
+  deadline: string | null; // 30-day window last day
+  esc: EscNotice | null;
+  lead: LeadCert;
+  consentBlockers: string[];
+  piesaCompletedAt: string | null;
+};
+
+/** Every failed pre-start condition, in plain words. Empty = cleared to start. */
+export function prestartFailures(f: PrestartFacts): string[] {
+  const out: string[] = [];
+  const day = melbourneYmd(new Date(f.start));
+  if (!f.clearance.cleared) out.push(`Electrical clearance is not valid: ${f.clearance.blocker ?? "not cleared"}`);
+  if (!f.deadline || day > f.deadline) out.push(f.deadline ? `The 30-day window ended on ${f.deadline}. New PIESA needed.` : "No 30-day window date is recorded.");
+  const e = f.esc;
+  if (!e || !(e.status === "sent" || e.status === "accepted") || !e.sent_at || !e.submission_reference || Date.parse(e.scheduled_start) !== Date.parse(f.start)) out.push("ESC notification is not marked submitted for this install date.");
+  else { const t = sendTimingBlocker(e.sent_at, f.start); if (t) out.push(t); }
+  if (!f.lead.found) out.push("No lead installer is recorded for this job.");
+  else if (f.lead.status !== "verified") out.push(`Lead installer${f.lead.name ? ` ${f.lead.name}` : ""} has no office-verified EEC CII certification.`);
+  else if (!f.lead.level || !f.lead.expiresOn) out.push(`Lead installer${f.lead.name ? ` ${f.lead.name}` : ""}: re-record certification as Full with expiry date.`);
+  else if (f.lead.level !== "full") out.push(`Lead installer${f.lead.name ? ` ${f.lead.name}` : ""} holds a provisional certification, not full.`);
+  else if (f.lead.expiresOn < day) out.push(`Lead installer's certification expired on ${f.lead.expiresOn}.`);
+  for (const c of f.consentBlockers) out.push(`Owner consent: ${c}`);
+  if (!f.piesaCompletedAt) out.push("PIESA completion date is missing.");
+  else if (day > addDays(f.piesaCompletedAt.slice(0, 10), PIISA_FROM_PIESA_DAYS)) out.push("The installer safety form (PIISA) can only be done within 30 days of the PIESA.");
+  return out;
+}
+
+/** Is installation work (PIISA send, install evidence) locked for this booking? */
+export function prestartLocked(i: { start: string; latest: { scheduled_start: string; passed: boolean; failures: string[] } | null; now: Date }): { locked: boolean; reasons: string[] } {
+  const same = i.latest && Date.parse(i.latest.scheduled_start) === Date.parse(i.start) ? i.latest : null;
+  if (same && !same.passed) return { locked: true, reasons: same.failures };
+  if (!same && i.now.getTime() >= Date.parse(prestartRunAt(i.start))) return { locked: true, reasons: ["The pre-start check has not run yet for this install date."] };
+  return { locked: false, reasons: [] };
+}
+
+export const INSTALL_EVIDENCE_CATEGORIES = ["installation_progress", "completed_installation", "installer_declaration", "post_install_video", "final_zone_plan"];

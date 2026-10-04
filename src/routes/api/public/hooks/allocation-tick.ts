@@ -67,6 +67,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           out['ok'] = false;
           (out as Record<string, unknown>)['installDays'] = "failed";
         }
+        try {
+          const { sweepPrestart } = await import("@/lib/prestart.server");
+          (out as Record<string, unknown>)['prestart'] = await sweepPrestart();
+        } catch (e) {
+          console.error("allocation tick: pre-start sweep failed", (e as Error).message);
+          out['ok'] = false;
+          (out as Record<string, unknown>)['prestart'] = "failed";
+        }
         return Response.json(out, { status: out['ok'] ? 200 : 500 });
       },
     },

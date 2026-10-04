@@ -88,3 +88,23 @@ export const listWorkerCertifications = createServerFn({ method: "POST" }).middl
     if (error) throw new WorkflowError("Could not load certification checks.");
     return rows ?? [];
   });
+
+/** Office records Full/Provisional + expiry for the latest verified certification. Append-only. */
+export const recordCertificationLevel = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ applicationId: uuid, workerEmail: z.string().trim().toLowerCase().email().max(320), level: z.enum(["full", "provisional"]), expiresOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { recordCertLevel } = await import("./prestart.server");
+    return recordCertLevel({ ...data, actorId: context.userId });
+  });
+
+export const listCertificationLevels = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ applicationId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: certs } = await context.supabase.from("partner_worker_certifications").select("id").eq("application_id", data.applicationId);
+    const ids = (certs ?? []).map((c) => c.id);
+    if (!ids.length) return [];
+    const { data: rows } = await context.supabase.from("worker_certification_levels").select("certification_id, level, expires_on, recorded_at").in("certification_id", ids).order("recorded_at", { ascending: false });
+    return rows ?? [];
+  });

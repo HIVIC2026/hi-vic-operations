@@ -298,6 +298,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
   if (!job) throw new WorkflowError("Job not found.");
   if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for Home Insulation Victoria jobs.");
   if (job.stage !== "installation_booked") throw new WorkflowError("The installer safety form can only be sent once the installation is booked.");
+  { const { requirePrestartClear } = await import("./prestart.server"); await requirePrestartClear(jobId); }
   const { data: asg } = await admin.from("job_assignments").select("user_id, profiles:user_id(email)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   const email = (asg as unknown as { profiles: { email: string | null } | null } | null)?.profiles?.email?.trim();
   if (!asg || !email) throw new WorkflowError("Assign an installer with an email address before sending the safety form.");

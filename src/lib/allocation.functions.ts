@@ -137,6 +137,7 @@ export const getNeedsHivic = createServerFn({ method: "GET" }).middleware([requi
       registryQueries: ok(veec, "VEEC lodgements"),
       officeOverdue: [],
       rectUnanswered: ok(rsent, "rectification quotes sent"),
+      prestart: await (await import("./prestart.server")).prestartNeeds(now).catch((e) => { console.error("pre-start needs failed", (e as Error).message); return undefined; }),
       installFlags: (instEv ?? []).filter((e) => !!e.job_id).map((e) => ({ job_id: e.job_id!, code: e.event_type as "install_ten_days_left" | "install_days_declined", created_at: e.created_at, detail: e.event_type === "install_ten_days_left" ? `Last day ${(e.details as { deadline?: string } | null)?.deadline ?? "?"}.` : undefined })),
     });
     return { items, checkedAt: now.toISOString() };
@@ -252,4 +253,21 @@ export const installerDeclineInstallDays = createServerFn({ method: "POST" }).mi
   .handler(async ({ data, context }) => {
     const { installerDeclineDays } = await import("./install-days.server");
     return installerDeclineDays(data.jobId, context.userId, data.reason || null);
+  });
+
+// ---------- Step 10: ESC AP task + pre-start check ----------
+export const getPrestartSummary = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { prestartSummary } = await import("./prestart.server");
+    return (await prestartSummary(data.jobId)) ?? null;
+  });
+
+export const rerunPrestart = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { runPrestart } = await import("./prestart.server");
+    return (await runPrestart(data.jobId, "office")) ?? { passed: null, failures: [], changed: false };
   });
