@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { requiredDepositCents } from "@/lib/payment-gate.core";
+import { QUOTE_EXPIRED_OWNER_MESSAGE, quoteExpiresAt, quoteIsExpired } from "@/lib/quote-expiry.core";
 import { depositPctFor } from "@/config/workflow-decisions";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -277,7 +278,11 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
             </ul>
             <div className="mt-2 border-t pt-2 text-lg font-bold">{aud(q.customer_total_inc_gst)} <span className="text-xs font-normal text-muted-foreground">inc GST</span></div>
             <div className="text-xs text-muted-foreground">{q.kind === "rectification" ? "Scope approval – included in your final installation quote (no payment yet)" : `Minimum upfront deposit ${aud(requiredDepositCents(q.customer_total_inc_gst) / 100)} (${depositPctFor(Number(q.customer_total_inc_gst))}%), paid in full, or an approved 3-instalment plan · balance on installation day`}</div>
-            {canRespond && q.status === "issued" && (
+            {q.kind === "installation" && q.status === "issued" && q.sent_at && <div className="text-xs text-muted-foreground">Valid until {fmtDate(new Date(quoteExpiresAt(q.sent_at).getTime() - 1).toISOString())}</div>}
+            {(q.status === "expired" || (q.status === "issued" && quoteIsExpired(q))) && (
+              <p className="mt-3 rounded-md bg-muted p-2 text-sm">{QUOTE_EXPIRED_OWNER_MESSAGE}{q.expired_at && <span className="block text-xs text-muted-foreground">Expired on {fmtDate(q.expired_at)}</span>}</p>
+            )}
+            {canRespond && q.status === "issued" && !quoteIsExpired(q) && (
               <div className="mt-3 flex gap-2">
                 {q.kind === "installation"
                   ? <Button size="field" className="flex-1" onClick={() => setAccepting(q.id)}>Review & accept</Button>
