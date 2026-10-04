@@ -6,7 +6,7 @@ import { AppShell } from "@/components/portal/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useAction } from "@/hooks/use-me";
+import { useAction, useMe } from "@/hooks/use-me";
 import { activateElectricianRate, createElectricianRate, expireElectricianRate, listElectricianRates } from "@/lib/electrician-rates.functions";
 import { ELECTRICIAN_RATE_SERVICES, officeSpread, type ElectricianRateService } from "@/lib/allocation.core";
 
@@ -20,6 +20,13 @@ export const Route = createFileRoute("/_authenticated/admin/electrician-rates")(
 type Rate = { id: string; business_id: string; service_type: ElectricianRateService; rate_inc_gst: string | number; status: string; effective_from: string; effective_to: string | null; approved_at: string | null; source_note: string };
 
 function RatesPage() {
+  const me = useMe();
+  if (me.isLoading) return <AppShell><p className="text-sm text-muted-foreground">Loading…</p></AppShell>;
+  if (!me.data?.roles.includes("admin")) return <AppShell><h1 className="text-2xl font-bold">Not available</h1><p className="text-sm text-muted-foreground">This page is for office staff only.</p></AppShell>;
+  return <RatesOffice />;
+}
+
+function RatesOffice() {
   const load = useServerFn(listElectricianRates);
   const q = useQuery({ queryKey: ["electrician-rates"], queryFn: () => load() });
   const create = useAction(createElectricianRate);
