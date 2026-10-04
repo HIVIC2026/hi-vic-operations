@@ -46,7 +46,7 @@ export const EXTRA_ITEMS = [
 
 export const CAPACITY_BANDS = [{ v: "1-3", n: 3 }, { v: "4-8", n: 8 }, { v: "9-15", n: 15 }, { v: "15+", n: 20 }] as const;
 
-export type Installer = { full_legal_name?: string; qualification?: string; mobile?: string; email?: string; cii_holds?: WorkerCii | null; cii_certificate_number?: string; cii_issuer?: string; cii_issue_date?: string };
+export type Installer = { full_legal_name?: string; qualification?: string; mobile?: string; email?: string; cii_holds?: WorkerCii | null; cii_certificate_number?: string; cii_issuer?: string; cii_issue_date?: string; cii_level?: "full" | "provisional" | null; cii_expiry?: string };
 export type InstData = {
   legal_entity_name?: string; trading_name?: string; abn?: string; cii_status?: string; cii_details?: string;
   business_address?: string; business_address_details?: ResolvedAddress | null; primary_contact_name?: string; business_phone?: string; business_email?: string; authorised_to_register?: boolean;
@@ -180,6 +180,8 @@ export function stepFieldErrors(step: StepKey, d: InstData, now = new Date()): F
           if (!txt(x.cii_certificate_number)) add(`installer-${i}-cii-number`, `${n}: enter the CII certificate or ID number.`);
           if (!txt(x.cii_issuer)) add(`installer-${i}-cii-issuer`, `${n}: enter who issued the certification.`);
           if (!validCalendarDate(x.cii_issue_date) || (x.cii_issue_date as string) > today) add(`installer-${i}-cii-date`, `${n}: enter a real issue date (not in the future).`);
+          if (x.cii_level !== "full" && x.cii_level !== "provisional") add(`installer-${i}-cii-level`, `${n}: choose Full or Provisional.`);
+          if (!validCalendarDate(x.cii_expiry) || (x.cii_expiry as string) <= today) add(`installer-${i}-cii-expiry`, `${n}: enter the expiry date (must be in the future).`);
         }
       });
       const emails = list.map((x) => (x.email ?? "").trim().toLowerCase()).filter(Boolean);
@@ -207,8 +209,7 @@ export function stepFieldErrors(step: StepKey, d: InstData, now = new Date()): F
       break;
     }
     case "capacity":
-      if (!CAPACITY_BANDS.some((b) => b.v === d.capacity_band)) add("capacity_band", "Choose your weekly capacity.");
-      break;
+      break; // Trades run their own diaries: weekly capacity is no longer asked (stored answers ignored).
     case "install_pricing":
       if (typeof d.gst_registered !== "boolean") add("gst_registered", "Tell us if you're GST registered.");
       if (!validRequiredRate(d.r5_rate)) add("rate-r5", "Enter your R5.0 supply & install rate per m².");
@@ -290,7 +291,7 @@ export const isInstallerRevisionTimestamp = (v: string) => /^\d{4}-\d{2}-\d{2}T\
 
 const money = (n?: number | null) => (typeof n === "number" ? `$${n.toFixed(2)}` : "—");
 const workerCiiLabel = (x: Installer) => x.cii_holds === "held"
-  ? `CII declared held — certificate ${x.cii_certificate_number ?? ""}, issued by ${x.cii_issuer ?? ""} on ${x.cii_issue_date ?? ""} (subject to Home Insulation Victoria verification)`
+  ? `CII declared held — certificate ${x.cii_certificate_number ?? ""}, issued by ${x.cii_issuer ?? ""} on ${x.cii_issue_date ?? ""}${x.cii_level ? `, level ${x.cii_level === "full" ? "Full" : "Provisional (cannot receive work until Full)"}` : ""}${x.cii_expiry ? `, expires ${x.cii_expiry}` : ""} (subject to Home Insulation Victoria verification)`
   : x.cii_holds === "in_training" ? "CII training in progress — cannot be assigned until certified and verified" : x.cii_holds === "not_held" ? "Not CII certified — cannot be assigned" : "CII status not provided";
 
 export function scheduleText(d: InstData): string {
@@ -310,7 +311,7 @@ export function scheduleText(d: InstData): string {
     `Receives pre-qualified Home Insulation Victoria leads: ${d.wants_hivic_leads ? "yes" : "no"}`);
   if (d.wants_hivic_leads) L.push("Free Home Insulation Ready Checks (measure-up) for those leads: yes — the installer receives the job if it proceeds, unless the owner specifies otherwise");
   L.push(`Service origin: ${d.service_origin ?? ""}; radius: ${d.travel_radius_km === 9999 ? "anywhere in Victoria" : `${d.travel_radius_km} km`}${d.excluded_areas ? `; excluded: ${d.excluded_areas}` : ""}`);
-  L.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}; weekly installations: ${d.capacity_band ?? ""}`);
+  L.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}`);
   L.push(`Available for new work at signing: ${d.accepting_jobs === true ? "yes" : "no — Home Insulation Victoria will not offer new leads until the Installer updates this"}`);
   L.push("", `SCHEDULE 3 — PROPOSED SUPPLIER RATES (${gst}; not binding until accepted by Home Insulation Victoria under clause 17)`);
   L.push(`R5.0 ceiling insulation supply & install: ${money(d.r5_rate)} / m²`);
