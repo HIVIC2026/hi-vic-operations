@@ -20,6 +20,11 @@ const ALLOWED: Record<string, VeecStatus[]> = {
   approved: ["approved"], // final — registered certificates cannot be reverted here
 };
 
+/** A job becomes Complete only once its VEEC is registered (approved); submitted, query and rejected keep it open. */
+export function veecCompletesJob(status: VeecStatus | string): boolean {
+  return status === "approved";
+}
+
 /** Whole days until an unanswered Registry query escalates to the AP. */
 export const VEEC_QUERY_ESCALATE_DAYS = 3;
 
