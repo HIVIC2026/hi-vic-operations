@@ -66,4 +66,4 @@
 ## Step 9 installer capacity + install booking
 - [x] Part A: optional m²/day capacity, install holds (create/move/release), office-only hold card — practice-proven, applied
 - [ ] Part B: owner install days, installer one-tap booking, 30-day hard gate flags (awaiting "go")
-- [ ] Copy onboarding capacity answer onto the business at approval (office sets it in business settings for now)
+- [x] Copy onboarding capacity answer onto the business at approval (office sets it in business settings for now)
