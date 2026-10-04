@@ -291,7 +291,7 @@ export async function clearanceFacts(jobId: string) {
 
 /** 24h reminders (queued, sending switches decide delivery) for released visits with no proposed time. */
 export async function sweepCoordination(actorId: string | null = null) {
-  const { data: rel } = await admin.from("contact_releases").select("job_id, visit_kind, released_at, assignment_id, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null).in("visit_kind", ["piesa", "rectification", "installation"]);
+  const { data: rel } = await admin.from("contact_releases").select("job_id, visit_kind, released_at, assignment_id, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null).in("visit_kind", ["ready_check", "piesa", "rectification", "installation"]);
   let reminders = 0;
   for (const r of rel ?? []) {
     const a = r.job_assignments as { active: boolean; booking_confirmed_at: string | null };

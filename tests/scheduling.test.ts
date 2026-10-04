@@ -56,10 +56,14 @@ describe("24/48h responsiveness", () => {
     expect(s.canRequestAnother).toBe(true);
     expect(s.message).toBe("No meaningful contact after 48 hours — request another electrician");
   });
-  test("meaningful first contact stops the first-contact clock without requiring a booking", () => {
+  test("a reply alone does not stop the 48h clock: no confirmed booking = exception", () => {
     const s = appointmentSla({ assigned_at: at(49), first_response_at: at(40) }, now);
-    expect(s.canRequestAnother).toBe(false);
-    expect(s.message).toBe("Electrician made contact");
+    expect(s.state).toBe("exception");
+    expect(s.canRequestAnother).toBe(true);
+    expect(s.message).toBe("No booking confirmed after 48 hours — request another electrician");
+  });
+  test("a reply still clears the 24h monitoring message", () => {
+    expect(appointmentSla({ assigned_at: at(30), first_response_at: at(20) }, now).message).toBe("Electrician made contact");
   });
   test("cannot attend = immediate eligibility", () => {
     const s = appointmentSla({ assigned_at: at(2), cannot_attend_at: at(1) }, now);

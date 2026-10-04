@@ -184,3 +184,22 @@ describe("electrician-facing screens wording scan", () => {
     }
   });
 });
+
+describe("48h escalation covers every direct-contact visit", () => {
+  const now = new Date("2026-10-04T12:00:00Z");
+  const ago = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
+  const kinds = ["ready_check", "piesa", "rectification", "installation"] as const;
+  test("each visit: 48h with no confirmed booking goes to the office list; confirmed never does", () => {
+    for (const k of kinds) {
+      const base = { offers: [], declines: [], coverageExhausted: [], now } as never;
+      const open = buildNeedsHivic({ ...(base as object), releases: [{ job_id: k, visit_kind: k, released_at: ago(49), confirmed_at: null }] } as never);
+      expect(open.length).toBe(1);
+      const booked = buildNeedsHivic({ ...(base as object), releases: [{ job_id: k, visit_kind: k, released_at: ago(49), confirmed_at: ago(1) }] } as never);
+      expect(booked.length).toBe(0);
+    }
+  });
+  test("Ready Check gets its own office entry", () => {
+    const r = buildNeedsHivic({ offers: [], declines: [], coverageExhausted: [], now, releases: [{ job_id: "j", visit_kind: "ready_check", released_at: ago(49), confirmed_at: null }] } as never);
+    expect(r.map((i) => i.code)).toEqual(["ready_check_booking_overdue"]);
+  });
+});
