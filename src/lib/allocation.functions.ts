@@ -7,11 +7,12 @@ const uuid = z.string().uuid();
 
 /** Office: start PIESA allocation (refuses until the PIESA gate is satisfied). */
 export const startPiesaOffers = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, rateToConfirm: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { startPiesaAllocation } = await import("./allocation.server");
-    return startPiesaAllocation(data.jobId, context.userId, "piesa");
+    if (data.rateToConfirm) await logEvent(data.jobId, context.userId, "rec_offer_rate_to_confirm", "Office chose to offer the PIESA with the electrician rate to be confirmed", {}, { internal: true });
+    return startPiesaAllocation(data.jobId, context.userId, "piesa", { rateToConfirm: !!data.rateToConfirm });
   });
 
 /** Office: candidate RECs for a job with the reason each one is or isn't eligible. */
