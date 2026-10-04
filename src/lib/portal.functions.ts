@@ -917,6 +917,50 @@ export const updateVeec = createServerFn({ method: "POST" }).middleware([require
     return { ok: true };
   });
 
+/** Draft a Registry query reply with AI. Office only. Returns text only; never changes the lodgement or sends anything. */
+export const draftVeecReply = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: v } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,query_text").eq("job_id", data.jobId).maybeSingle();
+    if (v?.status !== "query" || !v.query_text) throw new WorkflowError("A Registry query with its text must be recorded first.");
+    const { data: j } = await admin.from("jobs").select("job_number,property_address").eq("id", data.jobId).single();
+    const key = process.env["LOVABLE_API_KEY"];
+    if (!key) throw new WorkflowError("AI drafting is not configured.");
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "fetch" },
+      body: JSON.stringify({
+        model: "openai/gpt-6-astra",
+        reasoning: { effort: "low" },
+        input: `You draft a factual reply to an Essential Services Commission (VEU program) Registry query about a lodged VEEC creation for Home Insulation Victoria, the Accredited Person. Reply in plain Australian English, under 200 words, no invented facts, list anything that must be verified before sending.\n\nJob: ${j?.job_number ?? ""}, ${j?.property_address ?? ""}.\nLodgement: quantity ${v.quantity ?? "?"}, reference ${v.submission_reference ?? "?"}, submitted ${v.submitted_date ?? "?"}.\nRegistry query: ${v.query_text}`,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`AI draft failed [${res.status}]: ${body}`);
+      throw new WorkflowError(`Drafting failed (${res.status}). Try again later.`);
+    }
+    const json = (await res.json()) as { output?: { content?: { text?: string }[] }[] };
+    const draft = (json.output ?? []).flatMap((o) => o.content ?? []).map((c) => c.text ?? "").join("").trim();
+    if (!draft) throw new WorkflowError("The draft came back empty. Try again.");
+    await logEvent(data.jobId, context.userId, "veec_reply_drafted", "AI drafted a Registry query reply (not sent)", { draft }, { internal: true });
+    return { draft };
+  });
+
+/** Record that the AP sent the reply in the Registry's own system. Office only, audited. */
+export const markVeecReplySent = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, replyDraft: z.string().trim().min(5).max(8000), sentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: v } = await admin.from("veec_lodgements").select("status").eq("job_id", data.jobId).maybeSingle();
+    if (v?.status !== "query") throw new WorkflowError("This lodgement is not in Registry query.");
+    if (data.sentDate > new Date().toISOString().slice(0, 10)) throw new WorkflowError("Reply sent date cannot be in the future.");
+    await admin.from("veec_lodgements").update({ reply_draft: data.replyDraft, reply_sent_at: data.sentDate, reply_sent_by: context.userId, updated_at: new Date().toISOString() }).eq("job_id", data.jobId);
+    await logEvent(data.jobId, context.userId, "veec_reply_sent", "Registry query reply sent (recorded by office)", { sent_date: data.sentDate }, { internal: true });
+    return { ok: true };
+  });
+
 // ---------- Comms / exceptions ----------
 export const sendMessage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, body: z.string().trim().min(1).max(4000), internal: z.boolean().optional(), channel: z.enum(["portal", "phone", "sms", "email"]).optional(), audience: z.enum(["customer", "trade"]).optional() }).parse(d))
