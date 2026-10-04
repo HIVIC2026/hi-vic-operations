@@ -35,7 +35,7 @@ function Dashboard() {
     <AppShell wide>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div><h1 className="text-2xl font-bold">{(data.business as { name?: string }).name}</h1><p className="text-sm text-muted-foreground">Partner dashboard</p></div>
-        <div className="flex w-full flex-wrap gap-2 sm:w-auto"><Button asChild size="field"><Link to="/partner/import">Import existing job</Link></Button><Button asChild variant="outline" size="field"><Link to="/partner/workers">Staff</Link></Button><Button asChild variant="outline" size="field"><Link to="/partner/profile">Business profile</Link></Button></div>
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto"><Button asChild size="field"><Link to="/partner/import">Import existing job</Link></Button><Button asChild variant="outline" size="field"><Link to="/partner/bulk-import">Bulk upload</Link></Button><Button asChild variant="outline" size="field"><Link to="/partner/workers">Staff</Link></Button><Button asChild variant="outline" size="field"><Link to="/partner/profile">Business profile</Link></Button></div>
       </div>
       {data.blocker && <p className="mb-4 rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">{data.blocker}</p>}
       {attention.length > 0 && <div className="mb-4 rounded-xl border border-warning/40 bg-warning-soft p-3 text-sm"><div className="font-semibold">Needs attention</div>{attention.map((j) => <div key={j.id}><Link to="/field/$jobId" params={{ jobId: j.id }} className="font-medium underline">{j.job_number}</Link> – {j.sla?.message}</div>)}</div>}
