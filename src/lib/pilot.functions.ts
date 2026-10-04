@@ -535,6 +535,10 @@ export const respondToOffer = createServerFn({ method: "POST" }).middleware([req
     await requireMember(context.userId, o.business_id);
     const b = offerRespondBlocker(o);
     if (b) { if (b.includes("expired")) await admin.from("partner_offers").update({ status: "expired" }).eq("id", o.id); throw new WorkflowError(b); }
+    if (o.kind === "ready_check") {
+      const { respondToReadyCheckOffer } = await import("./readycheck-booking.server");
+      return respondToReadyCheckOffer(o.id, context.userId, data.accept, data.reason ?? null, data.proposalId ?? null);
+    }
     if (o.kind !== "installer") {
       // PIESA / rectification offers go through the atomic electrician allocation path.
       const { respondToRecOffer } = await import("./allocation.server");
@@ -605,6 +609,8 @@ export const partnerDashboard = createServerFn({ method: "GET" }).middleware([re
     const { data: winRows } = piesaJobs.length
       ? await admin.from("appointment_proposals").select("id, job_id, starts_at, ends_at").in("job_id", piesaJobs).not("piesa_window_round", "is", null).eq("status", "proposed").gt("starts_at", new Date().toISOString()).order("starts_at")
       : { data: [] as { id: string; job_id: string; starts_at: string; ends_at: string | null }[] };
+    const rcJobs = (offers ?? []).filter((o) => o.kind === "ready_check").map((o) => o.job_id);
+    const rcWins = await (await import("./readycheck-booking.server")).readyCheckOfferWindows(rcJobs);
     let q = admin.from("job_assignments").select("job_id, user_id, role").eq("business_id", bizId).eq("active", true);
     if (!isBizAdmin) q = q.eq("user_id", context.userId);
     const { data: asg } = await q;
@@ -648,7 +654,7 @@ export const partnerDashboard = createServerFn({ method: "GET" }).middleware([re
       return { job_id: id, job_number: c?.job_number ?? null, suburb: (c?.property as { suburb?: string | null } | undefined)?.suburb ?? null, postcode: (c?.property as { postcode?: string | null } | undefined)?.postcode ?? null, days: dayRows.filter((d) => d.job_id === id).map((d) => ({ id: d.id, starts_at: d.starts_at })) };
     }).filter((x) => x.days.length);
     const { xero_contact_id: _x, xero_contact_error: _e, ...safeBiz } = business ?? ({} as never);
-    return { business: safeBiz, isBizAdmin, blocker: (await import("./pilot.core")).partnerWorkBlocker(business as BusinessLike, credentials), offers: (offers ?? []).map(({ job_id, ...o }) => ({ ...o, windows: o.kind === "piesa" ? (winRows ?? []).filter((w) => w.job_id === job_id).map((w) => ({ id: w.id, starts_at: w.starts_at, ends_at: w.ends_at })) : [] })), jobs: cards, jobIds, installDays };
+    return { business: safeBiz, isBizAdmin, blocker: (await import("./pilot.core")).partnerWorkBlocker(business as BusinessLike, credentials), offers: (offers ?? []).map(({ job_id, ...o }) => ({ ...o, windows: o.kind === "piesa" ? (winRows ?? []).filter((w) => w.job_id === job_id).map((w) => ({ id: w.id, starts_at: w.starts_at, ends_at: w.ends_at })) : o.kind === "ready_check" ? rcWins.filter((w) => w.job_id === job_id).map((w) => ({ id: w.id, starts_at: w.starts_at, ends_at: w.ends_at })) : [] })), jobs: cards, jobIds, installDays };
   });
 
 export const listDraftImports = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])

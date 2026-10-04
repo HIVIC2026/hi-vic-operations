@@ -1,3 +1,4 @@
+import type React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { EngagementPanel } from "./engagement";
@@ -50,7 +51,7 @@ export const FREE_CHECK_CONFIRM_COPY = {
   successNext: "They’ll measure your ceiling, assess any existing insulation, confirm eligibility and prepare the job scope so we can confirm your quote.",
 } as const;
 
-export function ConfirmQuote({ onBack, preview = false, testMode = preview, state = null, busy = false, error = null, onAccept }: { estimatedPrice?: number; assessmentFee?: number; onBack: () => void; preview?: boolean; testMode?: boolean; state?: ReadyCheckAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; onTestPayment?: (outcome: "success" | "failure") => void }) {
+export function ConfirmQuote({ onBack, preview = false, testMode = preview, state = null, busy = false, error = null, onAccept, picker, canSubmit = true, after }: { estimatedPrice?: number; assessmentFee?: number; onBack: () => void; preview?: boolean; testMode?: boolean; state?: ReadyCheckAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; onTestPayment?: (outcome: "success" | "failure") => void; picker?: React.ReactNode; canSubmit?: boolean; after?: React.ReactNode }) {
   const accepted = state?.paymentStatus === "accepted";
   const [acknowledged, setAcknowledged] = useState(false);
   const C = FREE_CHECK_CONFIRM_COPY;
@@ -63,6 +64,7 @@ export function ConfirmQuote({ onBack, preview = false, testMode = preview, stat
         <p className="mt-4 text-[15px] leading-relaxed">{C.successBody}</p>
         <p className="mt-3 text-[15px] leading-relaxed">{C.successNext}</p>
         <div className="mt-6 rounded-[18px] bg-estimate-mist px-5 py-4 text-sm font-bold leading-relaxed">{C.reassurance}</div>
+        {after}
       </section> : <>
         <header className="px-5 pb-6 pt-8 sm:px-9">
           <p className="text-[11px] font-extrabold uppercase tracking-[1.4px] text-[#067A45]">Your next step</p>
@@ -79,12 +81,13 @@ export function ConfirmQuote({ onBack, preview = false, testMode = preview, stat
           <p className="mt-4 text-[13px] leading-relaxed">{C.piesa}</p>
         </section>
         <section className="mx-3 mt-4 rounded-[20px] bg-estimate-blush px-5 py-6 sm:mx-7" aria-label="Confirm your request">
+          {!state && picker && <div className="mb-5">{picker}</div>}
           {!state && <label className="flex items-start gap-3 text-sm leading-relaxed">
             <input type="checkbox" checked={acknowledged} disabled={busy} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-1 size-5 shrink-0 accent-estimate-green" />
             <span>{C.acceptance}</span>
           </label>}
           <div className="mt-5 space-y-3">
-            {!state && <button type="button" className="min-h-14 w-full rounded-xl bg-estimate-green px-5 py-4 text-base font-extrabold leading-snug text-estimate-white shadow-[0_10px_24px_-12px_rgba(7,191,97,.55)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-estimate-navy focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" disabled={!acknowledged || busy || !onAccept} onClick={onAccept}>{busy ? "Sending your request…" : C.cta}</button>}
+            {!state && <button type="button" className="min-h-14 w-full rounded-xl bg-estimate-green px-5 py-4 text-base font-extrabold leading-snug text-estimate-white shadow-[0_10px_24px_-12px_rgba(7,191,97,.55)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-estimate-navy focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" disabled={!acknowledged || busy || !onAccept || !canSubmit} onClick={onAccept}>{busy ? "Sending your request…" : C.cta}</button>}
             <p className="text-center text-[13px] font-bold leading-relaxed">{C.reassurance}</p>
           </div>
         </section>

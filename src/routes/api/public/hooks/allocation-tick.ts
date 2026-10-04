@@ -68,6 +68,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['installDays'] = "failed";
         }
         try {
+          const { sweepReadyCheckOffers } = await import("@/lib/readycheck-booking.server");
+          (out as Record<string, unknown>)['readyCheck'] = await sweepReadyCheckOffers();
+        } catch (e) {
+          console.error("allocation tick: ready check sweep failed", (e as Error).message);
+          out['ok'] = false;
+          (out as Record<string, unknown>)['readyCheck'] = "failed";
+        }
+        try {
           const { sweepPrestart } = await import("@/lib/prestart.server");
           (out as Record<string, unknown>)['prestart'] = await sweepPrestart();
         } catch (e) {
