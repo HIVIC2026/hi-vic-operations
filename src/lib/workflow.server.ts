@@ -356,8 +356,9 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
   }
   if (to === "complete") {
     const { data: v } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,notes").eq("job_id", jobId).maybeSingle();
-    const { lodgementEvidenceBlockers } = await import("./veec.core");
+    const { lodgementEvidenceBlockers, veecCompletesJob } = await import("./veec.core");
     blockers.push(...lodgementEvidenceBlockers(v, new Date().toISOString().slice(0, 10)));
+    if (v && !veecCompletesJob(v.status)) blockers.push("VEEC must be registered (approved) before the job can be completed.");
   }
   return blockers;
 }
