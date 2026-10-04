@@ -297,7 +297,8 @@ export type NeedsCode =
   | "rec_coverage_exhausted" | "piesa_booking_overdue" | "delivery_failed" | "rectification_declined"
   | "rectification_pricing_review" | "installer_unavailable" | "installation_booking_overdue" | "ready_check_booking_overdue"
   | "piesa_timing_invalid" | "esc_or_distribution_timing" | "compliance_correction" | "registry_query" | "office_overdue" | "rectification_quote_unanswered"
-  | "rec_no_longer_approved" | "install_ten_days_left" | "install_days_declined";
+  | "rec_no_longer_approved" | "install_ten_days_left" | "install_days_declined"
+  | "esc_submit_due" | "esc_submit_urgent" | "esc_update_registry" | "esc_withdraw_resubmit" | "prestart_failed" | "cert_rerecord_needed";
 export type NeedsUrgency = "urgent" | "today" | "soon";
 export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency: NeedsUrgency; stage: string | null; suburb: string | null };
 
@@ -316,6 +317,12 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   rectification_quote_unanswered: { why: "Rectification quote unanswered — 30-day clock at risk. The owner has not responded 5 days after it was sent.", next: "Call the owner about the rectification quote on the Quotes tab.", tab: "quotes", urgency: "today" },
   registry_query: { why: "The ESC/VEEC Registry raised a query or rejected the lodgement.", next: "Answer the query or correct and resubmit on the VEEC tab.", tab: "veec", urgency: "soon" },
   office_overdue: { why: "A task owned by Home Insulation Victoria is overdue.", next: "Open the job and complete the overdue office step.", tab: "overview", urgency: "soon" },
+  esc_submit_due: { why: "ESC pre-install notification window is open.", next: "Submit the notification in the Registry using the details on the Installation section, then tap Submitted with the date and reference.", tab: "compliance", urgency: "today" },
+  esc_submit_urgent: { why: "ESC notification not submitted and the install is 2 days away or less.", next: "Submit it in the Registry now, then tap Submitted with the date and reference.", tab: "compliance", urgency: "urgent" },
+  esc_update_registry: { why: "Install date moved after the ESC notification was submitted. Update notification in Registry.", next: "Update the notification in the Registry, then record the update with the date and reference.", tab: "compliance", urgency: "urgent" },
+  esc_withdraw_resubmit: { why: "Install date moved beyond the notification's 5-day window. Withdraw and resubmit.", next: "Withdraw the old notification in the Registry, submit a new one, then record it.", tab: "compliance", urgency: "urgent" },
+  prestart_failed: { why: "Pre-start check failed. Installation form and evidence are locked.", next: "Fix each reason listed; the check re-runs automatically within 15 minutes.", tab: "compliance", urgency: "urgent" },
+  cert_rerecord_needed: { why: "Lead installer certification has no Full/Provisional level or expiry. Re-record certification as Full with expiry date.", next: "Open Partners, find the installer's certification check and record the level and expiry.", tab: "overview", urgency: "today" },
   install_ten_days_left: { why: "10 days or fewer left in the 30-day installation window and no installation is booked.", next: "Call the owner and the quoted installer and book a day on the Installation section before the window closes.", tab: "compliance", urgency: "urgent" },
   install_days_declined: { why: "The quoted installer could not do any of the owner's install days. The installer is never replaced automatically.", next: "Call the owner and installer to agree a day, or agree a replacement installer with the owner.", tab: "compliance", urgency: "today" },
   rec_no_longer_approved: { why: "The assigned electrician is no longer an approved, active REC, so the electrical work cannot continue with them.", next: "Release the electrician on the PIESA tab and re-offer the work to another approved REC (the owner keeps the approved quote).", tab: "piesa", urgency: "today" },
@@ -366,6 +373,7 @@ export type NeedsInput = {
   registryQueries: { job_id: string; status: string; updated_at: string | null; query_received_at?: string | null; reply_sent_at?: string | null }[];
   officeOverdue: { job_id: string | null; title: string; since: string | null }[];
   rectUnanswered?: { job_id: string; sent_at: string | null }[];
+  prestart?: { esc: { job_id: string; code: string; detail: string }[]; failed: { job_id: string; since: string; detail: string }[]; certs: { job_id: string; detail: string }[] };
   installFlags?: { job_id: string; code: "install_ten_days_left" | "install_days_declined"; created_at: string; detail?: string | undefined }[];
 };
 
@@ -393,7 +401,11 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
   for (const q of i.rectPricing) add("rectification_pricing_review", q.job_id, q.created_at);
   for (const u of i.installerUnavailable) add("installer_unavailable", u.job_id, u.at, u.reason ? `Reason: ${u.reason}` : undefined);
   for (const p of i.piesaTiming) if (p.piesa_expired || p.urgency === "red") add("piesa_timing_invalid", p.job_id, null, p.days_remaining != null ? `${p.days_remaining} day(s) left.` : undefined);
-  for (const e of i.escTiming) add("esc_or_distribution_timing", e.job_id, e.created_at);
+  const escTask = new Set((i.prestart?.esc ?? []).map((e) => e.job_id));
+  for (const e of i.prestart?.esc ?? []) add(e.code as NeedsCode, e.job_id, null, e.detail);
+  for (const f of i.prestart?.failed ?? []) add("prestart_failed", f.job_id, f.since, f.detail);
+  for (const c of i.prestart?.certs ?? []) add("cert_rerecord_needed", c.job_id, null, c.detail);
+  for (const e of i.escTiming) if (!escTask.has(e.job_id)) add("esc_or_distribution_timing", e.job_id, e.created_at);
   for (const e of i.evidenceRejected) add("compliance_correction", e.job_id, e.created_at);
   for (const r of i.registryQueries) {
     const overdue = r.status === "query" && veecQueryOverdue(r.query_received_at, r.reply_sent_at, new Date());

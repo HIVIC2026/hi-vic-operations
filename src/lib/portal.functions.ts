@@ -856,6 +856,7 @@ export const requestEvidenceUpload = createServerFn({ method: "POST" }).middlewa
   .inputValidator((d) => z.object({ requirementId: uuid, fileName: z.string().min(1).max(200), mimeType: z.string().max(100), fix: fixSchema }).parse(d))
   .handler(async ({ data, context }) => {
     const req = await requirementWithAccess(context.supabase, data.requirementId);
+    { const { INSTALL_EVIDENCE_CATEGORIES } = await import("./prestart.core"); if (INSTALL_EVIDENCE_CATEGORIES.includes(req.category)) { const { requirePrestartClear } = await import("./prestart.server"); await requirePrestartClear(req.job_id); } }
     if (!/^(image\/|video\/|application\/pdf)/.test(data.mimeType)) throw new WorkflowError("Only photos, videos and PDFs are accepted.");
     await enforcePhotoLocation(context.supabase, req.job_id, data.mimeType, data.fix);
     const safe = data.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -869,6 +870,7 @@ export const confirmEvidenceUpload = createServerFn({ method: "POST" }).middlewa
   .inputValidator((d) => z.object({ requirementId: uuid, path: z.string().min(5).max(500), fileName: z.string().max(200), mimeType: z.string().max(100), size: z.number().int().min(0), fix: fixSchema }).parse(d))
   .handler(async ({ data, context }) => {
     const req = await requirementWithAccess(context.supabase, data.requirementId);
+    { const { INSTALL_EVIDENCE_CATEGORIES } = await import("./prestart.core"); if (INSTALL_EVIDENCE_CATEGORIES.includes(req.category)) { const { requirePrestartClear } = await import("./prestart.server"); await requirePrestartClear(req.job_id); } }
     if (!data.path.startsWith(`${req.job_id}/${req.category}/`)) throw new WorkflowError("Invalid path");
     const loc = await enforcePhotoLocation(context.supabase, req.job_id, data.mimeType, data.fix);
     await admin.from("evidence_files").insert({ requirement_id: req.id, job_id: req.job_id, storage_path: data.path, file_name: data.fileName, mime_type: data.mimeType, size_bytes: data.size, uploaded_by: context.userId,
