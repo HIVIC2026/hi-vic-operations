@@ -5,7 +5,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { myBusinesses, requireApprovedPartner, requireMember } from "./pilot.server";
-import { WorkflowError } from "./errors";
+import { WorkflowError } from "./workflow.server";
 import type { Json } from "@/integrations/supabase/types";
 
 const uuid = z.string().uuid();
@@ -111,6 +111,6 @@ export const bulkImportBusinesses = createServerFn({ method: "GET" }).middleware
       }
       return { businesses: out, isAdmin: false };
     }
-    const { data } = await admin.from("businesses").select("id, name").eq("type", "eec_installer").eq("status", "approved").order("name");
+    const { data } = await admin.from("businesses").select("id, name").eq("business_type", "eec_installer").eq("onboarding_status", "approved").order("name");
     return { businesses: data ?? [], isAdmin: true };
   });
