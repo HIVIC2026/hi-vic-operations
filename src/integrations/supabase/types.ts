@@ -8013,11 +8013,14 @@ export type Database = {
           created_at: string
           created_by: string | null
           customer_total_inc_gst: number
+          expired_at: string | null
           gst_amount: number
           id: string
           job_id: string
           kind: Database["public"]["Enums"]["quote_kind"]
           manually_adjusted: boolean
+          nudge_day10_at: string | null
+          nudge_day3_at: string | null
           office_reviewed_at: string | null
           office_reviewed_by: string | null
           option_code: string | null
@@ -8026,6 +8029,7 @@ export type Database = {
           prices_include_gst: boolean
           pricing_settings_id: string | null
           rate_card_id: string | null
+          sent_at: string | null
           status: Database["public"]["Enums"]["quote_status"]
           subtotal_inc_gst: number
           veec_discount_inc_gst: number
@@ -8038,11 +8042,14 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           customer_total_inc_gst: number
+          expired_at?: string | null
           gst_amount: number
           id?: string
           job_id: string
           kind: Database["public"]["Enums"]["quote_kind"]
           manually_adjusted?: boolean
+          nudge_day10_at?: string | null
+          nudge_day3_at?: string | null
           office_reviewed_at?: string | null
           office_reviewed_by?: string | null
           option_code?: string | null
@@ -8051,6 +8058,7 @@ export type Database = {
           prices_include_gst?: boolean
           pricing_settings_id?: string | null
           rate_card_id?: string | null
+          sent_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal_inc_gst: number
           veec_discount_inc_gst?: number
@@ -8063,11 +8071,14 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           customer_total_inc_gst?: number
+          expired_at?: string | null
           gst_amount?: number
           id?: string
           job_id?: string
           kind?: Database["public"]["Enums"]["quote_kind"]
           manually_adjusted?: boolean
+          nudge_day10_at?: string | null
+          nudge_day3_at?: string | null
           office_reviewed_at?: string | null
           office_reviewed_by?: string | null
           option_code?: string | null
@@ -8076,6 +8087,7 @@ export type Database = {
           prices_include_gst?: boolean
           pricing_settings_id?: string | null
           rate_card_id?: string | null
+          sent_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal_inc_gst?: number
           veec_discount_inc_gst?: number
@@ -10355,7 +10367,13 @@ export type Database = {
         | "overdue"
         | "xero_sync_error"
       quote_kind: "installation" | "rectification"
-      quote_status: "draft" | "issued" | "accepted" | "declined" | "superseded"
+      quote_status:
+        | "draft"
+        | "issued"
+        | "accepted"
+        | "declined"
+        | "superseded"
+        | "expired"
       rate_card_kind: "installer" | "electrical"
       sync_status: "not_synced" | "pending" | "synced" | "error"
     }
@@ -10621,7 +10639,14 @@ export const Constants = {
         "xero_sync_error",
       ],
       quote_kind: ["installation", "rectification"],
-      quote_status: ["draft", "issued", "accepted", "declined", "superseded"],
+      quote_status: [
+        "draft",
+        "issued",
+        "accepted",
+        "declined",
+        "superseded",
+        "expired",
+      ],
       rate_card_kind: ["installer", "electrical"],
       sync_status: ["not_synced", "pending", "synced", "error"],
     },
