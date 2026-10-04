@@ -9,6 +9,7 @@ import { SlaPill } from "@/components/portal/partner";
 import { useAction } from "@/hooks/use-me";
 import { electricalStatusLabel, electricianRateText } from "@/lib/allocation.core";
 import { partnerDashboard, respondToOffer } from "@/lib/pilot.functions";
+import { InstallerDayOffer } from "@/components/portal/install-days";
 import { formatPiesaWindow } from "@/lib/piesa-windows.core";
 import { BUCKET_LABEL, PARTNER_BUCKETS, REC_BUCKETS, recBucketFor, recSlaForAssigned } from "@/lib/pilot.core";
 
@@ -40,6 +41,7 @@ function Dashboard() {
       {attention.length > 0 && <div className="mb-4 rounded-xl border border-warning/40 bg-warning-soft p-3 text-sm"><div className="font-semibold">Needs attention</div>{attention.map((j) => <div key={j.id}><Link to="/field/$jobId" params={{ jobId: j.id }} className="font-medium underline">{j.job_number}</Link> – {j.sla?.message}</div>)}</div>}
       <h2 className="mb-2 font-semibold">Jobs available <Badge variant="secondary">{data.offers.length}</Badge></h2>
       {data.offers.length === 0 ? <p className="mb-4 text-sm text-muted-foreground">No jobs offered right now.</p> : <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{data.offers.map((o) => <Offer key={o.id} o={o} onDone={refetch} />)}</div>}
+      {!!data.installDays?.length && <><h2 className="mb-2 font-semibold">Installation days to choose <Badge variant="secondary">{data.installDays.length}</Badge></h2><div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{data.installDays.map((o) => <InstallerDayOffer key={o.job_id} o={o} onDone={refetch} />)}</div></>}
       <h2 className="mb-2 font-semibold">{isRec ? "My electrical jobs" : "My jobs"} <Badge variant="secondary">{data.jobs.length}</Badge></h2>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {(isRec
