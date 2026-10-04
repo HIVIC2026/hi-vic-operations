@@ -276,8 +276,7 @@ export function rankElectricians(cands: ElecCandidate[], site: { postcode: strin
     const blocker = partnerWorkBlocker(c, c.credentials, now);
     const inArea = serviceAreaMatch(c, site.postcode, site.suburb);
     const expiring = c.credentials.some((x) => x.critical && credentialState(x, now) === "expiring");
-    const load = c.weekly_capacity ? (c.activeJobs ?? 0) / c.weekly_capacity : 0.5;
-    const score = (blocker ? -1000 : 0) + (c.preferred ? 40 : 0) + (inArea ? 30 : 0) + (c.hasRates ? 10 : 0) - (expiring ? 5 : 0) - Math.round(load * 20) - Math.min(c.lead_time_days ?? 7, 21);
+    const score = (blocker ? -1000 : 0) + (c.preferred ? 40 : 0) + (inArea ? 30 : 0) + (c.hasRates ? 10 : 0) - (expiring ? 5 : 0) - Math.min(c.lead_time_days ?? 7, 21);
     const reasons = [c.preferred && "Preferred by installer", inArea ? "Services this area" : "Outside listed service area", c.hasRates ? "Agreed rates on file" : "No agreed rates", expiring && "Credential expiring within 30 days", c.lead_time_days != null && `Lead time ${c.lead_time_days} days`].filter(Boolean) as string[];
     return { id: c.id, name: c.name, eligible: !blocker, blocker, inArea, score, reasons };
   }).sort((a, b) => b.score - a.score);

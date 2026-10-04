@@ -89,3 +89,6 @@
 - [x] Tidy-up: office-only electrician daily job limit field (empty = no limit, 0 refused)
 
 - [x] Capacity limits removed from use; install hold = expected install week note (Jo, 4 Oct)
+- [x] Audit fixes: weekly capacity removed, auto-progression cut from Xero, estimate wording, property manager tab hidden, out-of-date tests updated (5 Oct)
+- [x] Solar API key stored (GOOGLE_SOLAR_API_KEY); not used by any feature yet
+- [ ] Jo to decide: aerial in price range; Ready Check for installer-supplied jobs with measure-up; how 349 waiting jobs pick times at launch

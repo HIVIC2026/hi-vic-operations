@@ -101,27 +101,7 @@ export async function createInvoiceForQuote(quoteId: string, actorId: string) {
 }
 
 /** Installation booked/rebooked: the same invoice's final due date = Melbourne-local installation date. */
-export async function setInstallDueDate(jobId: string, startIso: string, actorId: string) {
-  await requireHivicJob(jobId);
-  const inv = await jobInvoice(jobId);
-  if (!inv) return;
-  const due = melbourneDate(startIso);
-  const patch = installDueDatePatch(inv, due);
-  if (!patch) return;
-  await dbStore.update(inv.id, patch);
-  await logEvent(jobId, actorId, "balance_due_set", `Remaining balance due on installation day (${due})${patch.xero_update_pending ? " – Xero due date update pending" : ""}`, { invoice_id: inv.id });
-}
-
-/** Installation cancelled: final due date goes back to pending. */
-export async function clearInstallDueDate(jobId: string, actorId: string) {
-  await requireHivicJob(jobId);
-  const inv = await jobInvoice(jobId);
-  if (!inv) return;
-  const patch = clearInstallDueDatePatch(inv);
-  if (!patch) return;
-  await dbStore.update(inv.id, patch);
-  await logEvent(jobId, actorId, "balance_due_set", "Installation cancelled – final due date pending until rebooked", { invoice_id: inv.id });
-}
+export { setInstallDueDate, clearInstallDueDate } from "./invoice-dates.server";
 
 export async function pushInvoiceToXero(invoiceId: string, actorId: string | null, callOverride?: XeroCall) {
   await requireHivicInvoice(invoiceId); // before any lookup, lock or Xero call

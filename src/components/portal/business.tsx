@@ -88,7 +88,7 @@ function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unkno
       id: b.id, name: f["name"] ?? b.name, legal_name: f["legal_name"] || null, trading_name: f["trading_name"] || null, abn: f["abn"] || null, acn: f["acn"] || null, email: f["email"] || null, phone: f["phone"] || null, address: f["address"] || null,
       gst_registered: f["gst"] === "yes" ? true : f["gst"] === "no" ? false : null,
       service_postcodes: list(f["service_postcodes"] ?? ""), service_regions: list(f["service_regions"] ?? ""), verify_coverage: isHivicAdmin,
-      weekly_capacity: f["weekly_capacity"] ? Number(f["weekly_capacity"]) : null, lead_time_days: f["lead_time_days"] ? Number(f["lead_time_days"]) : null,
+      lead_time_days: f["lead_time_days"] ? Number(f["lead_time_days"]) : null,
       availability_notes: f["availability_notes"] || null, rec_number: f["rec_number"] || null, licence_number: f["licence_number"] || null,
       ...(f["logo_url"] ? { branding: { logo_url: f["logo_url"] } } : {}), default_comms_owner: f["default_comms_owner"] === "hivic" ? "hivic" : "installer",
       ...(isHivicAdmin ? { capabilities: list(f["caps"] ?? "").filter((c): c is "installer" | "electrician" => c === "installer" || c === "electrician") } : {}),
@@ -102,7 +102,7 @@ function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unkno
         <label className="text-sm"><span className="text-muted-foreground">GST registered</span><select disabled={!canEdit} className="h-10 w-full rounded border bg-background px-2" value={f["gst"] ?? ""} onChange={(e) => setF({ ...f, gst: e.target.value })}><option value="">—</option><option value="yes">Yes</option><option value="no">No</option></select></label>
         {field("email", "Business email")}{field("phone", "Business phone")}{field("address", "Business address")}
         {field("service_postcodes", "Verified service postcodes", "3000, 3121, 31*")}{field("service_regions", "Declared suburbs / regions", "Brunswick, Coburg")}
-        {field("weekly_capacity", "Weekly capacity (jobs)")}{field("lead_time_days", "Typical lead time (days)")}
+        {field("lead_time_days", "Typical lead time (days)")}
         {field("rec_number", "REC number (electricians)")}{field("licence_number", "Licence number")}{field("logo_url", "Logo URL (co-branded quotes)", "https://…")}
         <label className="text-sm"><span className="text-muted-foreground">Routine customer contact on your jobs</span><select disabled={!canEdit} className="h-10 w-full rounded border bg-background px-2" value={f["default_comms_owner"]} onChange={(e) => setF({ ...f, default_comms_owner: e.target.value })}><option value="installer">We handle routine customer contact</option><option value="hivic">Home Insulation Victoria handles it</option></select></label>
         {isHivicAdmin && field("caps", "Capabilities (installer, electrician)")}

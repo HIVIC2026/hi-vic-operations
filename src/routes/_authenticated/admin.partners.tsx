@@ -6,6 +6,8 @@ import { useAction } from "@/hooks/use-me";
 import { updatePartnerEnquiry } from "@/lib/portal.functions";
 import { getRecOnboardingRecord } from "@/lib/rec-onboarding-admin.functions";
 import { PARTNER_STATUSES, PARTNER_TYPES, PARTNER_TYPE_LABEL, partnerIssues, type PartnerType } from "@/lib/partner.core";
+// Property managers are out of scope (Operating Model v2): their enquiries are still stored but not shown.
+const SHOWN_TYPES = PARTNER_TYPES.filter((t) => t !== "property_manager");
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,7 +39,7 @@ function Partners() {
   const navigate = Route.useNavigate();
   const [open, setOpen] = useState<Row | null>(null);
   const [queue, setQueue] = useState<"approval" | "enquiries" | "approved" | "history" | "unfinished">("approval");
-  const [partnerType, setPartnerType] = useState<PartnerType>("property_manager");
+  const [partnerType, setPartnerType] = useState<PartnerType>("installer");
   const load = useServerFn(getAdminPartnerEnquiries);
   const { data: rows = [], error, isPending, refetch } = useQuery({
     queryKey: ["partner_enquiries"],
@@ -70,13 +72,13 @@ function Partners() {
       {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading partner enquiries…</p>}
       {queue !== "unfinished" && !error && !isPending && <Tabs value={partnerType} onValueChange={(value) => setPartnerType(value as PartnerType)}>
         <TabsList>
-          {PARTNER_TYPES.map((t) => (
+          {SHOWN_TYPES.map((t) => (
             <TabsTrigger key={t} value={t}>{PARTNER_TYPE_LABEL[t]} <Badge variant="secondary" className="ml-2">{of(t).length}</Badge>
               {of(t).some((r) => r.status === "new") && <Badge className="ml-1">{of(t).filter((r) => r.status === "new").length} new</Badge>}
             </TabsTrigger>
           ))}
         </TabsList>
-        {PARTNER_TYPES.map((t) => {
+        {SHOWN_TYPES.map((t) => {
           const list = of(t);
           const groups: [string, Row[]][] = [["Onboarding form (signed application)", list.filter(isOnboarding)], ["Website enquiry", list.filter((r) => !isOnboarding(r))]];
           return (
@@ -100,7 +102,7 @@ function Partners() {
                           <div className="text-muted-foreground">{r.name}{r.phone ? ` · ${r.phone}` : ""}</div>
                           <div className="truncate text-muted-foreground">{r.email}</div>
                           <div className="mt-2 space-y-0.5">
-                            {t === "property_manager" && <div>Properties: {r.property_count ?? "—"}</div>}
+                            
                             {t === "installer" && <><div>CII: {r.cii_certification_status ?? "—"}</div><div>Areas: {r.service_areas?.join(", ") || "—"}</div><div>Indicative R5 rate: {r.estimated_r5_install_rate_per_sqm_inc_gst == null ? "—" : `$${r.estimated_r5_install_rate_per_sqm_inc_gst}/m² inc GST`}</div></>}
                             {t === "electrician_rec" && <><div>REC: {r.rec_registration_number ?? "—"} · ESV confirmed: {r.esv_licensed_electricians_confirmed == null ? "—" : r.esv_licensed_electricians_confirmed ? "Yes" : "No"}</div><div>Areas: {r.service_areas?.join(", ") || "—"}</div><div>PIESA fee: {money(r.estimated_piesa_fee_inc_gst)}</div><div>Services: {r.services?.join(", ") || "—"}</div></>}
                           </div>

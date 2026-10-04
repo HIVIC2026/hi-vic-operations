@@ -36,7 +36,7 @@ type Est = { scenarios: Scenario[]; access_adjustment: { moderate: number; diffi
 /** Customer-facing copy for the free check confirmation (presentation-only rename of the Home Insulation Ready Check). */
 export const FREE_CHECK_CONFIRM_COPY = {
   name: "Free Insulation Measure-Up & Eligibility Check",
-  intro: "Confirm your request below. An installer from our panel will contact you to arrange a time.",
+  intro: "Confirm your request below. Choose a few times that suit you. The first approved installer to accept one is booked.",
   free: "FREE · No payment required",
   checklistHeading: "What happens at your visit",
   checklist: ["Measure your ceiling area.", "Assess any existing insulation and confirm whether it can stay or needs to be removed.", "Confirm whether your home meets the rebate eligibility requirements.", "Prepare the job scope so we can confirm your quote."],

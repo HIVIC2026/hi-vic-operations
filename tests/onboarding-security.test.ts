@@ -84,7 +84,8 @@ describe("test mode trust", () => {
     for (const f of ["src/lib/coverage.functions.ts", "src/lib/todo.functions.ts", "src/lib/admin-records.functions.ts"]) {
       expect(readFileSync(f, "utf8")).toContain("portal_rec_onboarding_test,portal_installer_onboarding_test");
     }
-    expect(readFileSync("src/lib/todo.functions.ts", "utf8")).toContain('.eq("status", "submitted").eq("test_mode", false)');
+    // Signed applications reach the to-do list as partner enquiries; test sources are excluded above.
+    expect(readFileSync("src/lib/rec-sign.core.ts", "utf8")).toContain('app.test_mode ? "portal_rec_onboarding_test"');
     expect(readFileSync("src/lib/partner-activation.functions.ts", "utf8")).toContain("Test applications can never be approved");
   });
 });

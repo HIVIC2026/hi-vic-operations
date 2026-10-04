@@ -55,7 +55,6 @@ export function recEligibilityBlocker(c: RecCandidate): string | null {
   if (!c.coverage_verified || !c.covers_postcode) return "Partner does not have verified coverage for this area.";
   if (!c.has_valid_licence) return "Partner has no current electrical licence/REC registration on file.";
   if (c.approved_workers < 1) return "Partner has no approved licensed electrician available.";
-  if (c.weekly_capacity != null && c.open_jobs >= c.weekly_capacity) return "Partner is at capacity.";
   if (c.free_in_window === false) return "Partner is already booked in every one of the owner's times.";
   return null;
 }
@@ -303,7 +302,7 @@ export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jo
 export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: string; urgency: NeedsUrgency }> = {
   rec_coverage_exhausted: { why: "No approved electrician coverage: nobody accepted the PIESA, or none cover this area.", next: "Find an approved REC for this area (or approve one in Coverage), then offer the job from the PIESA tab.", tab: "piesa", urgency: "today" },
   piesa_booking_overdue: { why: "48 hours since contact details were shared and no PIESA time has been confirmed.", next: "Call the owner and electrician, confirm a time on the PIESA tab, or release the electrician and re-offer.", tab: "piesa", urgency: "today" },
-  delivery_failed: { why: "A message needed to move this job forward failed to deliver.", next: "Check the address/number on the Communications tab and resend or contact the person directly.", tab: "communications", urgency: "today" },
+  delivery_failed: { why: "A message needed to move this job forward failed to deliver.", next: "Check the address/number on the Communications tab and send it again, or contact the person directly.", tab: "communications", urgency: "today" },
   rectification_declined: { why: "The owner declined required electrical rectification, so installation cannot proceed.", next: "Talk to the owner about options; put the job on hold or cancel it with a reason.", tab: "quotes", urgency: "soon" },
   rectification_pricing_review: { why: "Rectification pricing needs office review before the quote can go to the owner.", next: "Price each item on the Quotes tab, mark the rectification quote reviewed, then send it.", tab: "quotes", urgency: "today" },
   installer_unavailable: { why: "The agreed installer declined or cannot proceed. No replacement is made automatically.", next: "Agree a replacement with the owner and issue an updated quote for approval if the company or terms change.", tab: "overview", urgency: "today" },

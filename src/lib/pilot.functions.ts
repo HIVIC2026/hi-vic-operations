@@ -59,6 +59,7 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
     // Trades manage their own diaries: capacity fields are no longer used or saved.
     delete (patch as Record<string, unknown>)["daily_job_limit"];
     delete (patch as Record<string, unknown>)["daily_capacity_m2"];
+    delete (patch as Record<string, unknown>)["weekly_capacity"];
     const { data: before } = await admin.from("businesses").select("*").eq("id", id).single();
     if (!before) throw new WorkflowError("Business not found");
     const criticalChanged = CRITICAL_FIELDS.some((k) => k in patch && JSON.stringify((patch as Record<string, unknown>)[k]) !== JSON.stringify((before as Record<string, unknown>)[k]));
