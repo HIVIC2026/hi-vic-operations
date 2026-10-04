@@ -432,15 +432,46 @@ function Veec({ jobId }: { jobId: string }) {
         <p className="text-xs text-muted-foreground">Submitted or approved needs quantity, ESC reference and submitted date. Approved is final. Changing lodged details needs a reason.</p>
         <div className="grid grid-cols-2 gap-2">
           <div><Label>Quantity</Label><Input name="quantity" type="number" step="0.01" min="0" defaultValue={data.quantity ?? ""} /></div>
-          <div><Label>Status</Label><select name="status" defaultValue={data.status} className="h-9 w-full rounded-md border bg-background px-2 text-sm">{["not_submitted", "submitted", "approved", "rejected"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select></div>
+          <div><Label>Status</Label><select name="status" defaultValue={data.status} className="h-9 w-full rounded-md border bg-background px-2 text-sm">{["not_submitted", "submitted", "query", "approved", "rejected"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select></div>
           <div><Label>ESC submission ref</Label><Input name="ref" defaultValue={data.submission_reference ?? ""} /></div>
           <div><Label>Submitted date</Label><Input name="date" type="date" max={new Date().toISOString().slice(0, 10)} defaultValue={data.submitted_date ?? ""} /></div>
         </div>
         <Textarea name="notes" placeholder="Notes (required if rejected)" defaultValue={data.notes ?? ""} />
+        {data.status === "query" && (
+          <div className="space-y-2 rounded-md border p-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="col-span-2"><Label>What the Registry asked</Label><Textarea name="query_text" defaultValue={data.query_text ?? ""} /></div>
+              <div><Label>Query received</Label><Input name="query_received_at" type="date" max={new Date().toISOString().slice(0, 10)} defaultValue={data.query_received_at ?? ""} /></div>
+            </div>
+          </div>
+        )}
         {["submitted", "approved"].includes(data.status) && <Input name="reason" placeholder="Reason for changing lodged details" />}
         <Button type="submit">Save lodgement</Button>
       </form>
+      {data.status === "query" && <VeecQueryReply jobId={jobId} draft={data.reply_draft ?? ""} sentAt={data.reply_sent_at ?? null} />}
     </Section>
+  );
+}
+
+function VeecQueryReply({ jobId, draft, sentAt }: { jobId: string; draft: string; sentAt: string | null }) {
+  const qc = useQueryClient();
+  const gen = useAction(draftVeecReply);
+  const mark = useAction(markVeecReplySent);
+  const [text, setText] = useState(draft);
+  return (
+    <div className="mt-2 space-y-2 rounded-md border p-2">
+      <p className="text-xs text-muted-foreground">The reply is sent in the Registry's own system. Draft it here, edit it, send it there, then record the date you sent it. Nothing is sent from the portal.</p>
+      {sentAt ? <p className="text-sm">Reply sent {sentAt}.</p> : (
+        <>
+          <Button type="button" variant="outline" disabled={gen.busy} onClick={async () => { const r = await gen({ jobId }, "Draft ready"); if (r?.draft) setText(r.draft); }}>{gen.busy ? "Drafting…" : "Draft reply (AI)"}</Button>
+          <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Draft reply" rows={6} />
+          <form className="flex items-end gap-2" onSubmit={async (e) => { e.preventDefault(); const f = new FormData(e.currentTarget); await mark({ jobId, replyDraft: text, sentDate: f.get("sent") as string }, "Reply recorded"); void qc.invalidateQueries({ queryKey: ["veec", jobId] }); }}>
+            <div><Label>Date sent</Label><Input name="sent" type="date" required max={new Date().toISOString().slice(0, 10)} /></div>
+            <Button type="submit" disabled={mark.busy || text.trim().length < 5}>Mark reply sent</Button>
+          </form>
+        </>
+      )}
+    </div>
   );
 }
 
