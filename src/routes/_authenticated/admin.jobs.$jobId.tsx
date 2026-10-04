@@ -47,7 +47,7 @@ import { InstallerQuoteDraftPanel } from "@/components/portal/installer-quote";
 
 export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Portal" }, { name: "description", content: "Job detail and workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Portal" }, { property: "og:description", content: "Job detail and workflow." }] }),
-  validateSearch: (s: Record<string, unknown>): { section?: RecordGroup } => { const v = parseJobSection(s.section); return v ? { section: v } : {}; },
+  validateSearch: (s: Record<string, unknown>): { section?: RecordGroup } => { const v = parseJobSection(s['section']); return v ? { section: v } : {}; },
   component: JobDetail,
 });
 
