@@ -69,7 +69,7 @@
 - [x] Copy onboarding capacity answer onto the business at approval (only if empty)
 
 ## Step 10 ESC pre-install notification + pre-start check
-- [ ] ESC AP task entries (window open / urgent 2 days / update in Registry / withdraw and resubmit)
-- [ ] Pre-start check 12pm Melbourne day before, re-run on changes; locks PIISA send + install evidence on fail
-- [ ] Certification level (full/provisional) + expiry; legacy verified = not confirmed; office prompt + needs entry when install booked
+- [x] ESC AP task entries (window open / urgent 2 days / update in Registry / withdraw and resubmit)
+- [x] Pre-start check 12pm Melbourne day before, re-run on changes; locks PIISA send + install evidence on fail
+- [x] Certification level (full/provisional) + expiry; legacy verified = not confirmed; office prompt + needs entry when install booked
 - Known limit (accepted): two different jobs booked for the same installer at almost the same moment can exceed that day's m² capacity.
