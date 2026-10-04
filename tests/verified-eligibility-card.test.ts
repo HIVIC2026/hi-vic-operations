@@ -18,6 +18,7 @@ const ev = (o: Partial<ReadyCheckEvidence> = {}): ReadyCheckEvidence => ({
   access: { level: "standard", evidence: true },
   electrical: { downlightCount: 4, downlightType: "led" },
   conflicts: [],
+  priorActivity: "none_known",
   ...o,
 });
 
