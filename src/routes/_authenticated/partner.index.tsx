@@ -9,7 +9,9 @@ import { SlaPill } from "@/components/portal/partner";
 import { useAction } from "@/hooks/use-me";
 import { electricalStatusLabel } from "@/lib/allocation.core";
 import { partnerDashboard, respondToOffer } from "@/lib/pilot.functions";
-import { BUCKET_LABEL, PARTNER_BUCKETS } from "@/lib/pilot.core";
+import { BUCKET_LABEL, PARTNER_BUCKETS, REC_BUCKETS, recBucketFor } from "@/lib/pilot.core";
+
+const recLabel = (j: { stage: string; bookings: unknown[]; proposal_pending?: boolean }) => electricalStatusLabel({ stage: j.stage, hasBooking: j.bookings.length > 0, proposalPending: !!j.proposal_pending });
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +33,7 @@ function Dashboard() {
     <AppShell wide>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div><h1 className="text-2xl font-bold">{(data.business as { name?: string }).name}</h1><p className="text-sm text-muted-foreground">Partner dashboard</p></div>
-        <div className="flex gap-2"><Button asChild size="field"><Link to="/partner/import">Import existing job</Link></Button><Button asChild variant="outline" size="field"><Link to="/partner/workers">Staff</Link></Button><Button asChild variant="outline" size="field"><Link to="/partner/profile">Business profile</Link></Button></div>
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto"><Button asChild size="field"><Link to="/partner/import">Import existing job</Link></Button><Button asChild variant="outline" size="field"><Link to="/partner/workers">Staff</Link></Button><Button asChild variant="outline" size="field"><Link to="/partner/profile">Business profile</Link></Button></div>
       </div>
       {data.blocker && <p className="mb-4 rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">{data.blocker}</p>}
       {attention.length > 0 && <div className="mb-4 rounded-xl border border-warning/40 bg-warning-soft p-3 text-sm"><div className="font-semibold">Needs attention</div>{attention.map((j) => <div key={j.id}><Link to="/field/$jobId" params={{ jobId: j.id }} className="font-medium underline">{j.job_number}</Link> – {j.sla?.message}</div>)}</div>}
@@ -39,18 +41,20 @@ function Dashboard() {
       {data.offers.length === 0 ? <p className="mb-4 text-sm text-muted-foreground">No jobs offered right now.</p> : <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{data.offers.map((o) => <Offer key={o.id} o={o} onDone={refetch} />)}</div>}
       <h2 className="mb-2 font-semibold">{isRec ? "My electrical jobs" : "My jobs"} <Badge variant="secondary">{data.jobs.length}</Badge></h2>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {PARTNER_BUCKETS.filter((b) => b !== "other" || data.jobs.some((j) => j.bucket === "other")).map((b) => {
-          const js = data.jobs.filter((j) => j.bucket === b);
+        {(isRec
+          ? REC_BUCKETS.filter((b) => b !== "Other" || data.jobs.some((j) => recBucketFor(recLabel(j)) === "Other")).map((b) => ({ key: b, label: b, js: data.jobs.filter((j) => recBucketFor(recLabel(j)) === b) }))
+          : PARTNER_BUCKETS.filter((b) => b !== "other" || data.jobs.some((j) => j.bucket === "other")).map((b) => ({ key: b, label: BUCKET_LABEL[b], js: data.jobs.filter((j) => j.bucket === b) }))
+        ).map(({ key, label, js }) => {
           return (
-            <div key={b} className="rounded-xl border bg-muted/40 p-2">
-              <div className="mb-2 flex items-center justify-between px-1 text-sm font-semibold">{BUCKET_LABEL[b]}<Badge variant="secondary">{js.length}</Badge></div>
+            <div key={key} className="rounded-xl border bg-muted/40 p-2">
+              <div className="mb-2 flex items-center justify-between px-1 text-sm font-semibold">{label}<Badge variant="secondary">{js.length}</Badge></div>
               <div className="space-y-2">
                 {js.map((j) => (
                   <Link key={j.id} to="/field/$jobId" params={{ jobId: j.id }} className="block rounded-lg border bg-card p-3 text-sm hover:border-primary">
                     <div className="flex items-center justify-between gap-2"><span className="text-xs font-bold text-primary">{j.job_number}</span><StageBadge stage={j.stage as never} /></div>
                     <div className="font-medium">{j.owner ?? "Customer"}</div>
                     <div className="text-muted-foreground">{[(j.property as { address_line?: string | null } | null)?.address_line, (j.property as { suburb?: string | null } | null)?.suburb].filter(Boolean).join(", ") || "Address shared once the visit is arranged"}</div>
-                    {isRec && <div className="mt-1 text-xs font-semibold text-primary">{electricalStatusLabel({ stage: j.stage as string, hasBooking: j.bookings.length > 0 })}</div>}
+                    {isRec && <div className="mt-1 text-xs font-semibold text-primary">{recLabel(j).replace(" · ", " – ")}</div>}
                     <div className="mt-1 text-xs">Next: {nextStep({ stage: j.stage, next_action: j.next_action }).next}</div>
                     <div className="mt-1 text-xs text-muted-foreground">Electrician: {j.electrician ?? "Not assigned"}{j.bookings[0] ? ` · Booked ${new Date(j.bookings[0].scheduled_start).toLocaleDateString("en-AU")}` : ""}</div>
                     <div className="mt-1 flex flex-wrap gap-1">
