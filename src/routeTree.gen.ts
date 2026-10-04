@@ -21,6 +21,7 @@ import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as JoinTokenRouteImport } from './routes/join.$token'
 import { Route as WTokenRouteImport } from './routes/w.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as AuthenticatedAdminApQueueRouteImport } from './routes/_authenticated/admin.ap-queue'
 import { Route as AuthenticatedAdminBusinessesRouteImport } from './routes/_authenticated/admin.businesses'
 import { Route as AuthenticatedAdminCommunicationsRouteImport } from './routes/_authenticated/admin.communications'
 import { Route as AuthenticatedAdminComplianceRouteImport } from './routes/_authenticated/admin.compliance'
@@ -117,6 +118,12 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminApQueueRoute =
+  AuthenticatedAdminApQueueRouteImport.update({
+    id: '/admin/ap-queue',
+    path: '/admin/ap-queue',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminBusinessesRoute =
   AuthenticatedAdminBusinessesRouteImport.update({
     id: '/admin/businesses',
@@ -330,6 +337,7 @@ export interface FileRoutesByFullPath {
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
   '/w/$token': typeof WTokenRoute
+  '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
@@ -379,6 +387,7 @@ export interface FileRoutesByTo {
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
   '/w/$token': typeof WTokenRoute
+  '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
@@ -430,6 +439,7 @@ export interface FileRoutesById {
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
   '/w/$token': typeof WTokenRoute
+  '/_authenticated/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
   '/_authenticated/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/_authenticated/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/_authenticated/admin/compliance': typeof AuthenticatedAdminComplianceRoute
@@ -481,6 +491,7 @@ export interface FileRouteTypes {
     | '/estimate/$token'
     | '/join/$token'
     | '/w/$token'
+    | '/admin/ap-queue'
     | '/admin/businesses'
     | '/admin/communications'
     | '/admin/compliance'
@@ -530,6 +541,7 @@ export interface FileRouteTypes {
     | '/estimate/$token'
     | '/join/$token'
     | '/w/$token'
+    | '/admin/ap-queue'
     | '/admin/businesses'
     | '/admin/communications'
     | '/admin/compliance'
@@ -580,6 +592,7 @@ export interface FileRouteTypes {
     | '/estimate/$token'
     | '/join/$token'
     | '/w/$token'
+    | '/_authenticated/admin/ap-queue'
     | '/_authenticated/admin/businesses'
     | '/_authenticated/admin/communications'
     | '/_authenticated/admin/compliance'
@@ -728,6 +741,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/ap-queue': {
+      id: '/_authenticated/admin/ap-queue'
+      path: '/admin/ap-queue'
+      fullPath: '/admin/ap-queue'
+      preLoaderRoute: typeof AuthenticatedAdminApQueueRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/businesses': {
@@ -987,6 +1007,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
+  AuthenticatedAdminApQueueRoute: typeof AuthenticatedAdminApQueueRoute
   AuthenticatedAdminBusinessesRoute: typeof AuthenticatedAdminBusinessesRoute
   AuthenticatedAdminCommunicationsRoute: typeof AuthenticatedAdminCommunicationsRoute
   AuthenticatedAdminComplianceRoute: typeof AuthenticatedAdminComplianceRoute
@@ -1016,6 +1037,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
+  AuthenticatedAdminApQueueRoute: AuthenticatedAdminApQueueRoute,
   AuthenticatedAdminBusinessesRoute: AuthenticatedAdminBusinessesRoute,
   AuthenticatedAdminCommunicationsRoute: AuthenticatedAdminCommunicationsRoute,
   AuthenticatedAdminComplianceRoute: AuthenticatedAdminComplianceRoute,
