@@ -56,7 +56,7 @@ export type InstData = {
   service_batts_removal?: boolean; service_loose_fill_removal?: boolean; wants_hivic_leads?: boolean | null; free_quotes_for_hivic_leads?: boolean | null; free_measureups_for_hivic_quote_leads?: boolean | null;
   service_origin?: string; service_origin_details?: ResolvedAddress | null; travel_radius_km?: number | null; excluded_areas?: string;
   typical_days?: string[]; normal_attendance_speed?: string;
-  capacity_band?: string; accepting_jobs?: boolean;
+  capacity_band?: string; daily_capacity_m2?: number | null; accepting_jobs?: boolean;
   gst_registered?: boolean | null; r5_rate?: number | null; batts_removal_rate?: number | null; loose_fill_removal_rate?: number | null;
   extra_rates?: Partial<Record<(typeof EXTRA_ITEMS)[number]["key"], number | null>>;
   bank_account_name?: string; bank_bsb?: string; bank_account_number?: string;

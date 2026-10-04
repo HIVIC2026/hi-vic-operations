@@ -27,7 +27,7 @@ const businessInput = z.object({
   email: txt(320), phone: txt(40), address: txt(300), contact_people: z.array(z.object({ name: z.string().max(200), role: z.string().max(100).optional(), phone: z.string().max(40).optional(), email: z.string().max(320).optional() })).max(20).optional(),
   service_postcodes: z.array(z.string().trim().max(6)).max(500).optional(), service_regions: z.array(z.string().trim().max(100)).max(100).optional(),
   verify_coverage: z.boolean().optional(),
-  weekly_capacity: z.number().int().min(0).max(1000).nullish(), lead_time_days: z.number().int().min(0).max(180).nullish(), availability_notes: txt(2000),
+  weekly_capacity: z.number().int().min(0).max(1000).nullish(), daily_capacity_m2: z.number().positive().max(10000).nullish(), lead_time_days: z.number().int().min(0).max(180).nullish(), availability_notes: txt(2000),
   rec_number: txt(50), licence_number: txt(50), installer_certification: z.record(z.string(), z.string().max(500)).optional(),
   branding: z.object({ logo_url: z.string().url().max(1000).optional(), colour: z.string().max(20).optional() }).optional(),
   default_comms_owner: z.enum(["installer", "hivic"]).optional(), commercial_route: z.enum(["hivic_full_invoice", "split_invoicing"]).optional(),

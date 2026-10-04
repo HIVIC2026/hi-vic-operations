@@ -55,10 +55,15 @@
 - Step 4 done (4 Oct, preview only): job becomes Complete only when VEEC is Approved; Submitted/Query/Rejected keep it at Ready for VEEC; stage guard for Complete now requires approved VEEC. HV-1001 (TEST) left Complete as-is per Jo. Not published.
 
 - [x] Step 5: installation quote expiry (14 full days) + day 3/10 owner nudges, queued only
-- [ ] Rectification quote timing (24h, day 3 nudges, escalate day 5) — separate step
+- [x] Rectification quote timing (24h, day 3 nudges, escalate day 5) — separate step
 - [x] Step 6: owner picks 3–5 PIESA windows (morning 8–12 / afternoon 12–4 Melbourne); electrician tap = booking; fallback accept-then-arrange; one more-times request then needs-attention
 - [x] Re-prove step 5 quote-expiry migration on practice database
 - [x] 48h escalation fix: booking-based SLA + Ready Check in office sweep
 - [x] Electrician matching (OM v2): window/daily-limit eligibility, new ranking, 4 business-hour offers, office booking clears 48h flag
 - [ ] Office screen box to set an electrician daily job limit (field exists; empty = no limit)
 - [ ] Record no-shows per electrician (ranking ready, counts 0 until tracked)
+
+## Step 9 installer capacity + install booking
+- [x] Part A: optional m²/day capacity, install holds (create/move/release), office-only hold card — practice-proven, applied
+- [ ] Part B: owner install days, installer one-tap booking, 30-day hard gate flags (awaiting "go")
+- [ ] Copy onboarding capacity answer onto the business at approval (office sets it in business settings for now)

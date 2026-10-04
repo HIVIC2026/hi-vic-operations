@@ -77,7 +77,7 @@ function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unkno
   const [f, setF] = useState<Record<string, string>>({});
   useEffect(() => setF({
     name: s("name"), legal_name: s("legal_name"), trading_name: s("trading_name"), abn: s("abn"), acn: s("acn"), email: s("email"), phone: s("phone"), address: s("address"),
-    service_postcodes: csv(b["service_postcodes"] as string[]), service_regions: csv(b["service_regions"] as string[]), weekly_capacity: s("weekly_capacity"), lead_time_days: s("lead_time_days"),
+    service_postcodes: csv(b["service_postcodes"] as string[]), service_regions: csv(b["service_regions"] as string[]), weekly_capacity: s("weekly_capacity"), daily_capacity_m2: s("daily_capacity_m2"), lead_time_days: s("lead_time_days"),
     availability_notes: s("availability_notes"), rec_number: s("rec_number"), licence_number: s("licence_number"), logo_url: String((b["branding"] as { logo_url?: string } | null)?.logo_url ?? ""),
     default_comms_owner: s("default_comms_owner") || "installer", caps: csv(b["capabilities"] as string[]), gst: b["gst_registered"] === true ? "yes" : b["gst_registered"] === false ? "no" : "",
   }), [b.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -87,7 +87,7 @@ function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unkno
       id: b.id, name: f["name"] ?? b.name, legal_name: f["legal_name"] || null, trading_name: f["trading_name"] || null, abn: f["abn"] || null, acn: f["acn"] || null, email: f["email"] || null, phone: f["phone"] || null, address: f["address"] || null,
       gst_registered: f["gst"] === "yes" ? true : f["gst"] === "no" ? false : null,
       service_postcodes: list(f["service_postcodes"] ?? ""), service_regions: list(f["service_regions"] ?? ""), verify_coverage: isHivicAdmin,
-      weekly_capacity: f["weekly_capacity"] ? Number(f["weekly_capacity"]) : null, lead_time_days: f["lead_time_days"] ? Number(f["lead_time_days"]) : null,
+      weekly_capacity: f["weekly_capacity"] ? Number(f["weekly_capacity"]) : null, daily_capacity_m2: f["daily_capacity_m2"] ? Number(f["daily_capacity_m2"]) : null, lead_time_days: f["lead_time_days"] ? Number(f["lead_time_days"]) : null,
       availability_notes: f["availability_notes"] || null, rec_number: f["rec_number"] || null, licence_number: f["licence_number"] || null,
       ...(f["logo_url"] ? { branding: { logo_url: f["logo_url"] } } : {}), default_comms_owner: f["default_comms_owner"] === "hivic" ? "hivic" : "installer",
       ...(isHivicAdmin ? { capabilities: list(f["caps"] ?? "").filter((c): c is "installer" | "electrician" => c === "installer" || c === "electrician") } : {}),
@@ -101,7 +101,7 @@ function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unkno
         <label className="text-sm"><span className="text-muted-foreground">GST registered</span><select disabled={!canEdit} className="h-10 w-full rounded border bg-background px-2" value={f["gst"] ?? ""} onChange={(e) => setF({ ...f, gst: e.target.value })}><option value="">—</option><option value="yes">Yes</option><option value="no">No</option></select></label>
         {field("email", "Business email")}{field("phone", "Business phone")}{field("address", "Business address")}
         {field("service_postcodes", "Verified service postcodes", "3000, 3121, 31*")}{field("service_regions", "Declared suburbs / regions", "Brunswick, Coburg")}
-        {field("weekly_capacity", "Weekly capacity (jobs)")}{field("lead_time_days", "Typical lead time (days)")}
+        {field("weekly_capacity", "Weekly capacity (jobs)")}{field("daily_capacity_m2", "Lead installer capacity (m² per day, empty = no limit)")}{field("lead_time_days", "Typical lead time (days)")}
         {field("rec_number", "REC number (electricians)")}{field("licence_number", "Licence number")}{field("logo_url", "Logo URL (co-branded quotes)", "https://…")}
         <label className="text-sm"><span className="text-muted-foreground">Routine customer contact on your jobs</span><select disabled={!canEdit} className="h-10 w-full rounded border bg-background px-2" value={f["default_comms_owner"]} onChange={(e) => setF({ ...f, default_comms_owner: e.target.value })}><option value="installer">We handle routine customer contact</option><option value="hivic">Home Insulation Victoria handles it</option></select></label>
         {isHivicAdmin && field("caps", "Capabilities (installer, electrician)")}

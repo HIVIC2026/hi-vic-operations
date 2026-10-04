@@ -384,6 +384,11 @@ export async function transition(
     .eq("id", jobId);
   if (error) throw new Error(error.message);
   await logEvent(jobId, actorId, "stage_changed", summary, details, { from, to });
+  if (to === "piesa_and_install_window_pending" && from !== to) {
+    // Quote accepted AND payment gate passed (entry blockers above). Hold only — never a booking.
+    const { createInstallHold } = await import("./install-holds.server");
+    await createInstallHold(jobId, actorId).catch((e) => console.error("install hold not placed", (e as Error).message));
+  }
 }
 
 /** Blockers for the job's natural next step (for UI display), plus standing hard blockers. */

@@ -51,6 +51,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           out['ok'] = false;
           (out as Record<string, unknown>)['rectification'] = "failed";
         }
+        try {
+          const { sweepInstallHolds } = await import("@/lib/install-holds.server");
+          (out as Record<string, unknown>)['installHolds'] = await sweepInstallHolds();
+        } catch (e) {
+          console.error("allocation tick: install hold sweep failed", (e as Error).message);
+          out['ok'] = false;
+          (out as Record<string, unknown>)['installHolds'] = "failed";
+        }
         return Response.json(out, { status: out['ok'] ? 200 : 500 });
       },
     },
