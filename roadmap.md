@@ -58,3 +58,4 @@
 - [ ] Rectification quote timing (24h, day 3 nudges, escalate day 5) — separate step
 - [x] Step 6: owner picks 3–5 PIESA windows (morning 8–12 / afternoon 12–4 Melbourne); electrician tap = booking; fallback accept-then-arrange; one more-times request then needs-attention
 - [x] Re-prove step 5 quote-expiry migration on practice database
+- [ ] 48h escalation fix: booking-based SLA + Ready Check in office sweep
