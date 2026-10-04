@@ -197,3 +197,12 @@ export const getRectificationWindows = createServerFn({ method: "POST" }).middle
       hours: q?.rect_estimated_hours ?? null,
     };
   });
+
+/** Office: the job's install hold (a capacity reservation only — never a booking). */
+export const getInstallHold = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { getActiveHold } = await import("./install-holds.server");
+    return (await getActiveHold(data.jobId)) ?? null;
+  });
