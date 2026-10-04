@@ -421,7 +421,9 @@ function Compliance({ jobId }: { jobId: string }) {
 function Veec({ jobId }: { jobId: string }) {
   const save = useAction(updateVeec);
   const { data } = useQuery({ queryKey: ["veec", jobId], queryFn: async () => (await supabase.from("veec_lodgements").select("*").eq("job_id", jobId).maybeSingle()).data });
+  const [pickedStatus, setPickedStatus] = useState<string | null>(null);
   if (!data) return null;
+  const shownStatus = pickedStatus ?? data.status;
   return (
     <Section title="VEEC lodgement">
       <form key={data.updated_at} className="space-y-2" onSubmit={(e) => {
