@@ -176,8 +176,13 @@ async function refillIfNeeded(jobId: string, kind: "piesa" | "rectification", ac
 
 /** Electrician accepts/declines a PIESA or rectification offer. Acceptance is atomic in SQL. */
 export async function respondToRecOffer(offerId: string, userId: string, accept: boolean, reason: string | null) {
-  const { data: o } = await admin.from("partner_offers").select("id, job_id, kind, status, business_id").eq("id", offerId).single();
+  const { data: o } = await admin.from("partner_offers").select("id, job_id, kind, status, business_id, summary").eq("id", offerId).single();
   if (!o) throw new WorkflowError("Offer not found.");
+  if (accept) {
+    const { offerRateBlocker } = await import("./allocation.core");
+    const sm = (o.summary ?? {}) as { electrician_rate_inc_gst?: number | null; rate_to_confirm?: boolean };
+    if (offerRateBlocker(sm.electrician_rate_inc_gst ?? null, !!sm.rate_to_confirm)) throw new WorkflowError("This offer has no agreed electrician rate yet. Home Insulation Victoria will confirm the rate before it can be accepted.");
+  }
   if (!accept) {
     const { data: d } = await admin.from("partner_offers").update({ status: "declined", responded_by: userId, responded_at: new Date().toISOString(), decline_reason: reason }).eq("id", o.id).eq("status", "pending").select("id").maybeSingle();
     if (!d) throw new WorkflowError("This offer is no longer open.");
