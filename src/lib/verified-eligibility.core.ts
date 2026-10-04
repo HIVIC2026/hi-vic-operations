@@ -41,8 +41,7 @@ export type ReadyCheckEvidence = {
   };
   removal: "yes" | "no" | "uncertain" | null;
   access: { level: string | null; evidence: boolean };
-  /** Owner's declared previous VEU ceiling-insulation upgrade. */
-  previousUpgrade: "yes" | "no" | null;
+  removal: "yes" | "no" | "uncertain" | null;
   /** Section D — shown and flagged, never property-eligibility evidence on its own. */
   electrical: { downlightCount: number | null; downlightType: string | null };
   /** Conflicting / amended evidence noted by sync or office. */
