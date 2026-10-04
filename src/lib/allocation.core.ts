@@ -250,7 +250,7 @@ export function installerUnavailableOutcome(f: { reason: string | null | undefin
 // ---------- E. Needs Home Insulation Victoria ----------
 export type NeedsCode =
   | "rec_coverage_exhausted" | "piesa_booking_overdue" | "delivery_failed" | "rectification_declined"
-  | "rectification_pricing_review" | "installer_unavailable" | "installation_booking_overdue"
+  | "rectification_pricing_review" | "installer_unavailable" | "installation_booking_overdue" | "ready_check_booking_overdue"
   | "piesa_timing_invalid" | "esc_or_distribution_timing" | "compliance_correction" | "registry_query" | "office_overdue"
   | "rec_no_longer_approved";
 export type NeedsUrgency = "urgent" | "today" | "soon";
@@ -263,6 +263,7 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   rectification_declined: { why: "The owner declined required electrical rectification, so installation cannot proceed.", next: "Talk to the owner about options; put the job on hold or cancel it with a reason.", tab: "quotes", urgency: "soon" },
   rectification_pricing_review: { why: "Rectification pricing needs office review before the quote can go to the owner.", next: "Price each item on the Quotes tab, mark the rectification quote reviewed, then send it.", tab: "quotes", urgency: "today" },
   installer_unavailable: { why: "The agreed installer declined or cannot proceed. No replacement is made automatically.", next: "Agree a replacement with the owner and issue an updated quote for approval if the company or terms change.", tab: "overview", urgency: "today" },
+  ready_check_booking_overdue: { why: "48 hours since Ready Check contact details were shared and no Ready Check time has been confirmed.", next: "Call the owner and installer and confirm a time on the Overview tab.", tab: "overview", urgency: "today" },
   installation_booking_overdue: { why: "48 hours since installation contact details were shared and no installation time has been confirmed.", next: "Call the owner and installer and confirm a time on the Overview tab.", tab: "overview", urgency: "today" },
   piesa_timing_invalid: { why: "Installation may not commence within 30 days of the PIESA timing date.", next: "Check the PIESA tab; bring installation forward or arrange a new PIESA.", tab: "piesa", urgency: "urgent" },
   esc_or_distribution_timing: { why: "Installation is close but the PIESA copy or ESC pre-install notice is not done in time.", next: "Send the PIESA copy / ESC notice from the Compliance tab, or move the installation date.", tab: "compliance", urgency: "urgent" },
@@ -331,10 +332,10 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
   for (const e of i.coverageExhausted) add("rec_coverage_exhausted", e.job_id, e.created_at, e.detail);
   for (const r of i.recNoLongerApproved ?? []) add("rec_no_longer_approved", r.job_id, r.since);
   for (const r of i.releases) {
-    if (r.visit_kind === "ready_check") continue; // Ready Check keeps its existing follow-up flow
     const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: null, confirmedAt: r.confirmed_at }, i.now);
     if (s.state !== "needs_office") continue;
-    if (r.visit_kind === "installation") add("installation_booking_overdue", r.job_id, r.released_at);
+    if (r.visit_kind === "ready_check") add("ready_check_booking_overdue", r.job_id, r.released_at);
+    else if (r.visit_kind === "installation") add("installation_booking_overdue", r.job_id, r.released_at);
     else add("piesa_booking_overdue", r.job_id, r.released_at, r.visit_kind === "rectification" ? "(Rectification visit.)" : undefined);
   }
   for (const c of i.failedComms) add("delivery_failed", c.job_id, c.created_at);
