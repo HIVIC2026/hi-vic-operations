@@ -90,3 +90,13 @@ describe("offer rate selection", () => {
     expect(officeSpread(349, 180).text).toBe("Customer $349.00 · Electrician $180.00 · Spread $169.00 (inc GST)");
   });
 });
+
+describe("0089 rollback", () => {
+  test("rollback removes only 0089 objects and the migration re-applies cleanly", async () => {
+    await db.exec(readFileSync(new URL("../docs/pending-migrations/0089_electrician_rates.rollback.sql", import.meta.url), "utf8"));
+    const left = (await db.query<{ n: string }>(`SELECT count(*)::text n FROM pg_tables WHERE tablename LIKE 'electrician_rate%'`)).rows[0]!.n;
+    expect(left).toBe("0");
+    expect((await db.query(`SELECT 1 FROM businesses`)).rows.length).toBe(1);
+    await db.exec(SQL);
+  });
+});
