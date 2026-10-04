@@ -73,8 +73,8 @@ export const confirmBulkBatch = createServerFn({ method: "POST" }).middleware([r
     if (!isAdmin) await requireMember(context.userId, batch.business_id);
     const { confirmBatch } = await import("./bulk-import.server");
     const res = await confirmBatch(data.batchId, context.userId, data.skipRowIds);
-    const { logEvent } = await import("./workflow.server");
-    await logEvent(null, context.userId, "bulk_import_permission", "Installer confirmed they have each owner's permission to be contacted", { batch_id: data.batchId, confirmed_by: context.userId });
+    const { logPartner } = await import("./pilot.server");
+    await logPartner(null, context.userId, "bulk_import_permission", "Installer confirmed they have each owner's permission to be contacted", { batch_id: data.batchId, confirmed_by: context.userId });
     return res;
   });
 
