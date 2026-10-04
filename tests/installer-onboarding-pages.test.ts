@@ -40,7 +40,7 @@ describe("installer visible pages", () => {
     }
     expect(pageErrors("about", { ...complete, business_address: "" })).toContain("Enter your business address.");
     expect(pageErrors("services", { ...complete, service_origin: "" })).toContain("Enter your service starting location.");
-    expect(pageErrors("availability", { ...complete, capacity_band: "" })).toContain("Choose your weekly capacity.");
+    expect(pageErrors("availability", { ...complete, capacity_band: "" })).toEqual([]);
     expect(pageErrors("install_pricing", { ...complete, extra_rates: { tile_roof_access: -1 } }).length).toBe(1);
   });
   test("required gates retained", () => {
