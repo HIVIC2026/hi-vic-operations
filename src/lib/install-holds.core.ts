@@ -36,7 +36,7 @@ export function rectificationHoldWeek(rectStartIso: string): string {
 
 /** First week from `earliest` (to `latest`, or 8 weeks) where the job's m2 fits the lead installer's capacity.
  * No capacity set → always fits. If nothing fits, the earliest week is kept and flagged over capacity. */
-export function chooseHoldWeek(p: { earliest: string; latest?: string; areaM2: number; dailyCapacityM2: number | null; usedByWeek: Record<string, number> }): { week: string; overCapacity: boolean } {
+export function chooseHoldWeek(p: { earliest: string; latest?: string | undefined; areaM2: number; dailyCapacityM2: number | null; usedByWeek: Record<string, number> }): { week: string; overCapacity: boolean } {
   if (p.dailyCapacityM2 == null) return { week: p.earliest, overCapacity: false };
   const weekly = p.dailyCapacityM2 * HOLD_WORK_DAYS_PER_WEEK;
   const last = p.latest ?? addDaysYmd(p.earliest, 7 * (HOLD_SEARCH_WEEKS - 1));
