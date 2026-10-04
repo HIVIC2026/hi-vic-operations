@@ -167,7 +167,7 @@ export function evaluateGate1(f: Gate1Facts): Gate1Decision {
   if (f.lifeSupportStatus === "yes") flags.push({ key: "life_support", type: "safety", severity: "high", reason: "Life-support arrangements must be managed before electrical work/power interruption" });
   else if (f.lifeSupportStatus !== "no") flags.push({ key: "life_support_unknown", type: "safety", severity: "medium", reason: "Life-support status unknown – confirm before electrical work/power interruption" });
 
-  rule("occupancy", "Occupancy", "info", f.occupancy ? `Occupancy: ${f.occupancy.replace("_", " ")}` : "Occupancy not recorded", ev("occupancy", { fact: f.occupancy ?? "unknown", source: "properties.occupancy", basis: f.occupancy ? "declared" : "unknown" }));
+  // Occupancy question retired from homeowner intake — no longer reported.
 
   // Area – never an eligibility failure
   rule("area", "Ceiling area", "info", "Final relevant ceiling area measured onsite", { fact: f.areaKnown ? "owner estimate" : "unknown", source: "jobs.estimated_area_m2", basis: f.areaKnown ? "declared" : "unknown" });
