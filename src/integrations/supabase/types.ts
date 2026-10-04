@@ -9260,6 +9260,7 @@ export type Database = {
           removal_inc_gst_per_m2: number
           spec_source_url: string
           spec_version: string
+          veec_buy_price: number
           veec_value_checked_at: string
           veec_value_source_label: string
           veec_value_source_url: string
@@ -9282,6 +9283,7 @@ export type Database = {
           removal_inc_gst_per_m2: number
           spec_source_url: string
           spec_version: string
+          veec_buy_price?: number
           veec_value_checked_at: string
           veec_value_source_label: string
           veec_value_source_url: string
@@ -9304,6 +9306,7 @@ export type Database = {
           removal_inc_gst_per_m2?: number
           spec_source_url?: string
           spec_version?: string
+          veec_buy_price?: number
           veec_value_checked_at?: string
           veec_value_source_label?: string
           veec_value_source_url?: string
@@ -10559,6 +10562,10 @@ export type Database = {
         Returns: string
       }
       post_intake_tick: { Args: { _url: string }; Returns: number }
+      publish_owner_prices: {
+        Args: { _actor: string; _prices: Json; _reason: string }
+        Returns: number
+      }
       record_eligibility_verification: {
         Args: {
           _evidence_complete: boolean
