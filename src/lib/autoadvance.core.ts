@@ -33,7 +33,7 @@ export type Step =
 export const TERMINAL: Stage[] = ["complete", "on_hold", "cancelled"];
 
 /** The single deterministic next step for a stage, or a stop with the reason (who/what it waits on). */
-export function planStep(stage: Stage, f: AdvanceFacts, opts: { allowApPromotion?: boolean } = {}): Step {
+export function planStep(stage: Stage, f: AdvanceFacts): Step {
   const t = (to: Stage, summary: string): Step => ({ kind: "transition", to, summary });
   const stop = (reason: string): Step => ({ kind: "stop", reason });
   switch (stage) {
@@ -77,8 +77,8 @@ export function planStep(stage: Stage, f: AdvanceFacts, opts: { allowApPromotion
       if (!f.installerDeclarationSigned) return stop("Installer declaration not signed");
       return t("ap_review", "All required evidence uploaded and declarations signed – submitted for AP review");
     case "ap_review":
-      // AP judgement is human: only promote when invoked from an admin compliance/AP action.
-      return opts.allowApPromotion ? t("ready_for_veec", "All compliance requirements passed – Ready for VEEC") : stop("AP review by Home Insulation Victoria");
+      // AP judgement is human: final approval happens only in the AP queue (approveApJob), never here.
+      return stop("Approve in AP queue");
     case "ready_for_veec":
       return f.veecLodged ? t("complete", "VEEC lodged – job complete") : stop("VEEC lodgement not submitted");
     default:
@@ -101,14 +101,14 @@ export type AdvanceResult = { from: Stage; to: Stage; steps: Stage[]; stoppedBec
 export const MAX_AUTO_STEPS = 20;
 
 /** Advance as far as safely possible. Idempotent: re-running on an unchanged job does nothing. */
-export async function runAutoAdvance(deps: AdvanceDeps, opts: { allowApPromotion?: boolean } = {}): Promise<AdvanceResult> {
+export async function runAutoAdvance(deps: AdvanceDeps): Promise<AdvanceResult> {
   const from = await deps.getStage();
   let stage = from;
   const steps: Stage[] = [];
   const seen = new Set<Stage>([stage]);
   for (let i = 0; i < MAX_AUTO_STEPS; i++) {
     if (TERMINAL.includes(stage)) return { from, to: stage, steps, stoppedBecause: `Job is ${stage.replaceAll("_", " ")}` };
-    const step = planStep(stage, await deps.facts(), opts);
+    const step = planStep(stage, await deps.facts());
     if (step.kind === "stop") return { from, to: stage, steps, stoppedBecause: step.reason };
     if (step.kind === "complete_site") {
       const ok = await deps.completeSite();

@@ -28,6 +28,7 @@ const businessInput = z.object({
   service_postcodes: z.array(z.string().trim().max(6)).max(500).optional(), service_regions: z.array(z.string().trim().max(100)).max(100).optional(),
   verify_coverage: z.boolean().optional(),
   weekly_capacity: z.number().int().min(0).max(1000).nullish(), daily_capacity_m2: z.number().positive().max(10000).nullish(), lead_time_days: z.number().int().min(0).max(180).nullish(), availability_notes: txt(2000),
+  daily_job_limit: z.number({ message: "Daily job limit must be a whole number." }).int("Daily job limit must be a whole number.").min(1, "Daily job limit must be 1 or more. Leave it empty for no limit.").max(50, "Daily job limit can be at most 50.").nullish(),
   rec_number: txt(50), licence_number: txt(50), installer_certification: z.record(z.string(), z.string().max(500)).optional(),
   branding: z.object({ logo_url: z.string().url().max(1000).optional(), colour: z.string().max(20).optional() }).optional(),
   default_comms_owner: z.enum(["installer", "hivic"]).optional(), commercial_route: z.enum(["hivic_full_invoice", "split_invoicing"]).optional(),
@@ -54,6 +55,7 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
     if (!adminUser) {
       await requireMember(context.userId, id, true);
       delete (patch as Record<string, unknown>)["commercial_route"]; // commercial route is Home Insulation Victoria-controlled
+      delete (patch as Record<string, unknown>)["daily_job_limit"]; // electrician daily limit is office-only
     }
     const { data: before } = await admin.from("businesses").select("*").eq("id", id).single();
     if (!before) throw new WorkflowError("Business not found");
@@ -65,6 +67,9 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
       : coverageChanged ? { coverage_verified_at: null, coverage_verified_by: null } : {};
     const { error } = await admin.from("businesses").update({ ...patch, ...extra, ...coverageStamp, updated_at: new Date().toISOString() } as never).eq("id", id);
     if (error) throw new WorkflowError(error.message);
+    const oldLimit = (before as { daily_job_limit?: number | null }).daily_job_limit ?? null;
+    if (adminUser && "daily_job_limit" in patch && (patch.daily_job_limit ?? null) !== oldLimit)
+      await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "electrician_daily_limit_set", summary: patch.daily_job_limit ? `Electrician daily job limit set to ${patch.daily_job_limit} per day` : "Electrician daily job limit cleared (no limit)", details: { business_id: id, before: oldLimit, after: patch.daily_job_limit ?? null } as never });
     return { id, reapprovalRequired: !!Object.keys(extra).length };
   });
 

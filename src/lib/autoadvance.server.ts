@@ -49,7 +49,7 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
 }
 
 /** Never throws for workflow reasons: a job that can't advance simply stays where it is with its blockers visible. */
-export async function autoAdvanceJob(jobId: string, actorId: string | null, _reason: string, opts: { allowApPromotion?: boolean } = {}): Promise<AdvanceResult | null> {
+export async function autoAdvanceJob(jobId: string, actorId: string | null, _reason: string): Promise<AdvanceResult | null> {
   try {
     const { autoDecideEligibility } = await import("./eligibility.server");
     await autoDecideEligibility(jobId);
@@ -66,7 +66,7 @@ export async function autoAdvanceJob(jobId: string, actorId: string | null, _rea
         return (await advanceSiteRequirements(jobId, actorId as string)).advanced;
       },
       generateQuotes: () => generateInstallerQuotes(jobId, actorId as string).then(() => undefined),
-    }, opts);
+    });
   } catch (e) {
     if (e instanceof WorkflowError) return null;
     throw e;

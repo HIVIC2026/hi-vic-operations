@@ -34,7 +34,7 @@ import { useAction } from "@/hooks/use-me";
 import { useServerFn } from "@tanstack/react-start";
 import { RECORD_LABELS, type RecordKey } from "@/lib/compliance-timeline.core";
 import {
-  adjustQuote, assignContractor, generateInstallerQuotes, markReadyForVeec, regenerateRectificationQuote, runComplianceReview,
+  adjustQuote, assignContractor, generateInstallerQuotes, regenerateRectificationQuote, runComplianceReview,
   setCommercialModel, setComplianceCheck, setEligibility, setHold, updateVeec, draftVeecReply, markVeecReplySent, listComplianceRecords, recordComplianceItem,
 } from "@/lib/portal.functions";
 import { ELIGIBILITY_LABEL, aud, fmtDate, type EligibilityOutcome } from "@/lib/workflow";
@@ -403,7 +403,6 @@ function AdminQuotes({ jobId }: { jobId: string }) {
 function Compliance({ jobId }: { jobId: string }) {
   const run = useAction(runComplianceReview);
   const set = useAction(setComplianceCheck);
-  const ready = useAction(markReadyForVeec);
   const { data } = useQuery({ queryKey: ["compliance", jobId], queryFn: async () => (await supabase.from("compliance_checks").select("*").eq("job_id", jobId).order("sort")).data ?? [] });
   return (
     <Section title="Gate 6 · AP compliance review" action={<Button size="sm" variant="outline" onClick={() => run({ jobId }, "Automated checks updated")}>Run automated checks</Button>}>
@@ -419,7 +418,7 @@ function Compliance({ jobId }: { jobId: string }) {
           </li>
         ))}
       </ul>
-      <Button className="mt-3 w-full" onClick={() => ready({ jobId }, "Ready for VEEC")}>Mark Ready for VEEC</Button>
+      <Button asChild className="mt-3 w-full"><Link to="/admin/ap-queue">Approve in AP queue</Link></Button>
     </Section>
   );
 }
