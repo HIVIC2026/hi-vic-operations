@@ -972,6 +972,7 @@ export type Database = {
           coverage_verified_at: string | null
           coverage_verified_by: string | null
           created_at: string
+          daily_job_limit: number | null
           declared_excluded_areas: string | null
           declared_service_origin: string | null
           declared_travel_radius_km: number | null
@@ -1019,6 +1020,7 @@ export type Database = {
           coverage_verified_at?: string | null
           coverage_verified_by?: string | null
           created_at?: string
+          daily_job_limit?: number | null
           declared_excluded_areas?: string | null
           declared_service_origin?: string | null
           declared_travel_radius_km?: number | null
@@ -1066,6 +1068,7 @@ export type Database = {
           coverage_verified_at?: string | null
           coverage_verified_by?: string | null
           created_at?: string
+          daily_job_limit?: number | null
           declared_excluded_areas?: string | null
           declared_service_origin?: string | null
           declared_travel_radius_km?: number | null
@@ -9480,6 +9483,7 @@ export type Database = {
           photo_max_distance_m: number
           piesa_install_window_days: number
           rec_offer_batch_size: number
+          rec_offer_business_hours: number
           rec_offer_expiry_hours: number
           updated_at: string
           urgency_amber_days: number
@@ -9513,6 +9517,7 @@ export type Database = {
           photo_max_distance_m?: number
           piesa_install_window_days?: number
           rec_offer_batch_size?: number
+          rec_offer_business_hours?: number
           rec_offer_expiry_hours?: number
           updated_at?: string
           urgency_amber_days?: number
@@ -9546,6 +9551,7 @@ export type Database = {
           photo_max_distance_m?: number
           piesa_install_window_days?: number
           rec_offer_batch_size?: number
+          rec_offer_business_hours?: number
           rec_offer_expiry_hours?: number
           updated_at?: string
           urgency_amber_days?: number
