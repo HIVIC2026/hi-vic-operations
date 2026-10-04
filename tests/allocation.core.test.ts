@@ -95,3 +95,22 @@ test("Mitti sync never moves a job stage by itself", () => {
   const src = readFileSync("src/lib/mitti.server.ts", "utf8");
   expect(src).not.toMatch(/\btransition\(|commit_guarded_stage|autoAdvanceJob|update\(\{[^}]*\bstage\s*:/);
 });
+
+describe("Needs queue rows (finish pass)", () => {
+  const base = { now: new Date(), coverageExhausted: [], releases: [], failedComms: [], rectDeclined: [], rectPricing: [], installerUnavailable: [], piesaTiming: [], escTiming: [], evidenceRejected: [], registryQueries: [], officeOverdue: [] };
+  test("no-longer-approved electrician becomes an exception with stage, suburb and urgency", () => {
+    const items = buildNeedsHivic({ ...base, jobs: [{ id: "j1", job_number: "HV-1", stage: "rectification_scheduling", suburb: "Frankston 3199" }], recNoLongerApproved: [{ job_id: "j1", since: null }] });
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ code: "rec_no_longer_approved", stage: "rectification_scheduling", suburb: "Frankston 3199", urgency: "today", tab: "piesa" });
+  });
+  test("urgent timing sorts before routine-office items; routine waiting never appears", () => {
+    const items = buildNeedsHivic({ ...base, jobs: [{ id: "a", job_number: "A" }, { id: "b", job_number: "B" }],
+      officeOverdue: [{ job_id: "a", title: "x", since: "2020-01-01" }], piesaTiming: [{ job_id: "b", urgency: "red", piesa_expired: false, days_remaining: 2 }],
+      releases: [{ job_id: "a", visit_kind: "piesa", released_at: new Date().toISOString(), confirmed_at: null }] });
+    expect(items.map((i) => i.code)).toEqual(["piesa_timing_invalid", "office_overdue"]);
+  });
+  test("coverage exhausted uses the approved wording", () => {
+    const items = buildNeedsHivic({ ...base, jobs: [{ id: "a", job_number: "A" }], coverageExhausted: [{ job_id: "a", created_at: "2026-01-01" }] });
+    expect(items[0].why).toMatch(/^No approved electrician coverage/);
+  });
+});
