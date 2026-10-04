@@ -6,7 +6,10 @@ import {
   assessEligibility,
   recordErrors,
   verificationStale,
+  PRIOR_ACTIVITY_CHECKS,
+  PRIOR_ACTIVITY_LABEL,
   VERIFIED_RULESET,
+  type PriorActivityCheck,
   type ReadyCheckEvidence,
   type StoredVerification,
   type VerifiedOutcome,
@@ -94,7 +97,48 @@ export async function gatherEvidence(jobId: string): Promise<ReadyCheckEvidence>
     conflicts: Array.isArray(m?.review_flags)
       ? (m!.review_flags as unknown[]).filter((x): x is string => typeof x === "string")
       : [],
+    priorActivity: await priorActivityCheck(jobId),
   };
+}
+
+export const PRIOR_ACTIVITY_EVENT = "prior_activity_check_recorded";
+
+/** Latest office check for previous Activity 48 evidence (null = not checked; fails closed). */
+export async function priorActivityCheck(jobId: string): Promise<PriorActivityCheck | null> {
+  const { data } = await admin
+    .from("workflow_events")
+    .select("details")
+    .eq("job_id", jobId)
+    .eq("event_type", PRIOR_ACTIVITY_EVENT)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const v = (data?.details as { answer?: string } | null)?.answer;
+  return (PRIOR_ACTIVITY_CHECKS as readonly string[]).includes(v ?? "")
+    ? (v as PriorActivityCheck)
+    : null;
+}
+
+/** Office-only. Audited; never changes stage, eligibility result, quotes, payments or messages. */
+export async function recordPriorActivityCheck(
+  jobId: string,
+  actorId: string,
+  answer: PriorActivityCheck,
+  note: string | null,
+) {
+  const n = note?.trim() || null;
+  if (answer !== "none_known" && !n)
+    throw new Error("Add a note describing the previous Activity 48 evidence and where it applies.");
+  const { logEvent } = await import("./workflow.server");
+  await logEvent(
+    jobId,
+    actorId,
+    PRIOR_ACTIVITY_EVENT,
+    `Previous Activity 48 check: ${PRIOR_ACTIVITY_LABEL[answer]}`,
+    { answer, note: n },
+    { internal: true },
+  );
+  return { ok: true };
 }
 
 /** Current verification row, or null when none (or the table is not yet created — fails closed). */

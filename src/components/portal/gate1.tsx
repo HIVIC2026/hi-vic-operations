@@ -20,7 +20,7 @@ const CHECK_LABELS: Record<(typeof CHECK_KEYS)[number], string> = {
   residential: "Class 1 or Class 2 sole-occupancy home",
   relevant_ceiling: "Qualifying relevant ceiling",
   ceiling_age: "Relevant ceiling or structure is over five years old",
-  previous_activity: "No previous VEU ceiling-insulation upgrade",
+  previous_activity: "No confirmed previous Activity 48 at the premises",
   existing_insulation: "Existing insulation meets the Activity 48 criterion",
 };
 const checkState = (result: string) => result === "pass" ? "pass" : result === "fail" ? "fail" : "confirm";

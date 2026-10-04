@@ -45,7 +45,32 @@ export type ReadyCheckEvidence = {
   electrical: { downlightCount: number | null; downlightType: string | null };
   /** Conflicting / amended evidence noted by sync or office. */
   conflicts: string[];
+  /**
+   * Office check for known previous Activity 48 / VEU ceiling-insulation evidence at this property.
+   * Office/Ready Check item only — never a homeowner question; old declared answers are ignored.
+   * null/undefined = not yet checked by office.
+   */
+  priorActivity?: PriorActivityCheck | null;
 };
+
+export const PRIOR_ACTIVITY_CHECKS = ["none_known", "same_area", "other_area"] as const;
+export type PriorActivityCheck = (typeof PRIOR_ACTIVITY_CHECKS)[number];
+export const PRIOR_ACTIVITY_LABEL: Record<PriorActivityCheck, string> = {
+  none_known: "No confirmed previous Activity 48 evidence",
+  same_area: "Confirmed previous Activity 48 for the same ceiling area",
+  other_area: "Confirmed previous Activity 48 for a different ceiling area only",
+};
+export const PRIOR_ACTIVITY_MISSING =
+  "Office check: previous Activity 48 / VEU ceiling-insulation evidence";
+export const PRIOR_ACTIVITY_SAME_AREA =
+  "Confirmed previous Activity 48 / VEU ceiling insulation affects the same ceiling area — office review required.";
+
+/** Blocker for verified eligibility and VEEC/certificate progression (null = clear). */
+export function priorActivityBlocker(c: PriorActivityCheck | null | undefined): string | null {
+  if (!c) return `${PRIOR_ACTIVITY_MISSING} not yet recorded.`;
+  if (c === "same_area") return PRIOR_ACTIVITY_SAME_AREA;
+  return null;
+}
 
 export type EligibilityAssessment = {
   missing: string[];
@@ -110,6 +135,9 @@ export function assessEligibility(e: ReadyCheckEvidence): EligibilityAssessment 
   else if (e.removal === "uncertain") review.push("Removal requirement is uncertain.");
 
   for (const c of e.conflicts) review.push(`Conflicting or amended evidence: ${c}`);
+
+  if (!e.priorActivity) missing.push(PRIOR_ACTIVITY_MISSING);
+  else if (e.priorActivity === "same_area") review.push(PRIOR_ACTIVITY_SAME_AREA);
 
   if (
     e.electrical.downlightCount === null ||

@@ -38,3 +38,21 @@ export const recordVerifiedEligibility = createServerFn({ method: "POST" })
       data.note,
     );
   });
+
+export const recordPriorActivityCheck = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        jobId: uuid,
+        answer: z.enum(["none_known", "same_area", "other_area"]),
+        note: z.string().max(2000).nullable(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const { recordPriorActivityCheck: rec } = await import("./verified-eligibility.server");
+    return rec(data.jobId, context.userId, data.answer, data.note);
+  });

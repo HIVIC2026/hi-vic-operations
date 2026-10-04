@@ -26,6 +26,7 @@ const ev = (o: Partial<ReadyCheckEvidence> = {}): ReadyCheckEvidence => ({
   access: { level: "standard", evidence: true },
   electrical: { downlightCount: 6, downlightType: "led" },
   conflicts: [],
+  priorActivity: "none_known",
   ...o,
 });
 const present = (o: Partial<ReadyCheckEvidence["insulation"]> = {}) => ({
@@ -311,5 +312,29 @@ describe("practice database: 0081", () => {
     expect(
       (await d.query(`SELECT count(*)::int AS n FROM public.eligibility_verifications`)).rows[0],
     ).toEqual({ n: 0 });
+  });
+});
+
+describe("office previous Activity 48 check", () => {
+  test("not checked blocks verified eligible but does not force review", () => {
+    const a = assessEligibility(ev({ priorActivity: null }));
+    expect(a.eligibleAllowed).toBe(false);
+    expect(a.reviewReasons).toEqual([]);
+    expect(a.missing.some((m) => m.includes("previous Activity 48"))).toBe(true);
+  });
+  test("confirmed same ceiling area stops progression and sends to review", () => {
+    const a = assessEligibility(ev({ priorActivity: "same_area" }));
+    expect(a.eligibleAllowed).toBe(false);
+    expect(a.suggested).toBe("needs_review");
+  });
+  test("no confirmed evidence or other area only lets review proceed", () => {
+    expect(assessEligibility(ev({ priorActivity: "none_known" })).eligibleAllowed).toBe(true);
+    expect(assessEligibility(ev({ priorActivity: "other_area" })).eligibleAllowed).toBe(true);
+  });
+  test("VEEC blocker", async () => {
+    const { priorActivityBlocker } = await import("../src/lib/verified-eligibility.core");
+    expect(priorActivityBlocker(null)).not.toBeNull();
+    expect(priorActivityBlocker("same_area")).not.toBeNull();
+    expect(priorActivityBlocker("none_known")).toBeNull();
   });
 });
