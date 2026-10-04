@@ -38,8 +38,6 @@ export type RecCandidate = {
   // ---- Matching facts (Operating Model v2). All optional: missing = neutral / check skipped. ----
   /** false = booked in every one of the owner's PIESA windows. null = owner has no windows yet (check skipped). */
   free_in_window?: boolean | null;
-  /** Optional daily job limit (businesses.daily_job_limit) and the most confirmed jobs they hold on any one window day. */
-  daily_limit?: number | null; max_jobs_on_window_day?: number;
   /** Has a confirmed job in a postcode they cover/the same postcode on one of the owner's window days. */
   nearby_job_that_day?: boolean;
   /** Reliability signals; not tracked per electrician yet, so they stay 0 until recorded. */
@@ -59,7 +57,6 @@ export function recEligibilityBlocker(c: RecCandidate): string | null {
   if (c.approved_workers < 1) return "Partner has no approved licensed electrician available.";
   if (c.weekly_capacity != null && c.open_jobs >= c.weekly_capacity) return "Partner is at capacity.";
   if (c.free_in_window === false) return "Partner is already booked in every one of the owner's times.";
-  if (c.daily_limit != null && (c.max_jobs_on_window_day ?? 0) >= c.daily_limit) return "Partner is at their daily job limit.";
   return null;
 }
 

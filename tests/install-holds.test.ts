@@ -15,14 +15,8 @@ describe("install holds rules", () => {
   test("rectification: week after the expected date", () => {
     expect(rectificationHoldWeek("2026-10-21T00:00:00Z")).toBe("2026-10-26");
   });
-  test("no capacity set: always fits", () => {
-    expect(chooseHoldWeek({ earliest: "2026-10-26", areaM2: 9999, dailyCapacityM2: null, usedByWeek: { "2026-10-26": 9999 } })).toEqual({ week: "2026-10-26", overCapacity: false });
-  });
-  test("capacity full: next week that fits", () => {
-    expect(chooseHoldWeek({ earliest: "2026-10-26", areaM2: 200, dailyCapacityM2: 100, usedByWeek: { "2026-10-26": 400 } })).toEqual({ week: "2026-11-02", overCapacity: false });
-  });
-  test("nothing fits inside the PIESA range: earliest kept and flagged", () => {
-    expect(chooseHoldWeek({ earliest: "2026-10-19", latest: "2026-11-02", areaM2: 200, dailyCapacityM2: 30, usedByWeek: {} })).toEqual({ week: "2026-10-19", overCapacity: true });
+  test("expected install week: earliest week, never flagged", () => {
+    expect(chooseHoldWeek({ earliest: "2026-10-26" })).toEqual({ week: "2026-10-26", overCapacity: false });
   });
   test("release after 10 days only when no PIESA booked", () => {
     const c = "2026-10-01T00:00:00Z";

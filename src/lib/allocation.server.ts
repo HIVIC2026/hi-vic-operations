@@ -72,8 +72,6 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
       recent_offers_30d: mine.length, acceptance_rate: acceptanceWithCancellations(answered.filter((o) => o.status === "accepted").length, answered.length, rel.get(b.id)?.trade_cancellations ?? 0),
       preferred: preferred.has(b.id),
       free_in_window: windows.length ? windows.some((w) => !myBookings.some((k) => k.s < w.e && k.e > w.s)) : null,
-      daily_limit: (b as { daily_job_limit?: number | null }).daily_job_limit ?? null,
-      max_jobs_on_window_day: Math.max(0, ...perDay.values()),
       nearby_job_that_day: myBookings.some((k) => windowDays.has(k.day) && covers(k.postcode)),
       no_shows: rel.get(b.id)?.no_shows ?? 0, evidence_rejections: rel.get(b.id)?.evidence_rejections ?? 0,
       recent_jobs_30d: accepted.length,
@@ -198,7 +196,7 @@ async function flagUnapprovedElectricians(actorId: string | null) {
     const { candidates } = await recCandidatesFor(a.job_id);
     const c = candidates.find((x) => x.business_id === a.business_id);
     // Capacity is irrelevant once assigned; only approval, credentials, workers and coverage matter here.
-    const blocker = c ? recEligibilityBlocker({ ...c, accepting_new_jobs: true, free_in_window: null, daily_limit: null }) : "Business is no longer an approved REC.";
+    const blocker = c ? recEligibilityBlocker({ ...c, accepting_new_jobs: true, free_in_window: null }) : "Business is no longer an approved REC.";
     if (!blocker) continue;
     const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", a.job_id).eq("event_type", "rec_no_longer_approved").contains("details", { business_id: a.business_id });
     if (!count) await logEvent(a.job_id, actorId, "rec_no_longer_approved", "Assigned electrician is no longer an approved REC — needs Home Insulation Victoria", { business_id: a.business_id, blocker }, { internal: true });

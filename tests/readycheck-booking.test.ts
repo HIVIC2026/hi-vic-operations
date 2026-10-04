@@ -25,7 +25,6 @@ describe("Ready Check installer eligibility", () => {
     expect(installerEligibilityBlocker(base({ fullCertifiedInstallers: 0 }))).toMatch(/Full, current EEC/);
     expect(installerEligibilityBlocker(base({ covers_postcode: false }))).toMatch(/coverage/);
     expect(installerEligibilityBlocker(base({ free_in_window: false }))).toMatch(/booked/);
-    expect(installerEligibilityBlocker(base({ daily_limit: 2, max_jobs_on_window_day: 2 }))).toMatch(/daily/);
     expect(installerEligibilityBlocker(base({ freeMeasureUps: false }))).toMatch(/free Ready Checks/);
   });
   test("ranking: nearby that day → reliability → fewest recent → speed; top 3 then next 3", () => {

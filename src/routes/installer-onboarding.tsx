@@ -443,7 +443,6 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
         </Field>
         <Field label="Usual lead time" required><Choice options={LEAD_TIMES.map((l) => ({ v: l as string, l }))} value={d.normal_attendance_speed} onChange={(v) => up({ normal_attendance_speed: v })} /></Field>
         <Field label="Weekly installations" required><Choice options={CAPACITY_BANDS.map((b) => ({ v: b.v as string, l: b.v }))} value={d.capacity_band} onChange={(v) => up({ capacity_band: v })} /></Field>
-        <Field label="Lead installer capacity (m² per day, optional)"><input style={{ ...input, maxWidth: 150 }} type="number" inputMode="decimal" min="1" step="1" value={d.daily_capacity_m2 ?? ""} onChange={(e) => up({ daily_capacity_m2: e.target.value === "" ? null : Number(e.target.value) })} /><div style={{ fontSize: 13, color: "#5B6478", marginTop: 4 }}>How many square metres one lead installer can usually complete in a day. Leave empty if you prefer not to set a limit.</div></Field>
         <Check checked={d.accepting_jobs === true} onChange={(v) => up({ accepting_jobs: v })}>Accepting new work now (you can change this later)</Check>
       </>;
     }

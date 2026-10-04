@@ -43,12 +43,6 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
     if (rpcError?.message.includes("activate:no_verified_installer")) throw new WorkflowError("No installer on this application has a current office-verified CII certification (a later check may have rejected it). Nothing was approved.");
     if (rpcError) throw new WorkflowError(`Activation did not complete; nothing was approved. (${rpcError.message})`);
     const r = (rows as unknown as { outcome: string; business_id: string; rate_card_id: string }[])[0]!;
-    // Copy the onboarding m²-per-day answer onto the business only if the business field is still empty — never overwrite.
-    const cap = type === "installer" ? Number((application as InstData).daily_capacity_m2 ?? 0) : 0;
-    if (cap > 0 && cap <= 10000 && r.business_id) {
-      const { data: set } = await admin.from("businesses").update({ daily_capacity_m2: cap }).eq("id", r.business_id).is("daily_capacity_m2", null).select("id").maybeSingle();
-      if (set) await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "business_capacity_from_onboarding", summary: `Lead installer capacity set from onboarding: ${cap} m² per day`, details: { business_id: r.business_id, application_id: app.id, daily_capacity_m2: cap } as Json });
-    }
     return { business_id: r.business_id, rate_card_id: r.rate_card_id, alreadyActivated: r.outcome === "already_activated" };
   });
 

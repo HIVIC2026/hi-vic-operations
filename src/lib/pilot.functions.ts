@@ -55,8 +55,10 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
     if (!adminUser) {
       await requireMember(context.userId, id, true);
       delete (patch as Record<string, unknown>)["commercial_route"]; // commercial route is Home Insulation Victoria-controlled
-      delete (patch as Record<string, unknown>)["daily_job_limit"]; // electrician daily limit is office-only
     }
+    // Trades manage their own diaries: capacity fields are no longer used or saved.
+    delete (patch as Record<string, unknown>)["daily_job_limit"];
+    delete (patch as Record<string, unknown>)["daily_capacity_m2"];
     const { data: before } = await admin.from("businesses").select("*").eq("id", id).single();
     if (!before) throw new WorkflowError("Business not found");
     const criticalChanged = CRITICAL_FIELDS.some((k) => k in patch && JSON.stringify((patch as Record<string, unknown>)[k]) !== JSON.stringify((before as Record<string, unknown>)[k]));
@@ -67,9 +69,6 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
       : coverageChanged ? { coverage_verified_at: null, coverage_verified_by: null } : {};
     const { error } = await admin.from("businesses").update({ ...patch, ...extra, ...coverageStamp, updated_at: new Date().toISOString() } as never).eq("id", id);
     if (error) throw new WorkflowError(error.message);
-    const oldLimit = (before as { daily_job_limit?: number | null }).daily_job_limit ?? null;
-    if (adminUser && "daily_job_limit" in patch && (patch.daily_job_limit ?? null) !== oldLimit)
-      await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "electrician_daily_limit_set", summary: patch.daily_job_limit ? `Electrician daily job limit set to ${patch.daily_job_limit} per day` : "Electrician daily job limit cleared (no limit)", details: { business_id: id, before: oldLimit, after: patch.daily_job_limit ?? null } as never });
     return { id, reapprovalRequired: !!Object.keys(extra).length };
   });
 

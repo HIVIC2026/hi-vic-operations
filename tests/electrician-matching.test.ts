@@ -13,10 +13,8 @@ describe("eligibility", () => {
     expect(recEligibilityBlocker(base("a", { free_in_window: null }))).toBeNull();
     expect(recEligibilityBlocker(base("a", { free_in_window: true }))).toBeNull();
   });
-  test("daily limit only when set", () => {
-    expect(recEligibilityBlocker(base("a", { daily_limit: 2, max_jobs_on_window_day: 2 }))).toContain("daily job limit");
-    expect(recEligibilityBlocker(base("a", { daily_limit: 2, max_jobs_on_window_day: 1 }))).toBeNull();
-    expect(recEligibilityBlocker(base("a", { daily_limit: null, max_jobs_on_window_day: 9 }))).toBeNull();
+  test("no daily limit: trades run their own diaries", () => {
+    expect(recEligibilityBlocker(base("a", { daily_limit: 2, max_jobs_on_window_day: 9 } as never))).toBeNull();
   });
 });
 

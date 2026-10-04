@@ -1,4 +1,4 @@
-// Install holds: place, move and release. Never an appointment — no contact release, no booking, no owner view.
+// Expected install week (install hold): office planning note only. Reserves/blocks nothing. Never an appointment — no contact release, no booking, no owner view.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { chooseHoldWeek, formatHoldWeek, holdShouldRelease, initialHoldWeek, piesaHoldWeek, rectificationHoldWeek } from "./install-holds.core";
@@ -23,25 +23,15 @@ export async function quotedInstaller(jobId: string): Promise<string | null> {
   return q?.partner_business_id ?? null;
 }
 
-async function place(jobId: string, earliest: string, latest: string | undefined, reason: string, actorId: string | null, event: string) {
+async function place(jobId: string, earliest: string, _latest: string | undefined, reason: string, actorId: string | null, event: string) {
   const business = await quotedInstaller(jobId);
   const area = await quotedAreaM2(jobId);
-  let cap: number | null = null;
-  const used: Record<string, number> = {};
-  if (business) {
-    const { data: b } = await admin.from("businesses").select("daily_capacity_m2").eq("id", business).maybeSingle();
-    cap = b?.daily_capacity_m2 != null ? Number(b.daily_capacity_m2) : null;
-    if (cap != null) {
-      const { data: others } = await admin.from("install_holds").select("target_week_start, area_m2").eq("installer_business_id", business).eq("status", "active").neq("job_id", jobId);
-      for (const o of others ?? []) used[o.target_week_start] = (used[o.target_week_start] ?? 0) + Number(o.area_m2);
-    }
-  }
-  const { week, overCapacity } = chooseHoldWeek({ earliest, latest, areaM2: area, dailyCapacityM2: cap, usedByWeek: used });
-  const { error } = await admin.rpc("place_install_hold", { _job: jobId, _business: business as string, _area: area, _week: week, _reason: reason, _over: overCapacity });
+  const { week } = chooseHoldWeek({ earliest });
+  const { error } = await admin.rpc("place_install_hold", { _job: jobId, _business: business as string, _area: area, _week: week, _reason: reason, _over: false });
   if (error) throw new Error(error.message);
-  await logEvent(jobId, actorId, event, `Install hold ${event === "install_hold_created" ? "placed" : "moved"}: week of ${formatHoldWeek(week)}, ${area} m² (${reason})${overCapacity ? " — installer over capacity, office to check" : ""}. Not a booking.`,
-    { week, area_m2: area, installer_business_id: business, over_capacity: overCapacity, daily_capacity_m2: cap }, { internal: true });
-  return { week, overCapacity };
+  await logEvent(jobId, actorId, event, `Expected install week ${event === "install_hold_created" ? "noted" : "moved"}: week of ${formatHoldWeek(week)}, ${area} m² (${reason}). Office planning note only — not a booking, reserves nothing.`,
+    { week, area_m2: area, installer_business_id: business }, { internal: true });
+  return { week };
 }
 
 /** Quote accepted + payment gate passed. Creates the hold if none is active (rerun-safe). */

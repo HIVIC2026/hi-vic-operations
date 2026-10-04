@@ -72,7 +72,6 @@
 - [x] ESC AP task entries (window open / urgent 2 days / update in Registry / withdraw and resubmit)
 - [x] Pre-start check 12pm Melbourne day before, re-run on changes; locks PIISA send + install evidence on fail
 - [x] Certification level (full/provisional) + expiry; legacy verified = not confirmed; office prompt + needs entry when install booked
-- Known limit (accepted): two different jobs booked for the same installer at almost the same moment can exceed that day's m² capacity.
 
 ## Step 11 — Ready Check booking (owner windows + installer one-tap)
 - [x] Step 10 tests: safety-form lock, evidence-upload lock, re-run after ESC submission
@@ -88,3 +87,5 @@
 - Trade payouts: blocked until Xero connected (not building)
 - [x] Tidy-up: final AP approval only via AP queue (compliance/evidence actions no longer promote)
 - [x] Tidy-up: office-only electrician daily job limit field (empty = no limit, 0 refused)
+
+- [x] Capacity limits removed from use; install hold = expected install week note (Jo, 4 Oct)
