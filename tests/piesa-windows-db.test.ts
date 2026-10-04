@@ -47,7 +47,7 @@ INSERT INTO jobs VALUES ('${JOB}','${OWNER}','${PROP}','piesa_and_install_window
 `;
 let db: PGlite;
 const q1 = async <T,>(sql: string) => (await db.query<T>(sql)).rows[0]!;
-const offer = async (biz: string) => (await q1<{ id: string }>(`INSERT INTO partner_offers (job_id,business_id,kind,expires_at) VALUES ('${JOB}','${biz}','piesa',now()+interval '2 hours') RETURNING id`)).id;
+const offer = async (biz: string) => (await db.exec(`UPDATE partner_offers SET status='withdrawn' WHERE status='pending' AND business_id='${biz}'`), await q1<{ id: string }>(`INSERT INTO partner_offers (job_id,business_id,kind,expires_at) VALUES ('${JOB}','${biz}','piesa',now()+interval '2 hours') RETURNING id`)).id;
 const win = async (hoursAhead: number, round = 1) => (await q1<{ id: string }>(`INSERT INTO appointment_proposals (job_id,kind,proposed_by,proposer_role,starts_at,ends_at,piesa_window_round) VALUES ('${JOB}','assessment','${U.owner}','owner',now()+interval '${hoursAhead} hours',now()+interval '${hoursAhead + 4} hours',${round}) RETURNING id`)).id;
 const tap = async (o: string, user: string, p: string) => (await q1<{ outcome: string }>(`SELECT * FROM accept_partner_offer_slot('${o}','${user}','${p}')`)).outcome;
 const setup = async () => {
