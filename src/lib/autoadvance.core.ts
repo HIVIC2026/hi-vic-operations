@@ -78,7 +78,7 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
       return t("ap_review", "All required evidence uploaded and declarations signed – submitted for AP review");
     case "ap_review":
       // AP judgement is human: final approval happens only in the AP queue (approveApJob), never here.
-      return stop("Approve in AP queue");
+      return stop("AP review: approve in AP queue");
     case "ready_for_veec":
       return f.veecLodged ? t("complete", "VEEC lodged – job complete") : stop("VEEC lodgement not submitted");
     default:
