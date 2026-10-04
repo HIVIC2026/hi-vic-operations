@@ -24,7 +24,7 @@ Homeowner questions "previous VEU upgrade" and "rented vs owner-occupied" DELETE
 - [Customer Acceptance & VEEC Assignment](mem://features/owner-authority) — staged assignment, variations, admin-approved wording only
 - [Job channels](mem://features/job-channels) — HI VIC-sourced vs installer-sourced, permanent attribution, commercial_model gating
 - [AP fee override](mem://features/ap-fee-override) — only Jo may change AP fee; never after quote acceptance (no reconfirmation flow)
-- [Gate 1 rules](mem://features/gate1-rules) — min building age 5 years; previous-upgrade + occupancy questions RETIRED 4 Oct; only confirmed Activity 48 fails previous-activity
+- [Gate 1 rules](mem://features/gate1-rules) — SIMPLE: homeowner answers only, property intelligence removed (4 Oct); min age 5y; same-ceiling-area Activity 48 phrases
 - [Installer measurements](mem://features/installer-measurements) — imported figures provisional until AP standard approved; dual verification; aerial never accepted; tolerance is admin setting
 - [Accredited Person count wording](mem://features/ap-count-wording) — apCount = approved APs for Activity 48 in VIC; exact wording, never staff/team members
 - [Ready Check naming](mem://constraints/ready-check-naming) — likely email LOCKED as approved 2026-10-01; customer name "Free Insulation Measure-Up & Eligibility Check", portal service still Ready Check, no Ready Check wording in likely email
