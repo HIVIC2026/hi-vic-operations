@@ -15,13 +15,11 @@ export const listElectricianRates = createServerFn({ method: "POST" }).middlewar
     await requireAdmin(context.supabase);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as Loose;
-    const [{ data: biz }, rates, settings] = await Promise.all([
+    const [{ data: biz }, rates] = await Promise.all([
       supabaseAdmin.from("businesses").select("id, name, business_type, onboarding_status").eq("business_type", "rec").order("name"),
       db.from("electrician_rates").select("*").order("created_at", { ascending: false }),
-      supabaseAdmin.from("pricing_settings").select("*").limit(1).maybeSingle(),
     ]);
-    const s = settings.data as Record<string, unknown> | null;
-    const customerPiesa = Number(s?.["piesa_price_inc_gst"] ?? 349);
+    const customerPiesa = 349; // customer-facing PIESA price inc GST (office view only)
     return { businesses: biz ?? [], rates: rates.error ? [] : (rates.data ?? []), available: !rates.error, customerPiesaIncGst: customerPiesa };
   });
 
