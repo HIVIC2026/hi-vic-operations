@@ -86,3 +86,5 @@
 - [x] Part 2: 24h/2h visit reminders + 7am daily AP brief (queued, portal "Today")
 - [x] Part 3: AP approval queue clean/flagged, per-job approval, never auto
 - Trade payouts: blocked until Xero connected (not building)
+- [ ] Tidy-up: final AP approval only via AP queue (compliance/evidence actions no longer promote)
+- [ ] Tidy-up: office-only electrician daily job limit field (empty = no limit, 0 refused)
