@@ -4,6 +4,7 @@
 // Stage progression stays with the existing guarded workflow (stageEntryBlockers / transition / autoAdvanceJob).
 import { piesaRequestBlockers, type PiesaRequestFacts } from "./payment-gate.core";
 import { WORKFLOW_DECISIONS } from "@/config/workflow-decisions";
+import { veecQueryOverdue } from "./veec.core";
 
 export type VisitKind = "ready_check" | "piesa" | "rectification" | "installation";
 export const OWNER_CONTACT_NOTICE = WORKFLOW_DECISIONS.directContact.ownerNotice;
