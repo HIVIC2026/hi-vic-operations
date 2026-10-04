@@ -434,12 +434,12 @@ function Veec({ jobId }: { jobId: string }) {
         <p className="text-xs text-muted-foreground">Submitted or approved needs quantity, ESC reference and submitted date. Approved is final. Changing lodged details needs a reason.</p>
         <div className="grid grid-cols-2 gap-2">
           <div><Label>Quantity</Label><Input name="quantity" type="number" step="0.01" min="0" defaultValue={data.quantity ?? ""} /></div>
-          <div><Label>Status</Label><select name="status" defaultValue={data.status} className="h-9 w-full rounded-md border bg-background px-2 text-sm">{["not_submitted", "submitted", "query", "approved", "rejected"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select></div>
+          <div><Label>Status</Label><select name="status" value={shownStatus} onChange={(e) => setPickedStatus(e.target.value)} className="h-9 w-full rounded-md border bg-background px-2 text-sm">{["not_submitted", "submitted", "query", "approved", "rejected"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select></div>
           <div><Label>ESC submission ref</Label><Input name="ref" defaultValue={data.submission_reference ?? ""} /></div>
           <div><Label>Submitted date</Label><Input name="date" type="date" max={new Date().toISOString().slice(0, 10)} defaultValue={data.submitted_date ?? ""} /></div>
         </div>
         <Textarea name="notes" placeholder="Notes (required if rejected)" defaultValue={data.notes ?? ""} />
-        {data.status === "query" && (
+        {shownStatus === "query" && (
           <div className="space-y-2 rounded-md border p-2">
             <div className="grid grid-cols-2 gap-2">
               <div className="col-span-2"><Label>What the Registry asked</Label><Textarea name="query_text" defaultValue={data.query_text ?? ""} /></div>
