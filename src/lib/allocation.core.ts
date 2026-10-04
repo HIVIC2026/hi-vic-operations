@@ -5,6 +5,7 @@
 import { piesaRequestBlockers, type PiesaRequestFacts } from "./payment-gate.core";
 import { WORKFLOW_DECISIONS } from "@/config/workflow-decisions";
 import { veecQueryOverdue } from "./veec.core";
+import { isBusinessDay, melbourneAt, melbourneYmd } from "./piesa-windows.core";
 
 export type VisitKind = "ready_check" | "piesa" | "rectification" | "installation";
 export const OWNER_CONTACT_NOTICE = WORKFLOW_DECISIONS.directContact.ownerNotice;
@@ -33,6 +34,19 @@ export type RecCandidate = {
   preferred?: boolean;
   /** This electrician's own agreed rate from their approved rate card / agreement. NEVER the customer price; NEVER used for ordering. */
   electrician_rate_inc_gst?: number | null;
+  // ---- Matching facts (Operating Model v2). All optional: missing = neutral / check skipped. ----
+  /** false = booked in every one of the owner's PIESA windows. null = owner has no windows yet (check skipped). */
+  free_in_window?: boolean | null;
+  /** Optional daily job limit (businesses.daily_job_limit) and the most confirmed jobs they hold on any one window day. */
+  daily_limit?: number | null; max_jobs_on_window_day?: number;
+  /** Has a confirmed job in a postcode they cover/the same postcode on one of the owner's window days. */
+  nearby_job_that_day?: boolean;
+  /** Reliability signals; not tracked per electrician yet, so they stay 0 until recorded. */
+  no_shows?: number; evidence_rejections?: number;
+  /** Jobs (accepted offers) in the last 30 days — fair spread. */
+  recent_jobs_30d?: number;
+  /** Average hours from offer to acceptance; null = no history. */
+  avg_accept_hours?: number | null;
 };
 
 export function recEligibilityBlocker(c: RecCandidate): string | null {
@@ -43,34 +57,64 @@ export function recEligibilityBlocker(c: RecCandidate): string | null {
   if (!c.has_valid_licence) return "Partner has no current electrical licence/REC registration on file.";
   if (c.approved_workers < 1) return "Partner has no approved licensed electrician available.";
   if (c.weekly_capacity != null && c.open_jobs >= c.weekly_capacity) return "Partner is at capacity.";
+  if (c.free_in_window === false) return "Partner is already booked in every one of the owner's times.";
+  if (c.daily_limit != null && (c.max_jobs_on_window_day ?? 0) >= c.daily_limit) return "Partner is at their daily job limit.";
   return null;
 }
 
+/** Reliability 0..1: acceptance rate (neutral 0.5 without history) minus recorded no-shows and evidence rejections. */
+export function reliabilityScore(c: RecCandidate): number {
+  return (c.acceptance_rate ?? 0.5) - 0.1 * (c.no_shows ?? 0) - 0.05 * (c.evidence_rejections ?? 0);
+}
+
 /**
- * Order eligible RECs: preferred first, then exact postcode coverage, spare capacity, fair distribution
- * (fewest recent offers), then responsiveness. Price is deliberately not a sort key.
+ * Order eligible RECs (Operating Model v2). Price is deliberately never a sort key.
+ * Home Insulation Victoria jobs: nearby job that day → reliability → fewest recent jobs (fair spread) → acceptance speed.
+ * Installer-supplied jobs: the installer's preferred electrician first, then the same order.
  */
-export function rankRecCandidates(cands: RecCandidate[]): RecCandidate[] {
-  const spare = (c: RecCandidate) => (c.weekly_capacity == null ? 1 : Math.max(0, c.weekly_capacity - c.open_jobs) / Math.max(1, c.weekly_capacity));
+export function rankRecCandidates(cands: RecCandidate[], opts: { installerSourced?: boolean } = {}): RecCandidate[] {
+  const speed = (c: RecCandidate) => c.avg_accept_hours ?? Number.POSITIVE_INFINITY;
   return cands.filter((c) => !recEligibilityBlocker(c)).sort((a, b) =>
-    Number(!!b.preferred) - Number(!!a.preferred) ||
-    Number(b.exact_postcode) - Number(a.exact_postcode) ||
-    spare(b) - spare(a) ||
-    a.recent_offers_30d - b.recent_offers_30d ||
-    (b.acceptance_rate ?? 0.5) - (a.acceptance_rate ?? 0.5) ||
+    (opts.installerSourced ? Number(!!b.preferred) - Number(!!a.preferred) : 0) ||
+    Number(!!b.nearby_job_that_day) - Number(!!a.nearby_job_that_day) ||
+    reliabilityScore(b) - reliabilityScore(a) ||
+    (a.recent_jobs_30d ?? 0) - (b.recent_jobs_30d ?? 0) ||
+    (speed(a) === speed(b) ? 0 : speed(a) < speed(b) ? -1 : 1) ||
     a.name.localeCompare(b.name));
 }
 
-/** Next small batch: a preferred REC is offered alone; otherwise up to `batchSize` not yet offered. */
-export function nextOfferBatch(ranked: RecCandidate[], alreadyOffered: Set<string>, batchSize: number): RecCandidate[] {
+/** Next batch of up to `batchSize` not yet offered. On installer-supplied jobs a preferred REC is offered alone first. */
+export function nextOfferBatch(ranked: RecCandidate[], alreadyOffered: Set<string>, batchSize: number, opts: { installerSourced?: boolean } = {}): RecCandidate[] {
   const left = ranked.filter((c) => !alreadyOffered.has(c.business_id));
-  if (left[0]?.preferred) return [left[0]];
+  if (opts.installerSourced && left[0]?.preferred) return [left[0]];
   return left.slice(0, Math.max(1, batchSize));
 }
 
 export function offerExpiry(now: Date, expiryHours: number): string {
   const h = Number.isFinite(expiryHours) && expiryHours > 0 ? expiryHours : 2;
   return new Date(now.getTime() + h * 3_600_000).toISOString();
+}
+
+export const OFFER_BUSINESS_START_H = 8, OFFER_BUSINESS_END_H = 17;
+/** Offer deadline counted in Melbourne business hours (8am–5pm, weekdays, excluding Vic public holidays). */
+export function offerExpiryBusinessHours(now: Date, businessHours: number): string {
+  let left = (Number.isFinite(businessHours) && businessHours > 0 ? businessHours : 4) * 3_600_000;
+  let ymd = melbourneYmd(now);
+  let cursor = now.getTime();
+  for (let guard = 0; guard < 60; guard++) {
+    if (isBusinessDay(ymd)) {
+      const open = melbourneAt(ymd, OFFER_BUSINESS_START_H).getTime(), close = melbourneAt(ymd, OFFER_BUSINESS_END_H).getTime();
+      const start = Math.max(cursor, open);
+      if (start < close) {
+        if (start + left <= close) return new Date(start + left).toISOString();
+        left -= close - start;
+      }
+    }
+    const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1);
+    ymd = d.toISOString().slice(0, 10);
+    cursor = 0;
+  }
+  return new Date(now.getTime() + left).toISOString();
 }
 
 export type OfferJobFacts = {
