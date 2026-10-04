@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { lodgementEvidenceBlockers, veecUpdateBlockers } from "../src/lib/veec.core";
+import { lodgementEvidenceBlockers, veecQueryOverdue, veecUpdateBlockers } from "../src/lib/veec.core";
 
 const T = "2026-09-30";
 const good = { status: "submitted", quantity: 12.5, submission_reference: "ESC-123", submitted_date: "2026-09-29", notes: null };
