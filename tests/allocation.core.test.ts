@@ -175,3 +175,12 @@ describe("assigned electrician never sees 'Waiting for electrician'", () => {
     expect(REC_BUCKETS).toContain("Awaiting owner confirmation");
   });
 });
+describe("electrician-facing screens wording scan", () => {
+  test("no '$349 fee' or customer price shown as electrician pay on electrician-facing screens", () => {
+    const files = ["src/routes/_authenticated/partner.index.tsx", "src/routes/_authenticated/field.$jobId.tsx", "src/routes/_authenticated/field.index.tsx", "src/routes/w.$token.tsx", "src/components/portal/partner.tsx"];
+    for (const f of files) {
+      const src = readFileSync(f, "utf8");
+      expect({ f, hit: /\$349 fee|Agreed fee|349[^\n]{0,40}(payout|electrician fee|REC fee)/i.test(src) }).toEqual({ f, hit: false });
+    }
+  });
+});
