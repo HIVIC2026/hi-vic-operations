@@ -29,9 +29,7 @@ export function IntakeSummary({ jobId }: { jobId: string }) {
   const rows: [string, string][] = [
     ["Property type", data.declared?.property_type ?? "Not answered"],
     ["Over 5 years old", yn(data.declared?.over_five_years)],
-    ["Previous VEU upgrade", yn(data.declared?.previous_upgrade)],
     ["Life support", yn(data.lifeSupport)],
-    ["Occupancy", yn(data.occupancy)],
     ["Estimated area", data.area != null ? `${data.area} m²` : "Unknown"],
     ["State", data.state ?? "—"],
   ];
