@@ -7,9 +7,9 @@ import { AppShell } from "@/components/portal/AppShell";
 import { StageBadge } from "@/components/portal/badges";
 import { SlaPill } from "@/components/portal/partner";
 import { useAction } from "@/hooks/use-me";
-import { electricalStatusLabel } from "@/lib/allocation.core";
+import { electricalStatusLabel, electricianRateText } from "@/lib/allocation.core";
 import { partnerDashboard, respondToOffer } from "@/lib/pilot.functions";
-import { BUCKET_LABEL, PARTNER_BUCKETS, REC_BUCKETS, recBucketFor } from "@/lib/pilot.core";
+import { BUCKET_LABEL, PARTNER_BUCKETS, REC_BUCKETS, recBucketFor, recSlaForAssigned } from "@/lib/pilot.core";
 
 const recLabel = (j: { stage: string; bookings: unknown[]; proposal_pending?: boolean }) => electricalStatusLabel({ stage: j.stage, hasBooking: j.bookings.length > 0, proposalPending: !!j.proposal_pending });
 import { Button } from "@/components/ui/button";
@@ -58,7 +58,7 @@ function Dashboard() {
                     <div className="mt-1 text-xs">Next: {nextStep({ stage: j.stage, next_action: j.next_action }).next}</div>
                     <div className="mt-1 text-xs text-muted-foreground">Electrician: {j.electrician ?? "Not assigned"}{j.bookings[0] ? ` · Booked ${new Date(j.bookings[0].scheduled_start).toLocaleDateString("en-AU")}` : ""}</div>
                     <div className="mt-1 flex flex-wrap gap-1">
-                      <SlaPill sla={j.sla} />
+                      <SlaPill sla={isRec ? recSlaForAssigned(j.sla) : j.sla} />
                       {j.deposit_cleared != null && <span className={`rounded-full px-2 py-0.5 text-xs ${j.deposit_cleared ? "bg-success-soft text-success" : "bg-muted"}`}>{j.deposit_cleared ? "Deposit cleared" : "Deposit not cleared"}</span>}
                       {j.channel === "hivic_sourced" && <span className="rounded-full bg-info-soft px-2 py-0.5 text-xs text-info">Home Insulation Victoria customer</span>}
                     </div>
@@ -78,7 +78,7 @@ function Offer({ o, onDone }: { o: { id: string; kind?: string; summary: unknown
   const respond = useAction(respondToOffer);
   const [reason, setReason] = useState("");
   const [declining, setDeclining] = useState(false);
-  const s = o.summary as { job_number: string; suburb: string | null; postcode: string | null; area_m2: number | null; area_basis: string; eligibility: string | null; approx_area_m2?: number | null; access_summary?: string | null; observations?: string[]; piesa_rate_inc_gst?: number | null };
+  const s = o.summary as { job_number: string; suburb: string | null; postcode: string | null; area_m2: number | null; area_basis: string; eligibility: string | null; approx_area_m2?: number | null; access_summary?: string | null; observations?: string[]; electrician_rate_inc_gst?: number | null; rate_to_confirm?: boolean };
   if (o.kind === "piesa" || o.kind === "rectification") return (
     <div className="rounded-xl border bg-card p-3 text-sm">
       <div className="mb-1"><Badge variant="secondary">Offered</Badge></div>
@@ -86,7 +86,7 @@ function Offer({ o, onDone }: { o: { id: string; kind?: string; summary: unknown
       <div className="text-muted-foreground">{s.job_number} · {s.approx_area_m2 ? `About ${s.approx_area_m2} m² ceiling (measured)` : "Ceiling area not recorded"}</div>
       {s.access_summary && <div className="text-xs text-muted-foreground">{s.access_summary}</div>}
       {!!s.observations?.length && <ul className="mt-1 list-disc pl-4 text-xs text-muted-foreground">{s.observations.map((x, i) => <li key={i}>{x}</li>)}</ul>}
-      {s.piesa_rate_inc_gst != null && <div className="text-xs">Agreed fee: ${s.piesa_rate_inc_gst.toFixed(2)} inc GST</div>}
+      <div className="text-xs font-medium">{electricianRateText(s)}</div>
       {o.expires_at && <div className="text-xs text-muted-foreground">Offer open until {new Date(o.expires_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}</div>}
       <p className="mt-1 text-xs text-muted-foreground">The owner's name and contact details are shared only once you accept. The first approved electrician to accept gets the job.</p>
       {declining ? <div className="mt-2 space-y-2"><Input placeholder="Reason (optional)" value={reason} onChange={(e) => setReason(e.target.value)} /><Button size="sm" variant="outline" onClick={async () => { await respond({ offerId: o.id, accept: false, reason: reason || null }, "Declined"); onDone(); }}>Confirm decline</Button></div> :
