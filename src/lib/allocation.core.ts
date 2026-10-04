@@ -30,7 +30,8 @@ export type RecCandidate = {
   weekly_capacity: number | null; open_jobs: number; recent_offers_30d: number;
   acceptance_rate: number | null; // 0..1 over recent offers, null = no history
   preferred?: boolean;
-  piesa_rate_inc_gst?: number | null; // shown only if a live agreed rate exists; NEVER used for ordering
+  /** This electrician's own agreed rate from their approved rate card / agreement. NEVER the customer price; NEVER used for ordering. */
+  electrician_rate_inc_gst?: number | null;
 };
 
 export function recEligibilityBlocker(c: RecCandidate): string | null {
@@ -74,7 +75,10 @@ export function offerExpiry(now: Date, expiryHours: number): string {
 export type OfferJobFacts = {
   job_number: string; suburb: string | null; postcode: string | null;
   measured_area_m2: number | null; access_summary: string | null; observations: string[];
-  piesa_rate_inc_gst: number | null;
+  /** Electrician's own agreed rate (rate card/agreement/offer). Never the customer-facing PIESA price. */
+  electrician_rate_inc_gst: number | null;
+  /** Office explicitly chose to offer before a rate is recorded. */
+  rate_to_confirm?: boolean;
   // Present on the source row but must never leave the server before acceptance:
   address_line?: string | null; owner_name?: string | null; owner_phone?: string | null; owner_email?: string | null;
 };
@@ -87,8 +91,22 @@ export function anonymisedOffer(f: OfferJobFacts) {
     approx_area_m2: f.measured_area_m2 == null ? null : Math.round(f.measured_area_m2 / 5) * 5,
     access_summary: f.access_summary,
     observations: f.observations.slice(0, 6),
-    piesa_rate_inc_gst: f.piesa_rate_inc_gst,
+    electrician_rate_inc_gst: f.electrician_rate_inc_gst,
+    rate_to_confirm: f.electrician_rate_inc_gst == null ? !!f.rate_to_confirm : false,
   };
+}
+
+/** Rate rule: an electrician offer needs a recorded agreed rate, unless office explicitly marked it rate-to-confirm. */
+export function offerRateBlocker(rate: number | null | undefined, rateToConfirm: boolean): string | null {
+  if (rate != null && Number.isFinite(rate) && rate >= 0) return null;
+  return rateToConfirm ? null : "No agreed electrician rate is recorded for this electrician. Set the rate, or office must explicitly mark the offer as rate to be confirmed.";
+}
+
+/** Electrician-facing rate line. Only ever the electrician's own agreed rate; never the customer price. */
+export function electricianRateText(summary: { electrician_rate_inc_gst?: number | null; rate_to_confirm?: boolean | null }): string {
+  const r = summary.electrician_rate_inc_gst;
+  if (r != null && Number.isFinite(r)) return `Your agreed rate: $${r.toFixed(2)} inc GST`;
+  return "Rate to be confirmed";
 }
 
 export const ACCEPT_OUTCOME_MESSAGE: Record<string, string> = {
@@ -232,11 +250,11 @@ export function parseJobSection(v: unknown): (typeof JOB_SECTIONS)[number] | und
 export function electricalStatusLabel(i: { offerPending?: boolean; stage: string; hasBooking?: boolean; proposalPending?: boolean }): string {
   if (i.offerPending) return "Offered";
   switch (i.stage) {
-    case "piesa_and_install_window_pending": return i.proposalPending ? "Awaiting confirmation" : "Accepted · Arrange visit";
+    case "piesa_and_install_window_pending": return i.proposalPending ? "Awaiting owner confirmation" : "Accepted · Arrange visit";
     case "piesa_scheduled": return "Booked";
     case "piesa_complete": return "PIESA complete";
     case "electrical_variation_pending": case "rectification_required": case "awaiting_owner_rectification_approval": return "Rectification required";
-    case "rectification_scheduling": return i.proposalPending ? "Awaiting confirmation" : "Rectification required · Arrange visit";
+    case "rectification_scheduling": return i.proposalPending ? "Awaiting owner confirmation" : "Rectification required · Arrange visit";
     case "rectification_booked": return "Booked";
     case "installation_scheduling": case "installation_booked": case "evidence_outstanding": return "Electrically cleared";
     default: return "Accepted";

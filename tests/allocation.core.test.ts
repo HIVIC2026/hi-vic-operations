@@ -18,7 +18,7 @@ describe("PIESA allocation", () => {
     expect(piesaOfferBlockers({ ...base, currentQuoteApproved: false }).length).toBeGreaterThan(0);
   });
   test("pre-accept summary carries no owner PII or exact address", () => {
-    const s = anonymisedOffer({ job_number: "HV-1", suburb: "Frankston", postcode: "3199", measured_area_m2: 121, access_summary: "Manhole", observations: [], piesa_rate_inc_gst: null, address_line: "1 Secret St", owner_name: "Jo", owner_phone: "0400", owner_email: "a@b" });
+    const s = anonymisedOffer({ job_number: "HV-1", suburb: "Frankston", postcode: "3199", measured_area_m2: 121, access_summary: "Manhole", observations: [], electrician_rate_inc_gst: null, address_line: "1 Secret St", owner_name: "Jo", owner_phone: "0400", owner_email: "a@b" });
     const t = JSON.stringify(s);
     for (const x of ["Secret", "Jo", "0400", "a@b"]) expect(t).not.toContain(x);
     expect(s.approx_area_m2).toBe(120);
@@ -126,7 +126,7 @@ describe("Finish pass: deep links, status wording, planning notice", () => {
     const { electricalStatusLabel: l } = await import("../src/lib/allocation.core");
     expect(l({ offerPending: true, stage: "piesa_and_install_window_pending" })).toBe("Offered");
     expect(l({ stage: "piesa_and_install_window_pending" })).toBe("Accepted · Arrange visit");
-    expect(l({ stage: "piesa_and_install_window_pending", proposalPending: true })).toBe("Awaiting confirmation");
+    expect(l({ stage: "piesa_and_install_window_pending", proposalPending: true })).toBe("Awaiting owner confirmation");
     expect(l({ stage: "piesa_scheduled" })).toBe("Booked");
     expect(l({ stage: "piesa_complete" })).toBe("PIESA complete");
     expect(l({ stage: "rectification_required" })).toBe("Rectification required");
