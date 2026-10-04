@@ -1,53 +1,64 @@
-# Step 8: Rectification (Operating Model v2)
+# Step 9: Installer capacity, install holds and install booking
+
+This is too big to build safely in one go, so it is split into two parts. Each part gets its own practice-database proof, build and test, and you say "go" before each one.
 
 ## What exists today
-- When the PIESA needs rectification, the system lists the items, drafts a rectification quote, and the job moves to "awaiting owner rectification approval".
-- The office must review the draft before it can be sent. Items with no agreed rate block sending and show on the needs-attention list.
-- The owner approves or declines the quote on their page. Approving records the scope only, with no payment; the lines are folded into the final installation quote. Declining shows on the needs-attention list.
-- The rectification visit is then arranged the old way: offer to an electrician, contact details shared, propose and confirm a time, with the 24h reminder and 48h flag.
-- The 14-day expiry and the day 3 / day 10 nudges already apply to installation quotes only. Rectification quotes have no timing today.
-- The electrician does not give estimated hours or times when submitting the PIESA.
+- Installers pick a rough "weekly capacity" band during onboarding. Nothing uses it, and there is no daily m² capacity.
+- There is a per-job install-window record (planned PIESA date, planned install date, the 7–21 day buffer, PIESA completed date). It is empty for every job (0 rows).
+- Installs are booked the old way: the installer is assigned, contact details are shared, a time is proposed and then confirmed, with the 24h reminder and 48h flag.
+- The 30-day rule is already enforced: a date after the PIESA deadline is refused, and an expired PIESA blocks booking with "reassessment first". There is no 10-days-left flag, and the message doesn't say "New PIESA needed".
+- No install holds exist.
 
-## What changes
-1. **Electrician, at PIESA submit (only when rectification is needed):** two short extra questions:
-   - estimated hours (number, required)
-   - 3–5 windows they can do the work (morning 8–12 or afternoon 12–4, Melbourne time)
-   The day rules are the same as the owner's PIESA times (business days, from 2 business days ahead, within 21 days). They aren't asked again later.
-2. **Office review:** unchanged. The office sees the hours and the windows next to the draft.
-3. **Owner, in one step:** approve the quote and pick one of the electrician's windows. Two permanent records are created: the existing approval record and a separate confirmed booking for that window. Both are saved together or not at all.
-4. **"None of these work":** the owner approves the quote and taps this instead. Contact details are shared for the rectification visit only. The old propose/confirm path runs with the 24h reminder and 48h flag.
-5. **Rectification quote timing (no 14-day expiry):**
-   - The send time is recorded when the office sends the quote.
-   - Owner nudges are queued (not sent) at 24 hours and on day 3.
-   - On day 5 with no response, the job joins the needs-attention list as "Rectification quote unanswered — 30-day clock at risk".
-   - The quote never expires automatically. The existing 15-minute timer runs these checks.
-6. **Owner declines:** unchanged. Hard stop and needs-attention.
-- A window whose start time has passed can't be picked. If all windows have passed, the owner only sees "None of these work".
+## Part A: capacity and install holds (no booking changes)
+1. **Capacity:** an optional "m² per day" setting for each lead installer. The installer sets it at onboarding and the office can edit it. Empty means no limit. The weekly band stays for history.
+2. **Hold created** when the owner has accepted the quote and the payment gate passes. It uses the job's quoted m² against the quoted installer's capacity for a target week. A hold is not an appointment: no contact details are shared, the owner doesn't see it as a booking, and it never allows installation.
+3. **Hold moves:**
+   - When the PIESA is booked, the hold moves so the install falls 7–21 days after the PIESA date.
+   - When rectification is needed, it moves to after the expected rectification date, which comes from the electrician's chosen window in step 8.
+   - It is released if no PIESA is booked within 10 days of being created.
+   - Every change is recorded in the job history.
+4. The office sees the hold on the job page ("Install hold: week of …, X m²"). It is office-only.
+5. The 15-minute timer releases expired holds.
+
+## Part B: owner install days and installer acceptance
+1. **After electrical clearance**, the owner picks 3–5 install days. Only days that meet all of these are offered:
+   - inside the 30-day window (the clock starts at PIESA completion, or at Section C sign-off when rectification was needed)
+   - business days at least 24 hours away
+   - days where the quoted installer still has enough m² capacity, counting other holds and bookings
+2. **The quoted installer** gets an offer page with the days as buttons, like the PIESA one, sent by text when sending is on (queued only for now). Tapping a day books the install in one locked step, so it can't be double-booked. Contact details are shared then, for the install visit only.
+3. **"None of these work"** (owner or installer) uses the old propose/confirm path with the 24h reminder and 48h flag.
+4. **The 30-day hard gate stays.** A day outside the window can never be booked, on any path.
+5. **New flags:**
+   - 10 days left with no install booked: the job goes on the needs-attention list.
+   - Clock expired: the job shows "New PIESA needed".
+6. **The installer is never replaced automatically.** If they decline all the days, the job goes on the needs-attention list.
 
 ## Parts touched
-- The electrician's PIESA submit form and the server step that drafts the rectification quote.
-- The office rectification review card, which shows the hours and windows.
-- The owner's quote panel and the server step for owner approval.
-- The quote timing check in the 15-minute timer, extended to rectification quotes with their own rules.
-- The needs-attention list (one new entry).
-- Tests.
+- **Part A:** installer onboarding (one new field), the office business settings, the quote-accepted / payment-gate step, PIESA booking, the rectification window pick, the 15-minute timer and the office job page.
+- **Part B:** the owner job page (a new install-days card), the installer partner workspace (offer buttons), the install booking step, the needs-attention list, the PIESA expiry message and the 15-minute timer.
+- Tests for each part.
 
-## Database change (practice database first, then apply)
-Additive only:
-- Rectification estimated hours on the quote.
-- Electrician windows saved as time options, reusing the existing appointment times table and tagged "rectification".
-- Three empty dates on quotes: 24h nudge, day-3 nudge, day-5 flagged.
-- One locked database step that approves and books in one go, so two taps can't double-book.
+## Database changes (practice database first, then apply)
+Additive only. Nothing is deleted or renamed.
+- **Part A:**
+  - an empty "daily m² capacity" field on the installer business
+  - a new install holds table (job, installer, m², target week, status, created and released dates, reason)
+  - one locked step that places or moves a hold
+- **Part B:**
+  - install-day options saved in the existing appointment times table, tagged "installation"
+  - one locked step that books the install so it can't be double-booked
+  - an empty "10-days-left flagged" date
 
-It will be proven on a practice database first: existing rows unchanged, approve + book is all-or-nothing, a second pick is refused, and undo is clean. It is applied to the real database only after that passes.
+Each part is proven on a practice database before the live change: existing rows unchanged, running it twice is safe, capacity is respected, two taps can't double-book, a day outside the window is refused, and undo is clean.
 
 ## Effect on existing jobs and records
-- Only TEST jobs are at rectification today: one at "rectification required" and one at "rectification scheduling", plus 2 accepted rectification quotes. None are real.
-- They keep the old path. With no electrician windows, the owner simply sees the normal approve and "None of these work" options.
-- No backfill. No records changed. Sending stays off.
+- 11 jobs are between PIESA and install today. All are TEST jobs.
+- They get no holds and keep the old booking path. Holds only start for quotes accepted after Part A goes live.
+- No backfill and no records changed. Sending stays off and the payment gate stays off, so in practice no holds are created until the gate is switched on.
 
 ## Undo
-Roll back to the previous version in History. The new fields can stay empty and unused. Without electrician windows, everything falls back to today's flow.
+Roll back to the previous version in History. Each database change has a ready undo file. The new fields and the table can stay empty and unused, and without holds or install-day options everything falls back to today's flow.
 
-## Question
-- Should the owner's pick also require the window to be at least 24 hours away (like other bookings), or is any future window fine?
+## Questions
+1. If the installer has no capacity set, should a hold still be created (always fits), or skipped?
+2. Target week for a new hold before the PIESA is booked: assume about 3 weeks out (the PIESA within 10 days plus a 7–21 day buffer)?
