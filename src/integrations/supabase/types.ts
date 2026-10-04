@@ -975,6 +975,7 @@ export type Database = {
           coverage_verified_at: string | null
           coverage_verified_by: string | null
           created_at: string
+          daily_capacity_m2: number | null
           daily_job_limit: number | null
           declared_excluded_areas: string | null
           declared_service_origin: string | null
@@ -1023,6 +1024,7 @@ export type Database = {
           coverage_verified_at?: string | null
           coverage_verified_by?: string | null
           created_at?: string
+          daily_capacity_m2?: number | null
           daily_job_limit?: number | null
           declared_excluded_areas?: string | null
           declared_service_origin?: string | null
@@ -1071,6 +1073,7 @@ export type Database = {
           coverage_verified_at?: string | null
           coverage_verified_by?: string | null
           created_at?: string
+          daily_capacity_m2?: number | null
           daily_job_limit?: number | null
           declared_excluded_areas?: string | null
           declared_service_origin?: string | null
@@ -4020,6 +4023,80 @@ export type Database = {
             columns: ["settings_id"]
             isOneToOne: false
             referencedRelation: "retail_estimator_settings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      install_holds: {
+        Row: {
+          area_m2: number
+          created_at: string
+          id: string
+          installer_business_id: string | null
+          job_id: string
+          over_capacity: boolean
+          reason: string
+          release_reason: string | null
+          released_at: string | null
+          status: string
+          target_week_start: string
+          updated_at: string
+        }
+        Insert: {
+          area_m2?: number
+          created_at?: string
+          id?: string
+          installer_business_id?: string | null
+          job_id: string
+          over_capacity?: boolean
+          reason: string
+          release_reason?: string | null
+          released_at?: string | null
+          status?: string
+          target_week_start: string
+          updated_at?: string
+        }
+        Update: {
+          area_m2?: number
+          created_at?: string
+          id?: string
+          installer_business_id?: string | null
+          job_id?: string
+          over_capacity?: boolean
+          reason?: string
+          release_reason?: string | null
+          released_at?: string | null
+          status?: string
+          target_week_start?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "install_holds_installer_business_id_fkey"
+            columns: ["installer_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "install_holds_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "install_holds_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "install_holds_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
         ]
@@ -10179,6 +10256,17 @@ export type Database = {
         }[]
       }
       my_job_role: { Args: { _job: string }; Returns: string }
+      place_install_hold: {
+        Args: {
+          _area: number
+          _business: string
+          _job: string
+          _over?: boolean
+          _reason: string
+          _week: string
+        }
+        Returns: string
+      }
       post_intake_tick: { Args: { _url: string }; Returns: number }
       record_eligibility_verification: {
         Args: {
