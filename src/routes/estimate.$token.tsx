@@ -8,6 +8,8 @@ import { LINK_UNAVAILABLE } from "@/lib/estimatelink.core";
 import { ReferralShare } from "@/components/portal/ReferralShare";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
 import type { ReadyCheckAcceptanceState as AssessmentAcceptanceState } from "@/lib/readycheck.core";
+import { ReadyCheckTimesPicker, ReadyCheckTimesStatus } from "@/components/portal/ready-check-times";
+import { piesaWindowBlockers, type PiesaWindowPick } from "@/lib/piesa-windows.core";
 
 // Public no-login Step 3 estimate. The token is the only credential; nothing is fetched during SSR.
 export const Route = createFileRoute("/estimate/$token")({
@@ -38,6 +40,7 @@ function PublicEstimatePage() {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [picks, setPicks] = useState<PiesaWindowPick[]>([]);
   useEffect(() => {
     const sync = () => setConfirming(window.location.hash === "#confirm");
     sync();
@@ -48,7 +51,7 @@ function PublicEstimatePage() {
   const fee = data?.estimate?.fees?.piesa;
   const showConfirm = confirming && standard && typeof fee === "number";
   const run = async (action: () => Promise<unknown>) => { setBusy(true); setActionError(null); try { await action(); await refetch(); } catch (e) { setActionError(e instanceof Error ? e.message : "This action could not be completed."); } finally { setBusy(false); } };
-  const acceptCurrent = () => run(() => accept({ data: { token } }));
+  const acceptCurrent = () => run(() => accept({ data: { token, picks } }));
   const openReadyCheck = () => {
     window.history.pushState(null, "", `${window.location.pathname}${window.location.search}#confirm`);
     setConfirming(true);
@@ -63,7 +66,7 @@ function PublicEstimatePage() {
           : <>
              {data.job.job_number && <p className="mb-4 px-1 text-xs font-medium text-estimate-navy/70">Reference {data.job.job_number}</p>}
              {showConfirm
-                ? <ConfirmQuote estimatedPrice={standard.estimated_customer_total} assessmentFee={fee} state={data.assessment} testMode={data.assessmentTestMode} busy={busy} error={actionError} onAccept={acceptCurrent} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
+                ? <ConfirmQuote estimatedPrice={standard.estimated_customer_total} assessmentFee={fee} state={data.assessment} testMode={data.assessmentTestMode} busy={busy} error={actionError} onAccept={acceptCurrent} picker={<ReadyCheckTimesPicker value={picks} onChange={setPicks} disabled={busy} />} canSubmit={piesaWindowBlockers(picks).length === 0} after={<ReadyCheckTimesStatus token={token} />} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setConfirming(false); }} />
                  : <div className="estimate-offset overflow-hidden rounded-2xl border border-estimate-blue-soft bg-estimate-white px-5 py-7 sm:px-10 sm:py-11"><CustomerEstimate data={data.estimate} publicPage onReadyCheck={openReadyCheck} /></div>}
              {!showConfirm && data.referralShareUrl && <ReferralShare url={data.referralShareUrl} />}
           </>}

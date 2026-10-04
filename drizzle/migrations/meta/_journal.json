@@ -687,6 +687,13 @@
       "when": 1791121791133,
       "tag": "0097_prestart_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1791122881332,
+      "tag": "0098_ready_check_windows",
+      "breakpoints": true
     }
   ]
 }

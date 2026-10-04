@@ -8675,6 +8675,67 @@ export type Database = {
           },
         ]
       }
+      ready_check_windows: {
+        Row: {
+          created_at: string
+          ends_at: string
+          id: string
+          job_id: string
+          round: number
+          starts_at: string
+          status: string
+          taken_at: string | null
+          taken_by: string | null
+          taken_offer_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          ends_at: string
+          id?: string
+          job_id: string
+          round: number
+          starts_at: string
+          status?: string
+          taken_at?: string | null
+          taken_by?: string | null
+          taken_offer_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string
+          id?: string
+          job_id?: string
+          round?: number
+          starts_at?: string
+          status?: string
+          taken_at?: string | null
+          taken_by?: string | null
+          taken_offer_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ready_check_windows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_windows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "ready_check_windows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ready_checks: {
         Row: {
           attended_at: string | null
@@ -10078,6 +10139,13 @@ export type Database = {
           paid_at: string
           payment_id: string
           payment_status: string
+        }[]
+      }
+      accept_ready_check_offer: {
+        Args: { _offer: string; _user: string; _window: string }
+        Returns: {
+          assignment_id: string
+          outcome: string
         }[]
       }
       accept_ready_check_test: {

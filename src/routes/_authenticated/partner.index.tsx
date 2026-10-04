@@ -81,7 +81,28 @@ function Offer({ o, onDone }: { o: { id: string; kind?: string; summary: unknown
   const respond = useAction(respondToOffer);
   const [reason, setReason] = useState("");
   const [declining, setDeclining] = useState(false);
-  const s = o.summary as { job_number: string; suburb: string | null; postcode: string | null; area_m2: number | null; area_basis: string; eligibility: string | null; approx_area_m2?: number | null; access_summary?: string | null; observations?: string[]; electrician_rate_inc_gst?: number | null; rate_to_confirm?: boolean };
+  const s = o.summary as { job_number: string; suburb: string | null; postcode: string | null; area_m2: number | null; area_basis: string; eligibility: string | null; approx_area_m2?: number | null; access_summary?: string | null; observations?: string[]; electrician_rate_inc_gst?: number | null; rate_to_confirm?: boolean; unpaid_note?: string };
+  if (o.kind === "ready_check") return (
+    <div className="rounded-xl border bg-card p-3 text-sm">
+      <div className="mb-1"><Badge variant="secondary">Offered</Badge></div>
+      <div className="font-semibold">Free Ready Check · {s.suburb ?? "Victoria"} {s.postcode}</div>
+      <div className="text-muted-foreground">{s.job_number}</div>
+      <div className="text-xs font-medium">{s.unpaid_note ?? "Free Ready Check — unpaid."}</div>
+      {o.expires_at && <div className="text-xs text-muted-foreground">Offer open until {new Date(o.expires_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}</div>}
+      <p className="mt-1 text-xs text-muted-foreground">The owner's name and contact details are shared only once you accept, for the Ready Check only. The first approved installer to accept gets it.</p>
+      {!declining && (
+        <div className="mt-2 space-y-2">
+          {!!o.windows?.length && <><div className="text-xs font-medium">Owner's available times — tap one to accept and book it:</div>
+          <div className="grid gap-2 sm:grid-cols-2">{o.windows.map((w) => (
+            <Button key={w.id} size="field" className="h-auto min-h-12 whitespace-normal" onClick={async () => { await respond({ offerId: o.id, accept: true, reason: null, proposalId: w.id }, "Accepted and booked"); onDone(); }}>{formatPiesaWindow(w.starts_at, w.ends_at)}</Button>
+          ))}</div></>}
+          <Button size="field" variant="outline" className="h-auto min-h-12 w-full whitespace-normal" onClick={async () => { await respond({ offerId: o.id, accept: true, reason: null }, "Accepted — arrange a time with the owner"); onDone(); }}>None of these work — accept and arrange a time</Button>
+          <Button size="field" variant="ghost" className="w-full" onClick={() => setDeclining(true)}>Decline</Button>
+        </div>
+      )}
+      {declining && <div className="mt-2 space-y-2"><Input placeholder="Reason (optional)" value={reason} onChange={(e) => setReason(e.target.value)} /><Button size="sm" variant="outline" onClick={async () => { await respond({ offerId: o.id, accept: false, reason: reason || null }, "Declined"); onDone(); }}>Confirm decline</Button></div>}
+    </div>
+  );
   if (o.kind === "piesa" || o.kind === "rectification") return (
     <div className="rounded-xl border bg-card p-3 text-sm">
       <div className="mb-1"><Badge variant="secondary">Offered</Badge></div>

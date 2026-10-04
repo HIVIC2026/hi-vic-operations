@@ -29,11 +29,36 @@ export const getPublicEstimate = createServerFn({ method: "POST" }).middleware([
     return JSON.parse(JSON.stringify(await resolvePublicEstimate(data.token, context.assessmentTestMode)));
   });
 
+const windowPicks = z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["morning", "afternoon"]) })).min(1).max(5);
+
+/** Owner requests the free Ready Check and gives 3–5 times in one step (times are required for new requests). */
 export const acceptReadyCheckFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token: z.string().max(200) }).parse(d))
+  .inputValidator((d) => z.object({ token: z.string().max(200), picks: windowPicks }).parse(d))
   .handler(async ({ data, context }) => {
     const { acceptReadyCheck } = await import("./readycheck-payment.server");
-    return JSON.parse(JSON.stringify(await acceptReadyCheck(data.token, { ip: context.ip, userAgent: context.userAgent })));
+    return JSON.parse(JSON.stringify(await acceptReadyCheck(data.token, { ip: context.ip, userAgent: context.userAgent }, data.picks)));
+  });
+
+/** Owner (no-login link): Ready Check time picker state — times only. */
+export const getReadyCheckWindowsFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token: z.string().max(200) }).parse(d))
+  .handler(async ({ data }) => {
+    const { jobIdForToken } = await import("./readycheck-payment.server");
+    const jobId = await jobIdForToken(data.token);
+    if (!jobId) return null;
+    const { ownerReadyCheckWindowState } = await import("./readycheck-booking.server");
+    return ownerReadyCheckWindowState(jobId);
+  });
+
+/** Owner (no-login link): send more Ready Check times when asked. */
+export const chooseReadyCheckWindowsFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token: z.string().max(200), picks: windowPicks }).parse(d))
+  .handler(async ({ data }) => {
+    const { jobIdForToken } = await import("./readycheck-payment.server");
+    const jobId = await jobIdForToken(data.token);
+    if (!jobId) throw new Error("Estimate unavailable");
+    const { submitReadyCheckWindows } = await import("./readycheck-booking.server");
+    return submitReadyCheckWindows(jobId, data.picks);
   });
 
 export const simulateReadyCheckPaymentFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])

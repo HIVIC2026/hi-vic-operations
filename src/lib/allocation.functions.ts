@@ -109,6 +109,9 @@ export const getNeedsHivic = createServerFn({ method: "GET" }).middleware([requi
       admin.from("quotes").select("job_id, sent_at").eq("kind", "rectification").eq("status", "issued").not("sent_at", "is", null),
     ]);
     const { data: instEv } = await admin.from("workflow_events").select("job_id, event_type, created_at, details").in("event_type", ["install_ten_days_left", "install_days_declined"]).order("created_at", { ascending: false });
+    const { data: rcEv } = await admin.from("workflow_events").select("job_id, created_at").eq("event_type", "ready_check_no_taker").order("created_at", { ascending: false });
+    const { data: rcInst } = await admin.from("job_assignments").select("job_id").eq("role", "installer").eq("active", true);
+    const withInst = new Set((rcInst ?? []).map((a) => a.job_id));
     const jobRows = ok(jobs, "jobs").filter((j) => j.source !== "qa_test");
     const withElec = new Set(ok(elec, "assignments").map((a) => a.job_id));
     const seen = new Set<string>();
@@ -138,6 +141,7 @@ export const getNeedsHivic = createServerFn({ method: "GET" }).middleware([requi
       officeOverdue: [],
       rectUnanswered: ok(rsent, "rectification quotes sent"),
       prestart: await (await import("./prestart.server")).prestartNeeds(now).catch((e) => { console.error("pre-start needs failed", (e as Error).message); return undefined; }),
+      readyCheckNoTaker: (rcEv ?? []).filter((e): e is { job_id: string; created_at: string } => !!e.job_id && !withInst.has(e.job_id)),
       installFlags: (instEv ?? []).filter((e) => !!e.job_id).map((e) => ({ job_id: e.job_id!, code: e.event_type as "install_ten_days_left" | "install_days_declined", created_at: e.created_at, detail: e.event_type === "install_ten_days_left" ? `Last day ${(e.details as { deadline?: string } | null)?.deadline ?? "?"}.` : undefined })),
     });
     return { items, checkedAt: now.toISOString() };

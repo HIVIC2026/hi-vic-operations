@@ -73,3 +73,10 @@
 - [x] Pre-start check 12pm Melbourne day before, re-run on changes; locks PIISA send + install evidence on fail
 - [x] Certification level (full/provisional) + expiry; legacy verified = not confirmed; office prompt + needs entry when install booked
 - Known limit (accepted): two different jobs booked for the same installer at almost the same moment can exceed that day's m² capacity.
+
+## Step 11 — Ready Check booking (owner windows + installer one-tap)
+- [x] Step 10 tests: safety-form lock, evidence-upload lock, re-run after ESC submission
+- [x] Owner picks 3–5 Ready Check windows; price-seen gate if estimate exists
+- [x] Installer matching (approved, Full current EEC, postcode, free, capacity), top 3 / 4 business hours, rounds
+- [x] First tap = booked; contact release Ready Check only; fallback arrange-a-time
+- [x] Practice DB proof, then apply; report installer eligibility given unconfirmed certifications
