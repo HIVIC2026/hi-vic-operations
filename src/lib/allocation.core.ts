@@ -198,32 +198,36 @@ export function installerUnavailableOutcome(f: { reason: string | null | undefin
 export type NeedsCode =
   | "rec_coverage_exhausted" | "piesa_booking_overdue" | "delivery_failed" | "rectification_declined"
   | "rectification_pricing_review" | "installer_unavailable" | "installation_booking_overdue"
-  | "piesa_timing_invalid" | "esc_or_distribution_timing" | "compliance_correction" | "registry_query" | "office_overdue";
-export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null };
+  | "piesa_timing_invalid" | "esc_or_distribution_timing" | "compliance_correction" | "registry_query" | "office_overdue"
+  | "rec_no_longer_approved";
+export type NeedsUrgency = "urgent" | "today" | "soon";
+export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency: NeedsUrgency; stage: string | null; suburb: string | null };
 
-export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: string }> = {
-  rec_coverage_exhausted: { why: "No approved electrician accepted the PIESA, or none cover this area.", next: "Find an approved REC for this area (or approve one in Coverage), then offer the job from the Overview tab.", tab: "overview" },
-  piesa_booking_overdue: { why: "48 hours since contact details were shared and no PIESA time has been confirmed.", next: "Call the owner and electrician, confirm a time on the Overview tab, or release the electrician and re-offer.", tab: "overview" },
-  delivery_failed: { why: "A message needed to move this job forward failed to deliver.", next: "Check the address/number on the Communications tab and resend or contact the person directly.", tab: "communications" },
-  rectification_declined: { why: "The owner declined required electrical rectification, so installation cannot proceed.", next: "Talk to the owner about options; put the job on hold or cancel it with a reason.", tab: "quotes" },
-  rectification_pricing_review: { why: "Rectification items need office pricing or review before the quote can go to the owner.", next: "Price each item on the Quotes tab, mark the rectification quote reviewed, then send it.", tab: "quotes" },
-  installer_unavailable: { why: "The agreed installer cannot proceed.", next: "Agree a replacement with the owner and issue an updated quote for approval if terms change.", tab: "overview" },
-  installation_booking_overdue: { why: "48 hours since installation contact details were shared and no installation time has been confirmed.", next: "Call the owner and installer and confirm a time on the Overview tab.", tab: "overview" },
-  piesa_timing_invalid: { why: "Installation may not commence within 30 days of the PIESA timing date.", next: "Check the PIESA tab; bring installation forward or arrange a new PIESA.", tab: "piesa" },
-  esc_or_distribution_timing: { why: "Installation is close but the PIESA copy or ESC pre-install notice is not done in time.", next: "Send the PIESA copy / ESC notice from the Compliance tab, or move the installation date.", tab: "compliance" },
-  compliance_correction: { why: "A compliance record needs correcting before the job can continue.", next: "Open the Evidence tab and fix or request the missing/incorrect item.", tab: "evidence" },
-  registry_query: { why: "The ESC/VEEC Registry raised a query or rejected the lodgement.", next: "Answer the query or correct and resubmit on the VEEC tab.", tab: "veec" },
-  office_overdue: { why: "A task owned by Home Insulation Victoria is overdue.", next: "Open the job and complete the overdue office step.", tab: "overview" },
+export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: string; urgency: NeedsUrgency }> = {
+  rec_coverage_exhausted: { why: "No approved electrician coverage: nobody accepted the PIESA, or none cover this area.", next: "Find an approved REC for this area (or approve one in Coverage), then offer the job from the PIESA tab.", tab: "piesa", urgency: "today" },
+  piesa_booking_overdue: { why: "48 hours since contact details were shared and no PIESA time has been confirmed.", next: "Call the owner and electrician, confirm a time on the PIESA tab, or release the electrician and re-offer.", tab: "piesa", urgency: "today" },
+  delivery_failed: { why: "A message needed to move this job forward failed to deliver.", next: "Check the address/number on the Communications tab and resend or contact the person directly.", tab: "communications", urgency: "today" },
+  rectification_declined: { why: "The owner declined required electrical rectification, so installation cannot proceed.", next: "Talk to the owner about options; put the job on hold or cancel it with a reason.", tab: "quotes", urgency: "soon" },
+  rectification_pricing_review: { why: "Rectification pricing needs office review before the quote can go to the owner.", next: "Price each item on the Quotes tab, mark the rectification quote reviewed, then send it.", tab: "quotes", urgency: "today" },
+  installer_unavailable: { why: "The agreed installer declined or cannot proceed. No replacement is made automatically.", next: "Agree a replacement with the owner and issue an updated quote for approval if the company or terms change.", tab: "overview", urgency: "today" },
+  installation_booking_overdue: { why: "48 hours since installation contact details were shared and no installation time has been confirmed.", next: "Call the owner and installer and confirm a time on the Overview tab.", tab: "overview", urgency: "today" },
+  piesa_timing_invalid: { why: "Installation may not commence within 30 days of the PIESA timing date.", next: "Check the PIESA tab; bring installation forward or arrange a new PIESA.", tab: "piesa", urgency: "urgent" },
+  esc_or_distribution_timing: { why: "Installation is close but the PIESA copy or ESC pre-install notice is not done in time.", next: "Send the PIESA copy / ESC notice from the Compliance tab, or move the installation date.", tab: "compliance", urgency: "urgent" },
+  compliance_correction: { why: "A compliance record needs correcting before the job can continue.", next: "Open the Evidence tab and fix or request the missing/incorrect item.", tab: "evidence", urgency: "soon" },
+  registry_query: { why: "The ESC/VEEC Registry raised a query or rejected the lodgement.", next: "Answer the query or correct and resubmit on the VEEC tab.", tab: "veec", urgency: "soon" },
+  office_overdue: { why: "A task owned by Home Insulation Victoria is overdue.", next: "Open the job and complete the overdue office step.", tab: "overview", urgency: "soon" },
+  rec_no_longer_approved: { why: "The assigned electrician is no longer an approved, active REC, so the electrical work cannot continue with them.", next: "Release the electrician on the PIESA tab and re-offer the work to another approved REC (the owner keeps the approved quote).", tab: "piesa", urgency: "today" },
 };
 
-export function needsItem(code: NeedsCode, jobId: string | null, jobNumber: string | null, since: string | null, detail?: string): NeedsItem {
+export function needsItem(code: NeedsCode, jobId: string | null, jobNumber: string | null, since: string | null, detail?: string, job?: { stage?: string | null; suburb?: string | null }): NeedsItem {
   const t = NEEDS_TEXT[code];
-  return { key: `${code}:${jobId ?? "-"}`, code, jobId, jobNumber, why: detail ? `${t.why} ${detail}` : t.why, next: t.next, tab: t.tab, since };
+  return { key: `${code}:${jobId ?? "-"}`, code, jobId, jobNumber, why: detail ? `${t.why} ${detail}` : t.why, next: t.next, tab: t.tab, since, urgency: t.urgency, stage: job?.stage ?? null, suburb: job?.suburb ?? null };
 }
 
 export type NeedsInput = {
   now: Date;
-  jobs: { id: string; job_number: string | null }[];
+  jobs: { id: string; job_number: string | null; stage?: string | null; suburb?: string | null }[];
+  recNoLongerApproved?: { job_id: string; since: string | null }[];
   coverageExhausted: { job_id: string; created_at: string }[]; // latest exhaustion with no active electrician since
   releases: { job_id: string; visit_kind: VisitKind; released_at: string; confirmed_at: string | null }[];
   failedComms: { job_id: string; created_at: string }[];
@@ -239,14 +243,16 @@ export type NeedsInput = {
 
 /** ONE office exception queue: only what automation cannot safely resolve, never routine waiting. */
 export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
-  const jobs = new Map(i.jobs.map((j) => [j.id, j.job_number]));
+  const jobs = new Map(i.jobs.map((j) => [j.id, j]));
   const out = new Map<string, NeedsItem>();
   const add = (code: NeedsCode, jobId: string | null, since: string | null, detail?: string) => {
     if (jobId && !jobs.has(jobId)) return;
-    const it = needsItem(code, jobId, jobId ? jobs.get(jobId) ?? null : null, since, detail);
+    const j = jobId ? jobs.get(jobId) : undefined;
+    const it = needsItem(code, jobId, j?.job_number ?? null, since, detail, j);
     if (!out.has(it.key)) out.set(it.key, it);
   };
   for (const e of i.coverageExhausted) add("rec_coverage_exhausted", e.job_id, e.created_at);
+  for (const r of i.recNoLongerApproved ?? []) add("rec_no_longer_approved", r.job_id, r.since);
   for (const r of i.releases) {
     if (r.visit_kind === "ready_check") continue; // Ready Check keeps its existing follow-up flow
     const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: null, confirmedAt: r.confirmed_at }, i.now);
@@ -263,7 +269,8 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
   for (const e of i.evidenceRejected) add("compliance_correction", e.job_id, e.created_at);
   for (const r of i.registryQueries) add("registry_query", r.job_id, r.updated_at, `Status: ${r.status}.`);
   for (const o of i.officeOverdue) add("office_overdue", o.job_id, o.since, o.title);
-  return [...out.values()].sort((a, b) => (a.since ?? "").localeCompare(b.since ?? ""));
+  const rank: Record<NeedsUrgency, number> = { urgent: 0, today: 1, soon: 2 };
+  return [...out.values()].sort((a, b) => rank[a.urgency] - rank[b.urgency] || (a.since ?? "").localeCompare(b.since ?? ""));
 }
 
 /** Mirrors SQL visit_is_current(): a release is usable only while its visit is the job's current visit. */

@@ -88,8 +88,8 @@ export const getNeedsHivic = createServerFn({ method: "GET" }).middleware([requi
       if (r.error) throw new Error(`Could not load ${what}: ${r.error.message}`);
       return (r.data ?? []) as T;
     };
-    const [jobs, exh, elec, rel, comms, rq, rp, unav, timing, esc, ev, veec] = await Promise.all([
-      admin.from("jobs").select("id, job_number, source").not("stage", "in", "(complete,cancelled)"),
+    const [jobs, exh, elec, rel, comms, rq, rp, unav, timing, esc, ev, veec, unappr] = await Promise.all([
+      admin.from("jobs").select("id, job_number, source, stage, properties(suburb, postcode)").not("stage", "in", "(complete,cancelled)"),
       admin.from("workflow_events").select("job_id, created_at").eq("event_type", "rec_coverage_exhausted").order("created_at", { ascending: false }),
       admin.from("job_assignments").select("job_id").eq("role", "electrician").eq("active", true),
       admin.from("contact_releases").select("job_id, visit_kind, released_at, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null),
@@ -101,15 +101,23 @@ export const getNeedsHivic = createServerFn({ method: "GET" }).middleware([requi
       admin.from("esc_notifications").select("job_id, created_at, due_by, last_error").is("sent_at", null),
       admin.from("evidence_requirements").select("job_id, verified_at").eq("status", "rejected"),
       admin.from("veec_lodgements").select("job_id, status, updated_at").in("status", ["query", "rejected"]),
+      admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "rec_no_longer_approved"),
     ]);
     const jobRows = ok(jobs, "jobs").filter((j) => j.source !== "qa_test");
     const withElec = new Set(ok(elec, "assignments").map((a) => a.job_id));
     const seen = new Set<string>();
     const coverage = ok(exh, "allocation events").filter((e) => !withElec.has(e.job_id) && !seen.has(e.job_id) && seen.add(e.job_id));
+    // Still-relevant "no longer approved" events: the flagged business is still the active electrician.
+    const { data: activeElec } = await admin.from("job_assignments").select("job_id, business_id").eq("role", "electrician").eq("active", true);
+    const activeKey = new Set((activeElec ?? []).map((a) => `${a.job_id}:${a.business_id}`));
+    const recNoLongerApproved = ok(unappr, "electrician approval events")
+      .filter((e) => activeKey.has(`${e.job_id}:${(e.details as { business_id?: string } | null)?.business_id}`))
+      .map((e) => ({ job_id: e.job_id, since: e.created_at }));
     const now = new Date();
     const { buildNeedsHivic } = await import("./allocation.core");
     const items = buildNeedsHivic({
-      now, jobs: jobRows.map((j) => ({ id: j.id, job_number: j.job_number })),
+      recNoLongerApproved,
+      now, jobs: jobRows.map((j) => { const p = j.properties as { suburb: string | null; postcode: string | null } | null; return { id: j.id, job_number: j.job_number, stage: j.stage, suburb: p ? [p.suburb, p.postcode].filter(Boolean).join(" ") : null }; }),
       coverageExhausted: coverage,
       releases: ok(rel, "contact releases").filter((r) => (r.job_assignments as { active: boolean }).active).map((r) => ({ job_id: r.job_id, visit_kind: r.visit_kind as never, released_at: r.released_at, confirmed_at: (r.job_assignments as { booking_confirmed_at: string | null }).booking_confirmed_at })),
       failedComms: ok(comms, "communications"),

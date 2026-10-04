@@ -23,6 +23,11 @@ export const Route = createFileRoute("/api/public/hooks/post-intake")({
           const r = await processPostIntakeWork({ limit: 5 });
           const failed = r.results.filter((x) => x.status === "failed" || x.status === "retry").length;
           await recordWorkerRun({ recovered: r.recovered, claimed: r.claimed, failed }).catch(() => {});
+          // Same tick drives electrician offer expiry/refill/auto-start and 24h/48h coordination checks.
+          // Reminders only enter the outbox as not-released candidates; nothing is sent while sending is off.
+          const alloc = await import("@/lib/allocation.server");
+          await alloc.sweepRecOffers().catch((e) => console.error("rec offer sweep failed", (e as Error).message));
+          await alloc.sweepCoordination().catch((e) => console.error("coordination sweep failed", (e as Error).message));
           return Response.json({ ok: true, recovered: r.recovered, claimed: r.claimed, results: r.results.map((x) => ({ status: x.status })) });
         } catch (e) {
           console.error("post-intake worker failed", (e as Error).message);

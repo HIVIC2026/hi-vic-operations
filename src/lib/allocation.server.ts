@@ -107,9 +107,41 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
 export async function sweepRecOffers(actorId: string | null = null) {
   const nowIso = new Date().toISOString();
   const { data: expired } = await admin.from("partner_offers").update({ status: "expired" }).in("kind", ["piesa", "rectification"]).eq("status", "pending").lt("expires_at", nowIso).select("job_id, kind");
+  for (const o of expired ?? []) await logEvent(o.job_id, actorId, "partner_offer_expired", `An electrician ${o.kind} offer expired without a response`, { kind: o.kind }, { internal: true });
   const jobs = new Map((expired ?? []).map((o) => [`${o.job_id}:${o.kind}`, o]));
   for (const o of jobs.values()) await refillIfNeeded(o.job_id, o.kind as "piesa" | "rectification", actorId);
-  return { expired: expired?.length ?? 0 };
+  const started = await autoStartPiesaOffers(actorId);
+  await flagUnapprovedElectricians(actorId);
+  return { expired: expired?.length ?? 0, started };
+}
+
+/** Jobs that have genuinely reached PIESA (gate cleared) with no electrician and no offers yet get the first batch automatically.
+ *  startPiesaAllocation re-checks every upstream gate; any blocker means the job is skipped, never forced. */
+async function autoStartPiesaOffers(actorId: string | null) {
+  const { data: waiting } = await admin.from("jobs").select("id").eq("stage", "piesa_and_install_window_pending").neq("source", "qa_test");
+  let started = 0;
+  for (const j of waiting ?? []) {
+    const { count: any } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", j.id).eq("kind", "piesa");
+    if (any) continue; // already allocated once; refill/exhaustion handles the rest
+    try { await startPiesaAllocation(j.id, actorId); started++; } catch { /* gate not cleared: stay put */ }
+  }
+  return started;
+}
+
+/** Assigned electrician who is no longer an approved/eligible REC -> one Needs Home Insulation Victoria event (no silent stall, no auto-swap). */
+async function flagUnapprovedElectricians(actorId: string | null) {
+  const stages = ["piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete", "electrical_variation_pending", "rectification_required", "awaiting_owner_rectification_approval", "rectification_scheduling", "rectification_booked"];
+  const { data: asg } = await admin.from("job_assignments").select("job_id, business_id, jobs!inner(stage, source)").eq("role", "electrician").eq("active", true).not("business_id", "is", null).in("jobs.stage", stages as never);
+  for (const a of asg ?? []) {
+    if ((a.jobs as { source: string | null }).source === "qa_test") continue;
+    const { candidates } = await recCandidatesFor(a.job_id);
+    const c = candidates.find((x) => x.business_id === a.business_id);
+    // Capacity is irrelevant once assigned; only approval, credentials, workers and coverage matter here.
+    const blocker = c ? recEligibilityBlocker({ ...c, accepting_new_jobs: true }) : "Business is no longer an approved REC.";
+    if (!blocker) continue;
+    const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", a.job_id).eq("event_type", "rec_no_longer_approved").contains("details", { business_id: a.business_id });
+    if (!count) await logEvent(a.job_id, actorId, "rec_no_longer_approved", "Assigned electrician is no longer an approved REC — needs Home Insulation Victoria", { business_id: a.business_id, blocker }, { internal: true });
+  }
 }
 
 async function refillIfNeeded(jobId: string, kind: "piesa" | "rectification", actorId: string | null) {
@@ -215,6 +247,15 @@ export async function sweepCoordination(actorId: string | null = null) {
     const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: prop?.created_at ?? null, confirmedAt: a.booking_confirmed_at, reminderSentAt: rem?.created_at ?? null });
     if (s.state === "remind") {
       await logEvent(r.job_id, actorId, "coordination_reminder", `24h reminder: no ${r.visit_kind} time proposed yet (prepared; delivery follows the sending switches)`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
+      // Queue through the existing launch-control outbox: lands as EXECUTION_NOT_RELEASED and is only delivered once sending is released.
+      const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", r.job_id).eq("event_type", "coordination_reminder").contains("details", { assignment_id: r.assignment_id, visit_kind: r.visit_kind }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (ev) {
+        const { error } = await admin.rpc("enqueue_external_action", {
+          _job: r.job_id, _event: ev.id, _action: "coordination_reminder", _target: `job_assignment:${r.assignment_id}`, _basis: "transactional_job_coordination",
+          _version: "coordination-reminder-v1", _payload: `contact_release:${r.visit_kind}`, _facts: `${r.assignment_id}-${r.visit_kind}`, _key: `coord-reminder-${r.assignment_id}-${r.visit_kind}`,
+        });
+        if (error) console.error("reminder outbox enqueue skipped", error.message); // e.g. TEST job suppression
+      }
       reminders++;
     }
   }

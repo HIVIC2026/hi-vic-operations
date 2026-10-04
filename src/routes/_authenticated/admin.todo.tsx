@@ -40,19 +40,27 @@ function NeedsQueue({ overdue }: { overdue: TodoItem[] }) {
   const q = useQuery({ queryKey: ["needs-hivic"], queryFn: () => load(), refetchInterval: 60_000, retry: 3 });
   if (q.error) return <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-4 text-sm text-destructive"><p className="font-semibold">The exception queue could not be checked — do not assume nothing is waiting.</p><p>{(q.error as Error).message}</p></div>;
   if (q.isPending) return <p className="text-sm text-muted-foreground">Checking for exceptions…</p>;
-  const rows = [
+  type Row = { key: string; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency?: string; stage?: string | null; suburb?: string | null };
+  const rows: Row[] = [
     ...q.data.items,
-    ...overdue.map((t) => ({ key: `overdue:${t.key}`, jobId: t.jobId, jobNumber: t.jobNumber, why: `Overdue office task: ${t.title}.`, next: t.action, tab: t.tab ?? "overview", since: t.since })),
+    ...overdue.map((t) => ({ key: `overdue:${t.key}`, jobId: t.jobId, jobNumber: t.jobNumber, why: `Overdue office task: ${t.title}.`, next: t.action, tab: t.tab ?? "overview", since: t.since, urgency: "soon" })),
   ];
+  const urgencyLabel: Record<string, string> = { urgent: "Urgent", today: "Act today", soon: "This week" };
   if (!rows.length) return <div className="flex items-center gap-3 rounded-xl border bg-card p-6"><CheckCircle2 className="h-6 w-6 text-primary" /><p className="font-semibold">No exceptions. Routine waiting is handled automatically.</p></div>;
   return (
     <ul className="space-y-3">
       {rows.map((r) => (
         <li key={r.key} className="rounded-xl border border-destructive/40 bg-card p-4 text-sm">
-          <div className="flex items-center gap-2 text-xs font-semibold"><AlertTriangle className="h-4 w-4 text-destructive" />{r.jobNumber ?? "Office"}</div>
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+            <AlertTriangle className="h-4 w-4 text-destructive" />{r.jobNumber ?? "Office"}
+            {r.suburb && <span className="text-muted-foreground">· {r.suburb}</span>}
+            {r.stage && <span className="text-muted-foreground">· {r.stage.replace(/_/g, " ")}</span>}
+            {r.urgency && <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-destructive">{urgencyLabel[r.urgency] ?? r.urgency}</span>}
+            {r.since && <span className="text-muted-foreground">since {new Date(r.since).toLocaleString()}</span>}
+          </div>
           <p className="mt-1"><span className="font-semibold">Why: </span>{r.why}</p>
           <p className="mt-1"><span className="font-semibold">Do next: </span>{r.next}</p>
-          {r.jobId && <Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="mt-2 inline-block text-xs font-semibold underline">Open job</Link>}
+          {r.jobId && <Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="mt-2 inline-block text-xs font-semibold underline">Open job → {r.tab.charAt(0).toUpperCase() + r.tab.slice(1)} tab</Link>}
         </li>
       ))}
     </ul>
