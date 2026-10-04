@@ -39,3 +39,7 @@
 - [ ] No rectification reassignment when REC loses approval.
 - [ ] VEEC query/rejected statuses missing.
 - [ ] PIESA path not fully browser-tested (payment_option_gate_enabled OFF).
+
+## Electrician rate card UI cleanup (4 Oct, preview only)
+- [x] Discarded draft rows hide the spread and read "Discarded draft - not used for offers."; row visually inactive.
+- [x] Focused rate-card tests, wording scan, typecheck, build; no publish, switches unchanged.
