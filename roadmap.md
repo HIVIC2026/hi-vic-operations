@@ -99,3 +99,4 @@
 - [x] B2 installer-supplied jobs can't use HIV quote builder; B3 PIESA $349 + AP fee $349 separate lines on HIV quotes; lead fee note = none
 - [x] C office-only profit card (AP fee, VEEC spread with current VEEC price $83, PIESA markup, installer markup, totals)
 - [x] D office-editable owner prices with history + Margins view (Prices & margins page)
+- [ ] Bulk installer import Part 1 — Jo's 9 answers received (saved to memory); WAITING for user's "go"
