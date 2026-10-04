@@ -92,3 +92,9 @@
 - [x] Audit fixes: weekly capacity removed, auto-progression cut from Xero, estimate wording, property manager tab hidden, out-of-date tests updated (5 Oct)
 - [x] Solar API key stored (GOOGLE_SOLAR_API_KEY); not used by any feature yet
 - [ ] Jo to decide: aerial in price range; Ready Check for installer-supplied jobs with measure-up; how 349 waiting jobs pick times at launch
+
+## Onboarding fixes, pricing fixes, profit card (4 Oct night, preview only)
+- [x] A1 hide Weekly installations; A2 accepting new work Yes/No; A3 CII level + expiry per worker (Provisional = no work); A4 no draft until first save; A5 brand fonts
+- [x] B1 HIV quotes: owner $30/m² R5, removal $15/m², access extras at owner prices; markup = owner price − installer agreed rate (inc GST); 12% retired for new quotes
+- [x] B2 installer-supplied jobs can't use HIV quote builder; B3 PIESA $349 + AP fee $349 separate lines on HIV quotes; lead fee note = none
+- [x] C office-only profit card (AP fee, VEEC spread with current VEEC price $83, PIESA markup, installer markup, totals)

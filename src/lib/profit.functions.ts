@@ -115,3 +115,91 @@ export const fetchOnlineSpotPrice = createServerFn({ method: "POST" }).middlewar
   if (error) throw new Error(`Spot price could not be saved: ${error.message}`);
   return { ok: true, price, pricedOn, alreadyRecorded: false };
 });
+
+// ---- Per-job profit card (office only). Jo's rules 4 Oct 2026; pure maths in job-profit.core.ts. ----
+export const getJobProfit = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const { data: job, error } = await admin.from("jobs").select("channel, installer_led, estimated_area_m2, ap_fee_override_inc_gst, properties(postcode)").eq("id", data.jobId).single();
+    if (error || !job) throw new Error("Job not found.");
+    const [m, asg, rs, ps, ws, quote, lodg] = await Promise.all([
+      admin.from("ceiling_measurements").select("measured_area_m2, removal_required, removal_m2, access_difficulty, status").eq("job_id", data.jobId).eq("is_current", true).maybeSingle(),
+      admin.from("job_assignments").select("business_id, role").eq("job_id", data.jobId).eq("active", true),
+      admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst").eq("is_current", true).maybeSingle(),
+      admin.from("pricing_settings").select("access_loadings, gst_rate").eq("is_active", true).maybeSingle(),
+      db.from("workflow_settings").select("current_veec_price").limit(1).maybeSingle(),
+      admin.from("quotes").select("id, quote_internals(ap_margin_ex_gst, calc_snapshot)").eq("job_id", data.jobId).eq("kind", "installation").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      db.from("veec_lodgements").select("quantity, sale_price_per_veec").eq("job_id", data.jobId).maybeSingle(),
+    ]);
+    if (!rs.data || !ps.data) throw new Error("Price settings missing.");
+    const gst = 1 + Number(ps.data.gst_rate);
+    const inst = (asg.data ?? []).find((a) => a.role === "installer")?.business_id ?? null;
+    const elec = (asg.data ?? []).find((a) => a.role === "electrician")?.business_id ?? null;
+    let r5: number | null = null, rem: number | null = null;
+    if (inst) {
+      const { data: card } = await admin.from("rate_cards").select("rate_card_items(code, unit_price_ex_gst)").eq("kind", "installer").eq("is_active", true).eq("business_id", inst).order("version", { ascending: false }).limit(1).maybeSingle();
+      const items = (card?.rate_card_items ?? []) as { code: string; unit_price_ex_gst: number }[];
+      const f = (...c: string[]) => { for (const x of c) { const it = items.find((i) => i.code === x); if (it) return Math.round(Number(it.unit_price_ex_gst) * gst * 100) / 100; } return null; };
+      r5 = f("R5_BATTS"); rem = f("BATTS_REMOVAL", "REMOVAL", "LOOSE_FILL_REMOVAL");
+    }
+    let piesaRate: number | null = null;
+    if (elec) {
+      const { data: er } = await db.from("electrician_rates").select("rate_inc_gst, status").eq("business_id", elec).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }).limit(1).maybeSingle();
+      piesaRate = er ? Number(er.rate_inc_gst) : null;
+    }
+    const meas = m.data && m.data.status === "complete" && Number(m.data.measured_area_m2) > 0 ? m.data : null;
+    const qi = (quote.data?.quote_internals as unknown as { ap_margin_ex_gst: number | null; calc_snapshot: Record<string, unknown> | null }[] | null)?.[0] ?? null;
+    const snap = qi?.calc_snapshot as { pricing_rule?: string; installer_markup?: { markupInc: number } } | null;
+    const acceptedMarkup = qi ? (snap?.pricing_rule ? Number(snap.installer_markup?.markupInc ?? 0) : Math.round(Number(qi.ap_margin_ex_gst ?? 0) * gst * 100) / 100) : null;
+    const { jobProfitBreakdown } = await import("./job-profit.core");
+    const hivJob = job.channel !== "installer_sourced" && !job.installer_led;
+    return {
+      hivJob,
+      ...jobProfitBreakdown({
+        hivJob, postcode: (job.properties as { postcode: string | null } | null)?.postcode ?? null,
+        estimateAreaM2: job.estimated_area_m2 != null ? Number(job.estimated_area_m2) : null,
+        measuredAreaM2: meas ? Number(meas.measured_area_m2) : null,
+        removalM2: meas?.removal_required ? Number(meas.removal_m2 ?? 0) : 0,
+        accessMultiplier: Number((ps.data.access_loadings as Record<string, number>)[meas?.access_difficulty ?? "easy"] ?? 1),
+        ownerR5IncPerM2: Number(rs.data.r5_install_inc_gst_per_m2), ownerRemovalIncPerM2: Number(rs.data.removal_inc_gst_per_m2),
+        installerR5IncPerM2: r5, installerRemovalIncPerM2: rem,
+        apFeeInc: job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : Number(rs.data.ap_management_inc_gst),
+        piesaCustomerInc: Number(rs.data.piesa_assessment_inc_gst), electricianPiesaRateInc: piesaRate,
+        currentVeecPrice: Number(ws.data?.current_veec_price ?? 83),
+        acceptedQuoteMarkupInc: hivJob ? acceptedMarkup : null, acceptedQuoteLegacy: !!qi && !snap?.pricing_rule,
+        lodgedVeecs: lodg.data?.quantity != null ? Number(lodg.data.quantity) : null,
+        saleVeecPrice: lodg.data?.sale_price_per_veec != null ? Number(lodg.data.sale_price_per_veec) : null,
+      }),
+    };
+  });
+
+export const setCurrentVeecPrice = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ price: z.number().positive().max(999) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const { data: row } = await db.from("workflow_settings").select("id, current_veec_price").limit(1).maybeSingle();
+    if (!row) throw new Error("Settings not found.");
+    const { error } = await db.from("workflow_settings").update({ current_veec_price: data.price }).eq("id", row.id);
+    if (error) throw new Error(error.message);
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "current_veec_price_changed", summary: `Current VEEC price changed to $${data.price}`, details: { from: row.current_veec_price, to: data.price } });
+    return { ok: true };
+  });
+
+export const setVeecSalePrice = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), price: z.number().positive().max(999) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const { data: row, error } = await db.from("veec_lodgements").update({ sale_price_per_veec: data.price }).eq("job_id", data.jobId).select("id").maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) throw new Error("No VEEC lodgement on this job yet.");
+    const { logEvent } = await import("./workflow.server");
+    await logEvent(data.jobId, context.userId, "veec_sale_price_recorded", `VEEC sale price recorded: $${data.price}`, { price: data.price }, { internal: true });
+    return { ok: true };
+  });

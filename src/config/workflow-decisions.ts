@@ -51,7 +51,8 @@ export const WORKFLOW_DECISIONS = {
   routes: {
     hiv_lead: {
       paymentRule: "hiv_confirmed_quote_rule",
-      leadFee: "only_if_in_current_signed_installer_agreement",
+      leadFee: "none",
+      ownerPrice: "fixed_owner_prices_markup_is_owner_price_minus_installer_agreed_rate_inc_gst",
     },
     installer_supplied: {
       paymentRule: "not_assumed",

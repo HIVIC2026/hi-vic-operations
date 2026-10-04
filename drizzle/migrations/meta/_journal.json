@@ -708,6 +708,13 @@
       "when": 1791125566815,
       "tag": "0100_daily_briefs",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1791155734102,
+      "tag": "0101_profit_card",
+      "breakpoints": true
     }
   ]
 }

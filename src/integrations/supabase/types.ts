@@ -9351,6 +9351,7 @@ export type Database = {
           reply_draft: string | null
           reply_sent_at: string | null
           reply_sent_by: string | null
+          sale_price_per_veec: number | null
           status: string
           submission_reference: string | null
           submitted_date: string | null
@@ -9366,6 +9367,7 @@ export type Database = {
           reply_draft?: string | null
           reply_sent_at?: string | null
           reply_sent_by?: string | null
+          sale_price_per_veec?: number | null
           status?: string
           submission_reference?: string | null
           submitted_date?: string | null
@@ -9381,6 +9383,7 @@ export type Database = {
           reply_draft?: string | null
           reply_sent_at?: string | null
           reply_sent_by?: string | null
+          sale_price_per_veec?: number | null
           status?: string
           submission_reference?: string | null
           submitted_date?: string | null
@@ -9816,6 +9819,7 @@ export type Database = {
           auto_send_mitti: boolean
           auto_send_quote: boolean
           auto_send_rec: boolean
+          current_veec_price: number
           customer_comms_enabled: boolean
           due_owner_flag_days: number
           due_owner_reminder_days: number
@@ -9850,6 +9854,7 @@ export type Database = {
           auto_send_mitti?: boolean
           auto_send_quote?: boolean
           auto_send_rec?: boolean
+          current_veec_price?: number
           customer_comms_enabled?: boolean
           due_owner_flag_days?: number
           due_owner_reminder_days?: number
@@ -9884,6 +9889,7 @@ export type Database = {
           auto_send_mitti?: boolean
           auto_send_quote?: boolean
           auto_send_rec?: boolean
+          current_veec_price?: number
           customer_comms_enabled?: boolean
           due_owner_flag_days?: number
           due_owner_reminder_days?: number

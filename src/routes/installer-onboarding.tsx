@@ -43,7 +43,7 @@ export const Route = createFileRoute("/installer-onboarding")({
 
 const input: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #D7DCE8", fontSize: 15, fontFamily: "inherit", color: NAVY, background: "#fff", boxSizing: "border-box", minHeight: 48 };
 const card: React.CSSProperties = { background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E9ECF3", boxShadow: "0 6px 20px -18px rgba(34,55,107,.32)" };
-const DISPLAY = "'Outfit', 'Figtree', system-ui, sans-serif";
+const DISPLAY = "'Space Grotesk', system-ui, sans-serif";
 const note: React.CSSProperties = { color: MUTED, fontSize: 13, lineHeight: 1.5, margin: "0 0 14px" };
 const okLine: React.CSSProperties = { color: GREEN, fontWeight: 700, fontSize: 13, margin: "0 0 14px" };
 const warn: React.CSSProperties = { background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 10, padding: "9px 12px", fontSize: 13.5, color: "#7A5A00", marginBottom: 12 };
@@ -147,8 +147,9 @@ function InstallerOnboarding() {
   const [testMode, setTestMode] = useState(false);
   const [isTest, setIsTest] = useState(false);
   const [staffLink] = useState(() => takeStaffLink());
-  const startWith = async () => {
-    const r = await startInstallerOnboarding({ data: { token: newResumeToken(), ...(staffLink ? { staff_link: staffLink } : {}) } });
+  const unsaved = useRef(false);
+  const startWith = async (t: string) => {
+    const r = await startInstallerOnboarding({ data: { token: t, ...(staffLink ? { staff_link: staffLink } : {}) } });
     setIsTest(r.test_mode); setTestMode(r.relaxed);
     return r;
   };
@@ -199,17 +200,19 @@ function InstallerOnboarding() {
     }
     if (token) { setStarted(true); setError(null); return; }
     if (sampleMode) { setD(SAMPLE_INSTALLER_DATA); setToken("sample-preview-token"); setStep("about"); setStarted(true); setError(null); return; }
-    setBusy(true); setError(null);
-    try {
-      const { token: t } = await startWith();
-      const fresh = await loadInstallerOnboarding({ data: { token: t } });
-      revision.current = fresh.updated_at; setD(fresh.data as InstData);
-      localStorage.setItem(TOKEN_KEY, t); setToken(t); setStarted(true);
-    } catch (e) { setError(e instanceof Error ? e.message : "Could not start."); } finally { setBusy(false); }
+    // Nothing is saved (or counted against start limits) until the first page is saved.
+    unsaved.current = true; revision.current = null;
+    setToken(newResumeToken()); setStarted(true); setError(null);
   }
   async function persist(nextStep: StepKey, data: InstData = d) {
     if (sampleMode || !token) return;
     const { insurance_uploaded: _u, ...body } = data;
+    if (unsaved.current) {
+      await startWith(token);
+      const fresh = await loadInstallerOnboarding({ data: { token } });
+      revision.current = fresh.updated_at; unsaved.current = false;
+      localStorage.setItem(TOKEN_KEY, token);
+    }
     if (!revision.current) throw new Error("Reload the page to continue your application.");
     const r = await saveInstallerOnboarding({ data: { token, step_key: nextStep, data: body as never, base_updated_at: revision.current } });
     revision.current = r.updated_at;
@@ -242,7 +245,7 @@ function InstallerOnboarding() {
   }
 
   const shell = (children: React.ReactNode, footer?: React.ReactNode) => (
-    <div style={{ minHeight: "100vh", background: "#fff", fontFamily: "'Figtree', system-ui, sans-serif", color: NAVY, overflowX: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: "#fff", fontFamily: "'DM Sans', system-ui, sans-serif", color: NAVY, overflowX: "hidden" }}>
       <style>{`h1,h2,h3{font-family:${DISPLAY}}`}</style>
       <header style={{ position: "sticky", top: 0, zIndex: 10, background: "rgba(255,255,255,.96)", borderBottom: "1px solid #EEF0F5" }}>
         <div style={{ maxWidth: 672, margin: "0 auto", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -373,6 +376,9 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
               <Field label="Certificate or ID number" required htmlFor={`installer-${i}-cii-number`} error={errFor(`installer-${i}-cii-number`)}><input id={`installer-${i}-cii-number`} style={input} value={x.cii_certificate_number ?? ""} onChange={(e) => set(i, { cii_certificate_number: e.target.value })} /></Field>
               <Field label="Issued by" required htmlFor={`installer-${i}-cii-issuer`} error={errFor(`installer-${i}-cii-issuer`)}><input id={`installer-${i}-cii-issuer`} style={input} value={x.cii_issuer ?? ""} onChange={(e) => set(i, { cii_issuer: e.target.value })} /></Field>
               <Field label="Issue date" required htmlFor={`installer-${i}-cii-date`} error={errFor(`installer-${i}-cii-date`)}><input id={`installer-${i}-cii-date`} type="date" style={{ ...input, maxWidth: 220 }} value={x.cii_issue_date ?? ""} onChange={(e) => set(i, { cii_issue_date: e.target.value })} /></Field>
+              <Field label="Certification level" required error={errFor(`installer-${i}-cii-level`)}><Choice options={[{ v: "full", l: "Full" }, { v: "provisional", l: "Provisional" }]} value={x.cii_level ?? null} onChange={(v) => set(i, { cii_level: v as "full" | "provisional" })} /></Field>
+              {x.cii_level === "provisional" && <p style={warn}>Provisional: this person can't receive work until they hold a Full certification.</p>}
+              <Field label="Expiry date" required htmlFor={`installer-${i}-cii-expiry`} error={errFor(`installer-${i}-cii-expiry`)}><input id={`installer-${i}-cii-expiry`} type="date" style={{ ...input, maxWidth: 220 }} value={x.cii_expiry ?? ""} onChange={(e) => set(i, { cii_expiry: e.target.value })} /></Field>
             </>}
             {(x.cii_holds === "in_training" || x.cii_holds === "not_held") && <p style={warn}>You can still register. This person can't be assigned to jobs until they hold a CII certification and our office has verified it.</p>}
             <Field label="Other relevant training (optional)"><input style={input} value={x.qualification ?? ""} onChange={(e) => set(i, { qualification: e.target.value })} /></Field>
@@ -442,8 +448,8 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{DAYS.map((x) => { const on = days.includes(x); return <button key={x} type="button" aria-pressed={on} onClick={() => up({ typical_days: on ? days.filter((y) => y !== x) : DAYS.filter((y) => days.includes(y) || y === x) })} style={{ minWidth: 56, minHeight: 44, borderRadius: 12, border: `1px solid ${on ? BLUE : "#D7DCE8"}`, background: on ? BLUE : "#fff", color: on ? "#fff" : NAVY, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{x}</button>; })}</div>
         </Field>
         <Field label="Usual lead time" required><Choice options={LEAD_TIMES.map((l) => ({ v: l as string, l }))} value={d.normal_attendance_speed} onChange={(v) => up({ normal_attendance_speed: v })} /></Field>
-        <Field label="Weekly installations" required><Choice options={CAPACITY_BANDS.map((b) => ({ v: b.v as string, l: b.v }))} value={d.capacity_band} onChange={(v) => up({ capacity_band: v })} /></Field>
-        <Check checked={d.accepting_jobs === true} onChange={(v) => up({ accepting_jobs: v })}>Accepting new work now (you can change this later)</Check>
+        <Field label="Are you accepting new work now?" required error={errFor("accepting_jobs")}><Choice options={[{ v: "yes", l: "Yes" }, { v: "no", l: "No, not right now" }]} value={d.accepting_jobs === true ? "yes" : d.accepting_jobs === false ? "no" : null} onChange={(v) => up({ accepting_jobs: v === "yes" })} /></Field>
+        <p style={{ margin: 0, fontSize: 13, color: "#5B6478" }}>You can change this later.</p>
       </>;
     }
     case "install_pricing": {
