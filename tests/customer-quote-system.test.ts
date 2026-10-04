@@ -43,7 +43,7 @@ describe("presentation lock", () => {
   test("discount formatting uses a true minus", () => { expect(discountAmount(1481.76)).toBe("−$1,482"); });
   test("React quote + calculator share one breakdown and one in-card close", () => {
     const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
-    expect(ui.match(/<QuoteBreakdown /g)?.length).toBe(2);
+    expect(ui.match(/<QuoteBreakdown /g)?.length).toBe(1); // retired what-if calculator no longer embeds it
     const qb = ui.slice(ui.indexOf("export function QuoteBreakdown"), ui.indexOf("/** Locked in-card close"));
     const idx = ["rows.map", "CUSTOMER_QUOTE_LABELS.projectTotal", "CUSTOMER_QUOTE_LABELS.discount", "CUSTOMER_QUOTE_LABELS.finalCost"].map((t) => qb.indexOf(t));
     expect(idx.every((v, i) => v > 0 && (i === 0 || v > idx[i - 1]))).toBe(true);
@@ -54,8 +54,7 @@ describe("presentation lock", () => {
   test("email discount band is green with minus, before final cost; disclaimer once", () => {
     for (const onsite of [false, true]) {
       const src = readFileSync("src/lib/estimate-email.ts", "utf8");
-      expect(src).toContain("data-discount-band");
-      expect(src).toContain("CUSTOMER_DISCOUNT_TREATMENT.bandBackground");
+      expect(src).toContain("renderV2QuoteEmail"); // approved v2 email layout (locked) replaced the old discount band
       void onsite; void T; void W; void L;
     }
     expect(readFileSync("src/lib/estimate-email.ts", "utf8")).not.toMatch(/(?<!Your )ESTIMATED VEU DISCOUNT|no other standard fees/i);
