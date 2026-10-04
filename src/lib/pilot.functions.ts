@@ -612,6 +612,7 @@ export const partnerDashboard = createServerFn({ method: "GET" }).middleware([re
     ]);
     // Owner name / exact address only while this business holds a current, unrevoked visit release (same rule as SQL visit_is_current).
     const { data: rels } = await admin.from("contact_releases").select("job_id, visit_kind, job_assignments!inner(business_id, active)").is("revoked_at", null).in("job_id", jobIds.length ? jobIds : none).eq("job_assignments.business_id", bizId);
+    const { data: props } = await admin.from("appointment_proposals").select("job_id").eq("status", "proposed").in("job_id", jobIds.length ? jobIds : none);
     const { visitIsCurrent } = await import("./allocation.core");
     const canSeeContact = (jobId: string, stage: string, channel: string | null) => channel === "installer_sourced" ||
       (rels ?? []).some((r) => r.job_id === jobId && (r.job_assignments as { active: boolean }).active && visitIsCurrent(r.visit_kind, stage));
@@ -629,7 +630,7 @@ export const partnerDashboard = createServerFn({ method: "GET" }).middleware([re
           ? { owner: (j.owners as { full_name: string } | null)?.full_name ?? null, property: j.properties }
           : { owner: null, property: { address_line: null, suburb: (j.properties as { suburb: string | null } | null)?.suburb ?? null, postcode: (j.properties as { postcode: string | null } | null)?.postcode ?? null } }),
         electrician: e ? (e.profiles as { full_name: string | null } | null)?.full_name ?? "Assigned" : null, sla: e ? appointmentSla(e) : null,
-        bookings: (bookings ?? []).filter((b) => b.job_id === j.id), deposit_cleared: deposit?.deposit_cleared ?? null, blockers: blockers.slice(0, 3),
+        bookings: (bookings ?? []).filter((b) => b.job_id === j.id), proposal_pending: (props ?? []).some((x) => x.job_id === j.id), deposit_cleared: deposit?.deposit_cleared ?? null, blockers: blockers.slice(0, 3),
       };
     }));
     const { xero_contact_id: _x, xero_contact_error: _e, ...safeBiz } = business ?? ({} as never);
