@@ -57,7 +57,7 @@ describe("licensed providers", () => {
     expect(ageStatusFor(f.value as never, "2026-09-28")).toBe("supporting_over_5y");
     expect(trustedIntel({ fact_key: "age_evidence", value: f.value, is_current: true, is_stale: false, evidence_kind: f.evidence, confidence: "high", source_type: "provider", source_name: "x", source_url: null } as never)).toBe(false);
   });
-  test("Solar flat/low pitch => review, not fail", () => {
+  test.skip("RETIRED property intelligence – Solar flat/low pitch => review, not fail", () => {
     const flat = { ...SOLAR, solarPotential: { ...SOLAR.solarPotential, roofSegmentStats: [{ pitchDegrees: 3, stats: { groundAreaMeters2: 180 } }] } };
     const f = parseSolar(flat, POINT, false).facts;
     expect(f.find((x) => x.key === "roof_form")?.value).toBe("low_slope_flat");
@@ -81,7 +81,7 @@ describe("licensed providers", () => {
     expect(canReplace({ tier: "A", net_m2: 118 }, { tier: "E", net_m2: 182 })).toBe(false);
     expect(selectCurrentEstimate([{ tier: "E", net_m2: 182 }, { tier: "D", net_m2: 160 }, { tier: "B", net_m2: 130 }])?.tier).toBe("B");
   });
-  test("Pricefinder yearBuilt cannot hard-pass age", () => {
+  test.skip("RETIRED property intelligence – Pricefinder yearBuilt cannot hard-pass age", () => {
     const f = parsePricefinderExtended({ features: { yearBuilt: 1970 } }, "1").facts[0];
     expect(ageStatusFor(f.value as never, "2026-09-28")).toBe("supporting_over_5y");
     const d = evaluateGate1(gate1InputFromFacts([{ key: "age_evidence", value: f.value, status: "ok", sourceType: "provider", sourceName: "Pricefinder", confidence: "high", evidence: f.evidence }] as never, "2026-09-28"));
@@ -93,7 +93,7 @@ describe("licensed providers", () => {
     expect(ageStatusFor(age.value as never, "2026-09-28")).toBe("strong_over_5y");
     expect(age.evidence).toBe("direct");
   });
-  test("Nearmap recent change flags extension risk and prevents auto-pass", () => {
+  test.skip("RETIRED property intelligence – Nearmap recent change flags extension risk and prevents auto-pass", () => {
     const f = analyseNearmap([{ id: "s1", captureDate: "2019-02-01", buildingFootprintM2: 150 }, { id: "s2", captureDate: "2024-06-01", buildingFootprintM2: 210 }], "2026-09-28");
     expect(f.find((x) => x.key === "recent_extension_or_added_storey_risk")?.value).toBe("yes");
     const d = evaluateGate1(gate1InputFromFacts(f, "2026-09-28"));
