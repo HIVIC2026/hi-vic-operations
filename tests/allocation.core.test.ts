@@ -114,3 +114,30 @@ describe("Needs queue rows (finish pass)", () => {
     expect(items[0].why).toMatch(/^No approved electrician coverage/);
   });
 });
+
+describe("Finish pass: deep links, status wording, planning notice", () => {
+  test("every Needs tab maps to a real job section; unknown section ignored", async () => {
+    const { NEEDS_TAB_SECTION, NEEDS_TEXT, parseJobSection } = await import("../src/lib/allocation.core");
+    for (const t of Object.values(NEEDS_TEXT)) expect(parseJobSection(NEEDS_TAB_SECTION[t.tab])).toBeDefined();
+    expect(parseJobSection("evil")).toBeUndefined();
+    expect(parseJobSection(undefined)).toBeUndefined();
+  });
+  test("trade status wording follows the source of truth", async () => {
+    const { electricalStatusLabel: l } = await import("../src/lib/allocation.core");
+    expect(l({ offerPending: true, stage: "piesa_and_install_window_pending" })).toBe("Offered");
+    expect(l({ stage: "piesa_and_install_window_pending" })).toBe("Accepted · Arrange visit");
+    expect(l({ stage: "piesa_and_install_window_pending", proposalPending: true })).toBe("Awaiting confirmation");
+    expect(l({ stage: "piesa_scheduled" })).toBe("Booked");
+    expect(l({ stage: "piesa_complete" })).toBe("PIESA complete");
+    expect(l({ stage: "rectification_required" })).toBe("Rectification required");
+    expect(l({ stage: "installation_scheduling" })).toBe("Electrically cleared");
+  });
+  test("planning notice is queued only after a confirmed PIESA booking, through the outbox, never as a stage change", () => {
+    const src = readFileSync("src/lib/booking.server.ts", "utf8");
+    const i = src.indexOf("queueInstallerPlanningNotice(");
+    expect(i).toBeGreaterThan(src.indexOf('status: "confirmed"'));
+    const fn = readFileSync("src/lib/allocation.server.ts", "utf8").split("export async function queueInstallerPlanningNotice")[1]!.split("\nasync function")[0]!;
+    expect(fn).toContain("enqueue_external_action");
+    expect(fn).not.toMatch(/transition\(|stage:/);
+  });
+});
