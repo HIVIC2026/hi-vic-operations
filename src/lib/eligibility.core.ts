@@ -139,7 +139,7 @@ export function evaluateGate1(f: Gate1Facts): Gate1Decision {
 
   // Previous Activity 48 — the homeowner previous-upgrade question is retired; only confirmed Activity 48 evidence can fail.
   const PL = "Previous Activity 48";
-  if (f.previousActivity48Confirmed === true) rule("previous_activity", PL, "fail", "Previous Activity 48 at the premises confirmed", { fact: "previous Activity 48 confirmed", source: "properties.enrichment.previous_activity_48_confirmed", basis: "verified" });
+  if (f.previousActivity48Confirmed === true) rule("previous_activity", PL, "fail", "Previous Activity 48 for the same ceiling area confirmed", { fact: "previous Activity 48 confirmed", source: "properties.enrichment.previous_activity_48_confirmed", basis: "verified" });
   else rule("previous_activity", PL, "pass", "No confirmed previous Activity 48 for the same ceiling area", ev("previous_activity", { fact: "none confirmed", source: "properties.enrichment", basis: "recorded" }));
 
   // Existing insulation above the relevant ceiling
