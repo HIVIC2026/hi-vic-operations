@@ -47,6 +47,7 @@ import { getJobCoverage, sendNoCoverageEmail } from "@/lib/coverage.functions";
 import { InstallerLedInvoicePanel } from "@/components/portal/installer-invoice";
 import { InstallerQuoteDraftPanel } from "@/components/portal/installer-quote";
 import { AdminVisitHistory } from "@/components/portal/visit-changes";
+import { OfficeJobProfitCard } from "@/components/portal/job-profit";
 
 export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Portal" }, { name: "description", content: "Job detail and workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Portal" }, { property: "og:description", content: "Job detail and workflow." }] }),
@@ -130,7 +131,7 @@ function JobDetail() {
           <Button type="button" size="sm" variant="outline" onClick={() => openTarget("installation-evidence")}>Open installation evidence</Button>
           <div id="target-ap-evidence" tabIndex={-1} className="scroll-mt-4 outline-none"><EvidencePanel jobId={jobId} role="admin" excludeGates={["installation"]} /></div><SectionDocuments jobId={jobId} categories={["Evidence"]} />
           <SubHeading>Compliance and VEEC</SubHeading>
-          <ComplianceRecords jobId={jobId} /><Compliance jobId={jobId} /><Veec jobId={jobId} /><SectionDocuments jobId={jobId} categories={["ESC / VEEC"]} />
+          <ComplianceRecords jobId={jobId} /><Compliance jobId={jobId} /><Veec jobId={jobId} /><OfficeJobProfitCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["ESC / VEEC"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("history")} title="Correspondence & history" summary="Worker links, messages, timeline, audit history, all documents and export">
           <WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin /><div id="target-correspondence" tabIndex={-1} className="scroll-mt-4 outline-none"><Correspondence jobId={jobId} /></div>
