@@ -55,7 +55,6 @@ export function recEligibilityBlocker(c: RecCandidate): string | null {
   if (!c.coverage_verified || !c.covers_postcode) return "Partner does not have verified coverage for this area.";
   if (!c.has_valid_licence) return "Partner has no current electrical licence/REC registration on file.";
   if (c.approved_workers < 1) return "Partner has no approved licensed electrician available.";
-  if (c.weekly_capacity != null && c.open_jobs >= c.weekly_capacity) return "Partner is at capacity.";
   if (c.free_in_window === false) return "Partner is already booked in every one of the owner's times.";
   return null;
 }

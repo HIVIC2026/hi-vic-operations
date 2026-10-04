@@ -104,7 +104,6 @@ export function planActivation(type: PartnerType, app: { id: string; partner_enq
       service_regions: [application.service_origin, application.travel_radius_km === 9999 ? "Anywhere in Victoria" : application.travel_radius_km ? `${application.travel_radius_km} km radius` : null].filter((x): x is string => !!x),
       declared_service_origin: application.service_origin ?? null, declared_travel_radius_km: application.travel_radius_km ?? null, declared_excluded_areas: application.excluded_areas ?? null,
       free_measureups_for_hivic_quote_leads: type === "installer" ? application.free_measureups_for_hivic_quote_leads ?? null : null,
-      weekly_capacity: Number.parseInt(application.capacity_band ?? "", 10) || null,
       rec_number: type === "rec" ? application.rec_registration_number ?? null : null,
       installer_certification: type === "installer" ? { basis: "per_worker_office_verification", verified_workers: [...certifications.values()].filter((c) => c.status === "verified").map((c) => c.worker_email) } : null,
       gst_registered: application.gst_registered ?? null,

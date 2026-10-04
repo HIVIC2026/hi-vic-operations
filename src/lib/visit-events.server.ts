@@ -49,7 +49,7 @@ async function reopen(b: Booking, actorId: string | null, why: string, releaseTr
   const release = releaseTradeOverride ?? plan.releaseTrade;
   await admin.from("bookings").update({ status: "cancelled" }).eq("id", b.id).eq("status", "confirmed");
   if (b.kind === "installation") {
-    const { clearInstallDueDate } = await import("./xero.server");
+    const { clearInstallDueDate } = await import("./invoice-dates.server");
     await clearInstallDueDate(b.job_id, actorId as string).catch((e) => console.error("due date not cleared", (e as Error).message));
     const { regenerateEscNotification } = await import("./esc.server"); // existing ESC update/withdraw flags apply
     await regenerateEscNotification(b.job_id, actorId as string).catch((e) => console.error("ESC not regenerated", (e as Error).message));
@@ -87,7 +87,7 @@ export async function ownerChangeVisit(jobId: string, kind: VisitKind, action: "
   if (action === "reschedule") { await reopen(b, actorId, "owner rescheduled", b.kind === "installation" ? false : undefined); return { late: false, outcome: "rebook" as const }; }
   await admin.from("bookings").update({ status: "cancelled" }).eq("id", b.id).eq("status", "confirmed");
   if (b.kind === "installation") {
-    const { clearInstallDueDate } = await import("./xero.server");
+    const { clearInstallDueDate } = await import("./invoice-dates.server");
     await clearInstallDueDate(jobId, actorId as string).catch(() => undefined);
     const { regenerateEscNotification } = await import("./esc.server");
     await regenerateEscNotification(jobId, actorId as string).catch(() => undefined);
