@@ -7,11 +7,14 @@ const uuid = z.string().uuid();
 
 /** Office: start PIESA allocation (refuses until the PIESA gate is satisfied). */
 export const startPiesaOffers = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, rateToConfirm: z.boolean().optional() }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, rateToConfirm: z.boolean().optional(), reason: z.string().max(500).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { startPiesaAllocation } = await import("./allocation.server");
-    if (data.rateToConfirm) await logEvent(data.jobId, context.userId, "rec_offer_rate_to_confirm", "Office chose to offer the PIESA with the electrician rate to be confirmed", {}, { internal: true });
+    const { rateToConfirmReasonBlocker } = await import("./allocation.core");
+    const reasonBlock = rateToConfirmReasonBlocker(!!data.rateToConfirm, data.reason);
+    if (reasonBlock) throw new WorkflowError(reasonBlock);
+    if (data.rateToConfirm) await logEvent(data.jobId, context.userId, "rec_offer_rate_to_confirm", "Office chose to offer the PIESA with the electrician rate to be confirmed", { reason: data.reason!.trim() }, { internal: true });
     return startPiesaAllocation(data.jobId, context.userId, "piesa", { rateToConfirm: !!data.rateToConfirm });
   });
 

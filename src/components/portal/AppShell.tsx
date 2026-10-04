@@ -45,6 +45,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
           <Link to="/admin/team-ups" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Users className="h-4 w-4" /> Electrician team-ups</Link>
           <div className={group}>People</div>
           <Link to="/admin/businesses" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><BriefcaseBusiness className="h-4 w-4" /> Approved partners</Link>
+          <Link to="/admin/electrician-rates" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Calculator className="h-4 w-4" /> Electrician rates</Link>
           <Link to="/admin/partners" search={{ enquiry: undefined }} className={link} activeProps={active} onClick={() => setMobileOpen(false)}><ClipboardCheck className="h-4 w-4" /> Partner applications</Link>
           <Link to="/admin/workers" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Users className="h-4 w-4" /> Staff approvals</Link>
           <Link to="/admin/users" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Users className="h-4 w-4" /> Users & access</Link>

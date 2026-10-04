@@ -71,17 +71,20 @@ async function offerFacts(jobId: string) {
 
 /** Office starts (or continues) PIESA allocation. Refuses before the PIESA gate is satisfied. */
 /** Each electrician's own agreed rate for this visit, from their active (non-test) approved rate card. Missing = null. */
+/** Current ACTIVE office-approved rate per business for this offer kind (electrician_rates, migration 0089).
+ *  Fails closed: if the rate table is missing or unreadable every electrician counts as "rate missing". */
 async function agreedElectricianRates(businessIds: string[], kind: "piesa" | "rectification") {
-  const out = new Map<string, number>();
+  const out = new Map<string, { id: string; rate: number }>();
   if (!businessIds.length) return out;
-  const { data } = await admin.from("rec_rate_card_items").select("code, rate_inc_gst, rec_rate_cards!inner(provider_business_id, active, test_only)")
-    .eq("rec_rate_cards.active", true).in("rec_rate_cards.provider_business_id", businessIds);
-  for (const it of data ?? []) {
-    const card = it.rec_rate_cards as { provider_business_id: string | null; test_only: boolean | null };
-    if (!card.provider_business_id || card.test_only) continue;
-    const code = String(it.code ?? "").toLowerCase();
-    if (kind === "piesa" ? !code.includes("piesa") : !code.includes("rectification_callout")) continue;
-    if (it.rate_inc_gst != null) out.set(card.provider_business_id, Number(it.rate_inc_gst));
+  const { OFFER_RATE_SERVICE, selectAgreedRate } = await import("./allocation.core");
+  const service = OFFER_RATE_SERVICE[kind];
+  const { data, error } = await (admin as unknown as { from: (t: string) => any }).from("electrician_rates") // eslint-disable-line @typescript-eslint/no-explicit-any
+    .select("id, business_id, service_type, rate_inc_gst, status, effective_from, effective_to").eq("status", "active").eq("service_type", service).in("business_id", businessIds);
+  if (error) return out;
+  const today = new Date().toISOString().slice(0, 10);
+  for (const b of businessIds) {
+    const r = selectAgreedRate(data ?? [], b, service, today);
+    if (r) out.set(b, { id: r.id, rate: Number(r.rate_inc_gst) });
   }
   return out;
 }
@@ -107,7 +110,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   const batchNo = Math.max(0, ...(prior ?? []).map((o) => o.batch)) + 1;
   const rates = await agreedElectricianRates(candidates.map((c) => c.business_id), kind);
   const { offerRateBlocker } = await import("./allocation.core");
-  const noRate = candidates.filter((c) => offerRateBlocker(rates.get(c.business_id) ?? null, rateToConfirm));
+  const noRate = candidates.filter((c) => offerRateBlocker(rates.get(c.business_id)?.rate ?? null, rateToConfirm));
   if (noRate.length) await logEvent(jobId, actorId, "rec_offer_rate_missing", `${noRate.length} electrician(s) skipped: no agreed electrician rate recorded`, { kind, businesses: noRate.map((c) => c.business_id) }, { internal: true });
   const priced = candidates.filter((c) => !noRate.includes(c));
   const batch = nextOfferBatch(rankRecCandidates(priced), offered, batchSize);
@@ -119,7 +122,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   const summary = await offerFacts(jobId);
   const expires = offerExpiry(new Date(), expiryHours);
   const { error } = await admin.from("partner_offers").insert(batch.map((b) => ({ job_id: jobId, business_id: b.business_id, kind, batch: batchNo,
-    summary: { ...summary, electrician_rate_inc_gst: rates.get(b.business_id) ?? null, rate_to_confirm: !rates.has(b.business_id) && rateToConfirm } as unknown as Json, offered_by: actorId, expires_at: expires })));
+    summary: { ...summary, electrician_rate_inc_gst: rates.get(b.business_id)?.rate ?? null, electrician_rate_id: rates.get(b.business_id)?.id ?? null, electrician_rate_snapshot_at: new Date().toISOString(), rate_to_confirm: !rates.has(b.business_id) && rateToConfirm } as unknown as Json, offered_by: actorId, expires_at: expires })));
   if (error) throw new Error(error.message);
   await logEvent(jobId, actorId, "rec_offers_made", `${kind === "piesa" ? "PIESA" : "Rectification"} offered to ${batch.length} approved electrician(s), batch ${batchNo}`, { kind, batch: batchNo, businesses: batch.map((b) => b.business_id), expires_at: expires }, { internal: true });
   return { offered: batch.length, exhausted: false };

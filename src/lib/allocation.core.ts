@@ -102,6 +102,40 @@ export function offerRateBlocker(rate: number | null | undefined, rateToConfirm:
   return rateToConfirm ? null : "No agreed electrician rate is recorded for this electrician. Set the rate, or office must explicitly mark the offer as rate to be confirmed.";
 }
 
+// ---------- Office electrician rate card ----------
+export const ELECTRICIAN_RATE_SERVICES = {
+  piesa: "PIESA electrical safety visit",
+  rectification_visit: "Rectification visit",
+  section_c_signoff: "Section C / rectification sign-off",
+  installation_attendance: "Installation electrical attendance",
+} as const;
+export type ElectricianRateService = keyof typeof ELECTRICIAN_RATE_SERVICES;
+export type ElectricianRateRow = { id: string; business_id: string; service_type: string; rate_inc_gst: number | string; status: string; effective_from: string; effective_to: string | null };
+
+/** Offer kind -> rate-card service used for the electrician's payable rate. */
+export const OFFER_RATE_SERVICE: Record<"piesa" | "rectification", ElectricianRateService> = { piesa: "piesa", rectification: "rectification_visit" };
+
+/** The one rate an offer may use: ACTIVE, in its effective window on `today` (YYYY-MM-DD). Draft/superseded/expired never count. */
+export function selectAgreedRate(rows: ElectricianRateRow[], businessId: string, service: ElectricianRateService, today: string): ElectricianRateRow | null {
+  const ok = rows.filter((r) => r.business_id === businessId && r.service_type === service && r.status === "active"
+    && r.effective_from <= today && (r.effective_to == null || r.effective_to >= today));
+  ok.sort((a, b) => (a.effective_from < b.effective_from ? 1 : -1));
+  return ok[0] ?? null;
+}
+
+/** Office-only reason gate for "rate to be confirmed" overrides. */
+export function rateToConfirmReasonBlocker(rateToConfirm: boolean, reason: string | null | undefined): string | null {
+  if (!rateToConfirm) return null;
+  return (reason ?? "").trim().length >= 5 ? null : "A reason is required to offer with the electrician rate to be confirmed.";
+}
+
+/** Office-only spread line. Never render on electrician or customer screens. */
+export function officeSpread(customerPriceIncGst: number, electricianRateIncGst: number | null) {
+  if (electricianRateIncGst == null) return { customer: customerPriceIncGst, electrician: null, spread: null, text: `Customer $${customerPriceIncGst.toFixed(2)} · Electrician rate missing` };
+  const spread = Math.round((customerPriceIncGst - electricianRateIncGst) * 100) / 100;
+  return { customer: customerPriceIncGst, electrician: electricianRateIncGst, spread, text: `Customer $${customerPriceIncGst.toFixed(2)} · Electrician $${electricianRateIncGst.toFixed(2)} · Spread $${spread.toFixed(2)} (inc GST)` };
+}
+
 /** Electrician-facing rate line. Only ever the electrician's own agreed rate; never the customer price. */
 export function electricianRateText(summary: { electrician_rate_inc_gst?: number | null; rate_to_confirm?: boolean | null }): string {
   const r = summary.electrician_rate_inc_gst;
