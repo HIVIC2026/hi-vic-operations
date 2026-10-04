@@ -9,6 +9,7 @@ import { SlaPill } from "@/components/portal/partner";
 import { useAction } from "@/hooks/use-me";
 import { electricalStatusLabel, electricianRateText } from "@/lib/allocation.core";
 import { partnerDashboard, respondToOffer } from "@/lib/pilot.functions";
+import { formatPiesaWindow } from "@/lib/piesa-windows.core";
 import { BUCKET_LABEL, PARTNER_BUCKETS, REC_BUCKETS, recBucketFor, recSlaForAssigned } from "@/lib/pilot.core";
 
 const recLabel = (j: { stage: string; bookings: unknown[]; proposal_pending?: boolean }) => electricalStatusLabel({ stage: j.stage, hasBooking: j.bookings.length > 0, proposalPending: !!j.proposal_pending });
@@ -74,7 +75,7 @@ function Dashboard() {
   );
 }
 
-function Offer({ o, onDone }: { o: { id: string; kind?: string; summary: unknown; expires_at: string | null }; onDone: () => void }) {
+function Offer({ o, onDone }: { o: { id: string; kind?: string; summary: unknown; expires_at: string | null; windows?: { id: string; starts_at: string; ends_at: string | null }[] }; onDone: () => void }) {
   const respond = useAction(respondToOffer);
   const [reason, setReason] = useState("");
   const [declining, setDeclining] = useState(false);
@@ -89,7 +90,17 @@ function Offer({ o, onDone }: { o: { id: string; kind?: string; summary: unknown
       <div className="text-xs font-medium">{electricianRateText(s)}</div>
       {o.expires_at && <div className="text-xs text-muted-foreground">Offer open until {new Date(o.expires_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}</div>}
       <p className="mt-1 text-xs text-muted-foreground">The owner's name and contact details are shared only once you accept. The first approved electrician to accept gets the job.</p>
-      {declining ? <div className="mt-2 space-y-2"><Input placeholder="Reason (optional)" value={reason} onChange={(e) => setReason(e.target.value)} /><Button size="sm" variant="outline" onClick={async () => { await respond({ offerId: o.id, accept: false, reason: reason || null }, "Declined"); onDone(); }}>Confirm decline</Button></div> :
+      {!!o.windows?.length && !declining && (
+        <div className="mt-2 space-y-2">
+          <div className="text-xs font-medium">Owner's available times — tap one to accept and book it:</div>
+          <div className="grid gap-2 sm:grid-cols-2">{o.windows.map((w) => (
+            <Button key={w.id} size="field" className="h-auto min-h-12 whitespace-normal" onClick={async () => { await respond({ offerId: o.id, accept: true, reason: null, proposalId: w.id }, "Accepted and booked"); onDone(); }}>{formatPiesaWindow(w.starts_at, w.ends_at)}</Button>
+          ))}</div>
+          <Button size="field" variant="outline" className="h-auto min-h-12 w-full whitespace-normal" onClick={async () => { await respond({ offerId: o.id, accept: true, reason: null }, "Job accepted — arrange a time with the owner"); onDone(); }}>None of these times work — accept and arrange a time</Button>
+          <Button size="field" variant="ghost" className="w-full" onClick={() => setDeclining(true)}>Decline</Button>
+        </div>
+      )}
+      {o.windows?.length && !declining ? null : declining ? <div className="mt-2 space-y-2"><Input placeholder="Reason (optional)" value={reason} onChange={(e) => setReason(e.target.value)} /><Button size="sm" variant="outline" onClick={async () => { await respond({ offerId: o.id, accept: false, reason: reason || null }, "Declined"); onDone(); }}>Confirm decline</Button></div> :
         <div className="mt-2 grid grid-cols-2 gap-2"><Button size="field" onClick={async () => { await respond({ offerId: o.id, accept: true, reason: null }, "Job accepted"); onDone(); }}>Accept</Button><Button size="field" variant="outline" onClick={() => setDeclining(true)}>Decline</Button></div>}
     </div>
   );
