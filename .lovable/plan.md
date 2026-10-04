@@ -1,46 +1,53 @@
-# Step 7: Electrician matching (Operating Model v2)
-
-Plus the approved one-liner: an office-entered **confirmed** booking clears the 48-hour flag.
+# Step 8: Rectification (Operating Model v2)
 
 ## What exists today
-- Offers already go out in batches of 3 (setting), with "next batch" when nobody accepts, and the step 6 "ask owner for more times" then needs-attention flow.
-- Eligibility check already covers: approved and active, accepting jobs, verified postcode coverage, current licence/REC, at least one approved licensed electrician, weekly capacity.
-- Ranking today: preferred partner, exact postcode, spare capacity, fewest recent offers, acceptance rate. Price is not used.
-- Offers expire after a plain number of clock hours (setting, default 2), checked by the existing 15-minute timer.
-- Not tracked today: daily job limit, no-shows, acceptance speed, "job nearby that day".
+- When the PIESA needs rectification, the system lists the items, drafts a rectification quote, and the job moves to "awaiting owner rectification approval".
+- The office must review the draft before it can be sent. Items with no agreed rate block sending and show on the needs-attention list.
+- The owner approves or declines the quote on their page. Approving records the scope only, with no payment; the lines are folded into the final installation quote. Declining shows on the needs-attention list.
+- The rectification visit is then arranged the old way: offer to an electrician, contact details shared, propose and confirm a time, with the 24h reminder and 48h flag.
+- The 14-day expiry and the day 3 / day 10 nudges already apply to installation quotes only. Rectification quotes have no timing today.
+- The electrician does not give estimated hours or times when submitting the PIESA.
 
-## What I would change
-1. **Eligibility** – add two checks:
-   - Free in at least one of the owner's PIESA windows (no confirmed booking for that electrician in that window). If the owner hasn't given times yet, this check is skipped.
-   - Under their daily limit, only if one is set (new optional field, empty = no limit).
-2. **Ranking** (new order, price still never used):
-   1. Already has a confirmed job in a nearby postcode on one of the owner's window days (same postcode, or one of their verified service postcodes).
-   2. Reliability: acceptance rate, minus no-shows and rejected evidence where recorded. Missing history = neutral.
-   3. Fewest jobs in the last 30 days (fair spread).
-   4. Fastest average acceptance time.
-   The existing "preferred electrician of the installer" rule stays first — please confirm or tell me to drop it.
-3. **4 business hours to accept** – Melbourne time, weekdays 8am–5pm (please confirm hours), skipping Vic public holidays (reuses the step 6 holiday list). An offer sent Friday 4pm expires Monday 11am.
-4. **Next 3** – unchanged batches of 3 with the same owner times; when everyone has been tried, step 6's flow runs as today.
-5. **Office booking** – an office-entered confirmed booking clears the 48-hour flag (one line in the job-page timer).
-6. Uses the existing 15-minute timer; no new schedule.
+## What changes
+1. **Electrician, at PIESA submit (only when rectification is needed):** two short extra questions:
+   - estimated hours (number, required)
+   - 3–5 windows they can do the work (morning 8–12 or afternoon 12–4, Melbourne time)
+   The day rules are the same as the owner's PIESA times (business days, from 2 business days ahead, within 21 days). They aren't asked again later.
+2. **Office review:** unchanged. The office sees the hours and the windows next to the draft.
+3. **Owner, in one step:** approve the quote and pick one of the electrician's windows. Two permanent records are created: the existing approval record and a separate confirmed booking for that window. Both are saved together or not at all.
+4. **"None of these work":** the owner approves the quote and taps this instead. Contact details are shared for the rectification visit only. The old propose/confirm path runs with the 24h reminder and 48h flag.
+5. **Rectification quote timing (no 14-day expiry):**
+   - The send time is recorded when the office sends the quote.
+   - Owner nudges are queued (not sent) at 24 hours and on day 3.
+   - On day 5 with no response, the job joins the needs-attention list as "Rectification quote unanswered — 30-day clock at risk".
+   - The quote never expires automatically. The existing 15-minute timer runs these checks.
+6. **Owner declines:** unchanged. Hard stop and needs-attention.
+- A window whose start time has passed can't be picked. If all windows have passed, the owner only sees "None of these work".
 
 ## Parts touched
-- Electrician eligibility/ranking rules and offer expiry (pure, tested).
-- The candidate list builder that gathers facts for each electrician.
-- Office REC settings: one optional "daily job limit" box.
-- Job-page 48-hour timer (office booking line).
-- Tests for each rule, plus a business-hours expiry test across a weekend and a public holiday.
+- The electrician's PIESA submit form and the server step that drafts the rectification quote.
+- The office rectification review card, which shows the hours and windows.
+- The owner's quote panel and the server step for owner approval.
+- The quote timing check in the 15-minute timer, extended to rectification quotes with their own rules.
+- The needs-attention list (one new entry).
+- Tests.
 
-## Database change (practice first)
-One small additive change: an optional daily limit on businesses, and a "business hours" offer time setting (default 4). Proven on a practice database first (existing rows unchanged, rollback clean), then applied only after you say go. No-shows: counted from existing booking records where marked; if no such marker exists I count none and say so, rather than invent one.
+## Database change (practice database first, then apply)
+Additive only:
+- Rectification estimated hours on the quote.
+- Electrician windows saved as time options, reusing the existing appointment times table and tagged "rectification".
+- Three empty dates on quotes: 24h nudge, day-3 nudge, day-5 flagged.
+- One locked database step that approves and books in one go, so two taps can't double-book.
 
-## Effect on existing offers and records
-- Offers already sent keep their current expiry time; the new 4-business-hour rule applies only to new offers.
-- No existing records changed. No backfill. Sending stays off.
+It will be proven on a practice database first: existing rows unchanged, approve + book is all-or-nothing, a second pick is refused, and undo is clean. It is applied to the real database only after that passes.
+
+## Effect on existing jobs and records
+- Only TEST jobs are at rectification today: one at "rectification required" and one at "rectification scheduling", plus 2 accepted rectification quotes. None are real.
+- They keep the old path. With no electrician windows, the owner simply sees the normal approve and "None of these work" options.
+- No backfill. No records changed. Sending stays off.
 
 ## Undo
-Revert ranking/expiry functions in History; the new optional field and setting can be left unused (empty = old behaviour).
+Roll back to the previous version in History. The new fields can stay empty and unused. Without electrician windows, everything falls back to today's flow.
 
-## Questions
-- Business hours: 8am–5pm OK?
-- Keep the installer's preferred electrician at the top?
+## Question
+- Should the owner's pick also require the window to be at least 24 hours away (like other bookings), or is any future window fine?
