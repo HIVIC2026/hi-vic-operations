@@ -261,3 +261,19 @@ export async function sweepCoordination(actorId: string | null = null) {
   }
   return { reminders };
 }
+
+/** Installer planning-only notice after a CONFIRMED PIESA booking. Queued in the launch-control outbox
+ *  (EXECUTION_NOT_RELEASED until sending is released). Idempotent per assignment + PIESA time. Never changes stage. */
+export async function queueInstallerPlanningNotice(jobId: string, installerAssignmentId: string, piesaStart: string) {
+  const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "installer_planning_notice")
+    .contains("details", { assignment_id: installerAssignmentId, piesa_start: piesaStart }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (!ev) throw new Error("planning notice event missing");
+  const facts = `${installerAssignmentId}-${Date.parse(piesaStart)}`;
+  const { data, error } = await admin.rpc("enqueue_external_action", {
+    _job: jobId, _event: ev.id, _action: "installer_planning_notice", _target: `job_assignment:${installerAssignmentId}`,
+    _basis: "transactional_job_coordination", _version: "installer-planning-notice-v1", _payload: "notice:installer_planning_notice",
+    _facts: facts, _key: `installer-planning-${facts}`,
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
