@@ -26,7 +26,7 @@ export function OfficePrestartCard({ jobId }: { jobId: string }) {
         {rows.length > 0 && (
           <div className="rounded border p-2">
             <div className="mb-1 flex items-center justify-between"><span className="font-medium">Notification details</span><Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(copy)}>Copy</Button></div>
-            <dl className="grid grid-cols-[10rem_1fr] gap-x-2 text-xs">{rows.map(([k, v]) => <><dt key={`${k}-k`} className="text-muted-foreground">{k.replace(/_/g, " ")}</dt><dd key={`${k}-v`}>{String(v)}</dd></>)}</dl>
+            <dl className="grid grid-cols-[10rem_1fr] gap-x-2 text-xs">{rows.flatMap(([k, v]) => [<dt key={`${k}-k`} className="text-muted-foreground">{k.replace(/_/g, " ")}</dt>, <dd key={`${k}-v`}>{String(v)}</dd>])}</dl>
             <p className="mt-1 text-xs text-muted-foreground">After submitting in the Registry, record "Submitted" with the date and reference in the ESC notification panel.</p>
           </div>
         )}

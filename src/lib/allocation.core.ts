@@ -373,7 +373,7 @@ export type NeedsInput = {
   registryQueries: { job_id: string; status: string; updated_at: string | null; query_received_at?: string | null; reply_sent_at?: string | null }[];
   officeOverdue: { job_id: string | null; title: string; since: string | null }[];
   rectUnanswered?: { job_id: string; sent_at: string | null }[];
-  prestart?: { esc: { job_id: string; code: string; detail: string }[]; failed: { job_id: string; since: string; detail: string }[]; certs: { job_id: string; detail: string }[] };
+  prestart?: { esc: { job_id: string; code: string; detail: string }[]; failed: { job_id: string; since: string; detail: string }[]; certs: { job_id: string; detail: string }[] } | undefined;
   installFlags?: { job_id: string; code: "install_ten_days_left" | "install_days_declined"; created_at: string; detail?: string | undefined }[];
 };
 
