@@ -87,7 +87,6 @@ export async function gatherEvidence(jobId: string): Promise<ReadyCheckEvidence>
     },
     removal: m?.removal_required == null ? null : m.removal_required ? "yes" : "no",
     access: { level: m?.access_difficulty ?? null, evidence: hasCat("access_manhole") },
-    previousUpgrade: prev,
     electrical: {
       downlightCount: num("elec.downlight_count") ?? num("downlight_count"),
       downlightType: str("elec.downlight_type") ?? str("downlight_type"),

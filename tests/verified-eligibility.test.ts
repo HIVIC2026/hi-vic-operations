@@ -104,10 +104,9 @@ describe("eligibility rules (pure)", () => {
       ).suggested,
     ).toBe("needs_review");
   });
-  test("previous VEU upgrade = yes → office review, not a fail", () => {
-    const a = assessEligibility(ev({ previousUpgrade: "yes" }));
-    expect(a.eligibleAllowed).toBe(false);
-    expect(a.suggested).toBe("needs_review");
+  test("retired previous-upgrade question no longer forces office review", () => {
+    const a = assessEligibility(ev({}));
+    expect(a.reviewReasons.join(" ")).not.toMatch(/previous VEU/i);
   });
   test("conflicting/amended evidence → needs_review", () => {
     expect(assessEligibility(ev({ conflicts: ["area amended after submission"] })).suggested).toBe(

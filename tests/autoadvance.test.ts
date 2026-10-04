@@ -133,7 +133,7 @@ describe("Gate 1 auto-decision", () => {
     expect(evaluateGate1({ ...g, yearBuilt: 2025 }).outcome).toBe("does_not_appear_eligible");
   });
   test("ambiguous facts -> human review", () => {
-    for (const f of [{ isResidential: null }, { yearBuiltVerified: false }, { previousCeilingUpgrade: null }, { state: null }])
+    for (const f of [{ isResidential: null }, { yearBuiltVerified: false }, { state: null }])
       expect(evaluateGate1({ ...g, ...f } as Gate1Facts).outcome).toBeNull();
   });
   test("unverified young building is review, not fail", () => expect(evaluateGate1({ ...g, yearBuilt: 2025, yearBuiltVerified: false }).outcome).toBeNull());

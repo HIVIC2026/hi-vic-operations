@@ -66,7 +66,7 @@ describe("source of truth", () => {
     expect(depositPctFor(19_999.99)).toBe(10);
     expect(depositPctFor(20_000)).toBe(5);
     expect(WORKFLOW_DECISIONS.payment.retired).toContain("50% deposit gate");
-    expect(WORKFLOW_DECISIONS.eligibility.rules.previousUpgradeYes).toBe("office_review");
+    expect(WORKFLOW_DECISIONS.eligibility.rules.missingOrConflictingEvidence).toBe("needs_review");
     expect(WORKFLOW_DECISIONS.routes.installer_supplied.leadFee).toBe("none");
   });
   test("no retired brand names in customer-visible files; retired payment wording nowhere in src", () => {
