@@ -1,23 +1,38 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { z } from "zod";
+import { recEligibilityBlocker } from "../src/lib/allocation.core";
+import { allowedInstallDays } from "../src/lib/install-days.core";
+import { chooseHoldWeek } from "../src/lib/install-holds.core";
 
-const src = readFileSync(new URL("../src/lib/pilot.functions.ts", import.meta.url), "utf8");
-const rule = z.number().int().min(1).max(50).nullish();
+const read = (p: string) => readFileSync(p, "utf8");
 
-describe("electrician daily job limit", () => {
-  test("0 and negatives refused; empty means no limit; whole numbers only", () => {
-    expect(rule.safeParse(0).success).toBe(false);
-    expect(rule.safeParse(-2).success).toBe(false);
-    expect(rule.safeParse(1.5).success).toBe(false);
-    expect(rule.safeParse(null).success).toBe(true);
-    expect(rule.safeParse(3).success).toBe(true);
+describe("trades run their own diaries: no capacity limits", () => {
+  test("matching never blocks on a daily limit", () => {
+    const c = { is_active: true, onboarding_status: "approved", coverage_verified: true, covers_postcode: true, has_valid_licence: true, approved_workers: 1, weekly_capacity: null, open_jobs: 0, daily_limit: 1, max_jobs_on_window_day: 9 } as never;
+    expect(recEligibilityBlocker(c)).toBeNull();
+    expect(read("src/lib/allocation.server.ts")).not.toContain("daily_job_limit");
+    expect(read("src/lib/readycheck-booking.server.ts")).not.toContain("daily_job_limit");
   });
-  test("server uses the same rule with plain messages", () => {
-    expect(src).toMatch(/daily_job_limit: z\.number\(.*\.min\(1, "Daily job limit must be 1 or more/);
+  test("install days ignore capacity", () => {
+    const days = allowedInstallDays({ now: new Date("2026-10-05T00:00:00Z"), deadline: "2026-10-09" });
+    expect(days.length).toBeGreaterThan(0);
+    expect(read("src/lib/install-days.server.ts")).not.toContain("daily_capacity_m2");
   });
-  test("partners cannot change it; office changes are recorded", () => {
-    expect(src).toContain('delete (patch as Record<string, unknown>)["daily_job_limit"]');
-    expect(src).toContain('"electrician_daily_limit_set"');
+  test("expected install week is the earliest week, never flagged", () => {
+    expect(chooseHoldWeek({ earliest: "2026-10-26" })).toEqual({ week: "2026-10-26", overCapacity: false });
+    const s = read("src/lib/install-holds.server.ts");
+    expect(s).not.toContain("daily_capacity_m2");
+    expect(s).toContain("_over: false");
+    expect(read("src/components/portal/install-hold.tsx")).not.toContain("over_capacity");
+  });
+  test("both fields hidden and never saved", () => {
+    const form = read("src/components/portal/business.tsx");
+    expect(form).not.toContain('field("daily_job_limit"');
+    expect(form).not.toContain('field("daily_capacity_m2"');
+    expect(read("src/routes/installer-onboarding.tsx")).not.toContain("m² per day");
+    const save = read("src/lib/pilot.functions.ts");
+    expect(save).toContain('delete (patch as Record<string, unknown>)["daily_job_limit"];');
+    expect(save).toContain('delete (patch as Record<string, unknown>)["daily_capacity_m2"];');
+    expect(read("src/lib/partner-activation.functions.ts")).not.toContain("daily_capacity_m2: cap");
   });
 });
