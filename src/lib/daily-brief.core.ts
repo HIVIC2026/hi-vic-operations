@@ -20,7 +20,7 @@ export function reminderKey(bookingId: string, slot: ReminderSlot, who: "owner" 
 
 function parts(ms: number) {
   const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
-  return { ymd: `${p.year}-${p.month}-${p.day}`, hour: Number(p.hour), minute: Number(p.minute) };
+  return { ymd: `${p["year"]}-${p["month"]}-${p["day"]}`, hour: Number(p["hour"]), minute: Number(p["minute"]) };
 }
 export const melbourneYmd = (ms: number) => parts(ms).ymd;
 export const melbourneHour = (ms: number) => parts(ms).hour;
