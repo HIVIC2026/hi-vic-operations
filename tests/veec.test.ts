@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { lodgementEvidenceBlockers, veecQueryOverdue, veecUpdateBlockers } from "../src/lib/veec.core";
+import { lodgementEvidenceBlockers, veecCompletesJob, veecQueryOverdue, veecUpdateBlockers } from "../src/lib/veec.core";
 
 const T = "2026-09-30";
 const good = { status: "submitted", quantity: 12.5, submission_reference: "ESC-123", submitted_date: "2026-09-29", notes: null };
@@ -41,4 +41,14 @@ describe("Query overdue flag", () => {
   test("overdue at 3 days with no reply", () => expect(veecQueryOverdue("2026-10-02", null, now)).toBe(true));
   test("answered query never overdue", () => expect(veecQueryOverdue("2026-09-01", "2026-09-02", now)).toBe(false));
   test("no received date never overdue", () => expect(veecQueryOverdue(null, null, now)).toBe(false));
+});
+
+describe("Job completion rule", () => {
+  test("only approved completes the job", () => {
+    expect(veecCompletesJob("approved")).toBe(true);
+    expect(veecCompletesJob("submitted")).toBe(false);
+    expect(veecCompletesJob("query")).toBe(false);
+    expect(veecCompletesJob("rejected")).toBe(false);
+    expect(veecCompletesJob("not_submitted")).toBe(false);
+  });
 });
