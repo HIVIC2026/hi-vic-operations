@@ -30,6 +30,7 @@ import { Route as AuthenticatedAdminElectricianRatesRouteImport } from './routes
 import { Route as AuthenticatedAdminEnquiryGroupsRouteImport } from './routes/_authenticated/admin.enquiry-groups'
 import { Route as AuthenticatedAdminInterestsRouteImport } from './routes/_authenticated/admin.interests'
 import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authenticated/admin.partners'
+import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authenticated/admin.pricing'
 import { Route as AuthenticatedAdminTeamUpsRouteImport } from './routes/_authenticated/admin.team-ups'
 import { Route as AuthenticatedAdminTestCentreRouteImport } from './routes/_authenticated/admin.test-centre'
 import { Route as AuthenticatedAdminTodayRouteImport } from './routes/_authenticated/admin.today'
@@ -170,6 +171,12 @@ const AuthenticatedAdminPartnersRoute =
   AuthenticatedAdminPartnersRouteImport.update({
     id: '/admin/partners',
     path: '/admin/partners',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminPricingRoute =
+  AuthenticatedAdminPricingRouteImport.update({
+    id: '/admin/pricing',
+    path: '/admin/pricing',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminTeamUpsRoute =
@@ -346,6 +353,7 @@ export interface FileRoutesByFullPath {
   '/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
+  '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
   '/admin/today': typeof AuthenticatedAdminTodayRoute
@@ -396,6 +404,7 @@ export interface FileRoutesByTo {
   '/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
+  '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
   '/admin/today': typeof AuthenticatedAdminTodayRoute
@@ -448,6 +457,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
   '/_authenticated/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
+  '/_authenticated/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/_authenticated/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/_authenticated/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
   '/_authenticated/admin/today': typeof AuthenticatedAdminTodayRoute
@@ -500,6 +510,7 @@ export interface FileRouteTypes {
     | '/admin/enquiry-groups'
     | '/admin/interests'
     | '/admin/partners'
+    | '/admin/pricing'
     | '/admin/team-ups'
     | '/admin/test-centre'
     | '/admin/today'
@@ -550,6 +561,7 @@ export interface FileRouteTypes {
     | '/admin/enquiry-groups'
     | '/admin/interests'
     | '/admin/partners'
+    | '/admin/pricing'
     | '/admin/team-ups'
     | '/admin/test-centre'
     | '/admin/today'
@@ -601,6 +613,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/enquiry-groups'
     | '/_authenticated/admin/interests'
     | '/_authenticated/admin/partners'
+    | '/_authenticated/admin/pricing'
     | '/_authenticated/admin/team-ups'
     | '/_authenticated/admin/test-centre'
     | '/_authenticated/admin/today'
@@ -804,6 +817,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/partners'
       fullPath: '/admin/partners'
       preLoaderRoute: typeof AuthenticatedAdminPartnersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/pricing': {
+      id: '/_authenticated/admin/pricing'
+      path: '/admin/pricing'
+      fullPath: '/admin/pricing'
+      preLoaderRoute: typeof AuthenticatedAdminPricingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/team-ups': {
@@ -1016,6 +1036,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminEnquiryGroupsRoute: typeof AuthenticatedAdminEnquiryGroupsRoute
   AuthenticatedAdminInterestsRoute: typeof AuthenticatedAdminInterestsRoute
   AuthenticatedAdminPartnersRoute: typeof AuthenticatedAdminPartnersRoute
+  AuthenticatedAdminPricingRoute: typeof AuthenticatedAdminPricingRoute
   AuthenticatedAdminTeamUpsRoute: typeof AuthenticatedAdminTeamUpsRoute
   AuthenticatedAdminTestCentreRoute: typeof AuthenticatedAdminTestCentreRoute
   AuthenticatedAdminTodayRoute: typeof AuthenticatedAdminTodayRoute
@@ -1047,6 +1068,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminEnquiryGroupsRoute: AuthenticatedAdminEnquiryGroupsRoute,
   AuthenticatedAdminInterestsRoute: AuthenticatedAdminInterestsRoute,
   AuthenticatedAdminPartnersRoute: AuthenticatedAdminPartnersRoute,
+  AuthenticatedAdminPricingRoute: AuthenticatedAdminPricingRoute,
   AuthenticatedAdminTeamUpsRoute: AuthenticatedAdminTeamUpsRoute,
   AuthenticatedAdminTestCentreRoute: AuthenticatedAdminTestCentreRoute,
   AuthenticatedAdminTodayRoute: AuthenticatedAdminTodayRoute,
