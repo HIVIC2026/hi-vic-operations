@@ -903,7 +903,13 @@ export const updateVeec = createServerFn({ method: "POST" }).middleware([require
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { jobId, reason, ...rest } = data;
-    const patch = { ...rest, query_text: rest.query_text ?? null, query_received_at: rest.query_received_at ?? null, reply_draft: rest.reply_draft ?? null };
+    const patch = {
+      ...rest,
+      // Optional fields: only written when the form supplies them, so saving other details never wipes a recorded query or draft.
+      ...(rest.query_text !== undefined ? { query_text: rest.query_text } : {}),
+      ...(rest.query_received_at !== undefined ? { query_received_at: rest.query_received_at } : {}),
+      ...(rest.reply_draft !== undefined ? { reply_draft: rest.reply_draft } : {}),
+    };
     if (["submitted", "approved"].includes(data.status) && !["ready_for_veec", "complete"].includes(await getStage(jobId)))
       throw new WorkflowError("VEEC can only be lodged once the job is Ready for VEEC.");
     const { data: prev } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,notes,query_text,query_received_at,reply_draft").eq("job_id", jobId).maybeSingle();
