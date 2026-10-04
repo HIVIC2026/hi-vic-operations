@@ -51,3 +51,4 @@
 - [ ] Owner/trade pages were inspected via the office test session, not separate owner/trade sign-ins — acceptable this slice (office-only card did not render there), but a separate role smoke check is required before launch.
 - [ ] Base44 TEST enquiry check pending until the two website fields are removed; then submit one TEST enquiry without them and confirm job creation, no blank/stale rows, preliminary eligibility from remaining answers, and the Activity 48 check stays office-only/pending.
 - [ ] No Activity 48 answer was saved to a TEST job during the check.
+- Step 3 (approved): VEEC Registry query status + AI draft reply + mark reply sent + 3-day overdue flag. Next step after: 'Submitted moves job to Complete' change.
