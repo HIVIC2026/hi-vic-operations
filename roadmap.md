@@ -56,3 +56,5 @@
 
 - [x] Step 5: installation quote expiry (14 full days) + day 3/10 owner nudges, queued only
 - [ ] Rectification quote timing (24h, day 3 nudges, escalate day 5) — separate step
+- [ ] Step 6: owner picks 3–5 PIESA windows (morning 8–12 / afternoon 12–4 Melbourne); electrician tap = booking; fallback accept-then-arrange; one more-times request then needs-attention
+- [ ] Re-prove step 5 quote-expiry migration on practice database
