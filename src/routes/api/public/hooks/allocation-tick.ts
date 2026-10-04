@@ -18,24 +18,24 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           if (denied) return denied;
         }
         const { sweepRecOffers, sweepCoordination } = await import("@/lib/allocation.server");
-        const out: Record<string, unknown> = { ok: true };
+        const out: { ok: boolean; offers?: unknown; coordination?: unknown } = { ok: true };
         try {
           const o = await sweepRecOffers();
-          out.offers = { expired: o.expired, started: Array.isArray(o.started) ? o.started.length : o.started };
+          out['offers'] = { expired: o.expired, started: Array.isArray(o.started) ? o.started.length : o.started };
         } catch (e) {
           console.error("allocation tick: offer sweep failed", (e as Error).message);
-          out.ok = false;
-          out.offers = "failed";
+          out['ok'] = false;
+          out['offers'] = "failed";
         }
         try {
           const c = await sweepCoordination();
-          out.coordination = typeof c === "object" && c ? Object.fromEntries(Object.entries(c).filter(([, v]) => typeof v === "number")) : null;
+          out['coordination'] = typeof c === "object" && c ? Object.fromEntries(Object.entries(c).filter(([, v]) => typeof v === "number")) : null;
         } catch (e) {
           console.error("allocation tick: coordination sweep failed", (e as Error).message);
-          out.ok = false;
-          out.coordination = "failed";
+          out['ok'] = false;
+          out['coordination'] = "failed";
         }
-        return Response.json(out, { status: out.ok ? 200 : 500 });
+        return Response.json(out, { status: out['ok'] ? 200 : 500 });
       },
     },
   },
