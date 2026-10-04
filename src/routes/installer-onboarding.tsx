@@ -147,8 +147,9 @@ function InstallerOnboarding() {
   const [testMode, setTestMode] = useState(false);
   const [isTest, setIsTest] = useState(false);
   const [staffLink] = useState(() => takeStaffLink());
-  const startWith = async () => {
-    const r = await startInstallerOnboarding({ data: { token: newResumeToken(), ...(staffLink ? { staff_link: staffLink } : {}) } });
+  const unsaved = useRef(false);
+  const startWith = async (t: string) => {
+    const r = await startInstallerOnboarding({ data: { token: t, ...(staffLink ? { staff_link: staffLink } : {}) } });
     setIsTest(r.test_mode); setTestMode(r.relaxed);
     return r;
   };
@@ -199,17 +200,19 @@ function InstallerOnboarding() {
     }
     if (token) { setStarted(true); setError(null); return; }
     if (sampleMode) { setD(SAMPLE_INSTALLER_DATA); setToken("sample-preview-token"); setStep("about"); setStarted(true); setError(null); return; }
-    setBusy(true); setError(null);
-    try {
-      const { token: t } = await startWith();
-      const fresh = await loadInstallerOnboarding({ data: { token: t } });
-      revision.current = fresh.updated_at; setD(fresh.data as InstData);
-      localStorage.setItem(TOKEN_KEY, t); setToken(t); setStarted(true);
-    } catch (e) { setError(e instanceof Error ? e.message : "Could not start."); } finally { setBusy(false); }
+    // Nothing is saved (or counted against start limits) until the first page is saved.
+    unsaved.current = true; revision.current = null;
+    setToken(newResumeToken()); setStarted(true); setError(null);
   }
   async function persist(nextStep: StepKey, data: InstData = d) {
     if (sampleMode || !token) return;
     const { insurance_uploaded: _u, ...body } = data;
+    if (unsaved.current) {
+      await startWith(token);
+      const fresh = await loadInstallerOnboarding({ data: { token } });
+      revision.current = fresh.updated_at; unsaved.current = false;
+      localStorage.setItem(TOKEN_KEY, token);
+    }
     if (!revision.current) throw new Error("Reload the page to continue your application.");
     const r = await saveInstallerOnboarding({ data: { token, step_key: nextStep, data: body as never, base_updated_at: revision.current } });
     revision.current = r.updated_at;
