@@ -31,8 +31,9 @@ export const Route = createFileRoute("/_authenticated/field/$jobId")({
 
 function FieldJob() {
   const { jobId } = Route.useParams();
-  const { data: job } = useJob(jobId);
+  const { data: job, isError } = useJob(jobId);
   const { data: role } = useQuery({ queryKey: ["myrole", jobId], queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data });
+  if (!job && isError) return <AppShell><p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">This job isn't available to you. If it's an offer, accept it from Jobs available first.</p></AppShell>;
   if (!job) return <AppShell><p className="text-muted-foreground">Loading…</p></AppShell>;
   return (
     <AppShell>
