@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { NEEDS_TAB_SECTION } from "@/lib/allocation.core";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
@@ -60,12 +61,14 @@ function NeedsQueue({ overdue }: { overdue: TodoItem[] }) {
           </div>
           <p className="mt-1"><span className="font-semibold">Why: </span>{r.why}</p>
           <p className="mt-1"><span className="font-semibold">Do next: </span>{r.next}</p>
-          {r.jobId && <Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="mt-2 inline-block text-xs font-semibold underline">Open job → {r.tab.charAt(0).toUpperCase() + r.tab.slice(1)} tab</Link>}
+          {r.jobId && <Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} search={{ section: NEEDS_TAB_SECTION[r.tab] ?? "people" }} className="mt-2 inline-block text-xs font-semibold underline">Open job at {SECTION_LABEL[NEEDS_TAB_SECTION[r.tab] ?? "people"]}</Link>}
         </li>
       ))}
     </ul>
   );
 }
+
+const SECTION_LABEL: Record<string, string> = { people: "People & exceptions", quote: "Quotes", piesa: "PIESA", installation: "Installation", ap_veec: "AP review & VEEC", history: "Communications & history" };
 
 function TodoPage() {
   const [view, setView] = useState<"needs" | "all">("needs");

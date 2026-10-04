@@ -5,7 +5,8 @@ import { AdminEstimateCard } from "@/components/portal/estimate";
 import { AdminBookingOverride, AdminPartnerPanel, AppointmentPanel } from "@/components/portal/partner";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Fragment, useCallback, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
+import { parseJobSection } from "@/lib/allocation.core";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
@@ -46,6 +47,7 @@ import { InstallerQuoteDraftPanel } from "@/components/portal/installer-quote";
 
 export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Portal" }, { name: "description", content: "Job detail and workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Portal" }, { property: "og:description", content: "Job detail and workflow." }] }),
+  validateSearch: (s: Record<string, unknown>): { section?: RecordGroup } => { const v = parseJobSection(s.section); return v ? { section: v } : {}; },
   component: JobDetail,
 });
 
@@ -56,6 +58,13 @@ function JobDetail() {
   const toggle = (g: RecordGroup) => setOpen((s) => { const n = new Set(s); if (n.has(g)) n.delete(g); else n.add(g); return n; });
   const ensureOpen = useCallback((group: RecordGroup) => setOpen((current) => new Set(current).add(group)), []);
   const openTarget = usePortalTargetNavigation(ensureOpen);
+  const { section } = Route.useSearch();
+  useEffect(() => {
+    if (!section || !job) return;
+    ensureOpen(section);
+    const t = window.setTimeout(() => document.getElementById(`records-${section}`)?.scrollIntoView({ block: "start" }), 50);
+    return () => window.clearTimeout(t);
+  }, [section, !!job, ensureOpen]);
   if (error) return <AppShell wide><div role="alert" className="rounded-md border border-danger bg-danger-soft p-4 text-sm text-danger">This job could not be loaded. Its records have not been deleted.<Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div></AppShell>;
   if (!job) return <AppShell wide><p role="status" className="text-muted-foreground">Loading…</p></AppShell>;
   const g = (k: RecordGroup) => ({ id: k, open: open.has(k), onToggle: () => toggle(k) });
