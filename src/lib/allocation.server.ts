@@ -134,10 +134,12 @@ async function flagUnapprovedElectricians(actorId: string | null) {
   const { data: asg } = await admin.from("job_assignments").select("job_id, business_id, jobs!inner(stage, source)").eq("role", "electrician").eq("active", true).not("business_id", "is", null).in("jobs.stage", stages as never);
   for (const a of asg ?? []) {
     if ((a.jobs as { source: string | null }).source === "qa_test") continue;
-    const { data: biz } = await admin.from("businesses").select("status").eq("id", a.business_id!).maybeSingle();
-    if (biz?.status === "active") continue;
+    const { candidates } = await recCandidatesFor(a.job_id);
+    const c = candidates.find((x) => x.id === a.business_id);
+    const blocker = c ? c.blocker : "Business is no longer an approved REC.";
+    if (!blocker) continue;
     const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", a.job_id).eq("event_type", "rec_no_longer_approved").contains("details", { business_id: a.business_id });
-    if (!count) await logEvent(a.job_id, actorId, "rec_no_longer_approved", "Assigned electrician is no longer an approved REC — needs Home Insulation Victoria", { business_id: a.business_id, status: biz?.status ?? null }, { internal: true });
+    if (!count) await logEvent(a.job_id, actorId, "rec_no_longer_approved", "Assigned electrician is no longer an approved REC — needs Home Insulation Victoria", { business_id: a.business_id, blocker }, { internal: true });
   }
 }
 
