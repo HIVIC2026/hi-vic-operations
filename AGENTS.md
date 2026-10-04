@@ -29,3 +29,4 @@
 
 - Installer onboarding keeps legacy step keys for history but shows nine page groups (`INSTALLER_VISIBLE_PAGES`); each group validates all members and persists its first member as anchor; contact details are asked once and signing authority only at signing. Why: old drafts resume safely without one-question pages or weakened gates.
 - Office enquiry email groups are derived only by pure `classifyEnquiry` (`src/lib/enquiry-groups.core.ts`) from the recorded official Gate 1 audit, area provenance and stage; preparation is review-only and reuses existing consent/suppression/idempotency rules. Why: grouping must never change stage, eligibility or delivery state.
+- Install holds (`install-holds.core.ts`/`.server.ts`, table `install_holds`) only reserve the quoted installer's m² capacity; one active hold per job via `place_install_hold`; a hold never releases contacts, books, or shows to the owner. Why: capacity planning must not become an appointment.
