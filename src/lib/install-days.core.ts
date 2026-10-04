@@ -1,6 +1,6 @@
 // Owner-picked install days (Operating Model v2, step 9 Part B). Pure rules only.
 // Owner picks 3–5 whole install days (8am–4pm Melbourne) inside the 30-day window, business days at least
-// 24h away, where the quoted installer still has m² capacity. The quoted installer taking one = booked.
+// 24h away, (trades manage their own availability). The quoted installer taking one = booked.
 import { isBusinessDay, melbourneAt, melbourneYmd } from "./piesa-windows.core";
 
 export const INSTALL_DAY_MIN = 3;
@@ -28,21 +28,14 @@ export function installDayBounds(ymd: string): { starts_at: string; ends_at: str
   return { starts_at: melbourneAt(ymd, INSTALL_DAY_START_HOUR).toISOString(), ends_at: melbourneAt(ymd, INSTALL_DAY_END_HOUR).toISOString() };
 }
 
-/** Fits the installer's daily m² capacity? No capacity set = always fits. */
-export function dayHasCapacity(capacity: number | null, bookedM2: number, areaM2: number): boolean {
-  if (capacity == null) return true;
-  return bookedM2 + areaM2 <= capacity;
-}
-
-/** Days the owner may choose: business days, 24h+ away, on or before the deadline, within capacity. */
-export function allowedInstallDays(i: { now?: Date; deadline: string | null; capacity: number | null; areaM2: number; bookedM2ByDay?: Record<string, number> }): string[] {
+/** Days the owner may choose: business days, 24h+ away, on or before the deadline. Trades manage their own diaries — no capacity check. */
+export function allowedInstallDays(i: { now?: Date; deadline: string | null }): string[] {
   if (!i.deadline) return [];
   const now = i.now ?? new Date();
   const out: string[] = [];
   for (let d = melbourneYmd(now); d <= i.deadline; d = addDays(d, 1)) {
     if (!isBusinessDay(d)) continue;
     if (melbourneAt(d, INSTALL_DAY_START_HOUR).getTime() < now.getTime() + INSTALL_DAY_LEAD_HOURS * 3600_000) continue;
-    if (!dayHasCapacity(i.capacity, i.bookedM2ByDay?.[d] ?? 0, i.areaM2)) continue;
     out.push(d);
   }
   return out;

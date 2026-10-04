@@ -19,18 +19,7 @@ async function context(jobId: string) {
     admin.from("appointment_proposals").select("id, starts_at, ends_at, status").eq("job_id", jobId).eq("install_day", true).order("starts_at"),
   ]);
   const deadline = clearance.cleared ? installWindowDeadline(clearance.timingDate, (piesa as { install_deadline?: string | null } | null)?.install_deadline ?? null) : null;
-  const area = await quotedAreaM2(jobId);
-  let capacity: number | null = null;
-  const bookedM2ByDay: Record<string, number> = {};
-  if (asg?.business_id) {
-    const { data: b } = await admin.from("businesses").select("daily_capacity_m2").eq("id", asg.business_id).maybeSingle();
-    capacity = b?.daily_capacity_m2 != null ? Number(b.daily_capacity_m2) : null;
-    if (capacity != null) {
-      const { data: other } = await admin.from("bookings").select("job_id, scheduled_start").eq("business_id", asg.business_id).eq("kind", "installation").eq("status", "confirmed").neq("job_id", jobId).gte("scheduled_start", new Date().toISOString());
-      for (const o of other ?? []) { const d = melbourneYmd(new Date(o.scheduled_start)); bookedM2ByDay[d] = (bookedM2ByDay[d] ?? 0) + await quotedAreaM2(o.job_id); }
-    }
-  }
-  return { job, clearance, deadline, asg, booked: !!booked, open: open ?? [], area, capacity, bookedM2ByDay };
+  return { job, clearance, deadline, asg, booked: !!booked, open: open ?? [] };
 }
 
 /** Owner view: can pick days, which days, open picks, deadline. */
@@ -42,7 +31,7 @@ export async function ownerInstallDayState(jobId: string) {
   const canPick = c.job?.stage === "installation_scheduling" && c.clearance.cleared && !!c.asg && !c.booked && !openDays.length && !none && !expired;
   return {
     canPick, expired, booked: c.booked, deadline: c.deadline, fallback: !!none,
-    days: canPick ? allowedInstallDays({ deadline: c.deadline, capacity: c.capacity, areaM2: c.area, bookedM2ByDay: c.bookedM2ByDay }) : [],
+    days: canPick ? allowedInstallDays({ deadline: c.deadline }) : [],
     openDays: openDays.map((p) => ({ id: p.id, starts_at: p.starts_at })),
   };
 }
