@@ -40,8 +40,14 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     const { electricalClearance, installationCoordinationBlocker } = await import("./allocation.core");
     const cb0 = installationCoordinationBlocker(electricalClearance(await clearanceFacts(jobId)));
     if (cb0) throw new WorkflowError(cb0);
-    const blocked = installationDateBlocker(await piesaStatus(jobId), start);
+    const ps = await piesaStatus(jobId);
+    const blocked = installationDateBlocker(ps, start);
     if (blocked) throw new WorkflowError(blocked);
+    // 30-day hard gate on every path: clearance date (PIESA, or Section C when rectification) + 30 days.
+    const { installWindowDeadline, installDayOutsideWindow, NEW_PIESA_NEEDED } = await import("./install-days.core");
+    const c0 = electricalClearance(await clearanceFacts(jobId));
+    const dl = installWindowDeadline(c0.timingDate, (ps as { install_deadline?: string | null } | null)?.install_deadline ?? null);
+    if (installDayOutsideWindow(start, dl)) throw new WorkflowError(dl ? `Installation must be on or before ${dl} (30 days from electrical clearance). If that has passed: ${NEW_PIESA_NEEDED}.` : "Installation cannot be booked: no electrical clearance date.");
     const { bookingLeadBlocker } = await import("./esc.core");
     const lead = bookingLeadBlocker(start, new Date().toISOString());
     if (lead) throw new WorkflowError(lead);

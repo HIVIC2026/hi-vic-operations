@@ -59,6 +59,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           out['ok'] = false;
           (out as Record<string, unknown>)['installHolds'] = "failed";
         }
+        try {
+          const { sweepInstallDays } = await import("@/lib/install-days.server");
+          (out as Record<string, unknown>)['installDays'] = await sweepInstallDays();
+        } catch (e) {
+          console.error("allocation tick: install day sweep failed", (e as Error).message);
+          out['ok'] = false;
+          (out as Record<string, unknown>)['installDays'] = "failed";
+        }
         return Response.json(out, { status: out['ok'] ? 200 : 500 });
       },
     },

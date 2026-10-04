@@ -149,7 +149,7 @@ export const PAYMENT_LABEL: Record<string, string> = {
 
 /** Central PIESA 30-day rule for installation dates (Melbourne-local calendar date). Returns blocker text or null. */
 export function installationDateBlocker(p: { piesa_expired?: boolean | null; install_deadline?: string | null } | null | undefined, startIso: string): string | null {
-  if (p?.piesa_expired) return `Blocked: PIESA 30-day window expired on ${p.install_deadline}. Electrician must record a reassessment first.`;
+  if (p?.piesa_expired) return `New PIESA needed. Blocked: PIESA 30-day window expired on ${p.install_deadline}. Electrician must record a reassessment first.`;
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(startIso));
   if (p?.install_deadline && day > p.install_deadline) return `Installation must be before the PIESA deadline (${p.install_deadline}).`;
   return null;

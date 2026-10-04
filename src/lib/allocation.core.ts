@@ -297,7 +297,7 @@ export type NeedsCode =
   | "rec_coverage_exhausted" | "piesa_booking_overdue" | "delivery_failed" | "rectification_declined"
   | "rectification_pricing_review" | "installer_unavailable" | "installation_booking_overdue" | "ready_check_booking_overdue"
   | "piesa_timing_invalid" | "esc_or_distribution_timing" | "compliance_correction" | "registry_query" | "office_overdue" | "rectification_quote_unanswered"
-  | "rec_no_longer_approved";
+  | "rec_no_longer_approved" | "install_ten_days_left" | "install_days_declined";
 export type NeedsUrgency = "urgent" | "today" | "soon";
 export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency: NeedsUrgency; stage: string | null; suburb: string | null };
 
@@ -316,6 +316,8 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   rectification_quote_unanswered: { why: "Rectification quote unanswered — 30-day clock at risk. The owner has not responded 5 days after it was sent.", next: "Call the owner about the rectification quote on the Quotes tab.", tab: "quotes", urgency: "today" },
   registry_query: { why: "The ESC/VEEC Registry raised a query or rejected the lodgement.", next: "Answer the query or correct and resubmit on the VEEC tab.", tab: "veec", urgency: "soon" },
   office_overdue: { why: "A task owned by Home Insulation Victoria is overdue.", next: "Open the job and complete the overdue office step.", tab: "overview", urgency: "soon" },
+  install_ten_days_left: { why: "10 days or fewer left in the 30-day installation window and no installation is booked.", next: "Call the owner and the quoted installer and book a day on the Installation section before the window closes.", tab: "compliance", urgency: "urgent" },
+  install_days_declined: { why: "The quoted installer could not do any of the owner's install days. The installer is never replaced automatically.", next: "Call the owner and installer to agree a day, or agree a replacement installer with the owner.", tab: "compliance", urgency: "today" },
   rec_no_longer_approved: { why: "The assigned electrician is no longer an approved, active REC, so the electrical work cannot continue with them.", next: "Release the electrician on the PIESA tab and re-offer the work to another approved REC (the owner keeps the approved quote).", tab: "piesa", urgency: "today" },
 };
 
@@ -364,6 +366,7 @@ export type NeedsInput = {
   registryQueries: { job_id: string; status: string; updated_at: string | null; query_received_at?: string | null; reply_sent_at?: string | null }[];
   officeOverdue: { job_id: string | null; title: string; since: string | null }[];
   rectUnanswered?: { job_id: string; sent_at: string | null }[];
+  installFlags?: { job_id: string; code: "install_ten_days_left" | "install_days_declined"; created_at: string; detail?: string }[];
 };
 
 /** ONE office exception queue: only what automation cannot safely resolve, never routine waiting. */
@@ -398,6 +401,7 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
   }
   for (const o of i.officeOverdue) add("office_overdue", o.job_id, o.since, o.title);
   for (const q of i.rectUnanswered ?? []) if (rectQuoteUnanswered({ kind: "rectification", status: "issued", sent_at: q.sent_at }, i.now)) add("rectification_quote_unanswered", q.job_id, q.sent_at);
+  for (const f of i.installFlags ?? []) { const j = jobs.get(f.job_id); if (j?.stage === "installation_scheduling") add(f.code, f.job_id, f.created_at, f.detail); }
   const rank: Record<NeedsUrgency, number> = { urgent: 0, today: 1, soon: 2 };
   return [...out.values()].sort((a, b) => rank[a.urgency] - rank[b.urgency] || (a.since ?? "").localeCompare(b.since ?? ""));
 }
