@@ -35,9 +35,9 @@
 
 ## Launch blockers (open)
 - [ ] Real PIESA offers cannot go live until approved electrician PIESA rates are entered for every active electrician/REC, or office explicitly uses rate-to-confirm with an audit reason.
-- [ ] No real scheduled timer for reminders/expired offers.
+- [x] No real scheduled timer for reminders/expired offers. (15-minute timer live)
 - [ ] No rectification reassignment when REC loses approval.
-- [ ] VEEC query/rejected statuses missing.
+- [x] VEEC query/rejected statuses (added earlier)
 - [ ] PIESA path not fully browser-tested (payment_option_gate_enabled OFF).
 
 ## Electrician rate card UI cleanup (4 Oct, preview only)
@@ -61,7 +61,7 @@
 - [x] 48h escalation fix: booking-based SLA + Ready Check in office sweep
 - [x] Electrician matching (OM v2): window/daily-limit eligibility, new ranking, 4 business-hour offers, office booking clears 48h flag
 - [ ] Office screen box to set an electrician daily job limit (field exists; empty = no limit)
-- [ ] Record no-shows per electrician (ranking ready, counts 0 until tracked)
+- [x] Record no-shows per electrician (visit events, Part 1)
 
 ## Step 9 installer capacity + install booking
 - [x] Part A: optional m²/day capacity, install holds (create/move/release), office-only hold card — practice-proven, applied
@@ -84,5 +84,5 @@
 ## Operating Model v2 final items
 - [x] Part 1: owner reschedule/cancel link (24h cutoff), owner no-show rebook once, trade cancel → owner new times, trade no-show 4h → needs-attention, per-business visit events feed reliability
 - [x] Part 2: 24h/2h visit reminders + 7am daily AP brief (queued, portal "Today")
-- [ ] Part 3: AP approval queue clean/flagged, per-job approval, never auto
+- [x] Part 3: AP approval queue clean/flagged, per-job approval, never auto
 - Trade payouts: blocked until Xero connected (not building)

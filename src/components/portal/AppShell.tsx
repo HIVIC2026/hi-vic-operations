@@ -35,6 +35,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
           <div className={group}>Jobs</div>
           <Link to="/admin" search={{}} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><LayoutDashboard className="h-4 w-4" /> Pipeline</Link>
           <Link to="/admin/today" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Sun className="h-4 w-4" /> Today</Link>
+          <Link to="/admin/ap-queue" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><ClipboardCheck className="h-4 w-4" /> AP approval queue</Link>
           <Link to="/admin/todo" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><ListTodo className="h-4 w-4" /> To action{todoCount > 0 && <span className="ml-auto rounded-full bg-destructive px-2 text-xs font-bold text-destructive-foreground">{todoCount}</span>}</Link>
           <Link to="/admin" search={{ tab: "enquiries" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Enquiries</Link>
           <Link to="/admin/enquiry-groups" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Enquiry email groups</Link>
