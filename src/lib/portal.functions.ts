@@ -899,13 +899,13 @@ export const markReadyForVeec = createServerFn({ method: "POST" }).middleware([r
   });
 
 export const updateVeec = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, quantity: z.number().min(0).nullable(), status: z.enum(["not_submitted", "submitted", "approved", "rejected"]), submission_reference: z.string().trim().max(100).nullable(), submitted_date: z.string().nullable(), notes: z.string().max(2000).nullable(), reason: z.string().max(500).nullable().optional() }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, quantity: z.number().min(0).nullable(), status: z.enum(["not_submitted", "submitted", "query", "approved", "rejected"]), submission_reference: z.string().trim().max(100).nullable(), submitted_date: z.string().nullable(), notes: z.string().max(2000).nullable(), query_text: z.string().max(4000).nullable().optional(), query_received_at: z.string().nullable().optional(), reply_draft: z.string().max(8000).nullable().optional(), reason: z.string().max(500).nullable().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { jobId, reason, ...rest } = data;
     if (["submitted", "approved"].includes(data.status) && !["ready_for_veec", "complete"].includes(await getStage(jobId)))
       throw new WorkflowError("VEEC can only be lodged once the job is Ready for VEEC.");
-    const { data: prev } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,notes").eq("job_id", jobId).maybeSingle();
+    const { data: prev } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,notes,query_text,query_received_at,reply_draft").eq("job_id", jobId).maybeSingle();
     const { veecUpdateBlockers } = await import("./veec.core");
     const blockers = veecUpdateBlockers(prev, { ...rest, reason: reason ?? null }, new Date().toISOString().slice(0, 10));
     if (blockers.length) throw new WorkflowError(blockers.join(" "));
