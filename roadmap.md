@@ -43,3 +43,5 @@
 ## Electrician rate card UI cleanup (4 Oct, preview only)
 - [x] Discarded draft rows hide the spread and read "Discarded draft - not used for offers."; row visually inactive.
 - [x] Focused rate-card tests, wording scan, typecheck, build; no publish, switches unchanged.
+## Open tasks
+- DELETE two homeowner eligibility questions: (1) previous VEU ceiling insulation upgrade, (2) rented vs owner-occupied. Remove from intake/questions + any dependent logic; run wording scan, typecheck, tests, build. Do not publish.
