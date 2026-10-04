@@ -47,7 +47,7 @@ function Dashboard() {
         ).map(({ key, label, js }) => {
           return (
             <div key={key} className="rounded-xl border bg-muted/40 p-2">
-              <div className="mb-2 flex items-center justify-between px-1 text-sm font-semibold">{label}<Badge variant="secondary">{js.length}</Badge></div>
+              <div className="mb-2 flex items-center justify-between px-1 text-sm font-semibold">{label.replace(" · ", " – ")}<Badge variant="secondary">{js.length}</Badge></div>
               <div className="space-y-2">
                 {js.map((j) => (
                   <Link key={j.id} to="/field/$jobId" params={{ jobId: j.id }} className="block rounded-lg border bg-card p-3 text-sm hover:border-primary">
