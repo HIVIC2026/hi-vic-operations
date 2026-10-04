@@ -11,16 +11,14 @@ describe("install days", () => {
     expect(installWindowDeadline(null, null)).toBeNull();
   });
   test("only business days 24h+ away, inside the window", () => {
-    const d = allowedInstallDays({ now, deadline: "2026-10-16", capacity: null, areaM2: 100 });
+    const d = allowedInstallDays({ now, deadline: "2026-10-16" });
     expect(d[0]).toBe("2026-10-07"); // Tue 6 Oct 8am is under 24h away
     expect(d).not.toContain("2026-10-10"); // Saturday
     expect(d.at(-1)).toBe("2026-10-16");
-    expect(allowedInstallDays({ now, deadline: null, capacity: null, areaM2: 1 })).toEqual([]);
+    expect(allowedInstallDays({ now, deadline: null })).toEqual([]);
   });
-  test("days without enough capacity are hidden; no capacity = always fits", () => {
-    const d = allowedInstallDays({ now, deadline: "2026-10-09", capacity: 150, areaM2: 100, bookedM2ByDay: { "2026-10-08": 80 } });
-    expect(d).toEqual(["2026-10-07", "2026-10-09"]);
-    expect(allowedInstallDays({ now, deadline: "2026-10-09", capacity: null, areaM2: 9999, bookedM2ByDay: { "2026-10-08": 9999 } })).toContain("2026-10-08");
+  test("no capacity check: every allowed day stays", () => {
+    expect(allowedInstallDays({ now, deadline: "2026-10-09" })).toEqual(["2026-10-07", "2026-10-08", "2026-10-09"]);
   });
   test("owner must pick 3–5 allowed distinct days", () => {
     const ok = ["2026-10-07", "2026-10-08", "2026-10-09"];
