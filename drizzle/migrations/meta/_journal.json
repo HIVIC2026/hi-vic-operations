@@ -617,6 +617,13 @@
       "when": 1791071547182,
       "tag": "0087_offer_batch_index",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1791076709936,
+      "tag": "0088_electrician_rates",
+      "breakpoints": true
     }
   ]
 }

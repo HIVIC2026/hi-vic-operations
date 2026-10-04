@@ -8,7 +8,7 @@ const SERVICES = ["piesa", "rectification_visit", "section_c_signoff", "installa
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Loose = { from: (t: string) => any; rpc: (f: string, a: Record<string, unknown>) => any };
-const MISSING = "The electrician rate card is not switched on yet (database change 0089 pending approval).";
+const MISSING = "The electrician rate card is not switched on yet.";
 
 export const listElectricianRates = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
