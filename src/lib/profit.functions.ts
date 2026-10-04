@@ -186,7 +186,7 @@ export const setCurrentVeecPrice = createServerFn({ method: "POST" }).middleware
     if (!row) throw new Error("Settings not found.");
     const { error } = await db.from("workflow_settings").update({ current_veec_price: data.price }).eq("id", row.id);
     if (error) throw new Error(error.message);
-    await admin.from("admin_config_events").insert({ actor_id: context.userId, setting: "current_veec_price", old_value: row.current_veec_price, new_value: data.price } as never);
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "current_veec_price_changed", summary: `Current VEEC price changed to $${data.price}`, details: { from: row.current_veec_price, to: data.price } });
     return { ok: true };
   });
 
@@ -199,6 +199,7 @@ export const setVeecSalePrice = createServerFn({ method: "POST" }).middleware([r
     const { data: row, error } = await db.from("veec_lodgements").update({ sale_price_per_veec: data.price }).eq("job_id", data.jobId).select("id").maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) throw new Error("No VEEC lodgement on this job yet.");
-    await admin.from("workflow_events").insert({ job_id: data.jobId, actor_id: context.userId, event_type: "veec_sale_price_recorded", summary: `VEEC sale price recorded: $${data.price}`, internal: true } as never);
+    const { logEvent } = await import("./workflow.server");
+    await logEvent(data.jobId, context.userId, "veec_sale_price_recorded", `VEEC sale price recorded: $${data.price}`, { price: data.price }, { internal: true });
     return { ok: true };
   });
