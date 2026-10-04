@@ -924,9 +924,9 @@ export const draftVeecReply = createServerFn({ method: "POST" }).middleware([req
     await requireAdmin(context.supabase);
     const { data: v } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,query_text").eq("job_id", data.jobId).maybeSingle();
     if (v?.status !== "query" || !v.query_text) throw new WorkflowError("A Registry query with its text must be recorded first.");
-    const { data: j } = await admin.from("jobs").select("display_ref, properties(address_line, suburb, postcode)").eq("id", data.jobId).single();
+    const { data: j } = await admin.from("jobs").select("job_number, properties(address_line, suburb, postcode)").eq("id", data.jobId).single();
     const prop = Array.isArray(j?.properties) ? j?.properties[0] : j?.properties;
-    const jobLabel = [j?.display_ref, [prop?.address_line, prop?.suburb, prop?.postcode].filter(Boolean).join(", ")].filter(Boolean).join(" — ");
+    const jobLabel = [j?.job_number, [prop?.address_line, prop?.suburb, prop?.postcode].filter(Boolean).join(", ")].filter(Boolean).join(" — ");
     const key = process.env["LOVABLE_API_KEY"];
     if (!key) throw new WorkflowError("AI drafting is not configured.");
     const res = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
