@@ -120,7 +120,7 @@ describe("appointment SLA & reassignment", () => {
     const x = appointmentSla({ assigned_at: at(49), first_response_at: at(40) }, now);
     expect(x.state).toBe("exception"); expect(x.canRequestAnother).toBe(true);
     expect(appointmentSla({ assigned_at: at(2), cannot_attend_at: at(1) }, now).canRequestAnother).toBe(true);
-    expect(appointmentSla({ assigned_at: at(60), booking_confirmed_at: at(5) }, now).state).toBe("booked");
+    expect(appointmentSla({ assigned_at: at(60), first_response_at: at(55), booking_confirmed_at: at(5) }, now).state).toBe("booked");
   });
   test("proposals: other party must respond; past times rejected", () => {
     const p = { id: "1", status: "proposed", proposer_role: "electrician", starts_at: "2026-10-03T09:00:00+10:00" };
