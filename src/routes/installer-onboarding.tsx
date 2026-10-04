@@ -43,7 +43,7 @@ export const Route = createFileRoute("/installer-onboarding")({
 
 const input: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #D7DCE8", fontSize: 15, fontFamily: "inherit", color: NAVY, background: "#fff", boxSizing: "border-box", minHeight: 48 };
 const card: React.CSSProperties = { background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E9ECF3", boxShadow: "0 6px 20px -18px rgba(34,55,107,.32)" };
-const DISPLAY = "'Outfit', 'Figtree', system-ui, sans-serif";
+const DISPLAY = "'Space Grotesk', system-ui, sans-serif";
 const note: React.CSSProperties = { color: MUTED, fontSize: 13, lineHeight: 1.5, margin: "0 0 14px" };
 const okLine: React.CSSProperties = { color: GREEN, fontWeight: 700, fontSize: 13, margin: "0 0 14px" };
 const warn: React.CSSProperties = { background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 10, padding: "9px 12px", fontSize: 13.5, color: "#7A5A00", marginBottom: 12 };
@@ -245,7 +245,7 @@ function InstallerOnboarding() {
   }
 
   const shell = (children: React.ReactNode, footer?: React.ReactNode) => (
-    <div style={{ minHeight: "100vh", background: "#fff", fontFamily: "'Figtree', system-ui, sans-serif", color: NAVY, overflowX: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: "#fff", fontFamily: "'DM Sans', system-ui, sans-serif", color: NAVY, overflowX: "hidden" }}>
       <style>{`h1,h2,h3{font-family:${DISPLAY}}`}</style>
       <header style={{ position: "sticky", top: 0, zIndex: 10, background: "rgba(255,255,255,.96)", borderBottom: "1px solid #EEF0F5" }}>
         <div style={{ maxWidth: 672, margin: "0 auto", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
