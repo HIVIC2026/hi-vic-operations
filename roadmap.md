@@ -27,8 +27,8 @@
 - [ ] Short onsite PIESA/PIISA in Mitti (clear plain full-sentence questions, problems-only) -> auto-fill official Word forms
 
 ## Electrician workspace follow-ups (4 Oct, preview only)
-- [ ] Electrician sees only own agreed rate; $349 never shown as electrician fee; "Rate to be confirmed"/block offers without rate; test + wording scan; reseed TEST offer rate
-- [ ] Replace misleading "Waiting for electrician" tag on assigned jobs + test
-- [ ] Full-page direct-link privacy audit HV-1414..HV-1421 desktop+phone
-- [ ] Investigate full-suite "1 error"
-- [ ] Focused tests, scan, typecheck, full suite, build; no publish
+- [x] Electrician sees only own agreed rate; $349 never shown as electrician fee; "Rate to be confirmed"/block offers without rate; test + wording scan; reseed TEST offer rate
+- [x] Replace misleading "Waiting for electrician" tag on assigned jobs + test
+- [x] Full-page direct-link privacy audit HV-1414..HV-1421 desktop+phone
+- [x] Investigate full-suite "1 error"
+- [x] Focused tests, scan, typecheck, full suite, build; no publish
