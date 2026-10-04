@@ -918,8 +918,9 @@ export const updateVeec = createServerFn({ method: "POST" }).middleware([require
     if (blockers.length) throw new WorkflowError(blockers.join(" "));
     await admin.from("veec_lodgements").update({ ...patch, updated_at: new Date().toISOString() }).eq("job_id", jobId);
     await logEvent(jobId, context.userId, "veec_updated", `VEEC lodgement ${data.status.replace("_", " ")}`, { ...rest, previous: prev, reason: reason ?? null }, { internal: true });
-    if (["submitted", "approved"].includes(data.status) && (await getStage(jobId)) === "ready_for_veec")
-      await transition(jobId, "complete", context.userId, "VEEC lodged – job complete");
+    // Only a registered (approved) VEEC completes the job; submitted, query and rejected keep it open at Ready for VEEC.
+    if (data.status === "approved" && (await getStage(jobId)) === "ready_for_veec")
+      await transition(jobId, "complete", context.userId, "VEEC registered – job complete");
     await autoAdvanceJob(jobId, context.userId, "VEEC updated");
     return { ok: true };
   });
