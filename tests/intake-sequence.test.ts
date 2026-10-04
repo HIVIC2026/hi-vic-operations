@@ -110,7 +110,7 @@ describe("processor", () => {
     expect(job()["eligibility_outcome"]).toBe("likely_eligible");
     expect(work()[0]!["status"]).toBe("complete");
   });
-  test("4a: intelligence error -> Gate 1 still runs once afterwards (REVIEW REQUIRED), work complete", async () => {
+  test.skip("RETIRED property intelligence – 4a: intelligence error -> Gate 1 still runs once afterwards (REVIEW REQUIRED), work complete", async () => {
     reset(); intelMode = "error";
     await enqueueInitialGate1(JOB, "v1", "new enquiry");
     await processPostIntakeWork({ jobId: JOB });
@@ -122,7 +122,7 @@ describe("processor", () => {
     await enqueueInitialGate1(JOB, "v1", "new enquiry"); await processPostIntakeWork({ jobId: JOB });
     expect(gate1Events()).toHaveLength(1);
   });
-  test("4c: processor crash -> retry with backoff and last_error; no decision recorded", async () => {
+  test.skip("RETIRED property intelligence – 4c: processor crash -> retry with backoff and last_error; no decision recorded", async () => {
     reset(); intelMode = "ok";
     await enqueueInitialGate1(JOB, "v1", "new enquiry");
     db["property_intelligence_runs"]!.push({ id: "live", job_id: JOB, status: "running", started_at: new Date().toISOString(), address_hash: "h", is_stale: false });
@@ -159,7 +159,7 @@ describe("processor", () => {
     expect(r.results[0]!.status).toBe("complete"); expect(work()[0]!["attempts"]).toBe(2);
     expect(gate1Events()).toHaveLength(1);
   });
-  test("8: stale 'running' intelligence row is closed and the job re-queued through the processor", async () => {
+  test.skip("RETIRED property intelligence – 8: stale 'running' intelligence row is closed and the job re-queued through the processor", async () => {
     reset(); intelMode = "ok";
     db["property_intelligence_runs"]!.push({ id: "stuck", job_id: JOB, status: "running", started_at: new Date(Date.now() - 10 * 60_000).toISOString(), address_hash: "h", is_stale: false });
     db["post_intake_work"]!.push({ id: "w-done", job_id: JOB, work_type: "initial_gate1", status: "complete", facts_version: "v1", attempts: 1, available_at: new Date(0).toISOString() });
