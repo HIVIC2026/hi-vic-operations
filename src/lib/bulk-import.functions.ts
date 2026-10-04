@@ -84,18 +84,18 @@ export const listBulkBatches = createServerFn({ method: "GET" }).middleware([req
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
     if (data.businessId) {
       if (!isAdmin) await requireMember(context.userId, data.businessId);
-      const { data } = await admin.from("bulk_import_batches").select("id, status, list_filename, summary, created_at, on_behalf").eq("business_id", data.businessId).order("created_at", { ascending: false }).limit(50);
-      return { batches: data ?? [], isAdmin: !!isAdmin };
+      const { data: rows } = await admin.from("bulk_import_batches").select("id, status, list_filename, summary, created_at, on_behalf").eq("business_id", data.businessId).order("created_at", { ascending: false }).limit(50);
+      return { batches: rows ?? [], isAdmin: !!isAdmin };
     }
     if (isAdmin) {
-      const { data } = await admin.from("bulk_import_batches").select("id, business_id, status, list_filename, summary, created_at, on_behalf, businesses(name)").order("created_at", { ascending: false }).limit(50);
-      return { batches: data ?? [], isAdmin: true };
+      const { data: rows } = await admin.from("bulk_import_batches").select("id, business_id, status, list_filename, summary, created_at, on_behalf, businesses(name)").order("created_at", { ascending: false }).limit(50);
+      return { batches: rows ?? [], isAdmin: true };
     }
     const biz = await myBusinesses(context.userId);
     const ids = [...biz.keys()];
     if (ids.length === 0) return { batches: [], isAdmin: false };
-    const { data } = await admin.from("bulk_import_batches").select("id, business_id, status, list_filename, summary, created_at, on_behalf").in("business_id", ids).order("created_at", { ascending: false }).limit(50);
-    return { batches: data ?? [], isAdmin: false };
+    const { data: rows } = await admin.from("bulk_import_batches").select("id, business_id, status, list_filename, summary, created_at, on_behalf").in("business_id", ids).order("created_at", { ascending: false }).limit(50);
+    return { batches: rows ?? [], isAdmin: false };
   });
 
 /** Approved installer businesses for the office "on behalf" picker. */
@@ -111,6 +111,6 @@ export const bulkImportBusinesses = createServerFn({ method: "GET" }).middleware
       }
       return { businesses: out, isAdmin: false };
     }
-    const { data } = await admin.from("businesses").select("id, name").eq("business_type", "eec_installer").eq("onboarding_status", "approved").order("name");
-    return { businesses: data ?? [], isAdmin: true };
+    const { data: bizList } = await admin.from("businesses").select("id, name").eq("business_type", "eec_installer").eq("onboarding_status", "approved").order("name");
+    return { businesses: bizList ?? [], isAdmin: true };
   });

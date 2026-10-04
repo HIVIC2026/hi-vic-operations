@@ -41,7 +41,9 @@ async function parseList(file: File): Promise<Record<string, string>[]> {
   const XLSX = await import("xlsx");
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: "array" });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const firstSheet = wb.SheetNames[0];
+  if (!firstSheet) return [];
+  const sheet = wb.Sheets[firstSheet];
   if (!sheet) return [];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: false });
   return rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [String(k).trim(), String(v ?? "").trim()])));
@@ -208,7 +210,7 @@ function BulkImportPage() {
                       <td className="p-2">{r.extracted.price_inc_gst ? `$${r.extracted.price_inc_gst}` : "—"}</td>
                       <td className="p-2">{r.matched_files.length > 0 ? `${r.matched_files.length} file${r.matched_files.length > 1 ? "s" : ""}` : "—"}</td>
                       <td className="p-2">
-                        {r.sort_result && <Badge variant={SORT_LABEL[r.sort_result].variant}>{SORT_LABEL[r.sort_result].label}</Badge>}
+                        {r.sort_result && SORT_LABEL[r.sort_result] && <Badge variant={SORT_LABEL[r.sort_result]!.variant}>{SORT_LABEL[r.sort_result]!.label}</Badge>}
                         <ul className="mt-1 list-inside list-disc text-xs text-muted-foreground">
                           {(r.sort_reasons ?? []).map((x, i) => <li key={i}>{x}</li>)}
                           {r.duplicate_note && <li className="text-destructive">{r.duplicate_note}</li>}

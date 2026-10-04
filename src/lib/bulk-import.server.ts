@@ -5,6 +5,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { logEvent } from "./workflow.server";
+import { logPartner } from "./pilot.server";
 import { ghgEquivalentReduction, type LocationVariables } from "./activity48.core";
 import { HIVIC_PIESA_INC_GST } from "./installer-led.core";
 import {
@@ -20,7 +21,9 @@ export class BulkImportError extends Error {}
 export async function parseListFile(name: string, buf: ArrayBuffer): Promise<Record<string, string>[]> {
   const XLSX = await import("xlsx");
   const wb = XLSX.read(buf, { type: "array" });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const firstSheet = wb.SheetNames[0];
+  if (!firstSheet) return [];
+  const sheet = wb.Sheets[firstSheet];
   if (!sheet) return [];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: false });
   return rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [String(k).trim(), String(v ?? "").trim()])));
@@ -173,7 +176,7 @@ export async function analyseBatch(batchId: string, actorId: string) {
     duplicates: rows.filter((r) => r.duplicate_note).length,
   };
   await admin.from("bulk_import_batches").update({ status: "analysed", summary: summary as unknown as Json }).eq("id", batchId);
-  await logEvent(null, actorId, "bulk_import_analysed", `Bulk upload analysed: ${summary.rows} jobs found (${summary.ready_to_quote} ready to quote, ${summary.needs_visit} need a visit, ${summary.office_review} for office review)`, { batch_id: batchId, ...summary });
+  await logPartner(null, actorId, "bulk_import_analysed", `Bulk upload analysed: ${summary.rows} jobs found (${summary.ready_to_quote} ready to quote, ${summary.needs_visit} need a visit, ${summary.office_review} for office review)`, { batch_id: batchId, ...summary });
   return summary;
 }
 
@@ -196,12 +199,12 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
     ownerId = data.id;
   }
   const { data: prop, error: pe } = await admin.from("properties").insert({
-    address_line: e.address_line!, suburb: e.suburb ?? null, postcode: e.postcode ?? null, state: "VIC",
+    owner_id: ownerId, address_line: e.address_line!, suburb: e.suburb ?? null, postcode: e.postcode ?? null, state: "VIC",
   }).select("id").single();
   if (pe || !prop) throw new BulkImportError(pe?.message ?? "Property could not be created.");
   const { data: job, error: je } = await admin.from("jobs").insert({
     owner_id: ownerId, property_id: prop.id, stage: "new_enquiry", source: "bulk_import",
-    channel: "installer_sourced", originating_business_id: batch.business_id,
+    channel: "installer_sourced", originating_installer_business_id: batch.business_id, originating_installer_user_id: actorId,
     external_enquiry_id: `bulk:${rowId}`,
     next_action: "Office review — imported from installer bulk upload",
   }).select("id, job_number").single();
@@ -263,7 +266,7 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       created++;
     } catch (err) {
       failed++;
-      await logEvent(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1} could not be imported: ${(err as Error).message}`, { batch_id: batchId, row_id: row.id });
+      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1} could not be imported: ${(err as Error).message}`, { batch_id: batchId, row_id: row.id });
     }
   }
   await admin.from("bulk_import_batches").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", batchId);
