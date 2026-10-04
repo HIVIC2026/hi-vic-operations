@@ -70,21 +70,24 @@ function RatesOffice() {
             <thead className="text-left text-xs text-muted-foreground"><tr><th className="p-2">Electrician</th><th className="p-2">Service</th><th className="p-2">Rate</th><th className="p-2">Effective</th><th className="p-2">Status</th><th className="p-2">Office spread (PIESA)</th><th className="p-2" /></tr></thead>
             <tbody>
               {rates.length === 0 && <tr><td colSpan={7} className="p-4 text-muted-foreground">No rates recorded yet.</td></tr>}
-              {rates.map((r) => (
-                <tr key={r.id} className="border-t align-top">
+              {rates.map((r) => {
+                const discarded = r.status === "discarded";
+                return (
+                <tr key={r.id} className={`border-t align-top${discarded ? " bg-muted/40 text-muted-foreground" : ""}`}>
                   <td className="p-2 font-medium">{name(r.business_id)}<div className="text-xs text-muted-foreground">{r.source_note}</div></td>
                   <td className="p-2">{ELECTRICIAN_RATE_SERVICES[r.service_type] ?? r.service_type}</td>
-                  <td className="p-2">${Number(r.rate_inc_gst).toFixed(2)}</td>
+                  <td className={`p-2${discarded ? " line-through" : ""}`}>${Number(r.rate_inc_gst).toFixed(2)}</td>
                   <td className="p-2 text-xs">{r.effective_from}{r.effective_to ? ` → ${r.effective_to}` : " → open"}</td>
-                  <td className="p-2"><Badge variant="outline" className="capitalize">{r.status}</Badge></td>
-                  <td className="p-2 text-xs">{r.service_type === "piesa" ? officeSpread(d!.customerPiesaIncGst, Number(r.rate_inc_gst)).text : "—"}</td>
+                  <td className="p-2"><Badge variant={discarded ? "secondary" : "outline"} className="capitalize">{discarded ? "Discarded draft" : r.status}</Badge></td>
+                  <td className="p-2 text-xs">{discarded ? "Discarded draft - not used for offers." : r.service_type === "piesa" ? officeSpread(d!.customerPiesaIncGst, Number(r.rate_inc_gst)).text : "—"}</td>
                   <td className="p-2 whitespace-nowrap">
                     {r.status === "draft" && <Button size="sm" onClick={() => { if (window.confirm("Activate this rate? Any current active rate for the same service is superseded.")) void activate({ id: r.id }, "Rate active"); }}>Approve & activate</Button>}
                     {r.status === "draft" && <Button size="sm" variant="outline" className="ml-2" onClick={() => { const reason = window.prompt("Reason for discarding this draft?"); if (reason && reason.trim().length >= 3) void discard({ id: r.id, reason }, "Draft discarded"); }}>Discard draft</Button>}
                     {r.status === "active" && <Button size="sm" variant="outline" onClick={() => { const reason = window.prompt("Reason for expiring this rate?"); if (reason && reason.trim().length >= 3) void expire({ id: r.id, reason }, "Rate expired"); }}>Expire</Button>}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
