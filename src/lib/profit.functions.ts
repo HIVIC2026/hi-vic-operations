@@ -128,7 +128,7 @@ export const getJobProfit = createServerFn({ method: "POST" }).middleware([requi
     const [m, asg, rs, ps, ws, quote, lodg] = await Promise.all([
       admin.from("ceiling_measurements").select("measured_area_m2, removal_required, removal_m2, access_difficulty, status").eq("job_id", data.jobId).eq("is_current", true).maybeSingle(),
       admin.from("job_assignments").select("business_id, role").eq("job_id", data.jobId).eq("active", true),
-      admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst").eq("is_current", true).maybeSingle(),
+      admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst, veec_buy_price").eq("is_current", true).maybeSingle(),
       admin.from("pricing_settings").select("access_loadings, gst_rate").eq("is_active", true).maybeSingle(),
       db.from("workflow_settings").select("current_veec_price").limit(1).maybeSingle(),
       admin.from("quotes").select("id, quote_internals(ap_margin_ex_gst, calc_snapshot)").eq("job_id", data.jobId).eq("kind", "installation").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -167,7 +167,7 @@ export const getJobProfit = createServerFn({ method: "POST" }).middleware([requi
         ownerR5IncPerM2: Number(rs.data.r5_install_inc_gst_per_m2), ownerRemovalIncPerM2: Number(rs.data.removal_inc_gst_per_m2),
         installerR5IncPerM2: r5, installerRemovalIncPerM2: rem,
         apFeeInc: job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : Number(rs.data.ap_management_inc_gst),
-        piesaCustomerInc: Number(rs.data.piesa_assessment_inc_gst), electricianPiesaRateInc: piesaRate,
+        piesaCustomerInc: Number(rs.data.piesa_assessment_inc_gst), electricianPiesaRateInc: piesaRate, veecBuyPrice: Number(rs.data.veec_buy_price),
         currentVeecPrice: Number(ws.data?.current_veec_price ?? 83),
         acceptedQuoteMarkupInc: hivJob ? acceptedMarkup : null, acceptedQuoteLegacy: !!qi && !snap?.pricing_rule,
         lodgedVeecs: lodg.data?.quantity != null ? Number(lodg.data.quantity) : null,
