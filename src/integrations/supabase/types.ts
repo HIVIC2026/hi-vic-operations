@@ -50,6 +50,7 @@ export type Database = {
           job_id: string
           kind: Database["public"]["Enums"]["booking_kind"]
           note: string | null
+          piesa_window_round: number | null
           proposed_by: string
           proposer_role: string
           responded_at: string | null
@@ -66,6 +67,7 @@ export type Database = {
           job_id: string
           kind?: Database["public"]["Enums"]["booking_kind"]
           note?: string | null
+          piesa_window_round?: number | null
           proposed_by: string
           proposer_role: string
           responded_at?: string | null
@@ -82,6 +84,7 @@ export type Database = {
           job_id?: string
           kind?: Database["public"]["Enums"]["booking_kind"]
           note?: string | null
+          piesa_window_round?: number | null
           proposed_by?: string
           proposer_role?: string
           responded_at?: string | null
@@ -9842,6 +9845,13 @@ export type Database = {
     Functions: {
       accept_partner_offer: {
         Args: { _offer: string; _user: string }
+        Returns: {
+          assignment_id: string
+          outcome: string
+        }[]
+      }
+      accept_partner_offer_slot: {
+        Args: { _offer: string; _proposal: string; _user: string }
         Returns: {
           assignment_id: string
           outcome: string
