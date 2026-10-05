@@ -26,7 +26,8 @@ Remove stale project notes so there is one trustworthy status list, then restyle
 ## 4. Prove it
 - Add focused tests for duplicate handling, office-review holds, permission propagation, photo batching and existing photo/GPS/lead-fee rules.
 - Prove any required database change on PGlite with rollback before applying it.
-- Browser-check upload, reading, review, Past uploads and done states at 390px.
+- Run Scenario E end to end with a realistic isolated TEST batch: 25 messy rows, PDFs, mixed-GPS photos, handwritten-list photo and zip; repair every exception; verify privacy, matching, quote creation and no sends; then clean it up or retain it only as `qa_test`.
+- Time 300 rows and 60+ photos, repeat as office uploading for a TEST installer, and capture upload, reading, review, done and Past uploads at 390px.
 - Confirm the preview build, focused tests and retired-wording scan.
 
 ## Deferred sequence
