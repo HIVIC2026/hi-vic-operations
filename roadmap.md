@@ -1,6 +1,7 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
 
 1. [x] Owner paperwork gates A–D: no-login signing via secure link + 6-digit SMS/email code (quote acceptance, visit-time picks, all owner signatures)
+1b. [x] Owner paperwork gates A–D for every journey (gate rules, signing card, Paperwork strip, Needs me, settings page, scenario F). Waiting on Jo: final wording, cooling-off rules, landlord consent design, Mitti PIESA mapping.
 2. [x] Mist background behind house + headline on owner screens (check with a non-cancelled TEST job)
 3. [ ] Electrician screens: offer, My work, On the day, Money, My business
 4. [ ] Installer screens (offer, Ready Check day, Install day, My work) + shared before-you-start section

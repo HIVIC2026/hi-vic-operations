@@ -66,12 +66,12 @@ export async function verifyOwnerCode(token: unknown, code: string) {
 }
 
 /** The verified owner for this link + session, or an error. Every signed action re-checks this. */
-export async function ownerSession(token: unknown, session: unknown): Promise<{ jobId: string; userId: string }> {
+export async function ownerSession(token: unknown, session: unknown): Promise<{ jobId: string; userId: string; codeId: string; channel: "sms" | "email"; destination: string }> {
   const jobId = await jobForLink(token);
   if (!jobId || typeof session !== "string" || session.length < 40) throw new WorkflowError("Please verify with a code first.");
-  const { data: r } = await admin.from("owner_link_codes").select("job_id, session_expires_at, owner_user_id").eq("session_hash", await hashToken(session)).maybeSingle();
+  const { data: r } = await admin.from("owner_link_codes").select("id, channel, destination_masked, job_id, session_expires_at, owner_user_id").eq("session_hash", await hashToken(session)).maybeSingle();
   if (!r || r.job_id !== jobId || !sessionUsable(r) || !r.owner_user_id) throw new WorkflowError("Your check has timed out. Please get a new code.");
-  return { jobId, userId: r.owner_user_id };
+  return { jobId, userId: r.owner_user_id, codeId: r.id, channel: r.channel as "sms" | "email", destination: r.destination_masked };
 }
 
 /** The owner's verified identity as a portal user (reuses an existing one; links by verified email or mobile). */

@@ -1,0 +1,198 @@
+// Owner paperwork gates — persistence. Facts in, pure evaluator (owner-gates.core) out. Server-only.
+import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import { GATE_DOCS, evaluateOwnerGates, fillTemplate, gateDoc, ownerGateBlockers, ownerToSign, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
+import { agreementSigned, assignmentStatus, logEvent, WorkflowError } from "./workflow.server";
+
+async function sha256(s: string) {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+/** Approved versions: an approval only counts when it matches the catalogue's exact version AND body. */
+export async function approvedVersions(): Promise<Record<string, string>> {
+  const { data } = await admin.from("owner_paperwork_approvals").select("doc_key, doc_version, body_sha256");
+  const out: Record<string, string> = {};
+  for (const d of GATE_DOCS) {
+    const h = await sha256(d.body);
+    if ((data ?? []).some((a) => a.doc_key === d.key && a.doc_version === d.version && a.body_sha256 === h)) out[d.key] = d.version;
+  }
+  return out;
+}
+
+export async function gateFacts(jobId: string): Promise<GateFacts> {
+  const [{ data: job }, { data: sigs }, approved, { data: bulk }, { data: quotes }, agreed, { data: tpl }, { data: esc }, { data: dels }, assign] = await Promise.all([
+    admin.from("jobs").select("source, life_support").eq("id", jobId).single(),
+    admin.from("owner_gate_signatures").select("doc_key, doc_version, doc_draft, answers, signed_at").eq("job_id", jobId).order("signed_at"),
+    approvedVersions(),
+    admin.from("bulk_import_rows").select("import_stage").eq("job_id", jobId).limit(1).maybeSingle(),
+    admin.from("quotes").select("id").eq("job_id", jobId).in("status", ["issued", "accepted"]).limit(1),
+    agreementSigned(jobId),
+    admin.from("compliance_templates").select("template_key").in("template_key", ["customer_agreement", "consumer_rights"]).eq("approved", true).eq("is_active", true),
+    admin.from("owner_esc_consents").select("id").eq("job_id", jobId).not("owner_signed_at", "is", null).limit(1),
+    admin.from("piesa_deliveries").select("recipient").eq("job_id", jobId),
+    assignmentStatus(jobId),
+  ]);
+  const latest = (k: string) => (sigs ?? []).filter((s) => s.doc_key === k).at(-1)?.answers as Record<string, unknown> | undefined;
+  const keys = new Set((tpl ?? []).map((t) => t.template_key));
+  return {
+    isTest: job?.source === "qa_test",
+    signed: (sigs ?? []).map((s) => ({ key: s.doc_key, version: s.doc_version, draft: s.doc_draft })),
+    approved,
+    tenant: latest("details_confirmation")?.["role"] === "tenant",
+    lifeSupport: !!job?.life_support || latest("life_support_answer")?.["life_support"] === "yes",
+    visitedByInstaller: ["visited", "quoted"].includes(String(bulk?.import_stage ?? "")),
+    hasQuote: (quotes ?? []).length > 0,
+    agreementSigned: agreed,
+    agreementWordingApproved: keys.has("customer_agreement") && keys.has("consumer_rights"),
+    escConsentSigned: (esc ?? []).length > 0,
+    piesaCopyDelivered: (dels ?? []).some((d) => String(d.recipient).toLowerCase().includes("owner")),
+    piesaDeclarationMappingApproved: !!approved["piesa_owner_declaration"],
+    assignmentEffective: assign === "effective_complete",
+  };
+}
+
+export async function ownerGates(jobId: string): Promise<{ facts: GateFacts; gates: GateResult[] }> {
+  const facts = await gateFacts(jobId);
+  return { facts, gates: evaluateOwnerGates(facts) };
+}
+
+export async function ownerGateStageBlockers(jobId: string, to: string): Promise<string[]> {
+  return ownerGateBlockers((await ownerGates(jobId)).gates, to);
+}
+
+/** Gate A must be complete before any trade is offered the job or sees the owner's details. */
+export async function assertGateA(jobId: string, what: string) {
+  const a = (await ownerGates(jobId)).gates.find((g) => g.gate === "A")!;
+  if (!a.complete) throw new WorkflowError(`${what} can't start yet. ${a.blockers.join(" ")}`);
+}
+export async function gateAComplete(jobId: string) {
+  return (await ownerGates(jobId)).gates.find((g) => g.gate === "A")!.complete;
+}
+
+async function jobVars(jobId: string) {
+  const { data: j } = await admin.from("jobs").select("job_number, properties(address_line, suburb, postcode), owners(id, full_name, email, phone)").eq("id", jobId).single();
+  const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
+  const o = j?.owners as { id: string; full_name: string | null; email: string | null; phone: string | null } | null;
+  const { data: inst } = await admin.from("job_assignments").select("businesses(name)").eq("job_id", jobId).eq("role", "installer").eq("active", true).limit(1).maybeSingle();
+  return { jobNumber: j?.job_number ?? "", ownerId: o?.id ?? null, vars: {
+    owner: o?.full_name, email: o?.email, phone: o?.phone,
+    address: [p?.address_line, p?.suburb, p?.postcode].filter(Boolean).join(", "),
+    installer: (inst?.businesses as { name: string } | null)?.name ?? "your installer",
+  } as Record<string, string | null | undefined> };
+}
+
+/** What the owner still needs to sign now, with the exact text they would sign. */
+export async function ownerPaperworkToSign(jobId: string) {
+  const { facts, gates } = await ownerGates(jobId);
+  const { vars } = await jobVars(jobId);
+  const todo = ownerToSign(gates).filter((t) => t.gate === "A" || (t.gate === "B" && facts.hasQuote) || (t.gate === "C" && facts.agreementSigned));
+  return {
+    gates: gates.map((g) => ({ gate: g.gate, label: g.label, complete: g.complete, items: g.items })),
+    todo: todo.map((t) => { const d = gateDoc(t.key); return { gate: t.gate, key: t.key, title: d.title, tick: d.tick, version: d.version, draft: !facts.approved[t.key], text: fillTemplate(d.body, vars) }; }),
+    isTest: facts.isTest,
+  };
+}
+
+const ANSWERS: Partial<Record<GateDocKey, (a: Record<string, string>) => string | null>> = {
+  details_confirmation: (a) => (["owner", "tenant"].includes(a["role"] ?? "") ? null : "Tell us if you're the owner or a tenant."),
+  life_support_answer: (a) => (["yes", "no"].includes(a["life_support"] ?? "") ? null : "Please answer the life support question."),
+  tenancy_details: (a) => ((a["landlord_name"] ?? "").trim().length >= 2 && (a["landlord_contact"] ?? "").trim().length >= 5 ? null : "Add your landlord's name and phone or email."),
+};
+
+export type SignInput = { jobId: string; key: GateDocKey; signatoryName: string; ticked: boolean; answers: Record<string, string>;
+  method: "link_code" | "login" | "office"; signedBy: string | null; ip: string | null; userAgent: string | null;
+  verified?: { channel: "sms" | "email"; destination: string; codeId: string } };
+
+/** Records one signed document: exact text, version, identity, IP; files a PDF copy; queues the owner's emailed copy. */
+export async function signGateDoc(i: SignInput) {
+  const d = gateDoc(i.key);
+  if (!i.ticked) throw new WorkflowError("Please tick the box to sign.");
+  if (i.signatoryName.trim().length < 2) throw new WorkflowError("Please type your full name.");
+  if (d.signer === "office" && i.method !== "office") throw new WorkflowError("The office records this one.");
+  if (d.signer === "owner" && i.method === "office") throw new WorkflowError("Only the owner can sign this.");
+  const bad = ANSWERS[i.key]?.(i.answers);
+  if (bad) throw new WorkflowError(bad);
+  const { facts } = await ownerGates(i.jobId);
+  const draft = facts.approved[i.key] !== d.version;
+  if (draft && !facts.isTest) throw new WorkflowError(`"${d.title}" is still DRAFT wording. It can be signed on real jobs once Jo approves it.`);
+  const { vars, jobNumber, ownerId } = await jobVars(i.jobId);
+  const text = fillTemplate(d.body, { ...vars, ...i.answers });
+  const signedText = `${d.title} (version ${d.version}${draft ? ", DRAFT" : ""})\n\n${text}\n\n[x] ${d.tick}\nSigned: ${i.signatoryName.trim()}`;
+  const { data: row, error } = await admin.from("owner_gate_signatures").insert({
+    job_id: i.jobId, gate: d.gate, doc_key: d.key, doc_version: d.version, doc_draft: draft, signed_text: signedText, signed_text_sha256: await sha256(signedText),
+    answers: i.answers, signatory_name: i.signatoryName.trim(), ticked: true, method: i.method, signed_by: i.signedBy,
+    verified_channel: i.verified?.channel ?? null, verified_destination: i.verified?.destination ?? null, code_id: i.verified?.codeId ?? null,
+    ip: i.ip, user_agent: i.userAgent,
+  }).select("id, signed_at").single();
+  if (error || !row) throw new Error(error?.message ?? "Could not save the signature");
+
+  // Facts the signature establishes (fail closed: only ever switch life support ON).
+  if (i.key === "life_support_answer" && i.answers["life_support"] === "yes") await admin.from("jobs").update({ life_support: true }).eq("id", i.jobId);
+  if (i.key === "contact_privacy" && ownerId) {
+    await admin.from("owner_contact_consents").upsert({ job_id: i.jobId, owner_id: ownerId, source: "owner_paperwork", consent_key: `gateA:${row.id}`, consent_status: "granted", contact_consent: true, consent_version: d.version, consented_at: row.signed_at, snapshot: { signature_id: row.id, text: signedText }, sha256: await sha256(signedText) }, { onConflict: "job_id,source,consent_key", ignoreDuplicates: true });
+  }
+
+  // PDF copy in the job file.
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  let page = pdf.addPage([595, 842]); let y = 800;
+  const lines = [`Home Insulation Victoria — job ${jobNumber}`, "", ...signedText.split("\n"), "", `Signed at: ${row.signed_at}`, `Method: ${i.method}${i.verified ? ` (code verified by ${i.verified.channel}: ${i.verified.destination})` : ""}`, `IP: ${i.ip ?? "—"}`, `Record: ${row.id}`];
+  for (const raw of lines) {
+    const words = raw.replace(/[^\x20-\x7E]/g, "-").split(" "); let line = "";
+    const flush = () => { if (y < 50) { page = pdf.addPage([595, 842]); y = 800; } page.drawText(line, { x: 48, y, size: 10, font }); y -= 14; line = ""; };
+    for (const w of words) { if (font.widthOfTextAtSize(`${line} ${w}`, 10) > 500) flush(); line = line ? `${line} ${w}` : w; }
+    flush();
+  }
+  const path = `${i.jobId}/owner-paperwork/${d.key}-${row.id}.pdf`;
+  const up = await admin.storage.from("job-files").upload(path, new Blob([await pdf.save() as BlobPart], { type: "application/pdf" }), { contentType: "application/pdf", upsert: false });
+  if (!up.error) {
+    await admin.from("owner_gate_signatures").update({ copy_path: path }).eq("id", row.id);
+    await admin.from("documents").insert({ job_id: i.jobId, kind: "owner_paperwork", title: `${d.title} — signed`, storage_path: path, mime_type: "application/pdf", uploaded_by: i.signedBy, source_system: "portal", original_name: `${d.key}.pdf` });
+  }
+  await logEvent(i.jobId, i.signedBy, "owner_paperwork_signed", `Owner paperwork ${d.gate}: "${d.title}" ${d.signer === "office" ? "recorded" : "signed"}${draft ? " (DRAFT wording, TEST job)" : ""}`, { signature_id: row.id, doc_key: d.key, version: d.version });
+
+  // Emailed copy: queued for real jobs only; delivery follows the sending switches.
+  if (!facts.isTest) {
+    const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", i.jobId).eq("event_type", "owner_paperwork_signed").contains("details", { signature_id: row.id }).limit(1).maybeSingle();
+    if (ev) {
+      const { error: e } = await admin.rpc("enqueue_external_action", { _job: i.jobId, _event: ev.id, _action: "customer_email", _target: `owner_paperwork:${row.id}`, _basis: "transactional_signed_copy", _version: d.version, _payload: `owner_paperwork:${row.id}`, _facts: row.id, _key: `owner-paperwork-${row.id}` });
+      if (!e) await admin.from("owner_gate_signatures").update({ copy_email_queued: true }).eq("id", row.id);
+      else console.error("signed copy enqueue skipped", e.message);
+    }
+  }
+  return { id: row.id, draft };
+}
+
+export async function approvePaperwork(key: GateDocKey, version: string, actorId: string) {
+  const d = gateDoc(key);
+  if (d.version !== version) throw new WorkflowError("That version is no longer current.");
+  if (d.body.startsWith("DRAFT")) throw new WorkflowError("This is still placeholder DRAFT text. Load Jo's final wording as a new version first, then approve it.");
+  const { error } = await admin.from("owner_paperwork_approvals").insert({ doc_key: key, doc_version: version, body_sha256: await sha256(d.body), approved_by: actorId });
+  if (error) throw new WorkflowError(error.message.includes("duplicate") ? "Already approved." : error.message);
+}
+
+/** Settings list: every owner document, its version, Draft/Approved and who approved it. */
+export async function paperworkCatalogue() {
+  const [{ data: appr }, { data: tpl }, approved] = await Promise.all([
+    admin.from("owner_paperwork_approvals").select("doc_key, doc_version, approved_by, approved_at"),
+    admin.from("compliance_templates").select("template_key, version, approved, approved_by, approved_at, is_active").in("template_key", ["customer_agreement", "consumer_rights", "esc_consent", "consumer_declaration"]).eq("is_active", true),
+    approvedVersions(),
+  ]);
+  const ids = [...new Set([...(appr ?? []).map((a) => a.approved_by), ...(tpl ?? []).map((t) => t.approved_by)].filter(Boolean) as string[])];
+  const { data: people } = ids.length ? await admin.from("profiles").select("id, full_name").in("id", ids) : { data: [] as { id: string; full_name: string | null }[] };
+  const who = (id: string | null) => (people ?? []).find((p) => p.id === id)?.full_name ?? (id ? "Admin" : null);
+  const TEMPLATE_GATE: Record<string, string> = { customer_agreement: "B", consumer_rights: "B", esc_consent: "C", consumer_declaration: "D" };
+  const TEMPLATE_TITLE: Record<string, string> = { customer_agreement: "Customer agreement (HIV wording)", consumer_rights: "Consumer rights", esc_consent: "ESC information-sharing consent (Reg 23A)", consumer_declaration: "Final VEEC assignment (consumer)" };
+  const fromTemplates = Object.keys(TEMPLATE_GATE).map((k) => {
+    const rows = (tpl ?? []).filter((t) => t.template_key === k);
+    const a = rows.find((t) => t.approved);
+    const t = a ?? rows[0];
+    return { key: k, gate: TEMPLATE_GATE[k]!, title: TEMPLATE_TITLE[k]!, version: t?.version ?? "not loaded", status: a ? "Approved" : "Draft", approvedBy: who(a?.approved_by ?? null), approvedAt: a?.approved_at ?? null, managedIn: "Templates" };
+  });
+  const own = GATE_DOCS.map((d) => {
+    const a = (appr ?? []).find((x) => x.doc_key === d.key && x.doc_version === d.version);
+    return { key: d.key, gate: d.gate, title: d.title, version: d.version, status: approved[d.key] ? "Approved" : "Draft", approvedBy: who(a?.approved_by ?? null), approvedAt: a?.approved_at ?? null, managedIn: "Here" };
+  });
+  return [...own, ...fromTemplates].sort((x, y) => x.gate.localeCompare(y.gate));
+}
