@@ -7,7 +7,7 @@ import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melb
 export { DAYS, LEAD_TIMES, RADII, validAbn };
 export type { ResolvedAddress };
 // 1.14 adds the verified AP accreditation number to the applicant-facing agreement.
-// 1.15 (5 Oct): installer CII lines leave out blank details (issuer/issue date are no longer asked).
+// 1.15 (5 Oct): installer CII lines leave out blank details (issue date is no longer asked; issuer is asked again).
 // Earlier signed versions stay immutable and remain activatable.
 export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.15-2026-10-05";
 export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", "HI-VIC-A48-INST-1.13-2026-10-03", "HI-VIC-A48-INST-1.14-2026-10-03", INSTALLER_AGREEMENT_VERSION];
@@ -183,6 +183,7 @@ export function stepFieldErrors(step: StepKey, d: InstData, now = new Date()): F
         if (x.cii_holds === "held") {
           // Issuer is always EEC (saved automatically) and the issue date is no longer asked.
           if (!txt(x.cii_certificate_number)) add(`installer-${i}-cii-number`, say(i, "Enter the CII certificate or ID number."));
+          if (!txt(x.cii_issuer)) add(`installer-${i}-cii-issuer`, say(i, "Enter who issued the certificate, for example Energy Efficiency Council Victoria."));
           if (x.cii_level !== "full" && x.cii_level !== "provisional") add(`installer-${i}-cii-level`, say(i, "Choose Full or Provisional."));
           if (!validCalendarDate(x.cii_expiry)) add(`installer-${i}-cii-expiry`, say(i, "Enter the expiry date, for example 05/10/2028."));
           else if ((x.cii_expiry as string) <= today) add(`installer-${i}-cii-expiry`, say(i, "This certificate has expired — enter a future expiry date."));
