@@ -27,6 +27,7 @@ import { Route as WTokenRouteImport } from './routes/w.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminApQueueRouteImport } from './routes/_authenticated/admin.ap-queue'
 import { Route as AuthenticatedAdminBusinessesRouteImport } from './routes/_authenticated/admin.businesses'
+import { Route as AuthenticatedAdminCampaignEmailsRouteImport } from './routes/_authenticated/admin.campaign-emails'
 import { Route as AuthenticatedAdminCommunicationsRouteImport } from './routes/_authenticated/admin.communications'
 import { Route as AuthenticatedAdminComplianceRouteImport } from './routes/_authenticated/admin.compliance'
 import { Route as AuthenticatedAdminCoverageRouteImport } from './routes/_authenticated/admin.coverage'
@@ -165,6 +166,12 @@ const AuthenticatedAdminBusinessesRoute =
   AuthenticatedAdminBusinessesRouteImport.update({
     id: '/admin/businesses',
     path: '/admin/businesses',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminCampaignEmailsRoute =
+  AuthenticatedAdminCampaignEmailsRouteImport.update({
+    id: '/admin/campaign-emails',
+    path: '/admin/campaign-emails',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminCommunicationsRoute =
@@ -453,6 +460,7 @@ export interface FileRoutesByFullPath {
   '/w/$token': typeof WTokenRoute
   '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
+  '/admin/campaign-emails': typeof AuthenticatedAdminCampaignEmailsRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
@@ -520,6 +528,7 @@ export interface FileRoutesByTo {
   '/w/$token': typeof WTokenRoute
   '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
+  '/admin/campaign-emails': typeof AuthenticatedAdminCampaignEmailsRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
@@ -589,6 +598,7 @@ export interface FileRoutesById {
   '/w/$token': typeof WTokenRoute
   '/_authenticated/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
   '/_authenticated/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
+  '/_authenticated/admin/campaign-emails': typeof AuthenticatedAdminCampaignEmailsRoute
   '/_authenticated/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/_authenticated/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/_authenticated/admin/coverage': typeof AuthenticatedAdminCoverageRoute
@@ -658,6 +668,7 @@ export interface FileRouteTypes {
     | '/w/$token'
     | '/admin/ap-queue'
     | '/admin/businesses'
+    | '/admin/campaign-emails'
     | '/admin/communications'
     | '/admin/compliance'
     | '/admin/coverage'
@@ -725,6 +736,7 @@ export interface FileRouteTypes {
     | '/w/$token'
     | '/admin/ap-queue'
     | '/admin/businesses'
+    | '/admin/campaign-emails'
     | '/admin/communications'
     | '/admin/compliance'
     | '/admin/coverage'
@@ -793,6 +805,7 @@ export interface FileRouteTypes {
     | '/w/$token'
     | '/_authenticated/admin/ap-queue'
     | '/_authenticated/admin/businesses'
+    | '/_authenticated/admin/campaign-emails'
     | '/_authenticated/admin/communications'
     | '/_authenticated/admin/compliance'
     | '/_authenticated/admin/coverage'
@@ -1001,6 +1014,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/businesses'
       fullPath: '/admin/businesses'
       preLoaderRoute: typeof AuthenticatedAdminBusinessesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/campaign-emails': {
+      id: '/_authenticated/admin/campaign-emails'
+      path: '/admin/campaign-emails'
+      fullPath: '/admin/campaign-emails'
+      preLoaderRoute: typeof AuthenticatedAdminCampaignEmailsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/communications': {
@@ -1346,6 +1366,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedAdminApQueueRoute: typeof AuthenticatedAdminApQueueRoute
   AuthenticatedAdminBusinessesRoute: typeof AuthenticatedAdminBusinessesRoute
+  AuthenticatedAdminCampaignEmailsRoute: typeof AuthenticatedAdminCampaignEmailsRoute
   AuthenticatedAdminCommunicationsRoute: typeof AuthenticatedAdminCommunicationsRoute
   AuthenticatedAdminComplianceRoute: typeof AuthenticatedAdminComplianceRoute
   AuthenticatedAdminCoverageRoute: typeof AuthenticatedAdminCoverageRoute
@@ -1387,6 +1408,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedAdminApQueueRoute: AuthenticatedAdminApQueueRoute,
   AuthenticatedAdminBusinessesRoute: AuthenticatedAdminBusinessesRoute,
+  AuthenticatedAdminCampaignEmailsRoute: AuthenticatedAdminCampaignEmailsRoute,
   AuthenticatedAdminCommunicationsRoute: AuthenticatedAdminCommunicationsRoute,
   AuthenticatedAdminComplianceRoute: AuthenticatedAdminComplianceRoute,
   AuthenticatedAdminCoverageRoute: AuthenticatedAdminCoverageRoute,

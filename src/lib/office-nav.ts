@@ -9,6 +9,7 @@ export const ENQUIRY_TABS: OfficeTab[] = [
   { label: "Spot saved", to: "/admin/launch-campaign" },
   { label: "Likely eligible", to: "/admin", search: { tab: "enquiries" } },
   { label: "Hot leads", to: "/admin/hot-leads" },
+  { label: "Campaign emails", to: "/admin/campaign-emails" },
   { label: "Email groups", to: "/admin/enquiry-groups" },
   { label: "Needs video check", to: "/admin/list", search: { status: "enquiry.video_in" } },
   { label: "Calculator interest", to: "/admin/interests" },
@@ -48,7 +49,7 @@ export const SECTION_TABS: Record<OfficeSection, OfficeTab[]> = {
   ],
 };
 
-const ENQUIRY_PATHS = ["/admin/launch-campaign", "/admin/hot-leads", "/admin/enquiry-groups", "/admin/interests"];
+const ENQUIRY_PATHS = ["/admin/launch-campaign", "/admin/hot-leads", "/admin/campaign-emails", "/admin/enquiry-groups", "/admin/interests"];
 
 /** Which heading a page belongs to. */
 export function sectionFor(pathname: string, search: Record<string, unknown> = {}): OfficeSection {

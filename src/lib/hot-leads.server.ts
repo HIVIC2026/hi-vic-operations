@@ -8,7 +8,8 @@ const need = <T>(result: { data: T; error: { message: string } | null }, label: 
   return result.data;
 };
 
-export async function loadHotLeads() {
+/** group "likely" = Group A hot list (no insulation). "onsite" = Group B (insulation present/unknown), same rules otherwise. */
+export async function loadHotLeads(group: "likely" | "onsite" = "likely") {
   const [settingsResult, enquiriesResult, applicationsResult] = await Promise.all([
     admin.from("retail_estimator_settings").select("*").eq("is_current", true).maybeSingle(),
     admin.from("partner_enquiries").select("id,enquiry_type,status,source,company,name,service_areas").in("enquiry_type", ["installer", "electrician_rec"]).neq("status", "declined"),
@@ -34,7 +35,7 @@ export async function loadHotLeads() {
   const jobs = [];
   for (let offset = 0; ; offset += 500) {
     const page = need(await admin.from("jobs").select("id,job_number,created_at,source,stage,eligibility_outcome,eligibility_review_required,estimated_area_m2,owners(full_name,email),properties(address_line,suburb,postcode),indicative_estimates(id,status,created_at,area_m2,area_source,insulation_declared)")
-      .eq("source", "base44").eq("channel", "hivic_sourced").eq("eligibility_outcome", "likely_eligible").eq("stage", "ready_check_ready_to_schedule").eq("eligibility_review_required", false)
+      .eq("source", "base44").eq("channel", "hivic_sourced").in("eligibility_outcome", group === "likely" ? ["likely_eligible"] : ["likely_eligible", "needs_onsite_confirmation"]).eq("stage", "ready_check_ready_to_schedule").eq("eligibility_review_required", false)
       .order("created_at", { ascending: false }).range(offset, offset + 499), "Jobs");
     jobs.push(...(page ?? []));
     if (!page || page.length < 500) break;
@@ -43,7 +44,7 @@ export async function loadHotLeads() {
     const owner = j.owners as { full_name: string | null; email: string | null } | null;
     const property = j.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
     const estimate = j.indicative_estimates?.filter((e) => e.status === "current").sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-    if (!owner?.email?.trim() || !owner.full_name || !property?.address_line || !property.postcode || !estimate || estimate.insulation_declared !== "none" || estimate.area_source !== "owner_estimate" || Number(estimate.area_m2) < 20 || HOT_EXCLUDE.test(`${owner.full_name} ${owner.email} ${property.address_line} ${property.suburb ?? ""}`)) return [];
+    if (!owner?.email?.trim() || !owner.full_name || !property?.address_line || !property.postcode || !estimate || (group === "likely" ? estimate.insulation_declared !== "none" : estimate.insulation_declared === "none") || estimate.area_source !== "owner_estimate" || Number(estimate.area_m2) < 20 || HOT_EXCLUDE.test(`${owner.full_name} ${owner.email} ${property.address_line} ${property.suburb ?? ""}`)) return [];
     return [{ j, owner, property, estimate }];
   });
   const unique = new Map<string, (typeof candidates)[number]>();
@@ -60,7 +61,7 @@ export async function loadHotLeads() {
     const value = site ? computeEstimate({ m2: Number(estimate.area_m2), source: "owner_estimate", basis: "declared", id: null, label: "Your estimate" }, site, "none", settings) : null;
     const coverage = hotCoverage(property.postcode, trades);
     const addressSuburb = property.address_line?.match(/,\s*([^,]+?)\s+VIC\s+\d{4}\s*$/i)?.[1]?.trim() ?? null;
-    return { id: j.id, jobNumber: j.job_number, name: owner.full_name, suburb: property.suburb || addressSuburb, postcode: property.postcode, area: Number(estimate.area_m2), region: hotRegion(property.postcode), ...coverage, price: value?.primary.by_access.standard.estimated_customer_total ?? null, discount: value?.applied_discount ?? null, installation: value?.primary.by_access.standard.installation ?? null, veecs: value ? Math.floor(value.ghg.ghgReduction) : null };
+    return { id: j.id, jobNumber: j.job_number, name: owner.full_name, address: property.address_line, suburb: property.suburb || addressSuburb, postcode: property.postcode, area: Number(estimate.area_m2), region: hotRegion(property.postcode), ...coverage, price: value?.primary.by_access.standard.estimated_customer_total ?? null, discount: value?.applied_discount ?? null, installation: value?.primary.by_access.standard.installation ?? null, veecs: value ? Math.floor(value.ghg.ghgReduction) : null };
   });
   const covered = rows.filter((r) => r.installers.length && r.electricians.length && r.price !== null);
   const noElectrician = rows.filter((r) => r.installers.length && !r.electricians.length);
