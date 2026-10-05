@@ -165,3 +165,4 @@
 
 ## URGENT onboarding repeat-questions + CII fix (Jo, 5 Oct 06:30)
 - [ ] No repeats (am-I-an-installer, signer prefill, address/email same-as), short CII, kind errors, easy dates, 2 E2E runs
+- [ ] Final design Stage 1: structure fix (menu 22→7, renames, one status word per row, fewer columns) — waiting for Jo to approve the menu map and rename list
