@@ -228,7 +228,7 @@ export const prepareQaJourneyAccess = createServerFn({ method: "POST" })
     await admin.from("business_members").upsert({ business_id: installer.business_id, user_id: workerUserId, member_role: "field_worker", active: true, added_by: context.userId }, { onConflict: "business_id,user_id" });
     const workerDetails = {
       business_id: installer.business_id, trade_role: "installer", full_legal_name: "TEST Alpha Field Worker",
-      email: QA_WORKER_EMAIL, mobile: "0400000199", user_id: workerUserId, qualification: "TEST EEC Certified installer",
+      email: QA_WORKER_EMAIL, mobile: "0400000199", qualification: "TEST EEC Certified installer",
       approval_status: "approved", approved_by: context.userId, approved_at: new Date().toISOString(), certification_status: "verified",
       added_by: context.userId,
     } as const;
