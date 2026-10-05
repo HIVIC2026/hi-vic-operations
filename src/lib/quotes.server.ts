@@ -152,7 +152,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   ]);
   await admin.from("quote_internals").insert({
     quote_id: q.id, cost_ex_gst: calc.installerCostEx, ap_margin_ex_gst: calc.installerMarkup.markupEx, ap_fee_ex_gst: r2(Number(rs.ap_management_inc_gst) / gstMul),
-    calc_snapshot: { pricing_rule: HIV_PRICING_RULE, installer_markup: calc.installerMarkup, measurement_id: qi.measurementId, area_m2: qi.areaM2, removal_m2: qi.removalM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access },
+    calc_snapshot: { pricing_rule: HIV_PRICING_RULE, installer_markup: calc.installerMarkup, measurement_id: qi.measurementId, area_m2: qi.areaM2, removal_m2: qi.removalM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access, discount_notes: discountNotes(rules), discount_cap_applied: rules.cappedAtMax, discount_reduced_for_minimum: rules.reducedForMin },
   });
   await logEvent(jobId, actorId, "installer_quotes_generated", "Installation quote generated (fixed owner prices)", { quote_ids: [q.id], rate_card: card.name, pricing_rule: HIV_PRICING_RULE });
   return [q.id];
