@@ -30,7 +30,7 @@ export async function campaignPage(token: unknown, testMode = false) {
     admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, desk_check_status").eq("job_id", c.job.id).maybeSingle(),
     resolvePublicEstimate(token, testMode),
   ]);
-  return estimate ? JSON.parse(JSON.stringify({ group: c.group, estimate, response: response ?? null })) as Record<string, unknown> : null;
+  return estimate ? JSON.stringify({ group: c.group, estimate, response: response ?? null }) : null;
 }
 
 export async function saveCampaignSpot(token: unknown) {
