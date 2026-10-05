@@ -467,3 +467,24 @@ Totals: 912 page checks — OK 871, Remove? 32, Check 9
 | `/my-job/qaOwnerScreenCheck_1f42eb62b707497fb2b377a` | admin | OK | OK | `/my-job/qaOwnerScreenCheck_1f4` | 0 |  |
 | `/join/notarealtoken000000000000000000` | admin | OK | OK | `/join/notarealtoken00000000000` | 0 |  |
 | `/w/notarealtoken000000000000000000` | admin | OK | OK | `/w/notarealtoken00000000000000` | 0 |  |
+
+## Fixed in this walkthrough
+1. Electricians, owners and workers could open office pages: they now go back to their own home.
+2. Owners, workers and electricians could open installer-only Add job / bulk upload pages: now installer bosses only.
+3. Non-owners could open the owner area, and owners could open the trade area: now blocked.
+4. Installer "My business" listed every electrician business (including other partners): trades now see only their own linked electricians.
+5. Workers saw boss-only tabs (Add job, Payments, Business) that bounced: tabs now hidden for workers.
+6. A hidden failing data request blanked trade pages for a few seconds after the new access check: fixed.
+7. Invite link page had no logo and an off-brand heading: fixed.
+8. Trade fallback text said "call the office": now "Use Message us".
+
+## Still open
+- `/campaign-preview` and `/step3-email-preview` are open to anyone with the link (internal previews). Proposed: move behind office sign-in or delete.
+- Office pages show the business name "DC Construction Solutions (HI VIC)" from the saved business record. Proposed: rename the record to "DC Construction Solutions (Home Insulation Victoria)" (needs Jo's OK).
+- Trade reads of their own business record fail on the server (pre-existing row rule issue); pages fall back gracefully. Needs a database fix proven on the practice database.
+- Electrician worker role: no TEST account yet, not walked.
+- Primary end-to-end actions per role were not completed in this run (only Add customer form loads and fills for the installer boss). Scenarios A–F remain queued.
+
+## Pages proposed for deletion (awaiting Jo)
+- `/campaign-preview`, `/step3-email-preview` (internal previews)
+- `/owner` and `/owner/$id` signed-in owner placeholders, if owners will only use the no-login link
