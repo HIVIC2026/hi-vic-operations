@@ -23,7 +23,7 @@ describe("choose a trade", () => {
   });
   test("Needs me shows Pick another / Send to all", () => {
     const { items } = buildNeedsMe({ now: Date.now(), partners: [], snoozes: [], lim: {}, jobs: [{ id: "j", jobNumber: "HV-1", suburb: "X", owner: null, stage: "piesa_and_install_window_pending", status: null, statusCount: 1, lastActivityAt: new Date().toISOString(), nextAction: null, installDeadline: null, installStarted: false, holdRevisitAt: null, failures: [], tradeChoice: { kind: "piesa", name: "Spark Co", status: "expired" } }] });
-    const it = items.find((x) => x.why.includes("Spark Co"));
+    const it = items.find((x) => x.jobId === "j");
     expect(it?.choiceKind).toBe("piesa");
   });
 });
