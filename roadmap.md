@@ -159,3 +159,6 @@
 - [ ] Stage 5: Upload leads single screen
 - [ ] Stage 6: AP sign-off exception-first
 - [ ] Before/after desktop + phone each stage; no rule/gate/data/compliance wording changes
+
+## Onboarding Rates page tidy (Jo, 5 Oct 06:28) — layout/wording only
+- [x] Top line, tidy aligned rows, Optional/Required tags, 3 cards, errors after Save, phone stack; before/after screenshots

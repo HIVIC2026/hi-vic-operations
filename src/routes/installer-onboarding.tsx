@@ -89,13 +89,34 @@ function Money({ value, onChange, unit }: { value: number | null | undefined; on
     </div>
   );
 }
-/** One rate line: item on the left, amount on the right. */
-function RateRow({ label, unit, value, onChange, required = false, last = false }: { label: string; unit: string; value: number | null | undefined; onChange: (v: number | null) => void; required?: boolean; last?: boolean }) {
+/** One rate line: short name (+ optional hint) on the left, a fixed-width "$ [box] /unit" on the right.
+ *  Stacks name-then-box on phones. Errors show under the box only after Save & continue. */
+function RateRow({ label, hint, unit, value, onChange, required = false, last = false, id, error }: { label: string; hint?: string; unit: string; value: number | null | undefined; onChange: (v: number | null) => void; required?: boolean; last?: boolean; id?: string; error?: string | null }) {
+  const tag: React.CSSProperties = { display: "inline-block", marginLeft: 8, padding: "1px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, verticalAlign: "middle", background: required ? "#EEF1FB" : "#F1F3F7", color: required ? BLUE : MUTED };
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "10px 0", borderBottom: last ? "none" : "1px solid #EDF0F7" }}>
-      <span style={{ fontWeight: 700, fontSize: 14, color: NAVY, minWidth: 0 }}>{label}{required && <span style={{ color: BLUE }}> *</span>}</span>
-      <Money value={value} onChange={onChange} unit={unit} />
+    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4" style={{ padding: "12px 0", borderBottom: last ? "none" : "1px solid #EDF0F7" }}>
+      <div style={{ minWidth: 0 }}>
+        <label htmlFor={id} style={{ fontWeight: 700, fontSize: 14, color: NAVY }}>{label}</label>
+        <span style={tag}>{required ? "Required" : "Optional"}</span>
+        {hint && <div style={{ fontSize: 12.5, color: MUTED, marginTop: 3, lineHeight: 1.4 }}>{hint}</div>}
+      </div>
+      <div className="sm:w-[210px]">
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontWeight: 700 }}>$</span>
+          <input id={id} aria-invalid={error ? true : undefined} aria-describedby={error && id ? `${id}-error` : undefined} style={{ ...input, flex: 1, minWidth: 0, ...(error ? { borderColor: "#B3261E" } : {}) }} type="number" inputMode="decimal" min="0" step="0.01" value={value ?? ""} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />
+          <span style={{ color: MUTED, fontSize: 14, width: 36, flexShrink: 0 }}>/{unit}</span>
+        </div>
+        {error && <div id={id ? `${id}-error` : undefined} role="alert" style={{ color: "#8C1D18", fontSize: 12.5, fontWeight: 700, marginTop: 5 }}>{error}</div>}
+      </div>
     </div>
+  );
+}
+function RateGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section style={{ background: "#fff", border: "1px solid #E4E9F5", borderRadius: 16, padding: "14px 16px 4px", marginTop: 14 }}>
+      <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 15, color: NAVY }}>{title}</div>
+      {children}
+    </section>
   );
 }
 
@@ -453,26 +474,25 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
       </>;
     }
     case "install_pricing": {
-      const unit = d.gst_registered === false ? "total rate" : "inc GST";
       const r = d.extra_rates ?? {};
       return <>
         <p style={note}>Allocation also depends on location, availability and reliable service.</p>
         <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
-        <p style={note}>{d.gst_registered === false ? "Enter total supplier rates." : "Enter supplier rates including GST."} Home Insulation Victoria reviews them before they apply.</p>
-        <Section title={`Installation & removal (${unit})`}>
-          <RateRow required label="R5.0 ceiling insulation supply & install" unit="m²" value={d.r5_rate} onChange={(v) => up({ r5_rate: v })} />
-          <RateRow label="R6.0 ceiling insulation supply & install — optional (leave blank if you don't install this)" unit="m²" value={d.r6_rate} onChange={(v) => up({ r6_rate: v })} />
-          <RateRow label="R7.0 ceiling insulation supply & install — optional (leave blank if you don't install this)" unit="m²" value={d.r7_rate} onChange={(v) => up({ r7_rate: v })} />
-          <RateRow label="Top up to R5.0 over existing insulation (existing stays in place) — optional (leave blank if you don't offer this)" unit="m²" value={d.topup_r5_rate} onChange={(v) => up({ topup_r5_rate: v })} />
-          <RateRow label="Dust / vermin vacuum only (no insulation removed) — optional (leave blank if you don't offer this; it will be quoted separately)" unit="m²" value={d.vacuum_only_rate} onChange={(v) => up({ vacuum_only_rate: v })} />
-          <RateRow required label="Batts removal" unit="m²" value={d.batts_removal_rate} onChange={(v) => up({ batts_removal_rate: v })} />
-          <RateRow required last label="Loose fill removal" unit="m²" value={d.loose_fill_removal_rate} onChange={(v) => up({ loose_fill_removal_rate: v })} />
-          <p style={{ ...note, marginTop: 6 }}>Removal is required of all installer partners.</p>
-        </Section>
-        <Section title={`Difficult access — optional (${unit}, per job)`}>
-          {EXTRA_ITEMS.map((it, i) => <RateRow key={it.key} label={it.label} unit={it.unit} value={r[it.key]} last={i === EXTRA_ITEMS.length - 1} onChange={(v) => up({ extra_rates: { ...r, [it.key]: v } })} />)}
-          <p style={{ ...note, marginTop: 6 }}>Enter $0 if it's included at no extra charge. Leave blank to quote it separately on the job before owner approval.</p>
-        </Section>
+        <p style={note}>{d.gst_registered === false ? "Your price per m² (total price). Leave blank anything you don't do." : "Your price per m², including GST. Leave blank anything you don't do."} Home Insulation Victoria reviews them before they apply.</p>
+        <RateGroup title="Installing">
+          <RateRow id="rate-r5" required label="R5.0" unit="m²" value={d.r5_rate} error={errFor("rate-r5")} onChange={(v) => up({ r5_rate: v })} />
+          <RateRow id="rate-r6" label="R6.0" unit="m²" value={d.r6_rate} error={errFor("rate-r6")} onChange={(v) => up({ r6_rate: v })} />
+          <RateRow id="rate-r7" label="R7.0" unit="m²" value={d.r7_rate} error={errFor("rate-r7")} onChange={(v) => up({ r7_rate: v })} />
+          <RateRow id="rate-topup" last label="Top up to R5.0" hint="Existing insulation stays in place" unit="m²" value={d.topup_r5_rate} error={errFor("rate-topup")} onChange={(v) => up({ topup_r5_rate: v })} />
+        </RateGroup>
+        <RateGroup title="Removing old insulation">
+          <RateRow id="rate-batts" required label="Batts removal" unit="m²" value={d.batts_removal_rate} error={errFor("rate-batts")} onChange={(v) => up({ batts_removal_rate: v })} />
+          <RateRow id="rate-loose" required last label="Loose fill removal" unit="m²" value={d.loose_fill_removal_rate} error={errFor("rate-loose")} onChange={(v) => up({ loose_fill_removal_rate: v })} />
+        </RateGroup>
+        <RateGroup title="Other">
+          <RateRow id="rate-vacuum" label="Vacuum only" hint="Dust or vermin, no insulation removed" unit="m²" value={d.vacuum_only_rate} error={errFor("rate-vacuum")} onChange={(v) => up({ vacuum_only_rate: v })} />
+          {EXTRA_ITEMS.map((it, i) => <RateRow key={it.key} id={`rate-${it.key}`} label={it.label} hint="Per job, not per m². Enter $0 if it's included at no extra charge. Leave blank to quote it separately on the job before owner approval." unit={it.unit} value={r[it.key]} last={i === EXTRA_ITEMS.length - 1} error={errFor(`rate-${it.key}`)} onChange={(v) => up({ extra_rates: { ...r, [it.key]: v } })} />)}
+        </RateGroup>
       </>;
     }
     case "bank":
