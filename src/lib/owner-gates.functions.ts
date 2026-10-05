@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { withRequestMeta } from "./request-meta";
 
-const DOC_KEYS = ["contact_privacy", "trade_contact_share", "details_confirmation", "life_support_answer", "tenancy_details", "landlord_consent", "visit_permission", "cooling_off_notice", "payment_terms", "life_support_plan", "piesa_owner_declaration"] as const;
+const DOC_KEYS = ["contact_privacy", "trade_contact_share", "details_confirmation", "life_support_answer", "tenancy_details", "landlord_consent", "visit_permission", "cooling_off_notice", "payment_terms", "veec_assignment_consent", "life_support_plan", "piesa_owner_declaration"] as const;
 const signBody = { key: z.enum(DOC_KEYS), signatoryName: z.string().trim().min(2).max(200), ticked: z.boolean(), answers: z.record(z.string(), z.string().max(300)).default({}) };
 
 /** Link: what the owner still needs to sign (no session needed to read). */
@@ -76,5 +76,19 @@ export const approvePaperworkFn = createServerFn({ method: "POST" }).middleware(
   .handler(async ({ data, context }) => {
     await (await import("./workflow.server")).requireAdmin(context.supabase as never);
     await (await import("./owner-gates.server")).approvePaperwork(data.key, data.version, context.userId);
+    return { ok: true };
+  });
+
+/** Link: owner reconfirms a material change to the VEEC assignment (code + typed name). */
+export const ownerReconfirmVariationFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token: z.string().max(200), session: z.string().min(40).max(80), variationId: z.string().uuid(), signatureName: z.string().trim().min(2).max(200) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: v } = await admin.from("assignment_variations").select("job_id").eq("id", data.variationId).maybeSingle();
+    if (!v || v.job_id !== s.jobId) throw new Error("Not on your job.");
+    const { reconfirmVariation, evaluateAndApply } = await import("./assignment.server");
+    await reconfirmVariation({ variationId: data.variationId, actorId: s.userId, signatureName: data.signatureName, ip: context.ip, userAgent: context.userAgent });
+    await evaluateAndApply(s.jobId, s.userId);
     return { ok: true };
   });

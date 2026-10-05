@@ -320,6 +320,10 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
   const { data: job } = await admin.from("jobs").select("job_number").eq("id", jobId).single();
   const { count: openVar } = await admin.from("assignment_variations").select("id", { count: "exact", head: true }).eq("assignment_id", a.id).eq("status", "pending");
   const templates = await loadTemplates();
+  if (a.installer_signed_at && a.ap_signed_at && !a.consumer_signed_at && !(openVar ?? 0)) {
+    const applied = await applyAcceptanceAssignment(jobId, actorId, a);
+    if (applied) return evaluateAndApply(jobId, actorId);
+  }
   const r = evaluateAssignment({
     status: a.status, prepared: !!a.prepared_at && !!a.final_facts, installerSigned: !!a.installer_signed_at, apSigned: !!a.ap_signed_at, consumerSigned: !!a.consumer_signed_at,
     installedProduct: a.installed_product, installedArea: a.installed_area_m2 != null ? Number(a.installed_area_m2) : null, openVariation: (openVar ?? 0) > 0, templates,
@@ -345,4 +349,41 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
   await admin.from("compliance_checks").update({ status: "pass", checked_at: now.toISOString(), notes: "Final VEEC assignment effective" }).eq("job_id", jobId).eq("check_key", "owner_authority");
   await logEvent(jobId, actorId, EV.VEEC_ASSIGNMENT_EFFECTIVE, `Final VEEC assignment effective – signed copy stored (customer delivery ${delivery === "pending_comms_lock" ? "pending: communications locked" : delivery === "not_ready" ? "blocked: no owner contact consent" : "ready"})`, { assignment_id: a.id, sha256: hash });
   return r;
+}
+
+/**
+ * Gate D (Jo, 5 Oct): the owner signed the VEEC assignment at quote acceptance (Gate B). After install, once the lead installer and AP
+ * have signed in order, that signature completes the official form — unless facts changed materially (owner reconfirms via a variation)
+ * or the "re-sign after install" setting is on (owner signs the completed form). Returns true when the consumer signature was applied.
+ */
+async function applyAcceptanceAssignment(jobId: string, actorId: string | null, a: NonNullable<Awaited<ReturnType<typeof currentAssignment>>>): Promise<boolean> {
+  const { data: ws } = await admin.from("workflow_settings").select("owner_resign_after_install").limit(1).maybeSingle();
+  if (ws?.owner_resign_after_install) return false;
+  const { data: sig } = await admin.from("owner_gate_signatures").select("id, signatory_name, signed_at, signed_by, ip, user_agent, signed_text, signed_text_sha256, doc_version, method, verified_channel, verified_destination")
+    .eq("job_id", jobId).eq("doc_key", "veec_assignment_consent").order("signed_at", { ascending: false }).limit(1).maybeSingle();
+  if (!sig) return false;
+  const base = await baselineSnapshot(jobId, a.id);
+  const f = a.final_facts as unknown as FinalFacts;
+  const changes = base ? materialChanges(base, {
+    installer_user_id: a.installer_user_id, installer_business_id: a.installer_business_id, product: a.installed_product,
+    area_m2: a.installed_area_m2 != null ? Number(a.installed_area_m2) : null, veu_benefit_inc_gst: f?.veu_benefit_inc_gst ?? null, final_customer_price_inc_gst: f?.final_customer_price_inc_gst ?? null,
+  }) : [];
+  if (changes.length) {
+    const { count } = await admin.from("assignment_variations").select("id", { count: "exact", head: true }).eq("assignment_id", a.id).eq("status", "reconfirmed");
+    if (!count) { await raiseVariation(jobId, actorId, changes); return false; }
+  }
+  const templates = await loadTemplates();
+  const official = activeTemplate(templates, "consumer_declaration");
+  const { data: o } = await admin.from("jobs").select("owners(email, phone)").eq("id", jobId).single();
+  const oo = o?.owners as unknown as { email: string | null; phone: string | null } | null;
+  const snap = { acceptance_signature_id: sig.id, typed_name: sig.signatory_name, at: sig.signed_at, ip: sig.ip, method: sig.method, verified: sig.verified_channel ? `${sig.verified_channel} ${sig.verified_destination}` : null,
+    wording_version: sig.doc_version, signed_text: sig.signed_text, facts_sha256: a.final_facts_sha256, facts: a.final_facts, form: official ? { version: official.version, body: official.body } : null };
+  const { error } = await admin.from("customer_assignments").update({
+    signatory_name: sig.signatory_name, signatory_authority_type: "owner", signatory_over_18: true, signatory_email: oo?.email ?? null, signatory_phone: oo?.phone ?? null,
+    consumer_signature_name: sig.signatory_name, consumer_signed_at: sig.signed_at, consumer_signed_by: sig.signed_by, consumer_ip: sig.ip, consumer_user_agent: sig.user_agent,
+    consumer_snapshot: snap as unknown as Json, consumer_snapshot_sha256: await sha256Hex(stableJson(snap)),
+  }).eq("id", a.id).is("consumer_signed_at", null);
+  if (error) throw new Error(error.message);
+  await logEvent(jobId, actorId, EV.FINAL_ASSIGNMENT_SIGNED, "Completed VEEC assignment uses the owner's quote-acceptance assignment (no material change)", { assignment_id: a.id, acceptance_signature_id: sig.id });
+  return true;
 }
