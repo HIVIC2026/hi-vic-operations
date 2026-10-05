@@ -131,6 +131,7 @@ export function approvedRateItems(type: PartnerType, raw: RecData | InstData) {
       { code: "R6_BATTS", description: "R6.0 ceiling batts supply & install", category: "product", unit: "m2", value: d.r6_rate, r_value: 6, sort: 4, optional: true, positive: true },
       { code: "R7_BATTS", description: "R7.0 ceiling batts supply & install", category: "product", unit: "m2", value: d.r7_rate, r_value: 7, sort: 5, optional: true, positive: true },
       { code: "TOPUP_R5", description: "Top up to R5.0 over existing insulation (existing stays in place)", category: "product", unit: "m2", value: d.topup_r5_rate, r_value: 5, sort: 6, optional: true, positive: true },
+      { code: "VACUUM_ONLY", description: "Dust / vermin vacuum only (no insulation removed)", category: "product", unit: "m2", value: d.vacuum_only_rate, r_value: null, sort: 7, optional: true, positive: true },
       { code: "BATTS_REMOVAL", description: "Batts removal and disposal", category: "removal", unit: "m2", value: d.batts_removal_rate, r_value: null, sort: 2 },
       { code: "LOOSE_FILL_REMOVAL", description: "Loose-fill removal and disposal", category: "removal", unit: "m2", value: d.loose_fill_removal_rate, r_value: null, sort: 3 },
       ...EXTRA_ITEMS.map((item, i) => ({ code: item.key.toUpperCase(), description: item.label, category: item.key.includes("access") ? "access" : "travel", unit: "flat", value: d.extra_rates?.[item.key], r_value: null, sort: 10 + i, optional: true })),
