@@ -554,7 +554,7 @@ function DateBox({ id, value, onChange }: { id: string; value?: string | null | 
     <div style={{ display: "flex", gap: 8, alignItems: "center", maxWidth: 280, position: "relative" }}>
       <input id={id} style={{ ...input, flex: 1, minWidth: 0 }} inputMode="numeric" placeholder="dd/mm/yyyy" autoComplete="off" value={shown}
         onFocus={() => setDraft(formatDateAu(value))}
-        onChange={(e) => { const t = e.target.value; setDraft(t); onChange(t.trim() === "" ? "" : parseDateInput(t) ?? t.trim()); }}
+        onChange={(e) => { const t = e.target.value; console.warn("DATEBOX change", id, t, value); setDraft(t); onChange(t.trim() === "" ? "" : parseDateInput(t) ?? t.trim()); }}
         onBlur={() => setDraft(null)} />
       <button type="button" aria-label="Pick from calendar" onClick={() => { const el = picker.current; if (!el) return; try { el.showPicker(); } catch { el.focus(); el.click(); } }}
         style={{ minWidth: 48, minHeight: 48, borderRadius: 12, border: "1px solid #D7DCE8", background: "#fff", cursor: "pointer", color: NAVY }}>
