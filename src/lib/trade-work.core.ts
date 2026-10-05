@@ -1,6 +1,6 @@
 // Plain-words "what do I do next" for a trade's job list. Presentation only — never moves a job.
 
-export type TradeTaskInput = { stage: string; bookings: { kind: string; scheduled_start: string }[]; blockers: string[]; proposalPending?: boolean };
+export type TradeTaskInput = { stage: string; bookings: { kind: string; scheduled_start: string }[]; blockers: string[]; proposalPending?: boolean; trade?: "installer" | "electrician" };
 export type TradeTask = { bucket: "needs_you" | "coming_up" | "waiting"; label: string; reason: string | null };
 
 const NEEDS: Record<string, string> = {
@@ -28,7 +28,12 @@ const WAITING: Record<string, string> = {
   ready_for_veec: "Signed off — payment on its way",
 };
 
+const ELECTRICIAN_STAGES = new Set(["assessment_booking", "piesa_scheduled", "rectification_scheduling", "rectification_booked"]);
+
 export function tradeTask(j: TradeTaskInput): TradeTask {
+  // An electrician's own steps are the safety check and fix-up work; install steps belong to the installer.
+  if (j.trade === "electrician" && NEEDS[j.stage] && !ELECTRICIAN_STAGES.has(j.stage)) return { bucket: "waiting", label: "Waiting for the installer", reason: null };
+  if (j.trade === "installer" && ELECTRICIAN_STAGES.has(j.stage)) return { bucket: "waiting", label: "Waiting for the electrician", reason: null };
   const booked = j.bookings[0];
   const reason = j.blockers[0] ?? null;
   const visitStage = ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(j.stage);

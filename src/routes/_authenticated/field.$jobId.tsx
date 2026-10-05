@@ -60,7 +60,7 @@ function FieldJob() {
           </div>
         </div>
       </div>
-      <div className="mb-4"><BlockersPanel jobId={jobId} /></div>
+      <div className="mb-4"><BlockersPanel jobId={jobId} quietWhenClear /></div>
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "installer" && <InstallerJourney jobId={jobId} />}
