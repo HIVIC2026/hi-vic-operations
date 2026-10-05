@@ -78,7 +78,12 @@ export async function loadJobForInvoice(invoiceId: string) {
   const { data } = await admin.from("invoices").select("jobs(business_unit)").eq("id", invoiceId).maybeSingle();
   return (data?.jobs as unknown as { business_unit: string | null } | null) ?? null;
 }
-export const requireHivicInvoice = (invoiceId: string) => assertHivicInvoice(invoiceId, loadJobForInvoice);
+export async function requireHivicInvoice(invoiceId: string) {
+  const { data } = await admin.from("invoices").select("jobs(business_unit, source)").eq("id", invoiceId).maybeSingle();
+  const job = data?.jobs as { business_unit: string | null; source: string | null } | null;
+  if (job?.source === "qa_test") throw new Error("Xero is blocked for TEST journeys.");
+  return assertHivicInvoice(invoiceId, async () => job);
+}
 export async function requireHivicJob(jobId: string) {
   const { data } = await admin.from("jobs").select("business_unit, source").eq("id", jobId).maybeSingle();
   if (data?.source === "qa_test") throw new Error("Xero is blocked for TEST journeys.");
@@ -106,8 +111,6 @@ export { setInstallDueDate } from "./invoice-dates.server";
 
 export async function pushInvoiceToXero(invoiceId: string, actorId: string | null, callOverride?: XeroCall) {
   await requireHivicInvoice(invoiceId); // before any lookup, lock or Xero call
-  const { data: qaInvoice } = await admin.from("invoices").select("jobs(source)").eq("id", invoiceId).maybeSingle();
-  if ((qaInvoice?.jobs as { source?: string | null } | null)?.source === "qa_test") throw new Error("Xero is blocked for TEST journeys.");
   const { data: inv } = await admin.from("invoices").select("*, quotes(status, customer_total_inc_gst, veec_discount_inc_gst, quote_items(description, quantity, unit_price_inc_gst, line_total_inc_gst, sort)), jobs(job_number, owners(id, full_name, email, xero_contact_id))").eq("id", invoiceId).single();
   if (!inv) throw new Error("Invoice not found");
   if (inv.xero_invoice_id) return; // already linked – never create a second Xero invoice
@@ -150,8 +153,6 @@ export async function pushInvoiceToXero(invoiceId: string, actorId: string | nul
 /** Unified admin sync: push if not yet linked, otherwise pull payment state (and apply a pending due-date update when enabled). */
 export async function syncInvoiceFromXero(invoiceId: string, actorId: string | null, callOverride?: XeroCall) {
   await requireHivicInvoice(invoiceId);
-  const { data: qaInvoice } = await admin.from("invoices").select("jobs(source)").eq("id", invoiceId).maybeSingle();
-  if ((qaInvoice?.jobs as { source?: string | null } | null)?.source === "qa_test") throw new Error("Xero is blocked for TEST journeys.");
   const { data: inv } = await admin.from("invoices").select("*").eq("id", invoiceId).single();
   if (!inv) throw new Error("Invoice not found");
   if (!inv.xero_invoice_id) return pushInvoiceToXero(invoiceId, actorId, callOverride);

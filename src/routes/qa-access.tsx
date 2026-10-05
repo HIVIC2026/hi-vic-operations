@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { createSupabaseClient } from "@/integrations/supabase/client";
@@ -13,7 +13,6 @@ export const Route = createFileRoute("/qa-access")({
 
 function QaAccess() {
   const { token_hash, next } = Route.useSearch();
-  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (!token_hash) { setError("This TEST access link is incomplete."); return; }
@@ -29,6 +28,6 @@ function QaAccess() {
       sessionStorage.setItem("hivic-qa-auth-storage-key", storageKey);
       window.location.replace(next);
     });
-  }, [navigate, next, token_hash]);
+  }, [next, token_hash]);
   return <main className="grid min-h-screen place-items-center bg-background p-6"><div className="max-w-sm rounded-lg border bg-card p-6 text-center shadow-sm"><img src={logo.url} alt="Home Insulation Victoria" className="mx-auto h-12 w-auto" /><h1 className="mt-4 font-display text-xl font-bold">Opening TEST role</h1><p className="mt-2 text-sm text-muted-foreground">{error ?? "Checking this one-time link…"}</p></div></main>;
 }
