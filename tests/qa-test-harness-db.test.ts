@@ -7,7 +7,7 @@ const sql = (name: string) => readFileSync(new URL(`../docs/pending-migrations/$
 describe("TEST Centre database guard", () => {
   test("archives only qa_test jobs and rolls back cleanly", async () => {
     const db = new PGlite();
-    await db.exec("CREATE SCHEMA public; CREATE TABLE public.jobs (id uuid PRIMARY KEY, source text NOT NULL, qa_archived_at timestamptz);");
+    await db.exec("CREATE TABLE public.jobs (id uuid PRIMARY KEY, source text NOT NULL, qa_archived_at timestamptz);");
     await db.exec("ALTER TABLE public.jobs DROP COLUMN qa_archived_at;");
     await db.exec(sql("0113_qa_test_harness.sql"));
     await db.exec("INSERT INTO public.jobs(id,source) VALUES ('00000000-0000-0000-0000-000000000001','qa_test'),('00000000-0000-0000-0000-000000000002','base44');");
