@@ -491,7 +491,7 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
         </RateGroup>
         <RateGroup title="Other">
           <RateRow id="rate-vacuum" label="Vacuum only" hint="Dust or vermin, no insulation removed" unit="m²" value={d.vacuum_only_rate} error={errFor("rate-vacuum")} onChange={(v) => up({ vacuum_only_rate: v })} />
-          {EXTRA_ITEMS.map((it, i) => <RateRow key={it.key} id={`rate-${it.key}`} label={it.label} hint="Per job, not per m². $0 = no extra charge; blank = quoted on the job before owner approval." unit={it.unit} value={r[it.key]} last={i === EXTRA_ITEMS.length - 1} error={errFor(`rate-${it.key}`)} onChange={(v) => up({ extra_rates: { ...r, [it.key]: v } })} />)}
+          {EXTRA_ITEMS.map((it, i) => <RateRow key={it.key} id={`rate-${it.key}`} label={it.label} hint="Per job, not per m². Enter $0 if it's included at no extra charge. Leave blank to quote it separately on the job before owner approval." unit={it.unit} value={r[it.key]} last={i === EXTRA_ITEMS.length - 1} error={errFor(`rate-${it.key}`)} onChange={(v) => up({ extra_rates: { ...r, [it.key]: v } })} />)}
         </RateGroup>
       </>;
     }
