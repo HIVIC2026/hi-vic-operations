@@ -11,6 +11,8 @@ async function campaignLink(token: unknown) {
   if (!link || !linkUsable(link)) return null;
   const { data: job } = await admin.from("jobs").select("id, source, stage, eligibility_outcome, eligibility_review_required, properties(enrichment)").eq("id", link.job_id).maybeSingle();
   if (!job || job.eligibility_review_required || job.stage === "cancelled" || job.stage === "complete" || (job.source !== "base44" && job.source !== "qa_test")) return null;
+  // Until Jo approves the final copy and explicitly starts the campaign, only isolated qa_test jobs can use it.
+  if (!LAUNCH_COPY_APPROVED && job.source !== "qa_test") return null;
   const property = job.properties as { enrichment: Record<string, unknown> | null } | null;
   const base44 = (property?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
   const insulation = normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation);
