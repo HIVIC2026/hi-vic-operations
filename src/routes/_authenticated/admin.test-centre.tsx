@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Clock3, ExternalLink, FlaskConical, Plus, Trash2, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -84,7 +85,10 @@ function QaRoleControls({ jobId }: { jobId: string }) {
     try {
       await ready();
       const link = await issue({ data: { jobId, persona } });
-      window.open(`/qa-access?token_hash=${encodeURIComponent(link.tokenHash)}&type=magiclink&next=${encodeURIComponent(link.next)}`, "_blank", "noopener,noreferrer");
+      const { data: adminSession } = await supabase.auth.getSession();
+      const popup = window.open(`/qa-access?token_hash=${encodeURIComponent(link.tokenHash)}&type=magiclink&next=${encodeURIComponent(link.next)}`, "_blank", "noopener,noreferrer");
+      if (!popup) throw new Error("Your browser blocked the TEST role tab. Allow pop-ups and try again.");
+      if (adminSession.session) await supabase.auth.setSession({ access_token: adminSession.session.access_token, refresh_token: adminSession.session.refresh_token });
     } catch (e) { toast.error(e instanceof Error ? e.message : "Could not open TEST role"); }
     finally { setBusy(null); }
   };
