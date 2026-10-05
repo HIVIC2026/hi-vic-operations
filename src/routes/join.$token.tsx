@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -42,9 +43,9 @@ function Join() {
   }, [load, previewTrade, token]);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
 
-  const wrap = (c: React.ReactNode) => <div className="min-h-screen bg-background px-4 py-8"><main className="mx-auto max-w-xl rounded-2xl border bg-card p-6 shadow-sm"><div className="mb-2 text-xs font-bold uppercase tracking-wide text-success">Home Insulation Victoria</div>{c}</main></div>;
+  const wrap = (c: React.ReactNode) => <div className="min-h-screen bg-background px-4 py-8"><main className="mx-auto max-w-xl rounded-2xl border bg-card p-6 shadow-sm"><img src={logo.url} alt="Home Insulation Victoria" className="mb-4 h-10 w-auto" />{c}</main></div>;
   if (!inv) return wrap(<p className="text-muted-foreground">Loading…</p>);
-  if (!inv.ok) return wrap(<><h1 className="mb-2 text-2xl font-bold">Invite link problem</h1><p className="text-muted-foreground">{inv.message}</p></>);
+  if (!inv.ok) return wrap(<><h1 className="mb-2 font-display text-2xl font-extrabold">Invite link problem</h1><p className="text-muted-foreground">{inv.message}</p></>);
   if (done) return wrap(<><h1 className="mb-2 text-2xl font-bold">Thanks, {f.full_legal_name.split(" ")[0]} — you're registered.</h1><p className="text-muted-foreground">{inv.businessName} and Home Insulation Victoria will check your details. Once you're approved, the business owner can send you to jobs — you'll get a private link for each job.</p></>);
 
   return wrap(<form onSubmit={async (e) => {

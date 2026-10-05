@@ -1,3 +1,4 @@
+import { useAccess } from "@/hooks/use-me";
 // Phone-first trade workspace pieces: job offers and the bottom tab bar.
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
@@ -61,15 +62,17 @@ export function OfferCard({ o, onDone }: { o: OfferRow; onDone: () => void }) {
 
 export function TradeTabs({ installer }: { installer: boolean }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const { data: access } = useAccess();
+  const boss = !!access?.businessAdmin || !!access?.admin;
   const tab = (to: string, label: string, Icon: typeof Briefcase, on: boolean) => (
     <Link to={to as never} className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-semibold ${on ? "text-primary" : "text-muted-foreground"}`}><Icon className="h-5 w-5" />{label}</Link>
   );
   return (
     <nav aria-label="Trade menu" className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-card pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgba(34,55,107,0.08)] md:hidden">
       {tab("/field", "Work", Briefcase, path === "/field" || path.startsWith("/field/"))}
-      {installer && tab("/partner/add", "Add job", PlusCircle, path.startsWith("/partner/add") || path.startsWith("/partner/import") || path.startsWith("/partner/bulk"))}
-      {tab("/partner/payments", "Payments", Wallet, path.startsWith("/partner/payments"))}
-      {tab("/partner/profile", "Business", Building2, path.startsWith("/partner/profile") || path.startsWith("/partner/workers"))}
+      {installer && boss && access?.installerBusinessAdmin !== false && tab("/partner/add", "Add job", PlusCircle, path.startsWith("/partner/add") || path.startsWith("/partner/import") || path.startsWith("/partner/bulk"))}
+      {boss && tab("/partner/payments", "Payments", Wallet, path.startsWith("/partner/payments"))}
+      {boss && tab("/partner/profile", "Business", Building2, path.startsWith("/partner/profile") || path.startsWith("/partner/workers"))}
     </nav>
   );
 }

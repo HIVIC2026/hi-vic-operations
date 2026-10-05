@@ -207,7 +207,8 @@ function Electricians({ businessId, rels, options, canEdit, onDone }: { business
           {canEdit && <label className="flex items-center gap-2 text-xs"><Checkbox checked={r.preferred} onCheckedChange={async (v) => { await set({ installerBusinessId: businessId, electricianBusinessId: r.electrician_business_id, preferred: !!v, active: true }, "Saved"); onDone(); }} /> Preferred</label>}
         </div>
       ); })}
-      {canEdit && <div className="mt-2 flex gap-2"><select className="h-10 flex-1 rounded border bg-background px-2 text-sm" value={pick} onChange={(e) => setPick(e.target.value)}><option value="">Add an electrician business…</option>{options.map((o) => <option key={o.id} value={o.id}>{o.name} ({o.onboarding_status})</option>)}</select><Button disabled={!pick} onClick={async () => { await set({ installerBusinessId: businessId, electricianBusinessId: pick, preferred: true, active: true }, "Preferred electrician added"); setPick(""); onDone(); }}>Add</Button></div>}
+      {canEdit && !options.length && <p className="mt-2 text-xs text-muted-foreground">To add your own electrician, choose "Use my electrician" when you add a job and enter their name and mobile.</p>}
+      {canEdit && options.length > 0 && <div className="mt-2 flex gap-2"><select className="h-10 flex-1 rounded border bg-background px-2 text-sm" value={pick} onChange={(e) => setPick(e.target.value)}><option value="">Add an electrician business…</option>{options.map((o) => <option key={o.id} value={o.id}>{o.name} ({o.onboarding_status})</option>)}</select><Button disabled={!pick} onClick={async () => { await set({ installerBusinessId: businessId, electricianBusinessId: pick, preferred: true, active: true }, "Preferred electrician added"); setPick(""); onDone(); }}>Add</Button></div>}
     </Section>
   );
 }
