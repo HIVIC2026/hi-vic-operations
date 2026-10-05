@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createTestEnquiry, getAdminPipeline } from "@/lib/portal.functions";
+import { createTestEnquiry, getAdminPipeline, getXeroConnection } from "@/lib/portal.functions";
 import { clearOnboardingStartBlock, issueOnboardingLink, listOnboardingLinks, listOnboardingStartBlocks, revokeOnboardingLink, runOnboardingUploadCleanup } from "@/lib/onboarding-links.functions";
 import { archiveQaJourney, createTestTradeAccounts, issueQaPersonaLink, prepareQaJourneyAccess, simulateQaJourneyTime, simulateQaPayment } from "@/lib/test-accounts.functions";
 
@@ -50,6 +50,7 @@ function TestCentre() {
         <div><p className="text-xs font-bold uppercase text-primary">Launch testing</p><h1 className="mt-1 font-display text-3xl font-bold">Test Centre</h1><p className="mt-1 text-sm text-muted-foreground">Dummy journeys stay marked as test records and do not enter live intake automation.</p></div>
         <CreateTestJob onDone={() => void refetch()} />
       </div>
+      <XeroConnectionCard />
       <div className="mb-5 rounded-md border border-workspace-sun-strong/40 bg-workspace-sun p-4 text-sm"><b>Safe testing is active.</b> Customer messages and external writes remain locked. Use separate role accounts for final permission testing.</div>
       {error ? <div role="alert" className="rounded-md border border-danger bg-danger-soft p-4 text-sm text-danger">Test records could not be loaded. Nothing has been deleted. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>
         : isPending ? <p className="text-sm text-muted-foreground">Loading test journeys…</p>
@@ -250,5 +251,21 @@ function OnboardingLimits() {
         <span className="text-xs text-muted-foreground">{swept ?? "Uploads never accepted are removed automatically after 24 hours; accepted certificates are never touched."}</span>
       </div>
     </section>
+  );
+}
+
+function XeroConnectionCard() {
+  const load = useServerFn(getXeroConnection);
+  const { data, isPending } = useQuery({ queryKey: ["xero-connection"], queryFn: () => load() });
+  const demo = data?.orgs.find((o) => o.test);
+  return (
+    <div className="mb-5 rounded-md border bg-card p-4 text-sm">
+      <b>Xero</b>{" "}
+      {isPending ? "checking…" : !data?.connected ? "not connected" : demo
+        ? <>Connected to: {demo.name} (test). Test jobs use this organisation only.</>
+        : <>Demo Company not connected — test jobs cannot reach Xero yet. Real books are never used for tests.</>}
+      {data?.orgs.length ? <p className="mt-1 text-muted-foreground">Organisations on this connection: {data.orgs.map((o) => o.name + (o.test ? " (test)" : "")).join(", ")}. Real jobs: Xero switched off.</p> : null}
+      {data?.error ? <p className="mt-1 text-danger">{data.error}</p> : null}
+    </div>
   );
 }
