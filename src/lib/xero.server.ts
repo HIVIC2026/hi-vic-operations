@@ -145,21 +145,22 @@ export async function pushInvoiceToXero(invoiceId: string, actorId: string | nul
     if (guard) throw new Error(guard);
     const dueDate = xeroDueDate(inv as unknown as InvoiceRow);
     if (!dueDate) throw new Error("Invoice has no due date.");
-    const call = callOverride ?? (await tenantCall(await modeForInvoice(invoiceId)));
+    const mode = await modeForInvoice(invoiceId);
+    const call = callOverride ?? (await tenantCall(mode));
     const reference = xeroReference(job.job_number);
-    const tracking = await findTrackingOption(call);
+    const tracking = await findTrackingOption(call, mode);
     let x = await findInvoiceByReference(call, reference);
     let contactId = x?.Contact?.ContactID ?? job.owners.xero_contact_id;
     if (!x) {
       if (!contactId) contactId = (await findOrCreateContact(call, job.owners)).contactId;
       const items = [...quote.quote_items].sort((a, b) => a.sort - b.sort);
       const payload = buildInvoicePayload({ contactId: contactId!, jobNumber: job.job_number, dueDate, total: Number(inv.total_inc_gst), items, veecDiscount: quote.veec_discount_inc_gst, tracking });
-      assertHivicPayload(payload);
+      assertHivicPayload(payload, mode);
       const res = await call("/api.xro/2.0/Invoices", { method: "POST", headers: { "Idempotency-Key": invoiceIdemKey(invoiceId) }, body: payload });
       x = res.Invoices[0];
     }
     if (contactId && contactId !== job.owners.xero_contact_id) await admin.from("owners").update({ xero_contact_id: contactId }).eq("id", job.owners.id);
-    const { error: linkErr } = await admin.from("invoices").update({ status: "deposit_due", xero_contact_id: contactId, xero_invoice_id: x.InvoiceID, xero_invoice_number: x.InvoiceNumber, xero_reference: x.Reference, xero_invoice_status: x.Status ?? null, xero_tracking_option_id: tracking.optionId, xero_update_pending: false, last_synced_at: new Date().toISOString(), last_sync_error: null }).eq("id", invoiceId);
+    const { error: linkErr } = await admin.from("invoices").update({ status: "deposit_due", xero_contact_id: contactId, xero_invoice_id: x.InvoiceID, xero_invoice_number: x.InvoiceNumber, xero_reference: x.Reference, xero_invoice_status: x.Status ?? null, xero_tracking_option_id: tracking?.optionId ?? null, xero_update_pending: false, last_synced_at: new Date().toISOString(), last_sync_error: null }).eq("id", invoiceId);
     if (linkErr) throw new Error(`Xero invoice ${x.InvoiceNumber} exists but could not be linked locally: ${linkErr.message}`);
     await syncLog(invoiceId, true, { xero_invoice_id: x.InvoiceID });
     await logEvent(inv.job_id, actorId, "xero_invoice_created", `Xero invoice ${x.InvoiceNumber} linked – raise the deposit request in Xero`, { invoice_id: invoiceId });

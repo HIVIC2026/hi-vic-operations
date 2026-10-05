@@ -23,6 +23,7 @@ import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/h
 import { Route as EligibilityTokenRouteImport } from './routes/eligibility.$token'
 import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as JoinTokenRouteImport } from './routes/join.$token'
+import { Route as MyJobTokenRouteImport } from './routes/my-job.$token'
 import { Route as WTokenRouteImport } from './routes/w.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminApQueueRouteImport } from './routes/_authenticated/admin.ap-queue'
@@ -144,6 +145,11 @@ const EstimateTokenRoute = EstimateTokenRouteImport.update({
 const JoinTokenRoute = JoinTokenRouteImport.update({
   id: '/join/$token',
   path: '/join/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyJobTokenRoute = MyJobTokenRouteImport.update({
+  id: '/my-job/$token',
+  path: '/my-job/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WTokenRoute = WTokenRouteImport.update({
@@ -457,6 +463,7 @@ export interface FileRoutesByFullPath {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
+  '/my-job/$token': typeof MyJobTokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
@@ -525,6 +532,7 @@ export interface FileRoutesByTo {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
+  '/my-job/$token': typeof MyJobTokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
@@ -595,6 +603,7 @@ export interface FileRoutesById {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
+  '/my-job/$token': typeof MyJobTokenRoute
   '/w/$token': typeof WTokenRoute
   '/_authenticated/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
   '/_authenticated/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
@@ -665,6 +674,7 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
+    | '/my-job/$token'
     | '/w/$token'
     | '/admin/ap-queue'
     | '/admin/businesses'
@@ -733,6 +743,7 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
+    | '/my-job/$token'
     | '/w/$token'
     | '/admin/ap-queue'
     | '/admin/businesses'
@@ -802,6 +813,7 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
+    | '/my-job/$token'
     | '/w/$token'
     | '/_authenticated/admin/ap-queue'
     | '/_authenticated/admin/businesses'
@@ -871,6 +883,7 @@ export interface RootRouteChildren {
   EligibilityTokenRoute: typeof EligibilityTokenRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
   JoinTokenRoute: typeof JoinTokenRoute
+  MyJobTokenRoute: typeof MyJobTokenRoute
   WTokenRoute: typeof WTokenRoute
   ApiFilesSplatRoute: typeof ApiFilesSplatRoute
   ApiPublicAddressSearchRoute: typeof ApiPublicAddressSearchRoute
@@ -986,6 +999,13 @@ declare module '@tanstack/react-router' {
       path: '/join/$token'
       fullPath: '/join/$token'
       preLoaderRoute: typeof JoinTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-job/$token': {
+      id: '/my-job/$token'
+      path: '/my-job/$token'
+      fullPath: '/my-job/$token'
+      preLoaderRoute: typeof MyJobTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/w/$token': {
@@ -1465,6 +1485,7 @@ const rootRouteChildren: RootRouteChildren = {
   EligibilityTokenRoute: EligibilityTokenRoute,
   EstimateTokenRoute: EstimateTokenRoute,
   JoinTokenRoute: JoinTokenRoute,
+  MyJobTokenRoute: MyJobTokenRoute,
   WTokenRoute: WTokenRoute,
   ApiFilesSplatRoute: ApiFilesSplatRoute,
   ApiPublicAddressSearchRoute: ApiPublicAddressSearchRoute,
