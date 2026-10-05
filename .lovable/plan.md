@@ -23,7 +23,9 @@ Remove stale project notes so there is one trustworthy status list, then restyle
 - Correct the single-job import copy to reflect that PDFs and photos are read.
 - Preserve the approved six-month supplied-photo rule, install-day photo date rule, 50 m GPS rule and zero lead fee.
 - Let the installer correct each row's progress as Not visited, Visited, Quoted or Installed; show the planned electrician.
+- Add a batch-wide safety-check rule (My electrician / Home Insulation Victoria electricians / job by job), with saved-preference change/add controls and per-row toggles when needed.
 - On confirm, create complete owner/property/provenance records, permanent installer attribution, installer assignment, preferred-electrician plan, correct workflow placement, installer-handled quote, queued owner confirmation, missing-evidence list and exact batch/person history.
+- Preferred electricians receive the later PIESA offer exclusively for the normal window before fallback; unknown electricians use the existing queued invite and the job waits visibly until approval, with an installer switch to Home Insulation Victoria allocation.
 - Keep Installed and unresolved office-review rows visible in the batch but out of live jobs.
 
 ## 4. Prove it
@@ -31,6 +33,7 @@ Remove stale project notes so there is one trustworthy status list, then restyle
 - Prove any required database change on PGlite with rollback before applying it.
 - Run Scenario E end to end with a realistic isolated TEST batch: 25 messy rows, PDFs, mixed-GPS photos, handwritten-list photo and zip; repair every exception; verify every placement requirement for each row type, privacy, matching, quote creation and no sends; then clean it up or retain it only as `qa_test`.
 - Capture the resulting installer My work and office job views as part of Scenario E.
+- Exercise all three safety-check choices in Scenario E, including a preferred electrician who is not yet on the platform.
 - Time 300 rows and 60+ photos, repeat as office uploading for a TEST installer, and capture upload, reading, review, done and Past uploads at 390px.
 - Confirm the preview build, focused tests and retired-wording scan.
 
