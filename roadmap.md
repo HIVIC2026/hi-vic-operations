@@ -115,3 +115,7 @@
 - [ ] PLAN READY: 5 booking-control answers + gap list (awaiting Jo's go on fixes)
 - [ ] END-TO-END TEST: installer assessor Ready Check flow (worker add/approve/assign, /w/token link, Mitti form, sync back, quote); delete all test data after
 - [ ] PLAN READY: owner eligibility link (awaiting Jo's go)
+- [ ] BUILD (approved): Gap 1 — PIESA Mitti form only after confirmed PIESA booking
+- [ ] BUILD (approved): Gap 3 — 15-min automatic Mitti sync on existing timer (data only; keep manual Sync)
+- [ ] BUILD (approved): Gap 4 — record which confirmed install booking unlocked installation; AP review requires it completed
+- [ ] NOT DOING: Gap 2 (installer keeps date box); Gap 5 later
