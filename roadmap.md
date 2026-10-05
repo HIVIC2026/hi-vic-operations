@@ -187,3 +187,10 @@
 - [x] Global sending switches remain authoritative: OFF means ready-to-send/queued only, with no external delivery.
 - [x] Update workflow source-of-truth and focused tests: within 15%, over 15%, extra item, non-standard fix-up, and switches-off queued only.
 - [x] Schema additions have an undo file and passed on PGlite before live application. Not published.
+
+## Priority: full role dummy journeys before portal rebuild (5 Oct)
+- [ ] Create/reset isolated TEST owner, installer boss, installer worker and electrician accounts on TEST businesses only.
+- [ ] Run scenarios A–D through real office, owner and trade screens with all external switches off.
+- [ ] Capture every step at 390px for owner/trades and desktop for office; record automation, next person, defects and exact proposed fixes.
+- [ ] Archive all new TEST journeys plus HV-1541–HV-1545; do not delete audit history.
+- [ ] Deliver the per-step audit and tomorrow-focused ranked top-10 fixes; make no portal fixes and do not publish.
