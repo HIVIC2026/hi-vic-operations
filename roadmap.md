@@ -189,8 +189,8 @@
 - [x] Schema additions have an undo file and passed on PGlite before live application. Not published.
 
 ## Priority: full role dummy journeys before portal rebuild (5 Oct)
-- [ ] Create/reset isolated TEST owner, installer boss, installer worker and electrician accounts on TEST businesses only.
-- [ ] Run scenarios A–D through real office, owner and trade screens with all external switches off.
-- [ ] Capture every step at 390px for owner/trades and desktop for office; record automation, next person, defects and exact proposed fixes.
-- [ ] Archive all new TEST journeys plus HV-1541–HV-1545; do not delete audit history.
-- [ ] Deliver the per-step audit and tomorrow-focused ranked top-10 fixes; make no portal fixes and do not publish.
+- [x] Create/reset isolated TEST owner, installer boss, installer worker and electrician accounts on TEST businesses only.
+- [ ] Run scenarios A–D through real office, owner and trade screens with all external switches off. Blocked at the first real handoff: TEST imports are not marked `qa_test`, the installer job view remains on Loading, and no safe TEST payment bypass is exposed.
+- [ ] Capture every step at 390px for owner/trades and desktop for office; record automation, next person, defects and exact proposed fixes. Entry screens and the first blocked handoff are captured; downstream steps cannot be truthfully tested yet.
+- [x] Archive HV-1541–HV-1545 without deleting audit history; cancel and retain the misclassified Scenario A TEST import because the archive guard correctly rejected it as non-`qa_test`.
+- [x] Deliver the blocked-run findings and tomorrow-focused ranked fixes; make no workflow fixes and do not publish.
