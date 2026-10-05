@@ -39,6 +39,13 @@ export function discountNotes(r: Pick<DiscountRulesResult, "cappedAtMax" | "redu
   return notes;
 }
 
+/** The one VEU discount basis everywhere (calculator, office quotes, installer drafts, bulk import): whole VEECs (Eq 48.1 rounded down) × consumer $/VEEC, before the $200 minimum rule. */
+export function wholeVeecDiscount(areaM2: number, loc: Pick<LocationVariables, "metropolitan_or_regional" | "climate_region">, veecValue: number) {
+  const veecs = Math.floor(ghgEquivalentReduction(areaM2, loc).ghgReduction);
+  return { veecs, unitValue: Number(veecValue), raw: Math.round(veecs * Number(veecValue) * 100) / 100 };
+}
+export const veecDiscountLabel = (veecs: number, unitValue: number) => `VEU discount, ${veecs} VEECs × $${Number(unitValue).toLocaleString("en-AU")}`;
+
 export type Access = "standard" | "moderate" | "difficult";
 export const ACCESS_LEVELS: Access[] = ["standard", "moderate", "difficult"];
 
@@ -126,7 +133,7 @@ export const MEASURE_REQUIRED = "We need a ceiling-area estimate before we can c
 export const FEE_LABEL = "Home Insulation Victoria — Accredited Person Management";
 export const FEE_DESCRIPTION = "Covers eligibility management, Accredited Person compliance, job administration, evidence review and VEEC processing.";
 export const BENCHMARK_LABEL = "Consumer estimate benchmark";
-export const benchmarkNote = (v: number) => `Your estimated VEU discount uses a ${dollars(v)} per VEEC-equivalent benchmark calibrated to the Victorian Government's published 150 m² Metropolitan/Mild example (about $1,482). It is not the live VEEC market price. Certificate values fluctuate, so your final discount may change.`;
+export const benchmarkNote = (v: number) => `Your estimated VEU discount uses a ${dollars(v)} per VEEC-equivalent benchmark calibrated to the Victorian Government's published 150 m² Metropolitan/Mild example (21 whole VEECs, about $1,470). It is not the live VEEC market price. Certificate values fluctuate, so your final discount may change.`;
 export const CALC_ASSUMPTION_LABEL = "Calculator assumption — not a measured area";
 export const CALC_NOTE = "This calculator is for exploring possible costs only. Changing the m² here does not change your recorded property details. Your onsite measure confirms the actual eligible ceiling area.";
 export const CALC_EMPTY_TITLE = "Not sure of your ceiling area? Try an estimate.";
