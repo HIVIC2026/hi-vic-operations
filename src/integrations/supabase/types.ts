@@ -4373,6 +4373,66 @@ export type Database = {
           },
         ]
       }
+      installer_rate_requests: {
+        Row: {
+          business_id: string
+          gst_registered: boolean
+          id: string
+          r6_rate: number | null
+          r7_rate: number | null
+          rate_card_id: string | null
+          requested_at: string
+          requested_by: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          business_id: string
+          gst_registered?: boolean
+          id?: string
+          r6_rate?: number | null
+          r7_rate?: number | null
+          rate_card_id?: string | null
+          requested_at?: string
+          requested_by: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          business_id?: string
+          gst_registered?: boolean
+          id?: string
+          r6_rate?: number | null
+          r7_rate?: number | null
+          rate_card_id?: string | null
+          requested_at?: string
+          requested_by?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "installer_rate_requests_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "installer_rate_requests_rate_card_id_fkey"
+            columns: ["rate_card_id"]
+            isOneToOne: false
+            referencedRelation: "rate_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instalment_plans: {
         Row: {
           collection_arrangement: string | null

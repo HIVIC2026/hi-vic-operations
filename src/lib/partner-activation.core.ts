@@ -128,6 +128,8 @@ export function approvedRateItems(type: PartnerType, raw: RecData | InstData) {
     const d = normaliseInstallerDraft(raw as InstData);
     const rows = [
       { code: "R5_BATTS", description: "R5.0 ceiling batts supply & install", category: "product", unit: "m2", value: d.r5_rate, r_value: 5, sort: 1 },
+      { code: "R6_BATTS", description: "R6.0 ceiling batts supply & install", category: "product", unit: "m2", value: d.r6_rate, r_value: 6, sort: 4, optional: true, positive: true },
+      { code: "R7_BATTS", description: "R7.0 ceiling batts supply & install", category: "product", unit: "m2", value: d.r7_rate, r_value: 7, sort: 5, optional: true, positive: true },
       { code: "BATTS_REMOVAL", description: "Batts removal and disposal", category: "removal", unit: "m2", value: d.batts_removal_rate, r_value: null, sort: 2 },
       { code: "LOOSE_FILL_REMOVAL", description: "Loose-fill removal and disposal", category: "removal", unit: "m2", value: d.loose_fill_removal_rate, r_value: null, sort: 3 },
       ...EXTRA_ITEMS.map((item, i) => ({ code: item.key.toUpperCase(), description: item.label, category: item.key.includes("access") ? "access" : "travel", unit: "flat", value: d.extra_rates?.[item.key], r_value: null, sort: 10 + i, optional: true })),
@@ -135,8 +137,8 @@ export function approvedRateItems(type: PartnerType, raw: RecData | InstData) {
     // Required base/removal rates must be > 0; an OPTIONAL extra keeps an explicit $0 ("no extra charge").
     // A blank extra has no row: it is quoted separately on the job (see installerExtraPricing).
     return rows
-      .filter((r): r is typeof r & { value: number } => typeof r.value === "number" && Number.isFinite(r.value) && ("optional" in r && r.optional ? r.value >= 0 : r.value > 0))
-      .map(({ value, ...r }) => { const { optional: _o, ...rest } = r as typeof r & { optional?: boolean }; return { ...rest, unit_price_ex_gst: ex(value) }; });
+      .filter((r): r is typeof r & { value: number } => typeof r.value === "number" && Number.isFinite(r.value) && ("optional" in r && r.optional && !("positive" in r) ? r.value >= 0 : r.value > 0))
+      .map(({ value, ...r }) => { const { optional: _o, positive: _p, ...rest } = r as typeof r & { optional?: boolean; positive?: boolean }; return { ...rest, unit_price_ex_gst: ex(value) }; });
   }
   const d = raw as RecData;
   const rows = [

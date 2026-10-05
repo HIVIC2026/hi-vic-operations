@@ -46,7 +46,7 @@ const dataSchema = z.object({
   service_origin: s(300), travel_radius_km: n, excluded_areas: s(2000),
   typical_days: z.array(z.enum(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])).max(7).optional(), normal_attendance_speed: s(50),
   capacity_band: s(10), daily_capacity_m2: z.number().positive().max(10000).nullable().optional(), accepting_jobs: z.boolean().optional(),
-  gst_registered: z.boolean().nullable().optional(), r5_rate: n, batts_removal_rate: n, loose_fill_removal_rate: n,
+  gst_registered: z.boolean().nullable().optional(), r5_rate: n, r6_rate: n, r7_rate: n, batts_removal_rate: n, loose_fill_removal_rate: n,
   extra_rates: z.record(z.string().max(40), n).optional(),
   bank_account_name: s(200), bank_bsb: s(7), bank_account_number: s(10),
   agreement_reviewed: z.boolean().optional(),

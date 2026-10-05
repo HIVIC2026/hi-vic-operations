@@ -15,6 +15,7 @@ import {
   saveBusiness, savePartnerMethod, reviewPartnerMethod, getMeasurementStandard, setMeasurementStandard, setBankDetails, setOnboardingStatus, setPartnerRelationship, signPartnerAgreement, syncXeroSupplier, verifyCredential,
 } from "@/lib/pilot.functions";
 import { credentialState, ONBOARDING_STATUSES } from "@/lib/pilot.core";
+import { getHigherRates, requestHigherRates, reviewHigherRates } from "@/lib/rate-requests.functions";
 
 const CRED_KINDS = ["public_liability_insurance", "workers_comp_insurance", "other_insurance", "electrical_licence", "rec_registration", "installer_certification", "business_registration", "other"] as const;
 const csv = (a: string[] | null | undefined) => (a ?? []).join(", ");
@@ -39,6 +40,7 @@ export function BusinessProfile({ businessId, isHivicAdmin }: { businessId?: str
       <Electricians businessId={b.id} rels={data.relationships} options={data.electricianBusinesses.filter((e) => e.id !== b.id)} canEdit={canEdit} onDone={refetch} />
       <MeasurementMethods businessId={b.id} methods={data.measurementMethods as MethodRow[]} canEdit={canEdit} isHivicAdmin={isHivicAdmin} onDone={refetch} />
       <Section title="Rate cards">{data.rateCards.length === 0 ? <p className="text-sm text-muted-foreground">No agreed rate card on file yet – Home Insulation Victoria sets these up.</p> : data.rateCards.map((r) => <div key={r.id} className="text-sm">{r.name} · {r.kind} · v{r.version} · from {r.effective_from} {r.is_active && <Badge variant="outline">Active</Badge>}</div>)}</Section>
+      <HigherRates businessId={b.id} canEdit={canEdit} isHivicAdmin={isHivicAdmin} />
       {b.onboarding_status === "approved" && <Bank businessId={b.id} canEdit={false} />}
       <Agreement businessId={b.id} agreements={data.agreements} canSign={data.myRole === "business_admin"} onDone={refetch} />
       <Section title="Xero supplier setup"><p className="text-sm">{String(b["xero_contact_status"]) === "synced" ? "Supplier contact set up in Xero." : String(b["xero_contact_status"]) === "ready" ? "Ready – Home Insulation Victoria will set up your supplier record." : "Available once your business is approved."}</p></Section>
@@ -317,6 +319,50 @@ export function MeasurementStandardCard() {
         {!data.measurement_standard_approved ? <Button size="sm" disabled={reason.trim().length < 5 || !version.trim()} onClick={() => submit(true)}>Approve standard</Button>
           : <Button size="sm" variant="destructive" disabled={reason.trim().length < 5} onClick={() => submit(false)}>Withdraw approval</Button>}
       </div>
+    </Section>
+  );
+}
+
+const inc = (ex: number | null) => (ex == null ? "Not offered" : `$${(ex * 1.1).toFixed(2)}/m² inc GST`);
+const num = (s: string) => (s.trim() === "" ? null : Number(s));
+
+/** R6.0 / R7.0 supply & install rates: installer requests, office approves into a new rate card version. */
+function HigherRates({ businessId, canEdit, isHivicAdmin }: { businessId: string; canEdit: boolean; isHivicAdmin: boolean }) {
+  const load = useServerFn(getHigherRates);
+  const { data, refetch } = useQuery({ queryKey: ["higher-rates", businessId], queryFn: () => load({ data: { businessId } }) });
+  const request = useAction(requestHigherRates);
+  const review = useAction(reviewHigherRates);
+  const [r6, setR6] = useState(""); const [r7, setR7] = useState(""); const [gst, setGst] = useState(true); const [note, setNote] = useState("");
+  if (!data) return null;
+  const pending = data.requests.find((r) => r.status === "pending");
+  const bad = (s: string) => s.trim() !== "" && !(Number(s) > 0 && Number(s) <= 100000 && Math.round(Number(s) * 100) === Number(s) * 100);
+  return (
+    <Section title="Higher R-value rates (R6.0 / R7.0)">
+      <div className="space-y-1 text-sm">
+        <div>R5.0 supply & install: {inc(data.r5Ex)}</div>
+        <div>R6.0 supply & install: {inc(data.r6Ex)}</div>
+        <div>R7.0 supply & install: {inc(data.r7Ex)}</div>
+      </div>
+      {pending && <div className="mt-3 rounded-md border bg-muted p-3 text-sm">
+        <p className="font-semibold">Waiting for Home Insulation Victoria review</p>
+        <p>R6.0: {pending.r6_rate == null ? "Not offered" : `$${pending.r6_rate}/m²`} · R7.0: {pending.r7_rate == null ? "Not offered" : `$${pending.r7_rate}/m²`} ({pending.gst_registered ? "inc GST" : "total rate"})</p>
+        {isHivicAdmin && <div className="mt-2 space-y-2">
+          <Input className="h-12" placeholder="Note (required to decline)" value={note} onChange={(e) => setNote(e.target.value)} />
+          <div className="flex gap-2">
+            <Button onClick={async () => { await review({ requestId: pending.id, approve: true, note: note || undefined }, "Approved – new rate card version created"); setNote(""); refetch(); }}>Approve rates</Button>
+            <Button variant="outline" onClick={async () => { await review({ requestId: pending.id, approve: false, note }, "Declined"); setNote(""); refetch(); }}>Decline</Button>
+          </div>
+        </div>}
+      </div>}
+      {canEdit && !isHivicAdmin && <div className="mt-3 space-y-2">
+        <p className="text-sm text-muted-foreground">Optional — leave blank if you don't install this. Home Insulation Victoria reviews new rates before they apply.</p>
+        <label className="flex items-center gap-2 text-sm"><Checkbox checked={gst} onCheckedChange={(v) => setGst(v === true)} /> GST registered (rates include GST)</label>
+        <Input className="h-12" inputMode="decimal" placeholder="R6.0 supply & install $/m²" value={r6} onChange={(e) => setR6(e.target.value)} />
+        <Input className="h-12" inputMode="decimal" placeholder="R7.0 supply & install $/m²" value={r7} onChange={(e) => setR7(e.target.value)} />
+        {(bad(r6) || bad(r7)) && <p className="text-sm text-danger">Enter a valid rate per m² (above $0), or leave it blank.</p>}
+        <Button size="field" className="w-full" disabled={bad(r6) || bad(r7) || !data.hasCard} onClick={async () => { await request({ businessId, r6: num(r6), r7: num(r7), gstRegistered: gst }, "Sent for review"); setR6(""); setR7(""); refetch(); }}>Send rates for review</Button>
+        {!data.hasCard && <p className="text-xs text-muted-foreground">Available once your agreed rate card is set up.</p>}
+      </div>}
     </Section>
   );
 }
