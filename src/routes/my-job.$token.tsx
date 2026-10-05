@@ -44,7 +44,7 @@ function MyJobPage() {
   const load = useServerFn(getOwnerMyJob);
   const { data, isLoading } = useQuery({ queryKey: ["my-job", token], queryFn: () => load({ data: { token } }) as Promise<View | null>, retry: false, refetchOnWindowFocus: false });
   return (
-    <div className="min-h-screen bg-estimate-canvas pb-10 text-estimate-navy">
+    <div className="estimate-brand min-h-screen bg-estimate-canvas pb-10 text-estimate-navy">
       <header className="mx-auto flex max-w-[480px] items-center justify-between px-5 py-4">
         <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-10 w-auto max-w-[130px] object-contain" />
         {data?.jobNumber && <span className="rounded-full bg-estimate-blush px-3 py-1 text-xs font-bold">{data.jobNumber}</span>}
