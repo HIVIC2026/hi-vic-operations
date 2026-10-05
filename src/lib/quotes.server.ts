@@ -212,7 +212,28 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
   await admin.from("quote_items").insert(lines.map((l) => ({ ...l, quote_id: q.id })));
   await admin.from("quote_internals").insert({ quote_id: q.id, cost_ex_gst: r2(cost), calc_snapshot: { rate_card_version: card.version } });
   await logEvent(jobId, actorId, "rectification_quote_generated", `Rectification quote drafted (${lines.length} lines) — office review required before it is sent`, { quote_id: q.id });
+  await autoQueueRectificationQuote(jobId, q.id, items as { is_other: boolean; needs_office_pricing: boolean }[]);
   return q.id;
+}
+
+/** Smallest safe auto-queue: only when workflow_settings.auto_queue_rectification_quote is on AND every
+ * required line is a standard agreed-rate item (no "Other", none needing office pricing). Any other/
+ * non-standard/manually-priced line always holds in the normal office review queue — switch on or off,
+ * nothing here changes manual review/send for those. Never touches comms/sending switches: issuing here
+ * only flips status like the existing manual send does; actual delivery still follows the comms switches
+ * elsewhere (see followups.server.ts / comms.server.ts). */
+async function autoQueueRectificationQuote(jobId: string, quoteId: string, items: { is_other: boolean; needs_office_pricing: boolean }[]) {
+  const { data: ws } = await admin.from("workflow_settings").select("auto_queue_rectification_quote").eq("id", 1).maybeSingle();
+  const { rectAutoQueueDecision } = await import("./rectification.core");
+  const decision = rectAutoQueueDecision(!!ws?.auto_queue_rectification_quote, items, false);
+  if (decision !== "auto_queue") return; // hold: unchanged draft, waits in the office review queue
+  const now = new Date().toISOString();
+  const { data: u } = await admin.from("quotes").update({ office_reviewed_at: now, office_reviewed_by: null, status: "issued", sent_at: now })
+    .eq("id", quoteId).eq("status", "draft").select("id").maybeSingle();
+  if (!u) return; // raced with a manual review/send — leave whatever happened as the record of truth
+  await logEvent(jobId, null, "rectification_quote_auto_queued",
+    "All rectification lines were standard agreed-rate items — auto-reviewed and queued to the owner (no office step needed)",
+    { quote_id: quoteId, switch: "auto_queue_rectification_quote" }, { internal: true });
 }
 
 /** Admin manual adjustment with mandatory reason; before/after snapshot kept for audit. */
@@ -228,7 +249,7 @@ export async function adjustQuote(quoteId: string, actorId: string, reason: stri
   const { data: s } = await admin.from("pricing_settings").select("gst_rate").eq("id", before.pricing_settings_id!).maybeSingle();
   const gst = 1 + Number(s?.gst_rate ?? 0.1);
   const after = { subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: veec, customer_total_inc_gst: r2(subtotal - veec), manually_adjusted: true, ...(veec !== Number(before.veec_discount_inc_gst) ? { veec_count: null, veec_unit_value_inc_gst: null } : {}) };
-  await admin.from("quotes").update(after).eq("id", quoteId);
+  await admin.from("quotes").update({ ...after, version: before.version + 1 }).eq("id", quoteId);
   const { data: afterFull } = await admin.from("quotes").select("*, quote_items(*)").eq("id", quoteId).single();
   await admin.from("quote_adjustments").insert({ quote_id: quoteId, adjusted_by: actorId, reason, before_snapshot: before, after_snapshot: afterFull ?? {} });
   await logEvent(before.job_id, actorId, "quote_adjusted", `Quote manually adjusted: ${reason}`, { quote_id: quoteId, before_total: before.customer_total_inc_gst, after_total: after.customer_total_inc_gst }, { internal: true });
