@@ -18,6 +18,10 @@ export type BulkExtracted = {
   building_age?: string | null; // e.g. "built 1978", "about 40 years old", "unknown"
   notes?: string | null;
   price_inc_gst?: number | null;
+  /** True when the lead was pieced together only from file/folder names, photo text or photo location. */
+  unsure?: boolean | null;
+  /** Uploaded file names this lead was read from (for the per-file result list). */
+  source_files?: string[] | null;
 };
 
 export type BulkFile = {
@@ -28,6 +32,8 @@ export type BulkFile = {
   gps_lat?: number | null;
   gps_lng?: number | null;
   taken_at?: string | null;
+  /** Street address looked up from the photo's GPS (approximate; matching/sorting only, never evidence). */
+  geo_address?: string | null;
 };
 
 export type SortResult = "covers_ready_check" | "needs_visit" | "office_review";
@@ -95,10 +101,13 @@ export function matchFiles(
     const normHay = normaliseAddress(hay.replace(/[-_]/g, " "));
     const hasNum = num ? normHay.split(" ").includes(num) : false;
     const wordHits = words.filter((w) => normHay.includes(w)).length;
+    const geo = normaliseAddress(f.geo_address ?? "");
+    const geoHit = !!geo && (num ? geo.split(" ").includes(num) : true) && words.filter((w) => geo.includes(w)).length > 0;
     if (f.folder && hasNum && wordHits > 0) matched.push({ path: f.path, name: f.name, how: "folder" });
     else if (hasNum && wordHits > 0) matched.push({ path: f.path, name: f.name, how: "filename" });
+    else if (geoHit) matched.push({ path: f.path, name: f.name, how: "gps" });
   }
-  const confidence = matched.some((m) => m.how === "folder") ? "high" : matched.length > 0 ? "low" : "none";
+  const confidence = matched.some((m) => m.how === "folder" || m.how === "gps") ? "high" : matched.length > 0 ? "low" : "none";
   return { matched, confidence };
 }
 
@@ -158,6 +167,7 @@ export function sortJob(
   if (!e.address_line || !e.postcode) reasons.push("No usable address");
   if (opts.duplicate) reasons.push("Looks like a job that already exists in the portal");
   if (!e.full_name && !e.phone && !e.email) reasons.push("No customer name or contact details");
+  if (e.unsure) reasons.push("Found only from file names, photo text or photo location — please check");
   if (reasons.length > 0) return { result: "office_review", reasons };
 
   const gaps = readyCheckGaps(e);
@@ -190,4 +200,24 @@ export function findDuplicates(
     } else seen.set(key, i);
   });
   return notes;
+}
+
+export type FileResult = { name: string; status: "ok" | "warn" | "error"; message: string };
+/** Plain-English result per uploaded file, after leads are found and files matched. Reading results from the
+ * upload step (e.g. "read 12 rows") are kept; files that fed or matched a lead say which one. */
+export function fileResults(read: FileResult[], leads: BulkExtracted[], matches: FileMatch[][]): FileResult[] {
+  const label = (e: BulkExtracted) => [e.address_line, e.suburb].filter(Boolean).join(", ") || e.full_name || "an unnamed lead";
+  const base = (n: string) => n.split("/").pop()!.toLowerCase();
+  return read.map((r) => {
+    const fed = leads.filter((e) => (e.source_files ?? []).some((s) => base(s) === base(r.name)));
+    const hit = matches.flatMap((m, i) => m.filter((x) => base(x.path) === base(r.name)).map((x) => ({ x, e: leads[i]! })));
+    if (r.status === "error") return r;
+    const parts: string[] = [r.message];
+    if (fed.length) parts.push(fed.length === 1 ? `customer found: ${label(fed[0]!)}` : `${fed.length} customers found`);
+    const g = hit.find((h) => h.x.how === "gps"), o = hit[0];
+    if (g) parts.push(`matched by GPS to ${label(g.e)}`);
+    else if (o) parts.push(`matched by ${o.x.how === "folder" ? "folder name" : "file name"} to ${label(o.e)}`);
+    const used = fed.length > 0 || hit.length > 0;
+    return { name: r.name, status: used ? r.status : "warn", message: used ? parts.join(" — ") : `${r.message} — not linked to any customer` };
+  });
 }
