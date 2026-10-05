@@ -740,3 +740,18 @@ export const setMeasurementStandard = createServerFn({ method: "POST" }).middlew
     await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "measurement_standard_updated", summary: `Measurement standard ${data.version ?? "(none)"} ${data.approved ? "approved" : "not approved"}; tolerance ${data.tolerancePct ?? "not set"}: ${data.reason}`, details: data as unknown as Json });
     return { ok: true };
   });
+
+/** Installer's own approved rate card lines (inc GST) for pricing their own customer. Never another business's rates. */
+export const myInstallerRateItems = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const ids = [...(await myBusinesses(context.userId)).keys()];
+    if (!ids.length) return { businessId: null, items: [] as { code: string; description: string; unit: string; price_inc_gst: number }[] };
+    const bizId = ids[0]!;
+    const [{ data: card }, { data: biz }] = await Promise.all([
+      admin.from("rate_cards").select("id").eq("business_id", bizId).eq("kind", "installer").eq("is_active", true).order("version", { ascending: false }).limit(1).maybeSingle(),
+      admin.from("businesses").select("gst_registered").eq("id", bizId).maybeSingle(),
+    ]);
+    const { data: rows } = card ? await admin.from("rate_card_items").select("code, description, unit, unit_price_ex_gst").eq("rate_card_id", card.id) : { data: [] as { code: string; description: string; unit: string; unit_price_ex_gst: number }[] };
+    const gst = biz?.gst_registered !== false ? 1.1 : 1;
+    return { businessId: bizId, items: (rows ?? []).map((r) => ({ code: r.code, description: r.description, unit: r.unit, price_inc_gst: Math.round(Number(r.unit_price_ex_gst) * gst * 100) / 100 })) };
+  });
