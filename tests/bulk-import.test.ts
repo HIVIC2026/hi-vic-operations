@@ -90,3 +90,24 @@ describe("lead stage", () => {
   test("price found → visited and quoted", () => expect(leadStage({ price_inc_gst: 4000 }, 0)).toBe("visited_quoted"));
   test("permission wording is exact", () => expect(CONTACT_PERMISSION_WORDING).toBe("I confirm these customers are happy for Home Insulation Victoria to contact them."));
 });
+
+describe("bulk import — photos-only and per-file results (5 Oct fix)", () => {
+  test("a photo whose GPS address matches the lead is matched by GPS", async () => {
+    const { matchFiles, fileResults } = await import("../src/lib/bulk-import.core");
+    const lead = { address_line: "14 Example Street", suburb: "Bendigo", postcode: "3550", unsure: true, source_files: ["IMG_1.jpg"] };
+    const files = [{ path: "IMG_1.jpg", name: "IMG_1.jpg", folder: null, geo_address: "14 Example Street Bendigo VIC 3550" }, { path: "IMG_2.jpg", name: "IMG_2.jpg", folder: null, geo_address: "99 Other Road Ballarat" }];
+    const m = matchFiles(lead, files);
+    expect(m.matched).toEqual([{ path: "IMG_1.jpg", name: "IMG_1.jpg", how: "gps" }]);
+    expect(m.confidence).toBe("high");
+    const out = fileResults([{ name: "IMG_1.jpg", status: "ok", message: "photo with GPS" }, { name: "IMG_2.jpg", status: "ok", message: "photo with GPS" }, { name: "x.bin", status: "error", message: "couldn't read because Y" }], [lead], [m.matched]);
+    expect(out[0]!.message).toContain("matched by GPS to 14 Example Street, Bendigo");
+    expect(out[1]!.status).toBe("warn");
+    expect(out[1]!.message).toContain("not linked to any customer");
+    expect(out[2]!.message).toBe("couldn't read because Y");
+  });
+  test("leads found only from names/photos go to office review, never auto-sorted", () => {
+    const r = sortJob({ ...full, unsure: true }, { matchConfidence: "high", duplicate: false });
+    expect(r.result).toBe("office_review");
+    expect(r.reasons.join(" ")).toContain("please check");
+  });
+});
