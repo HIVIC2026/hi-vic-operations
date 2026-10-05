@@ -326,26 +326,27 @@ export function MeasurementStandardCard() {
 const inc = (ex: number | null) => (ex == null ? "Not offered" : `$${(ex * 1.1).toFixed(2)}/m² inc GST`);
 const num = (s: string) => (s.trim() === "" ? null : Number(s));
 
-/** R6.0 / R7.0 supply & install rates: installer requests, office approves into a new rate card version. */
+/** R6.0 / R7.0 / top-up supply & install rates: installer requests, office approves into a new rate card version. */
 function HigherRates({ businessId, canEdit, isHivicAdmin }: { businessId: string; canEdit: boolean; isHivicAdmin: boolean }) {
   const load = useServerFn(getHigherRates);
   const { data, refetch } = useQuery({ queryKey: ["higher-rates", businessId], queryFn: () => load({ data: { businessId } }) });
   const request = useAction(requestHigherRates);
   const review = useAction(reviewHigherRates);
-  const [r6, setR6] = useState(""); const [r7, setR7] = useState(""); const [gst, setGst] = useState(true); const [note, setNote] = useState("");
+  const [r6, setR6] = useState(""); const [r7, setR7] = useState(""); const [topup, setTopup] = useState(""); const [gst, setGst] = useState(true); const [note, setNote] = useState("");
   if (!data) return null;
   const pending = data.requests.find((r) => r.status === "pending");
   const bad = (s: string) => s.trim() !== "" && !(Number(s) > 0 && Number(s) <= 100000 && Math.round(Number(s) * 100) === Number(s) * 100);
   return (
-    <Section title="Higher R-value rates (R6.0 / R7.0)">
+    <Section title="Higher R-value and top-up rates (R6.0 / R7.0 / top up to R5.0)">
       <div className="space-y-1 text-sm">
         <div>R5.0 supply & install: {inc(data.r5Ex)}</div>
         <div>R6.0 supply & install: {inc(data.r6Ex)}</div>
         <div>R7.0 supply & install: {inc(data.r7Ex)}</div>
+        <div>Top up to R5.0 over existing insulation: {inc(data.topupEx)}</div>
       </div>
       {pending && <div className="mt-3 rounded-md border bg-muted p-3 text-sm">
         <p className="font-semibold">Waiting for Home Insulation Victoria review</p>
-        <p>R6.0: {pending.r6_rate == null ? "Not offered" : `$${pending.r6_rate}/m²`} · R7.0: {pending.r7_rate == null ? "Not offered" : `$${pending.r7_rate}/m²`} ({pending.gst_registered ? "inc GST" : "total rate"})</p>
+        <p>R6.0: {pending.r6_rate == null ? "Not offered" : `$${pending.r6_rate}/m²`} · R7.0: {pending.r7_rate == null ? "Not offered" : `$${pending.r7_rate}/m²`} · Top up to R5.0: {pending.topup_r5_rate == null ? "Not offered" : `$${pending.topup_r5_rate}/m²`} ({pending.gst_registered ? "inc GST" : "total rate"})</p>
         {isHivicAdmin && <div className="mt-2 space-y-2">
           <Input className="h-12" placeholder="Note (required to decline)" value={note} onChange={(e) => setNote(e.target.value)} />
           <div className="flex gap-2">
@@ -359,8 +360,9 @@ function HigherRates({ businessId, canEdit, isHivicAdmin }: { businessId: string
         <label className="flex items-center gap-2 text-sm"><Checkbox checked={gst} onCheckedChange={(v) => setGst(v === true)} /> GST registered (rates include GST)</label>
         <Input className="h-12" inputMode="decimal" placeholder="R6.0 supply & install $/m²" value={r6} onChange={(e) => setR6(e.target.value)} />
         <Input className="h-12" inputMode="decimal" placeholder="R7.0 supply & install $/m²" value={r7} onChange={(e) => setR7(e.target.value)} />
-        {(bad(r6) || bad(r7)) && <p className="text-sm text-danger">Enter a valid rate per m² (above $0), or leave it blank.</p>}
-        <Button size="field" className="w-full" disabled={bad(r6) || bad(r7) || !data.hasCard} onClick={async () => { await request({ businessId, r6: num(r6), r7: num(r7), gstRegistered: gst }, "Sent for review"); setR6(""); setR7(""); refetch(); }}>Send rates for review</Button>
+        <Input className="h-12" inputMode="decimal" placeholder="Top up to R5.0 over existing insulation $/m²" value={topup} onChange={(e) => setTopup(e.target.value)} />
+        {(bad(r6) || bad(r7) || bad(topup)) && <p className="text-sm text-danger">Enter a valid rate per m² (above $0), or leave it blank.</p>}
+        <Button size="field" className="w-full" disabled={bad(r6) || bad(r7) || bad(topup) || !data.hasCard} onClick={async () => { await request({ businessId, r6: num(r6), r7: num(r7), topup: num(topup), gstRegistered: gst }, "Sent for review"); setR6(""); setR7(""); setTopup(""); refetch(); }}>Send rates for review</Button>
         {!data.hasCard && <p className="text-xs text-muted-foreground">Available once your agreed rate card is set up.</p>}
       </div>}
     </Section>
