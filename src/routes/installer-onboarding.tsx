@@ -7,7 +7,7 @@ import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import { uploadWithRevision, signWithRecovery, type RevisionRef } from "@/lib/installer-onboarding-flow.core";
 import {
   ACKNOWLEDGEMENTS, CAPACITY_BANDS, DAYS, WORKER_CII, EXTRA_ITEMS, LEAD_TIMES, RADII, INSTALLER_AGREEMENT_VERSION,
-  agreementText, applyMaterialReset, firstIncompleteStep, installerSignUiBlockers, pageErrors, pageFieldErrors, resolvedBusinessAddress, parseInstallerSampleStep, visiblePageForStep, visibleSteps,
+  agreementText, applyMaterialReset, firstIncompleteStep, formatDateAu, parseDateInput, installerSignUiBlockers, pageErrors, pageFieldErrors, resolvedBusinessAddress, parseInstallerSampleStep, visiblePageForStep, visibleSteps,
   type InstData, type ResolvedAddress, type StepKey,
 } from "@/lib/installer-onboarding.core";
 import { isVictorianAddress, resumeFailureMode } from "@/lib/rec-onboarding.core";
@@ -211,7 +211,20 @@ function InstallerOnboarding() {
   const idx = Math.max(0, steps.findIndex((s) => s.key === step));
   const errs = pageErrors(step, d);
   const fieldErrs = pageFieldErrors(step, d);
-  const errFor = (field: string) => (showErrors ? fieldErrs.find((e) => e.field === field)?.message ?? null : null);
+  // Errors appear only after Save & continue, under their own field; editing a field hides its message until the next save.
+  const [flagged, setFlagged] = useState<Set<string>>(new Set());
+  const inlineShown = useRef<Set<string>>(new Set());
+  inlineShown.current = new Set();
+  const errFor = (field: string) => {
+    if (!showErrors || !flagged.has(field)) return null;
+    const m = fieldErrs.find((e) => e.field === field)?.message ?? null;
+    if (m) inlineShown.current.add(field);
+    return m;
+  };
+  const unflag = (target: EventTarget) => {
+    const id = (target as HTMLElement | null)?.id;
+    if (id && flagged.has(id)) setTimeout(() => setFlagged((f) => { const n = new Set(f); n.delete(id); return n; }), 0);
+  };
   const up = (patch: Partial<InstData>) => setD((x) => applyMaterialReset(x, { ...x, ...patch }));
 
   async function begin() {
@@ -249,7 +262,7 @@ function InstallerOnboarding() {
     try {
       if (delta === 1 && d.works_for_business === true) return; // staff join through the business owner's invite
       if (delta === 1 && errs.length && !testMode && !sampleMode) {
-        setShowErrors(true);
+        setShowErrors(true); setFlagged(new Set(fieldErrs.map((e) => e.field)));
         // Focus the first invalid visible field so keyboard and screen-reader users land on it.
         const first = fieldErrs[0]?.field;
         requestAnimationFrame(() => { const el = first ? document.getElementById(first) : null; (el ?? document.getElementById("page-errors"))?.focus(); el?.scrollIntoView({ block: "center" }); });
@@ -261,6 +274,8 @@ function InstallerOnboarding() {
       setBusy(true);
       await persist(target);
       if (delta === 1) { setStep(target); window.history.pushState({ instStep: target }, ""); window.scrollTo({ top: 0 }); }
+      // Bank account name usually matches the business: suggest it once (still editable).
+      if (delta === 1 && target === "bank" && !(d.bank_account_name ?? "").trim() && (d.legal_entity_name ?? "").trim()) up({ bank_account_name: d.legal_entity_name ?? "" });
     } catch (e) { setError(e instanceof Error ? e.message : "Could not save. Please try again."); }
     finally { navigationLock.current = false; setBusy(false); }
   }
@@ -340,20 +355,26 @@ function InstallerOnboarding() {
       {isTest && !sampleMode && <div style={{ ...warn, fontWeight: 700 }}>TEST MODE — staff test link. This application is marked as a test and won't count as a real applicant.</div>}
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
       <div style={{ width: 34, height: 3, borderRadius: 99, background: PINK, margin: "10px 0 18px" }} />
+      <div onChange={(e) => unflag(e.target)}>
       <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onReviewReady={setReviewed} errFor={errFor} revision={revision} onUploadBusy={(b) => { navigationLock.current = b; setBusy(b); }} onAddressPending={setAddressPending} />
+      </div>
       {step === "review" && <SignStep d={d} token={token ?? ""} reviewed={reviewed} preview={sampleMode} relaxed={testMode} revision={() => revision.current}
         saveReviewed={async () => { const next = { ...d, agreement_reviewed: true }; await persist("review", next); }}
         onGoToPage={(page) => { setStep(page); window.history.pushState({ instStep: page }, ""); window.scrollTo({ top: 0 }); }}
         onSigned={() => setStatus("submitted")} />}
-      {showErrors && errs.length > 0 && (
-        <div id="page-errors" tabIndex={-1} role="alert" style={{ background: "#FDECEA", border: "1px solid #F5C2BE", borderRadius: 12, padding: "10px 14px", color: "#8C1D18", fontSize: 14, marginTop: 8 }}>
-          {errs.map((e) => <div key={e}>• {e}</div>)}
-        </div>
-      )}
+      {showErrors && <LeftoverErrors errors={fieldErrs.filter((e) => flagged.has(e.field))} shown={inlineShown} />}
       {error && <p style={{ color: "#B3261E", fontSize: 14 }}>{error}</p>}
     </div>,
     footer,
   );
+}
+
+/** Only messages that have no box of their own on this page (e.g. "Add at least one installer"); never repeats inline ones.
+ *  Rendered after the page body, so `shown` already holds every message displayed under a field. */
+function LeftoverErrors({ errors, shown }: { errors: { field: string; message: string }[]; shown: React.MutableRefObject<Set<string>> }) {
+  const left = [...new Set(errors.filter((e) => !shown.current.has(e.field)).map((e) => e.message))];
+  if (!left.length) return null;
+  return <div id="page-errors" tabIndex={-1} role="alert" style={{ background: "#FDECEA", border: "1px solid #F5C2BE", borderRadius: 12, padding: "10px 14px", color: "#8C1D18", fontSize: 14, marginTop: 8 }}>{left.map((m) => <div key={m}>{m}</div>)}</div>;
 }
 
 function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor, revision, onUploadBusy, onAddressPending }: { step: StepKey; d: InstData; up: (p: Partial<InstData>) => void; token: string; setError: (s: string | null) => void; preview: boolean; onReviewReady: (r: Reviewed) => void; errFor: (field: string) => string | null; revision: RevisionRef; onUploadBusy: (b: boolean) => void; onAddressPending: (pending: boolean) => void }) {
@@ -383,34 +404,9 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
         </>}
       </>;
     case "insurance":
-      return <InsuranceStep d={d} up={up} token={token} setError={setError} preview={preview} revision={revision} onUploadBusy={onUploadBusy} />;
-    case "installers": {
-      const list = d.installers ?? [];
-      const set = (i: number, p: Partial<NonNullable<InstData["installers"]>[number]>) => up({ installers: list.map((x, j) => (j === i ? { ...x, ...p } : x)) });
-      return <>
-        <p style={note}>Everyone who installs on Home Insulation Victoria jobs — including you, if you do the work. At least one. Our office checks each person's CII certification before they can be assigned.</p>
-        {list.map((x, i) => (
-          <Section key={i} title={`Installer ${i + 1}`} first={i === 0}>
-            <Field label="Full legal name" required><input style={input} value={x.full_legal_name ?? ""} onChange={(e) => set(i, { full_legal_name: e.target.value })} /></Field>
-            <Field label="EEC Certified Insulation Installer (CII) status" required error={errFor(`installer-${i}-cii`)}><Choice options={WORKER_CII.map((c) => ({ v: c.v as string, l: c.l }))} value={x.cii_holds ?? null} onChange={(v) => set(i, { cii_holds: v as "held" | "in_training" | "not_held" })} /></Field>
-            {x.cii_holds === "held" && <>
-              <Field label="Certificate or ID number" required htmlFor={`installer-${i}-cii-number`} error={errFor(`installer-${i}-cii-number`)}><input id={`installer-${i}-cii-number`} style={input} value={x.cii_certificate_number ?? ""} onChange={(e) => set(i, { cii_certificate_number: e.target.value })} /></Field>
-              <Field label="Issued by" required htmlFor={`installer-${i}-cii-issuer`} error={errFor(`installer-${i}-cii-issuer`)}><input id={`installer-${i}-cii-issuer`} style={input} value={x.cii_issuer ?? ""} onChange={(e) => set(i, { cii_issuer: e.target.value })} /></Field>
-              <Field label="Issue date" required htmlFor={`installer-${i}-cii-date`} error={errFor(`installer-${i}-cii-date`)}><input id={`installer-${i}-cii-date`} type="date" style={{ ...input, maxWidth: 220 }} value={x.cii_issue_date ?? ""} onChange={(e) => set(i, { cii_issue_date: e.target.value })} /></Field>
-              <Field label="Certification level" required error={errFor(`installer-${i}-cii-level`)}><Choice options={[{ v: "full", l: "Full" }, { v: "provisional", l: "Provisional" }]} value={x.cii_level ?? null} onChange={(v) => set(i, { cii_level: v as "full" | "provisional" })} /></Field>
-              {x.cii_level === "provisional" && <p style={warn}>Provisional: this person can't receive work until they hold a Full certification.</p>}
-              <Field label="Expiry date" required htmlFor={`installer-${i}-cii-expiry`} error={errFor(`installer-${i}-cii-expiry`)}><input id={`installer-${i}-cii-expiry`} type="date" style={{ ...input, maxWidth: 220 }} value={x.cii_expiry ?? ""} onChange={(e) => set(i, { cii_expiry: e.target.value })} /></Field>
-            </>}
-            {(x.cii_holds === "in_training" || x.cii_holds === "not_held") && <p style={warn}>You can still register. This person can't be assigned to jobs until they hold a CII certification and our office has verified it.</p>}
-            <Field label="Other relevant training (optional)"><input style={input} value={x.qualification ?? ""} onChange={(e) => set(i, { qualification: e.target.value })} /></Field>
-            <Field label="Mobile" required><input style={input} type="tel" value={x.mobile ?? ""} onChange={(e) => set(i, { mobile: e.target.value })} /></Field>
-            <Field label="Email" required><input style={input} type="email" value={x.email ?? ""} onChange={(e) => set(i, { email: e.target.value })} /></Field>
-            <button type="button" style={removeBtn} onClick={() => up({ installers: list.filter((_, j) => j !== i) })}>Remove installer {i + 1}</button>
-          </Section>
-        ))}
-        <div style={{ marginTop: 16 }}><button type="button" style={btn(false)} onClick={() => up({ installers: [...list, {}] })}>+ Add installer</button></div>
-      </>;
-    }
+      return <InsuranceStep errFor={errFor} d={d} up={up} token={token} setError={setError} preview={preview} revision={revision} onUploadBusy={onUploadBusy} />;
+    case "installers":
+      return <InstallersStep d={d} up={up} errFor={errFor} />;
     case "electrician": {
       const list = d.preferred_electricians ?? [];
       const set = (i: number, p: Partial<NonNullable<InstData["preferred_electricians"]>[number]>) => up({ preferred_electricians: list.map((x, j) => (j === i ? { ...x, ...p } : p.is_primary ? { ...x, is_primary: false } : x)) });
@@ -457,7 +453,7 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
         </Section>
         <Section title="Where you work">
           <Field label="Victorian service starting location" required hint="Start typing and choose from the list" htmlFor="service-origin" error={errFor("service-origin")}><AddressInput id="service-origin" victoriaOnly value={d.service_origin ?? ""} resolved={d.service_origin_details} onChange={(v) => up({ service_origin: v })} onSelect={(v) => up({ service_origin_details: v })} onPendingChange={onAddressPending} /></Field>
-          {resolvedBusinessAddress(d) && isVictorianAddress(d.business_address_details) && d.service_origin !== d.business_address && <button type="button" style={{ ...btn(false), marginBottom: 16 }} onClick={() => up({ service_origin: d.business_address ?? "", service_origin_details: d.business_address_details ?? null })}>Use business address</button>}
+          {resolvedBusinessAddress(d) && isVictorianAddress(d.business_address_details) && d.service_origin !== d.business_address && <button type="button" style={{ ...btn(false), marginBottom: 16 }} onClick={() => up({ service_origin: d.business_address ?? "", service_origin_details: d.business_address_details ?? null })}>Same as my business address</button>}
           <Field label="Travel radius" required><Choice options={RADII.map((r) => ({ v: r.v as number, l: r.l }))} value={d.travel_radius_km ?? null} onChange={(v) => up({ travel_radius_km: v })} /></Field>
           <Field label="Areas to exclude"><textarea style={{ ...input, minHeight: 70 }} {...t("excluded_areas")} /></Field>
         </Section>
@@ -547,7 +543,82 @@ function ReviewPanel({ d, up, preview, load, onReady }: { d: InstData; up: (p: P
   </>;
 }
 
-function InsuranceStep({ d, up, token, setError, preview, revision, onUploadBusy }: { d: InstData; up: (p: Partial<InstData>) => void; token: string; setError: (s: string | null) => void; preview: boolean; revision: RevisionRef; onUploadBusy: (b: boolean) => void }) {
+/** Date box that takes 05/10/2028, 5/10/28 or a calendar pick; stores ISO yyyy-mm-dd. Unreadable text stays as typed
+ *  (so validation can say why) and is never silently changed. */
+function DateBox({ id, value, onChange }: { id: string; value?: string | null | undefined; onChange: (v: string) => void }) {
+  // While typing, the box shows exactly what was typed; otherwise it shows the saved date as dd/mm/yyyy.
+  const [draft, setDraft] = useState<string | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const shown = draft ?? formatDateAu(value);
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center", maxWidth: 280, position: "relative" }}>
+      <input id={id} style={{ ...input, flex: 1, minWidth: 0 }} inputMode="numeric" placeholder="dd/mm/yyyy" autoComplete="off" value={shown}
+        onFocus={() => setDraft(formatDateAu(value))}
+        onChange={(e) => { const t = e.target.value; setDraft(t); onChange(t.trim() === "" ? "" : parseDateInput(t) ?? t.trim()); }}
+        onBlur={() => setDraft(null)} />
+      <button type="button" aria-label="Pick from calendar" onClick={() => { const el = picker.current; if (!el) return; try { el.showPicker(); } catch { el.focus(); el.click(); } }}
+        style={{ minWidth: 48, minHeight: 48, borderRadius: 12, border: "1px solid #D7DCE8", background: "#fff", cursor: "pointer", color: NAVY }}>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
+      </button>
+      <input ref={picker} type="date" tabIndex={-1} aria-hidden="true" value={parseDateInput(value ?? "") ?? ""} onChange={(e) => { if (e.target.value) { setDraft(null); onChange(e.target.value); } }}
+        style={{ position: "absolute", right: 0, bottom: 0, width: 48, height: 1, opacity: 0, pointerEvents: "none", border: 0, padding: 0 }} />
+    </div>
+  );
+}
+
+/** "Your installers": asks once whether the applicant installs; if so Installer 1 is their page-1 details (done card + Edit). */
+function InstallersStep({ d, up, errFor }: { d: InstData; up: (p: Partial<InstData>) => void; errFor: (field: string) => string | null }) {
+  const list = d.installers ?? [];
+  const [editingSelf, setEditingSelf] = useState(false);
+  const set = (i: number, p: Partial<NonNullable<InstData["installers"]>[number]>) => up({ installers: list.map((x, j) => (j === i ? { ...x, ...p } : x)) });
+  const me = { full_legal_name: d.primary_contact_name ?? "", mobile: d.business_phone ?? "", email: d.business_email ?? "" };
+  const chooseSelf = (yes: boolean) => {
+    const others = list.filter((x) => !x.is_self);
+    if (yes) up({ self_is_installer: true, installers: [{ ...(list.find((x) => x.is_self) ?? {}), ...me, is_self: true }, ...others] });
+    else up({ self_is_installer: false, installers: others.length ? others : [{}] });
+  };
+  return <>
+    <p style={note}>Everyone who installs on Home Insulation Victoria jobs. Our office checks each person's CII certification before they can be assigned.</p>
+    <Field label="Are you one of the installers?" required htmlFor="self_is_installer" error={errFor("self_is_installer")}>
+      <div id="self_is_installer" tabIndex={-1}><Choice options={[{ v: true as boolean, l: "Yes" }, { v: false as boolean, l: "No" }]} value={d.self_is_installer ?? (list.some((x) => x.is_self) ? true : null)} onChange={chooseSelf} /></div>
+    </Field>
+    {list.map((x, i) => {
+      const self = !!x.is_self;
+      const showContact = !self || editingSelf || !!errFor(`installer-${i}-name`) || !!errFor(`installer-${i}-mobile`) || !!errFor(`installer-${i}-email`);
+      return (
+        <section key={i} style={{ border: "1px solid #E4E9F5", borderRadius: 16, padding: "14px 16px", marginTop: 14 }}>
+          <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 15, color: NAVY, marginBottom: 10 }}>{self ? "You" : `Installer ${i + 1}`}</div>
+          {self && !showContact && (
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-start", background: "#EDFAF2", borderRadius: 12, padding: "10px 12px", marginBottom: 14 }}>
+              <span style={{ color: GREEN, fontWeight: 800 }}>✓</span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 14, overflowWrap: "anywhere" }}>You: {x.full_legal_name || "—"}, {x.mobile || "—"}, {x.email || "—"}</span>
+              <button type="button" onClick={() => setEditingSelf(true)} style={{ border: "none", background: "none", color: BLUE, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>Edit</button>
+            </div>
+          )}
+          {showContact && <>
+            <Field label="Full legal name" required htmlFor={`installer-${i}-name`} error={errFor(`installer-${i}-name`)}><input id={`installer-${i}-name`} style={input} value={x.full_legal_name ?? ""} onChange={(e) => set(i, { full_legal_name: e.target.value })} /></Field>
+            <Field label="Mobile" required htmlFor={`installer-${i}-mobile`} error={errFor(`installer-${i}-mobile`)}><input id={`installer-${i}-mobile`} style={input} type="tel" value={x.mobile ?? ""} onChange={(e) => set(i, { mobile: e.target.value })} /></Field>
+            <Field label="Email" required htmlFor={`installer-${i}-email`} error={errFor(`installer-${i}-email`)}><input id={`installer-${i}-email`} style={input} type="email" value={x.email ?? ""} onChange={(e) => set(i, { email: e.target.value })} /></Field>
+          </>}
+          <Field label="EEC Certified Insulation Installer (CII)?" required htmlFor={`installer-${i}-cii`} error={errFor(`installer-${i}-cii`)}><div id={`installer-${i}-cii`} tabIndex={-1}><Choice options={WORKER_CII.map((c) => ({ v: c.v as string, l: c.l }))} value={x.cii_holds ?? null} onChange={(v) => set(i, { cii_holds: v as "held" | "in_training" | "not_held", ...(v === "held" ? { cii_issuer: "EEC" } : {}) })} /></div></Field>
+          {x.cii_holds === "held" && <>
+            <Field label="Certificate or ID number" required htmlFor={`installer-${i}-cii-number`} error={errFor(`installer-${i}-cii-number`)}><input id={`installer-${i}-cii-number`} style={input} value={x.cii_certificate_number ?? ""} onChange={(e) => set(i, { cii_certificate_number: e.target.value, cii_issuer: "EEC" })} /></Field>
+            <Field label="Full or Provisional" required htmlFor={`installer-${i}-cii-level`} error={errFor(`installer-${i}-cii-level`)}><div id={`installer-${i}-cii-level`} tabIndex={-1}><Choice options={[{ v: "full", l: "Full" }, { v: "provisional", l: "Provisional" }]} value={x.cii_level ?? null} onChange={(v) => set(i, { cii_level: v as "full" | "provisional" })} /></div></Field>
+            {x.cii_level === "provisional" && <p style={warn}>Provisional: this person can't receive work until they hold a Full certification.</p>}
+            <Field label="Expiry date" required hint="For example 05/10/2028, or pick from the calendar" htmlFor={`installer-${i}-cii-expiry`} error={errFor(`installer-${i}-cii-expiry`)}><DateBox id={`installer-${i}-cii-expiry`} value={x.cii_expiry} onChange={(v) => set(i, { cii_expiry: v })} /></Field>
+          </>}
+          {(x.cii_holds === "in_training" || x.cii_holds === "not_held") && <p style={warn}>You can still register. This person can't be assigned to jobs until they hold a CII certification and our office has verified it.</p>}
+          <Field label="Other relevant training (optional)"><input style={input} value={x.qualification ?? ""} onChange={(e) => set(i, { qualification: e.target.value })} /></Field>
+          <button type="button" style={removeBtn} onClick={() => up({ installers: list.filter((_, j) => j !== i), ...(self ? { self_is_installer: false } : {}) })}>{self ? "I'm not an installer" : `Remove installer ${i + 1}`}</button>
+        </section>
+      );
+    })}
+    {(d.self_is_installer != null || list.length > 0) && <div id="add-installer" tabIndex={-1} style={{ marginTop: 16 }}><button type="button" style={btn(false)} onClick={() => up({ installers: [...list, {}] })}>+ Add {list.length ? "another" : "an"} installer</button></div>}
+    {errFor("add-installer") && <div role="alert" style={{ color: "#8C1D18", fontSize: 13, fontWeight: 700, marginTop: 6 }}>{errFor("add-installer")}</div>}
+  </>;
+}
+
+function InsuranceStep({ d, up, token, setError, preview, revision, onUploadBusy, errFor }: { errFor: (field: string) => string | null; d: InstData; up: (p: Partial<InstData>) => void; token: string; setError: (s: string | null) => void; preview: boolean; revision: RevisionRef; onUploadBusy: (b: boolean) => void }) {
   const [uploading, setUploading] = useState(false);
   async function onFile(picked: File | undefined) {
     if (!picked) return;
@@ -570,12 +641,13 @@ function InsuranceStep({ d, up, token, setError, preview, revision, onUploadBusy
       : <Field label="Certificate of Currency" required hint="PDF, JPG or PNG, up to 10 MB">
           <label style={{ ...btn(false, uploading), display: "inline-flex", alignItems: "center" }}>{uploading ? "Uploading…" : "Upload certificate"}<input type="file" hidden disabled={uploading} accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif" onChange={(e) => onFile(e.target.files?.[0])} /></label>
         </Field>}
-    <Field label="Insurer" required><input style={input} value={d.insurer ?? ""} onChange={(e) => up({ insurer: e.target.value })} /></Field>
-    <Field label="Policy number" required><input style={input} value={d.insurance_policy_number ?? ""} onChange={(e) => up({ insurance_policy_number: e.target.value })} /></Field>
+    {errFor("insurance-upload") && <div role="alert" style={{ color: "#8C1D18", fontSize: 13, fontWeight: 700, margin: "-8px 0 14px" }}>{errFor("insurance-upload")}</div>}
+    <Field label="Insurer" required htmlFor="insurer" error={errFor("insurer")}><input id="insurer" style={input} value={d.insurer ?? ""} onChange={(e) => up({ insurer: e.target.value })} /></Field>
+    <Field label="Policy number" required htmlFor="insurance_policy_number" error={errFor("insurance_policy_number")}><input id="insurance_policy_number" style={input} value={d.insurance_policy_number ?? ""} onChange={(e) => up({ insurance_policy_number: e.target.value })} /></Field>
     <Field label="Public liability cover" required hint="Minimum $5,000,000"><Money value={d.public_liability_cover_amount} onChange={(v) => up({ public_liability_cover_amount: v })} />
       {typeof d.public_liability_cover_amount === "number" && d.public_liability_cover_amount < 5_000_000 && <div role="alert" style={{ color: "#B42318", fontWeight: 700, fontSize: 14, marginTop: 6 }}>Cover must be at least $5,000,000. You can't continue with less.</div>}
     </Field>
-    <Field label="Expiry date" required><input style={{ ...input, maxWidth: 220 }} type="date" value={d.public_liability_expiry ?? ""} onChange={(e) => up({ public_liability_expiry: e.target.value })} /></Field>
+    <Field label="Expiry date" required hint="For example 30/06/2027, or pick from the calendar" htmlFor="public_liability_expiry" error={errFor("public_liability_expiry")}><DateBox id="public_liability_expiry" value={d.public_liability_expiry} onChange={(v) => up({ public_liability_expiry: v })} /></Field>
   </>;
 }
 

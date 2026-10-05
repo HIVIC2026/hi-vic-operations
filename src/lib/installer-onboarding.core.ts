@@ -7,9 +7,10 @@ import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melb
 export { DAYS, LEAD_TIMES, RADII, validAbn };
 export type { ResolvedAddress };
 // 1.14 adds the verified AP accreditation number to the applicant-facing agreement.
+// 1.15 (5 Oct): installer CII lines leave out blank details (issuer/issue date are no longer asked).
 // Earlier signed versions stay immutable and remain activatable.
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.14-2026-10-03";
-export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", "HI-VIC-A48-INST-1.13-2026-10-03", INSTALLER_AGREEMENT_VERSION];
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.15-2026-10-05";
+export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", "HI-VIC-A48-INST-1.13-2026-10-03", "HI-VIC-A48-INST-1.14-2026-10-03", INSTALLER_AGREEMENT_VERSION];
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
@@ -31,8 +32,8 @@ export const CII_STATUSES = [
 ] as const;
 /** Per-person EEC Certified Insulation Installer (CII) status — self-declared; only office verification counts. */
 export const WORKER_CII = [
-  { v: "held", l: "Holds a current CII certification" },
-  { v: "in_training", l: "Training in progress" },
+  { v: "held", l: "Yes, certified" },
+  { v: "in_training", l: "Still training" },
   { v: "not_held", l: "Not certified" },
 ] as const;
 export type WorkerCii = (typeof WORKER_CII)[number]["v"];
@@ -45,11 +46,13 @@ export const EXTRA_ITEMS = [
 
 export const CAPACITY_BANDS = [{ v: "1-3", n: 3 }, { v: "4-8", n: 8 }, { v: "9-15", n: 15 }, { v: "15+", n: 20 }] as const;
 
-export type Installer = { full_legal_name?: string; qualification?: string; mobile?: string; email?: string; cii_holds?: WorkerCii | null; cii_certificate_number?: string; cii_issuer?: string; cii_issue_date?: string; cii_level?: "full" | "provisional" | null; cii_expiry?: string };
+export type Installer = { full_legal_name?: string; qualification?: string; mobile?: string; email?: string; cii_holds?: WorkerCii | null; cii_certificate_number?: string; cii_issuer?: string; cii_issue_date?: string; cii_level?: "full" | "provisional" | null; cii_expiry?: string; is_self?: boolean };
 export type InstData = {
   legal_entity_name?: string; trading_name?: string; abn?: string; cii_status?: string; cii_details?: string;
   business_address?: string; business_address_details?: ResolvedAddress | null; primary_contact_name?: string; business_phone?: string; business_email?: string; authorised_to_register?: boolean;
   works_for_business?: boolean | null;
+  /** "Are you one of the installers?" — presentation helper; Yes copies page-1 contact details into Installer 1. */
+  self_is_installer?: boolean | null;
   insurer?: string; insurance_policy_number?: string; public_liability_cover_amount?: number | null; public_liability_expiry?: string; insurance_uploaded?: boolean;
   installers?: Installer[];
   service_batts_removal?: boolean; service_loose_fill_removal?: boolean; wants_hivic_leads?: boolean | null; free_quotes_for_hivic_leads?: boolean | null; free_measureups_for_hivic_quote_leads?: boolean | null;
@@ -169,18 +172,20 @@ export function stepFieldErrors(step: StepKey, d: InstData, now = new Date()): F
       const list = d.installers ?? [];
       if (list.length < 1) add("add-installer", "Add at least one installer.");
       const today = melbourneToday(now);
+      // One installer: plain messages. Several: say which installer the message is about.
+      const say = (i: number, m: string) => (list.length > 1 ? `Installer ${i + 1}: ${m.charAt(0).toLowerCase()}${m.slice(1)}` : m);
+      if (!list.length && typeof d.self_is_installer !== "boolean") add("self_is_installer", "Tell us if you're one of the installers.");
       list.forEach((x, i) => {
-        const n = `Installer ${i + 1}`;
-        if (!txt(x.full_legal_name)) add(`installer-${i}-name`, `${n}: enter their full legal name.`);
-        if (!validPhone(x.mobile)) add(`installer-${i}-mobile`, `${n}: enter a valid Australian mobile.`);
-        if (!validBusinessEmail(x.email)) add(`installer-${i}-email`, `${n}: enter a real email address.`);
-        if (!WORKER_CII.some((c) => c.v === x.cii_holds)) add(`installer-${i}-cii`, `${n}: tell us their CII certification status.`);
+        if (!txt(x.full_legal_name)) add(`installer-${i}-name`, say(i, "Enter their full legal name."));
+        if (!validPhone(x.mobile)) add(`installer-${i}-mobile`, say(i, "Enter a valid Australian mobile."));
+        if (!validBusinessEmail(x.email)) add(`installer-${i}-email`, say(i, "Enter a real email address."));
+        if (!WORKER_CII.some((c) => c.v === x.cii_holds)) add(`installer-${i}-cii`, say(i, "Tell us their CII certification status."));
         if (x.cii_holds === "held") {
-          if (!txt(x.cii_certificate_number)) add(`installer-${i}-cii-number`, `${n}: enter the CII certificate or ID number.`);
-          if (!txt(x.cii_issuer)) add(`installer-${i}-cii-issuer`, `${n}: enter who issued the certification.`);
-          if (!validCalendarDate(x.cii_issue_date) || (x.cii_issue_date as string) > today) add(`installer-${i}-cii-date`, `${n}: enter a real issue date (not in the future).`);
-          if (x.cii_level !== "full" && x.cii_level !== "provisional") add(`installer-${i}-cii-level`, `${n}: choose Full or Provisional.`);
-          if (!validCalendarDate(x.cii_expiry) || (x.cii_expiry as string) <= today) add(`installer-${i}-cii-expiry`, `${n}: enter the expiry date (must be in the future).`);
+          // Issuer is always EEC (saved automatically) and the issue date is no longer asked.
+          if (!txt(x.cii_certificate_number)) add(`installer-${i}-cii-number`, say(i, "Enter the CII certificate or ID number."));
+          if (x.cii_level !== "full" && x.cii_level !== "provisional") add(`installer-${i}-cii-level`, say(i, "Choose Full or Provisional."));
+          if (!validCalendarDate(x.cii_expiry)) add(`installer-${i}-cii-expiry`, say(i, "Enter the expiry date, for example 05/10/2028."));
+          else if ((x.cii_expiry as string) <= today) add(`installer-${i}-cii-expiry`, say(i, "This certificate has expired — enter a future expiry date."));
         }
       });
       const emails = list.map((x) => (x.email ?? "").trim().toLowerCase()).filter(Boolean);
@@ -282,7 +287,7 @@ export function installerSignUiBlockers(input: {
 }
 
 /** Fields that never appear in the signed agreement text; every other answer requires the agreement to be reviewed again. */
-export const NON_MATERIAL_FIELDS = ["agreement_reviewed", "how_it_works_acknowledged", "bank_account_name", "bank_bsb", "bank_account_number", "insurance_uploaded"] as const;
+export const NON_MATERIAL_FIELDS = ["self_is_installer", "agreement_reviewed", "how_it_works_acknowledged", "bank_account_name", "bank_bsb", "bank_account_number", "insurance_uploaded"] as const;
 export function materiallyChanged(prev: InstData, next: InstData): boolean {
   const strip = (d: InstData) => { const o: Record<string, unknown> = { ...d }; for (const k of NON_MATERIAL_FIELDS) delete o[k]; return JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k] ?? null]).filter(([, v]) => v !== null)); };
   return strip(prev) !== strip(next);
@@ -294,7 +299,7 @@ export const isInstallerRevisionTimestamp = (v: string) => /^\d{4}-\d{2}-\d{2}T\
 
 const money = (n?: number | null) => (typeof n === "number" ? `$${n.toFixed(2)}` : "—");
 const workerCiiLabel = (x: Installer) => x.cii_holds === "held"
-  ? `CII declared held — certificate ${x.cii_certificate_number ?? ""}, issued by ${x.cii_issuer ?? ""} on ${x.cii_issue_date ?? ""}${x.cii_level ? `, level ${x.cii_level === "full" ? "Full" : "Provisional (cannot receive work until Full)"}` : ""}${x.cii_expiry ? `, expires ${x.cii_expiry}` : ""} (subject to Home Insulation Victoria verification)`
+  ? `CII declared held — certificate ${x.cii_certificate_number ?? ""}${txt(x.cii_issuer) ? `, issued by ${x.cii_issuer!.trim()}` : ""}${txt(x.cii_issue_date) ? ` on ${x.cii_issue_date!.trim()}` : ""}${x.cii_level ? `, level ${x.cii_level === "full" ? "Full" : "Provisional (cannot receive work until Full)"}` : ""}${x.cii_expiry ? `, expires ${x.cii_expiry}` : ""} (subject to Home Insulation Victoria verification)`
   : x.cii_holds === "in_training" ? "CII training in progress — cannot be assigned until certified and verified" : x.cii_holds === "not_held" ? "Not CII certified — cannot be assigned" : "CII status not provided";
 
 export function scheduleText(d: InstData): string {
@@ -340,3 +345,19 @@ export function agreementText(d: InstData): string {
     ...ACKNOWLEDGEMENTS.map((a, i) => `${i + 1}. ${a.text}`),
   ].join("\n");
 }
+
+/** Friendly date entry: accepts 05/10/2028, 5/10/28, 5-10-2028 or ISO 2028-10-05. Returns ISO or null. */
+export function parseDateInput(raw: string): string | null {
+  const v = raw.trim();
+  let y: number, m: number, day: number;
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(v);
+  const au = /^(\d{1,2})[/.\-\s](\d{1,2})[/.\-\s](\d{2}|\d{4})$/.exec(v);
+  if (iso) { y = Number(iso[1]); m = Number(iso[2]); day = Number(iso[3]); }
+  else if (au) { const yy = au[3] ?? ""; day = Number(au[1]); m = Number(au[2]); y = yy.length === 2 ? 2000 + Number(yy) : Number(yy); }
+  else return null;
+  const dt = new Date(Date.UTC(y, m - 1, day));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== day) return null;
+  return `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+/** ISO -> dd/mm/yyyy for display. */
+export const formatDateAu = (iso?: string | null) => { const r = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? ""); return r ? `${r[3]}/${r[2]}/${r[1]}` : (iso ?? ""); };
