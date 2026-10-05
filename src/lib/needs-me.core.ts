@@ -73,7 +73,7 @@ export function buildNeedsMe(i: { now: number; jobs: NeedsJob[]; partners: Partn
       why: [returning ? "Back from Later" : null, top.why, ...reasons.slice(1).map((r) => RULE_LABEL[r.rule])].filter(Boolean).join(" · "),
       rule: returning ? "h_snooze_return" : top.rule, dueAt: s?.dueAt ?? null, timeLeft: timeLeft(s?.dueAt ?? null, now),
       urgency: top.urgency + (returning ? 5 : 0), action: top.action ?? statusAction ?? "Open job", href: null, snoozeCount: sn?.count ?? 0,
-      ...(j.tradeChoice && top.action === "Pick another" ? { choiceKind: j.tradeChoice.kind } : {}),
+      ...(j.tradeChoice ? { choiceKind: j.tradeChoice.kind } : {}),
     });
   }
   for (const p of i.partners) {
