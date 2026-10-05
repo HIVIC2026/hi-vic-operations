@@ -37,6 +37,8 @@ const REVIEWED: Record<string, string> = {
   getWorkerInvite: "token-hash scoped invite lookup",
   submitWorkerInvite: "token-hash scoped invite submission",
   listMyWorkers: "scoped to caller's own business via myBusinesses()",
+  createBatchOwnerEligibilityLinks: "authorise(): office, or member of every job's originating installer company",
+  jobOwnerEligibility: "reads through RLS (context.supabase); elevated text is the following token-hash resolve() helper",
 };
 describe("server-side role guards", () => {
   test("every server function using the elevated client checks the caller's role (or is a reviewed exception)", () => {
