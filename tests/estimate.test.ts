@@ -29,10 +29,10 @@ describe("Equation 48.1", () => {
 });
 
 describe("3058 / 134.1 m² sample", () => {
-  const ghg = 0.00576 * 134.1 * 25 * 0.98, disc = ghg * 70;
+  const ghg = 0.00576 * 134.1 * 25 * 0.98, disc = Math.floor(ghg) * 70;
   const none = computeEstimate(owner(134.1), lookupLocation("3058")!, "none", S);
   const pres = computeEstimate(owner(134.1), lookupLocation("3058")!, "present", S);
-  test("GHG + discount unrounded", () => { expect(none.ghg.ghgReduction).toBeCloseTo(ghg, 12); expect(none.raw_estimated_discount).toBeCloseTo(disc, 10); });
+  test("GHG unrounded, discount on whole VEECs (rounded down)", () => { expect(none.ghg.ghgReduction).toBeCloseTo(ghg, 12); expect(none.raw_estimated_discount).toBeCloseTo(disc, 10); });
   test("no-removal standard total", () => {
     const t = none.primary.by_access.standard;
     expect(t.pre_discount_total).toBeCloseTo(134.1 * 30 + 698, 2);
@@ -145,7 +145,7 @@ describe("Step 3 v2 refinement", () => {
   test("HV-1051 exact v2 numbers", () => {
     const e = computeEstimate(owner(134.1), lookupLocation("3058")!, "present", S);
     expect(e.ghg.ghgReduction).toBeCloseTo(18.924192, 9);
-    expect(e.raw_estimated_discount).toBeCloseTo(1324.69344, 8);
+    expect(e.raw_estimated_discount).toBeCloseTo(1260, 8);
     const [cr, fr] = e.scenarios;
     expect(cr!.by_access.standard.pre_discount_total).toBeCloseTo(4721, 2);
     expect(cr!.by_access.standard.estimated_customer_total).toBeCloseTo(3396.31, 2);
@@ -174,7 +174,7 @@ describe("Step 3 v2 refinement", () => {
     expect(whatIfEstimate(null, loc, "none", S)).toBeNull();
     expect(whatIfEstimate(150, lookupLocation("3005"), "none", S)).toBeNull();
     // official consumer example: 150 m² metro/mild ≈ $1,482
-    expect(whatIfEstimate(150, loc, "none", S)!.raw_estimated_discount).toBeCloseTo(1481.76, 2);
+    expect(whatIfEstimate(150, loc, "none", S)!.raw_estimated_discount).toBeCloseTo(1470, 2);
   });
   test("estimate calculations are never persisted from the customer view", () => {
     const ui = readFileSync("src/components/portal/estimate.tsx", "utf8");
