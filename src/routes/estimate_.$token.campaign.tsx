@@ -45,7 +45,7 @@ function CampaignPage() {
     <main className="pb-14">
       {isLoading ? <p role="status" className="py-16 text-center text-sm text-muted-foreground">Loading your estimate…</p>
       : isError || !data ? <section className="estimate-offset rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">This link isn't available</h1><p className="mt-2 text-sm">Please contact Home Insulation Victoria and we'll help.</p></section>
-      : data.response?.opted_out_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><Result title="You're off the list" body="We won't send any more campaign messages about this enquiry." /></div>
+      : data.response?.opted_out_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><section className="estimate-offset rounded-[22px] border border-estimate-blue-soft bg-white p-8 text-center"><h1 className="font-display text-3xl font-extrabold text-estimate-navy">You're off the list</h1><p className="mt-3 text-estimate-navy/75">We won't send any more campaign messages about this enquiry.</p></section></div>
       : data.response?.spot_saved_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><Result group={data.group} videoPriority={data.response.queue_priority === "video"} token={token} /></div>
       : <div>
           {data.group === "onsite" && <section className="mx-auto mb-5 max-w-[760px] rounded-[22px] border border-estimate-line bg-estimate-mint p-6">

@@ -197,13 +197,14 @@ d2("copy normalisation", () => {
 
 describe("launch campaign email drafts", () => {
   const campaignUrl = `https://quote.homeinsulationvictoria.com.au/estimate/${token}/campaign`;
+  const unsubscribeUrl = `https://quote.homeinsulationvictoria.com.au/email/unsubscribe?t=${token}`;
 
   test("Group A uses the approved shell with one email action", () => {
-    const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150 });
+    const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150 });
     expect(email.html).toContain("Great news, Sarah!");
     expect(email.html).toContain("You could save $1,470");
     expect(email.html).toContain("Free estimate · no obligation");
-    expect(email.html).toContain("See my savings and save my spot →");
+    expect(email.html).toContain("Save my spot →");
     expect(email.html).toContain("What this includes");
     expect(email.html).toContain("What could change this price?");
     expect(email.html).toContain("font-family:'Figtree',Arial,Helvetica,sans-serif");
@@ -219,10 +220,10 @@ describe("launch campaign email drafts", () => {
   });
 
   test("Group B asks for one manhole video", () => {
-    const email = renderLaunchCampaignEmail({ group: "onsite", campaignUrl, firstName: "Michael", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150 });
+    const email = renderLaunchCampaignEmail({ group: "onsite", campaignUrl, unsubscribeUrl, firstName: "Michael", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150 });
     expect(email.html).toContain("Good news, Michael!");
     expect(email.html).toContain("send one short video from the manhole");
     expect(email.html).toContain("Please don’t climb into or walk through the roof space.");
-    expect(email.html).toContain("Check my home →");
+    expect(email.html).toContain("Send my video →");
   });
 });

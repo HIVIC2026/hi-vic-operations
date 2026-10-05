@@ -1,6 +1,7 @@
 import { READY_CHECK_FEE } from "./readycheck.core";
 /** Pure customer outcome email renderers: no data access, delivery, or side effects. */
 import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE } from "./customer-quote-system";
+import { isWellFormedToken } from "./estimatelink.core";
 
 export type CustomerOutcome = "likely" | "onsite" | "ineligible";
 export type EstimateEmailInput = {
