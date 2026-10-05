@@ -6,6 +6,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { myBusinesses, requireApprovedPartner, requireMember } from "./pilot.server";
 import { WorkflowError } from "./workflow.server";
+import { CONTACT_PERMISSION_WORDING } from "./bulk-import.core";
 import type { Json } from "@/integrations/supabase/types";
 
 const uuid = z.string().uuid();
@@ -33,7 +34,9 @@ export const createBulkBatch = createServerFn({ method: "POST" }).middleware([re
     businessId: uuid,
     onBehalf: z.boolean().default(false),
     listFilename: z.string().min(1).max(300),
-    rawRows: z.array(rawRow).min(1).max(2000),
+    rawRows: z.array(rawRow).max(5000).default([]),
+    documents: z.array(z.object({ name: z.string().max(300), text: z.string().max(200_000) })).max(500).default([]),
+    permissionConfirmed: z.literal(true, { errorMap: () => ({ message: "Please tick to confirm these customers are happy for Home Insulation Victoria to contact them." }) }),
     manifest: z.array(manifestFile).max(5000).default([]),
   }).parse(d))
   .handler(async ({ data, context }) => {
@@ -41,9 +44,14 @@ export const createBulkBatch = createServerFn({ method: "POST" }).middleware([re
     const { data: batch, error } = await admin.from("bulk_import_batches").insert({
       business_id: data.businessId, created_by: context.userId, on_behalf: data.onBehalf,
       list_filename: data.listFilename, file_manifest: data.manifest as unknown as Json,
-      summary: { raw_rows: data.rawRows } as unknown as Json,
+      summary: {
+        raw_rows: data.rawRows, documents: data.documents,
+        permission: { confirmed_by: context.userId, confirmed_at: new Date().toISOString(), wording: CONTACT_PERMISSION_WORDING },
+      } as unknown as Json,
     }).select("id").single();
     if (error || !batch) throw new WorkflowError(error?.message ?? "Upload could not be saved.");
+    const { logPartner } = await import("./pilot.server");
+    await logPartner(null, context.userId, "bulk_import_permission", CONTACT_PERMISSION_WORDING, { batch_id: batch.id, confirmed_by: context.userId });
     const { analyseBatch } = await import("./bulk-import.server");
     const summary = await analyseBatch(batch.id, context.userId);
     return { batchId: batch.id, summary };
@@ -64,7 +72,6 @@ export const bulkBatchReview = createServerFn({ method: "GET" }).middleware([req
 export const confirmBulkBatch = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     batchId: uuid, skipRowIds: z.array(uuid).default([]),
-    permissionConfirmed: z.literal(true, { errorMap: () => ({ message: "You must confirm you have each owner's permission for us to contact them." }) }),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: batch } = await admin.from("bulk_import_batches").select("*").eq("id", data.batchId).single();
@@ -72,10 +79,7 @@ export const confirmBulkBatch = createServerFn({ method: "POST" }).middleware([r
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
     if (!isAdmin) await requireMember(context.userId, batch.business_id);
     const { confirmBatch } = await import("./bulk-import.server");
-    const res = await confirmBatch(data.batchId, context.userId, data.skipRowIds);
-    const { logPartner } = await import("./pilot.server");
-    await logPartner(null, context.userId, "bulk_import_permission", "Installer confirmed they have each owner's permission to be contacted", { batch_id: data.batchId, confirmed_by: context.userId });
-    return res;
+    return confirmBatch(data.batchId, context.userId, data.skipRowIds);
   });
 
 export const listBulkBatches = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])

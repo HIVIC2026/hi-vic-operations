@@ -32,6 +32,27 @@ export type BulkFile = {
 
 export type SortResult = "covers_ready_check" | "needs_visit" | "office_review";
 
+/** Exact wording of the one required tick before upload. */
+export const CONTACT_PERMISSION_WORDING =
+  "I confirm these customers are happy for Home Insulation Victoria to contact them.";
+
+export type LeadStage = "not_visited" | "visited" | "visited_quoted";
+export const LEAD_STAGE_LABEL: Record<LeadStage, string> = {
+  not_visited: "Not visited (contact details only)",
+  visited: "Visited (photos/measurements)",
+  visited_quoted: "Visited and quoted (price found)",
+};
+
+/** Work out the lead's stage from what was uploaded. A price means visited and quoted;
+ * any measurement, site detail or matched file means visited; otherwise not visited. */
+export function leadStage(e: BulkExtracted, matchedFileCount: number): LeadStage {
+  if (e.price_inc_gst && e.price_inc_gst > 0) return "visited_quoted";
+  const siteInfo = (e.area_m2 && e.area_m2 > 0)
+    || ["existing_insulation", "access", "roof_type", "hazards"].some((k) => KNOWN(e[k as keyof BulkExtracted] as string | null));
+  if (siteInfo || matchedFileCount > 0) return "visited";
+  return "not_visited";
+}
+
 /** Normalise an address for matching: lowercase, strip punctuation, collapse spaces. */
 export function normaliseAddress(addr: string | null | undefined): string {
   return (addr ?? "")

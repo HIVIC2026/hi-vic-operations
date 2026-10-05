@@ -9,7 +9,7 @@ import { logPartner } from "./pilot.server";
 import { ghgEquivalentReduction, type LocationVariables } from "./activity48.core";
 import { HIVIC_PIESA_INC_GST } from "./installer-led.core";
 import {
-  dedupeKey, findDuplicates, matchFiles, missingEvidence, normaliseAddress, sortJob,
+  dedupeKey, findDuplicates, leadStage, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
   type BulkExtracted, type BulkFile,
 } from "./bulk-import.core";
 
@@ -71,8 +71,9 @@ function guessType(name: string): string {
 
 // ---------- AI column mapping (only AI use: messy spreadsheet → known fields) ----------
 
-const EXTRACT_PROMPT = `You map rows from a messy installer customer list onto known fields.
-Return ONLY a JSON array, one object per input row, same order, with these keys (null when absent):
+const EXTRACT_PROMPT = `You read whatever an installer dropped in (spreadsheet rows, forwarded emails, exports, notes)
+and list each distinct customer lead once. Input is JSON {rows, documents}. Merge information about the
+same address/customer into one lead. Return ONLY a JSON array, one object per lead, with these keys (null when absent):
 full_name, email, phone, address_line (street number + street only), suburb, postcode (4 digits),
 area_m2 (number, ceiling/roof area in m2), existing_insulation (short text or "unknown"),
 access (short text about ceiling access/manhole or "unknown"),
@@ -81,8 +82,10 @@ building_age (short text, e.g. "built 1978", or "unknown"), notes (anything else
 price_inc_gst (number, the installer's quoted total price including GST if present).
 Never invent values. If a column is ambiguous, put it in notes.`;
 
-export async function aiExtractRows(rawRows: Record<string, string>[]): Promise<BulkExtracted[]> {
-  if (rawRows.length === 0) return [];
+export type BulkDocument = { name: string; text: string };
+
+export async function aiExtractRows(rawRows: Record<string, string>[], documents: BulkDocument[] = []): Promise<BulkExtracted[]> {
+  if (rawRows.length === 0 && documents.length === 0) return [];
   const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) throw new BulkImportError("AI reading is not configured (missing key). The office can still enter rows one at a time.");
   const { createOpenAI } = await import("@ai-sdk/openai");
@@ -96,7 +99,7 @@ export async function aiExtractRows(rawRows: Record<string, string>[]): Promise<
     model: provider.responses("openai/gpt-6-astra"),
     messages: [
       { role: "system", content: EXTRACT_PROMPT },
-      { role: "user", content: JSON.stringify(rawRows).slice(0, 120_000) },
+      { role: "user", content: JSON.stringify({ rows: rawRows, documents: documents.map((d) => ({ name: d.name, text: d.text.slice(0, 20_000) })) }).slice(0, 150_000) },
     ],
     providerOptions: {
       openai: {
@@ -149,9 +152,12 @@ export async function analyseBatch(batchId: string, actorId: string) {
   const { data: listFile } = await admin.from("bulk_import_batches").select("id").eq("id", batchId).single();
   void listFile;
   // The parsed raw rows are stored on the batch by the upload step (summary.raw_rows) to avoid re-downloading.
-  const rawRows = ((batch.summary as { raw_rows?: Record<string, string>[] } | null)?.raw_rows ?? []) as Record<string, string>[];
-  if (rawRows.length === 0) throw new BulkImportError("No customer rows found in the uploaded list.");
-  const extracted = await aiExtractRows(rawRows);
+  const stored = (batch.summary ?? {}) as { raw_rows?: Record<string, string>[]; documents?: BulkDocument[]; permission?: unknown };
+  const rawRows = stored.raw_rows ?? [];
+  const documents = stored.documents ?? [];
+  if (rawRows.length === 0 && documents.length === 0) throw new BulkImportError("We couldn't find any customer details in what was uploaded. Add an export, email, note or list with names/addresses.");
+  const extracted = await aiExtractRows(rawRows, documents);
+  if (extracted.length === 0) throw new BulkImportError("No customers found in what was uploaded.");
   const existing = await existingPortalKeys();
   const dupNotes = findDuplicates(extracted, existing);
 
@@ -160,9 +166,11 @@ export async function analyseBatch(batchId: string, actorId: string) {
     const { matched, confidence } = matchFiles(e, manifest);
     const duplicate = dupNotes.has(i);
     const { result, reasons } = sortJob(e, { matchConfidence: confidence, duplicate });
+    const stage = leadStage(e, matched.length);
+    reasons.unshift(`Stage: ${LEAD_STAGE_LABEL[stage]}`);
     if (matched.length > 0 && confidence === "low") reasons.push("Files matched by filename only — please check");
     return {
-      batch_id: batchId, row_index: i, extracted: e as unknown as Json,
+      batch_id: batchId, row_index: i, extracted: { ...e, lead_stage: stage } as unknown as Json,
       matched_files: matched as unknown as Json, match_confidence: confidence,
       sort_result: result, sort_reasons: reasons as unknown as Json,
       missing_evidence: missingEvidence(e, matched) as unknown as Json,
@@ -177,6 +185,10 @@ export async function analyseBatch(batchId: string, actorId: string) {
     needs_visit: rows.filter((r) => r.sort_result === "needs_visit").length,
     office_review: rows.filter((r) => r.sort_result === "office_review").length,
     duplicates: rows.filter((r) => r.duplicate_note).length,
+    not_visited: extracted.filter((e, i) => leadStage(e, (rows[i]!.matched_files as unknown[]).length) === "not_visited").length,
+    visited: extracted.filter((e, i) => leadStage(e, (rows[i]!.matched_files as unknown[]).length) === "visited").length,
+    visited_quoted: extracted.filter((e) => e.price_inc_gst && e.price_inc_gst > 0).length,
+    permission: stored.permission ?? null,
   };
   await admin.from("bulk_import_batches").update({ status: "analysed", summary: summary as unknown as Json }).eq("id", batchId);
   await logPartner(null, actorId, "bulk_import_analysed", `Bulk upload analysed: ${summary.rows} jobs found (${summary.covers_ready_check} cover the Ready Check, ${summary.needs_visit} need a visit, ${summary.office_review} for office review)`, { batch_id: batchId, ...summary });
@@ -250,6 +262,8 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
   const { data: batch } = await admin.from("bulk_import_batches").select("*").eq("id", batchId).single();
   if (!batch || batch.status !== "analysed") throw new BulkImportError("This upload is not ready to confirm.");
   const { data: rows } = await admin.from("bulk_import_rows").select("*").eq("batch_id", batchId).eq("status", "pending").order("row_index");
+  const permission = (batch.summary as { permission?: { confirmed_by: string; confirmed_at: string; wording: string } } | null)?.permission;
+  if (!permission?.confirmed_by || !permission.confirmed_at) throw new BulkImportError("The contact permission tick is missing for this upload — please upload again and tick the box.");
   let created = 0, skipped = 0, failed = 0;
   for (const row of rows ?? []) {
     if (skipRowIds.includes(row.id) || row.duplicate_note) {
@@ -265,6 +279,10 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       await logEvent(job.id, actorId, "bulk_import_confirmed", `Job created from installer bulk upload (row ${row.row_index + 1})`, {
         batch_id: batchId, row_id: row.id, sort_result: row.sort_result,
         missing_evidence: row.missing_evidence, draft_quote: quoted,
+        lead_stage: (e as { lead_stage?: string }).lead_stage ?? null,
+      });
+      await logEvent(job.id, permission.confirmed_by, "bulk_import_contact_permission", permission.wording, {
+        batch_id: batchId, confirmed_by: permission.confirmed_by, confirmed_at: permission.confirmed_at, wording: permission.wording,
       });
       created++;
     } catch (err) {
