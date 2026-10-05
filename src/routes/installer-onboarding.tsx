@@ -461,6 +461,8 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
         <p style={note}>{d.gst_registered === false ? "Enter total supplier rates." : "Enter supplier rates including GST."} Home Insulation Victoria reviews them before they apply.</p>
         <Section title={`Installation & removal (${unit})`}>
           <RateRow required label="R5.0 ceiling insulation supply & install" unit="m²" value={d.r5_rate} onChange={(v) => up({ r5_rate: v })} />
+          <RateRow label="R6.0 ceiling insulation supply & install — optional (leave blank if you don't install this)" unit="m²" value={d.r6_rate} onChange={(v) => up({ r6_rate: v })} />
+          <RateRow label="R7.0 ceiling insulation supply & install — optional (leave blank if you don't install this)" unit="m²" value={d.r7_rate} onChange={(v) => up({ r7_rate: v })} />
           <RateRow required label="Batts removal" unit="m²" value={d.batts_removal_rate} onChange={(v) => up({ batts_removal_rate: v })} />
           <RateRow required last label="Loose fill removal" unit="m²" value={d.loose_fill_removal_rate} onChange={(v) => up({ loose_fill_removal_rate: v })} />
           <p style={{ ...note, marginTop: 6 }}>Removal is required of all installer partners.</p>
