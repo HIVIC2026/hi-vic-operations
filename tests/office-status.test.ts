@@ -9,12 +9,14 @@ const ahead = (d: number) => new Date(NOW + d * 86_400_000).toISOString();
 const base = (stage: string, extra: Partial<JobFacts> = {}): JobFacts => ({ id: `job-${stage}`, stage, createdAt: ago(1), lastActivityAt: ago(0.1), enteredStageAt: ago(0.1), ...extra });
 
 export const PRACTICE: Record<StatusKey, JobFacts> = {
+  "waiting_list.ready_to_send": base("ready_check_ready_to_schedule", { estimateSentAt: ago(30) }),
+  "waiting_list.needs_estimate": base("ready_check_ready_to_schedule"),
   "enquiry.checking": base("new_enquiry"),
-  "enquiry.estimate_sent": base("preliminary_estimate_ready", { estimateSentAt: ago(1) }),
+  "enquiry.estimate_sent": base("preliminary_estimate_ready", { estimateSentAt: ago(1), ownerContactedAt: ago(1) }),
   "enquiry.video_asked": base("ready_check_ready_to_schedule", { campaign: { spotSavedAt: null, optedOutAt: null, videoRequested: true, mediaReceivedAt: null, deskCheckStatus: null, createdAt: ago(1) } }),
   "enquiry.video_in": base("ready_check_ready_to_schedule", { campaign: { spotSavedAt: ago(1), optedOutAt: null, videoRequested: true, mediaReceivedAt: ago(0.2), deskCheckStatus: null, createdAt: ago(2) } }),
   "enquiry.spot_saved": base("ready_check_ready_to_schedule", { campaign: { spotSavedAt: ago(0.5), optedOutAt: null, videoRequested: false, mediaReceivedAt: null, deskCheckStatus: null, createdAt: ago(2) } }),
-  "ready_check.pick_times": base("ready_check_ready_to_schedule", { rcAccepted: true }),
+  "ready_check.pick_times": base("ready_check_ready_to_schedule", { rcAccepted: true, ownerContactedAt: ago(1) }),
   "ready_check.offered": base("ready_check_ready_to_schedule", { rcWindowsOpen: 3, rcOfferAt: ago(0.05) }),
   "ready_check.booked": base("ready_check_scheduled", { rcBookingAt: ahead(2) }),
   "ready_check.arranging": base("ready_check_ready_to_schedule", { proposalPending: { kind: "ready_check", since: ago(0.5) } }),
@@ -76,7 +78,7 @@ const run = (jobs: NeedsJob[], snoozes: { jobId: string; ruleKey: string; until:
 
 const RULE_CASES: { rule: NeedsRule; label: string; jobs: () => ReturnType<typeof run> }[] = [
   { rule: "a_waiting_on_us", label: "Spot saved, needs an installer", jobs: () => run([nj(PRACTICE["enquiry.spot_saved"])]) },
-  { rule: "b_over_limit", label: "Estimate sent 4 days ago", jobs: () => run([nj(base("preliminary_estimate_ready", { estimateSentAt: ago(4) }))]) },
+  { rule: "b_over_limit", label: "Estimate sent 4 days ago", jobs: () => run([nj(base("preliminary_estimate_ready", { estimateSentAt: ago(4), ownerContactedAt: ago(4) }))]) },
   { rule: "c_inactive", label: "Booked visit, no activity 6 days", jobs: () => run([nj({ ...PRACTICE["install.booked"], lastActivityAt: ago(6) })]) },
   { rule: "d_no_next_step", label: "On hold with no revisit date", jobs: () => run([nj(base("on_hold"))]) },
   { rule: "e_failure", label: "Mitti sync failed", jobs: () => run([nj(PRACTICE["install.booked"], { failures: ["Mitti sync failed: template mismatch"] })]) },
@@ -85,7 +87,7 @@ const RULE_CASES: { rule: NeedsRule; label: string; jobs: () => ReturnType<typeo
   { rule: "h_snooze_return", label: "Snoozed yesterday, back this morning", jobs: () => run([nj(PRACTICE["enquiry.spot_saved"])], [{ jobId: "job-ready_check_ready_to_schedule", ruleKey: "a_waiting_on_us", until: ago(0.01), count: 1 }]) },
   { rule: "i_nothing_lost", label: "Job in an unknown stage", jobs: () => run([nj(base("mystery_stage"))]) },
   { rule: "j_partner", label: "Insurance expiring in 20 days", jobs: () => run([], [], [{ key: "cred:1", title: "Spark Right: insurance expiring", why: "Expires soon", dueAt: ahead(20), href: "/admin/businesses" }]) },
-  { rule: "k_quiet_owner", label: "Owner quiet 3 weeks after reminders", jobs: () => run([nj(base("preliminary_estimate_ready", { estimateSentAt: ago(21) }))]) },
+  { rule: "k_quiet_owner", label: "Owner quiet 3 weeks after reminders", jobs: () => run([nj(base("preliminary_estimate_ready", { estimateSentAt: ago(21), ownerContactedAt: ago(21) }))]) },
 ];
 
 describe("Needs me safety net (rule → practice job → flagged)", () => {
