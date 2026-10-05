@@ -2,8 +2,8 @@
 // waiting on and a due time. Pure and presentation-only — it labels existing facts and NEVER moves a job.
 // Limits are defaults Jo can change in workflow_settings.office_time_limits.
 
-export type OfficeStage = "enquiry" | "ready_check" | "quote" | "safety" | "install" | "signoff" | "ended";
-export type WaitingOn = "Us" | "Owner" | "Installer" | "Electrician" | "Owner + Installer" | "Owner + Electrician" | "System" | "Nobody";
+export type OfficeStage = "waiting_list" | "enquiry" | "ready_check" | "quote" | "safety" | "install" | "signoff" | "ended";
+export type WaitingOn = "Us" | "Owner" | "Installer" | "Electrician" | "Owner + Installer" | "Owner + Electrician" | "System" | "Nobody" | "Office / campaign";
 
 export const OFFICE_STAGES: { key: Exclude<OfficeStage, "ended">; n: number; label: string }[] = [
   { key: "enquiry", n: 1, label: "Enquiry" },
@@ -19,6 +19,9 @@ type Limit = { d: number } | { h: number } | { bh: number } | null;
 type Def = { stage: OfficeStage; label: string; waiting: WaitingOn; limit: Limit; limitKey?: string; action?: string };
 
 export const OFFICE_STATUSES = {
+  // Waiting list: leads never contacted. No time limit, never late, never in Needs me — Pipeline shows a count only.
+  "waiting_list.ready_to_send": { stage: "waiting_list", label: "Not contacted yet: estimate ready to send", waiting: "Office / campaign", limit: null },
+  "waiting_list.needs_estimate": { stage: "waiting_list", label: "Not contacted yet: needs estimate", waiting: "Office / campaign", limit: null },
   "enquiry.checking": { stage: "enquiry", label: "Checking eligibility", waiting: "System", limit: { d: 1 }, limitKey: "checking_days" },
   "enquiry.estimate_sent": { stage: "enquiry", label: "Estimate sent, waiting for owner", waiting: "Owner", limit: { d: 3 }, limitKey: "estimate_reminder_days", action: "Remind owner" },
   "enquiry.video_asked": { stage: "enquiry", label: "Video asked for", waiting: "Owner", limit: { d: 3 }, limitKey: "video_reminder_days", action: "Remind owner" },
