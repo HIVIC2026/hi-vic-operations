@@ -75,7 +75,9 @@ const EXTRACT_PROMPT = `You map rows from a messy installer customer list onto k
 Return ONLY a JSON array, one object per input row, same order, with these keys (null when absent):
 full_name, email, phone, address_line (street number + street only), suburb, postcode (4 digits),
 area_m2 (number, ceiling/roof area in m2), existing_insulation (short text or "unknown"),
-access (short text about ceiling access/manhole or "unknown"), notes (anything else useful, short),
+access (short text about ceiling access/manhole or "unknown"),
+roof_type (short text, e.g. "tiled"/"tin", or "unknown"), hazards (short text or "unknown"),
+building_age (short text, e.g. "built 1978", or "unknown"), notes (anything else useful, short),
 price_inc_gst (number, the installer's quoted total price including GST if present).
 Never invent values. If a column is ambiguous, put it in notes.`;
 
@@ -119,6 +121,7 @@ export async function aiExtractRows(rawRows: Record<string, string>[]): Promise<
       full_name: str("full_name"), email: str("email"), phone: str("phone"),
       address_line: str("address_line"), suburb: str("suburb"), postcode: str("postcode"),
       area_m2: num("area_m2"), existing_insulation: str("existing_insulation"), access: str("access"),
+      roof_type: str("roof_type"), hazards: str("hazards"), building_age: str("building_age"),
       notes: str("notes"), price_inc_gst: num("price_inc_gst"),
     } satisfies BulkExtracted;
   });
@@ -170,13 +173,13 @@ export async function analyseBatch(batchId: string, actorId: string) {
   if (error) throw new BulkImportError(error.message);
   const summary = {
     rows: rows.length,
-    ready_to_quote: rows.filter((r) => r.sort_result === "ready_to_quote").length,
+    covers_ready_check: rows.filter((r) => r.sort_result === "covers_ready_check").length,
     needs_visit: rows.filter((r) => r.sort_result === "needs_visit").length,
     office_review: rows.filter((r) => r.sort_result === "office_review").length,
     duplicates: rows.filter((r) => r.duplicate_note).length,
   };
   await admin.from("bulk_import_batches").update({ status: "analysed", summary: summary as unknown as Json }).eq("id", batchId);
-  await logPartner(null, actorId, "bulk_import_analysed", `Bulk upload analysed: ${summary.rows} jobs found (${summary.ready_to_quote} ready to quote, ${summary.needs_visit} need a visit, ${summary.office_review} for office review)`, { batch_id: batchId, ...summary });
+  await logPartner(null, actorId, "bulk_import_analysed", `Bulk upload analysed: ${summary.rows} jobs found (${summary.covers_ready_check} cover the Ready Check, ${summary.needs_visit} need a visit, ${summary.office_review} for office review)`, { batch_id: batchId, ...summary });
   return summary;
 }
 
