@@ -177,7 +177,7 @@
 
 ## Launch campaign calculator/email rebuild (Jo, 5 Oct 09:21, preview only)
 - [x] Rebuild `/estimate/$token/campaign` around the real shared PublicCalculator with enquiry prefill, one Save my spot action, quiet opt-out, and Group B video card.
-- [ ] Replace the separate campaign email shell with exact shared `renderV2QuoteEmail` / `V2_THEME` pieces, including the same savings, inclusions, next-step, price-change and footer modules; campaign-only CTA/copy and opt-out.
+- [x] Replace the separate campaign email shell with exact shared `renderV2QuoteEmail` / `V2_THEME` pieces, including the same savings, inclusions, next-step, price-change and footer modules; campaign-only CTA/copy and opt-out.
 - [ ] Capture Group A/B campaign email screenshots at 390px and 640px; sending stays OFF and nothing is published.
 
 ## Automatic quote release with exception holds (Jo, 5 Oct 09:46, preview only)
