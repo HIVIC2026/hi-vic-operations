@@ -51,7 +51,5 @@ describe("$200 minimum contribution", () => {
 
 test("Industry Pack worked example: 0.00546 × 150 × 25 × 1.04 = 21 VEECs", () => {
   const g = ghgEquivalentReduction(150, { metropolitan_or_regional: "Regional", climate_region: "Hot" } as never);
-  const value = typeof g === "number" ? g : (g as { tonnes?: number; value?: number; ghg?: number }).tonnes ?? (g as any).value ?? (g as any).ghg;
-  console.log("worked example", JSON.stringify(g));
-  expect(Math.floor(Number(value))).toBe(21);
+  expect(Math.floor(g.ghgReduction)).toBe(21);
 });
