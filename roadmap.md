@@ -206,3 +206,21 @@
 - [ ] Set partner lead fee to zero, align electrician offer expiry to four business hours, and apply the launch-campaign response migration after PGlite proof with undo files.
 - [ ] Review all 16 submitted partner applications; mark only clearly fake entries as test and report requirements for the six named real businesses.
 - [ ] Test every change with TEST accounts at 390px, capture screenshots, then run the full role re-test against the fixed preview. No publish; Step 1, Gate 1, payment gate and Xero untouched.
+
+## Role re-test blockers (5 Oct, folded into trade launch)
+- [ ] Installer-created customers from TEST accounts/businesses saved as qa_test
+- [ ] Installer job page stuck on Loading
+- [ ] Assigned jobs show in My work for boss and assigned worker; electricians land on own list
+- [ ] Owner picks times -> trade taps -> confirmed booking end to end
+- [ ] Guarded TEST-only payment simulation (qa_test only, audited)
+- [ ] Hide unrelated old TEST jobs from TEST trade dashboards
+- [ ] Plain-words reason when a job can't move
+- [ ] Re-run role scenarios A-D and report step by step
+
+## Trade launch — open (5 Oct)
+- [ ] Owner no-login actions after Ready Check (quote accept, payment choice, electrician times)
+- [ ] Full owner-picks-times → trade-taps → booked browser run, then scenarios A–D end to end
+- [ ] Payments tab: per-job payout due/status
+- [ ] Business tab: workers, rates, bulk upload in one place
+- [ ] Invite/password email — waiting on Jo's wording approval (copy-link works now)
+- [ ] 8 older failing tests (agreement fee clause, PIESA/PIISA templates, ESC) — predate this work

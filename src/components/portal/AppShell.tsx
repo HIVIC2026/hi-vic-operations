@@ -67,15 +67,19 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
           <a href="/installer-onboarding" target="_blank" rel="noopener" className={link}><ExternalLink className="h-4 w-4" /> Installer application form</a>
         </>
       )}
-      {(roles.includes("electrician") || roles.includes("installer")) && <Link to="/field" className={link} activeProps={active}>My jobs</Link>}
-      {(me?.profile?.business_id || roles.includes("installer") || roles.includes("electrician")) && !roles.includes("admin") && <Link to="/partner" className={link} activeProps={active}>Partner</Link>}
+      {(roles.includes("electrician") || roles.includes("installer")) && !roles.includes("admin") && <>
+        <Link to="/field" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>My work</Link>
+        {roles.includes("installer") && <Link to="/partner/add" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>Add job</Link>}
+        <Link to="/partner/payments" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>Payments</Link>
+        <Link to="/partner/profile" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>Business</Link>
+      </>}
       {roles.includes("owner") && <Link to="/owner" className={link} activeProps={active}>My home</Link>}
     </>
   );
   const brand = (
     <Link to="/home" className="flex min-w-0 items-center gap-2 font-bold">
       <span className="grid h-9 shrink-0 place-items-center rounded-md bg-card px-1.5 shadow-sm ring-1 ring-sidebar-border"><img src={logo.url} alt="Home Insulation Victoria" className="h-7" /></span>
-      <span className="min-w-0"><span className="block truncate font-display text-sm">Home Insulation Victoria Operations</span><span className="block text-[10px] font-medium text-sidebar-foreground/50">Activity 48 portal</span></span>
+      <span className="min-w-0"><span className="block truncate font-display text-sm">Home Insulation Victoria</span></span>
     </Link>
   );
   return (

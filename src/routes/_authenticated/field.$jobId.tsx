@@ -9,14 +9,13 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Check, HeartPulse, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
-import { Pill, StageBadge, UrgencyBadge } from "@/components/portal/badges";
-import { JobJourney } from "@/components/portal/journey";
+import { tradeTask } from "@/lib/trade-work.core";
 import { ClearTimeline, WhoHasTheBall } from "@/components/portal/waiting";
 import { WorkerLinksPanel } from "@/components/portal/workers";
 import { OwnerEligibilityPanel } from "@/components/portal/owner-eligibility";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, Section, useJob } from "@/components/portal/panels";
 import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
-import { MeasurementDetails, MeasurementForm, MeasurementReadOnly, useJobScope, useMeasurements } from "@/components/portal/requirements";
+import { MeasurementDetails, MeasurementReadOnly, useJobScope, useMeasurements } from "@/components/portal/requirements";
 import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { InstallerJourney } from "@/components/portal/installer-journey";
@@ -34,35 +33,63 @@ export const Route = createFileRoute("/_authenticated/field/$jobId")({
 
 function FieldJob() {
   const { jobId } = Route.useParams();
-  const { data: job, isError } = useJob(jobId);
+  const { data: job, isError, error } = useJob(jobId);
   const { data: role } = useQuery({ queryKey: ["myrole", jobId], queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data });
-  if (!job && isError) return <AppShell><p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">This job isn't available to you. If it's an offer, accept it from Jobs available first.</p></AppShell>;
+  if (!job && isError) return <AppShell><p className="rounded-[22px] border bg-card p-6 text-sm text-muted-foreground">{/TEST accounts/.test(String((error as Error)?.message)) ? "This TEST sign-in can only open active TEST jobs." : "This job isn't available to you. If it's a new offer, accept it from My work first."}</p><Link to="/field" className="mt-3 inline-block font-semibold text-primary underline">Back to My work</Link></AppShell>;
   if (!job) return <AppShell><p className="text-muted-foreground">Loading…</p></AppShell>;
+  const step = nextStep(job);
+  const task = tradeTask({ stage: job.stage ?? "", bookings: [], blockers: [] });
+  const maps = job.property_address ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(job.property_address)}` : null;
+  const yourTurn = step.waitingOn === "Installer" || step.waitingOn === "Electrician" || task.bucket !== "waiting";
   return (
     <AppShell>
-      <Link to="/field" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" /> My jobs</Link>
-      <div className="mb-4 rounded-xl border bg-card p-4">
-        <div className="text-xs font-bold text-primary">{job.job_number}</div>
-        <h1 className="text-xl font-bold">{job.property_address}</h1>
-        <div className="mt-1 flex items-center gap-2 text-sm">{job.owner_name}{job.owner_phone && <a href={`tel:${job.owner_phone}`} className="inline-flex items-center gap-1 font-semibold text-primary"><Phone className="h-4 w-4" /> Call</a>}</div>
-        <div className="mt-2 flex flex-wrap gap-1.5"><StageBadge stage={job.stage} />{job.deposit_cleared ? <Pill t="good">Deposit cleared</Pill> : null}<UrgencyBadge urgency={job.urgency} days={job.days_remaining} />{job.life_support && <Pill t="bad"><HeartPulse className="mr-1 h-3 w-3" /> Life support</Pill>}</div>
-        <div className="mt-3"><JobJourney input={job} jobId={job.id} compact /></div>
-        <p className="mt-2 rounded bg-accent px-2 py-1 text-sm font-medium text-accent-foreground">Next: {nextStep(job).next}</p>
+      <div className="pb-24">
+      <Link to="/field" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" /> My work</Link>
+      <div className="mb-4 rounded-[22px] border bg-card p-4 shadow-sm">
+        <div className="text-xs font-semibold text-muted-foreground">{yourTurn ? "Your turn" : `Waiting on ${step.waitingOn ?? "Home Insulation Victoria"}`}</div>
+        <h1 className="font-display text-xl font-extrabold">{task.label}</h1>
+        {job.install_deadline && job.days_remaining != null && <p className="mt-1 text-sm">Install must start by <b>{new Date(job.install_deadline).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}</b> ({job.days_remaining} days left)</p>}
+        {job.life_support && <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-danger-soft px-2 py-0.5 text-xs font-semibold text-danger"><HeartPulse className="h-3 w-3" /> Life support at this property</p>}
+        <div className="mt-3 border-t pt-3 text-sm">
+          <div className="font-semibold">{job.property_address}</div>
+          {job.owner_name && <div className="text-muted-foreground">{job.owner_name}</div>}
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {job.owner_phone && <a href={`tel:${job.owner_phone}`} className="flex h-12 items-center justify-center gap-1 rounded-xl bg-primary font-semibold text-primary-foreground"><Phone className="h-4 w-4" /> Call</a>}
+            {job.owner_phone && <a href={`sms:${job.owner_phone}`} className="flex h-12 items-center justify-center rounded-xl border font-semibold">Text</a>}
+            {maps && job.owner_name && <a href={maps} target="_blank" rel="noreferrer" className="col-span-2 flex h-12 items-center justify-center rounded-xl border font-semibold">Directions</a>}
+          </div>
+        </div>
       </div>
-      <WhoHasTheBall jobId={jobId} />
-      <div className="mb-4"><BlockersPanel jobId={jobId} /></div>
-      <ClearTimeline jobId={jobId} initial={5} />
+      <div className="mb-4"><BlockersPanel jobId={jobId} quietWhenClear /></div>
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "installer" && <InstallerJourney jobId={jobId} />}
         {role === "installer" && ["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
-                {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage!} />}
+        {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage!} />}
         {role === "installer" && ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(job.stage!) && <PartnerProposalForm jobId={jobId} />}
-        <OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} />
         {(role === "electrician" || role === "installer") && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}
-        <VisitContactsCard jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" || role === "installer" ? { role } : {})} />
+        <VisitContactsCard jobId={jobId} />
+        <details className="rounded-[22px] border bg-card p-4"><summary className="cursor-pointer font-semibold">History, documents and messages</summary><div className="mt-3 space-y-4"><WhoHasTheBall jobId={jobId} /><ClearTimeline jobId={jobId} initial={5} /><OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" || role === "installer" ? { role } : {})} /></div></details>
+      </div>
       </div>
     </AppShell>
+  );
+}
+
+/** Onsite forms are filled in Mitti only. Until the form is connected, trades see a plain setup notice. */
+function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "piesa" }) {
+  const { data } = useQuery({ queryKey: ["mitti-only", jobId, which], queryFn: async () => {
+    const [{ data: a }, { data: m }] = await Promise.all([
+      supabase.from("assessments").select("external_mitti_id").eq("job_id", jobId).maybeSingle(),
+      supabase.from("ceiling_measurements").select("external_id, external_source").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    ]);
+    return which === "piesa" ? a?.external_mitti_id ?? null : (m?.external_source === "mitti" ? m.external_id : null) ?? a?.external_mitti_id ?? null;
+  } });
+  return (
+    <Section title={which === "piesa" ? "Safety check form" : "Ready Check form"}>
+      {data ? <><p className="mb-3 text-sm text-muted-foreground">Fill it in on site, in order. Your answers come back here automatically.</p><Button asChild size="field" className="w-full"><a href={`https://app.au.mitti.com/inspections/${data}`} target="_blank" rel="noreferrer">Open form in Mitti</a></Button><div className="mt-3"><MittiCard jobId={jobId} isAdmin={false} /></div></>
+        : <p className="text-sm font-medium">Form being set up — Home Insulation Victoria will send it before your visit.</p>}
+    </Section>
   );
 }
 
@@ -99,7 +126,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
   const Choice = ({ k, label, opts }: { k: string; label: string; opts: [string, string][] }) => (
     <div><Label>{label}</Label><div className={`mt-1 grid gap-2`} style={{ gridTemplateColumns: `repeat(${opts.length}, minmax(0,1fr))` }}>{opts.map(([v, l]) => <Button key={v} type="button" size="field" variant={f[k] === v ? "default" : "outline"} disabled={locked} onClick={() => put(k, v)}>{l}</Button>)}</div></div>
   );
-  const assessing = ["assessment_booking", "assessment_booked"].includes(stage) && !locked;
+  const assessing = ["assessment_booking", "assessment_booked", "piesa_scheduled"].includes(stage) && !locked;
   const { data: scope } = useJobScope(jobId);
   const measureBlock = !scope || !assessing ? null : scope.measurement.state === "accepted" ? <MeasurementReadOnly jobId={jobId} canFlag /> : <Section title="Installer eligibility measure-up"><p className="text-sm text-muted-foreground">This is not part of your PIESA visit. The assigned insulation installer completes the measure-up and eligibility evidence.</p></Section>;
 
@@ -122,47 +149,8 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
           {!locked && <Button size="field" className="w-full" disabled={needsPlan && rectPlanProblems(plan).length > 0} onClick={finish}><Check /> Complete PIESA</Button>}
         </>
       )}
-      {!a?.external_mitti_id && (assessing || locked) && (
-        <details open={!locked} className="group">
-          <summary className={locked ? "mb-2 cursor-pointer list-none rounded-md border bg-card px-4 py-3 text-sm font-medium" : "hidden"}>Assessment (complete – locked) · tap to view</summary>
-          <div className="space-y-4">
-          <div className="text-right text-xs text-muted-foreground">{locked ? "Assessment complete – locked" : saved ? `Autosaved ${saved}` : "Changes save automatically"}</div>
-          {measureBlock}
-          <Section title="2 · Electrical safety">
-            <div className="grid gap-3">
-              <div className="grid grid-cols-2 gap-3"><Num k="downlights_qty" label="Downlights (qty)" /><Num k="downlights_upgrade_qty" label="Need upgrade" /></div>
-              <div><Label>Downlight type</Label><Input className="h-12" defaultValue={(f["downlights_type"] as string) ?? ""} key={"dt" + String(f["downlights_type"])} disabled={locked} onBlur={(e) => put("downlights_type", e.target.value || null)} /></div>
-              <div className="grid grid-cols-2 gap-3"><Num k="exhaust_fans_qty" label="Exhaust fans" /><Num k="exhaust_fans_clearance_qty" label="Need clearance" /></div>
-              <Choice k="switchboard_condition" label="Switchboard" opts={[["ok", "OK"], ["upgrade_required", "Upgrade"]]} />
-              <Yn k="rcds_present" label="RCDs present?" />
-              <Num k="rcds_required_qty" label="RCDs to install" />
-              <Yn k="life_support_confirmed" label="Life support equipment onsite?" />
-              <div><Label>Hazards</Label><Textarea defaultValue={(f["hazards"] as string) ?? ""} key={"hz" + String(f["hazards"])} disabled={locked} onBlur={(e) => put("hazards", e.target.value || null)} /></div>
-            </div>
-          </Section>
-          <Section title="3 · PIESA outcome">
-            <p className="mb-2 text-xs text-muted-foreground">Recorded once here — sign-off syncs to Mitti via the ID below.</p>
-            <div className="grid gap-3">
-              <Choice k="piesa_outcome" label="PIESA result" opts={[["pass", "Pass"], ["fail", "Fail"]]} />
-              <div><Label>Assessment date</Label><Input className="h-12" type="date" defaultValue={(f["assessed_on"] as string) ?? ""} key={"ad" + String(f["assessed_on"])} disabled={locked} onBlur={(e) => put("assessed_on", e.target.value || null)} /></div>
-              <div><Label>Mitti record ID (optional)</Label><Input className="h-12" defaultValue={(f["external_mitti_id"] as string) ?? ""} key={"mi" + String(f["external_mitti_id"])} disabled={locked} onBlur={(e) => put("external_mitti_id", e.target.value || null)} /></div>
-              <div><Label>Notes</Label><Textarea defaultValue={(f["notes"] as string) ?? ""} key={"nt" + String(f["notes"])} disabled={locked} onBlur={(e) => put("notes", e.target.value || null)} /></div>
-            </div>
-          </Section>
-          <EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} />
-          <OtherItems jobId={jobId} editable={!locked || stage === "awaiting_owner_rectification_approval"} />
-          <Section title="5 · Rectification quote (required today)">
-            <p className="mb-2 text-xs text-muted-foreground">Submit your rectification quote here on the day of the assessment. If nothing needs fixing, confirm that below.</p>
-            <label className="flex min-h-12 items-center gap-3 rounded-lg border px-3 text-sm font-medium">
-              <input type="checkbox" className="h-5 w-5" checked={f["no_rectification_confirmed"] === true} disabled={locked} onChange={(e) => put("no_rectification_confirmed", e.target.checked)} />
-              No rectification required at this property
-            </label>
-          </Section>
-          {planBlock}
-           {!locked && <Button size="field" className="w-full" disabled={needsPlan && rectPlanProblems(plan).length > 0} onClick={finish}><Check /> Complete PIESA</Button>}
-          </div>
-        </details>
-      )}
+      {!a?.external_mitti_id && assessing && <MittiOnly jobId={jobId} which="piesa" />}
+      {!a?.external_mitti_id && locked && <Section title="Safety check"><p className="text-sm text-muted-foreground">Safety check complete.</p></Section>}
     </>
   );
 }
@@ -223,7 +211,7 @@ function InstallerFlow({ jobId, stage }: { jobId: string; stage: string }) {
   const measuring = ["ready_check_scheduled", "assessment_booking", "assessment_booked"].includes(stage) && !!scope?.installerTasks.includes("measure_up");
   return (
     <>
-      {measuring && <MeasurementForm jobId={jobId} editable={["measured_area_m2", "insulation_present", "existing_r_value", "removal_required", "removal_m2", "access_difficulty"]} showComplete title="Your task: free Ready Check — eligibility measure-up" />}
+      {measuring && <MittiOnly jobId={jobId} which="ready_check" />}
       {!measuring && m && m.status !== "complete" && ["assessment_booking", "assessment_booked"].includes(stage) && <Section title="Your measure-up"><MeasurementDetails m={m} /><p className="mt-2 text-sm text-muted-foreground">Status: {m.status.replace("_", " ")} – Home Insulation Victoria will follow up.</p></Section>}
       {a && (
         <Section title="Site summary">

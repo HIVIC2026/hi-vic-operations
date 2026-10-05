@@ -5,7 +5,7 @@ import { WORKFLOW_DECISIONS, depositPctFor } from "@/config/workflow-decisions";
 
 export type PaymentRoute = "hiv_lead" | "installer_supplied" | "unknown";
 export type PaymentOption =
-  "deposit_paid" | "paid_in_full" | "instalment_plan_active" | "office_override";
+  "deposit_paid" | "paid_in_full" | "instalment_plan_active" | "office_override" | "qa_test_simulated";
 
 export const PAYMENT_RULE_PENDING =
   "Payment rule pending activation – PIESA and scheduling are locked until the approved payment-option gate is switched on.";
@@ -69,6 +69,8 @@ export type PaymentGateInput = {
   invoice: { quote_id: string; total_inc_gst: number | string; total_paid: number | string } | null;
   plan: InstalmentPlan | null;
   overrideCount: number; // audited office overrides for this invoice
+  /** TEST journeys only: an audited simulated payment for the current quote. Never true for a real job. */
+  qaSimulated?: { jobSource: string | null; quoteId: string | null } | null;
 };
 export type PaymentGateResult =
   { cleared: true; option: PaymentOption } | { cleared: false; blocker: string };
@@ -76,6 +78,9 @@ export type PaymentGateResult =
 const aud = (c: number) => `$${(c / 100).toFixed(2)}`;
 
 export function evaluatePaymentGate(i: PaymentGateInput): PaymentGateResult {
+  // TEST-only: lets a qa_test journey continue past payment while the real gate and Xero stay off.
+  if (i.qaSimulated && i.qaSimulated.jobSource === "qa_test" && i.currentQuote && i.qaSimulated.quoteId === i.currentQuote.id)
+    return { cleared: true, option: "qa_test_simulated" };
   if (!i.enabled) return { cleared: false, blocker: PAYMENT_RULE_PENDING };
   if (i.route !== "hiv_lead") return { cleared: false, blocker: PAYMENT_RULE_EXCEPTION };
   if (!i.currentQuote)

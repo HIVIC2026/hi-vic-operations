@@ -294,7 +294,13 @@ export const discardImport = createServerFn({ method: "POST" }).middleware([requ
 
 const factValue = z.union([z.string().max(5000), z.number(), z.boolean(), z.null()]);
 export const confirmImport = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ importId: uuid, facts: z.record(z.string(), factValue) }).parse(d))
+  .inputValidator((d) => z.object({
+    importId: uuid, facts: z.record(z.string(), factValue),
+    // Staged "Add your own customer" form: where the installer is up to, occupancy and the Ready Check A1 summary.
+    progress: z.enum(["not_visited", "measured", "quoted"]).optional(),
+    occupancy: z.enum(["owner_occupied", "rental"]).optional(),
+    details: z.record(z.string(), z.unknown()).refine((v) => JSON.stringify(v).length < 60_000, "Too much detail").optional(),
+  }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: imp } = await admin.from("job_imports").select("*").eq("id", data.importId).single();
     if (!imp || imp.status !== "draft") throw new WorkflowError("This import was already confirmed or discarded.");
@@ -311,8 +317,8 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
     const s = (k: keyof ConfirmedFacts) => (c[k] == null || c[k] === "" ? null : String(c[k]));
     const res = await upsertEnquiry({
       full_name: s("full_name")!, email: s("email")!, phone: s("phone"), address_line: s("address_line")!, suburb: s("suburb"), postcode: s("postcode"),
-      estimated_area_m2: area,
-    }, "installer_import", context.userId, { channel: "installer_sourced", businessId: imp.business_id, userId: context.userId });
+      estimated_area_m2: area, ...(data.occupancy ? { occupancy: data.occupancy } : {}),
+    }, await (await import("./pilot.server")).intakeSourceFor(context.userId, imp.business_id, "installer_import"), context.userId, { channel: "installer_sourced", businessId: imp.business_id, userId: context.userId });
     const refs = { ...(imp.external_refs as Record<string, unknown>), ...(s("external_reference") ? { reference: s("external_reference") } : {}), ...(imp.source_url ? { source_url: imp.source_url } : {}), import_id: imp.id };
     const rel = relationshipOwnerFor("installer_sourced", biz.default_comms_owner);
     const pilotInvoice = biz.commercial_route === "hivic_full_invoice";
@@ -321,14 +327,15 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
     await admin.from("job_assignments").insert({ job_id: res.job_id, user_id: context.userId, role: "installer", business_id: imp.business_id, assigned_by: context.userId, first_response_at: new Date().toISOString() });
     const { data: ws } = await admin.from("workflow_settings").select("measurement_standard_approved").limit(1).maybeSingle();
     const { data: pm } = await admin.from("partner_measurement_methods").select("id").eq("business_id", imp.business_id).eq("status", "approved").order("approved_at", { ascending: false }).limit(1).maybeSingle();
-    const m = planImportedMeasurement(c, imp.id, { businessId: imp.business_id, standardApproved: !!ws?.measurement_standard_approved && !!pm });
+    // "Not visited yet": the rough size is only the estimate; no measure-up is recorded and the Ready Check is next.
+    const m = data.progress === "not_visited" ? null : planImportedMeasurement(c, imp.id, { businessId: imp.business_id, standardApproved: !!ws?.measurement_standard_approved && !!pm });
     if (m) {
       await admin.from("ceiling_measurements").update({ is_current: false }).eq("job_id", res.job_id).eq("is_current", true);
-      await admin.from("ceiling_measurements").insert({ ...m, supplied_snapshot: m.supplied_snapshot as unknown as Json, partner_method_id: pm?.id ?? null, review_flags: m.review_flags as unknown as Json, job_id: res.job_id, is_current: true, created_by: context.userId, raw_snapshot: { import_id: imp.id, confirmed: c, extracted: imp.extracted } as unknown as Json });
+      await admin.from("ceiling_measurements").insert({ ...m, supplied_snapshot: m.supplied_snapshot as unknown as Json, partner_method_id: pm?.id ?? null, review_flags: m.review_flags as unknown as Json, job_id: res.job_id, is_current: true, created_by: context.userId, raw_snapshot: { import_id: imp.id, confirmed: c, extracted: imp.extracted, progress: data.progress ?? null, ready_check_a1: data.details ?? null } as unknown as Json });
       await admin.from("jobs").update({ measure_up_responsibility: "installer" }).eq("id", res.job_id);
     }
     await admin.from("job_imports").update({ status: "confirmed", confirmed_facts: c as Json, confirmed_by: context.userId, confirmed_at: new Date().toISOString(), job_id: res.job_id, updated_at: new Date().toISOString() }).eq("id", imp.id);
-    await logEvent(res.job_id, context.userId, "job_imported", `Imported from ${imp.source_system} by originating installer (confirmed by user)`, { import_id: imp.id, source_system: imp.source_system, external_refs: refs, relationship_owner: rel, measurement_imported: !!m, files: imp.files });
+    await logEvent(res.job_id, context.userId, "job_imported", `Imported from ${imp.source_system} by originating installer (confirmed by user)`, { import_id: imp.id, source_system: imp.source_system, external_refs: refs, relationship_owner: rel, measurement_imported: !!m, files: imp.files, progress: data.progress ?? null, ready_check_a1: data.details ?? null });
     if (pilotInvoice) await logEvent(res.job_id, context.userId, "commercial_model_set", "Pilot commercial route: full job invoiced by Home Insulation Victoria (split invoicing disabled)", { route: "hivic_full_invoice" });
     return { jobId: res.job_id, jobNumber: res.job_number };
   });
@@ -618,9 +625,23 @@ export const partnerDashboard = createServerFn({ method: "GET" }).middleware([re
     const rcJobs = (offers ?? []).filter((o) => o.kind === "ready_check").map((o) => o.job_id);
     const rcWins = await (await import("./readycheck-booking.server")).readyCheckOfferWindows(rcJobs);
     let q = admin.from("job_assignments").select("job_id, user_id, role").eq("business_id", bizId).eq("active", true);
-    if (!isBizAdmin) q = q.eq("user_id", context.userId);
-    const { data: asg } = await q;
-    const jobIds = [...new Set((asg ?? []).map((a) => a.job_id))];
+    if (!isBizAdmin) {
+      // Staff see jobs assigned to them, plus jobs their boss sent them a current link for.
+      const { data: mineW } = await admin.from("partner_workers").select("id").eq("profile_id", context.userId).eq("business_id", bizId).eq("approval_status", "approved").is("removed_at", null);
+      const wIds = (mineW ?? []).map((w) => w.id);
+      const { data: linked } = wIds.length ? await admin.from("worker_job_links").select("job_id").in("worker_id", wIds).is("revoked_at", null).gt("expires_at", new Date().toISOString()) : { data: [] as { job_id: string }[] };
+      const linkedIds = (linked ?? []).map((l) => l.job_id);
+      q = linkedIds.length ? q.or(`user_id.eq.${context.userId},job_id.in.(${linkedIds.join(",")})`) : q.eq("user_id", context.userId);
+    }
+    const { data: asgAll } = await q;
+    // TEST sign-ins only see active TEST journeys; old or archived TEST jobs stay hidden.
+    const { data: authU } = await context.supabase.auth.getUser();
+    const qaUser = authU.user?.user_metadata?.["qa_test"] === true;
+    const asgIds = [...new Set((asgAll ?? []).map((a) => a.job_id))];
+    const { data: srcRows } = asgIds.length ? await admin.from("jobs").select("id, source, qa_archived_at, stage").in("id", asgIds) : { data: [] as { id: string; source: string | null; qa_archived_at: string | null; stage: string }[] };
+    const keep = new Set((srcRows ?? []).filter((j) => (qaUser ? j.source === "qa_test" && !j.qa_archived_at : !j.qa_archived_at) && !["complete", "cancelled"].includes(j.stage)).map((j) => j.id));
+    const asg = (asgAll ?? []).filter((a) => keep.has(a.job_id));
+    const jobIds = [...new Set(asg.map((a) => a.job_id))];
     const none = ["00000000-0000-0000-0000-000000000000"];
     const [{ data: jobs }, { data: elec }, { data: bookings }, { data: inv }] = await Promise.all([
       admin.from("jobs").select("id, job_number, stage, next_action, last_activity_at, channel, customer_relationship_owner, owners(full_name), properties(address_line, suburb, postcode)").in("id", jobIds.length ? jobIds : none),
@@ -718,4 +739,19 @@ export const setMeasurementStandard = createServerFn({ method: "POST" }).middlew
     }).eq("id", ws.id);
     await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "measurement_standard_updated", summary: `Measurement standard ${data.version ?? "(none)"} ${data.approved ? "approved" : "not approved"}; tolerance ${data.tolerancePct ?? "not set"}: ${data.reason}`, details: data as unknown as Json });
     return { ok: true };
+  });
+
+/** Installer's own approved rate card lines (inc GST) for pricing their own customer. Never another business's rates. */
+export const myInstallerRateItems = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const ids = [...(await myBusinesses(context.userId)).keys()];
+    if (!ids.length) return { businessId: null, items: [] as { code: string; description: string; unit: string; price_inc_gst: number }[] };
+    const bizId = ids[0]!;
+    const [{ data: card }, { data: biz }] = await Promise.all([
+      admin.from("rate_cards").select("id").eq("business_id", bizId).eq("kind", "installer").eq("is_active", true).order("version", { ascending: false }).limit(1).maybeSingle(),
+      admin.from("businesses").select("gst_registered").eq("id", bizId).maybeSingle(),
+    ]);
+    const { data: rows } = card ? await admin.from("rate_card_items").select("code, description, unit, unit_price_ex_gst").eq("rate_card_id", card.id) : { data: [] as { code: string; description: string; unit: string; unit_price_ex_gst: number }[] };
+    const gst = biz?.gst_registered !== false ? 1.1 : 1;
+    return { businessId: bizId, items: (rows ?? []).map((r) => ({ code: r.code, description: r.description, unit: r.unit, price_inc_gst: Math.round(Number(r.unit_price_ex_gst) * gst * 100) / 100 })) };
   });

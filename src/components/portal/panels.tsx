@@ -46,17 +46,17 @@ export function useJob(jobId: string) {
   return useQuery({
     queryKey: ["job", jobId],
     queryFn: () => load({ data: { jobId } }),
-    retry: (n, e) => !/permission|not found/i.test(String((e as Error)?.message)) && n < 3,
+    retry: (n, e) => !/permission|not found|TEST accounts|no longer available/i.test(String((e as Error)?.message)) && n < 1,
     staleTime: 30_000,
   });
 }
 
-export function BlockersPanel({ jobId }: { jobId: string }) {
+export function BlockersPanel({ jobId, quietWhenClear = false }: { jobId: string; quietWhenClear?: boolean }) {
   const fn = useServerFn(getJobBlockers);
   const { data } = useQuery({ queryKey: ["blockers", jobId], queryFn: () => fn({ data: { jobId } }) });
   if (!data) return null;
   if (!data.blockers.length)
-    return (
+    return quietWhenClear ? null : (
       <div className="flex items-center gap-2 rounded-xl border border-success/30 bg-success-soft p-3 text-sm font-medium text-success">
         <CheckCircle2 className="h-4 w-4" /> {data.next ? `Nothing blocking the move to ${STAGE_LABEL[data.next]}` : "No further stage"}
       </div>

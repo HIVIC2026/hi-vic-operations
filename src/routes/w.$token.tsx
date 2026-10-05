@@ -37,7 +37,15 @@ function WorkerJob() {
       <div className="mb-4 rounded-xl border bg-card p-4">
         <div className="text-xs font-bold text-primary">{job.job_number}</div>
         <h1 className="text-xl font-bold">{job.property_address}</h1>
-        {job.owner_first_name && <p className="text-sm text-muted-foreground">Owner: {job.owner_first_name}</p>}
+        {data.ownerContact ? (
+          <div className="mt-2 rounded-xl bg-secondary p-3 text-sm">
+            <div className="font-semibold">{data.ownerContact.name}</div>
+            {data.ownerContact.phone && <a className="mt-1 flex h-12 items-center justify-center rounded-xl bg-primary font-semibold text-primary-foreground" href={`tel:${data.ownerContact.phone}`}>Call {data.ownerContact.phone}</a>}
+            {data.ownerContact.phone && <a className="mt-2 block text-center font-semibold text-primary underline" href={`sms:${data.ownerContact.phone}`}>Text the owner</a>}
+            {data.ownerContact.email && <a className="mt-1 block text-center text-primary underline" href={`mailto:${data.ownerContact.email}`}>{data.ownerContact.email}</a>}
+            <p className="mt-2 text-xs text-muted-foreground">Use these contact details only to arrange and complete this Home Insulation Victoria job. Do not use them for unrelated marketing or future work unless the owner separately agrees.</p>
+          </div>
+        ) : job.owner_first_name && <p className="text-sm text-muted-foreground">Owner: {job.owner_first_name}</p>}
         {job.life_support && <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-danger-soft px-2 py-0.5 text-xs font-semibold text-danger"><HeartPulse className="h-3 w-3" /> Life support at this property</p>}
         {job.next_action && <p className="mt-3 rounded bg-accent px-2 py-1 text-sm font-medium text-accent-foreground">Next: {job.next_action}</p>}
         {data.bookings.map((b, i) => <p key={i} className="mt-2 text-sm"><span className="font-semibold capitalize">{String(b.kind).replace(/_/g, " ")}</span> · {fmt(b.scheduled_start)} {b.status === "proposed" && <span className="text-muted-foreground">(proposed)</span>}</p>)}
@@ -64,8 +72,8 @@ function WorkerJob() {
       </div>
 
       <div className="mb-4 rounded-xl border bg-card p-4">
-        <h2 className="mb-1 font-semibold">Messages</h2>
-        <p className="mb-3 text-xs text-muted-foreground">Talk to the owner here — no calls or outside texts. Your company and Home Insulation Victoria can see this conversation. Phone numbers and emails are hidden automatically.</p>
+        <h2 className="mb-1 font-semibold">Messages (optional)</h2>
+        <p className="mb-3 text-xs text-muted-foreground">You can call or text the owner directly, or message here. Your company and Home Insulation Victoria can see this conversation. Use these contact details only to arrange and complete this Home Insulation Victoria job. Do not use them for unrelated marketing or future work unless the owner separately agrees.</p>
         <div className="max-h-96 space-y-2 overflow-y-auto">
           {data.messages.map((m) => (
             <div key={m.id} className={`flex ${m.mine ? "justify-end" : "justify-start"}`}>
