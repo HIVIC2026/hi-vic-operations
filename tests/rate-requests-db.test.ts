@@ -37,6 +37,7 @@ describe("0106 installer rate requests (practice database)", () => {
   });
   test("undo removes only the new table", async () => {
     const db = await rateDb();
+    await db.exec(ROLLBACK110);
     await db.exec(ROLLBACK107);
     await db.exec(ROLLBACK);
     expect((await db.query("SELECT to_regclass('public.installer_rate_requests') t")).rows[0]).toEqual({ t: null });
@@ -51,5 +52,15 @@ describe("0106 installer rate requests (practice database)", () => {
     const cols = await db.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_name = 'installer_rate_requests'");
     expect(cols.rows.map((c) => c.column_name)).not.toContain("topup_r5_rate");
     expect(cols.rows.map((c) => c.column_name)).toContain("r6_rate");
+  });
+  test("0110 vacuum-only rate: blank or positive allowed, zero/negative refused, undo drops only the column", async () => {
+    const db = await rateDb();
+    await db.exec(insVacuum(ID.biz, "4.25"));
+    await expect(db.exec(insVacuum(ID.otherBiz, "0"))).rejects.toThrow();
+    await expect(db.exec(insVacuum(ID.otherBiz, "-1"))).rejects.toThrow();
+    await db.exec(ROLLBACK110);
+    const cols = await db.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_name = 'installer_rate_requests'");
+    expect(cols.rows.map((c) => c.column_name)).not.toContain("vacuum_only_rate");
+    expect(cols.rows.map((c) => c.column_name)).toContain("topup_r5_rate");
   });
 });
