@@ -30,6 +30,7 @@ import { Route as AuthenticatedAdminCoverageRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminElectricianRatesRouteImport } from './routes/_authenticated/admin.electrician-rates'
 import { Route as AuthenticatedAdminEnquiryGroupsRouteImport } from './routes/_authenticated/admin.enquiry-groups'
 import { Route as AuthenticatedAdminInterestsRouteImport } from './routes/_authenticated/admin.interests'
+import { Route as AuthenticatedAdminLaunchCampaignRouteImport } from './routes/_authenticated/admin.launch-campaign'
 import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authenticated/admin.partners'
 import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authenticated/admin.pricing'
 import { Route as AuthenticatedAdminTeamUpsRouteImport } from './routes/_authenticated/admin.team-ups'
@@ -53,6 +54,7 @@ import { Route as ApiPublicAddressSearchRouteImport } from './routes/api/public/
 import { Route as ApiPublicEnquiryRouteImport } from './routes/api/public/enquiry'
 import { Route as ApiPublicPartnerEnquiryRouteImport } from './routes/api/public/partner-enquiry'
 import { Route as ApiPublicUnsubscribeRouteImport } from './routes/api/public/unsubscribe'
+import { Route as EstimateTokenCampaignRouteImport } from './routes/estimate_.$token.campaign'
 import { Route as EstimateTokenVideoRouteImport } from './routes/estimate_.$token.video'
 import { Route as TETokenRouteImport } from './routes/t.e.$token'
 import { Route as TOFileRouteImport } from './routes/t.o.$file'
@@ -173,6 +175,12 @@ const AuthenticatedAdminInterestsRoute =
   AuthenticatedAdminInterestsRouteImport.update({
     id: '/admin/interests',
     path: '/admin/interests',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminLaunchCampaignRoute =
+  AuthenticatedAdminLaunchCampaignRouteImport.update({
+    id: '/admin/launch-campaign',
+    path: '/admin/launch-campaign',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminPartnersRoute =
@@ -300,6 +308,11 @@ const ApiPublicUnsubscribeRoute = ApiPublicUnsubscribeRouteImport.update({
   path: '/api/public/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EstimateTokenCampaignRoute = EstimateTokenCampaignRouteImport.update({
+  id: '/estimate_/$token/campaign',
+  path: '/estimate/$token/campaign',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EstimateTokenVideoRoute = EstimateTokenVideoRouteImport.update({
   id: '/estimate_/$token/video',
   path: '/estimate/$token/video',
@@ -372,6 +385,7 @@ export interface FileRoutesByFullPath {
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
+  '/admin/launch-campaign': typeof AuthenticatedAdminLaunchCampaignRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
@@ -392,6 +406,7 @@ export interface FileRoutesByFullPath {
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
+  '/estimate/$token/campaign': typeof EstimateTokenCampaignRoute
   '/estimate/$token/video': typeof EstimateTokenVideoRoute
   '/t/e/$token': typeof TETokenRoute
   '/t/o/$file': typeof TOFileRoute
@@ -426,6 +441,7 @@ export interface FileRoutesByTo {
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
+  '/admin/launch-campaign': typeof AuthenticatedAdminLaunchCampaignRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
@@ -446,6 +462,7 @@ export interface FileRoutesByTo {
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
+  '/estimate/$token/campaign': typeof EstimateTokenCampaignRoute
   '/estimate/$token/video': typeof EstimateTokenVideoRoute
   '/t/e/$token': typeof TETokenRoute
   '/t/o/$file': typeof TOFileRoute
@@ -482,6 +499,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/_authenticated/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
   '/_authenticated/admin/interests': typeof AuthenticatedAdminInterestsRoute
+  '/_authenticated/admin/launch-campaign': typeof AuthenticatedAdminLaunchCampaignRoute
   '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/_authenticated/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/_authenticated/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
@@ -502,6 +520,7 @@ export interface FileRoutesById {
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
+  '/estimate_/$token/campaign': typeof EstimateTokenCampaignRoute
   '/estimate_/$token/video': typeof EstimateTokenVideoRoute
   '/t/e/$token': typeof TETokenRoute
   '/t/o/$file': typeof TOFileRoute
@@ -538,6 +557,7 @@ export interface FileRouteTypes {
     | '/admin/electrician-rates'
     | '/admin/enquiry-groups'
     | '/admin/interests'
+    | '/admin/launch-campaign'
     | '/admin/partners'
     | '/admin/pricing'
     | '/admin/team-ups'
@@ -558,6 +578,7 @@ export interface FileRouteTypes {
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/api/public/unsubscribe'
+    | '/estimate/$token/campaign'
     | '/estimate/$token/video'
     | '/t/e/$token'
     | '/t/o/$file'
@@ -592,6 +613,7 @@ export interface FileRouteTypes {
     | '/admin/electrician-rates'
     | '/admin/enquiry-groups'
     | '/admin/interests'
+    | '/admin/launch-campaign'
     | '/admin/partners'
     | '/admin/pricing'
     | '/admin/team-ups'
@@ -612,6 +634,7 @@ export interface FileRouteTypes {
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/api/public/unsubscribe'
+    | '/estimate/$token/campaign'
     | '/estimate/$token/video'
     | '/t/e/$token'
     | '/t/o/$file'
@@ -647,6 +670,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/electrician-rates'
     | '/_authenticated/admin/enquiry-groups'
     | '/_authenticated/admin/interests'
+    | '/_authenticated/admin/launch-campaign'
     | '/_authenticated/admin/partners'
     | '/_authenticated/admin/pricing'
     | '/_authenticated/admin/team-ups'
@@ -667,6 +691,7 @@ export interface FileRouteTypes {
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/api/public/unsubscribe'
+    | '/estimate_/$token/campaign'
     | '/estimate_/$token/video'
     | '/t/e/$token'
     | '/t/o/$file'
@@ -699,6 +724,7 @@ export interface RootRouteChildren {
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
   ApiPublicPartnerEnquiryRoute: typeof ApiPublicPartnerEnquiryRoute
   ApiPublicUnsubscribeRoute: typeof ApiPublicUnsubscribeRoute
+  EstimateTokenCampaignRoute: typeof EstimateTokenCampaignRoute
   EstimateTokenVideoRoute: typeof EstimateTokenVideoRoute
   TETokenRoute: typeof TETokenRoute
   TOFileRoute: typeof TOFileRoute
@@ -856,6 +882,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/interests'
       fullPath: '/admin/interests'
       preLoaderRoute: typeof AuthenticatedAdminInterestsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/launch-campaign': {
+      id: '/_authenticated/admin/launch-campaign'
+      path: '/admin/launch-campaign'
+      fullPath: '/admin/launch-campaign'
+      preLoaderRoute: typeof AuthenticatedAdminLaunchCampaignRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/partners': {
@@ -1019,6 +1052,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/estimate_/$token/campaign': {
+      id: '/estimate_/$token/campaign'
+      path: '/estimate/$token/campaign'
+      fullPath: '/estimate/$token/campaign'
+      preLoaderRoute: typeof EstimateTokenCampaignRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/estimate_/$token/video': {
       id: '/estimate_/$token/video'
       path: '/estimate/$token/video'
@@ -1095,6 +1135,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminElectricianRatesRoute: typeof AuthenticatedAdminElectricianRatesRoute
   AuthenticatedAdminEnquiryGroupsRoute: typeof AuthenticatedAdminEnquiryGroupsRoute
   AuthenticatedAdminInterestsRoute: typeof AuthenticatedAdminInterestsRoute
+  AuthenticatedAdminLaunchCampaignRoute: typeof AuthenticatedAdminLaunchCampaignRoute
   AuthenticatedAdminPartnersRoute: typeof AuthenticatedAdminPartnersRoute
   AuthenticatedAdminPricingRoute: typeof AuthenticatedAdminPricingRoute
   AuthenticatedAdminTeamUpsRoute: typeof AuthenticatedAdminTeamUpsRoute
@@ -1128,6 +1169,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
     AuthenticatedAdminElectricianRatesRoute,
   AuthenticatedAdminEnquiryGroupsRoute: AuthenticatedAdminEnquiryGroupsRoute,
   AuthenticatedAdminInterestsRoute: AuthenticatedAdminInterestsRoute,
+  AuthenticatedAdminLaunchCampaignRoute: AuthenticatedAdminLaunchCampaignRoute,
   AuthenticatedAdminPartnersRoute: AuthenticatedAdminPartnersRoute,
   AuthenticatedAdminPricingRoute: AuthenticatedAdminPricingRoute,
   AuthenticatedAdminTeamUpsRoute: AuthenticatedAdminTeamUpsRoute,
@@ -1170,6 +1212,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
   ApiPublicPartnerEnquiryRoute: ApiPublicPartnerEnquiryRoute,
   ApiPublicUnsubscribeRoute: ApiPublicUnsubscribeRoute,
+  EstimateTokenCampaignRoute: EstimateTokenCampaignRoute,
   EstimateTokenVideoRoute: EstimateTokenVideoRoute,
   TETokenRoute: TETokenRoute,
   TOFileRoute: TOFileRoute,

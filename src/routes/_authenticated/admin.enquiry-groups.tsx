@@ -89,6 +89,7 @@ function EnquiryGroups() {
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Every website enquiry sits in exactly one group. Groups are for preparing emails only — they never change a job's stage, eligibility result or delivery status.</p>
         </div>
         <Link to="/admin" search={{ tab: "enquiries" }} className="text-sm font-semibold text-primary underline">Back to Enquiries</Link>
+         <Link to="/admin/launch-campaign" className="text-sm font-semibold text-primary underline">Existing leads campaign</Link>
       </div>
       {isLoading ? <div role="status" className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">Loading enquiries…</div>
       : isError ? <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm">Could not load enquiries: {(error as Error)?.message}. <button className="underline" onClick={() => refetch()}>Try again</button></div>

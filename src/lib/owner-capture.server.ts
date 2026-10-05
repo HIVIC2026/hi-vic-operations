@@ -5,7 +5,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { LINK_PURPOSE, isWellFormedToken } from "./estimatelink.core";
 import { logEvent } from "./workflow.server";
-import { CAPTURE_KIND, CAPTURE_MAX_FILES, CAPTURE_SOURCE_SYSTEM, captureLinkState, capturePath, parseCapturePath, validateVideo, normaliseVideoType, CAPTURE_MAX_BYTES } from "./owner-capture.core";
+import { CAPTURE_KIND, CAPTURE_MAX_FILES, CAPTURE_SOURCE_SYSTEM, captureLinkState, capturePath, parseCapturePath, validateCaptureFile, normaliseCaptureType, CAPTURE_MAX_BYTES } from "./owner-capture.core";
 
 const BUCKET = "job-files";
 const GENERIC = "This link is not available. Please contact Home Insulation Victoria.";
@@ -38,9 +38,9 @@ export async function captureStatus(token: unknown) {
 export async function startCapture(token: unknown, f: { fileName: string; mime: string; size: number }) {
   const r = await resolve(token);
   if (r.state !== "ok") throw new Error(GENERIC);
-  const v = validateVideo({ mime: f.mime, fileName: f.fileName, size: f.size });
+  const v = validateCaptureFile({ mime: f.mime, fileName: f.fileName, size: f.size });
   if (!v.ok) throw new Error(v.error);
-  if ((await existing(r.link!.job_id)).length >= CAPTURE_MAX_FILES) throw new Error("We've already received the maximum number of videos for this property. Thank you!");
+  if ((await existing(r.link!.job_id)).length >= CAPTURE_MAX_FILES) throw new Error("We've already received the maximum number of files for this property. Thank you!");
   const path = capturePath(r.link!.job_id, crypto.randomUUID(), v.mime);
   const { data, error } = await admin.storage.from(BUCKET).createSignedUploadUrl(path);
   if (error || !data) throw new Error("Upload could not start. Please try again.");
@@ -59,14 +59,14 @@ export async function finishCapture(token: unknown, x: { path: string; fileName:
   const obj = (objs ?? []).find((o) => x.path.endsWith(`/${o.name}`));
   if (!obj) throw new Error("We couldn't find your upload. Please try again.");
   const size = Number((obj.metadata as { size?: number } | null)?.size ?? 0);
-  const storedMime = normaliseVideoType((obj.metadata as { mimetype?: string } | null)?.mimetype ?? null, x.path);
+  const storedMime = normaliseCaptureType((obj.metadata as { mimetype?: string } | null)?.mimetype ?? null, x.path);
   if (!storedMime || size <= 0 || size > CAPTURE_MAX_BYTES) {
     await admin.storage.from(BUCKET).remove([x.path]);
-    throw new Error("That file isn't a supported video. Please try again with MP4 or MOV.");
+    throw new Error("That file isn't a supported video or photo. Please try again with MP4, MOV, JPG, PNG or HEIC.");
   }
-  const safeName = x.fileName.replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "video";
+  const safeName = x.fileName.replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "file";
   const { error, data: ins } = await admin.from("documents").insert({
-    job_id: jobId, kind: CAPTURE_KIND, title: `Homeowner phone video: ${safeName}`, storage_path: x.path, mime_type: storedMime,
+    job_id: jobId, kind: CAPTURE_KIND, title: `Homeowner insulation ${storedMime.startsWith("video/") ? "video" : "photo"}: ${safeName}`, storage_path: x.path, mime_type: storedMime,
     source_system: CAPTURE_SOURCE_SYSTEM, external_id: uploadId, original_name: safeName, size_bytes: size,
   }).select("id").maybeSingle();
   const duplicate = !!error && /duplicate/i.test(error.message);
@@ -77,6 +77,8 @@ export async function finishCapture(token: unknown, x: { path: string; fileName:
       device_reported_modified_at: x.deviceModifiedAt && Number.isFinite(x.deviceModifiedAt) ? new Date(x.deviceModifiedAt).toISOString() : null,
       location: "not captured",
     }, { internal: true });
+    const { markCampaignMediaReceived } = await import("./launch-campaign.server");
+    await markCampaignMediaReceived(jobId, r.link!.id);
   }
   return { recorded: true, duplicate };
 }
