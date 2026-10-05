@@ -27,9 +27,9 @@ describe("Scenario F — owner paperwork gates", () => {
       expect(blocked(base({ ...j.f, signed: aDone }), "ready_check_scheduled")).toEqual([]);
       // Gate B
       const bStage = "awaiting_deposit_payment";
-      expect(blocked(base({ ...j.f, signed: aDone, hasQuote: true }), bStage).length).toBe(3);
-      expect(blocked(base({ ...j.f, signed: [...aDone, ...sign("cooling_off_notice", "payment_terms")], hasQuote: true }), bStage)).toEqual(["Owner paperwork B: Customer agreement + consumer rights not signed yet."]);
-      const bDone = { ...j.f, signed: [...aDone, ...sign("cooling_off_notice", "payment_terms")], hasQuote: true, agreementSigned: true };
+      expect(blocked(base({ ...j.f, signed: aDone, hasQuote: true }), bStage).length).toBe(4);
+      expect(blocked(base({ ...j.f, signed: [...aDone, ...sign("veec_assignment_consent", "cooling_off_notice", "payment_terms")], hasQuote: true }), bStage)).toEqual(["Owner paperwork B: Customer agreement + consumer rights not signed yet."]);
+      const bDone = { ...j.f, signed: [...aDone, ...sign("veec_assignment_consent", "cooling_off_notice", "payment_terms")], hasQuote: true, agreementSigned: true };
       expect(blocked(base(bDone), bStage)).toEqual([]);
       // Gate C
       const cStage = "evidence_outstanding";
@@ -37,10 +37,14 @@ describe("Scenario F — owner paperwork gates", () => {
       const cDone = { ...bDone, escConsentSigned: true, piesaCopyDelivered: true, signed: [...bDone.signed, ...sign("life_support_plan")] };
       expect(blocked(base(cDone), cStage)).toEqual([]);
       // Gate D
-      expect(blocked(base(cDone), "ready_for_veec")).toEqual(["Owner paperwork D: Final VEEC assignment not signed yet."]);
+      expect(blocked(base(cDone), "ready_for_veec")).toEqual(["Owner paperwork D: Completed VEEC assignment form (effective after install) not signed yet."]);
       expect(blocked(base({ ...cDone, assignmentEffective: true }), "ready_for_veec")).toEqual([]);
     });
   }
+  test("Gate B requires the owner's VEEC assignment at quote acceptance", () => {
+    const f = base({ signed: [...sign(...A), ...sign("cooling_off_notice", "payment_terms")], hasQuote: true, agreementSigned: true });
+    expect(blocked(f, "awaiting_deposit_payment")).toEqual(["Owner paperwork B: Your rebate (VEEC assignment) not signed yet."]);
+  });
   test("Life support plan only required when life support applies", () => {
     expect(evaluateOwnerGates(base()).find((g) => g.gate === "C")!.items.some((i) => i.key === "life_support_plan")).toBe(false);
     expect(evaluateOwnerGates(base({ lifeSupport: true })).find((g) => g.gate === "C")!.items.some((i) => i.key === "life_support_plan")).toBe(true);

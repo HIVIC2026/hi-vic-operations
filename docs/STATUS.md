@@ -103,7 +103,10 @@ This is the only current implementation register. `docs/HIV_WORKFLOW_SOURCE_OF_T
 | Gate C: ESC consent (Reg 23A), PIESA copy delivered | Built (existing records, now listed in gate) | — |
 | Gate C: life support plan (when relevant) | Built (DRAFT wording) | `/my-job/$token` |
 | Gate C: PIESA owner declaration via Mitti | Not built — joins Gate C once mapping approved | — |
-| Gate D: final VEEC assignment | Built (existing) | — |
+| Gate B: owner VEEC assignment ("Your rebate") at quote acceptance, Jo wording jo-2026-10-05 (approved) | Built | `/my-job/$token` |
+| Gate D: completed official form uses the Gate B signature after installer + AP sign; material change → owner reconfirms by code | Built (owner reconfirm screen on the link not built; server function `ownerReconfirmVariationFn` ready) | — |
+| Gate D: "re-sign after install" setting (default off) | Built (no settings toggle on screen yet) | `workflow_settings.owner_resign_after_install` |
+| Draft legal templates (consumer declaration, consumer rights, ESC consent, installer declaration) set back to not approved | Built | `/admin/owner-paperwork` |
 | Code-verified no-login signing, typed name + tick, stored version/text/time/IP/verified contact, PDF in job file | Built | `owner_gate_signatures` (permanent) |
 | Signed copy emailed to owner | Built — queued only for real jobs; sending off | outbox |
 | Logged-in signing of new gate documents | Partly built — server function `signPaperworkFn` exists; no portal screen yet | — |
