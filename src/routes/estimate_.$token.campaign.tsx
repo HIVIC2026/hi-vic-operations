@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PublicCalculator } from "@/components/portal/public-calculator";
+import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { Button } from "@/components/ui/button";
 import { getLaunchCampaignPage, saveMySpot, takeMeOffList } from "@/lib/launch-campaign.functions";
 import type { CustomerData } from "@/components/portal/estimate";
@@ -20,26 +21,32 @@ function CampaignPage() {
   const getPage = useServerFn(getLaunchCampaignPage);
   const save = useServerFn(saveMySpot);
   const optOut = useServerFn(takeMeOffList);
-  type CampaignData = { group: "likely" | "onsite"; estimate: { estimate: CustomerData }; response: { spot_saved_at: string | null; opted_out_at: string | null } | null; owner: { firstName: string | null }; initialValues: { address: string; areaM2: number | null; insulation: InsulationDeclared } } | null;
+  type CampaignData = { group: "likely" | "onsite"; estimate: { estimate: CustomerData }; response: { spot_saved_at: string | null; opted_out_at: string | null; queue_priority: string } | null; bookingAvailable: boolean; owner: { firstName: string | null }; initialValues: { address: string; areaM2: number | null; insulation: InsulationDeclared } } | null;
   const { data, isLoading, isError, refetch } = useQuery({ queryKey: ["launch_campaign", token], queryFn: async () => {
     const json = await getPage({ data: { token } });
     return json ? JSON.parse(json) as CampaignData : null;
   }, retry: false, refetchOnWindowFocus: false });
   const [busy, setBusy] = useState<"save" | "optout" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const oneTapStarted = useRef(false);
   const act = async (kind: "save" | "optout") => {
     setBusy(kind); setError(null);
     try { await (kind === "save" ? save({ data: { token } }) : optOut({ data: { token } })); await refetch(); }
     catch (e) { setError(e instanceof Error ? e.message : "That didn't work. Please try again."); }
     finally { setBusy(null); }
   };
+  useEffect(() => {
+    if (!data || data.response?.spot_saved_at || data.response?.opted_out_at || oneTapStarted.current) return;
+    oneTapStarted.current = true;
+    void act("save");
+  }, [data]);
 
   return <div className="estimate-brand min-h-screen bg-estimate-canvas">
     <main className="pb-14">
       {isLoading ? <p role="status" className="py-16 text-center text-sm text-muted-foreground">Loading your estimate…</p>
       : isError || !data ? <section className="estimate-offset rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">This link isn't available</h1><p className="mt-2 text-sm">Please contact Home Insulation Victoria and we'll help.</p></section>
       : data.response?.opted_out_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><Result title="You're off the list" body="We won't send any more campaign messages about this enquiry." /></div>
-      : data.response?.spot_saved_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><Result title="You're on the list" body="We'll be in touch within 2 business days to book your free Ready Check." /></div>
+      : data.response?.spot_saved_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><Result group={data.group} videoPriority={data.response.queue_priority === "video"} token={token} /></div>
       : <div>
           {data.group === "onsite" && <section className="mx-auto mb-5 max-w-[760px] rounded-[22px] border border-estimate-line bg-estimate-mint p-6">
             <h2 className="font-display text-xl font-bold text-estimate-navy">Help us check from the desk</h2>
@@ -59,6 +66,6 @@ function CampaignPage() {
   </div>;
 }
 
-function Result({ title, body }: { title: string; body: string }) {
-  return <section className="estimate-offset rounded-[22px] border border-estimate-blue-soft bg-white p-8 text-center shadow-[0_18px_50px_rgba(34,55,107,0.09)]"><h1 className="font-display text-3xl font-extrabold text-estimate-navy">{title}</h1><p className="mt-3 text-estimate-navy/75">{body}</p></section>;
+function Result({ group, videoPriority, token }: { group: "likely" | "onsite"; videoPriority: boolean; token: string }) {
+  return <section className="estimate-offset rounded-[22px] border border-estimate-blue-soft bg-white p-8 text-center shadow-[0_18px_50px_rgba(34,55,107,0.09)]"><OwnerHouse level={0} className="mx-auto" /><h1 className="mt-4 font-display text-3xl font-extrabold text-estimate-navy">You're on the list!</h1><p className="mt-3 text-estimate-navy/75">No payment and no obligation. We'll be in touch as soon as an installer is free in your area.</p>{group === "onsite" && !videoPriority && <div className="mt-5 rounded-xl bg-estimate-mint p-4"><h2 className="font-display text-lg font-bold text-estimate-navy">Want to jump the queue?</h2><Button asChild className="mt-3 bg-estimate-green text-estimate-white hover:bg-estimate-accent"><Link to="/estimate/$token/video" params={{ token }}>Send a quick video</Link></Button></div>}</section>;
 }

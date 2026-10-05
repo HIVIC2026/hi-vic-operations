@@ -88,7 +88,7 @@ export async function markCampaignMediaReceived(jobId: string, linkId: string) {
   const { data: link } = await admin.from("customer_estimate_links").select("id").eq("id", linkId).eq("job_id", jobId).maybeSingle();
   if (!link) return;
   const now = new Date().toISOString();
-  const { data: existing } = await admin.from("lead_campaign_responses").select("desk_check_status, media_received_at").eq("job_id", jobId).maybeSingle();
+  const { data: existing } = await admin.from("lead_campaign_responses").select("desk_check_status, media_received_at, spot_saved_at").eq("job_id", jobId).maybeSingle();
   const patch = { media_received_at: existing?.media_received_at ?? now, spot_saved_at: existing?.spot_saved_at ?? now, queue_priority: "video", updated_at: now, ...(existing && !["not_needed", "pending"].includes(existing.desk_check_status) ? {} : { desk_check_status: "pending" }) };
   if (existing) await admin.from("lead_campaign_responses").update(patch).eq("job_id", jobId);
   else await admin.from("lead_campaign_responses").insert({ job_id: jobId, estimate_link_id: linkId, campaign: LAUNCH_CAMPAIGN, video_requested: true, ...patch });
