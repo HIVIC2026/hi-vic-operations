@@ -37,3 +37,4 @@ Homeowner questions "previous VEU upgrade" and "rented vs owner-occupied" DELETE
 - [Owner My job page](mem://design/owner-my-job-page) — Jo-approved phone-first owner page spec (token link, house fill, navy action card, 5 steps)
 - [Owner action channels](mem://features/owner-sms-email-channels) — sign/act items email+SMS (one line + link), one 24h reminder both; trade offers SMS+email; info email only
 - [Owner headlines](mem://constraints/owner-headlines) — final per-stage hero lines with real rebate; no warm/cold/cool; government only on quote
+- [Electrician My work home](mem://design/electrician-my-work-home) — approved phone-first home: greeting, open-offer navy strip, Your move, Coming up, This month, Work/Money/My business tabs
