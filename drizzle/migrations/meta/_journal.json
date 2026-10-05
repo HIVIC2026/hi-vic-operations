@@ -764,6 +764,13 @@
       "when": 1791169954854,
       "tag": "0108_max_discount_caps",
       "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1791170190678,
+      "tag": "0109_quote_discount_note",
+      "breakpoints": true
     }
   ]
 }

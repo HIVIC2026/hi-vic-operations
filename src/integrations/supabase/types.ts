@@ -8448,6 +8448,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           customer_total_inc_gst: number
+          discount_note: string | null
           expired_at: string | null
           gst_amount: number
           id: string
@@ -8479,6 +8480,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           customer_total_inc_gst: number
+          discount_note?: string | null
           expired_at?: string | null
           gst_amount: number
           id?: string
@@ -8510,6 +8512,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           customer_total_inc_gst?: number
+          discount_note?: string | null
           expired_at?: string | null
           gst_amount?: number
           id?: string
