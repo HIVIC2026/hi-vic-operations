@@ -144,9 +144,9 @@
 - Visual restyle: ON HOLD (Jo, 5 Oct).
 
 ## Before live-safety check (Jo, 5 Oct 04:36)
-- [ ] Round DOWN to whole VEECs everywhere (21.294 → 21)
-- [ ] Ready Check price items: remove Tile lift / Metal sheet access (spec, AI prompt); validator still accepts live template
-- [ ] Onboarding: remove pink access-charges note entirely
-- [ ] R-value plan: add install-day product check (plan only)
+- [x] Round DOWN to whole VEECs everywhere (21.294 → 21)
+- [x] Ready Check price items: remove Tile lift / Metal sheet access (spec, AI prompt); validator still accepts live template
+- [x] Onboarding: remove pink access-charges note entirely
+- [x] R-value plan: add install-day product check (plan only)
 - Note: $299 AP fee ReInsulate ONLY; all others + HIV leads $349
 - [ ] Then live-safety check → SAFE TO PUBLISH or blockers; do not publish
