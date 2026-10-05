@@ -147,36 +147,45 @@ export async function installerCandidatesFor(jobId: string) {
 }
 
 /** Start (or continue) Ready Check offers. Refuses unless the job is waiting for a Ready Check booking with open owner times. */
-export async function startReadyCheckOffers(jobId: string, actorId: string | null) {
+export async function startReadyCheckOffers(jobId: string, actorId: string | null, onlyBusiness?: string) {
   const [{ data: job }, inst, w, { count: open }] = await Promise.all([
     admin.from("jobs").select("stage").eq("id", jobId).single(), hasActiveInstaller(jobId), readyCheckWindowRound(jobId),
     admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "pending"),
   ]);
   const b = readyCheckStartBlockers({ stage: job?.stage ?? "", hasInstaller: inst, openWindows: w.open.length, hasOpenOffers: !!open });
   if (b.length) throw new WorkflowError(`Ready Check offers cannot start: ${b.join(" ")}`);
-  return offerNextReadyCheckBatch(jobId, actorId);
+  return offerNextReadyCheckBatch(jobId, actorId, onlyBusiness);
 }
 
-async function offerNextReadyCheckBatch(jobId: string, actorId: string | null) {
+async function offerNextReadyCheckBatch(jobId: string, actorId: string | null, onlyBusiness?: string) {
   const { businessHours, batchSize } = await settings();
   const [{ candidates }, w, { data: prior }, { data: j }] = await Promise.all([
     installerCandidatesFor(jobId), readyCheckWindowRound(jobId),
     admin.from("partner_offers").select("business_id, batch, offered_at").eq("job_id", jobId).eq("kind", "ready_check"),
     admin.from("jobs").select("job_number, properties(suburb, postcode)").eq("id", jobId).single(),
   ]);
-  const inRound = (prior ?? []).filter((o) => !w.roundStart || o.offered_at >= w.roundStart);
-  const batch = nextInstallerBatch(candidates, new Set(inRound.map((o) => o.business_id)), batchSize);
+  let batch: { business_id: string; name?: string }[];
+  if (onlyBusiness) {
+    const c = candidates.find((x) => x.business_id === onlyBusiness);
+    if (!c) throw new WorkflowError("That installer isn't an approved installer for this job.");
+    if (c.blocker) throw new WorkflowError(`${c.name} can't take this Ready Check: ${c.blocker}`);
+    batch = [c];
+  } else {
+    const inRound = (prior ?? []).filter((o) => !w.roundStart || o.offered_at >= w.roundStart);
+    batch = nextInstallerBatch(candidates, new Set(inRound.map((o) => o.business_id)), batchSize);
+  }
   if (!batch.length) {
     if (w.round > 0) await readyCheckNoTaker(jobId, actorId, w.round);
     return { offered: 0, exhausted: true };
   }
   const batchNo = Math.max(0, ...(prior ?? []).map((o) => o.batch)) + 1;
   const p = j?.properties as { suburb: string | null; postcode: string | null } | null;
-  const summary = { job_number: j?.job_number ?? "", suburb: p?.suburb ?? null, postcode: p?.postcode ?? null, visit: "ready_check", unpaid_note: READY_CHECK_UNPAID_NOTE };
+  const summary = { job_number: j?.job_number ?? "", suburb: p?.suburb ?? null, postcode: p?.postcode ?? null, visit: "ready_check", unpaid_note: READY_CHECK_UNPAID_NOTE, ...(onlyBusiness ? { office_choice: true } : {}) };
   const expires = offerExpiryBusinessHours(new Date(), businessHours);
   const { error } = await admin.from("partner_offers").insert(batch.map((b) => ({ job_id: jobId, business_id: b.business_id, kind: "ready_check", batch: batchNo, summary: summary as unknown as Json, offered_by: actorId, expires_at: expires })));
   if (error) throw new Error(error.message);
-  await logEvent(jobId, actorId, "ready_check_offers_made", `Ready Check offered to ${batch.length} approved installer(s), batch ${batchNo}`, { batch: batchNo, businesses: batch.map((b) => b.business_id), expires_at: expires }, { internal: true });
+  if (onlyBusiness) await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${batch[0]!.name ?? "an installer"} for the Ready Check — offer sent only to them`, { kind: "ready_check", business_id: onlyBusiness, business_name: batch[0]!.name ?? null, expires_at: expires }, { internal: true });
+  else await logEvent(jobId, actorId, "ready_check_offers_made", `Ready Check offered to ${batch.length} approved installer(s), batch ${batchNo}`, { batch: batchNo, businesses: batch.map((b) => b.business_id), expires_at: expires }, { internal: true });
   return { offered: batch.length, exhausted: false };
 }
 
@@ -215,6 +224,8 @@ async function refill(jobId: string, actorId: string | null) {
     hasActiveInstaller(jobId),
   ]);
   if (open || inst) return;
+  // Office-picked installer said no / ran out: wait for "Pick another" or "Send to all" in Needs me.
+  if (await (await import("./allocation.server")).officePickUnanswered(jobId, "ready_check")) return;
   const w = await readyCheckWindowRound(jobId);
   if (!w.open.length) { if (w.round > 0) await readyCheckNoTaker(jobId, actorId, w.round); return; }
   await offerNextReadyCheckBatch(jobId, actorId);
