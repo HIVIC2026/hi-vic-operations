@@ -67,7 +67,7 @@ export type GateFacts = {
   assignmentEffective: boolean;
 };
 
-export type GateItem = { key: string; label: string; done: boolean; draft: boolean; note?: string };
+export type GateItem = { key: string; label: string; done: boolean; draft: boolean; note?: string | undefined };
 export type GateResult = { gate: Gate; label: string; items: GateItem[]; complete: boolean; blockers: string[] };
 
 function docItem(f: GateFacts, k: GateDocKey): GateItem {
