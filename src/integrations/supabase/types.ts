@@ -5139,6 +5139,7 @@ export type Database = {
           external_enquiry_id: string | null
           external_refs: Json
           hold_reason: string | null
+          hold_revisit_at: string | null
           id: string
           install_10day_flagged_at: string | null
           installation_completed_at: string | null
@@ -5189,6 +5190,7 @@ export type Database = {
           external_enquiry_id?: string | null
           external_refs?: Json
           hold_reason?: string | null
+          hold_revisit_at?: string | null
           id?: string
           install_10day_flagged_at?: string | null
           installation_completed_at?: string | null
@@ -5239,6 +5241,7 @@ export type Database = {
           external_enquiry_id?: string | null
           external_refs?: Json
           hold_reason?: string | null
+          hold_revisit_at?: string | null
           id?: string
           install_10day_flagged_at?: string | null
           installation_completed_at?: string | null
@@ -5467,6 +5470,64 @@ export type Database = {
             columns: ["worker_id"]
             isOneToOne: false
             referencedRelation: "partner_workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      office_snoozes: {
+        Row: {
+          created_at: string
+          id: string
+          job_id: string
+          reason: string | null
+          rule_key: string
+          snooze_count: number
+          snoozed_by: string
+          snoozed_until: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          job_id: string
+          reason?: string | null
+          rule_key: string
+          snooze_count?: number
+          snoozed_by: string
+          snoozed_until: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          job_id?: string
+          reason?: string | null
+          rule_key?: string
+          snooze_count?: number
+          snoozed_by?: string
+          snoozed_until?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "office_snoozes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "office_snoozes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "office_snoozes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
         ]
@@ -10213,6 +10274,7 @@ export type Database = {
           mitti_piisa_template_id: string | null
           mitti_ready_check_priced_template_id: string | null
           mitti_ready_check_template_id: string | null
+          office_time_limits: Json
           partner_lead_fee_inc_gst: number
           payment_option_gate_enabled: boolean
           photo_max_distance_m: number
@@ -10251,6 +10313,7 @@ export type Database = {
           mitti_piisa_template_id?: string | null
           mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
+          office_time_limits?: Json
           partner_lead_fee_inc_gst?: number
           payment_option_gate_enabled?: boolean
           photo_max_distance_m?: number
@@ -10289,6 +10352,7 @@ export type Database = {
           mitti_piisa_template_id?: string | null
           mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
+          office_time_limits?: Json
           partner_lead_fee_inc_gst?: number
           payment_option_gate_enabled?: boolean
           photo_max_distance_m?: number

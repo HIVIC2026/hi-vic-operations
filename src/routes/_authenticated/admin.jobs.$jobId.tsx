@@ -12,6 +12,7 @@ import { parseJobSection } from "@/lib/allocation.core";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
+import { JobRightNow } from "@/components/portal/office";
 import { Pill, SourceBadge, UrgencyBadge } from "@/components/portal/badges";
 import { AdminAssignmentPanel } from "@/components/portal/assignment";
 import { WorkerLinksPanel } from "@/components/portal/workers";
@@ -76,12 +77,16 @@ function JobDetail() {
   return (
     <AppShell wide>
       <div className="mx-auto max-w-5xl">
-      <Link to="/admin" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Enquiries</Link>
+      <Link to="/admin/needs-me" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Needs me</Link>
       <JobIdentity jobId={jobId} job={job} onOpen={openTarget} />
-      <NextActionBand jobId={jobId} onOpenTarget={openTarget} />
-      <div className="mb-3"><BlockersPanel jobId={jobId} /></div>
+      <JobRightNow jobId={jobId} people={{ owner: job.owner_name ?? null, ownerPhone: job.owner_phone ?? null, ownerEmail: job.owner_email ?? null, installer: job.installer_name ?? null, electrician: job.electrician_name ?? null }} />
+      <section className="mb-4 rounded-[22px] border bg-card p-5 shadow-sm" aria-label="Done when">
+        <h2 className="mb-2 text-xs font-bold text-muted-foreground">Done when — these must pass to move on</h2>
+        <BlockersPanel jobId={jobId} />
+        <div className="mt-3"><NextActionBand jobId={jobId} onOpenTarget={openTarget} /></div>
+      </section>
       <EligibilityGlance jobId={jobId} onOpen={openTarget} />
-      <PhaseStrip input={job} details={<JobJourney input={job} jobId={job.id} isTest={job.source === "qa_test"} />} />
+      <details className="mb-3 text-sm"><summary className="cursor-pointer font-semibold text-muted-foreground">Detailed journey</summary><PhaseStrip input={job} details={<JobJourney input={job} jobId={job.id} isTest={job.source === "qa_test"} />} /></details>
       <div className="mb-3 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
         <SourceBadge channel={job.channel} business={job.originating_business_name} />{job.urgency && <UrgencyBadge urgency={job.urgency} days={job.days_remaining} />}
       </div>

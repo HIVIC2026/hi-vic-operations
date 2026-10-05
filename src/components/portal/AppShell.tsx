@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useMe } from "@/hooks/use-me";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
+import { OfficeTopBar } from "@/components/portal/office";
 
 export function AppShell({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -17,7 +18,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
   const navigate = useNavigate();
   const roles = me?.roles ?? [];
   const loadTodos = useServerFn(getTodos);
-  const { data: todos } = useQuery({ queryKey: ["todos"], queryFn: () => loadTodos(), enabled: roles.includes("admin"), refetchInterval: 60_000 });
+  const { data: todos } = useQuery({ queryKey: ["todos"], queryFn: () => loadTodos(), enabled: false });
   const todoCount = todos?.items.length ?? 0;
   const signOut = async () => {
     await qc.cancelQueries();
@@ -81,6 +82,12 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
       <span className="grid h-9 shrink-0 place-items-center rounded-md bg-card px-1.5 shadow-sm ring-1 ring-sidebar-border"><img src={logo.url} alt="Home Insulation Victoria" className="h-7" /></span>
       <span className="min-w-0"><span className="block truncate font-display text-sm">Home Insulation Victoria</span></span>
     </Link>
+  );
+  if (roles.includes("admin")) return (
+    <div className="portal-theme min-h-screen bg-background">
+      <OfficeTopBar name={me?.profile?.full_name ?? ""} onSignOut={() => void signOut()} />
+      <main className={`mx-auto w-full px-4 py-6 sm:px-7 lg:py-8 ${wide ? "max-w-[1800px]" : "max-w-5xl"}`}>{children}</main>
+    </div>
   );
   return (
     <div className="portal-theme flex min-h-screen bg-background">
