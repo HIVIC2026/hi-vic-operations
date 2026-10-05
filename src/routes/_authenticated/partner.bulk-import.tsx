@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { CONTACT_PERMISSION_WORDING, LEAD_STAGE_LABEL, type LeadStage } from "@/lib/bulk-import.core";
 
 export const Route = createFileRoute("/_authenticated/partner/bulk-import")({
   head: () => ({
@@ -26,7 +27,7 @@ export const Route = createFileRoute("/_authenticated/partner/bulk-import")({
 type ManifestFile = { path: string; name: string; folder: string | null; type: string; gps_lat: number | null; gps_lng: number | null; taken_at: string | null };
 type ReviewRow = {
   id: string; row_index: number; status: string; duplicate_note: string | null;
-  extracted: { full_name?: string | null; address_line?: string | null; suburb?: string | null; postcode?: string | null; area_m2?: number | null; price_inc_gst?: number | null; phone?: string | null; email?: string | null };
+  extracted: { full_name?: string | null; address_line?: string | null; suburb?: string | null; postcode?: string | null; area_m2?: number | null; price_inc_gst?: number | null; lead_stage?: LeadStage; phone?: string | null; email?: string | null };
   matched_files: { name: string; how: string }[]; sort_result: "covers_ready_check" | "needs_visit" | "office_review" | null;
   sort_reasons: string[]; missing_evidence: string[];
 };
@@ -37,21 +38,29 @@ const SORT_LABEL: Record<string, { label: string; variant: "default" | "secondar
   office_review: { label: "Office review", variant: "destructive" },
 };
 
-async function parseList(file: File): Promise<Record<string, string>[]> {
+const LIST_RE = /\.(csv|xlsx|xls)$/i;
+const TEXT_RE = /\.(txt|eml|md|html?|json|msg)$/i;
+
+async function parseList(buf: ArrayBuffer, name: string): Promise<Record<string, string>[]> {
   const XLSX = await import("xlsx");
-  const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: "array" });
   const firstSheet = wb.SheetNames[0];
   if (!firstSheet) return [];
   const sheet = wb.Sheets[firstSheet];
   if (!sheet) return [];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: false });
-  return rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [String(k).trim(), String(v ?? "").trim()])));
+  return rows.map((r) => ({ _source_file: name, ...Object.fromEntries(Object.entries(r).map(([k, v]) => [String(k).trim(), String(v ?? "").trim()])) }));
 }
 
-async function buildManifest(files: File[]): Promise<ManifestFile[]> {
+type Collected = { manifest: ManifestFile[]; rows: Record<string, string>[]; documents: { name: string; text: string }[] };
+
+async function collect(files: File[]): Promise<Collected> {
   const out: ManifestFile[] = [];
+  const rows: Record<string, string>[] = [];
+  const documents: { name: string; text: string }[] = [];
   const push = async (path: string, name: string, type: string, buf: ArrayBuffer) => {
+    if (LIST_RE.test(name)) { rows.push(...(await parseList(buf, path))); return; }
+    if (TEXT_RE.test(name) || type.startsWith("text/")) { documents.push({ name: path, text: new TextDecoder().decode(buf).slice(0, 200_000) }); return; }
     const f: ManifestFile = { path, name, folder: path.includes("/") ? path.split("/").slice(0, -1).join("/") : null, type, gps_lat: null, gps_lng: null, taken_at: null };
     if (/^image\//.test(type) || /\.jpe?g$/i.test(name)) {
       try {
@@ -78,7 +87,7 @@ async function buildManifest(files: File[]): Promise<ManifestFile[]> {
       await push(rel || file.name, file.name, file.type || guessType(file.name), await file.arrayBuffer());
     }
   }
-  return out;
+  return { manifest: out, rows, documents };
 }
 
 function guessType(name: string): string {
@@ -96,7 +105,6 @@ function BulkImportPage() {
   const confirm = useServerFn(confirmBulkBatch);
 
   const [businessId, setBusinessId] = useState("");
-  const [listFile, setListFile] = useState<File | null>(null);
   const [extraFiles, setExtraFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [batchId, setBatchId] = useState<string | null>(null);
@@ -115,16 +123,15 @@ function BulkImportPage() {
     enabled: !!batchId,
   });
   const rows = (review?.rows ?? []) as unknown as ReviewRow[];
-  const summary = review?.batch?.summary as { rows?: number; covers_ready_check?: number; needs_visit?: number; office_review?: number; duplicates?: number } | null;
+  const summary = review?.batch?.summary as { rows?: number; covers_ready_check?: number; needs_visit?: number; office_review?: number; duplicates?: number; not_visited?: number; visited?: number; visited_quoted?: number } | null;
 
   async function analyse() {
-    if (!listFile || !effectiveBiz) return;
+    if (extraFiles.length === 0 || !effectiveBiz || !permission) return;
     setBusy(true);
     try {
-      const rawRows = await parseList(listFile);
-      if (rawRows.length === 0) { toast.error("No rows found in that list — use one row per customer."); return; }
-      const manifest = await buildManifest(extraFiles);
-      const res = await createBatch({ data: { businessId: effectiveBiz, onBehalf: isAdmin, listFilename: listFile.name, rawRows, manifest } });
+      const { manifest, rows: rawRows, documents } = await collect(extraFiles);
+      if (rawRows.length === 0 && documents.length === 0) { toast.error("We couldn't find customer details — add an export, email or notes with names and addresses."); return; }
+      const res = await createBatch({ data: { businessId: effectiveBiz, onBehalf: isAdmin, listFilename: `${extraFiles.length} files`, rawRows, documents, manifest, permissionConfirmed: true } });
       setBatchId(res.batchId);
       toast.success(`${res.summary.rows} jobs found — please review below.`);
     } catch (e) {
@@ -136,7 +143,7 @@ function BulkImportPage() {
     if (!batchId) return;
     setBusy(true);
     try {
-      const res = await confirm({ data: { batchId, skipRowIds: [...skip], permissionConfirmed: true } });
+      const res = await confirm({ data: { batchId, skipRowIds: [...skip] } });
       setDone(res);
       qc.invalidateQueries({ queryKey: ["bulk-review", batchId] });
       toast.success(`${res.created} jobs created.`);
@@ -147,7 +154,7 @@ function BulkImportPage() {
     <div className="mx-auto max-w-5xl space-y-6 p-4">
       <div>
         <h1 className="text-2xl font-semibold">Bulk job upload</h1>
-        <p className="text-muted-foreground">Upload your customer list and any files you have (photos, quotes, notes) in one go. We read them, match files to customers, and show you one review table. Nothing is created or sent until you confirm.</p>
+        <p className="text-muted-foreground">Drop in anything you have — emails, exports, photos, PDFs, notes. No forms or spreadsheets to fill in. We work out each customer and how far along they are, then show you one review table. Nothing is created or sent until you confirm.</p>
       </div>
 
       {!batchId && (
@@ -163,16 +170,17 @@ function BulkImportPage() {
                 </select>
               </label>
             )}
-            <label className="block space-y-1">
-              <span className="text-sm font-medium">Customer list (CSV or Excel, any column layout — one row per customer)</span>
-              <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setListFile(e.target.files?.[0] ?? null)} />
+            <label className="block space-y-2 rounded-lg border-2 border-dashed p-6 text-center">
+              <span className="block text-sm font-medium">Drop your files here, or tap to choose (zips welcome)</span>
+              <input type="file" multiple className="mx-auto block" onChange={(e) => setExtraFiles([...(e.target.files ?? [])])} />
+              {extraFiles.length > 0 && <span className="block text-xs text-muted-foreground">{extraFiles.length} file{extraFiles.length > 1 ? "s" : ""} ready</span>}
             </label>
-            <label className="block space-y-1">
-              <span className="text-sm font-medium">Files (optional — a zip, or many photos/PDFs; one folder per address works best)</span>
-              <input type="file" multiple onChange={(e) => setExtraFiles([...(e.target.files ?? [])])} />
+            <label className="flex items-start gap-2 text-sm">
+              <Checkbox checked={permission} onCheckedChange={(c) => setPermission(!!c)} />
+              <span>{CONTACT_PERMISSION_WORDING}</span>
             </label>
             <p className="text-sm text-muted-foreground">Photos are used for matching and sorting only — they never count as official evidence. Any official evidence still missing is recorded and collected on install day.</p>
-            <Button disabled={!listFile || !effectiveBiz || busy} onClick={analyse}>{busy ? "Reading…" : "Read and match"}</Button>
+            <Button disabled={extraFiles.length === 0 || !effectiveBiz || !permission || busy} onClick={analyse}>{busy ? "Reading…" : "Read and match"}</Button>
           </CardContent>
         </Card>
       )}
@@ -187,6 +195,7 @@ function BulkImportPage() {
               <Badge variant="default">{summary.covers_ready_check ?? 0} cover the Ready Check</Badge>
               <Badge variant="secondary">{summary.needs_visit ?? 0} need a visit</Badge>
               <Badge variant="destructive">{summary.office_review ?? 0} office review</Badge>
+              <Badge variant="outline">{summary.not_visited ?? 0} not visited · {summary.visited ?? 0} visited · {summary.visited_quoted ?? 0} quoted</Badge>
               {(summary.duplicates ?? 0) > 0 && <Badge variant="outline">{summary.duplicates} possible duplicates (skipped)</Badge>}
             </div>
             <div className="overflow-x-auto">
@@ -194,7 +203,7 @@ function BulkImportPage() {
                 <thead>
                   <tr className="border-b text-left">
                     <th className="p-2">Skip</th><th className="p-2">Customer</th><th className="p-2">Address</th>
-                    <th className="p-2">Area</th><th className="p-2">Price</th><th className="p-2">Files</th><th className="p-2">Result</th>
+                    <th className="p-2">Stage</th><th className="p-2">Area</th><th className="p-2">Price</th><th className="p-2">Files</th><th className="p-2">Result</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -206,6 +215,7 @@ function BulkImportPage() {
                       </td>
                       <td className="p-2">{r.extracted.full_name ?? "—"}<div className="text-xs text-muted-foreground">{r.extracted.phone ?? r.extracted.email ?? ""}</div></td>
                       <td className="p-2">{r.extracted.address_line ?? "—"}<div className="text-xs text-muted-foreground">{[r.extracted.suburb, r.extracted.postcode].filter(Boolean).join(" ")}</div></td>
+                      <td className="p-2">{r.extracted.lead_stage ? LEAD_STAGE_LABEL[r.extracted.lead_stage] : "—"}</td>
                       <td className="p-2">{r.extracted.area_m2 ? `${r.extracted.area_m2} m²` : "—"}</td>
                       <td className="p-2">{r.extracted.price_inc_gst ? `$${r.extracted.price_inc_gst}` : "—"}</td>
                       <td className="p-2">{r.matched_files.length > 0 ? `${r.matched_files.length} file${r.matched_files.length > 1 ? "s" : ""}` : "—"}</td>
@@ -221,12 +231,8 @@ function BulkImportPage() {
                 </tbody>
               </table>
             </div>
-            <label className="flex items-start gap-2 text-sm">
-              <Checkbox checked={permission} onCheckedChange={(c) => setPermission(!!c)} />
-              <span>I confirm I have each customer's permission for Home Insulation Victoria to contact them about their insulation upgrade.</span>
-            </label>
             <p className="text-sm text-muted-foreground">Confirming creates the jobs only — nothing is sent to any customer. If a price was included, a draft quote is prepared for office review (installer's price + PIESA + AP fee − government discount, no markup).</p>
-            <Button disabled={!permission || busy} onClick={confirmAll}>{busy ? "Creating…" : "Confirm — create these jobs"}</Button>
+            <Button disabled={busy} onClick={confirmAll}>{busy ? "Creating…" : "Confirm — create these jobs"}</Button>
           </CardContent>
         </Card>
       )}
@@ -237,7 +243,7 @@ function BulkImportPage() {
           <CardContent className="space-y-2">
             <p>{done.created} jobs created{done.skipped ? `, ${done.skipped} skipped` : ""}{done.failed ? `, ${done.failed} could not be imported (office notified)` : ""}.</p>
             <p className="text-sm text-muted-foreground">Nothing has been sent to any customer. The office can see each job in the pipeline.</p>
-            <Button variant="outline" onClick={() => { setBatchId(null); setDone(null); setListFile(null); setExtraFiles([]); setPermission(false); setSkip(new Set()); }}>Upload another batch</Button>
+            <Button variant="outline" onClick={() => { setBatchId(null); setDone(null); setExtraFiles([]); setPermission(false); setSkip(new Set()); }}>Upload another batch</Button>
           </CardContent>
         </Card>
       )}
