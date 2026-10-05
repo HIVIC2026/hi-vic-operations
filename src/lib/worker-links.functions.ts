@@ -119,7 +119,10 @@ export const jobWorkerLinks = createServerFn({ method: "GET" }).middleware([requ
       admin.from("worker_job_links").select("id, worker_id, business_id, created_at, expires_at, revoked_at, last_opened_at, open_count, partner_workers(full_legal_name, trade_role)").eq("job_id", data.jobId).in("business_id", mine.length ? mine : none).order("created_at", { ascending: false }),
     ]);
     const now = Date.now();
+    // Office flag: last automatic Mitti attempt needs attention (cleared once a form is created/re-shared).
+    const { data: mev } = await admin.from("workflow_events").select("event_type, summary").eq("job_id", data.jobId).in("event_type", ["mitti_access_needed", "mitti_audit_created", "mitti_audit_reshared"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
     return {
+      mittiFlag: office && mev?.event_type === "mitti_access_needed" ? mev.summary : null,
       assignedBusinesses: assigned.length,
       workers: (workers ?? []).map((w) => ({ ...w, blocker: assignBlocker(w, assigned) })),
       links: (links ?? []).map((l) => ({ ...l, state: linkState(l, now) })),

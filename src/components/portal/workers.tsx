@@ -82,6 +82,7 @@ export function WorkerLinksPanel({ jobId }: { jobId: string }) {
   return (
     <Section title="Staff job links">
       <p className="mb-3 text-xs text-muted-foreground">Each staff member gets a private link to just this job: the form, timeline and messages. No login needed. Links last 30 days and can be switched off any time. Nothing is texted or emailed automatically yet — copy the link and send it.</p>
+      {data.mittiFlag && <p role="alert" className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm font-medium text-destructive">Needs Mitti access — {data.mittiFlag.replace(/^Needs Mitti access: /, "")}</p>}
       <ul className="space-y-2">
         {data.workers.map((w) => {
           const live = data.links.find((l) => l.worker_id === w.id && l.state === "active");
@@ -95,7 +96,7 @@ export function WorkerLinksPanel({ jobId }: { jobId: string }) {
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {live && <span className="text-xs text-muted-foreground">Link active · opened {live.open_count}× · last {fmt(live.last_opened_at)}</span>}
                   <Button size="sm" variant={live ? "outline" : "default"} onClick={async () => {
-                    try { const r = await create({ data: { jobId, workerId: w.id } }); const url = `${window.location.origin}${r.path}`; setFresh({ workerId: w.id, url }); await copy(url); refetch(); } catch (e) { toast.error(errMsg(e)); }
+                    try { const r = await create({ data: { jobId, workerId: w.id } }); const url = `${window.location.origin}${r.path}`; setFresh({ workerId: w.id, url }); await copy(url); if (r.mitti?.status === "assigned") toast.success("Ready Check form created in Mitti and assigned to this worker"); else if (r.mitti && r.mitti.status !== "not_needed") toast.warning(`Needs Mitti access: ${r.mitti.message}`); refetch(); } catch (e) { toast.error(errMsg(e)); }
                   }}><Link2 className="mr-1 h-4 w-4" />{live ? "Make a new link" : "Create job link"}</Button>
                   {live && <Button size="sm" variant="ghost" onClick={async () => { await revoke({ data: { linkId: live.id } }); toast.success("Link switched off"); setFresh(null); refetch(); }}>Switch off</Button>}
                 </div>
