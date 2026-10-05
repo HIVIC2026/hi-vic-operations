@@ -8,6 +8,7 @@ import { logEvent } from "./workflow.server";
 import { logPartner } from "./pilot.server";
 import { type LocationVariables } from "./activity48.core";
 import { HIVIC_PIESA_INC_GST } from "./installer-led.core";
+import { linkFiles } from "./bulk-import.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
   dedupeKey, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
@@ -77,7 +78,10 @@ text read from PDFs and photos, and the list of uploaded file/folder names with 
 and list each distinct customer lead once. Input is JSON {rows, documents, files}. Merge information about the
 same address/customer into one lead. When there is no customer list, still create a lead for each distinct property
 address you can see in folder names, file names, document/photo text or a photo's gps_address — set unsure=true for
-leads that come only from names, photo text or GPS. Return ONLY a JSON array, one object per lead, with these keys (null when absent):
+leads that come only from names, photo text or GPS. Documents are often free-text notes written in ordinary sentences
+(e.g. "Spoke to Mary Smith on 0412 345 678, about 120 m2, old batts, quoted $3,200") — read every sentence and pull out
+names, addresses, phones, emails, measurements, insulation details and prices. A person or property described with NO address
+is still a lead: return it with address_line/suburb/postcode null and unsure=true so the office can add the address. Return ONLY a JSON array, one object per lead, with these keys (null when absent):
 full_name, email, phone, address_line (street number + street only), suburb, postcode (4 digits),
 area_m2 (number, ceiling/roof area in m2), existing_insulation (short text or "unknown"),
 access (short text about ceiling access/manhole or "unknown"),
@@ -85,7 +89,7 @@ roof_type (short text, e.g. "tiled"/"tin", or "unknown"), hazards (short text or
 building_age (short text, e.g. "built 1978", or "unknown"), notes (anything else useful, short),
 price_inc_gst (number, the installer's quoted total price including GST if present),
 unsure (boolean), source_files (array of the uploaded file names/paths this lead was read from).
-Never invent values. If a column is ambiguous, put it in notes. Return [] only if there is truly no address or customer anywhere.`;
+Never invent values. If a column is ambiguous, put it in notes. Return [] only if there is truly no customer, contact, address or property detail anywhere.`;
 
 export type BulkDocument = { name: string; text: string };
 export type BulkFileRef = { name: string; folder?: string | null; geo_address?: string | null };
@@ -136,7 +140,8 @@ export async function aiExtractRows(rawRows: Record<string, string>[], documents
 const MEDIA_PROMPT = `You are reading one file an insulation installer uploaded (a PDF, a scanned page or a photo).
 Write out, as plain text, every customer name, street address, suburb, postcode, phone, email, ceiling area (m2),
 existing insulation, ceiling access, roof type, hazards, building age and quoted price you can see. For a list or
-table, write one line per customer. Copy what is written; never guess. If nothing like that is visible, reply with
+table, write one line per customer. Free-text notes and paragraphs count too: read every sentence and copy out any of
+those details mentioned in it. Copy what is written; never guess. If nothing like that is visible, reply with
 exactly NONE followed by a few words describing the picture.`;
 
 /** AI vision/PDF reading of one uploaded file → plain text for the lead finder. Matching/sorting only, never evidence. */
@@ -212,14 +217,16 @@ export async function analyseBatch(batchId: string, actorId: string) {
 
   await admin.from("bulk_import_rows").delete().eq("batch_id", batchId);
   const allMatches: ReturnType<typeof matchFiles>["matched"][] = [];
+  const links = linkFiles(extracted, manifest);
   const rows = extracted.map((e, i) => {
-    const { matched, confidence } = matchFiles(e, manifest);
+    const { matched, confidence } = links[i]!;
     allMatches.push(matched);
     const duplicate = dupNotes.has(i);
     const { result, reasons } = sortJob(e, { matchConfidence: confidence, duplicate });
     const stage = leadStage(e, matched.length);
     reasons.unshift(`Stage: ${LEAD_STAGE_LABEL[stage]}`);
-    if (matched.length > 0 && confidence === "low") reasons.push("Files matched by filename only — please check");
+    if (matched.some((m) => m.how === "only_lead")) reasons.push("Photos attached because this is the only customer in the upload — please check");
+    else if (matched.length > 0 && confidence === "low") reasons.push("Files matched by filename only — please check");
     return {
       batch_id: batchId, row_index: i, extracted: { ...e, lead_stage: stage } as unknown as Json,
       matched_files: matched as unknown as Json, match_confidence: confidence,
@@ -330,6 +337,11 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       continue;
     }
     const e = row.extracted as unknown as BulkExtracted;
+    if (!e.address_line?.trim()) {
+      failed++;
+      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1} has no address yet — add it in the review table, then confirm again`, { batch_id: batchId, row_id: row.id });
+      continue;
+    }
     try {
       const job = await createBulkJob(e, batch, actorId, row.id);
       const quoted = await draftQuoteFromImport(job.id, e, actorId).catch(() => false);
@@ -350,4 +362,23 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
   }
   await admin.from("bulk_import_batches").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", batchId);
   return { created, skipped, failed };
+}
+
+/** Office/installer adds the missing address to a review row; the row is re-sorted (never auto-confirmed). */
+export async function setRowAddress(rowId: string, addr: { address_line: string; suburb: string | null; postcode: string | null }) {
+  const { data: row } = await admin.from("bulk_import_rows").select("*").eq("id", rowId).single();
+  if (!row || row.status !== "pending") throw new BulkImportError("This row can no longer be changed.");
+  const e = { ...(row.extracted as unknown as BulkExtracted), ...addr };
+  const existing = await existingPortalKeys();
+  const duplicate = findDuplicates([e], existing).has(0);
+  const { result, reasons } = sortJob(e, { matchConfidence: (row.match_confidence ?? "none") as "high" | "low" | "none", duplicate });
+  const stage = (e as { lead_stage?: LeadStageT }).lead_stage;
+  if (stage) reasons.unshift(`Stage: ${LEAD_STAGE_LABEL[stage]}`);
+  reasons.push("Address added by hand in the review table");
+  const { error } = await admin.from("bulk_import_rows").update({
+    extracted: e as unknown as Json, sort_result: result, sort_reasons: reasons as unknown as Json,
+    duplicate_note: duplicate ? "Already in the portal (same address or email) — will be skipped unless you untick skip" : null,
+  }).eq("id", rowId);
+  if (error) throw new BulkImportError(error.message);
+  return { batch_id: row.batch_id };
 }
