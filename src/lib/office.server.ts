@@ -111,6 +111,31 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   for (const r of emails) fail(r["job_id"], `Email ${r["status"]}${r["error"] ? `: ${String(r["error"]).slice(0, 80)}` : ""}`);
   for (const r of mittiErr) if (r["system"] === "mitti" && ids.includes(String(r["entity_id"]))) fail(r["entity_id"], `Mitti sync failed: ${String(r["error"] ?? "").slice(0, 80)}`);
 
+  // Owner paperwork: jobs sitting in (or waiting to start) a stage whose gate isn't signed.
+  {
+    const { evaluateOwnerGates, gatesForStage } = await import("./owner-gates.core");
+    const { approvedVersions } = await import("./owner-gates.server");
+    const [{ data: gsig }, appr, { data: brows }] = await Promise.all([
+      admin.from("owner_gate_signatures").select("job_id, doc_key, doc_version, doc_draft, answers").in("job_id", ids),
+      approvedVersions(),
+      admin.from("bulk_import_rows").select("job_id, import_stage").in("job_id", ids),
+    ]);
+    for (const j of live) {
+      const id = String(j["id"]); const stage = String(j["stage"]);
+      const need = new Set(gatesForStage(stage));
+      if (["ready_check_ready_to_schedule", "assessment_booking", "awaiting_electrician"].includes(stage)) need.add("A");
+      need.delete("C"); need.delete("D"); // C/D items have their own blockers already shown
+      if (!need.size) continue;
+      const mine = (gsig ?? []).filter((x) => x.job_id === id);
+      const ans = (k: string) => mine.filter((x) => x.doc_key === k).at(-1)?.answers as Record<string, unknown> | undefined;
+      const r = evaluateOwnerGates({ isTest: j["source"] === "qa_test", signed: mine.map((x) => ({ key: x.doc_key, version: x.doc_version, draft: x.doc_draft })), approved: appr,
+        tenant: ans("details_confirmation")?.["role"] === "tenant", lifeSupport: false, visitedByInstaller: (brows ?? []).some((b) => b.job_id === id && ["visited", "quoted"].includes(String(b.import_stage))),
+        hasQuote: true, agreementSigned: true, agreementWordingApproved: true, escConsentSigned: true, piesaCopyDelivered: true, piesaDeclarationMappingApproved: false, assignmentEffective: true });
+      const g = r.find((x) => need.has(x.gate) && !x.complete);
+      if (g) fail(id, `Owner paperwork ${g.gate} not complete: ${g.items.filter((i) => !i.done || (i.draft && j["source"] !== "qa_test")).map((i) => i.label).join(", ")}`);
+    }
+  }
+
   const out: OfficeJob[] = live.map((j) => {
     const id = String(j["id"]), stage = String(j["stage"]);
     const c = campaign.get(id); const q = instQ.get(id); const rq = rectQ.get(id); const p = pie.get(id);
