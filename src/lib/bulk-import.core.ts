@@ -188,7 +188,7 @@ export function sortJob(
   if (!e.address_line || !e.postcode) reasons.push("No address found — please add it in the review table");
   if (opts.duplicate) reasons.push("Looks like a job that already exists in the portal");
   if (!e.full_name && !e.phone && !e.email) reasons.push("No customer name or contact details");
-  if (e.unsure) reasons.push("Found only from file names, photo text or photo location — please check");
+  if (e.unsure) reasons.push("Found from notes, file names, photo text or photo location — please check");
   if (reasons.length > 0) return { result: "office_review", reasons };
 
   const gaps = readyCheckGaps(e);
@@ -235,7 +235,7 @@ export function fileResults(read: FileResult[], leads: BulkExtracted[], matches:
     if (r.status === "error") return r;
     const parts: string[] = [r.message];
     if (fed.length) parts.push(fed.length === 1 ? `customer found: ${label(fed[0]!)}` : `${fed.length} customers found`);
-    const g = hit.find((h) => h.x.how === "gps"), o = hit[0];
+    const g = hit.find((h) => h.x.how === "gps"), o = fed.length ? undefined : hit[0];
     if (g) parts.push(`matched by GPS to ${label(g.e)}`);
     else if (o) parts.push(o.x.how === "only_lead" ? `attached to ${label(o.e)} (the only customer in this upload)` : `matched by ${({ folder: "folder name", filename: "file name", photo_text: "address written in the file", gps: "GPS", only_lead: "" } as const)[o.x.how]} to ${label(o.e)}`);
     const used = fed.length > 0 || hit.length > 0;
