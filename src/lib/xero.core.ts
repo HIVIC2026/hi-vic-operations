@@ -23,10 +23,12 @@ export async function assertHivicInvoice(invoiceId: string, loadJobForInvoice: (
   assertHivicJob(await loadJobForInvoice(invoiceId));
 }
 /** Second defensive check on every outgoing invoice payload: Home Insulation Victoria reference + Business Unit = Home Insulation Victoria on every line. */
-export function assertHivicPayload(payload: { Invoices: { Reference?: string; LineItems: { Tracking?: { Name: string; Option: string }[] }[] }[] }) {
+export function assertHivicPayload(payload: { Invoices: { Reference?: string; LineItems: { Tracking?: { Name: string; Option: string }[] }[] }[] }, mode: XeroMode = "live") {
   for (const inv of payload.Invoices) {
     if (!inv.Reference?.startsWith(XERO_REFERENCE_PREFIX)) throw new Error(`Xero write blocked: invoice reference must start with '${XERO_REFERENCE_PREFIX}'.`);
-    if (!inv.LineItems.length || !inv.LineItems.every((l) => l.Tracking?.some((t) => t.Name === TRACKING_CATEGORY && t.Option === TRACKING_OPTION)))
+    if (!inv.LineItems.length) throw new Error("Xero write blocked: invoice has no lines.");
+    if (mode === "test") continue; // Demo Company TEST invoices only: Business Unit tracking not required
+    if (!inv.LineItems.every((l) => l.Tracking?.some((t) => t.Name === TRACKING_CATEGORY && t.Option === TRACKING_OPTION)))
       throw new Error(`Xero write blocked: every line must be tracked ${TRACKING_CATEGORY} = ${TRACKING_OPTION}.`);
   }
 }
@@ -53,10 +55,11 @@ export function quoteGuard(quote: { status: string; customer_total_inc_gst: numb
   return null;
 }
 
-export async function findTrackingOption(call: XeroCall) {
+export async function findTrackingOption(call: XeroCall, mode: XeroMode = "live"): Promise<{ categoryName: string; optionName: string; optionId: string } | null> {
   const r = await call("/api.xro/2.0/TrackingCategories");
   const cat = (r.TrackingCategories ?? []).find((c: any) => c.Name === TRACKING_CATEGORY && c.Status === "ACTIVE");
   const opt = cat?.Options?.find((o: any) => o.Name === TRACKING_OPTION && (o.Status ?? "ACTIVE") === "ACTIVE");
+  if ((!cat || !opt) && mode === "test") return null; // Demo Company only – real invoices stay strict
   if (!cat || !opt) throw new Error(`Xero tracking option "${TRACKING_CATEGORY} = ${TRACKING_OPTION}" not found – ask the Xero admin to add it (the portal will not create it).`);
   return { categoryName: cat.Name as string, optionName: opt.Name as string, optionId: opt.TrackingOptionID as string };
 }
@@ -85,10 +88,10 @@ export async function findInvoiceByReference(call: XeroCall, reference: string) 
 export function buildInvoicePayload(a: {
   contactId: string; jobNumber: string; dueDate: string; total: number;
   items: { description: string; quantity: number | string; unit_price_inc_gst: number | string; line_total_inc_gst: number | string }[];
-  veecDiscount: number | string; tracking: { categoryName: string; optionName: string };
+  veecDiscount: number | string; tracking: { categoryName: string; optionName: string } | null;
 }) {
   const ref = xeroReference(a.jobNumber);
-  const Tracking = [{ Name: a.tracking.categoryName, Option: a.tracking.optionName }];
+  const Tracking = a.tracking ? [{ Name: a.tracking.categoryName, Option: a.tracking.optionName }] : undefined;
   const LineItems = a.items.map((i) => {
     const q = Number(i.quantity), u = Number(i.unit_price_inc_gst), lt = Number(i.line_total_inc_gst);
     const exact = Math.round(q * u * 100) === Math.round(lt * 100);
