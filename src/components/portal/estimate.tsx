@@ -172,7 +172,7 @@ function HouseholdBenefits() {
       {[
         { icon: Leaf, value: "$400+ / year*", label: "average potential energy-bill savings from upgrading ceiling insulation" },
         { icon: Flame, value: "Up to 20%*", label: "potential savings on heating and cooling costs" },
-        { icon: Sun, value: "Warmer in winter. Cooler in summer.", label: "Better year-round comfort with less energy wasted through the ceiling." },
+        { icon: Sun, value: "Comfortable all year.", label: "Better year-round comfort with less energy wasted through the ceiling." },
       ].map(({ icon: Icon, value, label }) => <div key={value} className="border-t-2 border-estimate-green px-1 py-5"><Icon aria-hidden="true" className="mb-4 size-6 text-estimate-green" /><p className="text-lg font-bold leading-snug text-estimate-navy">{value}</p><p className="mt-2 text-sm leading-relaxed">{label}</p></div>)}
     </div>
     <p className="mt-4 text-sm leading-relaxed">That means insulation isn&apos;t just an upfront upgrade — it can keep reducing energy use and household running costs year after year.</p>
