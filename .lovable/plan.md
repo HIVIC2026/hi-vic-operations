@@ -1,40 +1,61 @@
-# Booking control — answers to Jo's five questions (PLAN ONLY)
+# Plan: R-value as a per-job fact (minimum R5.0)
 
-Checked the actual code. Plain answers first, then what's missing to make "not booked in the portal = can't happen / can't get VEECs" airtight.
+Starts only after the current build (gaps 1, 3, 4) and only on Jo's go. Same rules: preview only, practice database first with an undo file, no existing records or issued/accepted quotes changed, sending stays off.
 
-## 1) Can the installer enter PIESA and install dates himself for his own jobs?
-- **Install date: YES.** On his portal job page he gets a date box where he can type any install date and book it directly. The real rules still apply underneath — the booking is refused if the deposit/payment gate isn't cleared, if it's inside 24 hours, outside the 30-day PIESA window, or the government notification window isn't met.
-- **PIESA date: NO.** PIESA times are picked by the owner (3–5 windows) and accepted by the electrician. The installer can't set a PIESA date; only the office can override one directly (with a recorded reason).
+## What exists today
+- The installer's after-install declaration and the VEEC assignment form already record the installed product and R-value. The assignment screen has an optional "R-value" box.
+- Quote lines and installer rate-card lines already have an R-value field, but it is always set to 5.
+- Everything else assumes R5.0: onboarding asks only for an R5.0 rate, the Mitti price section requires "R5.0 supply and install" to be ticked, and quote, estimate and email wording all say R5.0.
+- The rebate calculation uses climate region and area only. It does not use R-value, so it already works the way Jo described.
 
-## 2) Is the install-day Mitti form locked unless booked in the portal and the 24h–5 day government window is met?
-- **Effectively yes, but the lock is on the job, not the form.** There is no separate "Mitti install form" to lock — the lock is that the job **cannot move past installation** (into evidence/VEEC territory) unless: a confirmed install booking exists in the portal, the government (ESC) notification was sent inside the 24-hour-to-5-day window, PIESA copies went to owner and installer at least 24h before, and a passing PIESA is still inside its 30 days. An install booked less than 24h ahead is refused outright.
-- So if Deep does the job off-book, the portal will not let that job progress — which is the outcome you want. The form itself isn't physically locked, but using it achieves nothing without a portal booking.
+## Parts and size
 
-## 3) Does the electrician only get the PIESA form once a PIESA date is set?
-- **No — this is a gap.** The PIESA Mitti form can be created and sent to the electrician as soon as the job reaches the "PIESA pending" stage and an electrician is assigned — **before** any PIESA time is booked. The booking date is only used to pre-fill the form if one exists.
+1. **Where the R-value is chosen or recorded (about 1.5 days)**
+   - Job: add a "quoted product" with brand/model and an R-value of 5.0 or higher. This is stored on the quote.
+   - Ready Check price section (Mitti A1): change the tick from "R5.0 supply and install" to "Ceiling insulation supply and install", and add required questions for R-value (R5.0 / R6.0 / R7.0 / Other, with a number) and product. Changing the form layout needs a new Mitti template, which the office would set up, or an edit to the current one.
+   - Bulk import: the AI reads the R-value and product from files and prices (for example "R6 batts"). If none is found, the job is marked "R-value not stated – confirm" and goes to office review. It never quietly defaults to R5.
+   - Office quote builder: add an R-value picker (default R5.0, which can be changed) plus a product field.
+   - Owner quote: shows the chosen product and R-value.
+2. **Checks (about 1 day)**
+   - Reject anything below R5.0 everywhere it can be entered: forms, import, quote builder, and the after-install declaration. The database also refuses it.
+   - Install day: the packaging photo's brand/model/R-value is entered or read and compared with the quote. If it is the same or higher, it passes. If it is lower or a different product, it goes to office review and blocks AP approval until the office clears it with a reason.
+3. **Documents show the real product (about 1 day)**
+   - The quote line, tax invoice line (Xero), VEEC assignment pre-fill, job file and confirmation emails take the quote's product and R-value. Existing issued quotes and signed forms stay as they are.
+4. **Rebate unchanged (about 0.5 day)**
+   - The calculation stays the same, and a test will prove that changing the R-value doesn't change the rebate.
+   - The quote gets a plain line: "The government discount is the same whatever R-value you choose." Jo must approve this wording.
+5. **Pricing (about 1–1.5 days after Jo decides)**
+   - Installer onboarding: R5.0 stays required, and R6.0 and R7.0 rates are added as optional. Automatic pricing (the queued "pricing method") uses the rate for the chosen R-value. If that rate is missing, it can't price automatically and asks the office or assessor.
+   - Office price settings: add owner price per m² for each R-value, with change history.
+   - **Decisions for Jo:**
+     - What do owners pay per m² for R6.0 and R7.0 on our own leads? Today R5.0 is $30/m².
+     - Does our markup stay "owner price minus the installer's agreed rate", per R-value?
+     - Do we offer higher R-values on our own leads at all at launch, or only on installer-supplied jobs?
+     - Should "Other" R-values (for example R5.5 or R8) be allowed, or only R5/R6/R7?
+     - Approve the wording of the rebate line.
 
-## 4) Does a Ready Check submitted in Mitti update the portal even if never booked in the portal?
-- **Yes for the data, no for the stage.** If a Mitti form was created for a job, its answers sync back into the portal's measurements/assessment records even if the visit was never booked — but only when someone clicks "Sync" (no automatic background sync). Syncing fills in data only; it never completes the assessment, moves the stage, or creates a quote by itself.
+**Total: about 5–6 days, plus a new Mitti template.**
 
-## 5) What's missing to make "not booked in the portal = can't happen / can't get VEECs" airtight, and how big?
+## Part 6: every hard-coded R5 / R5.0
+- `src/routes/installer-onboarding.tsx:463` (rate row label), and `src/lib/installer-onboarding.core.ts:215, 317` (check and summary)
+- `src/lib/partner-activation.core.ts:130` (rate card line `R5_BATTS`, r_value 5)
+- `src/lib/mitti-forms.core.ts:64, 66, 68, 259, 290, 309` (price items, alias, multichoice, form spec, "must be ticked" check)
+- `src/lib/hiv-quote.core.ts:27, 29, 32, 38, 43, 50` (R5 rate, owner R5 price, quote line, markup)
+- `src/lib/quotes.server.ts:131` (quote label "R5.0 ceiling insulation")
+- `src/lib/customer-quote-system.ts:33` and `src/lib/readycheck.core.ts:240` (customer line labels)
+- `src/lib/estimate-email.ts:220` (estimate email line; the likely email is LOCKED, so changing it needs Jo's sign-off and a byte check)
+- `src/lib/interest.core.ts:32` (calculator line)
+- `src/components/portal/estimate.tsx:186` (office estimate summary)
+- `src/lib/owner-prices.functions.ts:30, 42, 49` and `src/routes/_authenticated/admin.pricing.tsx:31, 42, 46` (owner price `r5_install_inc_gst_per_m2`)
+- `src/lib/profit.functions.ts:141–168` (looks up `R5_BATTS` rate)
+- `src/lib/partner.core.ts:91` (partner enquiry "indicative R5.0 rate")
+- `src/components/portal/assignment.tsx:311` (R-value placeholder, optional)
+- `src/routes/_authenticated/partner.import.tsx:72` (example text)
+- `src/lib/test-accounts.functions.ts:28, 39, 49` (test rate cards)
+- Database: `pricing_settings.r5_install_inc_gst_per_m2`, `partner_enquiries.estimated_r5_install_rate_per_sqm_inc_gst` and the onboarding `r5_rate` field. These are kept; new columns are added alongside them, and nothing is renamed or dropped.
+- Official PIESA/PIISA Word templates are not R5-specific. Existing-insulation R-value fields are about the old insulation, so they stay unchanged.
 
-**Already solid:**
-- VEEC approval only happens through the AP queue, one job at a time, by a human — never automatic.
-- Getting to "Ready for VEEC" requires the signed assignment to be effective, all evidence verified, all compliance checks passed.
-- The job cannot pass installation without a confirmed portal booking + the government notification window (Q2).
-
-**Gaps, smallest to biggest:**
-1. **PIESA form before a booked date (Q3).** Fix: only create/send the PIESA Mitti form once a PIESA booking is confirmed. Small change — one extra check where the form is created. ~Half a day including tests.
-2. **Installer's free-typing install date box.** It creates a real booking, so the gates hold — but it bypasses the "owner picks days, first tap books" model. Fix: for installer-sourced jobs, replace the free date box with the owner-picks-days flow. Medium — reuses the existing install-days code. ~1 day.
-3. **No automatic Mitti sync.** Fix: add a timed sync (e.g. every 15 min, like the other timers) so portal data is fresh without anyone clicking. Small-medium. ~Half a day.
-4. **VEEC lodgement isn't tied back to the specific confirmed install booking.** Once past installation, nothing re-checks that the booking that unlocked it is the one that was completed. Fix: record which booking unlocked installation and require it to be the completed one at AP review. Small. ~Half a day.
-5. **Evidence/compliance "verified" marks are checked per job, not per booking.** If a row were ever marked verified by another path, the gate would still pass. Fix: verification actions require an active confirmed booking for that visit type. Medium — touches the evidence verification functions. ~1 day.
-
-**Total to close all five: roughly 3–4 days of careful work**, each proven on the practice database first, preview only, nothing published.
-
-## Recommendation
-The two that matter most for Deep's situation are **gap 1** (PIESA form only after a booked date) and **gap 2** (installer picks from owner-offered days instead of free-typing) — together they make phone-booked work outside the portal visible and non-progressing. Gap 3 (auto-sync) keeps the portal up to date without anyone remembering to click.
-
-## Awaiting Jo
-- Go/no-go on any of gaps 1–5 (and in what order).
-- The owner eligibility link plan (separate, already written).
+## Technical notes
+- New nullable columns: `quotes.product_name`, `quotes.product_r_value`, and the job's install-day `packaging_product` / `packaging_r_value`. A trigger rejects values below 5.0. Rate-card lines get `R6_BATTS` / `R7_BATTS` codes.
+- One pure `rvalue.core.ts` handles parsing ("R6", "R 6.0", "R6.0 batts"), the minimum check and the packaging comparison, with tests.
+- Old quotes with no R-value are shown as R5.0 for display only. Their stored data is never rewritten.
