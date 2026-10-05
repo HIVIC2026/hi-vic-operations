@@ -10,7 +10,8 @@ import { WorkflowError, logEvent, nextStepBlockers, stageEntryBlockers, piesaSta
 import { adjustQuote as adjustQuoteImpl, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
-import { applyPaidAmount, clearInstallDueDate, createInvoiceForQuote, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
+import { applyPaidAmount, createInvoiceForQuote, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
+import { clearInstallDueDate } from "./install-balance.server";
 import { buildDepositOverride, depositRequestPatch } from "./invoice.lifecycle";
 import { commercialBlocker, paymentOptionCleared } from "./workflow.server";
 import { assertAgreementCanSign, assignmentEffective, buildAcceptancePackage, currentAgreement, currentAssignment, currentInstallerDeclaration, loadTemplates, prepareFinalAssignment, raiseVariation, reconfirmVariation, signCustomerAgreement, signFinalAssignment, signInstallerDecl } from "./assignment.server";

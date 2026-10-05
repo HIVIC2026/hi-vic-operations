@@ -101,7 +101,7 @@ export async function createInvoiceForQuote(quoteId: string, actorId: string) {
 }
 
 /** Installation booked/rebooked: the same invoice's final due date = Melbourne-local installation date. */
-export { setInstallDueDate, clearInstallDueDate } from "./invoice-dates.server";
+export { setInstallDueDate } from "./invoice-dates.server";
 
 export async function pushInvoiceToXero(invoiceId: string, actorId: string | null, callOverride?: XeroCall) {
   await requireHivicInvoice(invoiceId); // before any lookup, lock or Xero call
