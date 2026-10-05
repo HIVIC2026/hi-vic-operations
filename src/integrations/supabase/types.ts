@@ -1103,16 +1103,23 @@ export type Database = {
           accepting_new_jobs: boolean | null
           acn: string | null
           address: string | null
+          approval_message_queued_at: string | null
+          approval_message_status: string | null
           approved_at: string | null
           approved_by: string | null
           availability_notes: string | null
+          base_suburb: string | null
           branding: Json
           business_type: Database["public"]["Enums"]["business_type"]
           capabilities: string[]
           commercial_route: string
           contact_people: Json
+          coverage_lat: number | null
+          coverage_lng: number | null
+          coverage_radius_km: number | null
           coverage_verified_at: string | null
           coverage_verified_by: string | null
+          covers_all_victoria: boolean | null
           created_at: string
           daily_capacity_m2: number | null
           daily_job_limit: number | null
@@ -1122,6 +1129,7 @@ export type Database = {
           default_comms_owner: string
           email: string | null
           free_measureups_for_hivic_quote_leads: boolean | null
+          free_quotes_for_hivic_leads: boolean | null
           gst_registered: boolean | null
           id: string
           installer_certification: Json
@@ -1134,10 +1142,15 @@ export type Database = {
           onboarding_notes: string | null
           onboarding_status: string
           phone: string | null
+          public_liability_cover_amount: number | null
           rec_number: string | null
           receives_hivic_leads: boolean | null
           service_postcodes: string[]
           service_regions: string[]
+          signer_email: string | null
+          signer_mobile: string | null
+          signer_name: string | null
+          signer_position: string | null
           trading_name: string | null
           typical_days: string[] | null
           updated_at: string
@@ -1152,16 +1165,23 @@ export type Database = {
           accepting_new_jobs?: boolean | null
           acn?: string | null
           address?: string | null
+          approval_message_queued_at?: string | null
+          approval_message_status?: string | null
           approved_at?: string | null
           approved_by?: string | null
           availability_notes?: string | null
+          base_suburb?: string | null
           branding?: Json
           business_type: Database["public"]["Enums"]["business_type"]
           capabilities?: string[]
           commercial_route?: string
           contact_people?: Json
+          coverage_lat?: number | null
+          coverage_lng?: number | null
+          coverage_radius_km?: number | null
           coverage_verified_at?: string | null
           coverage_verified_by?: string | null
+          covers_all_victoria?: boolean | null
           created_at?: string
           daily_capacity_m2?: number | null
           daily_job_limit?: number | null
@@ -1171,6 +1191,7 @@ export type Database = {
           default_comms_owner?: string
           email?: string | null
           free_measureups_for_hivic_quote_leads?: boolean | null
+          free_quotes_for_hivic_leads?: boolean | null
           gst_registered?: boolean | null
           id?: string
           installer_certification?: Json
@@ -1183,10 +1204,15 @@ export type Database = {
           onboarding_notes?: string | null
           onboarding_status?: string
           phone?: string | null
+          public_liability_cover_amount?: number | null
           rec_number?: string | null
           receives_hivic_leads?: boolean | null
           service_postcodes?: string[]
           service_regions?: string[]
+          signer_email?: string | null
+          signer_mobile?: string | null
+          signer_name?: string | null
+          signer_position?: string | null
           trading_name?: string | null
           typical_days?: string[] | null
           updated_at?: string
@@ -1201,16 +1227,23 @@ export type Database = {
           accepting_new_jobs?: boolean | null
           acn?: string | null
           address?: string | null
+          approval_message_queued_at?: string | null
+          approval_message_status?: string | null
           approved_at?: string | null
           approved_by?: string | null
           availability_notes?: string | null
+          base_suburb?: string | null
           branding?: Json
           business_type?: Database["public"]["Enums"]["business_type"]
           capabilities?: string[]
           commercial_route?: string
           contact_people?: Json
+          coverage_lat?: number | null
+          coverage_lng?: number | null
+          coverage_radius_km?: number | null
           coverage_verified_at?: string | null
           coverage_verified_by?: string | null
+          covers_all_victoria?: boolean | null
           created_at?: string
           daily_capacity_m2?: number | null
           daily_job_limit?: number | null
@@ -1220,6 +1253,7 @@ export type Database = {
           default_comms_owner?: string
           email?: string | null
           free_measureups_for_hivic_quote_leads?: boolean | null
+          free_quotes_for_hivic_leads?: boolean | null
           gst_registered?: boolean | null
           id?: string
           installer_certification?: Json
@@ -1232,10 +1266,15 @@ export type Database = {
           onboarding_notes?: string | null
           onboarding_status?: string
           phone?: string | null
+          public_liability_cover_amount?: number | null
           rec_number?: string | null
           receives_hivic_leads?: boolean | null
           service_postcodes?: string[]
           service_regions?: string[]
+          signer_email?: string | null
+          signer_mobile?: string | null
+          signer_name?: string | null
+          signer_position?: string | null
           trading_name?: string | null
           typical_days?: string[] | null
           updated_at?: string
@@ -5899,6 +5938,35 @@ export type Database = {
           trade?: string
         }
         Relationships: []
+      }
+      onboarding_test_marks: {
+        Row: {
+          application_id: string
+          marked_at: string
+          marked_by: string | null
+          reason: string
+        }
+        Insert: {
+          application_id: string
+          marked_at?: string
+          marked_by?: string | null
+          reason: string
+        }
+        Update: {
+          application_id?: string
+          marked_at?: string
+          marked_by?: string | null
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_test_marks_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "rec_onboarding_applications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       onboarding_upload_cleanup_runs: {
         Row: {
