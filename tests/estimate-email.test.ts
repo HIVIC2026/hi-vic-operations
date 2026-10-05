@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { renderEstimateEmail, renderIneligibleOutcomeEmail, likelySubjectLine } from "../src/lib/estimate-email";
+import { renderEstimateEmail, renderIneligibleOutcomeEmail, renderLaunchCampaignEmail, likelySubjectLine } from "../src/lib/estimate-email";
 import { withUnsubscribe } from "../src/lib/emailsafety.core";
 const CUSTOMER_VISUAL_SYSTEM_BORDER = "border:1px solid #D4DAF5";
 import { CUSTOMER_BRAND, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_QUOTE_ORDER, CUSTOMER_WHAT_COULD_CHANGE } from "../src/lib/customer-quote-system";
@@ -192,5 +192,24 @@ d2("copy normalisation", () => {
     e2(ICP.intro).toBe("Based on the information we have, this is because:");
     e2(ICP.cta).toBe("REVIEW MY RESULT →");
     e2("reasonsHeading" in ICP).toBe(false);
+  });
+});
+
+describe("launch campaign email drafts", () => {
+  const campaignUrl = `https://quote.homeinsulationvictoria.com.au/estimate/${token}/campaign`;
+
+  test("Group A uses the approved shell with one email action", () => {
+    const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150 });
+    expect(email.html).toContain("Great news, Sarah!");
+    expect(email.html).toContain("You could save $1,470");
+    expect(email.html).toContain("See my savings");
+    expect(email.html).not.toContain("Save my spot");
+  });
+
+  test("Group B asks for one manhole video", () => {
+    const email = renderLaunchCampaignEmail({ group: "onsite", campaignUrl, firstName: "Michael", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150 });
+    expect(email.html).toContain("Good news, Michael!");
+    expect(email.html).toContain("one quick video from the manhole");
+    expect(email.html).toContain("Check my home");
   });
 });

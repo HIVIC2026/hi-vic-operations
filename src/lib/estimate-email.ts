@@ -321,6 +321,42 @@ export const V2_THEME = {
   F, FH, colors: { BLUE, GREEN, INK, TEXT_GREEN, MIST, MINT, BLUSH, LINE, WHITE }, site: SITE,
 } as const;
 
+export type LaunchCampaignEmailInput = {
+  group: "likely" | "onsite";
+  campaignUrl: string;
+  firstName?: string | null;
+  estimatedTotal: number;
+  veuDiscount: number;
+  grossTotal: number;
+  areaM2: number;
+  address?: string | null;
+  reference?: string | null;
+};
+
+/** Draft-only launch email. It reuses the approved outcome-email shell and never enters the normal outcome renderer. */
+export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): EstimateEmail {
+  const campaign = new URL(input.campaignUrl);
+  if (campaign.origin !== BASE || !/^\/estimate\/[A-Za-z0-9_-]{43,128}\/campaign$/.test(campaign.pathname) || campaign.search || campaign.hash) throw new Error("A secure Home Insulation Victoria campaign link is required.");
+  const amounts = [input.estimatedTotal, input.veuDiscount, input.grossTotal, input.areaM2];
+  if (!amounts.every((value) => Number.isFinite(value) && value > 0) || Math.abs(input.estimatedTotal + input.veuDiscount - input.grossTotal) > 0.01) throw new Error("Campaign email estimate values must be positive and reconcile.");
+  const onsite = input.group === "onsite";
+  const name = input.firstName?.trim().replace(/\s+/g, " ").slice(0, 60) || null;
+  const greeting = onsite ? `Good news${name ? `, ${escape(name)}` : ""}!` : `Great news${name ? `, ${escape(name)}` : ""}!`;
+  const eligibility = onsite ? "Your home could be eligible for a VEU ceiling insulation rebate." : "Your home appears eligible for a VEU ceiling insulation rebate.";
+  const subject = onsite ? `${name ? `${name}, your` : "Your"} home could be eligible for an insulation rebate` : `${name ? `${name}, your` : "Your"} home appears eligible for an insulation rebate`;
+  const previewText = onsite ? "One quick manhole video can help us check your home and show your preliminary savings." : "See your preliminary VEU rebate and cost after rebate.";
+  const row = (content: string, pad: string) => `<tr><td class="lx-pad" style="padding:${pad};${F}">${content}</td></tr>`;
+  const hero = `<p style="margin:0 0 8px;${F}color:${TEXT_GREEN};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">Your preliminary result</p><h1 class="lx-h1" style="margin:0 0 12px;${FH}color:${INK};font-size:34px;line-height:39px;font-weight:800;letter-spacing:0;">${greeting}</h1><p class="lx-body" style="margin:0;${F}color:${INK};font-size:15px;line-height:1.6;">${eligibility}</p>${onsite ? `<p class="lx-body" style="margin:9px 0 0;${F}color:${INK};font-size:15px;line-height:1.6;">Send one quick video from the manhole so our office can check the existing insulation. Please only record it if you can do so safely.</p>` : ""}`;
+  const summary = `${input.address?.trim() ? `<tr><td style="padding:4px 0;${F}color:${INK};font-size:13px;">Property</td><td align="right" style="padding:4px 0 4px 12px;${F}color:${INK};font-size:13px;font-weight:800;">${escape(input.address.trim())}</td></tr>` : ""}<tr><td style="padding:4px 0;${F}color:${INK};font-size:13px;">Ceiling</td><td align="right" style="padding:4px 0 4px 12px;${F}color:${INK};font-size:13px;font-weight:800;">${escape(number(input.areaM2))} m²</td></tr>`;
+  const savings = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MIST}" style="width:100%;border-collapse:separate;background-color:${MIST};border-radius:22px;"><tr><td class="lx-result-pad" style="padding:22px 20px;${F}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MINT}" style="width:100%;border-collapse:separate;background-color:${MINT};border:2px solid ${GREEN};border-radius:18px;"><tr><td align="center" style="padding:18px 12px;${F}"><p style="margin:0;${F}color:${INK};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;">Your estimated VEU rebate</p><p class="lx-saving" style="margin:5px 0 0;${FH}color:${GREEN};font-size:38px;line-height:42px;font-weight:800;letter-spacing:0;">You could save ${escape(money(input.veuDiscount))}</p></td></tr></table><div style="padding:18px 0 12px;text-align:center;"><p style="margin:0;${F}color:${INK};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;">Estimated cost after rebate</p><p class="lx-cost" style="margin:5px 0 0;${FH}color:${BLUE};font-size:46px;line-height:50px;font-weight:800;letter-spacing:0;">${escape(money(input.estimatedTotal))}</p><p style="margin:4px 0 0;${F}color:${INK};font-size:12px;line-height:1.4;font-weight:700;">incl. GST · before rebate ${escape(money(input.grossTotal))}</p></div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;border-top:1px solid ${LINE};">${summary}</table></td></tr></table>`;
+  const urgency = `<p style="margin:0 0 16px;${F}color:${INK};font-size:14px;line-height:1.55;font-weight:700;text-align:center;">We’ve received hundreds of enquiries since 1 October. Installer availability is limited, and places are offered first come, first served.</p>${v2Button(campaign.toString(), onsite ? "Check my home" : "See my savings")}`;
+  const footerReason = "We’re the Accredited Person. Independent licensed trades carry out the work. This estimate is based only on your online enquiry; your final price is confirmed after your free onsite Ready Check.";
+  const footer = v2Footer(input.reference, null, footerReason).replace("<!--HIV_SECURE_UNSUBSCRIBE_LINK-->", `<a href="${escape(campaign.toString())}" style="color:${BLUE};text-decoration:underline;">Remove my enquiry</a>`);
+  const html = likelyV2Shell(`${row(v2Header("Preliminary estimate"), "22px 36px 18px")}${row(hero, "8px 36px 24px")}${row(savings, "0 28px 20px")}${row(urgency, "0 28px 24px")}${v2FooterRow(footer)}`, previewText, null);
+  const plainText = [subject, "", greeting, eligibility, ...(onsite ? ["Send one quick video from the manhole so our office can check the existing insulation. Please only record it if you can do so safely."] : []), "", `You could save ${money(input.veuDiscount)}`, `Estimated cost after rebate: ${money(input.estimatedTotal)} incl. GST`, `Before rebate: ${money(input.grossTotal)}`, `Ceiling: ${number(input.areaM2)} m²`, "", "We’ve received hundreds of enquiries since 1 October. Installer availability is limited, and places are offered first come, first served.", `${onsite ? "Check my home" : "See my savings"}: ${campaign}`, "", footerReason, `Remove my enquiry: ${campaign}`, ...(input.reference?.trim() ? [`Reference: ${input.reference.trim()}`] : [])].join("\n");
+  return { subject, previewText, html, plainText };
+}
+
 // ---------------------------------------------------------------------------
 // DRAFT (not yet approved for sending): existing-insulation calculator + optional phone video invitation.
 // Same visual system; existing renderers above are untouched.

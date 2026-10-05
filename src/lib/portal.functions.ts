@@ -1170,7 +1170,7 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
   const { commsStatus } = await import("./comms-status.core");
   const now = new Date();
   const archivedQaIds = new Set((await admin.from("jobs").select("id").not("qa_archived_at", "is", null)).data?.map((j) => j.id) ?? []);
-  return (data ?? []).filter((j) => !archivedQaIds.has(j.id)).map((j) => {
+  return (data ?? []).filter((j) => j.id != null && !archivedQaIds.has(j.id)).map((j) => {
     const pays = (rc ?? []).filter((p) => p.job_id === j.id);
     const paid = pays.find((p) => p.status === "paid");
     return {
