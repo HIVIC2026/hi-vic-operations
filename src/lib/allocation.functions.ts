@@ -118,9 +118,9 @@ export const getOwnerPiesaWindows = createServerFn({ method: "POST" }).middlewar
     return ownerPiesaWindowState(data.jobId);
   });
 
-/** Owner: choose 3–5 PIESA times (morning or afternoon windows) on at least 3 different days. */
+/** Owner: choose 3–5 PIESA times (2-hour windows) on at least 3 different days. */
 export const chooseOwnerPiesaWindows = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, picks: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["morning", "afternoon"]) })).min(1).max(5) }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, picks: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["8-10", "10-12", "12-14", "14-16"]) })).min(1).max(5) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["owner"]);
     const { data: isOwner } = await context.supabase.rpc("is_job_owner", { _job: data.jobId, _user: context.userId });

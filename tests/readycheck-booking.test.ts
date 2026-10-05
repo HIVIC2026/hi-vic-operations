@@ -46,8 +46,8 @@ describe("Ready Check installer eligibility", () => {
 describe("Ready Check flow rules", () => {
   test("windows: same rules as PIESA (3–5, 3 different days)", () => {
     const d = allowedPiesaDays();
-    expect(piesaWindowBlockers([{ date: d[0]!, slot: "morning" }]).length).toBeGreaterThan(0);
-    expect(piesaWindowBlockers([{ date: d[0]!, slot: "morning" }, { date: d[1]!, slot: "afternoon" }, { date: d[2]!, slot: "morning" }])).toEqual([]);
+    expect(piesaWindowBlockers([{ date: d[0]!, slot: "8-10" }]).length).toBeGreaterThan(0);
+    expect(piesaWindowBlockers([{ date: d[0]!, slot: "8-10" }, { date: d[1]!, slot: "12-14" }, { date: d[2]!, slot: "8-10" }])).toEqual([]);
   });
   test("offers start only when waiting, no installer, owner times open, no open offers", () => {
     expect(readyCheckStartBlockers({ stage: "ready_check_ready_to_schedule", hasInstaller: false, openWindows: 3, hasOpenOffers: false })).toEqual([]);

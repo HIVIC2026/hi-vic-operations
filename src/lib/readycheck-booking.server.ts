@@ -12,7 +12,7 @@ import {
 } from "./readycheck-booking.core";
 
 const NONE = ["00000000-0000-0000-0000-000000000000"];
-type Pick = { date: string; slot: "morning" | "afternoon" };
+type Pick = { date: string; slot: import("./piesa-windows.core").PiesaSlot };
 
 async function settings() {
   const { data } = await admin.from("workflow_settings").select("rec_offer_business_hours, rec_offer_batch_size").eq("id", 1).maybeSingle();
