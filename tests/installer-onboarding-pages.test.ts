@@ -75,12 +75,12 @@ describe("installer visible pages", () => {
     expect(blocked.map((x) => x.key)).toEqual(expect.arrayContaining(["review", "acknowledgements", "signer-name", "signer-position", "signer-email"]));
     expect(INSTALLER_AGREEMENT_VERSION).toBe("HI-VIC-A48-INST-1.14-2026-10-03");
   });
-  test("rates note appears only after the optional-extra hint and fee copy hides internal overrides", () => {
+  test("pink access-charges note is removed and fee copy hides internal overrides", () => {
     const route = readFileSync("src/routes/installer-onboarding.tsx", "utf8");
     const hint = "Enter $0 if it's included at no extra charge. Leave blank to quote it separately on the job before owner approval.";
     const note = "Keeping access charges reasonable helps more homeowners proceed—and creates more opportunities for your business.";
-    expect(route.match(new RegExp(note.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))?.length).toBe(1);
-    expect(route.indexOf(note)).toBeGreaterThan(route.indexOf(hint));
+    expect(route).toContain(hint);
+    expect(route).not.toContain(note);
     const agreement = agreementText(complete);
     expect(agreement).toContain("AP accreditation number: A003654");
     expect(agreement).toContain("Accredited Person fee ($349 including GST)");
