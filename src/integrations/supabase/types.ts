@@ -2304,6 +2304,7 @@ export type Database = {
           id: number
           jobs_created_after: string | null
           provider: string
+          ready_check_available_postcodes: string[]
           updated_at: string
         }
         Insert: {
@@ -2313,6 +2314,7 @@ export type Database = {
           id?: number
           jobs_created_after?: string | null
           provider?: string
+          ready_check_available_postcodes?: string[]
           updated_at?: string
         }
         Update: {
@@ -2322,6 +2324,7 @@ export type Database = {
           id?: number
           jobs_created_after?: string | null
           provider?: string
+          ready_check_available_postcodes?: string[]
           updated_at?: string
         }
         Relationships: []
@@ -5347,6 +5350,7 @@ export type Database = {
           job_id: string
           media_received_at: string | null
           opted_out_at: string | null
+          queue_priority: string
           spot_saved_at: string | null
           updated_at: string
           video_requested: boolean
@@ -5363,6 +5367,7 @@ export type Database = {
           job_id: string
           media_received_at?: string | null
           opted_out_at?: string | null
+          queue_priority?: string
           spot_saved_at?: string | null
           updated_at?: string
           video_requested?: boolean
@@ -5379,6 +5384,7 @@ export type Database = {
           job_id?: string
           media_received_at?: string | null
           opted_out_at?: string | null
+          queue_priority?: string
           spot_saved_at?: string | null
           updated_at?: string
           video_requested?: boolean

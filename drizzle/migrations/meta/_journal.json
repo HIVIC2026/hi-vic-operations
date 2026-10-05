@@ -834,6 +834,13 @@
       "when": 1791236148907,
       "tag": "0118_bulk_import_review_plan",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1791236519578,
+      "tag": "0119_campaign_video_priority",
+      "breakpoints": true
     }
   ]
 }
