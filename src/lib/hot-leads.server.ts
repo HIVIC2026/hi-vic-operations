@@ -59,7 +59,8 @@ export async function loadHotLeads() {
     const site = locations.get(property.postcode ?? "");
     const value = site ? computeEstimate({ m2: Number(estimate.area_m2), source: "owner_estimate", basis: "declared", id: null, label: "Your estimate" }, site, "none", settings) : null;
     const coverage = hotCoverage(property.postcode, trades);
-    return { id: j.id, jobNumber: j.job_number, name: owner.full_name, suburb: property.suburb, postcode: property.postcode, area: Number(estimate.area_m2), region: hotRegion(property.postcode), ...coverage, price: value?.primary.by_access.standard.estimated_customer_total ?? null, discount: value?.applied_discount ?? null, installation: value?.primary.by_access.standard.installation ?? null, veecs: value ? Math.floor(value.ghg.ghgReduction) : null };
+    const addressSuburb = property.address_line?.match(/,\s*([^,]+?)\s+VIC\s+\d{4}\s*$/i)?.[1]?.trim() ?? null;
+    return { id: j.id, jobNumber: j.job_number, name: owner.full_name, suburb: property.suburb || addressSuburb, postcode: property.postcode, area: Number(estimate.area_m2), region: hotRegion(property.postcode), ...coverage, price: value?.primary.by_access.standard.estimated_customer_total ?? null, discount: value?.applied_discount ?? null, installation: value?.primary.by_access.standard.installation ?? null, veecs: value ? Math.floor(value.ghg.ghgReduction) : null };
   });
   const covered = rows.filter((r) => r.installers.length && r.electricians.length && r.price !== null);
   const noElectrician = rows.filter((r) => r.installers.length && !r.electricians.length);
