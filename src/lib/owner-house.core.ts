@@ -43,6 +43,6 @@ export function houseStripes() {
 /** Inline SVG string for emails (no animation, fixed colours). */
 export function ownerHouseSvg(level: number, size = 96): string {
   const lv = clampLevel(level);
-  const stripes = houseStripes().map((s) => `<rect x="${s.x.toFixed(1)}" y="${s.y.toFixed(1)}" width="${s.w.toFixed(1)}" height="${s.h.toFixed(1)}" rx="1.5" fill="${s.i < lv ? HOUSE_COLORS.pink : HOUSE_COLORS.mist}"/>`).join("");
+  const stripes = houseStripes().map((s) => `<rect x="${s.x.toFixed(1)}" y="${s.y.toFixed(1)}" width="${s.w.toFixed(1)}" height="${s.h.toFixed(1)}" rx="1.5" fill="${s.i < lv ? HOUSE_COLORS.pink : HOUSE_COLORS.mist}"${s.i < lv ? "" : ' stroke="#E4E9F5" stroke-width="0.8"'}/>`).join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${Math.round(size * 110 / 120)}" viewBox="0 0 120 110" role="img" aria-label="Your home, ${lv} of 5 steps done">${stripes}<path d="M6 54 L60 6 L114 54" fill="none" stroke="${HOUSE_COLORS.navy}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 52 V104 H102 V52" fill="none" stroke="${HOUSE_COLORS.navy}" stroke-width="4" stroke-linejoin="round"/><path d="M50 104 V78 H70 V104" fill="none" stroke="${HOUSE_COLORS.navy}" stroke-width="4" stroke-linejoin="round"/></svg>`;
 }
