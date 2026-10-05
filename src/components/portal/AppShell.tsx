@@ -83,7 +83,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
       <span className="min-w-0"><span className="block truncate font-display text-sm">Home Insulation Victoria</span></span>
     </Link>
   );
-  if (roles.includes("admin")) return (
+  if (roles.includes("admin") && !(roles.includes("installer") || roles.includes("electrician"))) return (
     <div className="portal-theme min-h-screen bg-background">
       <OfficeTopBar name={me?.profile?.full_name ?? ""} onSignOut={() => void signOut()} />
       <main className={`mx-auto w-full px-4 py-6 sm:px-7 lg:py-8 ${wide ? "max-w-[1800px]" : "max-w-5xl"}`}>{children}</main>

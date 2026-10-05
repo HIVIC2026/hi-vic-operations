@@ -30,9 +30,9 @@ This is the only current implementation register. `docs/HIV_WORKFLOW_SOURCE_OF_T
 | Worker invitations and job links | Built | Worker invite/join and `/w/$token` |
 | Current My work list and job page | Built | `/field`, `/field/$jobId` |
 | Installer single-job intake | Partly built | `/partner/import`; approved copy/privacy updates pending |
-| Bulk job upload engine | Partly built | `/partner/bulk-import`; parsing works, approved UI/placement pending |
-| Bulk Past uploads | Not built | `/partner/bulk-import` |
-| Bulk electrician choice and private picker | Not built | Bulk, single job and preferred-electrician settings |
+| Bulk job upload engine | Partly built | `/partner/bulk-import`; mobile upload/review/done, complete placement and TEST run built; Scenario E pending |
+| Bulk Past uploads | Built | `/partner/bulk-import` |
+| Bulk electrician choice and private picker | Partly built | Batch/per-job choice, private saved choices and pending invite built; reasoned switch and full Scenario E proof pending |
 | Electrician first-tap offer, My work and On the day | Not built | Approved preview designs |
 | Installer Ready Check offer/day and Install day | Not built | Approved preview designs |
 | Shared trade before-you-start checklist | Not built | Three trade day pages |
@@ -52,7 +52,7 @@ This is the only current implementation register. `docs/HIV_WORKFLOW_SOURCE_OF_T
 | AP review and VEEC gates | Built | Office AP queue and job page |
 | Service coverage summary | Built | Office service coverage |
 | Launch campaign video-priority saved-spots view | Not built | `/admin/launch-campaign` |
-| Bulk office-review clearance | Not built | Bulk upload review |
+| Bulk office-review clearance | Partly built | Holds block confirmation; dedicated office clearance action pending |
 
 ## Workflow, money and integrations
 
