@@ -102,10 +102,10 @@ describe("installer-supplied draft quote caps", () => {
     expect(d.discount).toBe(350);
     const cheap = buildInstallerQuoteDraft({
       price: { price: { totalIncGst: 400, included: ["Supply and install insulation"], otherDescription: null }, issues: [] } as never,
-      measuredM2: 100, ghgReduction: 10, veecValue: 70, piesaIncGst: 349, apFeeIncGst: 349,
+      measuredM2: 100, ghgReduction: 15, veecValue: 70, piesaIncGst: 349, apFeeIncGst: 349,
       caps: { metropolitan: true, maxMetro: 1500, maxRegional: 2100, minCopay: 200 },
     });
-    // pre = 1098, raw = 700 → reduced to 898 so customer pays 200
+    // pre = 1098, raw = 1050 → reduced to 898 so customer pays 200
     expect(cheap.discount).toBe(898);
     expect(cheap.afterDiscount).toBeCloseTo(200, 2);
     expect(cheap.discountNote).toContain("minimum $200 customer contribution");
