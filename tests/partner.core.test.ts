@@ -69,6 +69,13 @@ describe("partner enquiry endpoint", () => {
     }
     expect(db.tables).toEqual([]);
   });
+  test("property-manager intake is retired without changing stored legacy data", async () => {
+    const body = JSON.stringify(payloads.property_manager);
+    const db = fakeDb();
+    const result = await handlePartnerEnquiry(body, hdr(await sign(body)), db.deps);
+    expect(result.status).toBe(400);
+    expect(db.rows.size).toBe(0);
+  });
   test("partner endpoint cannot create a job", () => {
     const src = readFileSync("src/routes/api/public/partner-enquiry.ts", "utf8") + readFileSync("src/lib/partner.core.ts", "utf8");
     expect(src).not.toMatch(/from\("jobs"\)|upsertEnquiry|enquiry\.server/);
