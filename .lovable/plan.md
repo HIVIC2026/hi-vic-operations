@@ -1,23 +1,33 @@
-# Shared trade offer screens
+# Current-status cleanup and Bulk job upload
 
 ## Outcome
-Build the approved electrician offer first, then reuse the same phone-first component for installer Ready Check offers. Keep the work preview-only; no messages are sent and no switches or real jobs are changed.
+Remove stale project notes so there is one trustworthy status list, then restyle and repair the existing Bulk job upload. Keep all work preview-only; no messages are sent, no switches change, and no real jobs are created during testing.
 
-## Build
-1. Create one shared trade-offer presentation model and component with the approved countdown, two-hour time tiles, atomic first-tap states, decline/propose actions, success banner, losing-race message, and locked contact/actions view.
-2. Complete the electrician variant using the electrician's own agreed rate and approved hidden-field rules.
-3. Add the installer Ready Check variant with area provenance, insulation state, and rough install value calculated from that installer's current agreed installation rate and the displayed area.
-4. Build the installer Ready Check day state using the shared electrician on-the-day pattern: Mitti A1 launch, self-updating quoted/not-eligible outcomes, and couldn't-enter recovery.
-5. Record couldn't-enter reasons as an office rebooking exception and preserve the same installer as first re-offer, without bypassing existing booking guards.
-6. Create one shared pre-start section for the electrician safety check, installer Ready Check and installer install day, remembering its three checks per job and gating the relevant Mitti Start button.
-7. Replace the installer install-day checklist with the approved simple day card, Mitti PIISA/photos/bag-label launch, and complete-or-missing-photo outcome.
-8. Finish the shared My work home with installer content for Ready Check offers, install actions, coming-up work, monthly earnings and the four installer tabs.
-9. Extend the existing offer payload loader so only the required anonymised facts are present before acceptance, while owner identity and address remain available only after the atomic booking succeeds.
-10. Add focused tests for both offer variants, shared My work variants, the three pre-start uses, remembered gating, Mitti outcomes, rebooking priority and the simplified install day.
-11. Check offer, taken, My work and all three day-page states at 390px, then confirm the preview build and relevant tests.
+## 1. Clean current guidance
+- Delete completed, superseded or contradicted plan, audit, review and memory files from the requested folders; do not create an archive.
+- Keep the workflow source of truth, official forms, SQL migrations, final portal design memory and AGENTS rules.
+- Update the workflow source of truth where current code has superseded old wording.
+- Replace the roadmap with a concise current task list.
+- Create `docs/STATUS.md` as the single feature inventory, with Built / Partly built / Not built and the route or page for each feature.
+- Reduce the memory index to links for `docs/STATUS.md` and the workflow source of truth.
 
-## Technical details
-- Preserve `accept_ready_check_offer` and the existing electrician atomic acceptance function as the only booking writes.
-- Keep pricing derivation in a pure `*.core.ts` function; never expose customer pricing, margins, or unrelated job details.
-- Use the existing postcode-distance text until Google Maps drive time is connected.
-- Keep external delivery behind the current fail-closed communication switches.
+## 2. Restyle Bulk job upload
+- Rework `/partner/bulk-import` into the approved phone-first upload, reading, review and done screens inside the normal trade frame.
+- Keep all existing file-reading and matching capabilities while adding camera capture, pasted lists, card-based review and Past uploads.
+- Preserve the one batch permission confirmation and show only actionable exceptions under “Your move”.
+
+## 3. Fix import behavior
+- Make explicit duplicate skip/remove actions work and prevent duplicate creation.
+- Keep `office_review` rows out of live jobs until office clearance, showing them as “With our office to check”.
+- Process large photo sets in batches instead of stopping at 60, within safe request limits.
+- Correct the single-job import copy to reflect that PDFs and photos are read.
+- Preserve the approved six-month supplied-photo rule, install-day photo date rule, 50 m GPS rule and zero lead fee.
+
+## 4. Prove it
+- Add focused tests for duplicate handling, office-review holds, permission propagation, photo batching and existing photo/GPS/lead-fee rules.
+- Prove any required database change on PGlite with rollback before applying it.
+- Browser-check upload, reading, review, Past uploads and done states at 390px.
+- Confirm the preview build, focused tests and retired-wording scan.
+
+## Deferred sequence
+The approved electrician and installer trade screens remain queued after this higher-priority cleanup and Bulk job upload task.
