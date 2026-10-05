@@ -572,7 +572,8 @@ export const generateInstallerQuotes = createServerFn({ method: "POST" }).middle
     if (pre.length) throw new WorkflowError(`Blocked: ${pre.join(" • ")}`);
     await genInstaller(data.jobId, context.userId);
     { const { applyCobrand } = await import("./pilot.server"); await applyCobrand(data.jobId); }
-    if (stage === "ready_for_installer_quotes") await transition(data.jobId, "awaiting_quote_acceptance", context.userId, "Installation quotes issued to owner");
+    const { data: released } = await admin.from("quotes").select("id").eq("job_id", data.jobId).eq("kind", "installation").eq("status", "issued").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (stage === "ready_for_installer_quotes" && released) await transition(data.jobId, "awaiting_quote_acceptance", context.userId, "Installation quote released to owner");
     await autoAdvanceJob(data.jobId, context.userId, "quotes generated");
     return { ok: true };
   });
@@ -582,9 +583,18 @@ export const regenerateRectificationQuote = createServerFn({ method: "POST" }).m
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const stage = await getStage(data.jobId);
-    await generateRectificationQuote(data.jobId, context.userId);
-    if (stage === "rectification_required") await transition(data.jobId, "awaiting_owner_rectification_approval", context.userId, "Rectification quote issued to owner");
+    const quoteId = await generateRectificationQuote(data.jobId, context.userId);
+    const { data: released } = await admin.from("quotes").select("id").eq("id", quoteId).eq("status", "issued").maybeSingle();
+    if (stage === "rectification_required" && released) await transition(data.jobId, "awaiting_owner_rectification_approval", context.userId, "Fix-up quote released to owner");
     return { ok: true };
+  });
+
+export const approveHeldQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ quoteId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { approveHeldQuote: approve } = await import("./quotes.server");
+    return approve(data.quoteId, context.userId);
   });
 
 export const adjustQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

@@ -105,6 +105,13 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           out['ok'] = false;
         }
         try {
+          const { releaseQueuedQuotes } = await import("@/lib/quotes.server");
+          (out as Record<string, unknown>)['quotes'] = await releaseQueuedQuotes();
+        } catch (e) {
+          console.error("allocation tick: queued quote release failed", (e as Error).message);
+          out['ok'] = false;
+        }
+        try {
           // Data only: same sync as the manual button. Never completes gates, moves stages or sends quotes.
           const { syncPendingMitti } = await import("@/lib/mitti.server");
           const r = await syncPendingMitti(null);

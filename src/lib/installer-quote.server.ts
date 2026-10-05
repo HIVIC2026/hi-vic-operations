@@ -4,6 +4,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { ghgEquivalentReduction, type LocationVariables } from "./activity48.core";
 import { HIVIC_PIESA_INC_GST, buildInstallerQuoteDraft, quotedPriceFromEntries } from "./installer-led.core";
+import { installerPriceRangeReason } from "./quote-release.core";
 
 export const INSTALLER_QUOTE_CODE = "INSTALLER_A1";
 
@@ -16,9 +17,10 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const { data: m } = await admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   const m2 = m ? Number(m.verified_area_m2 ?? m.measured_area_m2) || null : null;
   const postcode = String((job.properties as { postcode: string | null } | null)?.postcode ?? "").trim();
-  const [{ data: loc }, { data: rs }] = await Promise.all([
+  const [{ data: loc }, { data: rs }, { data: workflow }] = await Promise.all([
     admin.from("veu_location_variables").select("*").eq("postcode", postcode).maybeSingle(),
     admin.from("retail_estimator_settings").select("ap_management_inc_gst, indicative_veec_value, minimum_customer_copayment_inc_gst, max_discount_metro_inc_gst, max_discount_regional_inc_gst").eq("is_current", true).maybeSingle(),
+    admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled, installer_quote_min_inc_gst_per_m2, installer_quote_max_inc_gst_per_m2").eq("id", 1).maybeSingle(),
   ]);
   const ghg = loc && m2 ? ghgEquivalentReduction(m2, loc as unknown as LocationVariables).ghgReduction : null;
   const apFee = job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
@@ -35,17 +37,22 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     await logEvent(jobId, actorId, "installer_quote_held", "Owner quote not drafted — needs office review", { audit_id: auditId, blockers: draft.blockers });
     return draft;
   }
+  const installerPrice = draft.lines.find((line) => line.code === "INSTALLER_PRICE")?.line_total_inc_gst ?? null;
+  const rangeReason = installerPriceRangeReason(installerPrice != null && m2 ? installerPrice / m2 : null, workflow?.installer_quote_min_inc_gst_per_m2 == null ? null : Number(workflow.installer_quote_min_inc_gst_per_m2), workflow?.installer_quote_max_inc_gst_per_m2 == null ? null : Number(workflow.installer_quote_max_inc_gst_per_m2));
+  const releaseState = rangeReason ? "held" : workflow?.auto_send_quote === true && workflow?.customer_comms_enabled === true ? "released" : "queued";
+  const sentAt = releaseState === "released" ? new Date().toISOString() : null;
   const same = (open ?? []).find((q) => q.option_code === INSTALLER_QUOTE_CODE && Number(q.subtotal_inc_gst) === draft.subtotal && Number(q.veec_discount_inc_gst) === draft.discount);
   if (same) return draft;
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");
   const { data: q, error } = await admin.from("quotes").insert({
-    job_id: jobId, kind: "installation", option_label: "Installer's quote (from Ready Check)", option_code: INSTALLER_QUOTE_CODE, status: "draft",
+    job_id: jobId, kind: "installation", option_label: "Installer's quote (from Ready Check)", option_code: INSTALLER_QUOTE_CODE, status: releaseState === "released" ? "issued" : "draft", sent_at: sentAt,
+    release_state: releaseState, release_hold_reason: rangeReason,
     subtotal_inc_gst: draft.subtotal, gst_amount: Math.round((draft.subtotal - draft.subtotal / 1.1) * 100) / 100,
     veec_discount_inc_gst: draft.discount, discount_note: draft.discountNote, customer_total_inc_gst: draft.afterDiscount, created_by: actorId,
   }).select("id").single();
   if (error || !q) throw new Error(error?.message ?? "Quote could not be saved.");
   const { error: ie } = await admin.from("quote_items").insert(draft.lines.map((l) => ({ ...l, quote_id: q.id })));
   if (ie) throw new Error(ie.message);
-  await logEvent(jobId, actorId, "installer_quote_drafted", "Owner quote drafted from the installer's Ready Check — waiting for office to send", { audit_id: auditId, quote_id: q.id, total: draft.subtotal, discount: draft.discount });
+  await logEvent(jobId, actorId, releaseState === "held" ? "installer_quote_held" : releaseState === "queued" ? "installer_quote_queued" : "installer_quote_released", rangeReason ?? (releaseState === "queued" ? "Installer-supplied quote ready to send — queued behind the launch switches" : "Installer-supplied quote automatically released to the owner"), { audit_id: auditId, quote_id: q.id, total: draft.subtotal, discount: draft.discount, release_state: releaseState });
   return draft;
 }
