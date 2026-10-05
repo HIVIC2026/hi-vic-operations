@@ -1,6 +1,6 @@
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 
 const sql = (name: string) => readFileSync(new URL(`../docs/pending-migrations/${name}`, import.meta.url), "utf8");
 
