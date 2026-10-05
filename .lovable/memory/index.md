@@ -16,6 +16,7 @@ LAUNCH BLOCKER: real PIESA offers stay off until every active electrician/REC ha
 Homeowner questions "previous VEU upgrade" and "rented vs owner-occupied" DELETED (4 Oct) — portal never asks, shows, or decides on them; only confirmed Activity 48 evidence can fail previous-activity.
 
 ## Memories
+- [No-call-owner rule](mem://constraints/no-call-owner) — owners never see HIV phone/"Call us"; "Message us" → portal thread; only call button = booked trade on visit card
 - [Discount rules](mem://features/discount-rules) — no max discount; $200 minimum contribution; estimate wording; eligible product types only
 - [Operating model v2 decisions](mem://features/operating-model-v2-decisions) — aerial for screening/price only, never evidence; 15% area flag; rare enquiry review; owner picks 3–5 times, REC acceptance = booking; no Ready Check installer fee
 - [Workflow decisions 3 Oct](mem://features/workflow-decisions-2026-10-03) — deposit tiers replace 50%; route-specific installer fee wording (agreement controls, no $220 unless confirmed)
