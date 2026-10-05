@@ -10,7 +10,7 @@ import { type LocationVariables } from "./activity48.core";
 import { HIVIC_PIESA_INC_GST } from "./installer-led.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
-  dedupeKey, findDuplicates, leadStage, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
+  dedupeKey, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
   type BulkExtracted, type BulkFile,
 } from "./bulk-import.core";
 
@@ -72,50 +72,50 @@ function guessType(name: string): string {
 
 // ---------- AI column mapping (only AI use: messy spreadsheet → known fields) ----------
 
-const EXTRACT_PROMPT = `You read whatever an installer dropped in (spreadsheet rows, forwarded emails, exports, notes)
-and list each distinct customer lead once. Input is JSON {rows, documents}. Merge information about the
-same address/customer into one lead. Return ONLY a JSON array, one object per lead, with these keys (null when absent):
+const EXTRACT_PROMPT = `You read whatever an installer dropped in (spreadsheet rows, forwarded emails, exports, notes,
+text read from PDFs and photos, and the list of uploaded file/folder names with any address looked up from photo GPS)
+and list each distinct customer lead once. Input is JSON {rows, documents, files}. Merge information about the
+same address/customer into one lead. When there is no customer list, still create a lead for each distinct property
+address you can see in folder names, file names, document/photo text or a photo's gps_address — set unsure=true for
+leads that come only from names, photo text or GPS. Return ONLY a JSON array, one object per lead, with these keys (null when absent):
 full_name, email, phone, address_line (street number + street only), suburb, postcode (4 digits),
 area_m2 (number, ceiling/roof area in m2), existing_insulation (short text or "unknown"),
 access (short text about ceiling access/manhole or "unknown"),
 roof_type (short text, e.g. "tiled"/"tin", or "unknown"), hazards (short text or "unknown"),
 building_age (short text, e.g. "built 1978", or "unknown"), notes (anything else useful, short),
-price_inc_gst (number, the installer's quoted total price including GST if present).
-Never invent values. If a column is ambiguous, put it in notes.`;
+price_inc_gst (number, the installer's quoted total price including GST if present),
+unsure (boolean), source_files (array of the uploaded file names/paths this lead was read from).
+Never invent values. If a column is ambiguous, put it in notes. Return [] only if there is truly no address or customer anywhere.`;
 
 export type BulkDocument = { name: string; text: string };
+export type BulkFileRef = { name: string; folder?: string | null; geo_address?: string | null };
 
-export async function aiExtractRows(rawRows: Record<string, string>[], documents: BulkDocument[] = []): Promise<BulkExtracted[]> {
-  if (rawRows.length === 0 && documents.length === 0) return [];
+function lovableProvider() {
   const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) throw new BulkImportError("AI reading is not configured (missing key). The office can still enter rows one at a time.");
-  const { createOpenAI } = await import("@ai-sdk/openai");
-  const { streamText } = await import("ai");
-  const provider = createOpenAI({
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    apiKey,
+  return import("@ai-sdk/openai").then(({ createOpenAI }) => createOpenAI({
+    baseURL: "https://ai.gateway.lovable.dev/v1", apiKey,
     headers: { "Lovable-API-Key": apiKey, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
-  });
+  }));
+}
+const AI_OPTIONS = { openai: { store: false, forceReasoning: true, reasoningEffort: "low", reasoningSummary: "auto", include: ["reasoning.encrypted_content"] } } as const;
+
+export async function aiExtractRows(rawRows: Record<string, string>[], documents: BulkDocument[] = [], files: BulkFileRef[] = []): Promise<BulkExtracted[]> {
+  if (rawRows.length === 0 && documents.length === 0 && files.length === 0) return [];
+  const provider = await lovableProvider();
+  const { streamText } = await import("ai");
   const result = streamText({
     model: provider.responses("openai/gpt-6-astra"),
     instructions: EXTRACT_PROMPT,
     messages: [
-      { role: "user", content: JSON.stringify({ rows: rawRows, documents: documents.map((d) => ({ name: d.name, text: d.text.slice(0, 20_000) })) }).slice(0, 150_000) },
+      { role: "user", content: JSON.stringify({ rows: rawRows, documents: documents.map((d) => ({ name: d.name, text: d.text.slice(0, 20_000) })), files: files.slice(0, 1500) }).slice(0, 180_000) },
     ],
-    providerOptions: {
-      openai: {
-        store: false,
-        forceReasoning: true,
-        reasoningEffort: "low",
-        reasoningSummary: "auto",
-        include: ["reasoning.encrypted_content"],
-      },
-    },
+    providerOptions: AI_OPTIONS,
   });
   const text = await result.text;
   const jsonText = text.replace(/^```(?:json)?/m, "").replace(/```$/m, "").trim();
   let parsed: unknown;
-  try { parsed = JSON.parse(jsonText); } catch { throw new BulkImportError("AI could not read this list. Try a simpler spreadsheet (one row per customer)."); }
+  try { parsed = JSON.parse(jsonText); } catch { throw new BulkImportError("AI could not read this upload. Try again, or add a simple list (one row per customer)."); }
   if (!Array.isArray(parsed)) throw new BulkImportError("AI returned an unexpected shape.");
   return parsed.map((r) => {
     const o = (r ?? {}) as Record<string, unknown>;
@@ -127,8 +127,57 @@ export async function aiExtractRows(rawRows: Record<string, string>[], documents
       area_m2: num("area_m2"), existing_insulation: str("existing_insulation"), access: str("access"),
       roof_type: str("roof_type"), hazards: str("hazards"), building_age: str("building_age"),
       notes: str("notes"), price_inc_gst: num("price_inc_gst"),
+      unsure: o["unsure"] === true,
+      source_files: Array.isArray(o["source_files"]) ? (o["source_files"] as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 50) : [],
     } satisfies BulkExtracted;
   });
+}
+
+const MEDIA_PROMPT = `You are reading one file an insulation installer uploaded (a PDF, a scanned page or a photo).
+Write out, as plain text, every customer name, street address, suburb, postcode, phone, email, ceiling area (m2),
+existing insulation, ceiling access, roof type, hazards, building age and quoted price you can see. For a list or
+table, write one line per customer. Copy what is written; never guess. If nothing like that is visible, reply with
+exactly NONE followed by a few words describing the picture.`;
+
+/** AI vision/PDF reading of one uploaded file → plain text for the lead finder. Matching/sorting only, never evidence. */
+export async function aiReadMedia(name: string, mime: string, base64: string): Promise<string> {
+  const provider = await lovableProvider();
+  const { streamText } = await import("ai");
+  const part = mime === "application/pdf"
+    ? ({ type: "file", filename: name, data: base64, mediaType: "application/pdf" } as const)
+    : ({ type: "image", image: new URL(`data:${mime};base64,${base64}`) } as const);
+  const result = streamText({
+    model: provider.responses("openai/gpt-6-astra"),
+    instructions: MEDIA_PROMPT,
+    messages: [{ role: "user", content: [{ type: "text", text: `File name: ${name}` }, part] }],
+    providerOptions: AI_OPTIONS,
+  });
+  return (await result.text).trim();
+}
+
+/** Approximate street address for photo GPS points (OpenStreetMap; points ~10 m apart share one lookup). */
+export async function reverseGeocode(points: { lat: number; lng: number }[]): Promise<(string | null)[]> {
+  const cache = new Map<string, string | null>();
+  const out: (string | null)[] = [];
+  for (const p of points.slice(0, 40)) {
+    const key = `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`;
+    if (!cache.has(key)) {
+      if (cache.size > 0) await new Promise((r) => setTimeout(r, 1100)); // OpenStreetMap fair-use: 1 request/second
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&lat=${p.lat}&lon=${p.lng}`, {
+          headers: { "User-Agent": "HomeInsulationVictoria-Portal/1.0 (bulk upload photo matching)", "Accept-Language": "en-AU" },
+        });
+        const j = res.ok ? ((await res.json()) as { address?: Record<string, string> }) : null;
+        const a = j?.address;
+        const street = a ? [a["house_number"], a["road"]].filter(Boolean).join(" ") : "";
+        const suburb = a?.["suburb"] ?? a?.["town"] ?? a?.["city_district"] ?? a?.["village"] ?? a?.["city"] ?? "";
+        cache.set(key, street ? [street, suburb, a?.["state"] === "Victoria" ? "VIC" : a?.["state"], a?.["postcode"]].filter(Boolean).join(" ") : null);
+      } catch { cache.set(key, null); }
+    }
+    out.push(cache.get(key) ?? null);
+  }
+  while (out.length < points.length) out.push(null);
+  return out;
 }
 
 // ---------- analysis ----------
@@ -153,18 +202,19 @@ export async function analyseBatch(batchId: string, actorId: string) {
   const { data: listFile } = await admin.from("bulk_import_batches").select("id").eq("id", batchId).single();
   void listFile;
   // The parsed raw rows are stored on the batch by the upload step (summary.raw_rows) to avoid re-downloading.
-  const stored = (batch.summary ?? {}) as { raw_rows?: Record<string, string>[]; documents?: BulkDocument[]; permission?: unknown };
+  const stored = (batch.summary ?? {}) as { raw_rows?: Record<string, string>[]; documents?: BulkDocument[]; permission?: unknown; file_reads?: FileResult[] };
   const rawRows = stored.raw_rows ?? [];
   const documents = stored.documents ?? [];
-  if (rawRows.length === 0 && documents.length === 0) throw new BulkImportError("We couldn't find any customer details in what was uploaded. Add an export, email, note or list with names/addresses.");
-  const extracted = await aiExtractRows(rawRows, documents);
-  if (extracted.length === 0) throw new BulkImportError("No customers found in what was uploaded.");
+  // Never a dead end: with no list, leads still come from file/folder names, photo/PDF text and photo GPS.
+  const extracted = await aiExtractRows(rawRows, documents, manifest.map((f) => ({ name: f.path, folder: f.folder ?? null, geo_address: f.geo_address ?? null })));
   const existing = await existingPortalKeys();
   const dupNotes = findDuplicates(extracted, existing);
 
   await admin.from("bulk_import_rows").delete().eq("batch_id", batchId);
+  const allMatches: ReturnType<typeof matchFiles>["matched"][] = [];
   const rows = extracted.map((e, i) => {
     const { matched, confidence } = matchFiles(e, manifest);
+    allMatches.push(matched);
     const duplicate = dupNotes.has(i);
     const { result, reasons } = sortJob(e, { matchConfidence: confidence, duplicate });
     const stage = leadStage(e, matched.length);
@@ -178,8 +228,10 @@ export async function analyseBatch(batchId: string, actorId: string) {
       duplicate_note: dupNotes.get(i) ?? null,
     };
   });
-  const { error } = await admin.from("bulk_import_rows").insert(rows);
-  if (error) throw new BulkImportError(error.message);
+  if (rows.length) {
+    const { error } = await admin.from("bulk_import_rows").insert(rows);
+    if (error) throw new BulkImportError(error.message);
+  }
   const summary = {
     rows: rows.length,
     covers_ready_check: rows.filter((r) => r.sort_result === "covers_ready_check").length,
@@ -190,6 +242,7 @@ export async function analyseBatch(batchId: string, actorId: string) {
     visited: extracted.filter((e, i) => leadStage(e, (rows[i]!.matched_files as unknown[]).length) === "visited").length,
     visited_quoted: extracted.filter((e) => e.price_inc_gst && e.price_inc_gst > 0).length,
     permission: stored.permission ?? null,
+    file_results: fileResults(stored.file_reads ?? [], extracted, allMatches),
   };
   await admin.from("bulk_import_batches").update({ status: "analysed", summary: summary as unknown as Json }).eq("id", batchId);
   await logPartner(null, actorId, "bulk_import_analysed", `Bulk upload analysed: ${summary.rows} jobs found (${summary.covers_ready_check} cover the Ready Check, ${summary.needs_visit} need a visit, ${summary.office_review} for office review)`, { batch_id: batchId, ...summary });

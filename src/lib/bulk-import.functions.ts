@@ -16,7 +16,9 @@ const manifestFile = z.object({
   type: z.string().max(100).nullable().optional(),
   gps_lat: z.number().nullable().optional(), gps_lng: z.number().nullable().optional(),
   taken_at: z.string().max(60).nullable().optional(),
+  geo_address: z.string().max(300).nullable().optional(),
 });
+const fileRead = z.object({ name: z.string().max(1000), status: z.enum(["ok", "warn", "error"]), message: z.string().max(500) });
 
 async function canUseBulkImport(userId: string, businessId: string, onBehalf: boolean) {
   const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userId, _role: "admin" });
@@ -38,6 +40,7 @@ export const createBulkBatch = createServerFn({ method: "POST" }).middleware([re
     documents: z.array(z.object({ name: z.string().max(300), text: z.string().max(200_000) })).max(500).default([]),
     permissionConfirmed: z.literal(true, { errorMap: () => ({ message: "Please tick to confirm these customers are happy for Home Insulation Victoria to contact them." }) }),
     manifest: z.array(manifestFile).max(5000).default([]),
+    fileReads: z.array(fileRead).max(5000).default([]),
   }).parse(d))
   .handler(async ({ data, context }) => {
     await canUseBulkImport(context.userId, data.businessId, data.onBehalf);
@@ -45,7 +48,7 @@ export const createBulkBatch = createServerFn({ method: "POST" }).middleware([re
       business_id: data.businessId, created_by: context.userId, on_behalf: data.onBehalf,
       list_filename: data.listFilename, file_manifest: data.manifest as unknown as Json,
       summary: {
-        raw_rows: data.rawRows, documents: data.documents,
+        raw_rows: data.rawRows, documents: data.documents, file_reads: data.fileReads,
         permission: { confirmed_by: context.userId, confirmed_at: new Date().toISOString(), wording: CONTACT_PERMISSION_WORDING },
       } as unknown as Json,
     }).select("id").single();
@@ -117,4 +120,30 @@ export const bulkImportBusinesses = createServerFn({ method: "GET" }).middleware
     }
     const { data: bizList } = await admin.from("businesses").select("id, name").eq("business_type", "eec_installer").eq("onboarding_status", "approved").order("name");
     return { businesses: bizList ?? [], isAdmin: true };
+  });
+
+/** AI reading of one uploaded PDF/photo (text or scanned) for the bulk upload. Nothing is stored or sent. */
+export const readBulkFile = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    businessId: uuid, onBehalf: z.boolean().default(false), name: z.string().min(1).max(1000),
+    mime: z.enum(["application/pdf", "image/jpeg", "image/png", "image/webp"]),
+    base64: z.string().min(1).max(14_000_000),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    await canUseBulkImport(context.userId, data.businessId, data.onBehalf);
+    const { aiReadMedia } = await import("./bulk-import.server");
+    const text = await aiReadMedia(data.name, data.mime, data.base64);
+    return { text: /^NONE\b/i.test(text) ? "" : text, description: /^NONE\b/i.test(text) ? text.replace(/^NONE\W*/i, "").slice(0, 120) : "" };
+  });
+
+/** Approximate street address for photo GPS points (matching only, never evidence). */
+export const geocodeBulkPhotos = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    businessId: uuid, onBehalf: z.boolean().default(false),
+    points: z.array(z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) })).max(40),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    await canUseBulkImport(context.userId, data.businessId, data.onBehalf);
+    const { reverseGeocode } = await import("./bulk-import.server");
+    return { addresses: await reverseGeocode(data.points) };
   });
