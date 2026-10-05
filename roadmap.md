@@ -238,3 +238,8 @@
 - [ ] Link Xero connection to the Demo Company; show "Connected to: Demo Company (test)" in settings — needs Jo's authorisation
 - [x] Routing built (tests → Demo only; real jobs off). [ ] qa_test jobs only → real Demo Company calls (contact, invoice, test payment, read back paid); real jobs never call Xero while switches off
 - [ ] Re-run scenarios A–D end to end with real Xero; 390px screenshots; fix until passing
+
+## No-call-owner rule (Jo, 5 Oct) — standing rule
+- [ ] Owners never see HIV phone number / "Call us"; use "Got a question? Message us" → in-portal thread
+- [ ] Only owner call button = call booked trade on visit card
+- [ ] Apply: owner pages, quote pages, campaign emails, reminders; don't publish
