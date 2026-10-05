@@ -174,3 +174,8 @@
 - [ ] Add qa_test-only time simulations for 24h, 48h and 30-day PIESA expiry without changing global switches.
 - [ ] Add guarded cleanup for complete qa_test journeys, preserving real/audit records.
 - [ ] Prove any SQL on PGlite with rollback, apply only after proof, then run all five browser journeys and clean up.
+
+## Launch campaign calculator/email rebuild (Jo, 5 Oct 09:21, preview only)
+- [ ] Rebuild `/estimate/$token/campaign` around the real shared PublicCalculator with enquiry prefill, one Save my spot action, quiet opt-out, and Group B video card.
+- [ ] Rebuild Group A/B campaign emails through the approved estimate email renderer and brand; one campaign-page button only, no sending.
+- [ ] Capture 390px screenshots of prefilled Group A/B pages and both emails; do not publish.
