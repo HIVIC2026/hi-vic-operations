@@ -118,30 +118,45 @@ async function agreedElectricianRates(businessIds: string[], kind: "piesa" | "re
   return out;
 }
 
-export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean } = {}) {
+export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string } = {}) {
   const [facts, { count: elec }, { count: open }] = await Promise.all([
     piesaRequestFacts(jobId),
     admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
     admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", kind).eq("status", "pending"),
   ]);
   const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec, hasOpenOffers: !!open });
-  if (blockers.length) throw new WorkflowError(`PIESA offers cannot start: ${blockers.join(" ")}`);
-  return offerNextBatch(jobId, actorId, kind, !!opts.rateToConfirm);
+  if (blockers.length) throw new WorkflowError(`${kind === "piesa" ? "PIESA" : "Fix-up"} offers cannot start: ${blockers.join(" ")}`);
+  return offerNextBatch(jobId, actorId, kind, !!opts.rateToConfirm, opts.onlyBusiness);
 }
 
-async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false) {
+async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false, onlyBusiness?: string) {
   const { businessHours, batchSize } = await settings();
   const [{ candidates, installerSourced }, { data: prior }] = await Promise.all([
     recCandidatesFor(jobId),
     admin.from("partner_offers").select("business_id, batch, offered_at").eq("job_id", jobId).eq("kind", kind),
   ]);
+  const batchNo = Math.max(0, ...(prior ?? []).map((o) => o.batch)) + 1;
+  const rates = await agreedElectricianRates(candidates.map((c) => c.business_id), kind);
+  const { offerRateBlocker } = await import("./allocation.core");
+  const summary = await offerFacts(jobId);
+  const expires = offerExpiryBusinessHours(new Date(), businessHours);
+  const row = (id: string, chosen: boolean) => ({ job_id: jobId, business_id: id, kind, batch: batchNo,
+    summary: { ...summary, electrician_rate_inc_gst: rates.get(id)?.rate ?? null, electrician_rate_id: rates.get(id)?.id ?? null, electrician_rate_snapshot_at: new Date().toISOString(), rate_to_confirm: !rates.has(id) && rateToConfirm, ...(chosen ? { office_choice: true } : {}) } as unknown as Json, offered_by: actorId, expires_at: expires });
+  if (onlyBusiness) {
+    // Office picked ONE electrician: same offer card and window, sent only to them.
+    const c = candidates.find((x) => x.business_id === onlyBusiness);
+    if (!c) throw new WorkflowError("That electrician isn't an approved electrician for this job.");
+    if (c.blocker) throw new WorkflowError(`${c.name} can't take this job: ${c.blocker}`);
+    if (offerRateBlocker(rates.get(c.business_id)?.rate ?? null, rateToConfirm)) throw new WorkflowError(`${c.name} has no agreed electrician rate recorded. Add their rate first, or offer with rate to be confirmed.`);
+    const { error } = await admin.from("partner_offers").insert([row(c.business_id, true)]);
+    if (error) throw new Error(error.message);
+    await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${c.name} for the ${kind === "piesa" ? "PIESA" : "fix-up"} — offer sent only to them`, { kind, business_id: c.business_id, business_name: c.name, expires_at: expires }, { internal: true });
+    return { offered: 1, exhausted: false };
+  }
   // Owner-picked times: a fresh round (owner gave more times) re-offers to every approved electrician.
   const win = kind === "piesa" ? await currentWindowRound(jobId) : null;
   const priorInRound = (prior ?? []).filter((o) => !win?.roundStart || ((o as { offered_at?: string }).offered_at ?? "") >= win.roundStart);
   const offered = new Set(priorInRound.map((o) => o.business_id));
-  const batchNo = Math.max(0, ...(prior ?? []).map((o) => o.batch)) + 1;
-  const rates = await agreedElectricianRates(candidates.map((c) => c.business_id), kind);
-  const { offerRateBlocker } = await import("./allocation.core");
   const noRate = candidates.filter((c) => offerRateBlocker(rates.get(c.business_id)?.rate ?? null, rateToConfirm));
   if (noRate.length) await logEvent(jobId, actorId, "rec_offer_rate_missing", `${noRate.length} electrician(s) skipped: no agreed electrician rate recorded`, { kind, businesses: noRate.map((c) => c.business_id) }, { internal: true });
   const priced = candidates.filter((c) => !noRate.includes(c));
@@ -152,13 +167,17 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
     await admin.from("jobs").update({ next_action: "Needs Home Insulation Victoria: no approved electrician coverage" }).eq("id", jobId);
     return { offered: 0, exhausted: true };
   }
-  const summary = await offerFacts(jobId);
-  const expires = offerExpiryBusinessHours(new Date(), businessHours);
-  const { error } = await admin.from("partner_offers").insert(batch.map((b) => ({ job_id: jobId, business_id: b.business_id, kind, batch: batchNo,
-    summary: { ...summary, electrician_rate_inc_gst: rates.get(b.business_id)?.rate ?? null, electrician_rate_id: rates.get(b.business_id)?.id ?? null, electrician_rate_snapshot_at: new Date().toISOString(), rate_to_confirm: !rates.has(b.business_id) && rateToConfirm } as unknown as Json, offered_by: actorId, expires_at: expires })));
+  const { error } = await admin.from("partner_offers").insert(batch.map((b) => row(b.business_id, false)));
   if (error) throw new Error(error.message);
   await logEvent(jobId, actorId, "rec_offers_made", `${kind === "piesa" ? "PIESA" : "Rectification"} offered to ${batch.length} approved electrician(s), batch ${batchNo}`, { kind, batch: batchNo, businesses: batch.map((b) => b.business_id), expires_at: expires }, { internal: true });
   return { offered: batch.length, exhausted: false };
+}
+
+/** True when the latest offer of this kind was an office pick that was declined/expired: stop auto-refill, wait for the office. */
+export async function officePickUnanswered(jobId: string, kind: "piesa" | "rectification" | "ready_check") {
+  const { data } = await admin.from("partner_offers").select("kind, status, offered_at, summary").eq("job_id", jobId).eq("kind", kind).order("offered_at", { ascending: false }).limit(1);
+  const { chosenTradeNoAnswer } = await import("./trade-choice.core");
+  return !!chosenTradeNoAnswer(data ?? [], kind);
 }
 
 /** Expire overdue electrician offers and automatically offer the next batch. Idempotent; safe to call often. */
@@ -208,7 +227,10 @@ async function refillIfNeeded(jobId: string, kind: "piesa" | "rectification", ac
     admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", kind).eq("status", "pending"),
     admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
   ]);
-  if (!open && !elec) await offerNextBatch(jobId, actorId, kind);
+  if (open || elec) return;
+  // Office-picked trade said no / ran out: Needs me shows "Pick another" or "Send to all". Never auto-widen.
+  if (await officePickUnanswered(jobId, kind)) return;
+  await offerNextBatch(jobId, actorId, kind);
 }
 
 /** Electrician accepts/declines a PIESA or rectification offer. Acceptance is atomic in SQL. */

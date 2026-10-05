@@ -1,6 +1,7 @@
 import { OfficePrestartCard } from "@/components/portal/prestart";
 import { OfficeInstallHoldCard } from "@/components/portal/install-hold";
 import { OfficeAllocationPanel } from "@/components/portal/allocation";
+import { ChooseTradePanel } from "@/components/portal/choose-trade";
 import { OfficeInstalmentPlanCard } from "@/components/portal/instalment-plan";
 import { VerifiedEligibilityCard } from "@/components/portal/verified-eligibility";
 import { AdminEstimateCard } from "@/components/portal/estimate";
@@ -80,6 +81,7 @@ function JobDetail() {
       <Link to="/admin/needs-me" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Needs me</Link>
       <JobIdentity jobId={jobId} job={job} onOpen={openTarget} />
       <JobRightNow jobId={jobId} people={{ owner: job.owner_name ?? null, ownerPhone: job.owner_phone ?? null, ownerEmail: job.owner_email ?? null, installer: job.installer_name ?? null, electrician: job.electrician_name ?? null }} />
+      <ChooseTradePanel jobId={jobId} />
       <section className="mb-4 rounded-[22px] border bg-card p-5 shadow-sm" aria-label="Done when">
         <h2 className="mb-2 text-xs font-bold text-muted-foreground">Done when — these must pass to move on</h2>
         <BlockersPanel jobId={jobId} />

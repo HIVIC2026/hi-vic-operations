@@ -7,6 +7,7 @@ import { AppShell } from "@/components/portal/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getNeedsMe, snoozeNeedsItem } from "@/lib/office.functions";
+import { sendOfferToAll } from "@/lib/trade-choice.functions";
 import { RULE_LABEL, type NeedsItem } from "@/lib/needs-me.core";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,12 @@ function Row({ it, includeTest }: { it: NeedsItem; includeTest: boolean }) {
       void qc.invalidateQueries({ queryKey: ["needs-me", includeTest] });
     } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't put this off"); }
   };
+  const toAll = useServerFn(sendOfferToAll);
+  const widen = async () => {
+    if (!it.jobId || !it.choiceKind) return;
+    try { await toAll({ data: { jobId: it.jobId, kind: it.choiceKind } }); toast.success("Sent to all eligible trades"); void qc.invalidateQueries({ queryKey: ["needs-me", includeTest] }); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't send to everyone"); }
+  };
   const late = it.timeLeft?.endsWith("late");
   return (
     <li className="rounded-[22px] border bg-card p-4 shadow-sm">
@@ -40,7 +47,8 @@ function Row({ it, includeTest }: { it: NeedsItem; includeTest: boolean }) {
           <p className="mt-1 text-sm"><span className="mr-1 rounded-full bg-workspace-blush px-2 py-0.5 text-xs font-bold">{RULE_LABEL[it.rule]}</span>{it.why}</p>
         </div>
         <div className="flex shrink-0 gap-2 [&>*]:flex-1 sm:[&>*]:flex-none">
-          {it.jobId ? <Button asChild size="sm"><Link to="/admin/jobs/$jobId" params={{ jobId: it.jobId }}>{it.action}</Link></Button> : it.href === "/admin/businesses" ? <Button asChild size="sm"><Link to="/admin/businesses">{it.action}</Link></Button> : <Button asChild size="sm"><Link to="/admin/partners" search={{ enquiry: undefined }}>{it.action}</Link></Button>}
+          {it.jobId && it.choiceKind && <Button size="sm" variant="outline" onClick={() => void widen()}>Send to all</Button>}
+          {it.jobId ? <Button asChild size="sm"><Link to="/admin/jobs/$jobId" params={{ jobId: it.jobId }} {...(it.choiceKind ? { hash: "choose-trade" } : {})}>{it.action}</Link></Button> : it.href === "/admin/businesses" ? <Button asChild size="sm"><Link to="/admin/businesses">{it.action}</Link></Button> : <Button asChild size="sm"><Link to="/admin/partners" search={{ enquiry: undefined }}>{it.action}</Link></Button>}
           {it.jobId && <Button size="sm" variant="outline" onClick={() => void later()}>Later</Button>}
         </div>
       </div>
