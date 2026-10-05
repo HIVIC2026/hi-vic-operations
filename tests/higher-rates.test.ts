@@ -31,9 +31,8 @@ test("vacuum-only rate: blank → no row; supplied → VACUUM_ONLY row, ex GST",
   const items = approvedRateItems("installer", { ...base, vacuum_only_rate: 4.4 } as never) as { code: string; r_value: number | null; unit_price_ex_gst: number }[];
   expect(items.find((i) => i.code === "VACUUM_ONLY")).toMatchObject({ r_value: null, unit_price_ex_gst: 4 });
 });
-test("vacuum-only validation: blank ok, zero/negative refused", () => {
+test("vacuum-only is no longer asked in onboarding (5 Oct): any saved value is ignored by validation", () => {
   const e = (x: object) => stepErrors("install_pricing", { ...base, ...x } as never).map((i: { key?: string; field?: string }) => i.key ?? i.field);
   expect(e({})).toEqual([]);
-  for (const v of [0, -2, 4.255]) expect(e({ vacuum_only_rate: v }).length).toBeGreaterThan(0);
-  expect(e({ vacuum_only_rate: 4.4 })).toEqual([]);
+  for (const v of [0, -2, 4.255, 4.4]) expect(e({ vacuum_only_rate: v })).toEqual([]);
 });
