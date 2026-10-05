@@ -98,5 +98,6 @@ export function publicSettings(s: RetailSettings): RetailSettings {
   const n = (k: keyof RetailSettings) => Number(s[k]);
   return { id: s.id, version: s.version, r5_install_inc_gst_per_m2: n("r5_install_inc_gst_per_m2"), removal_inc_gst_per_m2: n("removal_inc_gst_per_m2"), piesa_assessment_inc_gst: n("piesa_assessment_inc_gst"), ap_management_inc_gst: n("ap_management_inc_gst"),
     access_standard_multiplier: n("access_standard_multiplier"), access_moderate_multiplier: n("access_moderate_multiplier"), access_difficult_multiplier: n("access_difficult_multiplier"), indicative_veec_value: n("indicative_veec_value"),
-    veec_value_source_label: s.veec_value_source_label, veec_value_source_url: s.veec_value_source_url, veec_value_checked_at: s.veec_value_checked_at, minimum_customer_copayment_inc_gst: n("minimum_customer_copayment_inc_gst"), spec_version: s.spec_version, spec_source_url: s.spec_source_url };
+    veec_value_source_label: s.veec_value_source_label, veec_value_source_url: s.veec_value_source_url, veec_value_checked_at: s.veec_value_checked_at, minimum_customer_copayment_inc_gst: n("minimum_customer_copayment_inc_gst"), spec_version: s.spec_version, spec_source_url: s.spec_source_url,
+    max_discount_metro_inc_gst: n("max_discount_metro_inc_gst"), max_discount_regional_inc_gst: n("max_discount_regional_inc_gst") };
 }

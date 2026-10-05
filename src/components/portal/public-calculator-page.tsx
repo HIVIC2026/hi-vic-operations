@@ -11,6 +11,7 @@ const settings: RetailSettings = {
   indicative_veec_value: 70, veec_value_source_label: "Current settings example",
   veec_value_source_url: "https://www.energy.vic.gov.au/victorian-energy-upgrades/products/insulation-discounts",
   veec_value_checked_at: "2026-09-29", minimum_customer_copayment_inc_gst: 200,
+  max_discount_metro_inc_gst: 1500, max_discount_regional_inc_gst: 2100,
   spec_version: "25.0", spec_source_url: "https://www.energy.vic.gov.au/",
 };
 
