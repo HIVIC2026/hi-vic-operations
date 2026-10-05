@@ -141,8 +141,10 @@ export const createWorkerJobLink = createServerFn({ method: "POST" }).middleware
     const { error } = await admin.from("worker_job_links").insert({ worker_id: w.id, business_id: w.business_id, job_id: data.jobId, token_hash: await hashToken(token), created_by: context.userId, expires_at: linkExpiry(now) });
     if (error) throw new Error(error.message);
     await logEvent(data.jobId, context.userId, "worker_link_created", `Job link created for ${w.full_legal_name}`, { worker_id: w.id });
+    const { autoAssignReadyCheckForm } = await import("./mitti-autoassign.server");
+    const mitti = await autoAssignReadyCheckForm(data.jobId, w.id, context.userId);
     // Token is returned once; only its hash is stored. Nothing is sent until communications are switched on.
-    return { token, path: `/w/${token}` };
+    return { token, path: `/w/${token}`, mitti };
   });
 
 export const revokeWorkerJobLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
