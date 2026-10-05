@@ -40,11 +40,11 @@ describe("rec onboarding", () => {
   test("merged pages require every legacy member", () => {
     expect(pageErrors("business", { ...full, business_address_details: null })).toContain("Select an Australian business address from the list.");
     expect(pageErrors("services", { ...full, services_all_confirmed: false, travel_radius_km: null })).toEqual(expect.arrayContaining(["Confirm your REC can provide all three electrical services.", "Choose a travel radius."]));
-    expect(pageErrors("availability", { ...full, capacity_band: undefined })).toContain("Choose your weekly capacity.");
+    expect(pageErrors("availability", { ...full, capacity_band: undefined })).toEqual([]);
     expect(pageErrors("assessment_pricing", { ...full, rectification_rates: undefined })).toContain("Enter a rate for Downlight upgrade to IC-4 LED.");
     expect(firstIncompleteStep({ ...full, business_address_details: null })).toBe("business");
     expect(firstIncompleteStep({ ...full, services_all_confirmed: false })).toBe("services");
-    expect(firstIncompleteStep({ ...full, capacity_band: undefined })).toBe("availability");
+    expect(firstIncompleteStep({ ...full, capacity_band: undefined })).toBeNull();
     expect(firstIncompleteStep({ ...full, rectification_rates: undefined })).toBe("assessment_pricing");
   });
   test("legacy draft role answers remain explicit", () => {
@@ -148,7 +148,7 @@ describe("rec onboarding", () => {
   });
   test("agreement text includes final clauses, schedules and every acknowledgement", () => {
     const t = agreementText(full);
-    expect(t).toContain("HI-VIC-A48-REC-2.4-2026-10-03");
+    expect(t).toContain("HI-VIC-A48-REC-2.5-2026-10-05");
     expect(t).toContain("AP accreditation number: A003654");
     expect(t).toContain("public liability insurance of at least $5,000,000");
     expect(t).toContain("No separate fixed product-liability minimum is imposed");

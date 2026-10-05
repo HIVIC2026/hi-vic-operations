@@ -111,7 +111,7 @@ describe("QA-AVL availability", () => {
     expect(stepErrors("availability", { ...full, typical_days: ["Mon", "Mon"] })).toContain("Choose days from the list.");
     expect(stepErrors("availability", { ...full, normal_attendance_speed: "tomorrow" })).toContain("Choose your usual lead time.");
     expect(stepErrors("availability", { ...full, accepting_jobs: undefined })).toContain("Tell us if you're accepting new Home Insulation Victoria work now.");
-    expect(stepErrors("capacity", { ...full, capacity_band: "50" })).toContain("Choose your weekly capacity.");
+    expect(stepErrors("capacity", { ...full, capacity_band: "50" })).toEqual([]);
   });
 });
 
@@ -187,7 +187,7 @@ describe("QA-PER persistence mapping", () => {
   test("resume lands on the first incomplete visible page, never skipping a hidden member", () => {
     expect(firstIncompleteStep({ ...full, business_address_details: null })).toBe("business");
     expect(firstIncompleteStep({ ...full, service_origin_details: null })).toBe("services");
-    expect(firstIncompleteStep({ ...full, capacity_band: undefined })).toBe("availability");
+    expect(firstIncompleteStep({ ...full, capacity_band: undefined })).toBeNull();
     expect(firstIncompleteStep({ ...full, coes_fee_choice: "" })).toBe("assessment_pricing");
   });
 });

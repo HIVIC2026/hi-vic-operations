@@ -80,7 +80,7 @@ function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unkno
   const [f, setF] = useState<Record<string, string>>({});
   useEffect(() => setF({
     name: s("name"), legal_name: s("legal_name"), trading_name: s("trading_name"), abn: s("abn"), acn: s("acn"), email: s("email"), phone: s("phone"), address: s("address"),
-    service_postcodes: csv(b["service_postcodes"] as string[]), service_regions: csv(b["service_regions"] as string[]), weekly_capacity: s("weekly_capacity"), daily_capacity_m2: s("daily_capacity_m2"), lead_time_days: s("lead_time_days"), daily_job_limit: s("daily_job_limit"),
+    service_postcodes: csv(b["service_postcodes"] as string[]), service_regions: csv(b["service_regions"] as string[]), lead_time_days: s("lead_time_days"),
     availability_notes: s("availability_notes"), rec_number: s("rec_number"), licence_number: s("licence_number"), logo_url: String((b["branding"] as { logo_url?: string } | null)?.logo_url ?? ""),
     default_comms_owner: s("default_comms_owner") || "installer", caps: csv(b["capabilities"] as string[]), gst: b["gst_registered"] === true ? "yes" : b["gst_registered"] === false ? "no" : "",
   }), [b.id]); // eslint-disable-line react-hooks/exhaustive-deps

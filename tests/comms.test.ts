@@ -29,6 +29,13 @@ describe("pre-launch communications lock", () => {
     const s = readFileSync("src/lib/autoadvance.server.ts", "utf8");
     expect(s).not.toMatch(/createInvoice|syncInvoice|xero\.server/);
   });
+  test("visit cancellation clears the local due-date flag without importing the Xero date module", () => {
+    const visits = readFileSync("src/lib/visit-events.server.ts", "utf8");
+    const local = readFileSync("src/lib/install-balance.server.ts", "utf8");
+    expect(visits).toContain('import("./install-balance.server")');
+    expect(visits).not.toContain("invoice-dates.server");
+    expect(local).not.toMatch(/xero\.server|connector-gateway|api\.xero/i);
+  });
   test("email/SMS messages and authority requests check the lock", () => {
     const pf = readFileSync("src/lib/portal.functions.ts", "utf8");
     const send = pf.slice(pf.indexOf("export const sendMessage"), pf.indexOf("export const requestReassignment"));

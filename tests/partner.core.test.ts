@@ -33,13 +33,12 @@ const payloads = {
 };
 
 describe("partner enquiry endpoint", () => {
-  for (const [type, p] of Object.entries(payloads)) test(`valid signed ${type} accepted and type data preserved`, async () => {
+  for (const [type, p] of Object.entries(payloads).filter(([type]) => type !== "property_manager")) test(`valid signed ${type} accepted and type data preserved`, async () => {
     const db = fakeDb(); const body = JSON.stringify(p);
     const r = await handlePartnerEnquiry(body, hdr(await sign(body)), db.deps);
     expect(r.status).toBe(200); expect(r.body.created).toBe(true);
     const row = [...db.rows.values()][0];
     expect(row.enquiry_type).toBe(type);
-    if (type === "property_manager") { expect(row.property_count).toBe(120); expect(row.company).toBe("Agency Co"); }
     if (type === "installer") { expect(row.cii_certification_status).toBe("certified"); expect(row.estimated_r5_install_rate_per_sqm_inc_gst).toBe(18.5); expect(row.service_areas).toEqual(["Brunswick", "Coburg"]); }
     if (type === "electrician_rec") { expect(row.rec_registration_number).toBe("REC 999"); expect(row.esv_licensed_electricians_confirmed).toBe(true); expect(row.services).toEqual(["PIESA", "RCD"]); expect(row.estimated_piesa_fee_inc_gst).toBe(220); }
     expect(row.raw_payload).toEqual(p);
@@ -56,11 +55,11 @@ describe("partner enquiry endpoint", () => {
   });
   test("repeat submission is idempotent", async () => {
     const db = fakeDb();
-    const a = JSON.stringify(payloads.property_manager), b = JSON.stringify({ ...payloads.property_manager, property_count: 130 });
+    const a = JSON.stringify(payloads.installer), b = JSON.stringify({ ...payloads.installer, notes: "Updated" });
     const r1 = await handlePartnerEnquiry(a, hdr(await sign(a)), db.deps);
     const r2 = await handlePartnerEnquiry(b, hdr(await sign(b)), db.deps);
     expect(r2.body.created).toBe(false); expect(r2.body.id).toBe(r1.body.id);
-    expect(db.rows.size).toBe(1); expect([...db.rows.values()][0].property_count).toBe(130);
+    expect(db.rows.size).toBe(1); expect([...db.rows.values()][0].notes).toBe("Updated");
   });
   test("validation: bad type / missing submission_id / overlong fields -> 400", async () => {
     const db = fakeDb();
@@ -69,6 +68,13 @@ describe("partner enquiry endpoint", () => {
       expect((await handlePartnerEnquiry(body, hdr(await sign(body)), db.deps)).status).toBe(400);
     }
     expect(db.tables).toEqual([]);
+  });
+  test("property-manager intake is retired without changing stored legacy data", async () => {
+    const body = JSON.stringify(payloads.property_manager);
+    const db = fakeDb();
+    const result = await handlePartnerEnquiry(body, hdr(await sign(body)), db.deps);
+    expect(result.status).toBe(400);
+    expect(db.rows.size).toBe(0);
   });
   test("partner endpoint cannot create a job", () => {
     const src = readFileSync("src/routes/api/public/partner-enquiry.ts", "utf8") + readFileSync("src/lib/partner.core.ts", "utf8");

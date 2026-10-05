@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import {
-  acknowledgementsFor, agreementText, CAPACITY_BANDS, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION, MIN_REC_PL_COVER,
+  acknowledgementsFor, agreementText, DAYS, LEAD_TIMES, RADII, RECT_ITEMS, REC_AGREEMENT_VERSION, MIN_REC_PL_COVER,
   applyMaterialReset, isAlwaysMandatoryStep, pageErrors, pageMembers, parseRecSampleStep, firstIncompleteStep, stepErrors, recReviewGateOpen, resumeFailureMode, MAX_CUSTOM_RECT_ITEMS, validAbn, validBusinessEmail, visiblePageForStep, visibleSteps, type RecData, type ResolvedAddress, type StepKey,
 } from "@/lib/rec-onboarding.core";
 import {
@@ -426,7 +426,6 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
         </Field>
         <Field label="Usual lead time" required><Choice options={LEAD_TIMES.map((l) => ({ v: l as string, l }))} value={d.normal_attendance_speed} onChange={(v) => up({ normal_attendance_speed: v })} /></Field>
          <Field label="Are you accepting new Home Insulation Victoria work now?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "Not right now" }]} value={d.accepting_jobs ?? null} onChange={(v) => up({ accepting_jobs: v })} /></Field>
-        <Field label="Weekly assessment visits" required><Choice options={CAPACITY_BANDS.map((b) => ({ v: b.v as string, l: b.v }))} value={d.capacity_band} onChange={(v) => up({ capacity_band: v })} /></Field>
       </>;
     }
     case "assessment_pricing": {

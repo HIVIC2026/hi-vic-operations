@@ -1,13 +1,13 @@
-// Pure Base44 partner-enquiry intake (property managers, installer partners, electricians/RECs).
+// Pure Base44 trade-partner enquiry intake (installers and electricians/RECs).
 // Partner enquiries are NOT jobs: this module only ever writes the partner_enquiries table.
 import { z } from "zod";
 import { BASE44_KEY_ID, verifyEd25519 } from "./enquiry.core";
 
-export const PARTNER_TYPES = ["property_manager", "installer", "electrician_rec"] as const;
+export const PARTNER_TYPES = ["installer", "electrician_rec"] as const;
 export type PartnerType = (typeof PARTNER_TYPES)[number];
 export const PARTNER_STATUSES = ["new", "contacted", "onboarding", "approved", "declined", "closed"] as const;
 export type PartnerStatus = (typeof PARTNER_STATUSES)[number];
-export const PARTNER_TYPE_LABEL: Record<PartnerType, string> = { property_manager: "Property Managers", installer: "Installers", electrician_rec: "Electricians / RECs" };
+export const PARTNER_TYPE_LABEL: Record<PartnerType, string> = { installer: "Installers", electrician_rec: "Electricians / RECs" };
 
 const str = (max: number) => z.string().trim().max(max).nullish().transform((v) => (v ? v : null));
 const money = z.coerce.number().min(0).max(100000).nullish();
@@ -23,7 +23,6 @@ export const partnerSchema = z.object({
   external_id: str(200),
   status: str(50),
   name: str(200), email: z.string().trim().email().max(320).nullish().transform((v) => v ?? null), phone: str(50), company: str(200), source: str(100),
-  property_count: z.coerce.number().int().min(0).max(1_000_000).nullish(),
   service_areas: list,
   cii_certification_status: str(100), cii_certification_details: str(2000),
   estimated_r5_install_rate_per_sqm_inc_gst: money,
@@ -33,7 +32,7 @@ export const partnerSchema = z.object({
   free_measureups_for_hivic_quote_leads: bool,
   rec_registration_number: str(100), esv_licensed_electricians_confirmed: bool, services: list,
   estimated_piesa_fee_inc_gst: money, estimated_return_visit_fee_inc_gst: money,
-  booking_lead_time: str(200), weekly_capacity: str(200),
+  booking_lead_time: str(200),
   notes: str(5000), source_created_at: ts, source_updated_at: ts,
 });
 export type PartnerInput = z.output<typeof partnerSchema>;
@@ -43,7 +42,7 @@ export function partnerRow(d: PartnerInput, raw: unknown) {
   return {
     source_system: "base44", enquiry_type: d.enquiry_type, submission_id: d.submission_id, external_id: d.external_id,
     source: d.source, source_status: d.status, name: d.name, email: d.email, phone: d.phone, company: d.company,
-    property_count: d.property_count ?? null, service_areas: d.service_areas,
+    service_areas: d.service_areas,
     cii_certification_status: d.cii_certification_status, cii_certification_details: d.cii_certification_details,
     estimated_r5_install_rate_per_sqm_inc_gst: d.estimated_r5_install_rate_per_sqm_inc_gst ?? null,
     estimated_batts_removal_rate_per_sqm_inc_gst: d.estimated_batts_removal_rate_per_sqm_inc_gst ?? null,
@@ -52,7 +51,7 @@ export function partnerRow(d: PartnerInput, raw: unknown) {
     free_measureups_for_hivic_quote_leads: d.free_measureups_for_hivic_quote_leads ?? null,
     rec_registration_number: d.rec_registration_number, esv_licensed_electricians_confirmed: d.esv_licensed_electricians_confirmed, services: d.services,
     estimated_piesa_fee_inc_gst: d.estimated_piesa_fee_inc_gst ?? null, estimated_return_visit_fee_inc_gst: d.estimated_return_visit_fee_inc_gst ?? null,
-    booking_lead_time: d.booking_lead_time, weekly_capacity: d.weekly_capacity, notes: d.notes,
+    booking_lead_time: d.booking_lead_time, notes: d.notes,
     source_created_at: d.source_created_at, source_updated_at: d.source_updated_at, raw_payload: raw as import("@/integrations/supabase/types").Json,
   };
 }

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { stepErrors, type InstData } from "../src/lib/installer-onboarding.core";
 
 const page = readFileSync("src/routes/installer-onboarding.tsx", "utf8");
+const recPage = readFileSync("src/routes/electrician-onboarding.tsx", "utf8");
 const worker = { full_legal_name: "A B", mobile: "0412345679", email: "a@example.com", cii_holds: "held" as const, cii_certificate_number: "C1", cii_issuer: "EEC", cii_issue_date: "2024-01-01" };
 const errs = (d: InstData, k: string) => stepErrors(k as never, d).join(" | ");
 
@@ -10,6 +11,9 @@ describe("onboarding fixes", () => {
   test("weekly installations is not asked and never required", () => {
     expect(page).not.toContain("Weekly installations");
     expect(errs({ capacity_band: undefined }, "capacity")).toBe("");
+  });
+  test("REC weekly capacity is also hidden and ignored", () => {
+    expect(recPage).not.toContain("Weekly assessment visits");
   });
   test("accepting new work is a Yes/No choice; No is allowed", () => {
     expect(page).toContain("Are you accepting new work now?");
@@ -29,7 +33,6 @@ describe("onboarding fixes", () => {
     expect(page.slice(page.indexOf("async function persist("), page.indexOf("async function go(")) ).toContain("await startWith(token)");
   });
   test("brand fonts", () => {
-    expect(page).toContain("Space Grotesk"); expect(page).toContain("DM Sans");
-    expect(page).not.toMatch(/Figtree|Outfit/);
+    expect(page).toContain("Outfit"); expect(page).toContain("Figtree");
   });
 });

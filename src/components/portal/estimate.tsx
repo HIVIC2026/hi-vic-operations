@@ -47,7 +47,7 @@ export const FREE_CHECK_CONFIRM_COPY = {
   cta: "Confirm my free measure-up & eligibility check →",
   stale: "Your estimate changed. Please review it and confirm your free measure-up & eligibility check again.",
   successHeading: "We’ve received your request",
-  successBody: "An installer from our panel will contact you to arrange a suitable time for your Free Insulation Measure-Up & Eligibility Check.",
+  successBody: "You’ll choose 3–5 times that suit you for your Free Insulation Measure-Up & Eligibility Check. The first approved installer to accept one is booked.",
   successNext: "They’ll measure your ceiling, assess any existing insulation, confirm eligibility and prepare the job scope so we can confirm your quote.",
 } as const;
 

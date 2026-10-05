@@ -3,7 +3,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { assertHivicJob, melbourneDate } from "./xero.core";
-import { clearInstallDueDatePatch, installDueDatePatch, type InvoiceRow } from "./invoice.lifecycle";
+import { installDueDatePatch, type InvoiceRow } from "./invoice.lifecycle";
 
 async function hivicInvoice(jobId: string): Promise<InvoiceRow | null> {
   const { data: j } = await admin.from("jobs").select("business_unit").eq("id", jobId).maybeSingle();
@@ -27,12 +27,3 @@ export async function setInstallDueDate(jobId: string, startIso: string, actorId
   await logEvent(jobId, actorId, "balance_due_set", `Remaining balance due on installation day (${due})${patch.xero_update_pending ? " – Xero due date update pending" : ""}`, { invoice_id: inv.id });
 }
 
-/** Installation cancelled: final due date goes back to pending. */
-export async function clearInstallDueDate(jobId: string, actorId: string) {
-  const inv = await hivicInvoice(jobId);
-  if (!inv) return;
-  const patch = clearInstallDueDatePatch(inv);
-  if (!patch) return;
-  await patchInvoice(inv.id, patch);
-  await logEvent(jobId, actorId, "balance_due_set", "Installation cancelled – final due date pending until rebooked", { invoice_id: inv.id });
-}

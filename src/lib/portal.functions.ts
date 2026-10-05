@@ -10,7 +10,8 @@ import { WorkflowError, logEvent, nextStepBlockers, stageEntryBlockers, piesaSta
 import { adjustQuote as adjustQuoteImpl, generateInstallerQuotes as genInstaller, generateRectificationQuote } from "./quotes.server";
 import { enquirySchema, upsertEnquiry } from "./enquiry.server";
 import { installationDateBlocker, STAGE_LABEL, type Stage } from "./workflow";
-import { applyPaidAmount, clearInstallDueDate, createInvoiceForQuote, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
+import { applyPaidAmount, createInvoiceForQuote, requireHivicInvoice, requireHivicJob, setInstallDueDate, syncInvoiceFromXero } from "./xero.server";
+import { clearInstallDueDate } from "./install-balance.server";
 import { buildDepositOverride, depositRequestPatch } from "./invoice.lifecycle";
 import { commercialBlocker, paymentOptionCleared } from "./workflow.server";
 import { assertAgreementCanSign, assignmentEffective, buildAcceptancePackage, currentAgreement, currentAssignment, currentInstallerDeclaration, loadTemplates, prepareFinalAssignment, raiseVariation, reconfirmVariation, signCustomerAgreement, signFinalAssignment, signInstallerDecl } from "./assignment.server";
@@ -148,7 +149,7 @@ export const assignContractor = createServerFn({ method: "POST" }).middleware([r
   });
 
 export const setUserRole = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ userId: uuid, role: z.enum(["admin", "electrician", "installer", "owner", "property_manager"]), grant: z.boolean() }).parse(d))
+  .inputValidator((d) => z.object({ userId: uuid, role: z.enum(["admin", "electrician", "installer", "owner"]), grant: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     if (!data.grant && data.role === "admin" && data.userId === context.userId) throw new WorkflowError("You cannot remove your own admin role.");
