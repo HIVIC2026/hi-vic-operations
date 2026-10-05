@@ -8,7 +8,7 @@ import { logEvent } from "./workflow.server";
 import { logPartner } from "./pilot.server";
 import { type LocationVariables } from "./activity48.core";
 import { HIVIC_PIESA_INC_GST } from "./installer-led.core";
-import { linkFiles } from "./bulk-import.core";
+import { linkFiles, type LeadStage } from "./bulk-import.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
   dedupeKey, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
@@ -370,14 +370,14 @@ export async function setRowAddress(rowId: string, addr: { address_line: string;
   if (!row || row.status !== "pending") throw new BulkImportError("This row can no longer be changed.");
   const e = { ...(row.extracted as unknown as BulkExtracted), ...addr };
   const existing = await existingPortalKeys();
-  const duplicate = findDuplicates([e], existing).has(0);
+  const dn = findDuplicates([e], existing); const duplicate = dn.has(0);
   const { result, reasons } = sortJob(e, { matchConfidence: (row.match_confidence ?? "none") as "high" | "low" | "none", duplicate });
-  const stage = (e as { lead_stage?: LeadStageT }).lead_stage;
+  const stage = (e as { lead_stage?: LeadStage }).lead_stage;
   if (stage) reasons.unshift(`Stage: ${LEAD_STAGE_LABEL[stage]}`);
   reasons.push("Address added by hand in the review table");
   const { error } = await admin.from("bulk_import_rows").update({
     extracted: e as unknown as Json, sort_result: result, sort_reasons: reasons as unknown as Json,
-    duplicate_note: duplicate ? "Already in the portal (same address or email) — will be skipped unless you untick skip" : null,
+    duplicate_note: dn.get(0) ?? null,
   }).eq("id", rowId);
   if (error) throw new BulkImportError(error.message);
   return { batch_id: row.batch_id };
