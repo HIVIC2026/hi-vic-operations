@@ -1,6 +1,6 @@
 // ============= Full file contents =============
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { ArrowDown, Check, ChevronDown, Info, PiggyBank, RotateCcw } from "lucide-react";
 import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE } from "@/lib/customer-quote-system";
 import { CALC_MAX_M2, CALC_MIN_M2, CALC_QUICK, dollars, parseAssumption, whatIfEstimate, type InsulationDeclared, type RetailSettings } from "@/lib/estimate.core";
@@ -104,11 +104,27 @@ function WhatIsIncluded() {
   );
 }
 
-export function PublicCalculator({ settings }: { settings: RetailSettings }) {
-  const [addressText, setAddressText] = useState("");
+export type PublicCalculatorInitialValues = {
+  address?: string | null;
+  areaM2?: number | null;
+  insulation?: InsulationDeclared;
+};
+
+type PublicCalculatorProps = {
+  settings: RetailSettings;
+  initialValues?: PublicCalculatorInitialValues;
+  heading?: ReactNode;
+  resultAction?: (state: { address: string; suburb: string; postcode: string; ceilingM2: number; insulation: InsulationDeclared }) => ReactNode;
+  hideRegistration?: boolean;
+  compactHeader?: boolean;
+  footer?: ReactNode;
+};
+
+export function PublicCalculator({ settings, initialValues, heading, resultAction, hideRegistration = false, compactHeader = false, footer }: PublicCalculatorProps) {
+  const [addressText, setAddressText] = useState(initialValues?.address ?? "");
   const [picked, setPicked] = useState<AddressSuggestion | null>(null);
-  const [raw, setRaw] = useState("");
-  const [insulation, setInsulation] = useState<InsulationDeclared>(null);
+  const [raw, setRaw] = useState(initialValues?.areaM2 != null ? String(initialValues.areaM2) : "");
+  const [insulation, setInsulation] = useState<InsulationDeclared>(initialValues?.insulation ?? null);
   const areaRef = useRef<HTMLInputElement>(null);
 
   const postcode = (picked?.postcode ?? extractPostcode(addressText)).trim();
@@ -150,14 +166,14 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas">
       <div className="mx-auto w-full max-w-[1080px] px-4 pb-8 pt-3 sm:px-6">
-        <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 pb-4">
+        {!compactHeader && <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 pb-4">
           <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-9 w-auto sm:h-10" />
           <p className="rounded-full bg-estimate-blush px-3 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-wide text-estimate-navy sm:text-[0.7rem]">Free estimate · no obligation</p>
-        </header>
+        </header>}
 
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="max-w-xl">
-            <h1 className="text-[1.6rem] font-extrabold leading-tight tracking-tight text-estimate-navy sm:text-[2rem]">How much could you save on ceiling insulation?</h1>
+            <h1 className="text-[1.6rem] font-extrabold leading-tight tracking-tight text-estimate-navy sm:text-[2rem]">{heading ?? "How much could you save on ceiling insulation?"}</h1>
             <p className="mt-1.5 text-[0.85rem] leading-relaxed text-estimate-navy/85">Three quick answers — your estimate and VEU discount appear instantly.</p>
           </div>
           {touched && (
@@ -310,14 +326,14 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                   {standard.copayment_capped && <p className="mt-2 text-xs leading-relaxed">Discount reduced so the minimum $200 customer contribution applies.</p>}
                 </div>
 
-                <button
+                {resultAction ? resultAction({ address: picked?.full ?? addressText.trim(), suburb, postcode, ceilingM2: m2, insulation }) : <button
                   type="button"
                   onClick={scrollToRegister}
                   className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-estimate-green px-4 text-base font-extrabold text-estimate-white shadow-lg shadow-estimate-green/25 transition hover:bg-estimate-accent active:scale-[0.99]"
                 >
                   Register my interest
                   <ArrowDown aria-hidden="true" className="size-4" />
-                </button>
+                </button>}
 
                 <dl className="mt-4 space-y-1.5 border-t border-estimate-line pt-3.5 text-xs">
                   {[
@@ -347,15 +363,15 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
           <WhatCouldChange />
         </div>
 
-        <RegisterInterest
+        {!hideRegistration && <RegisterInterest
           address={picked?.full ?? addressText.trim()}
           suburb={suburb}
           postcode={postcode}
           ceilingM2={m2 ?? 0}
           insulation={insulation ?? "unknown"}
-        />
+        />}
 
-        <footer className="mt-6 border-t border-estimate-line pb-6 pt-4 text-center text-xs leading-relaxed text-estimate-navy/85 sm:text-left lg:pb-4">
+        {footer ?? <footer className="mt-6 border-t border-estimate-line pb-6 pt-4 text-center text-xs leading-relaxed text-estimate-navy/85 sm:text-left lg:pb-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
             <p className="sm:max-w-[430px]">Estimate only, not a quote. Prices include GST.<br className="hidden sm:block" /> Your details are saved only if you register your interest.</p>
             <p className="flex flex-col items-center gap-1 sm:items-end sm:text-right">
@@ -365,7 +381,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
               </a>
             </p>
           </div>
-        </footer>
+        </footer>}
 
       </div>
     </div>
