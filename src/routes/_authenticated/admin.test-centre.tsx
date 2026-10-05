@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createTestEnquiry, getAdminPipeline } from "@/lib/portal.functions";
 import { clearOnboardingStartBlock, issueOnboardingLink, listOnboardingLinks, listOnboardingStartBlocks, revokeOnboardingLink, runOnboardingUploadCleanup } from "@/lib/onboarding-links.functions";
-import { archiveQaJourney, createTestTradeAccounts, issueQaPersonaLink, prepareQaJourneyAccess, simulateQaJourneyTime } from "@/lib/test-accounts.functions";
+import { archiveQaJourney, createTestTradeAccounts, issueQaPersonaLink, prepareQaJourneyAccess, simulateQaJourneyTime, simulateQaPayment } from "@/lib/test-accounts.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/test-centre")({
   head: () => ({ meta: [
@@ -72,6 +72,13 @@ function QaRoleControls({ jobId }: { jobId: string }) {
   const prepare = useServerFn(prepareQaJourneyAccess);
   const issue = useServerFn(issueQaPersonaLink);
   const simulate = useServerFn(simulateQaJourneyTime);
+  const simPay = useServerFn(simulateQaPayment);
+  const runPay = async () => {
+    setBusy("pay");
+    try { await simPay({ data: { jobId, reason: "Office TEST run — payment simulated" } }); toast.success("TEST payment recorded. No money and no Xero."); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Could not simulate payment"); }
+    finally { setBusy(null); }
+  };
   const [workerPath, setWorkerPath] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const ready = async () => {
@@ -104,7 +111,7 @@ function QaRoleControls({ jobId }: { jobId: string }) {
       <Button variant="outline" disabled={!!busy} onClick={async () => { setBusy("worker"); try { const result = await ready(); window.open(result.workerPath, "_blank", "noopener,noreferrer"); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not open TEST worker"); } finally { setBusy(null); } }}><ExternalLink className="h-4 w-4" />Open as worker</Button>
     </div>
     {workerPath && <p className="break-all rounded-md bg-muted p-2 text-xs">Latest worker link: {window.location.origin}{workerPath}</p>}
-    <div className="border-t pt-4"><p className="mb-2 flex items-center gap-2 text-sm font-semibold"><Clock3 className="h-4 w-4" />Simulate a deadline on this TEST job</p><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={!!busy} onClick={() => void runTime("response_24h")}>No reply 24h</Button><Button size="sm" variant="outline" disabled={!!busy} onClick={() => void runTime("response_48h")}>No reply 48h</Button><Button size="sm" variant="outline" disabled={!!busy} onClick={() => void runTime("piesa_expired")}>PIESA expired</Button></div></div>
+    <div className="border-t pt-4"><p className="mb-2 flex items-center gap-2 text-sm font-semibold"><Clock3 className="h-4 w-4" />Simulate a deadline on this TEST job</p><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={!!busy} onClick={() => void runTime("response_24h")}>No reply 24h</Button><Button size="sm" variant="outline" disabled={!!busy} onClick={() => void runTime("response_48h")}>No reply 48h</Button><Button size="sm" variant="outline" disabled={!!busy} onClick={() => void runTime("piesa_expired")}>PIESA expired</Button><Button size="sm" variant="outline" disabled={!!busy} onClick={() => void runPay()}>Simulate payment (TEST only)</Button></div></div>
   </DialogContent></Dialog>;
 }
 
