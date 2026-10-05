@@ -8,6 +8,7 @@ import { myBusinesses, requireApprovedPartner, requireMember } from "./pilot.ser
 import { WorkflowError } from "./workflow.server";
 import { CONTACT_PERMISSION_WORDING } from "./bulk-import.core";
 import type { Json } from "@/integrations/supabase/types";
+import { hashToken, newToken } from "./worker-links.core";
 
 const uuid = z.string().uuid();
 const rawRow = z.record(z.string(), z.string());
@@ -108,6 +109,25 @@ export const bulkElectricianChoices = createServerFn({ method: "GET" }).middlewa
       admin.from("electrician_nominations").select("id,contact_name,business_name,status,business_id").eq("nominating_business_id", data.businessId).is("job_id", null).is("ended_at", null).order("created_at", { ascending: false }),
     ]);
     return { approved: (rels ?? []).map((r) => ({ businessId: r.electrician_business_id, primary: r.is_primary, name: (r.businesses as { trading_name?: string | null; name?: string } | null)?.trading_name || (r.businesses as { name?: string } | null)?.name || "Your electrician", status: "Already signed up ✓" })), pending: (nominations ?? []).filter((n) => !n.business_id).map((n) => ({ nominationId: n.id, name: n.contact_name, business: n.business_name, status: n.status })) };
+  });
+
+export const addBulkElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ businessId: uuid, name: z.string().trim().min(2).max(200), mobile: z.string().trim().min(8).max(40), email: z.string().trim().email().max(320).nullable().optional(), business: z.string().trim().max(200).nullable().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireMember(context.userId, data.businessId);
+    const mobile = data.mobile.replace(/\D/g, "");
+    const { data: own } = await admin.from("electrician_nominations").select("id,contact_name,business_id,status").eq("nominating_business_id", data.businessId).is("job_id", null).is("ended_at", null).or(`phone.eq.${mobile}${data.email ? `,email.ilike.${data.email}` : ""}`).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (own) return { nominationId: own.id, businessId: own.business_id, name: own.contact_name, status: own.business_id ? "Already signed up ✓" : `Waiting for ${own.contact_name} to sign up` };
+    const { data: matched } = await admin.from("businesses").select("id").eq("onboarding_status", "approved").or(`phone.eq.${mobile}${data.email ? `,email.ilike.${data.email}` : ""}`).limit(1).maybeSingle();
+    const invite = newToken();
+    const { data: nomination, error } = await admin.from("electrician_nominations").insert({
+      contact_name: data.name, phone: mobile, email: data.email ?? null, business_name: data.business ?? null,
+      nominating_business_id: data.businessId, nominated_by: context.userId, nominated_for: "installer",
+      business_id: matched?.id ?? null, status: matched?.id ? "teamed" : "invite_pending_comms",
+      invite_token_hash: matched?.id ? null : await hashToken(invite), invite_expires_at: matched?.id ? null : new Date(Date.now() + 14 * 86_400_000).toISOString(),
+    }).select("id").single();
+    if (error || !nomination) throw new WorkflowError("That electrician could not be added.");
+    return { nominationId: nomination.id, businessId: matched?.id ?? null, name: data.name, status: matched?.id ? "Already signed up ✓" : `Waiting for ${data.name} to sign up` };
   });
 
 export const setBulkRowAddress = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
