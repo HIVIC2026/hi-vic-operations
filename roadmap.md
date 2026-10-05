@@ -168,3 +168,9 @@
 - [ ] Final design Stage 1: structure fix (menu 22→7, renames, one status word per row, fewer columns) — waiting for Jo to approve the menu map and rename list
 - [x] Launch campaign to consented existing Base44 leads: Groups A/B owner flows, save-spot/opt-out/video, office counts and desk-check queue, 50-recipient gate; sending remains OFF and final email copy remains unapproved.
 - [x] Hot leads preliminary-quote draft (preview only): current owner-area estimate, enquired/applied trade coverage, dedupe/test exclusions, office Leads list and region counts; fresh calculator maths, three draft previews, disabled send; no schema change, no existing-job changes, no sending. Coverage/count reconciliation with Jo's read-only snapshot remains needed before any send approval.
+
+## TEST-only full-role browser harness (5 Oct, preview only)
+- [ ] Add admin-only one-click QA role entry for owner, installer boss/worker and REC, restricted to qa_test data.
+- [ ] Add qa_test-only time simulations for 24h, 48h and 30-day PIESA expiry without changing global switches.
+- [ ] Add guarded cleanup for complete qa_test journeys, preserving real/audit records.
+- [ ] Prove any SQL on PGlite with rollback, apply only after proof, then run all five browser journeys and clean up.
