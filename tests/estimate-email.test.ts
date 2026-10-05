@@ -204,6 +204,16 @@ describe("launch campaign email drafts", () => {
     expect(email.html).toContain("You could save $1,470");
     expect(email.html).toContain("See my savings");
     expect(email.html).not.toContain("Save my spot");
+    expect(email.html).toContain("font-family:'Figtree',Arial,Helvetica,sans-serif");
+    expect(email.html).toContain("font-family:'Outfit','Figtree',Arial,Helvetica,sans-serif");
+    expect(email.html).toContain("background-color:#FBFCFA");
+    expect(email.html).toContain("background-color:#EDFAF2");
+    expect(email.html).toContain("background-color:#F3F6FF");
+    expect(email.html).toContain("background-color:#FDF2F6");
+    expect(email.html).toContain("background-color:#07BF61");
+    expect(email.html).not.toContain("Open Sans");
+    expect(email.html).not.toContain("text-transform:uppercase");
+    expect(email.html).not.toMatch(/box-shadow:\s*[45]px\s+[45]px\s+0/i);
   });
 
   test("Group B asks for one manhole video", () => {
