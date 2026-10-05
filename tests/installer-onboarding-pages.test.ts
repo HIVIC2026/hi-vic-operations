@@ -78,7 +78,7 @@ describe("installer visible pages", () => {
   test("rates note appears only after the optional-extra hint and fee copy hides internal overrides", () => {
     const route = readFileSync("src/routes/installer-onboarding.tsx", "utf8");
     const hint = "Enter $0 if it's included at no extra charge. Leave blank to quote it separately on the job before owner approval.";
-    const note = "Keeping access, call-out and other extra charges reasonable helps more homeowners proceed—and creates more opportunities for your business.";
+    const note = "Keeping access charges reasonable helps more homeowners proceed—and creates more opportunities for your business.";
     expect(route.match(new RegExp(note.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))?.length).toBe(1);
     expect(route.indexOf(note)).toBeGreaterThan(route.indexOf(hint));
     const agreement = agreementText(complete);
