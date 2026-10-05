@@ -24,7 +24,7 @@ function FieldJobs() {
     enabled: !!me,
     queryFn: async () => {
       const uid = me.user.id;
-      return (await supabase.from("job_overview").select("*").or(`electrician_id.eq.${uid},installer_id.eq.${uid}`).is("qa_archived_at", null).not("stage", "in", "(complete,cancelled)").order("last_activity_at", { ascending: false })).data ?? [];
+      return (await supabase.from("job_overview").select("*").or(`electrician_id.eq.${uid},installer_id.eq.${uid}`).not("stage", "in", "(complete,cancelled)").order("last_activity_at", { ascending: false })).data ?? [];
     },
   });
   const isInstaller = me?.roles.includes("installer");
