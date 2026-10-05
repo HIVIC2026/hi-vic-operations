@@ -8,9 +8,10 @@ export { DAYS, LEAD_TIMES, RADII, validAbn };
 export type { ResolvedAddress };
 // 1.14 adds the verified AP accreditation number to the applicant-facing agreement.
 // 1.15 (5 Oct): installer CII lines leave out blank details (issue date is no longer asked; issuer is asked again).
+// 1.16 (5 Oct): vacuum-only rate is no longer asked; its agreement line is dropped for new signers.
 // Earlier signed versions stay immutable and remain activatable.
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.15-2026-10-05";
-export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", "HI-VIC-A48-INST-1.13-2026-10-03", "HI-VIC-A48-INST-1.14-2026-10-03", INSTALLER_AGREEMENT_VERSION];
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.16-2026-10-05";
+export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", "HI-VIC-A48-INST-1.13-2026-10-03", "HI-VIC-A48-INST-1.14-2026-10-03", "HI-VIC-A48-INST-1.15-2026-10-05", INSTALLER_AGREEMENT_VERSION];
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
