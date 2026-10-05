@@ -278,3 +278,10 @@ Each: Jo approves sign-ins/keys; dummy test on qa_test; preview only.
 - [ ] "Coming up": booked jobs with day + window tile, "Safety check · {owner surname}", address, chevron to open
 - [ ] "This month" mint strip: jobs done + amount earned (own agreed rate only, never customer price/margin)
 - [ ] Bottom tabs: Work, Money, My business; mobile-first h-12; no HIV phone number (only "Call owner" on booked visit card)
+
+## Electrician offer "It's yours!" + on-the-day job page (Jo-approved 5 Oct) — queued with the electrician offer, after trade launch fixes, preview only
+- [ ] Taken moment: big green banner above the job card — white circle + green tick, "It's yours!" (Outfit 800 ~32px), "Oooft, that was fast clicking.", the time they took e.g. "TUE 14 · 8–10am"; navy card then switches to "Locked in" (owner name, address, Directions / Call owner / Calendar) + "Nice one. The owner knows you're coming, and we'll ping you the day before."
+- [ ] On the day: navy card — pink pill "Today · {window}", "Safety check · {owner surname}", address, Directions + Call owner
+- [ ] "Ready when you are" white card + fixed green "⚡ Start check" opening the Mitti PIESA form pre-filled for this job; after tap "Over to Mitti" / "Submit the form and this page updates itself."
+- [ ] Result cards: no fixes -> mint tick card "All clear. Done and dusted." / "No fixes needed, so the install's good to go."; fixes -> blush card "{N} fixes found. We'll take it from here." + pricing/owner-quote line, then the fixes list from the form; "Back to my work" button
+- [ ] Builds on existing guards/paths only: PIESA Mitti form only after a confirmed PIESA booking, setup notice when PIESA template IDs are blank, page refresh from the existing 15-min Mitti sync, install-unlock and 30-day clock via the workflow guards
