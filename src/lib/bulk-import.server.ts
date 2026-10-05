@@ -9,6 +9,7 @@ import { logPartner } from "./pilot.server";
 import { type LocationVariables } from "./activity48.core";
 import { HIVIC_PIESA_INC_GST } from "./installer-led.core";
 import { confirmedQuoteDecision } from "./quote-release.core";
+import { hashToken, newToken } from "./worker-links.core";
 import { linkFiles, type LeadStage } from "./bulk-import.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
@@ -358,6 +359,7 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
   const permission = (batch.summary as { permission?: { confirmed_by: string; confirmed_at: string; wording: string } } | null)?.permission;
   if (!permission?.confirmed_by || !permission.confirmed_at) throw new BulkImportError("The contact permission tick is missing for this upload — please upload again and tick the box.");
   let created = 0, skipped = 0, failed = 0;
+  const ownerLinks: { jobNumber: string; owner: string; path: string }[] = [];
   for (const row of rows ?? []) {
     if (skipRowIds.includes(row.id) || row.duplicate_note) {
       await admin.from("bulk_import_rows").update({ status: "skipped" }).eq("id", row.id);
@@ -387,6 +389,9 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
         }
       } else await admin.from("jobs").update({ electrician_choice: "hivic_organise" }).eq("id", job.id);
       await admin.from("bulk_import_rows").update({ status: "confirmed", job_id: job.id }).eq("id", row.id);
+      const ownerToken = newToken();
+      await admin.from("owner_eligibility_links").insert({ job_id: job.id, business_id: batch.business_id, token_hash: await hashToken(ownerToken), created_by: actorId, expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() });
+      ownerLinks.push({ jobNumber: job.job_number, owner: e.full_name ?? "Customer", path: `/eligibility/${ownerToken}` });
       await logEvent(job.id, actorId, "bulk_import_confirmed", `Job created from installer bulk upload (row ${row.row_index + 1})`, {
         batch_id: batchId, row_id: row.id, sort_result: row.sort_result,
         missing_evidence: row.missing_evidence, draft_quote: quoted,
@@ -402,7 +407,7 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
     }
   }
   await admin.from("bulk_import_batches").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", batchId);
-  return { created, skipped, failed };
+  return { created, skipped, failed, ownerLinks };
 }
 
 /** Office/installer adds the missing address to a review row; the row is re-sorted (never auto-confirmed). */
