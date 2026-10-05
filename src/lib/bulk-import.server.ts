@@ -248,10 +248,8 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
     { code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: apFee, line_total_inc_gst: apFee, is_other: false, explanation: null, sort: 2 },
   ];
   const subtotal = Math.round((e.price_inc_gst + HIVIC_PIESA_INC_GST + apFee) * 100) / 100;
-  // Same guardrails as every other quote: region's program maximum, then the $200 minimum contribution.
+  // Same guardrail as every other quote: the $200 minimum contribution (no maximum discount exists).
   const rules = applyDiscountRules(rawDiscount, subtotal, loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null, {
-    max_discount_metro_inc_gst: rs ? Number(rs.max_discount_metro_inc_gst) : 1500,
-    max_discount_regional_inc_gst: rs ? Number(rs.max_discount_regional_inc_gst) : 2100,
     minimum_customer_copayment_inc_gst: rs ? Number(rs.minimum_customer_copayment_inc_gst) : 200,
   });
   const discount = Math.round(rules.discount * 100) / 100;

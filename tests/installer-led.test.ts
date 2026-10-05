@@ -13,7 +13,7 @@ describe("installer-led pricing", () => {
   it("owner price = quote + PIESA + rectification + AP fee − discount, no referral, min $200", () => {
     const p = installerLedOwnerPrice({ installerQuoteIncGst: 3000, piesaIncGst: 349, rectificationIncGst: 0, apFeeIncGst: 200, veecDiscountIncGst: 2100 });
     expect(p.total).toBe(3549); expect(p.afterDiscount).toBe(1449); expect("referralFee" in p).toBe(false); expect(p.ready).toBe(true);
-    expect(installerLedOwnerPrice({ installerQuoteIncGst: 1000, piesaIncGst: 349, rectificationIncGst: 0, apFeeIncGst: 0, veecDiscountIncGst: 1200 }).ready).toBe(false);
+    expect(installerLedOwnerPrice({ installerQuoteIncGst: 1000, piesaIncGst: 349, rectificationIncGst: 0, apFeeIncGst: 0, veecDiscountIncGst: 1200 }).afterDiscount).toBe(200); // discount reduced to keep the $200 minimum (not blocked)
     expect(installerLedOwnerPrice({ installerQuoteIncGst: 3000, piesaIncGst: null, rectificationIncGst: 0, apFeeIncGst: null, veecDiscountIncGst: 0 }).blockers.length).toBe(2);
   });
   it("installer-led jobs never carry a referral fee in profit", () => {
