@@ -719,6 +719,7 @@ export type Database = {
           confirmed_at: string | null
           created_at: string
           created_by: string
+          electrician_plan: Json
           file_manifest: Json
           id: string
           list_filename: string | null
@@ -731,6 +732,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string
           created_by: string
+          electrician_plan?: Json
           file_manifest?: Json
           id?: string
           list_filename?: string | null
@@ -743,6 +745,7 @@ export type Database = {
           confirmed_at?: string | null
           created_at?: string
           created_by?: string
+          electrician_plan?: Json
           file_manifest?: Json
           id?: string
           list_filename?: string | null
@@ -765,12 +768,15 @@ export type Database = {
           batch_id: string
           created_at: string
           duplicate_note: string | null
+          electrician_plan: Json | null
           extracted: Json
           id: string
+          import_stage: string
           job_id: string | null
           match_confidence: string | null
           matched_files: Json
           missing_evidence: Json
+          office_review_reason: string | null
           row_index: number
           sort_reasons: Json
           sort_result: string | null
@@ -780,12 +786,15 @@ export type Database = {
           batch_id: string
           created_at?: string
           duplicate_note?: string | null
+          electrician_plan?: Json | null
           extracted?: Json
           id?: string
+          import_stage?: string
           job_id?: string | null
           match_confidence?: string | null
           matched_files?: Json
           missing_evidence?: Json
+          office_review_reason?: string | null
           row_index: number
           sort_reasons?: Json
           sort_result?: string | null
@@ -795,12 +804,15 @@ export type Database = {
           batch_id?: string
           created_at?: string
           duplicate_note?: string | null
+          electrician_plan?: Json | null
           extracted?: Json
           id?: string
+          import_stage?: string
           job_id?: string | null
           match_confidence?: string | null
           matched_files?: Json
           missing_evidence?: Json
+          office_review_reason?: string | null
           row_index?: number
           sort_reasons?: Json
           sort_result?: string | null
