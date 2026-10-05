@@ -778,6 +778,13 @@
       "when": 1791171601609,
       "tag": "0110_installer_vacuum_only_rate",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1791179782312,
+      "tag": "0111_quote_veec_count",
+      "breakpoints": true
     }
   ]
 }

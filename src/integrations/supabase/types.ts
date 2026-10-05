@@ -8473,7 +8473,9 @@ export type Database = {
           sent_at: string | null
           status: Database["public"]["Enums"]["quote_status"]
           subtotal_inc_gst: number
+          veec_count: number | null
           veec_discount_inc_gst: number
+          veec_unit_value_inc_gst: number | null
           version: number
         }
         Insert: {
@@ -8505,7 +8507,9 @@ export type Database = {
           sent_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal_inc_gst: number
+          veec_count?: number | null
           veec_discount_inc_gst?: number
+          veec_unit_value_inc_gst?: number | null
           version?: number
         }
         Update: {
@@ -8537,7 +8541,9 @@ export type Database = {
           sent_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal_inc_gst?: number
+          veec_count?: number | null
           veec_discount_inc_gst?: number
+          veec_unit_value_inc_gst?: number | null
           version?: number
         }
         Relationships: [

@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { requiredDepositCents } from "@/lib/payment-gate.core";
 import { QUOTE_EXPIRED_OWNER_MESSAGE, quoteExpiresAt, quoteIsExpired } from "@/lib/quote-expiry.core";
 import { depositPctFor } from "@/config/workflow-decisions";
+import { veecDiscountLabel } from "@/lib/estimate.core";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, FileUp, Lock, Paperclip, ShieldAlert } from "lucide-react";
@@ -277,7 +278,7 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
               {q.quote_items.sort((a, b) => a.sort - b.sort).map((i) => (
                 <li key={i.id} className="flex justify-between gap-2"><span>{i.description} × {Number(i.quantity)}</span><span>{aud(i.line_total_inc_gst)}</span></li>
               ))}
-              {Number(q.veec_discount_inc_gst) > 0 && <li className="flex justify-between text-success"><span>VEEC discount</span><span>−{aud(q.veec_discount_inc_gst)}</span></li>}
+              {Number(q.veec_discount_inc_gst) > 0 && <li className="flex justify-between text-success"><span>{q.veec_count != null && q.veec_unit_value_inc_gst != null ? veecDiscountLabel(q.veec_count, Number(q.veec_unit_value_inc_gst)) : "VEEC discount"}</span><span>−{aud(q.veec_discount_inc_gst)}</span></li>}
               {q.discount_note && <li className="text-xs text-muted-foreground">{q.discount_note}</li>}
             </ul>
             <div className="mt-2 border-t pt-2 text-lg font-bold">{aud(q.customer_total_inc_gst)} <span className="text-xs font-normal text-muted-foreground">inc GST</span></div>

@@ -3,7 +3,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { quoteInputsFromMeasurement, type MeasurementLike } from "./scope.core";
 import { lookupLocation } from "./activity48.core";
-import { applyDiscountRules, discountNotes } from "./estimate.core";
+import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -101,7 +101,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   const card = await activeRateCard("installer", inst.business_id, false);
   const items = card.rate_card_items as { code: string; description: string; unit_price_ex_gst: number; category: string }[];
   const rate = (...codes: string[]) => { for (const c of codes) { const it = items.find((i) => i.code === c); if (it) return Number(it.unit_price_ex_gst); } return null; };
-  const { data: rs } = await admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst, access_standard_multiplier, access_moderate_multiplier, access_difficult_multiplier, minimum_customer_copayment_inc_gst, max_discount_metro_inc_gst, max_discount_regional_inc_gst").eq("is_current", true).maybeSingle();
+  const { data: rs } = await admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst, access_standard_multiplier, access_moderate_multiplier, access_difficult_multiplier, minimum_customer_copayment_inc_gst, indicative_veec_value").eq("is_current", true).maybeSingle();
   if (!rs) throw new WorkflowError("Owner prices are not set – cannot quote.");
   // Region decides which program maximum applies; an unlisted postcode uses the lower metro cap (fails safe).
   const { data: prop } = await admin.from("properties").select("postcode").eq("id", jobRow.property_id).maybeSingle();
@@ -132,10 +132,11 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]);
   const ownSubtotal = r2(calc.lines.reduce((a, l) => a + l.line_total_inc_gst, 0));
   const subtotal = r2(ownSubtotal + rectTotal);
-  // LEGACY flat per-m² VEEC credit basis, unchanged — but the customer discount is capped at the
-  // region's program maximum and reduced if needed so the $200 minimum contribution applies (Jo, 5 Oct 2026).
-  const rawVeec = qi.areaM2 * Number(settings.veec_credit_per_m2_inc_gst);
-  const rules = applyDiscountRules(rawVeec, subtotal, metro, rs);
+  // Jo, 5 Oct 2026: same basis as the calculator — whole VEECs (Eq 48.1 rounded down, property postcode) × consumer
+  // $/VEEC, then the $200 minimum rule. The old flat per-m² credit is no longer used for new/redrafted quotes.
+  if (!loc) throw new WorkflowError("VEU discount can't be worked out: the property postcode isn't in the official VEU location list. Quote this job manually.");
+  const wv = wholeVeecDiscount(qi.areaM2, loc, Number(rs.indicative_veec_value));
+  const rules = applyDiscountRules(wv.raw, subtotal, metro, rs);
   const veec = r2(rules.discount);
   const discountNote = discountNotes(rules).join(" ") || null;
   const label = rectLines.length ? "R5.0 ceiling insulation + electrical rectification" : "R5.0 ceiling insulation";
@@ -143,6 +144,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
     job_id: jobId, kind: "installation", option_label: label, option_code: "R5_BATTS", status: "issued", sent_at: new Date().toISOString(),
     rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal,
     gst_amount: r2(subtotal - subtotal / gstMul), veec_discount_inc_gst: veec, discount_note: discountNote,
+    veec_count: wv.veecs, veec_unit_value_inc_gst: wv.unitValue,
     customer_total_inc_gst: r2(subtotal - veec), created_by: actorId,
   }).select("id").single();
   if (error || !q) throw new Error(error?.message);
@@ -225,7 +227,7 @@ export async function adjustQuote(quoteId: string, actorId: string, reason: stri
   const veec = r2(Math.min(subtotal, veecDiscount ?? Number(before.veec_discount_inc_gst)));
   const { data: s } = await admin.from("pricing_settings").select("gst_rate").eq("id", before.pricing_settings_id!).maybeSingle();
   const gst = 1 + Number(s?.gst_rate ?? 0.1);
-  const after = { subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: veec, customer_total_inc_gst: r2(subtotal - veec), manually_adjusted: true };
+  const after = { subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: veec, customer_total_inc_gst: r2(subtotal - veec), manually_adjusted: true, ...(veec !== Number(before.veec_discount_inc_gst) ? { veec_count: null, veec_unit_value_inc_gst: null } : {}) };
   await admin.from("quotes").update(after).eq("id", quoteId);
   const { data: afterFull } = await admin.from("quotes").select("*, quote_items(*)").eq("id", quoteId).single();
   await admin.from("quote_adjustments").insert({ quote_id: quoteId, adjusted_by: actorId, reason, before_snapshot: before, after_snapshot: afterFull ?? {} });
