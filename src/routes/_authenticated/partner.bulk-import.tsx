@@ -3,11 +3,12 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BatchOwnerLinksButton } from "@/components/portal/owner-eligibility";
-import { bulkBatchReview, bulkImportBusinesses, confirmBulkBatch, createBulkBatch, geocodeBulkPhotos, readBulkFile } from "@/lib/bulk-import.functions";
+import { bulkBatchReview, bulkImportBusinesses, confirmBulkBatch, createBulkBatch, geocodeBulkPhotos, readBulkFile, setBulkRowAddress } from "@/lib/bulk-import.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { CONTACT_PERMISSION_WORDING, LEAD_STAGE_LABEL, type FileResult, type LeadStage } from "@/lib/bulk-import.core";
 
@@ -256,6 +257,7 @@ function BulkImportPage() {
     enabled: !!batchId,
   });
   const rows = (review?.rows ?? []) as unknown as ReviewRow[];
+  const missingAddr = rows.filter((r) => !r.duplicate_note && !skip.has(r.id) && !(r.extracted.address_line && r.extracted.postcode)).length;
   const summary = review?.batch?.summary as { file_results?: FileResult[]; rows?: number; covers_ready_check?: number; needs_visit?: number; office_review?: number; duplicates?: number; not_visited?: number; visited?: number; visited_quoted?: number } | null;
 
   async function analyse() {
@@ -359,7 +361,9 @@ function BulkImportPage() {
                           onCheckedChange={(c) => { const s = new Set(skip); if (c) s.add(r.id); else s.delete(r.id); setSkip(s); }} />
                       </td>
                       <td className="p-2">{r.extracted.full_name ?? "—"}<div className="text-xs text-muted-foreground">{r.extracted.phone ?? r.extracted.email ?? ""}</div></td>
-                      <td className="p-2">{r.extracted.address_line ?? "—"}<div className="text-xs text-muted-foreground">{[r.extracted.suburb, r.extracted.postcode].filter(Boolean).join(" ")}</div></td>
+                      <td className="p-2">{r.extracted.address_line && r.extracted.postcode
+                        ? <>{r.extracted.address_line}<div className="text-xs text-muted-foreground">{[r.extracted.suburb, r.extracted.postcode].filter(Boolean).join(" ")}</div></>
+                        : <AddAddress row={r} onSaved={() => qc.invalidateQueries({ queryKey: ["bulk-review", batchId] })} />}</td>
                       <td className="p-2">{r.extracted.lead_stage ? LEAD_STAGE_LABEL[r.extracted.lead_stage] : "—"}</td>
                       <td className="p-2">{r.extracted.area_m2 ? `${r.extracted.area_m2} m²` : "—"}</td>
                       <td className="p-2">{r.extracted.price_inc_gst ? `$${r.extracted.price_inc_gst}` : "—"}</td>
@@ -377,7 +381,8 @@ function BulkImportPage() {
               </table>
             </div>
             <p className="text-sm text-muted-foreground">Confirming creates the jobs only — nothing is sent to any customer. If a price was included, a draft quote is prepared for office review (installer's price + PIESA + AP fee − government discount, no markup).</p>
-            <Button disabled={busy || summary.rows === 0} onClick={confirmAll}>{busy ? "Creating…" : "Confirm — create these jobs"}</Button>
+            {missingAddr > 0 && <p className="text-sm text-destructive">{missingAddr} customer{missingAddr > 1 ? "s need" : " needs"} an address — add it in the table above, or tick Skip.</p>}
+            <Button disabled={busy || summary.rows === 0 || missingAddr > 0} onClick={confirmAll}>{busy ? "Creating…" : "Confirm — create these jobs"}</Button>
           </CardContent>
         </Card>
       )}
@@ -393,6 +398,31 @@ function BulkImportPage() {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+function AddAddress({ row, onSaved }: { row: ReviewRow; onSaved: () => void }) {
+  const save = useServerFn(setBulkRowAddress);
+  const [line, setLine] = useState(row.extracted.address_line ?? "");
+  const [suburb, setSuburb] = useState(row.extracted.suburb ?? "");
+  const [pc, setPc] = useState(row.extracted.postcode ?? "");
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-destructive">No address found — please add it</p>
+      <Input aria-label="Street address" placeholder="Street address" value={line} onChange={(e) => setLine(e.target.value)} />
+      <div className="flex gap-1">
+        <Input aria-label="Suburb" placeholder="Suburb" value={suburb} onChange={(e) => setSuburb(e.target.value)} />
+        <Input aria-label="Postcode" placeholder="Postcode" className="w-24" inputMode="numeric" value={pc} onChange={(e) => setPc(e.target.value)} />
+      </div>
+      <Button size="sm" variant="outline" disabled={busy || line.trim().length < 3 || !/^3\d{3}$/.test(pc.trim())}
+        onClick={async () => {
+          setBusy(true);
+          try { await save({ data: { rowId: row.id, address_line: line, suburb: suburb || null, postcode: pc } }); toast.success("Address added"); onSaved(); }
+          catch (e) { toast.error((e as Error).message); }
+          finally { setBusy(false); }
+        }}>Save address</Button>
     </div>
   );
 }

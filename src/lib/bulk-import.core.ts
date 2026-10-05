@@ -84,7 +84,7 @@ export function dedupeKey(e: BulkExtracted): string | null {
   return null;
 }
 
-export type FileMatch = { path: string; name: string; how: "folder" | "filename" | "gps" };
+export type FileMatch = { path: string; name: string; how: "folder" | "filename" | "gps" | "photo_text" | "only_lead" };
 
 /** Match files to a row by folder name, then filename, against the address tokens. */
 export function matchFiles(
@@ -109,6 +109,27 @@ export function matchFiles(
   }
   const confidence = matched.some((m) => m.how === "folder" || m.how === "gps") ? "high" : matched.length > 0 ? "low" : "none";
   return { matched, confidence };
+}
+
+/** Link uploaded files to every lead: folder/filename/GPS first, then files whose own text (photo or PDF)
+ * the lead was read from, then — when the upload describes only ONE customer — every file nobody else claimed. */
+export function linkFiles(leads: BulkExtracted[], files: BulkFile[]): { matched: FileMatch[]; confidence: "high" | "low" | "none" }[] {
+  const base = (n: string) => n.split("/").pop()!.toLowerCase();
+  const out = leads.map((e) => {
+    const r = matchFiles(e, files);
+    const have = new Set(r.matched.map((m) => m.path));
+    const src = new Set((e.source_files ?? []).map(base));
+    for (const f of files) if (!have.has(f.path) && src.has(base(f.path))) { r.matched.push({ path: f.path, name: f.name, how: "photo_text" }); have.add(f.path); }
+    return r;
+  });
+  if (leads.length === 1) {
+    const r = out[0]!; const have = new Set(r.matched.map((m) => m.path));
+    for (const f of files) if (!have.has(f.path)) r.matched.push({ path: f.path, name: f.name, how: "only_lead" });
+  }
+  return out.map((r) => ({
+    matched: r.matched,
+    confidence: r.matched.some((m) => m.how === "folder" || m.how === "gps" || m.how === "photo_text") ? "high" : r.matched.length > 0 ? "low" : "none",
+  }));
 }
 
 const KNOWN = (v: string | null | undefined) => {
@@ -164,10 +185,10 @@ export function sortJob(
   opts: { matchConfidence: "high" | "low" | "none"; duplicate: boolean },
 ): { result: SortResult; reasons: string[] } {
   const reasons: string[] = [];
-  if (!e.address_line || !e.postcode) reasons.push("No usable address");
+  if (!e.address_line || !e.postcode) reasons.push("No address found — please add it in the review table");
   if (opts.duplicate) reasons.push("Looks like a job that already exists in the portal");
   if (!e.full_name && !e.phone && !e.email) reasons.push("No customer name or contact details");
-  if (e.unsure) reasons.push("Found only from file names, photo text or photo location — please check");
+  if (e.unsure) reasons.push("Found from notes, file names, photo text or photo location — please check");
   if (reasons.length > 0) return { result: "office_review", reasons };
 
   const gaps = readyCheckGaps(e);
@@ -214,9 +235,9 @@ export function fileResults(read: FileResult[], leads: BulkExtracted[], matches:
     if (r.status === "error") return r;
     const parts: string[] = [r.message];
     if (fed.length) parts.push(fed.length === 1 ? `customer found: ${label(fed[0]!)}` : `${fed.length} customers found`);
-    const g = hit.find((h) => h.x.how === "gps"), o = hit[0];
+    const g = hit.find((h) => h.x.how === "gps"), o = fed.length ? undefined : hit[0];
     if (g) parts.push(`matched by GPS to ${label(g.e)}`);
-    else if (o) parts.push(`matched by ${o.x.how === "folder" ? "folder name" : "file name"} to ${label(o.e)}`);
+    else if (o) parts.push(o.x.how === "only_lead" ? `attached to ${label(o.e)} (the only customer in this upload)` : `matched by ${({ folder: "folder name", filename: "file name", photo_text: "address written in the file", gps: "GPS", only_lead: "" } as const)[o.x.how]} to ${label(o.e)}`);
     const used = fed.length > 0 || hit.length > 0;
     return { name: r.name, status: used ? r.status : "warn", message: used ? parts.join(" — ") : `${r.message} — not linked to any customer` };
   });

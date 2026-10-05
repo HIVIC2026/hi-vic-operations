@@ -85,6 +85,24 @@ export const confirmBulkBatch = createServerFn({ method: "POST" }).middleware([r
     return confirmBatch(data.batchId, context.userId, data.skipRowIds);
   });
 
+export const setBulkRowAddress = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    rowId: uuid,
+    address_line: z.string().trim().min(3).max(200),
+    suburb: z.string().trim().max(100).nullable(),
+    postcode: z.string().trim().regex(/^3\d{3}$/, "Enter a 4-digit Victorian postcode"),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: row } = await admin.from("bulk_import_rows").select("batch_id").eq("id", data.rowId).single();
+    if (!row) throw new WorkflowError("Row not found.");
+    const { data: batch } = await admin.from("bulk_import_batches").select("business_id").eq("id", row.batch_id).single();
+    if (!batch) throw new WorkflowError("Upload not found.");
+    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
+    if (!isAdmin) await requireMember(context.userId, batch.business_id);
+    const { setRowAddress } = await import("./bulk-import.server");
+    return setRowAddress(data.rowId, { address_line: data.address_line, suburb: data.suburb || null, postcode: data.postcode });
+  });
+
 export const listBulkBatches = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ businessId: uuid.optional() }).parse(d))
   .handler(async ({ data, context }) => {
