@@ -58,7 +58,7 @@ export async function jobIdForToken(token: unknown): Promise<string | null> {
   return ctx?.link.job_id ?? null;
 }
 
-type WindowPick = { date: string; slot: "morning" | "afternoon" };
+type WindowPick = { date: string; slot: import("./piesa-windows.core").PiesaSlot };
 
 /** Idempotent per job + estimate. A changed estimate requires reconfirmation.
  *  picks: the owner's 3–5 Ready Check times, validated BEFORE anything is recorded. */

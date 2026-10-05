@@ -16,8 +16,8 @@ describe("rectification rules", () => {
   });
   test("electrician windows use the same day rules (3-5, 3 days)", () => {
     const d = allowedPiesaDays(now);
-    expect(rectPlanBlockers(4, [{ date: d[0]!, slot: "morning" }], now).length).toBeGreaterThan(0);
-    expect(rectPlanBlockers(4, [{ date: d[0]!, slot: "morning" }, { date: d[1]!, slot: "afternoon" }, { date: d[2]!, slot: "morning" }], now)).toEqual([]);
+    expect(rectPlanBlockers(4, [{ date: d[0]!, slot: "8-10" }], now).length).toBeGreaterThan(0);
+    expect(rectPlanBlockers(4, [{ date: d[0]!, slot: "8-10" }, { date: d[1]!, slot: "12-14" }, { date: d[2]!, slot: "8-10" }], now)).toEqual([]);
   });
   test("owner sees only windows at least 24 hours away", () => {
     const w = [{ id: "a", starts_at: at(20 * H), status: "proposed" }, { id: "b", starts_at: at(25 * H), status: "proposed" }, { id: "c", starts_at: at(48 * H), status: "accepted" }];

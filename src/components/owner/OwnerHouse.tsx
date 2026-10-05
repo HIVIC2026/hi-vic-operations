@@ -1,4 +1,4 @@
-import { clampLevel, houseStripes } from "@/lib/owner-house.core";
+import { HOUSE_COLORS, clampLevel, houseStripes } from "@/lib/owner-house.core";
 import { cn } from "@/lib/utils";
 
 /** Signature owner house. level 0–5 = filled insulation stripes (bottom-up). */
@@ -15,10 +15,10 @@ export function OwnerHouse({ level, size = "lg", className }: { level: number; s
         <rect
           key={s.i}
           x={s.x} y={s.y} width={s.w} height={s.h} rx={1.5}
-          className={cn(
-            "transition-[fill] duration-[400ms] ease-out motion-reduce:transition-none",
-            s.i < lv ? "fill-owner-house-pink" : "fill-estimate-mist stroke-estimate-line [stroke-width:0.8]",
-          )}
+          fill={s.i < lv ? HOUSE_COLORS.pink : HOUSE_COLORS.mist}
+          stroke={s.i < lv ? "none" : "#E4E9F5"}
+          strokeWidth={0.8}
+          className="transition-[fill] duration-[400ms] ease-out motion-reduce:transition-none"
         />
       ))}
       <g fill="none" stroke="currentColor" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round">

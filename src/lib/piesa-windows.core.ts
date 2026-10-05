@@ -1,11 +1,14 @@
 // Owner-picked PIESA windows (Operating Model v2). Pure rules only.
-// Windows: morning 8am–12pm or afternoon 12pm–4pm, Melbourne time. Owner picks 3–5 windows on at least 3 different days.
+// Windows: four 2-hour windows (8–10am, 10am–12, 12–2pm, 2–4pm), Melbourne time (Jo-approved 5 Oct, used everywhere). Owner picks 3–5 windows on at least 3 different days.
 // Allowed days (no capacity holds yet): business days from the 2nd business day after today, up to 21 days ahead.
 
-export type PiesaSlot = "morning" | "afternoon";
+export const PIESA_SLOT_KEYS = ["8-10", "10-12", "12-14", "14-16"] as const;
+export type PiesaSlot = (typeof PIESA_SLOT_KEYS)[number];
 export const PIESA_SLOTS: Record<PiesaSlot, { label: string; startHour: number; endHour: number }> = {
-  morning: { label: "Morning (8am–12pm)", startHour: 8, endHour: 12 },
-  afternoon: { label: "Afternoon (12pm–4pm)", startHour: 12, endHour: 16 },
+  "8-10": { label: "8–10am", startHour: 8, endHour: 10 },
+  "10-12": { label: "10am–12", startHour: 10, endHour: 12 },
+  "12-14": { label: "12–2pm", startHour: 12, endHour: 14 },
+  "14-16": { label: "2–4pm", startHour: 14, endHour: 16 },
 };
 export const PIESA_WINDOW_MIN = 3;
 export const PIESA_WINDOW_MAX = 5;
@@ -89,8 +92,10 @@ export function formatPiesaWindow(startsAt: string, endsAt: string | null): stri
   const s = new Date(startsAt);
   const day = new Intl.DateTimeFormat("en-AU", { timeZone: TZ, weekday: "short", day: "numeric", month: "short" }).format(s);
   const h = Number(new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", hourCycle: "h23" }).format(s));
-  const label = h < 12 ? "8am–12pm" : "12pm–4pm";
-  void endsAt;
+  const e = endsAt ? Number(new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", hourCycle: "h23" }).format(new Date(endsAt))) : h + 2;
+  const slot = Object.values(PIESA_SLOTS).find((x) => x.startHour === h && x.endHour === e);
+  const fmt = (x: number) => (x === 12 ? "12pm" : x < 12 ? `${x}am` : `${x - 12}pm`);
+  const label = slot?.label ?? `${fmt(h)}–${fmt(e)}`; // older half-day windows still read correctly
   return `${day}, ${label}`;
 }
 

@@ -452,7 +452,7 @@ async function sweepPiesaWindows(actorId: string | null) {
 }
 
 /** Owner submits 3–5 PIESA windows (round 1 at acceptance; round 2 only when asked for more times). */
-export async function submitOwnerPiesaWindows(jobId: string, userId: string, picks: { date: string; slot: "morning" | "afternoon" }[]) {
+export async function submitOwnerPiesaWindows(jobId: string, userId: string, picks: { date: string; slot: import("./piesa-windows.core").PiesaSlot }[]) {
   const { piesaWindowBlockers, windowBounds, PIESA_MAX_ROUNDS } = await import("./piesa-windows.core");
   const b = piesaWindowBlockers(picks);
   if (b.length) throw new WorkflowError(b.join(" "));

@@ -23,7 +23,7 @@ export async function assertHivicInvoice(invoiceId: string, loadJobForInvoice: (
   assertHivicJob(await loadJobForInvoice(invoiceId));
 }
 /** Second defensive check on every outgoing invoice payload: Home Insulation Victoria reference + Business Unit = Home Insulation Victoria on every line. */
-export function assertHivicPayload(payload: { Invoices: { Reference?: string; LineItems: { Tracking?: { Name: string; Option: string }[] }[] }[] }, mode: XeroMode = "live") {
+export function assertHivicPayload(payload: { Invoices: { Reference?: string | undefined; LineItems: { Tracking?: { Name: string; Option: string }[] | undefined }[] }[] }, mode: XeroMode = "live") {
   for (const inv of payload.Invoices) {
     if (!inv.Reference?.startsWith(XERO_REFERENCE_PREFIX)) throw new Error(`Xero write blocked: invoice reference must start with '${XERO_REFERENCE_PREFIX}'.`);
     if (!inv.LineItems.length) throw new Error("Xero write blocked: invoice has no lines.");

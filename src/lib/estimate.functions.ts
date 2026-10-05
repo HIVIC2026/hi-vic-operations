@@ -29,7 +29,7 @@ export const getPublicEstimate = createServerFn({ method: "POST" }).middleware([
     return JSON.parse(JSON.stringify(await resolvePublicEstimate(data.token, context.assessmentTestMode)));
   });
 
-const windowPicks = z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["morning", "afternoon"]) })).min(1).max(5);
+const windowPicks = z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["8-10", "10-12", "12-14", "14-16"]) })).min(1).max(5);
 
 /** Owner requests the free Ready Check and gives 3–5 times in one step (times are required for new requests). */
 export const acceptReadyCheckFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
