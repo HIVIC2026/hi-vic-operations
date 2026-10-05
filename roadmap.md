@@ -263,3 +263,4 @@ Each: Jo approves sign-ins/keys; dummy test on qa_test; preview only.
 
 ## Owner "My job" page rebuild (Jo-approved 5 Oct) — after trade launch fixes, preview only
 - [ ] Build per mem://design/owner-my-job-page (token link, hero house fill, navy action card, who's coming, 5 steps, numbers, bottom list); remove badges/progress bar/stacked panels
+- [ ] Owner "Save my spot" time picker per mem://design/owner-save-my-spot (with My job page); same 2-hour windows on trade offer cards + PIESA/install pickers; min 3 picks
