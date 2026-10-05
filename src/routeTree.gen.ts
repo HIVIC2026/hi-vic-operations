@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CalculatorRouteImport } from './routes/calculator'
+import { Route as CampaignPreviewRouteImport } from './routes/campaign-preview'
 import { Route as ElectricianOnboardingRouteImport } from './routes/electrician-onboarding'
 import { Route as InstallerOnboardingRouteImport } from './routes/installer-onboarding'
 import { Route as QaAccessRouteImport } from './routes/qa-access'
@@ -84,6 +85,11 @@ const AuthRoute = AuthRouteImport.update({
 const CalculatorRoute = CalculatorRouteImport.update({
   id: '/calculator',
   path: '/calculator',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CampaignPreviewRoute = CampaignPreviewRouteImport.update({
+  id: '/campaign-preview',
+  path: '/campaign-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ElectricianOnboardingRoute = ElectricianOnboardingRouteImport.update({
@@ -382,6 +388,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/calculator': typeof CalculatorRoute
+  '/campaign-preview': typeof CampaignPreviewRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/qa-access': typeof QaAccessRoute
@@ -440,6 +447,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/calculator': typeof CalculatorRoute
+  '/campaign-preview': typeof CampaignPreviewRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/qa-access': typeof QaAccessRoute
@@ -500,6 +508,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/calculator': typeof CalculatorRoute
+  '/campaign-preview': typeof CampaignPreviewRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/qa-access': typeof QaAccessRoute
@@ -560,6 +569,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/calculator'
+    | '/campaign-preview'
     | '/electrician-onboarding'
     | '/installer-onboarding'
     | '/qa-access'
@@ -618,6 +628,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/calculator'
+    | '/campaign-preview'
     | '/electrician-onboarding'
     | '/installer-onboarding'
     | '/qa-access'
@@ -677,6 +688,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/calculator'
+    | '/campaign-preview'
     | '/electrician-onboarding'
     | '/installer-onboarding'
     | '/qa-access'
@@ -737,6 +749,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   CalculatorRoute: typeof CalculatorRoute
+  CampaignPreviewRoute: typeof CampaignPreviewRoute
   ElectricianOnboardingRoute: typeof ElectricianOnboardingRoute
   InstallerOnboardingRoute: typeof InstallerOnboardingRoute
   QaAccessRoute: typeof QaAccessRoute
@@ -789,6 +802,13 @@ declare module '@tanstack/react-router' {
       path: '/calculator'
       fullPath: '/calculator'
       preLoaderRoute: typeof CalculatorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/campaign-preview': {
+      id: '/campaign-preview'
+      path: '/campaign-preview'
+      fullPath: '/campaign-preview'
+      preLoaderRoute: typeof CampaignPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/electrician-onboarding': {
@@ -1242,6 +1262,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   CalculatorRoute: CalculatorRoute,
+  CampaignPreviewRoute: CampaignPreviewRoute,
   ElectricianOnboardingRoute: ElectricianOnboardingRoute,
   InstallerOnboardingRoute: InstallerOnboardingRoute,
   QaAccessRoute: QaAccessRoute,
