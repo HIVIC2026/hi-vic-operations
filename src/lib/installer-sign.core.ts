@@ -65,7 +65,7 @@ export function installerEnquiry(app: InstallerSignApp, d: InstData, hash: strin
     booking_lead_time: d.normal_attendance_speed ?? null, weekly_capacity: d.capacity_band ?? null,
     source_created_at: app.created_at, source_updated_at: signedAt,
     raw_payload: {
-      rec_onboarding_id: app.id, partner_type: "installer", gst_registered: d.gst_registered ?? null, r6_rate: d.r6_rate ?? null, r7_rate: d.r7_rate ?? null, topup_r5_rate: d.topup_r5_rate ?? null, wants_hivic_leads: d.wants_hivic_leads ?? null, accepting_jobs: d.accepting_jobs ?? null, daily_capacity_m2: d.daily_capacity_m2 ?? null,
+      rec_onboarding_id: app.id, partner_type: "installer", gst_registered: d.gst_registered ?? null, r6_rate: d.r6_rate ?? null, r7_rate: d.r7_rate ?? null, topup_r5_rate: d.topup_r5_rate ?? null, vacuum_only_rate: d.vacuum_only_rate ?? null, wants_hivic_leads: d.wants_hivic_leads ?? null, accepting_jobs: d.accepting_jobs ?? null, daily_capacity_m2: d.daily_capacity_m2 ?? null,
       typical_days: d.typical_days ?? [], installers: (d.installers ?? []).map((x) => ({ name: x.full_legal_name ?? null, email: (x.email ?? "").trim().toLowerCase(), cii_holds: x.cii_holds ?? null, cii_certificate_number: x.cii_certificate_number ?? null, cii_issuer: x.cii_issuer ?? null, cii_issue_date: x.cii_issue_date ?? null })),
       agreement_version: INSTALLER_AGREEMENT_VERSION, agreement_sha256: hash, signed_at: signedAt, signer,
     },

@@ -26,3 +26,14 @@ test("top-up validation: blank ok, zero/negative refused", () => {
   for (const v of [0, -1, 10.555]) expect(e({ topup_r5_rate: v }).length).toBeGreaterThan(0);
   expect(e({ topup_r5_rate: 16.5 })).toEqual([]);
 });
+test("vacuum-only rate: blank → no row; supplied → VACUUM_ONLY row, ex GST", () => {
+  expect(codes(base)).not.toContain("VACUUM_ONLY");
+  const items = approvedRateItems("installer", { ...base, vacuum_only_rate: 4.4 } as never) as { code: string; r_value: number | null; unit_price_ex_gst: number }[];
+  expect(items.find((i) => i.code === "VACUUM_ONLY")).toMatchObject({ r_value: null, unit_price_ex_gst: 4 });
+});
+test("vacuum-only validation: blank ok, zero/negative refused", () => {
+  const e = (x: object) => stepErrors("install_pricing", { ...base, ...x } as never).map((i: { key?: string; field?: string }) => i.key ?? i.field);
+  expect(e({})).toEqual([]);
+  for (const v of [0, -2, 4.255]) expect(e({ vacuum_only_rate: v }).length).toBeGreaterThan(0);
+  expect(e({ vacuum_only_rate: 4.4 })).toEqual([]);
+});

@@ -464,6 +464,7 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
           <RateRow label="R6.0 ceiling insulation supply & install — optional (leave blank if you don't install this)" unit="m²" value={d.r6_rate} onChange={(v) => up({ r6_rate: v })} />
           <RateRow label="R7.0 ceiling insulation supply & install — optional (leave blank if you don't install this)" unit="m²" value={d.r7_rate} onChange={(v) => up({ r7_rate: v })} />
           <RateRow label="Top up to R5.0 over existing insulation (existing stays in place) — optional (leave blank if you don't offer this)" unit="m²" value={d.topup_r5_rate} onChange={(v) => up({ topup_r5_rate: v })} />
+          <RateRow label="Dust / vermin vacuum only (no insulation removed) — optional (leave blank if you don't offer this; it will be quoted separately)" unit="m²" value={d.vacuum_only_rate} onChange={(v) => up({ vacuum_only_rate: v })} />
           <RateRow required label="Batts removal" unit="m²" value={d.batts_removal_rate} onChange={(v) => up({ batts_removal_rate: v })} />
           <RateRow required last label="Loose fill removal" unit="m²" value={d.loose_fill_removal_rate} onChange={(v) => up({ loose_fill_removal_rate: v })} />
           <p style={{ ...note, marginTop: 6 }}>Removal is required of all installer partners.</p>
