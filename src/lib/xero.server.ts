@@ -78,9 +78,15 @@ export async function loadJobForInvoice(invoiceId: string) {
   const { data } = await admin.from("invoices").select("jobs(business_unit)").eq("id", invoiceId).maybeSingle();
   return (data?.jobs as unknown as { business_unit: string | null } | null) ?? null;
 }
-export const requireHivicInvoice = (invoiceId: string) => assertHivicInvoice(invoiceId, loadJobForInvoice);
+export async function requireHivicInvoice(invoiceId: string) {
+  const { data } = await admin.from("invoices").select("jobs(business_unit, source)").eq("id", invoiceId).maybeSingle();
+  const job = data?.jobs as { business_unit: string | null; source: string | null } | null;
+  if (job?.source === "qa_test") throw new Error("Xero is blocked for TEST journeys.");
+  return assertHivicInvoice(invoiceId, async () => job);
+}
 export async function requireHivicJob(jobId: string) {
-  const { data } = await admin.from("jobs").select("business_unit").eq("id", jobId).maybeSingle();
+  const { data } = await admin.from("jobs").select("business_unit, source").eq("id", jobId).maybeSingle();
+  if (data?.source === "qa_test") throw new Error("Xero is blocked for TEST journeys.");
   assertHivicJob(data);
 }
 

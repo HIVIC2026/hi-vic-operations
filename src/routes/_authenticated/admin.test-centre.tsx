@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { FlaskConical, Plus, Trash2 } from "lucide-react";
+import { Clock3, ExternalLink, FlaskConical, Plus, Trash2, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/portal/AppShell";
@@ -11,10 +11,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { bulkJobAction } from "@/lib/bulk.functions";
 import { createTestEnquiry, getAdminPipeline } from "@/lib/portal.functions";
 import { clearOnboardingStartBlock, issueOnboardingLink, listOnboardingLinks, listOnboardingStartBlocks, revokeOnboardingLink, runOnboardingUploadCleanup } from "@/lib/onboarding-links.functions";
-import { createTestTradeAccounts } from "@/lib/test-accounts.functions";
+import { archiveQaJourney, createTestTradeAccounts, issueQaPersonaLink, prepareQaJourneyAccess, simulateQaJourneyTime } from "@/lib/test-accounts.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/test-centre")({
   head: () => ({ meta: [
@@ -41,7 +40,7 @@ const INITIAL = {
 
 function TestCentre() {
   const load = useServerFn(getAdminPipeline);
-  const remove = useServerFn(bulkJobAction);
+  const archive = useServerFn(archiveQaJourney);
   const { data = [], error, isPending, refetch } = useQuery({ queryKey: ["pipeline"], queryFn: () => load(), retry: 3 });
   const jobs = data.filter((job) => job.source === "qa_test");
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -59,7 +58,7 @@ function TestCentre() {
           <article key={job.id} className="rounded-md border bg-card p-4 shadow-sm">
             <div className="flex items-start justify-between gap-2"><div><div className="font-display text-lg font-bold">{job.job_number}</div><div className="text-sm text-muted-foreground">{job.property_address}</div></div><Badge variant="outline">TEST</Badge></div>
             <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm"><dt className="text-muted-foreground">Owner</dt><dd>{job.owner_name}</dd><dt className="text-muted-foreground">Stage</dt><dd>{String(job.stage ?? "new enquiry").replaceAll("_", " ")}</dd><dt className="text-muted-foreground">Next action</dt><dd>{job.next_action ?? "Review test journey"}</dd></dl>
-            <div className="mt-4 flex gap-2 border-t pt-3"><Button asChild size="sm"><Link to="/admin/jobs/$jobId" params={{ jobId: job.id! }}>Open journey</Link></Button><Button size="sm" variant="outline" disabled={deleting === job.id} onClick={async () => { setDeleting(job.id!); try { const result = await remove({ data: { jobIds: [job.id!], action: "delete", reason: "Removed from Test Centre" } }); if (result.done) toast.success("Test journey deleted"); else toast.error(result.failed[0]?.error ?? "Could not delete test journey"); await refetch(); } finally { setDeleting(null); } }}><Trash2 className="h-4 w-4" />Delete</Button></div>
+            <div className="mt-4 border-t pt-3"><div className="flex flex-wrap gap-2"><Button asChild size="sm"><Link to="/admin/jobs/$jobId" params={{ jobId: job.id! }}>Open journey</Link></Button><QaRoleControls jobId={job.id!} /><Button size="sm" variant="outline" disabled={deleting === job.id} onClick={async () => { if (!window.confirm("Archive this TEST journey and revoke its TEST access? Its audit history will be retained.")) return; setDeleting(job.id!); try { await archive({ data: { jobId: job.id! } }); toast.success("TEST journey archived and access revoked"); await refetch(); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not archive TEST journey"); } finally { setDeleting(null); } }}><Trash2 className="h-4 w-4" />Archive</Button></div></div>
           </article>
         ))}</div>}
       <TestTradeAccounts />
@@ -67,6 +66,46 @@ function TestCentre() {
       <OnboardingLimits />
     </AppShell>
   );
+}
+
+function QaRoleControls({ jobId }: { jobId: string }) {
+  const prepare = useServerFn(prepareQaJourneyAccess);
+  const issue = useServerFn(issueQaPersonaLink);
+  const simulate = useServerFn(simulateQaJourneyTime);
+  const [workerPath, setWorkerPath] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const ready = async () => {
+    const result = await prepare({ data: { jobId } });
+    setWorkerPath(result.workerPath);
+    return result;
+  };
+  const openAs = async (persona: "owner" | "installer_boss" | "electrician") => {
+    setBusy(persona);
+    try {
+      await ready();
+      const link = await issue({ data: { jobId, persona } });
+      const popup = window.open(`/qa-access?token_hash=${encodeURIComponent(link.tokenHash)}&type=magiclink&next=${encodeURIComponent(link.next)}`, "_blank", "noopener,noreferrer");
+      if (!popup) throw new Error("Your browser blocked the TEST role tab. Allow pop-ups and try again.");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Could not open TEST role"); }
+    finally { setBusy(null); }
+  };
+  const runTime = async (simulation: "response_24h" | "response_48h" | "piesa_expired") => {
+    setBusy(simulation);
+    try { await simulate({ data: { jobId, simulation } }); toast.success("TEST time condition is ready"); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Could not simulate this condition"); }
+    finally { setBusy(null); }
+  };
+  return <Dialog><DialogTrigger asChild><Button size="sm" variant="outline"><Users className="h-4 w-4" />Test roles</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>TEST roles and time</DialogTitle></DialogHeader>
+    <p className="text-sm text-muted-foreground">Each role opens in a new tab with a real, restricted TEST account. Your office tab stays signed in.</p>
+    <div className="grid gap-2 sm:grid-cols-2">
+      <Button variant="outline" disabled={!!busy} onClick={() => void openAs("owner")}><ExternalLink className="h-4 w-4" />Open as owner</Button>
+      <Button variant="outline" disabled={!!busy} onClick={() => void openAs("installer_boss")}><ExternalLink className="h-4 w-4" />Open as installer boss</Button>
+      <Button variant="outline" disabled={!!busy} onClick={() => void openAs("electrician")}><ExternalLink className="h-4 w-4" />Open as electrician</Button>
+      <Button variant="outline" disabled={!!busy} onClick={async () => { setBusy("worker"); try { const result = await ready(); window.open(result.workerPath, "_blank", "noopener,noreferrer"); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not open TEST worker"); } finally { setBusy(null); } }}><ExternalLink className="h-4 w-4" />Open as worker</Button>
+    </div>
+    {workerPath && <p className="break-all rounded-md bg-muted p-2 text-xs">Latest worker link: {window.location.origin}{workerPath}</p>}
+    <div className="border-t pt-4"><p className="mb-2 flex items-center gap-2 text-sm font-semibold"><Clock3 className="h-4 w-4" />Simulate a deadline on this TEST job</p><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={!!busy} onClick={() => void runTime("response_24h")}>No reply 24h</Button><Button size="sm" variant="outline" disabled={!!busy} onClick={() => void runTime("response_48h")}>No reply 48h</Button><Button size="sm" variant="outline" disabled={!!busy} onClick={() => void runTime("piesa_expired")}>PIESA expired</Button></div></div>
+  </DialogContent></Dialog>;
 }
 
 function CreateTestJob({ onDone }: { onDone: () => void }) {

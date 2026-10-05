@@ -5154,6 +5154,7 @@ export type Database = {
           owner_id: string
           prior_stage: Database["public"]["Enums"]["job_stage"] | null
           property_id: string
+          qa_archived_at: string | null
           source: string
           source_system: string | null
           stage: Database["public"]["Enums"]["job_stage"]
@@ -5203,6 +5204,7 @@ export type Database = {
           owner_id: string
           prior_stage?: Database["public"]["Enums"]["job_stage"] | null
           property_id: string
+          qa_archived_at?: string | null
           source?: string
           source_system?: string | null
           stage?: Database["public"]["Enums"]["job_stage"]
@@ -5252,6 +5254,7 @@ export type Database = {
           owner_id?: string
           prior_stage?: Database["public"]["Enums"]["job_stage"] | null
           property_id?: string
+          qa_archived_at?: string | null
           source?: string
           source_system?: string | null
           stage?: Database["public"]["Enums"]["job_stage"]

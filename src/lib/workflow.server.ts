@@ -73,6 +73,11 @@ export async function assignmentStatus(jobId: string): Promise<string | null> {
 }
 
 export async function requireJobRole(sb: Sb, jobId: string, allowed: JobRole[]): Promise<JobRole> {
+  const { data: auth } = await sb.auth.getUser();
+  if (auth.user?.user_metadata?.["qa_test"] === true) {
+    const { data: job } = await admin.from("jobs").select("source, qa_archived_at").eq("id", jobId).maybeSingle();
+    if (!job || job.source !== "qa_test" || job.qa_archived_at) throw new WorkflowError("TEST accounts can only use active TEST journeys.");
+  }
   const { data, error } = await sb.rpc("my_job_role", { _job: jobId });
   if (error) throw new Error(error.message);
   const role = data as JobRole | null;

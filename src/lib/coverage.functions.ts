@@ -84,6 +84,7 @@ export const sendNoCoverageEmail = createServerFn({ method: "POST" }).middleware
     const { partners, jobs } = await loadCoverageData();
     const job = jobs.find((candidate) => candidate.id === data.jobId);
     if (!job) throw new Error("Job not found.");
+    if (job.source === "qa_test") throw new Error("Customer email is blocked for TEST journeys. Nothing was sent.");
     const property = job.properties as { suburb: string | null; postcode: string | null } | null;
     const site = { postcode: property?.postcode ?? null, suburb: property?.suburb ?? null };
     const rec = tradeCoverage(partners, "rec", site);

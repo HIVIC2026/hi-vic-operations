@@ -16,10 +16,10 @@ function OwnerHome() {
     queryKey: ["ownerjobs"],
     enabled: !!me,
     queryFn: async () => {
-      const { data: owner } = await supabase.from("owners").select("id").eq("user_id", me!.user.id);
+      const { data: owner } = await supabase.from("owners").select("id").eq("user_id", me.user.id);
       const ids = (owner ?? []).map((o) => o.id);
       if (!ids.length) return [];
-      return (await supabase.from("job_overview").select("*").in("owner_id", ids).order("created_at", { ascending: false })).data ?? [];
+      return (await supabase.from("job_overview").select("*").in("owner_id", ids).not("stage", "eq", "cancelled").order("created_at", { ascending: false })).data ?? [];
     },
   });
   if (!isLoading && jobs?.length === 1) return <Navigate to="/owner/$jobId" params={{ jobId: jobs[0]!.id! }} />;

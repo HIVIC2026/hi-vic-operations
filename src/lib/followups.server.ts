@@ -19,10 +19,11 @@ type OfficialOutcome = { kind: "eligible"; mode: "likely" | "onsite" } | { kind:
 /** Delivery may use only a completed, recorded system/admin Gate 1 decision. */
 async function officialOutcomeForDelivery(jobId: string): Promise<OfficialOutcome> {
   const [{ data: job }, { data: activeWork }] = await Promise.all([
-    admin.from("jobs").select("eligibility_outcome, eligibility_reason, eligibility_decision_source, eligibility_review_required").eq("id", jobId).maybeSingle(),
+    admin.from("jobs").select("source, eligibility_outcome, eligibility_reason, eligibility_decision_source, eligibility_review_required").eq("id", jobId).maybeSingle(),
     admin.from("post_intake_work").select("id").eq("job_id", jobId).in("status", ["queued", "processing", "retry"]).limit(1).maybeSingle(),
   ]);
   if (!job) return { kind: "hold", reason: "job_not_found" };
+  if (job.source === "qa_test") return { kind: "hold", reason: "test_delivery_blocked" };
   if (activeWork) return { kind: "hold", reason: "initial_checks_pending" };
   if (job.eligibility_decision_source !== "system" && job.eligibility_decision_source !== "admin") return { kind: "hold", reason: "official_decision_not_recorded" };
   if (job.eligibility_review_required) return { kind: "hold", reason: "eligibility_review_required" };
