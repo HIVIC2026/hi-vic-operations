@@ -203,7 +203,7 @@ export function buildInstallerQuoteDraft(i: {
   const rawDiscount = i.ghgReduction != null && i.veecValue != null ? Math.round(i.ghgReduction * i.veecValue * 100) / 100 : 0;
   const preTotal = Math.round(((p?.totalIncGst ?? 0) + (i.piesaIncGst ?? 0) + (i.apFeeIncGst ?? 0)) * 100) / 100;
   const rules = applyDiscountRules(rawDiscount, preTotal, i.caps.metropolitan, {
-    max_discount_metro_inc_gst: i.caps.maxMetro, max_discount_regional_inc_gst: i.caps.maxRegional, minimum_customer_copayment_inc_gst: i.caps.minCopay,
+    minimum_customer_copayment_inc_gst: i.caps.minCopay,
   });
   const owner = installerLedOwnerPrice({ installerQuoteIncGst: p?.totalIncGst ?? 0, piesaIncGst: i.piesaIncGst, rectificationIncGst: 0, apFeeIncGst: i.apFeeIncGst, veecDiscountIncGst: rules.discount });
   for (const b of owner.blockers) if (!blockers.includes(b)) blockers.push(b);

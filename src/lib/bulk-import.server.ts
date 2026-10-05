@@ -250,8 +250,6 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
   const subtotal = Math.round((e.price_inc_gst + HIVIC_PIESA_INC_GST + apFee) * 100) / 100;
   // Same guardrails as every other quote: region's program maximum, then the $200 minimum contribution.
   const rules = applyDiscountRules(rawDiscount, subtotal, loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null, {
-    max_discount_metro_inc_gst: rs ? Number(rs.max_discount_metro_inc_gst) : 1500,
-    max_discount_regional_inc_gst: rs ? Number(rs.max_discount_regional_inc_gst) : 2100,
     minimum_customer_copayment_inc_gst: rs ? Number(rs.minimum_customer_copayment_inc_gst) : 200,
   });
   const discount = Math.round(rules.discount * 100) / 100;
