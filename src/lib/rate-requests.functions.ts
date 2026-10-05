@@ -53,7 +53,7 @@ export const reviewHigherRates = createServerFn({ method: "POST" }).middleware([
     const { data: card } = await admin.from("rate_cards").select("id, name, version, rate_card_items(code, description, category, unit, unit_price_ex_gst, r_value, sort, display_unit)").eq("business_id", req.business_id).eq("kind", "installer").eq("is_active", true).order("version", { ascending: false }).limit(1).maybeSingle();
     if (!card) throw new Error("This installer has no agreed rate card yet – approve their onboarding first.");
     const toEx = (v: number) => Number((req.gst_registered ? v / 1.1 : v).toFixed(2));
-    const kept = ((card.rate_card_items ?? []) as Record<string, unknown>[]).filter((i) => !HIGHER.some((h) => h.code === i.code));
+    const kept = ((card.rate_card_items ?? []) as Record<string, unknown>[]).filter((i) => !HIGHER.some((h) => h.code === i["code"]));
     const added = HIGHER.flatMap((h) => { const v = h.r === 6 ? req.r6_rate : req.r7_rate; return v == null ? [] : [{ code: h.code, description: `R${h.r}.0 ceiling batts supply & install`, category: "product", unit: "m2", unit_price_ex_gst: toEx(Number(v)), r_value: h.r, sort: h.sort, display_unit: null }]; });
     const { data: next, error: e1 } = await admin.from("rate_cards").insert({ kind: "installer", business_id: req.business_id, name: card.name, version: card.version + 1, is_active: true }).select("id").single();
     if (e1 || !next) throw new Error("Couldn't create the new rate card version.");
