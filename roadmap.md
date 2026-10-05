@@ -119,3 +119,5 @@
 - [ ] BUILD (approved): Gap 3 — 15-min automatic Mitti sync on existing timer (data only; keep manual Sync)
 - [ ] BUILD (approved): Gap 4 — record which confirmed install booking unlocked installation; AP review requires it completed
 - [ ] NOT DOING: Gap 2 (installer keeps date box); Gap 5 later
+
+- [ ] R-value per job (min R5.0) — plan approved 5 Oct; waits for current build (gaps 1/3/4) + Jo go + Jo pricing decisions (R6/R7 owner prices, markup, launch scope, "Other" values, rebate wording)
