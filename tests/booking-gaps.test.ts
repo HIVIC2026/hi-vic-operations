@@ -26,7 +26,8 @@ function from(t: string) {
 }
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from, rpc: async () => ({ data: null, error: null }) } }));
 // The official PIESA mapping approval is a separate launch gate; here we isolate the booking guard.
-mock.module("../src/lib/official-forms.core", () => ({ officialFormUseBlocker: () => null, evaluatePiesa: () => null }));
+const realOfficial = await import("../src/lib/official-forms.core");
+mock.module("../src/lib/official-forms.core", () => ({ ...realOfficial, officialFormUseBlocker: () => null }));
 
 const { createAssignMittiAudit, PIESA_BOOKING_MISSING } = await import("../src/lib/mitti.server");
 const { installBookingBlocker, INSTALL_BOOKING_BLOCKER } = await import("../src/lib/workflow.server");
