@@ -2,6 +2,8 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { quoteInputsFromMeasurement, type MeasurementLike } from "./scope.core";
+import { lookupLocation } from "./activity48.core";
+import { applyDiscountRules, discountNotes } from "./estimate.core";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -86,7 +88,7 @@ export function priceInstallerOption(input: {
 
 export async function generateInstallerQuotes(jobId: string, actorId: string) {
   // Installer-supplied jobs (installer's own customer and price) never use this builder: no installer markup there.
-  const { data: jobRow } = await admin.from("jobs").select("channel, installer_led, ap_fee_override_inc_gst").eq("id", jobId).single();
+  const { data: jobRow } = await admin.from("jobs").select("channel, installer_led, ap_fee_override_inc_gst, property_id").eq("id", jobId).single();
   if (!jobRow) throw new WorkflowError("Job not found.");
   if (jobRow.channel === "installer_sourced" || jobRow.installer_led) throw new WorkflowError("Installer-supplied job: use the installer's own quote (installer price + PIESA + AP fee). This quote builder is for Home Insulation Victoria jobs only.");
   // Two-requirement model: quote inputs come ONLY from the accepted/current ceiling measurement.
@@ -99,8 +101,12 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   const card = await activeRateCard("installer", inst.business_id, false);
   const items = card.rate_card_items as { code: string; description: string; unit_price_ex_gst: number; category: string }[];
   const rate = (...codes: string[]) => { for (const c of codes) { const it = items.find((i) => i.code === c); if (it) return Number(it.unit_price_ex_gst); } return null; };
-  const { data: rs } = await admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst, access_standard_multiplier, access_moderate_multiplier, access_difficult_multiplier").eq("is_current", true).maybeSingle();
+  const { data: rs } = await admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst, access_standard_multiplier, access_moderate_multiplier, access_difficult_multiplier, minimum_customer_copayment_inc_gst, max_discount_metro_inc_gst, max_discount_regional_inc_gst").eq("is_current", true).maybeSingle();
   if (!rs) throw new WorkflowError("Owner prices are not set – cannot quote.");
+  // Region decides which program maximum applies; an unlisted postcode uses the lower metro cap (fails safe).
+  const { data: prop } = await admin.from("properties").select("postcode").eq("id", jobRow.property_id).maybeSingle();
+  const loc = prop?.postcode ? lookupLocation(String(prop.postcode).trim()) : null;
+  const metro = loc ? loc.metropolitan_or_regional === "Metropolitan" : null;
 
   // Known rectification scope (owner-approved) is folded in so the single accepted total covers the whole job. Lines stay itemised, no markup.
   const { data: rectQuote } = await admin.from("quotes").select("id, quote_items(*)").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle();
