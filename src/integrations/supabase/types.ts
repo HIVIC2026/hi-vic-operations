@@ -8553,6 +8553,8 @@ export type Database = {
           pricing_settings_id: string | null
           rate_card_id: string | null
           rect_estimated_hours: number | null
+          release_hold_reason: string | null
+          release_state: string | null
           sent_at: string | null
           status: Database["public"]["Enums"]["quote_status"]
           subtotal_inc_gst: number
@@ -8587,6 +8589,8 @@ export type Database = {
           pricing_settings_id?: string | null
           rate_card_id?: string | null
           rect_estimated_hours?: number | null
+          release_hold_reason?: string | null
+          release_state?: string | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal_inc_gst: number
@@ -8621,6 +8625,8 @@ export type Database = {
           pricing_settings_id?: string | null
           rate_card_id?: string | null
           rect_estimated_hours?: number | null
+          release_hold_reason?: string | null
+          release_state?: string | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal_inc_gst?: number
@@ -10194,6 +10200,8 @@ export type Database = {
           due_trade_reply_exception_hours: number
           due_trade_reply_warn_hours: number
           id: number
+          installer_quote_max_inc_gst_per_m2: number | null
+          installer_quote_min_inc_gst_per_m2: number | null
           measurement_standard_approved: boolean
           measurement_standard_approved_at: string | null
           measurement_standard_approved_by: string | null
@@ -10209,6 +10217,7 @@ export type Database = {
           payment_option_gate_enabled: boolean
           photo_max_distance_m: number
           piesa_install_window_days: number
+          quote_estimate_variance_tolerance_pct: number
           rec_offer_batch_size: number
           rec_offer_business_hours: number
           rec_offer_expiry_hours: number
@@ -10229,6 +10238,8 @@ export type Database = {
           due_trade_reply_exception_hours?: number
           due_trade_reply_warn_hours?: number
           id?: number
+          installer_quote_max_inc_gst_per_m2?: number | null
+          installer_quote_min_inc_gst_per_m2?: number | null
           measurement_standard_approved?: boolean
           measurement_standard_approved_at?: string | null
           measurement_standard_approved_by?: string | null
@@ -10244,6 +10255,7 @@ export type Database = {
           payment_option_gate_enabled?: boolean
           photo_max_distance_m?: number
           piesa_install_window_days?: number
+          quote_estimate_variance_tolerance_pct?: number
           rec_offer_batch_size?: number
           rec_offer_business_hours?: number
           rec_offer_expiry_hours?: number
@@ -10264,6 +10276,8 @@ export type Database = {
           due_trade_reply_exception_hours?: number
           due_trade_reply_warn_hours?: number
           id?: number
+          installer_quote_max_inc_gst_per_m2?: number | null
+          installer_quote_min_inc_gst_per_m2?: number | null
           measurement_standard_approved?: boolean
           measurement_standard_approved_at?: string | null
           measurement_standard_approved_by?: string | null
@@ -10279,6 +10293,7 @@ export type Database = {
           payment_option_gate_enabled?: boolean
           photo_max_distance_m?: number
           piesa_install_window_days?: number
+          quote_estimate_variance_tolerance_pct?: number
           rec_offer_batch_size?: number
           rec_offer_business_hours?: number
           rec_offer_expiry_hours?: number
