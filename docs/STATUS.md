@@ -115,3 +115,6 @@ This is the only current implementation register. `docs/HIV_WORKFLOW_SOURCE_OF_T
 | Office job page Paperwork strip A/B/C/D | Built | `/admin/jobs/$jobId` |
 | Needs me flags jobs blocked on Gate A/B | Built | `/admin/needs-me` |
 | Scenario F tests (all journeys) | Built — passing | `tests/owner-gates-scenario-f.test.ts`, `tests/owner-paperwork-db.test.ts` |
+
+## Walkthrough
+- Page-by-page role walkthrough: Partly built — see docs/WALKTHROUGH.md (route and menu access fixed; end-to-end actions pending).
