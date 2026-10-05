@@ -2,7 +2,7 @@
 
 ## Core
 HI VIC operational portal only; public site stays in Base44 — never rebuild it.
-Portal branding (user-locked 2026-09-30): exact HIV brand — blue #3C51C4, green #07BF61/#52C875, navy #22376B, off-white #FBFCFA; Space Grotesk headings + DM Sans body; calm desktop-first sidebar layout (chosen direction "Calm administrative pipeline"). Supersedes old eucalyptus-teal/Figtree rule.
+Portal branding (Jo FINAL 5 Oct): calculator look portal-wide — Outfit 800/Figtree, canvas #FBFCFA, navy #22376B, blue #3C51C4, green #07BF61 actions, logo every header, pink house-progress. [details](mem://design/final-portal-design)
 Visible brand "Home Insulation Victoria"; HI VIC / HI VIC! / HIVIC retired. Xero reference locked "Home Insulation Victoria <job>" (3 Oct). Only exception: already-signed agreement texts.
 Trade flows mobile-first (h-12 tap targets, autosave, onsite order). Admin desktop-first.
 Never ask the same thing twice: reuse anything on PIESA/PIISA/Ready Check/job record; photo time/GPS read automatically.
