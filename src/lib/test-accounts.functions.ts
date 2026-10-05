@@ -3,7 +3,9 @@
 // is prefixed "TEST" and uses a non-routable test email domain. Idempotent: re-running skips
 // accounts that already exist.
 import { createServerFn } from "@tanstack/react-start";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { WorkflowError } from "./workflow.server";
 
@@ -155,18 +157,18 @@ export const createTestTradeAccounts = createServerFn({ method: "POST" })
     return { results };
   });
 
-async function requireTestAdmin(context: { supabase: Parameters<typeof import("./workflow.server").requireAdmin>[0]; userId: string }) {
+async function requireTestAdmin(context: { supabase: SupabaseClient<Database>; userId: string }) {
   const { data: isAdmin } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" });
   if (!isAdmin) throw new WorkflowError("Admin only.");
 }
 
-async function testJob(admin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"], jobId: string) {
+async function testJob(admin: SupabaseClient<Database>, jobId: string) {
   const { data: job } = await admin.from("jobs").select("id, owner_id, source, qa_archived_at").eq("id", jobId).maybeSingle();
   if (!job || job.source !== "qa_test" || job.qa_archived_at) throw new WorkflowError("This action is only available for an active TEST journey.");
   return job;
 }
 
-async function ensureQaUser(admin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"], email: string, name: string) {
+async function ensureQaUser(admin: SupabaseClient<Database>, email: string, name: string) {
   const safeEmail = email.trim().toLowerCase();
   if (!safeEmail.endsWith(QA_DOMAIN)) throw new WorkflowError("TEST role accounts must use the safe test email domain.");
   const { data: existing } = await admin.from("profiles").select("id").eq("email", safeEmail).maybeSingle();
@@ -199,8 +201,9 @@ export const prepareQaJourneyAccess = createServerFn({ method: "POST" })
     for (const persona of personas) {
       const { data: profile } = await admin.from("profiles").select("id, business_id").eq("email", persona.email).maybeSingle();
       if (!profile?.business_id) throw new WorkflowError("Create the TEST trade accounts first.");
-      await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: "Replaced by Test Centre persona" }).eq("job_id", data.jobId).eq("role", persona.role).eq("active", true).neq("user_id", profile.id);
-      await admin.from("job_assignments").upsert({ job_id: data.jobId, user_id: profile.id, role: persona.role, business_id: profile.business_id, active: true, assigned_by: context.userId }, { onConflict: "job_id,role", ignoreDuplicates: false });
+      await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: "Replaced by Test Centre persona" }).eq("job_id", data.jobId).eq("role", persona.role).eq("active", true);
+      const { error: assignmentError } = await admin.from("job_assignments").insert({ job_id: data.jobId, user_id: profile.id, role: persona.role, business_id: profile.business_id, active: true, assigned_by: context.userId });
+      if (assignmentError) throw new WorkflowError(`Could not assign the TEST ${persona.role}: ${assignmentError.message}`);
     }
 
     const { data: installer } = await admin.from("profiles").select("id, business_id").eq("email", SPECS[0].email).maybeSingle();
@@ -237,7 +240,7 @@ export const issueQaPersonaLink = createServerFn({ method: "POST" })
       email = (assignment?.profiles as { email?: string | null } | null)?.email ?? null;
     }
     if (!email?.endsWith(QA_DOMAIN)) throw new WorkflowError("This TEST persona is not safely isolated.");
-    const { data: link, error } = await admin.auth.admin.generateLink({ type: "magiclink", email, options: { redirectTo: "/home" } });
+    const { data: link, error } = await admin.auth.admin.generateLink({ type: "magiclink", email });
     const hashedToken = link.properties?.hashed_token;
     if (error || !hashedToken) throw new WorkflowError(`Could not open the TEST role: ${error?.message ?? "missing one-time token"}`);
     return { tokenHash: hashedToken, type: "magiclink" as const, next: "/home" };
