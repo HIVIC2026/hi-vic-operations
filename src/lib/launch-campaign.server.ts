@@ -48,6 +48,15 @@ export async function saveCampaignSpot(token: unknown) {
   return { ok: true as const };
 }
 
+export async function saveCampaignSpotForTest(token: unknown) {
+  const c = await campaignLink(token);
+  if (!c || c.job.source !== "qa_test") throw new Error("Campaign testing is limited to qa_test jobs.");
+  const now = new Date().toISOString();
+  const { error } = await admin.from("lead_campaign_responses").upsert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, spot_saved_at: now, video_requested: c.group === "onsite", desk_check_status: c.group === "onsite" ? "pending" : "not_needed", updated_at: now }, { onConflict: "job_id" });
+  if (error) throw new Error(error.message);
+  return { ok: true as const };
+}
+
 export async function optOutCampaign(token: unknown) {
   const c = await campaignLink(token);
   if (!c) throw new Error("This link is no longer available.");

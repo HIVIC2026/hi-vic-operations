@@ -7,7 +7,7 @@ export type DeskCheckOutcome = "looks_eligible" | "not_eligible" | "needs_onsite
 
 export function launchGroup(outcome: string | null, insulation: string | null): LaunchGroup | null {
   if (outcome === "likely_eligible" && insulation === "none") return "likely";
-  if (outcome === "needs_onsite_confirmation" && (insulation === "present" || insulation === "unknown")) return "onsite";
+  if ((outcome === "likely_eligible" || outcome === "needs_onsite_confirmation") && (insulation === "present" || insulation === "unknown" || insulation === null)) return "onsite";
   return null;
 }
 
