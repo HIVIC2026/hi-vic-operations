@@ -785,6 +785,13 @@
       "when": 1791179782312,
       "tag": "0111_quote_veec_count",
       "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1791186613298,
+      "tag": "0112_launch_campaign_responses",
+      "breakpoints": true
     }
   ]
 }

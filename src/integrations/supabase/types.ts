@@ -5316,6 +5316,86 @@ export type Database = {
           },
         ]
       }
+      lead_campaign_responses: {
+        Row: {
+          campaign: string
+          created_at: string
+          desk_check_reason: string | null
+          desk_check_status: string
+          desk_checked_at: string | null
+          desk_checked_by: string | null
+          estimate_link_id: string
+          id: string
+          job_id: string
+          media_received_at: string | null
+          opted_out_at: string | null
+          spot_saved_at: string | null
+          updated_at: string
+          video_requested: boolean
+        }
+        Insert: {
+          campaign?: string
+          created_at?: string
+          desk_check_reason?: string | null
+          desk_check_status?: string
+          desk_checked_at?: string | null
+          desk_checked_by?: string | null
+          estimate_link_id: string
+          id?: string
+          job_id: string
+          media_received_at?: string | null
+          opted_out_at?: string | null
+          spot_saved_at?: string | null
+          updated_at?: string
+          video_requested?: boolean
+        }
+        Update: {
+          campaign?: string
+          created_at?: string
+          desk_check_reason?: string | null
+          desk_check_status?: string
+          desk_checked_at?: string | null
+          desk_checked_by?: string | null
+          estimate_link_id?: string
+          id?: string
+          job_id?: string
+          media_received_at?: string | null
+          opted_out_at?: string | null
+          spot_saved_at?: string | null
+          updated_at?: string
+          video_requested?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_campaign_responses_estimate_link_id_fkey"
+            columns: ["estimate_link_id"]
+            isOneToOne: false
+            referencedRelation: "customer_estimate_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_campaign_responses_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_campaign_responses_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "lead_campaign_responses_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           body: string
