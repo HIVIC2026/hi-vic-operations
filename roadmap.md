@@ -136,3 +136,7 @@
 - Wording: calculator never shows more than cap; quote lines when capped/reduced.
 - Answer: how calculator computes VEECs (factor per m² by region, max area, source) — no factor changes.
 - Test 50/150/300/600 m² metro+regional and a cheap job hitting $200 min.
+
+## Queued AFTER live-safety check + publish (Jo approved 5 Oct) — installer commercial options + installer-sent quotes
+- [ ] Per-company "Customer discount model" (installer-sourced): Option 1 $70/VEEC + $349 AP + $349 PIESA (default); Option 2 no AP fee, editable $/VEEC (default $50) + $349 PIESA. $200 minimum always. Applies to installer calculator estimates, draft quotes, quotes, tax invoice, margins.
+- [ ] Per-company "Installer sends own quote" mode: Quote figures panel per job + copyable owner acceptance link (live figures; owner reviews, signs consent + VEEC assignment). Nothing sends.
