@@ -70,8 +70,7 @@ export const createBatchOwnerEligibilityLinks = createServerFn({ method: "POST" 
 export const jobOwnerEligibility = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const { data: job } = await admin.from("jobs").select("channel").eq("id", data.jobId).maybeSingle();
+    const { data: job } = await context.supabase.from("jobs").select("channel").eq("id", data.jobId).maybeSingle();
     if (job?.channel !== "installer_sourced") return { applicable: false as const };
     // RLS: office or the job's installer company only.
     const { data: rows } = await context.supabase.from("owner_eligibility_links").select("id, created_at, expires_at, revoked_at, submitted_at, result, result_reasons").eq("job_id", data.jobId).order("created_at", { ascending: false }).limit(5);
