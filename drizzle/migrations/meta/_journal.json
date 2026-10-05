@@ -743,6 +743,13 @@
       "when": 1791165267274,
       "tag": "0105_installer_rate_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1791166477840,
+      "tag": "0106_migration",
+      "breakpoints": true
     }
   ]
 }

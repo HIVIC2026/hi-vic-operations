@@ -4387,6 +4387,7 @@ export type Database = {
           reviewed_at: string | null
           reviewed_by: string | null
           status: string
+          topup_r5_rate: number | null
         }
         Insert: {
           business_id: string
@@ -4401,6 +4402,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          topup_r5_rate?: number | null
         }
         Update: {
           business_id?: string
@@ -4415,6 +4417,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          topup_r5_rate?: number | null
         }
         Relationships: [
           {
