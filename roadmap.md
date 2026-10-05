@@ -1,5 +1,12 @@
 # Roadmap
 
+## Current priority (Jo, 5 Oct 21:04; preview only)
+- [ ] Delete finished, superseded or contradicted plans/audits/reviews across `.lovable/plan/`, `docs/`, `design-review/`, `roadmap.md` and `.lovable/memory/`; keep only current source of truth, official forms, SQL migrations, final portal design memory and AGENTS rules.
+- [ ] Create and maintain `docs/STATUS.md` with every feature marked Built / Partly built / Not built and its route/page; reduce memory index to STATUS + source of truth.
+- [ ] Restyle `/partner/bulk-import` in the calculator look without changing its current import capabilities.
+- [ ] Fix duplicate skipping, office-review hold before job creation, Past uploads, large photo batches, and stale single-job import copy.
+- [ ] Preserve batch permission audit, six-month supplied-photo age, install-day-only photos, 50 m GPS and zero lead fee on installer-owned customers.
+
 - [x] Show signed installer applications in the correct office pending approval list without altering records.
 - [x] Fix REC business/origin address picker selection races, including outside-click lock during pending details.
 - [x] Add focused regression coverage for office visibility, mobile/blur selection, provider failures, VIC validation, and number retention.
