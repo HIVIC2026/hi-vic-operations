@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 const read = (f: string) => readFileSync(new URL(`../../docs/pending-migrations/${f}`, import.meta.url), "utf8");
 export const SQL = read("0106_installer_rate_requests.sql");
 export const ROLLBACK = read("0106_installer_rate_requests.rollback.sql");
+export const SQL107 = read("0107_installer_topup_rate.sql");
+export const ROLLBACK107 = read("0107_installer_topup_rate.rollback.sql");
 export const ID = { office: "00000000-0000-4000-8000-0000000000a1", inst: "00000000-0000-4000-8000-0000000000c1", other: "00000000-0000-4000-8000-0000000000c2", biz: "00000000-0000-4000-8000-0000000000d1", otherBiz: "00000000-0000-4000-8000-0000000000d2" };
 export async function rateDb() {
   const db = new PGlite();
@@ -22,6 +24,7 @@ INSERT INTO public.admins VALUES ('${ID.office}');
 INSERT INTO public.business_members VALUES ('${ID.biz}','${ID.inst}'),('${ID.otherBiz}','${ID.other}');
 `);
   await db.exec(SQL);
+  await db.exec(SQL107);
   return db;
 }
 export const asUser = (db: PGlite, id: string) => db.exec(`RESET ROLE; SET ROLE authenticated; SET request.jwt.claim.sub = '${id}'`);

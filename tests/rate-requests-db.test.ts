@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { asUser, ID, ROLLBACK, rateDb } from "./helpers/pglite-rate-requests";
+import { asUser, ID, ROLLBACK, ROLLBACK107, rateDb } from "./helpers/pglite-rate-requests";
 
 const ins = (biz: string, r6: string, r7 = "null", status = "pending") =>
   `INSERT INTO public.installer_rate_requests(business_id, r6_rate, r7_rate, requested_by, status) VALUES ('${biz}', ${r6}, ${r7}, '${ID.inst}', '${status}')`;
+const insTopup = (biz: string, topup: string) =>
+  `INSERT INTO public.installer_rate_requests(business_id, topup_r5_rate, requested_by) VALUES ('${biz}', ${topup}, '${ID.inst}')`;
 
 describe("0106 installer rate requests (practice database)", () => {
   test("applies, accepts blank or positive rates, refuses zero/negative", async () => {
@@ -33,8 +35,19 @@ describe("0106 installer rate requests (practice database)", () => {
   });
   test("undo removes only the new table", async () => {
     const db = await rateDb();
+    await db.exec(ROLLBACK107);
     await db.exec(ROLLBACK);
     expect((await db.query("SELECT to_regclass('public.installer_rate_requests') t")).rows[0]).toEqual({ t: null });
     expect((await db.query("SELECT count(*)::int n FROM public.businesses")).rows[0]).toEqual({ n: 2 });
+  });
+  test("0107 top-up rate: blank or positive allowed, zero/negative refused, undo drops only the column", async () => {
+    const db = await rateDb();
+    await db.exec(insTopup(ID.biz, "18.50"));
+    await expect(db.exec(insTopup(ID.otherBiz, "0"))).rejects.toThrow();
+    await expect(db.exec(insTopup(ID.otherBiz, "-2"))).rejects.toThrow();
+    await db.exec(ROLLBACK107);
+    const cols = await db.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_name = 'installer_rate_requests'");
+    expect(cols.rows.map((c) => c.column_name)).not.toContain("topup_r5_rate");
+    expect(cols.rows.map((c) => c.column_name)).toContain("r6_rate");
   });
 });
