@@ -64,6 +64,15 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     opts.onlyIds ? Promise.resolve([]) : all("applications", (a, b) => admin.from("partner_enquiries").select("id, name, enquiry_type, source, status, created_at").in("status", ["new", "submitted"]).neq("enquiry_type", "property_manager").range(a, b)),
     opts.onlyIds ? Promise.resolve([]) : all("certificates", (a, b) => admin.from("business_credentials").select("id, label, kind, expires_at, businesses(name)").not("expires_at", "is", null).lte("expires_at", new Date(now + lim["credential_warning_days"]! * 86_400_000).toISOString().slice(0, 10)).range(a, b)),
   ]);
+  const picks = await all("office picks", (a, b) => scope(admin.from("partner_offers").select("job_id, kind, status, offered_at, summary, businesses(name)").contains("summary", { office_choice: true })).range(a, b));
+  const pickJobs = [...new Set(picks.map((p) => String(p["job_id"])))];
+  const pickAll = pickJobs.length ? await all("offers after picks", (a, b) => admin.from("partner_offers").select("job_id, kind, status, offered_at, summary, businesses(name)").in("job_id", pickJobs).range(a, b)) : [];
+  const { chosenTradeNoAnswer } = await import("./trade-choice.core");
+  const tradeChoice = new Map<string, NonNullable<NeedsJob["tradeChoice"]>>();
+  for (const id of pickJobs) {
+    const rows = pickAll.filter((o) => String(o["job_id"]) === id).map((o) => ({ kind: String(o["kind"]), status: String(o["status"]), offered_at: String(o["offered_at"]), summary: o["summary"], business_name: (o["businesses"] as { name?: string } | null)?.name ?? null }));
+    for (const k of ["ready_check", "piesa", "rectification"] as const) { const r = chosenTradeNoAnswer(rows, k); if (r) { tradeChoice.set(id, { kind: k, ...r }); break; } }
+  }
   const acc = await all("Ready Check requests", (a, b) => scope(admin.from("ready_check_acceptances").select("job_id")).range(a, b));
   const accepted = new Set(acc.map((r) => String(r["job_id"])));
   const mittiErr = opts.onlyIds ? [] : await all("Mitti syncs", (a, b) => admin.from("external_sync_logs").select("entity_id, system, error, created_at").eq("status", "error").gte("created_at", new Date(now - 3 * 86_400_000).toISOString()).range(a, b));
@@ -120,7 +129,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     const jobNumber = String(j["job_number"]);
     return {
       id, jobNumber, owner: (j["owners"] as { full_name?: string } | null)?.full_name ?? null, suburb: prop?.suburb ?? null, source: s(j["source"]), stage, status, facts,
-      needs: { id, jobNumber, suburb: prop?.suburb ?? null, owner: null, stage, status, statusCount: status ? 1 : 0, lastActivityAt: s(j["last_activity_at"]), nextAction: s(j["next_action"]), installDeadline: facts.installDeadline ?? null, installStarted: installStarted.has(id) || !!facts.installedAt, holdRevisitAt: facts.holdRevisitAt ?? null, failures: fails.get(id) ?? [] },
+      needs: { id, jobNumber, suburb: prop?.suburb ?? null, owner: null, stage, status, statusCount: status ? 1 : 0, lastActivityAt: s(j["last_activity_at"]), nextAction: s(j["next_action"]), installDeadline: facts.installDeadline ?? null, installStarted: installStarted.has(id) || !!facts.installedAt, holdRevisitAt: facts.holdRevisitAt ?? null, failures: fails.get(id) ?? [], tradeChoice: tradeChoice.get(id) ?? null },
     };
   });
   const partners: PartnerItem[] = [
