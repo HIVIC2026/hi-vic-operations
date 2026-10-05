@@ -194,3 +194,15 @@
 - [ ] Capture every step at 390px for owner/trades and desktop for office; record automation, next person, defects and exact proposed fixes. Entry screens and the first blocked handoff are captured; downstream steps cannot be truthfully tested yet.
 - [x] Archive HV-1541–HV-1545 without deleting audit history; cancel and retain the misclassified Scenario A TEST import because the archive guard correctly rejected it as non-`qa_test`.
 - [x] Deliver the blocked-run findings and tomorrow-focused ranked fixes; make no workflow fixes and do not publish.
+
+## URGENT trade launch fix before role re-test and portal rebuild (Jo, 5 Oct 10:24)
+- [ ] Make approved-worker invitations, password setup, password reset and email sign-in links work; use existing profiles/roles and keep partner invite wording held for Jo approval.
+- [ ] Replace trade navigation with one phone-first My work screen: offers, Needs you, Coming up, collapsed waiting work, and Work/Add job/Payments/Business tabs.
+- [ ] Replace installer quick-add with one staged own-customer form plus Many at once; preserve entered/imported facts without retyping.
+- [ ] Reduce trade job page to status, next action, stage checklist, active-visit contact, address/directions and key facts; put history/documents behind links.
+- [ ] Use Mitti only for Ready Check A1 and PIESA onsite forms; show setup notice and office action while PIESA/PIISA template IDs are blank; fix numbering.
+- [ ] Apply active-visit direct-contact wording consistently, including worker links; keep optional portal messages.
+- [ ] Make every post-Ready-Check owner action available through the secure owner link with one next-step card and six-step tracker.
+- [ ] Set partner lead fee to zero, align electrician offer expiry to four business hours, and apply the launch-campaign response migration after PGlite proof with undo files.
+- [ ] Review all 16 submitted partner applications; mark only clearly fake entries as test and report requirements for the six named real businesses.
+- [ ] Test every change with TEST accounts at 390px, capture screenshots, then run the full role re-test against the fixed preview. No publish; Step 1, Gate 1, payment gate and Xero untouched.
