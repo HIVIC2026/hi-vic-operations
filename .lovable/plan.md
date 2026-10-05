@@ -30,4 +30,6 @@ Remove stale project notes so there is one trustworthy status list, then restyle
 - Confirm the preview build, focused tests and retired-wording scan.
 
 ## Deferred sequence
-The approved electrician and installer trade screens remain queued after this higher-priority cleanup and Bulk job upload task.
+After this higher-priority cleanup and Bulk job upload task:
+1. Update the launch campaign email, plain text, one-tap save confirmation and preview. Add postcode-level Ready Check availability, default off, and hide time picking until enabled.
+2. Continue the approved electrician and installer trade screens.
