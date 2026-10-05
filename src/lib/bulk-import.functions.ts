@@ -85,6 +85,31 @@ export const confirmBulkBatch = createServerFn({ method: "POST" }).middleware([r
     return confirmBatch(data.batchId, context.userId, data.skipRowIds);
   });
 
+const electricianPlan = z.object({ mode: z.enum(["mine", "hivic", "job_by_job"]), nomination_id: uuid.nullable().optional(), business_id: uuid.nullable().optional() });
+export const setBulkReviewPlan = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ batchId: uuid, batchPlan: electricianPlan, rows: z.array(z.object({ rowId: uuid, stage: z.enum(["not_visited", "visited", "quoted", "installed"]), plan: electricianPlan.nullable() })).max(5000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: batch } = await admin.from("bulk_import_batches").select("business_id,status").eq("id", data.batchId).single();
+    if (!batch || batch.status !== "analysed") throw new WorkflowError("This upload can no longer be changed.");
+    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
+    if (!isAdmin) await requireMember(context.userId, batch.business_id);
+    await admin.from("bulk_import_batches").update({ electrician_plan: data.batchPlan as unknown as Json }).eq("id", data.batchId);
+    for (const row of data.rows) await admin.from("bulk_import_rows").update({ import_stage: row.stage, electrician_plan: row.plan as unknown as Json }).eq("id", row.rowId).eq("batch_id", data.batchId);
+    return { ok: true };
+  });
+
+export const bulkElectricianChoices = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ businessId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
+    if (!isAdmin) await requireMember(context.userId, data.businessId);
+    const [{ data: rels }, { data: nominations }] = await Promise.all([
+      admin.from("partner_relationships").select("electrician_business_id,is_primary,businesses!partner_relationships_electrician_business_id_fkey(name,trading_name,onboarding_status)").eq("installer_business_id", data.businessId).eq("active", true),
+      admin.from("electrician_nominations").select("id,contact_name,business_name,status,business_id").eq("nominating_business_id", data.businessId).is("job_id", null).is("ended_at", null).order("created_at", { ascending: false }),
+    ]);
+    return { approved: (rels ?? []).map((r) => ({ businessId: r.electrician_business_id, primary: r.is_primary, name: (r.businesses as { trading_name?: string | null; name?: string } | null)?.trading_name || (r.businesses as { name?: string } | null)?.name || "Your electrician", status: "Already signed up ✓" })), pending: (nominations ?? []).filter((n) => !n.business_id).map((n) => ({ nominationId: n.id, name: n.contact_name, business: n.business_name, status: n.status })) };
+  });
+
 export const setBulkRowAddress = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     rowId: uuid,
