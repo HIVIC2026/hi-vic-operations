@@ -10,7 +10,7 @@ export const GATE_LABEL: Record<Gate, string> = {
 export type GateDocKey =
   | "contact_privacy" | "trade_contact_share" | "details_confirmation" | "life_support_answer"
   | "tenancy_details" | "landlord_consent" | "visit_permission"
-  | "cooling_off_notice" | "payment_terms"
+  | "cooling_off_notice" | "payment_terms" | "veec_assignment_consent"
   | "life_support_plan" | "piesa_owner_declaration";
 
 export type GateDoc = { key: GateDocKey; gate: Gate; title: string; version: string; body: string; signer: "owner" | "office"; tick: string };
@@ -37,6 +37,8 @@ export const GATE_DOCS: GateDoc[] = [
     body: `${DRAFT}\n\nCooling-off notice slot. Wording and rules pending legal advice.` },
   { key: "payment_terms", gate: "B", title: "Payment option and terms", version: "draft-1", signer: "owner", tick: "I agree",
     body: `${DRAFT}\n\nI agree to pay using: {payment_option}.` },
+  { key: "veec_assignment_consent", gate: "B", title: "Your rebate (VEEC assignment)", version: "jo-2026-10-05", signer: "owner", tick: "I assign my VEECs",
+    body: "I assign to DC Construction Solutions Pty Ltd trading as Home Insulation Victoria the right to create all Victorian energy efficiency certificates (VEECs) for this Activity 48 ceiling insulation upgrade at {address}. I understand this assignment takes effect only once the work has been done. If the installer, product, installed area, VEU discount, scope or price changes, I'll be asked to reconfirm. I'll receive a copy of the completed form after install." },
   { key: "life_support_plan", gate: "C", title: "Life support plan", version: "draft-1", signer: "owner", tick: "I agree",
     body: `${DRAFT}\n\nI agree to the plan for keeping life support equipment powered during electrical work at {address}.` },
   { key: "piesa_owner_declaration", gate: "C", title: "Safety check owner declaration (Mitti)", version: "draft-1", signer: "owner", tick: "I declare",
@@ -84,7 +86,7 @@ export function evaluateOwnerGates(f: GateFacts): GateResult[] {
 
   const B: GateItem[] = [
     { key: "customer_agreement", label: "Customer agreement + consumer rights", done: f.agreementSigned, draft: !f.agreementWordingApproved },
-    docItem(f, "cooling_off_notice"), docItem(f, "payment_terms"),
+    docItem(f, "veec_assignment_consent"), docItem(f, "cooling_off_notice"), docItem(f, "payment_terms"),
   ];
   const C: GateItem[] = [
     { key: "esc_consent", label: "ESC information-sharing consent (Reg 23A)", done: f.escConsentSigned, draft: false },
@@ -92,7 +94,8 @@ export function evaluateOwnerGates(f: GateFacts): GateResult[] {
   ];
   if (f.lifeSupport) C.push(docItem(f, "life_support_plan"));
   if (f.piesaDeclarationMappingApproved) C.push(docItem(f, "piesa_owner_declaration"));
-  const D: GateItem[] = [{ key: "veec_assignment", label: "Final VEEC assignment", done: f.assignmentEffective, draft: false }];
+  // Gate D: the completed official form, made effective from the Gate B assignment (owner re-signs only on material change or if the setting requires it).
+  const D: GateItem[] = [{ key: "veec_assignment", label: "Completed VEEC assignment form (effective after install)", done: f.assignmentEffective, draft: false }];
 
   return ([["A", A], ["B", B], ["C", C], ["D", D]] as [Gate, GateItem[]][]).map(([gate, items]) => {
     const blockers: string[] = [];

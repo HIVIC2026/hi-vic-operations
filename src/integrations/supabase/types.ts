@@ -10481,6 +10481,7 @@ export type Database = {
           mitti_ready_check_priced_template_id: string | null
           mitti_ready_check_template_id: string | null
           office_time_limits: Json
+          owner_resign_after_install: boolean
           partner_lead_fee_inc_gst: number
           payment_option_gate_enabled: boolean
           photo_max_distance_m: number
@@ -10520,6 +10521,7 @@ export type Database = {
           mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
           office_time_limits?: Json
+          owner_resign_after_install?: boolean
           partner_lead_fee_inc_gst?: number
           payment_option_gate_enabled?: boolean
           photo_max_distance_m?: number
@@ -10559,6 +10561,7 @@ export type Database = {
           mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
           office_time_limits?: Json
+          owner_resign_after_install?: boolean
           partner_lead_fee_inc_gst?: number
           payment_option_gate_enabled?: boolean
           photo_max_distance_m?: number

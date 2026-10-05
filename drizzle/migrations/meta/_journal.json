@@ -855,6 +855,13 @@
       "when": 1791238640996,
       "tag": "0121_owner_paperwork",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1791239359304,
+      "tag": "0122_owner_resign_setting",
+      "breakpoints": true
     }
   ]
 }

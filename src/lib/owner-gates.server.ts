@@ -176,14 +176,14 @@ export async function approvePaperwork(key: GateDocKey, version: string, actorId
 export async function paperworkCatalogue() {
   const [{ data: appr }, { data: tpl }, approved] = await Promise.all([
     admin.from("owner_paperwork_approvals").select("doc_key, doc_version, approved_by, approved_at"),
-    admin.from("compliance_templates").select("template_key, version, approved, approved_by, approved_at, is_active").in("template_key", ["customer_agreement", "consumer_rights", "esc_consent", "consumer_declaration"]).eq("is_active", true),
+    admin.from("compliance_templates").select("template_key, version, approved, approved_by, approved_at, is_active").in("template_key", ["customer_agreement", "consumer_rights", "esc_consent", "consumer_declaration", "installer_declaration"]).eq("is_active", true),
     approvedVersions(),
   ]);
   const ids = [...new Set([...(appr ?? []).map((a) => a.approved_by), ...(tpl ?? []).map((t) => t.approved_by)].filter(Boolean) as string[])];
   const { data: people } = ids.length ? await admin.from("profiles").select("id, full_name").in("id", ids) : { data: [] as { id: string; full_name: string | null }[] };
   const who = (id: string | null) => (people ?? []).find((p) => p.id === id)?.full_name ?? (id ? "Admin" : null);
-  const TEMPLATE_GATE: Record<string, string> = { customer_agreement: "B", consumer_rights: "B", esc_consent: "C", consumer_declaration: "D" };
-  const TEMPLATE_TITLE: Record<string, string> = { customer_agreement: "Customer agreement (HIV wording)", consumer_rights: "Consumer rights", esc_consent: "ESC information-sharing consent (Reg 23A)", consumer_declaration: "Final VEEC assignment (consumer)" };
+  const TEMPLATE_GATE: Record<string, string> = { customer_agreement: "B", consumer_rights: "B", esc_consent: "C", consumer_declaration: "D", installer_declaration: "D" };
+  const TEMPLATE_TITLE: Record<string, string> = { customer_agreement: "Customer agreement (HIV wording)", consumer_rights: "Consumer rights", esc_consent: "ESC information-sharing consent (Reg 23A)", consumer_declaration: "Official Activity 48 assignment form", installer_declaration: "Installer declaration (PIISA)" };
   const fromTemplates = Object.keys(TEMPLATE_GATE).map((k) => {
     const rows = (tpl ?? []).filter((t) => t.template_key === k);
     const a = rows.find((t) => t.approved);
