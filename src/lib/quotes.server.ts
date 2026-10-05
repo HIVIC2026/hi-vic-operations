@@ -227,7 +227,7 @@ export async function adjustQuote(quoteId: string, actorId: string, reason: stri
   const veec = r2(Math.min(subtotal, veecDiscount ?? Number(before.veec_discount_inc_gst)));
   const { data: s } = await admin.from("pricing_settings").select("gst_rate").eq("id", before.pricing_settings_id!).maybeSingle();
   const gst = 1 + Number(s?.gst_rate ?? 0.1);
-  const after = { subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: veec, customer_total_inc_gst: r2(subtotal - veec), manually_adjusted: true };
+  const after = { subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: veec, customer_total_inc_gst: r2(subtotal - veec), manually_adjusted: true, ...(veec !== Number(before.veec_discount_inc_gst) ? { veec_count: null, veec_unit_value_inc_gst: null } : {}) };
   await admin.from("quotes").update(after).eq("id", quoteId);
   const { data: afterFull } = await admin.from("quotes").select("*, quote_items(*)").eq("id", quoteId).single();
   await admin.from("quote_adjustments").insert({ quote_id: quoteId, adjusted_by: actorId, reason, before_snapshot: before, after_snapshot: afterFull ?? {} });

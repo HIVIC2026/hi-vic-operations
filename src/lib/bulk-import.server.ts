@@ -237,11 +237,10 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
     admin.from("veu_location_variables").select("*").eq("postcode", postcode).maybeSingle(),
     admin.from("retail_estimator_settings").select("ap_management_inc_gst, indicative_veec_value, minimum_customer_copayment_inc_gst, max_discount_metro_inc_gst, max_discount_regional_inc_gst").eq("is_current", true).maybeSingle(),
   ]);
-  const ghg = loc ? ghgEquivalentReduction(e.area_m2, loc as unknown as LocationVariables).ghgReduction : null;
   const veecValue = rs ? Number(rs.indicative_veec_value) : null;
   const apFee = job?.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
-  if (ghg == null || veecValue == null || apFee == null) return false; // office quotes manually
-  const rawDiscount = Math.round(Math.floor(ghg) * veecValue * 100) / 100;
+  if (!loc || veecValue == null || apFee == null) return false; // office quotes manually
+  const rawDiscount = wholeVeecDiscount(e.area_m2, loc as unknown as LocationVariables, veecValue).raw;
   const lines = [
     { code: "INSTALLER_PRICE", description: "Insulation works by your installer", quantity: 1, unit: "flat", unit_price_inc_gst: e.price_inc_gst, line_total_inc_gst: e.price_inc_gst, is_other: false, explanation: null, sort: 0 },
     { code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: HIVIC_PIESA_INC_GST, line_total_inc_gst: HIVIC_PIESA_INC_GST, is_other: false, explanation: null, sort: 1 },
