@@ -294,6 +294,8 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                 <div className="rounded-2xl border-2 border-estimate-green bg-estimate-mint px-5 py-4 text-center" data-testid="public-calculator-discount-highlight">
                   <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-estimate-navy/70">Your estimated VEU rebate</p>
                   <p className="mt-1 text-[2rem] font-extrabold leading-none text-estimate-green sm:text-[2.4rem]">You could save {dollars(standard.applied_discount)}</p>
+                  <p className="mt-2 text-[0.7rem] leading-relaxed text-estimate-navy/75">Maximum {dollars(settings.max_discount_metro_inc_gst)} in Melbourne / {dollars(settings.max_discount_regional_inc_gst)} in regional Victoria.</p>
+                  {standard.cap_applied && <p className="mt-1 text-[0.7rem] font-bold leading-relaxed text-estimate-navy">Government discount (capped at the program maximum)</p>}
                 </div>
 
                 {/* The number they actually pay. */}
@@ -306,7 +308,7 @@ export function PublicCalculator({ settings }: { settings: RetailSettings }) {
                   <p className="mx-auto mt-2 max-w-[300px] text-[0.7rem] leading-relaxed text-estimate-navy/75">
                     Estimate only. Eligibility, measurements and final pricing confirmed after assessment.
                   </p>
-                  {standard.copayment_capped && <p className="mt-2 text-xs leading-relaxed">The discount is limited so your contribution meets the program minimum.</p>}
+                  {standard.copayment_capped && <p className="mt-2 text-xs leading-relaxed">Discount reduced so the minimum $200 customer contribution applies.</p>}
                 </div>
 
                 <button

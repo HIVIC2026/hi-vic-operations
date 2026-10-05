@@ -10,7 +10,38 @@ export type RetailSettings = {
   access_standard_multiplier: number; access_moderate_multiplier: number; access_difficult_multiplier: number;
   indicative_veec_value: number; veec_value_source_label: string; veec_value_source_url: string; veec_value_checked_at: string;
   minimum_customer_copayment_inc_gst: number; spec_version: string; spec_source_url: string;
+  /** Jo, 5 Oct 2026: maximum customer discount per job (the Government's published "up to" figures). Editable office settings. */
+  max_discount_metro_inc_gst: number; max_discount_regional_inc_gst: number;
 };
+
+/** VEU program minimum customer contribution (inc GST) after the discount — official rule, never waived. */
+export const MIN_CUSTOMER_CONTRIBUTION_INC_GST = 200;
+
+export type DiscountRulesResult = { discount: number; cappedAtMax: boolean; reducedForMin: boolean; cap: number };
+/**
+ * The two discount guardrails, applied in order (Jo, 5 Oct 2026):
+ * 1. The discount never exceeds the program maximum for the region ($1,500 metro / $2,100 regional defaults).
+ *    An unknown region uses the lower metro cap — fails safe, never overstates.
+ * 2. The customer always pays at least the $200 minimum contribution; the discount is reduced if needed.
+ * VEECs created are unchanged — only the customer-facing discount is capped.
+ */
+export function applyDiscountRules(rawDiscount: number, preDiscountTotal: number, metropolitan: boolean | null, s: Pick<RetailSettings, "max_discount_metro_inc_gst" | "max_discount_regional_inc_gst" | "minimum_customer_copayment_inc_gst">): DiscountRulesResult {
+  const cap = metropolitan === false ? Number(s.max_discount_regional_inc_gst) : Number(s.max_discount_metro_inc_gst);
+  const capped = Math.min(rawDiscount, cap);
+  const floor = Number(s.minimum_customer_copayment_inc_gst);
+  const discount = Math.min(capped, Math.max(0, preDiscountTotal - floor));
+  return { discount, cappedAtMax: capped < rawDiscount, reducedForMin: discount < capped, cap };
+}
+
+/** Plain-English quote/invoice lines when a guardrail changed the discount (Jo-approved wording, 5 Oct 2026). */
+export const DISCOUNT_CAPPED_NOTE = "Government discount (capped at the program maximum)";
+export const DISCOUNT_REDUCED_MIN_NOTE = "Discount reduced so the minimum $200 customer contribution applies";
+export function discountNotes(r: Pick<DiscountRulesResult, "cappedAtMax" | "reducedForMin">): string[] {
+  const notes: string[] = [];
+  if (r.cappedAtMax) notes.push(DISCOUNT_CAPPED_NOTE);
+  if (r.reducedForMin) notes.push(DISCOUNT_REDUCED_MIN_NOTE);
+  return notes;
+}
 
 export type Access = "standard" | "moderate" | "difficult";
 export const ACCESS_LEVELS: Access[] = ["standard", "moderate", "difficult"];
@@ -45,21 +76,20 @@ export type InsulationDeclared = "none" | "present" | "unknown" | null;
 /** Only an explicit owner declaration of "present" shows the removal scenario; none/unknown/unanswered => single no-removal scenario. */
 export const needsRemovalScenario = (d: InsulationDeclared) => d === "present";
 
-export type AccessTotals = { access: Access; multiplier: number; installation: number; pre_discount_total: number; applied_discount: number; estimated_customer_total: number; copayment_capped: boolean };
+export type AccessTotals = { access: Access; multiplier: number; installation: number; pre_discount_total: number; applied_discount: number; estimated_customer_total: number; copayment_capped: boolean; cap_applied: boolean };
 export type Scenario = { key: "can_remain" | "full_removal"; label: string; removal_m2: number; removal: number; fixed: number; by_access: Record<Access, AccessTotals> };
 
 const cents = (n: number) => Math.round(n * 100) / 100;
-export function priceScenario(key: Scenario["key"], areaM2: number, removalM2: number, s: RetailSettings, rawDiscount: number): Scenario {
+export function priceScenario(key: Scenario["key"], areaM2: number, removalM2: number, s: RetailSettings, rawDiscount: number, metropolitan: boolean | null = null): Scenario {
   const mult: Record<Access, number> = { standard: Number(s.access_standard_multiplier), moderate: Number(s.access_moderate_multiplier), difficult: Number(s.access_difficult_multiplier) };
   const removal = removalM2 * Number(s.removal_inc_gst_per_m2);
   const fixed = Number(s.piesa_assessment_inc_gst) + Number(s.ap_management_inc_gst);
-  const floor = Number(s.minimum_customer_copayment_inc_gst);
   const by = {} as Record<Access, AccessTotals>;
   for (const a of ACCESS_LEVELS) {
     const installation = areaM2 * Number(s.r5_install_inc_gst_per_m2) * mult[a];
     const pre = installation + removal + fixed;
-    const applied = Math.min(rawDiscount, Math.max(0, pre - floor));
-    by[a] = { access: a, multiplier: mult[a], installation: cents(installation), pre_discount_total: cents(pre), applied_discount: cents(applied), estimated_customer_total: cents(pre - applied), copayment_capped: applied < rawDiscount };
+    const rules = applyDiscountRules(rawDiscount, pre, metropolitan, s);
+    by[a] = { access: a, multiplier: mult[a], installation: cents(installation), pre_discount_total: cents(pre), applied_discount: cents(rules.discount), estimated_customer_total: cents(pre - rules.discount), copayment_capped: rules.reducedForMin, cap_applied: rules.cappedAtMax };
   }
   return { key, label: key === "can_remain" ? "If your existing insulation can remain" : "If full removal is required", removal_m2: removalM2, removal: cents(removal), fixed: cents(fixed), by_access: by };
 }
@@ -71,12 +101,13 @@ export type EstimateResult = {
   scenarios: Scenario[]; primary: Scenario;
   access_adjustment: { moderate: number; difficult: number };
 };
-/** Full indicative estimate. Discount = unrounded Eq 48.1 reduction × indicative VEEC value, capped by the minimum co-payment. */
+/** Full indicative estimate. Discount = unrounded Eq 48.1 reduction × indicative VEEC value, capped at the region's program maximum, then reduced if needed so the customer pays at least the $200 minimum. */
 export function computeEstimate(area: AreaCandidate, loc: LocationVariables, insulation: InsulationDeclared, s: RetailSettings): EstimateResult {
   const ghg = ghgEquivalentReduction(area.m2, loc);
   const raw = ghg.ghgReduction * Number(s.indicative_veec_value);
-  const scenarios = [priceScenario("can_remain", area.m2, 0, s, raw)];
-  if (needsRemovalScenario(insulation)) scenarios.push(priceScenario("full_removal", area.m2, area.m2, s, raw));
+  const metro = loc.metropolitan_or_regional === "Metropolitan";
+  const scenarios = [priceScenario("can_remain", area.m2, 0, s, raw, metro)];
+  if (needsRemovalScenario(insulation)) scenarios.push(priceScenario("full_removal", area.m2, area.m2, s, raw, metro));
   const primary = scenarios[0]!;
   const st = primary.by_access.standard;
   return {

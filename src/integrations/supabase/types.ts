@@ -8448,6 +8448,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           customer_total_inc_gst: number
+          discount_note: string | null
           expired_at: string | null
           gst_amount: number
           id: string
@@ -8479,6 +8480,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           customer_total_inc_gst: number
+          discount_note?: string | null
           expired_at?: string | null
           gst_amount: number
           id?: string
@@ -8510,6 +8512,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           customer_total_inc_gst?: number
+          discount_note?: string | null
           expired_at?: string | null
           gst_amount?: number
           id?: string
@@ -9517,6 +9520,8 @@ export type Database = {
           id: string
           indicative_veec_value: number
           is_current: boolean
+          max_discount_metro_inc_gst: number
+          max_discount_regional_inc_gst: number
           minimum_customer_copayment_inc_gst: number
           notes: string | null
           piesa_assessment_inc_gst: number
@@ -9540,6 +9545,8 @@ export type Database = {
           id?: string
           indicative_veec_value: number
           is_current?: boolean
+          max_discount_metro_inc_gst?: number
+          max_discount_regional_inc_gst?: number
           minimum_customer_copayment_inc_gst: number
           notes?: string | null
           piesa_assessment_inc_gst: number
@@ -9563,6 +9570,8 @@ export type Database = {
           id?: string
           indicative_veec_value?: number
           is_current?: boolean
+          max_discount_metro_inc_gst?: number
+          max_discount_regional_inc_gst?: number
           minimum_customer_copayment_inc_gst?: number
           notes?: string | null
           piesa_assessment_inc_gst?: number

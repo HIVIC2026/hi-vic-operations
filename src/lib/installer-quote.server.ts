@@ -18,13 +18,18 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const postcode = String((job.properties as { postcode: string | null } | null)?.postcode ?? "").trim();
   const [{ data: loc }, { data: rs }] = await Promise.all([
     admin.from("veu_location_variables").select("*").eq("postcode", postcode).maybeSingle(),
-    admin.from("retail_estimator_settings").select("ap_management_inc_gst, indicative_veec_value").eq("is_current", true).maybeSingle(),
+    admin.from("retail_estimator_settings").select("ap_management_inc_gst, indicative_veec_value, minimum_customer_copayment_inc_gst, max_discount_metro_inc_gst, max_discount_regional_inc_gst").eq("is_current", true).maybeSingle(),
   ]);
   const ghg = loc && m2 ? ghgEquivalentReduction(m2, loc as unknown as LocationVariables).ghgReduction : null;
   const apFee = job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
   const draft = buildInstallerQuoteDraft({
     price: quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, ghgReduction: ghg,
     veecValue: rs ? Number(rs.indicative_veec_value) : null, piesaIncGst: HIVIC_PIESA_INC_GST, apFeeIncGst: apFee,
+    caps: {
+      metropolitan: loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null,
+      maxMetro: rs ? Number(rs.max_discount_metro_inc_gst) : 1500, maxRegional: rs ? Number(rs.max_discount_regional_inc_gst) : 2100,
+      minCopay: rs ? Number(rs.minimum_customer_copayment_inc_gst) : 200,
+    },
   });
   if (!draft.ready) {
     await logEvent(jobId, actorId, "installer_quote_held", "Owner quote not drafted — needs office review", { audit_id: auditId, blockers: draft.blockers });
@@ -36,7 +41,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const { data: q, error } = await admin.from("quotes").insert({
     job_id: jobId, kind: "installation", option_label: "Installer's quote (from Ready Check)", option_code: INSTALLER_QUOTE_CODE, status: "draft",
     subtotal_inc_gst: draft.subtotal, gst_amount: Math.round((draft.subtotal - draft.subtotal / 1.1) * 100) / 100,
-    veec_discount_inc_gst: draft.discount, customer_total_inc_gst: draft.afterDiscount, created_by: actorId,
+    veec_discount_inc_gst: draft.discount, discount_note: draft.discountNote, customer_total_inc_gst: draft.afterDiscount, created_by: actorId,
   }).select("id").single();
   if (error || !q) throw new Error(error?.message ?? "Quote could not be saved.");
   const { error: ie } = await admin.from("quote_items").insert(draft.lines.map((l) => ({ ...l, quote_id: q.id })));

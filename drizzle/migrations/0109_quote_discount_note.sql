@@ -1,0 +1,2 @@
+ALTER TABLE public.quotes ADD COLUMN IF NOT EXISTS discount_note text;
+COMMENT ON COLUMN public.quotes.discount_note IS 'Customer-facing note when the discount was capped at the program maximum or reduced for the $200 minimum contribution. NULL = unadjusted.';

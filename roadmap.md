@@ -127,3 +127,10 @@
 ## Queued 5 Oct (Jo approved) — before live-safety check
 - [x] BUILD: owner eligibility link for installer-sourced customers (questions only; eligible / needs assessment / not eligible; installer told; copy per job + bulk copy per upload batch; nothing sends)
 - [x] BUILD: auto "Create & assign Mitti assessment" when approved worker with confirmed Mitti access is assigned to an installer-sourced job needing a Ready Check; otherwise "needs Mitti access" flag
+
+## In progress — discount cap + $200 minimum (Jo approved, must be in the publish)
+- Max discount: $1,500 metro / $2,100 regional, editable office settings; apply in calculator, estimate emails/pages, HIV owner quotes, installer-supplied draft quotes (bulk import + A1), tax invoice, margins/profit view. VEECs created unchanged.
+- Min customer contribution $200 inc GST enforced in same places; reduce discount if needed.
+- Wording: calculator never shows more than cap; quote lines when capped/reduced.
+- Answer: how calculator computes VEECs (factor per m² by region, max area, source) — no factor changes.
+- Test 50/150/300/600 m² metro+regional and a cheap job hitting $200 min.

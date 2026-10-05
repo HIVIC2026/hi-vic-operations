@@ -2,6 +2,8 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { quoteInputsFromMeasurement, type MeasurementLike } from "./scope.core";
+import { lookupLocation } from "./activity48.core";
+import { applyDiscountRules, discountNotes } from "./estimate.core";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -86,7 +88,7 @@ export function priceInstallerOption(input: {
 
 export async function generateInstallerQuotes(jobId: string, actorId: string) {
   // Installer-supplied jobs (installer's own customer and price) never use this builder: no installer markup there.
-  const { data: jobRow } = await admin.from("jobs").select("channel, installer_led, ap_fee_override_inc_gst").eq("id", jobId).single();
+  const { data: jobRow } = await admin.from("jobs").select("channel, installer_led, ap_fee_override_inc_gst, property_id").eq("id", jobId).single();
   if (!jobRow) throw new WorkflowError("Job not found.");
   if (jobRow.channel === "installer_sourced" || jobRow.installer_led) throw new WorkflowError("Installer-supplied job: use the installer's own quote (installer price + PIESA + AP fee). This quote builder is for Home Insulation Victoria jobs only.");
   // Two-requirement model: quote inputs come ONLY from the accepted/current ceiling measurement.
@@ -99,8 +101,12 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   const card = await activeRateCard("installer", inst.business_id, false);
   const items = card.rate_card_items as { code: string; description: string; unit_price_ex_gst: number; category: string }[];
   const rate = (...codes: string[]) => { for (const c of codes) { const it = items.find((i) => i.code === c); if (it) return Number(it.unit_price_ex_gst); } return null; };
-  const { data: rs } = await admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst, access_standard_multiplier, access_moderate_multiplier, access_difficult_multiplier").eq("is_current", true).maybeSingle();
+  const { data: rs } = await admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst, access_standard_multiplier, access_moderate_multiplier, access_difficult_multiplier, minimum_customer_copayment_inc_gst, max_discount_metro_inc_gst, max_discount_regional_inc_gst").eq("is_current", true).maybeSingle();
   if (!rs) throw new WorkflowError("Owner prices are not set – cannot quote.");
+  // Region decides which program maximum applies; an unlisted postcode uses the lower metro cap (fails safe).
+  const { data: prop } = await admin.from("properties").select("postcode").eq("id", jobRow.property_id).maybeSingle();
+  const loc = prop?.postcode ? lookupLocation(String(prop.postcode).trim()) : null;
+  const metro = loc ? loc.metropolitan_or_regional === "Metropolitan" : null;
 
   // Known rectification scope (owner-approved) is folded in so the single accepted total covers the whole job. Lines stay itemised, no markup.
   const { data: rectQuote } = await admin.from("quotes").select("id, quote_items(*)").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -126,13 +132,17 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]);
   const ownSubtotal = r2(calc.lines.reduce((a, l) => a + l.line_total_inc_gst, 0));
   const subtotal = r2(ownSubtotal + rectTotal);
-  // LEGACY flat per-m² VEEC credit, unchanged by this pricing rule.
-  const veec = r2(Math.min(ownSubtotal, qi.areaM2 * Number(settings.veec_credit_per_m2_inc_gst)));
+  // LEGACY flat per-m² VEEC credit basis, unchanged — but the customer discount is capped at the
+  // region's program maximum and reduced if needed so the $200 minimum contribution applies (Jo, 5 Oct 2026).
+  const rawVeec = qi.areaM2 * Number(settings.veec_credit_per_m2_inc_gst);
+  const rules = applyDiscountRules(rawVeec, subtotal, metro, rs);
+  const veec = r2(rules.discount);
+  const discountNote = discountNotes(rules).join(" ") || null;
   const label = rectLines.length ? "R5.0 ceiling insulation + electrical rectification" : "R5.0 ceiling insulation";
   const { data: q, error } = await admin.from("quotes").insert({
     job_id: jobId, kind: "installation", option_label: label, option_code: "R5_BATTS", status: "issued", sent_at: new Date().toISOString(),
     rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal,
-    gst_amount: r2(subtotal - subtotal / gstMul), veec_discount_inc_gst: veec,
+    gst_amount: r2(subtotal - subtotal / gstMul), veec_discount_inc_gst: veec, discount_note: discountNote,
     customer_total_inc_gst: r2(subtotal - veec), created_by: actorId,
   }).select("id").single();
   if (error || !q) throw new Error(error?.message);
@@ -142,7 +152,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   ]);
   await admin.from("quote_internals").insert({
     quote_id: q.id, cost_ex_gst: calc.installerCostEx, ap_margin_ex_gst: calc.installerMarkup.markupEx, ap_fee_ex_gst: r2(Number(rs.ap_management_inc_gst) / gstMul),
-    calc_snapshot: { pricing_rule: HIV_PRICING_RULE, installer_markup: calc.installerMarkup, measurement_id: qi.measurementId, area_m2: qi.areaM2, removal_m2: qi.removalM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access },
+    calc_snapshot: { pricing_rule: HIV_PRICING_RULE, installer_markup: calc.installerMarkup, measurement_id: qi.measurementId, area_m2: qi.areaM2, removal_m2: qi.removalM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access, discount_notes: discountNotes(rules), discount_cap_applied: rules.cappedAtMax, discount_reduced_for_minimum: rules.reducedForMin },
   });
   await logEvent(jobId, actorId, "installer_quotes_generated", "Installation quote generated (fixed owner prices)", { quote_ids: [q.id], rate_card: card.name, pricing_rule: HIV_PRICING_RULE });
   return [q.id];

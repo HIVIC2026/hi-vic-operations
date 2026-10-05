@@ -278,6 +278,7 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
                 <li key={i.id} className="flex justify-between gap-2"><span>{i.description} × {Number(i.quantity)}</span><span>{aud(i.line_total_inc_gst)}</span></li>
               ))}
               {Number(q.veec_discount_inc_gst) > 0 && <li className="flex justify-between text-success"><span>VEEC discount</span><span>−{aud(q.veec_discount_inc_gst)}</span></li>}
+              {q.discount_note && <li className="text-xs text-muted-foreground">{q.discount_note}</li>}
             </ul>
             <div className="mt-2 border-t pt-2 text-lg font-bold">{aud(q.customer_total_inc_gst)} <span className="text-xs font-normal text-muted-foreground">inc GST</span></div>
             <div className="text-xs text-muted-foreground">{q.kind === "rectification" ? "Scope approval – included in your final installation quote (no payment yet)" : `Minimum upfront deposit ${aud(requiredDepositCents(q.customer_total_inc_gst) / 100)} (${depositPctFor(Number(q.customer_total_inc_gst))}%), paid in full, or an approved 3-instalment plan · balance on installation day`}</div>
