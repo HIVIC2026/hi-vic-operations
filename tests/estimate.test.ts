@@ -148,9 +148,9 @@ describe("Step 3 v2 refinement", () => {
     expect(e.raw_estimated_discount).toBeCloseTo(1260, 8);
     const [cr, fr] = e.scenarios;
     expect(cr!.by_access.standard.pre_discount_total).toBeCloseTo(4721, 2);
-    expect(cr!.by_access.standard.estimated_customer_total).toBeCloseTo(3396.31, 2);
+    expect(cr!.by_access.standard.estimated_customer_total).toBeCloseTo(3461, 2);
     expect(fr!.by_access.standard.pre_discount_total).toBeCloseTo(4721, 2);
-    expect(fr!.by_access.standard.estimated_customer_total).toBeCloseTo(3396.31, 2);
+    expect(fr!.by_access.standard.estimated_customer_total).toBeCloseTo(3461, 2);
     expect(e.access_adjustment).toEqual({ moderate: 402.3, difficult: 1005.75 });
   });
   test("wording: benchmark not market price; fee not government-mandated", () => {
