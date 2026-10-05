@@ -163,7 +163,7 @@ describe("electrician rate is never the customer price", () => {
     expect(JSON.stringify(s)).not.toMatch(/349|piesa_rate|customer/);
   });
   test("electrician dashboard source never renders the customer price as their fee", () => {
-    const src = readFileSync("src/routes/_authenticated/partner.index.tsx", "utf8");
+    const src = readFileSync("src/components/portal/trade-work.tsx", "utf8");
     expect(src).not.toMatch(/349|Agreed fee|piesa_rate_inc_gst/);
     expect(src).toContain("electricianRateText");
   });
