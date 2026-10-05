@@ -8,6 +8,8 @@ import { logEvent } from "./workflow.server";
 import { logPartner } from "./pilot.server";
 import { type LocationVariables } from "./activity48.core";
 import { HIVIC_PIESA_INC_GST } from "./installer-led.core";
+import { confirmedQuoteDecision } from "./quote-release.core";
+import { hashToken, newToken } from "./worker-links.core";
 import { linkFiles, type LeadStage } from "./bulk-import.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
@@ -229,6 +231,7 @@ export async function analyseBatch(batchId: string, actorId: string) {
     else if (matched.length > 0 && confidence === "low") reasons.push("Files matched by filename only — please check");
     return {
       batch_id: batchId, row_index: i, extracted: { ...e, lead_stage: stage } as unknown as Json,
+      import_stage: stage,
       matched_files: matched as unknown as Json, match_confidence: confidence,
       sort_result: result, sort_reasons: reasons as unknown as Json,
       missing_evidence: missingEvidence(e, matched) as unknown as Json,
@@ -258,7 +261,17 @@ export async function analyseBatch(batchId: string, actorId: string) {
 
 // ---------- confirmation: create the jobs ----------
 
-async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id: string }, actorId: string, rowId: string) {
+type ImportStage = "not_visited" | "visited" | "quoted" | "installed";
+type ElectricianPlan = { mode?: "mine" | "hivic"; nomination_id?: string | null; business_id?: string | null };
+
+const stagePlacement: Record<ImportStage, { stage: "ready_check_ready_to_schedule" | "ready_check_complete" | "awaiting_quote_acceptance" | "complete"; next: string }> = {
+  not_visited: { stage: "ready_check_ready_to_schedule", next: "Owner chooses Ready Check times" },
+  visited: { stage: "ready_check_complete", next: "Office reviews the supplied measure-up and evidence" },
+  quoted: { stage: "awaiting_quote_acceptance", next: "Owner confirmation link is queued — nothing has been sent" },
+  installed: { stage: "complete", next: "Imported as completed history — office checks missing official evidence" },
+};
+
+async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id: string }, actorId: string, rowId: string, importStage: ImportStage) {
   const email = e.email?.toLowerCase() ?? null;
   let ownerId: string;
   if (email) {
@@ -280,18 +293,29 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
   if (pe || !prop) throw new BulkImportError(pe?.message ?? "Property could not be created.");
   const { intakeSourceFor } = await import("./pilot.server");
   const source = await intakeSourceFor(actorId, batch.business_id, "bulk_import");
+  const placement = stagePlacement[importStage];
   const { data: job, error: je } = await admin.from("jobs").insert({
-    owner_id: ownerId, property_id: prop.id, stage: "new_enquiry", source, business_unit: "hivic",
+    owner_id: ownerId, property_id: prop.id, stage: placement.stage, source, business_unit: "hivic", installer_led: true,
     channel: "installer_sourced", originating_installer_business_id: batch.business_id, originating_installer_user_id: actorId,
     external_enquiry_id: `bulk:${rowId}`,
-    next_action: "Office review — imported from installer bulk upload",
+    next_action: placement.next,
+    ...(importStage === "installed" ? { installation_completed_at: new Date().toISOString() } : {}),
   }).select("id, job_number").single();
   if (je || !job) throw new BulkImportError(je?.message ?? "Job could not be created.");
   await admin.from("job_assignments").insert({ job_id: job.id, user_id: actorId, role: "installer", business_id: batch.business_id, assigned_by: actorId });
+  if (importStage !== "not_visited" && e.area_m2 && e.area_m2 > 0) {
+    await admin.from("ceiling_measurements").insert({
+      job_id: job.id, source_role: "installer", status: "needs_review", is_current: true,
+      supplied_area_m2: e.area_m2, measured_area_m2: e.area_m2, measured_by_business_id: batch.business_id,
+      provenance: "partner_supplied", external_source: "bulk_import", external_id: rowId,
+      raw_snapshot: { row_id: rowId, import_stage: importStage, supplied: e } as unknown as Json,
+      review_flags: ["Imported installer measurement requires office acceptance"] as unknown as Json,
+    });
+  }
   return job;
 }
 
-async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: string) {
+async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: string, partnerBusinessId: string) {
   if (!(e.price_inc_gst && e.price_inc_gst > 0) || !(e.area_m2 && e.area_m2 > 0)) return false;
   const { data: job } = await admin.from("jobs").select("ap_fee_override_inc_gst, properties(postcode)").eq("id", jobId).single();
   const postcode = String((job?.properties as { postcode: string | null } | null)?.postcode ?? "").trim();
@@ -314,10 +338,13 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
     minimum_customer_copayment_inc_gst: rs ? Number(rs.minimum_customer_copayment_inc_gst) : 200,
   });
   const discount = Math.round(rules.discount * 100) / 100;
+  const customerTotal = Math.round((subtotal - discount) * 100) / 100;
+  const release = confirmedQuoteDecision({ estimateTotal: null, quoteTotal: customerTotal, tolerancePct: 15, hasUnratedExtras: false, externalSendingEnabled: false });
   const { data: q, error } = await admin.from("quotes").insert({
     job_id: jobId, kind: "installation", option_label: "Installer's quote (from bulk upload)", option_code: "INSTALLER_A1", status: "draft",
     subtotal_inc_gst: subtotal, gst_amount: Math.round((subtotal - subtotal / 1.1) * 100) / 100,
-    veec_discount_inc_gst: discount, discount_note: discountNotes(rules).join(" ") || null, customer_total_inc_gst: Math.round((subtotal - discount) * 100) / 100, created_by: actorId,
+    veec_discount_inc_gst: discount, discount_note: discountNotes(rules).join(" ") || null, customer_total_inc_gst: customerTotal, created_by: actorId,
+    partner_business_id: partnerBusinessId, release_state: release.state, release_hold_reason: release.reason,
   }).select("id").single();
   if (error || !q) throw new BulkImportError(error?.message ?? "Quote could not be saved.");
   const { error: ie } = await admin.from("quote_items").insert(lines.map((l) => ({ ...l, quote_id: q.id })));
@@ -332,6 +359,7 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
   const permission = (batch.summary as { permission?: { confirmed_by: string; confirmed_at: string; wording: string } } | null)?.permission;
   if (!permission?.confirmed_by || !permission.confirmed_at) throw new BulkImportError("The contact permission tick is missing for this upload — please upload again and tick the box.");
   let created = 0, skipped = 0, failed = 0;
+  const ownerLinks: { jobNumber: string; owner: string; path: string }[] = [];
   for (const row of rows ?? []) {
     if (skipRowIds.includes(row.id) || row.duplicate_note) {
       await admin.from("bulk_import_rows").update({ status: "skipped" }).eq("id", row.id);
@@ -345,13 +373,29 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       continue;
     }
     try {
-      const job = await createBulkJob(e, batch, actorId, row.id);
-      const quoted = await draftQuoteFromImport(job.id, e, actorId).catch(() => false);
+      if (row.sort_result === "office_review") throw new BulkImportError("Office review must be cleared before this customer can be added.");
+      const importStage = row.import_stage as ImportStage;
+      const job = await createBulkJob(e, batch, actorId, row.id, importStage);
+      const quoted = importStage === "quoted" || importStage === "installed" ? await draftQuoteFromImport(job.id, e, actorId, batch.business_id).catch(() => false) : false;
+      const plan = ((row.electrician_plan ?? batch.electrician_plan ?? { mode: "hivic" }) as ElectricianPlan);
+      if (plan.mode === "mine") {
+        if (plan.business_id) {
+          const { data: member } = await admin.from("business_members").select("user_id").eq("business_id", plan.business_id).eq("active", true).limit(1).maybeSingle();
+          if (member) await admin.from("job_assignments").insert({ job_id: job.id, user_id: member.user_id, role: "electrician", business_id: plan.business_id, assigned_by: actorId });
+        } else if (plan.nomination_id) {
+          const { data: nomination } = await admin.from("electrician_nominations").select("contact_name,business_name,email,phone,licence_number,rec_number,nominated_for,status").eq("id", plan.nomination_id).eq("nominating_business_id", batch.business_id).maybeSingle();
+          if (nomination) await admin.from("electrician_nominations").insert({ ...nomination, job_id: job.id, nominated_by: actorId, nominating_business_id: batch.business_id, status: "invite_pending_comms" });
+          await admin.from("jobs").update({ electrician_choice: "nominated", next_action: `Waiting for ${nomination?.contact_name ?? "nominated electrician"} to sign up and be approved` }).eq("id", job.id);
+        }
+      } else await admin.from("jobs").update({ electrician_choice: "hivic_organise" }).eq("id", job.id);
       await admin.from("bulk_import_rows").update({ status: "confirmed", job_id: job.id }).eq("id", row.id);
+      const ownerToken = newToken();
+      await admin.from("owner_eligibility_links").insert({ job_id: job.id, business_id: batch.business_id, token_hash: await hashToken(ownerToken), created_by: actorId, expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() });
+      ownerLinks.push({ jobNumber: job.job_number, owner: e.full_name ?? "Customer", path: `/eligibility/${ownerToken}` });
       await logEvent(job.id, actorId, "bulk_import_confirmed", `Job created from installer bulk upload (row ${row.row_index + 1})`, {
         batch_id: batchId, row_id: row.id, sort_result: row.sort_result,
         missing_evidence: row.missing_evidence, draft_quote: quoted,
-        lead_stage: (e as { lead_stage?: string }).lead_stage ?? null,
+        import_stage: importStage, electrician_plan: plan,
       });
       await logEvent(job.id, permission.confirmed_by, "bulk_import_contact_permission", permission.wording, {
         batch_id: batchId, confirmed_by: permission.confirmed_by, confirmed_at: permission.confirmed_at, wording: permission.wording,
@@ -363,7 +407,7 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
     }
   }
   await admin.from("bulk_import_batches").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", batchId);
-  return { created, skipped, failed };
+  return { created, skipped, failed, ownerLinks };
 }
 
 /** Office/installer adds the missing address to a review row; the row is re-sorted (never auto-confirmed). */

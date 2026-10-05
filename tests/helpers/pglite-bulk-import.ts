@@ -6,8 +6,8 @@ import { readFileSync } from "node:fs";
 
 const read = (f: string) =>
   readFileSync(new URL(`../../docs/pending-migrations/${f}`, import.meta.url), "utf8");
-export const BULK_SQL = read("0104_bulk_import.sql") + "\n" + read("0105_bulk_import_sort_labels.sql");
-export const BULK_ROLLBACK_SQL = read("0104_bulk_import.rollback.sql");
+export const BULK_SQL = read("0104_bulk_import.sql") + "\n" + read("0105_bulk_import_sort_labels.sql") + "\n" + read("0118_bulk_import_review_plan.sql");
+export const BULK_ROLLBACK_SQL = read("0118_bulk_import_review_plan.rollback.sql") + "\n" + read("0104_bulk_import.rollback.sql");
 
 const BASE = `
 CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;

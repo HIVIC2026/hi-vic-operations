@@ -1,7 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 
-const SQL = readFileSync(new URL("../../docs/pending-migrations/0112_launch_campaign_responses.sql", import.meta.url), "utf8");
+const SQL = readFileSync(new URL("../../docs/pending-migrations/0112_launch_campaign_responses.sql", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../../docs/pending-migrations/0119_campaign_video_priority.sql", import.meta.url), "utf8");
 
 export const LAUNCH_ID = {
   admin: "00000000-0000-4000-8000-0000000000a1",
@@ -18,6 +18,7 @@ export async function launchCampaignDb() {
     CREATE TABLE public.user_roles (id uuid primary key default gen_random_uuid(), user_id uuid not null, role public.app_role not null);
     CREATE TABLE public.jobs (id uuid primary key default gen_random_uuid());
     CREATE TABLE public.customer_estimate_links (id uuid primary key default gen_random_uuid(), job_id uuid not null references public.jobs(id));
+    CREATE TABLE public.customer_delivery_settings (id integer primary key default 1);
     CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     CREATE FUNCTION public.is_admin() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$ SELECT exists(SELECT 1 FROM public.user_roles WHERE user_id=auth.uid() AND role='admin') $$;
     GRANT USAGE ON SCHEMA auth, public TO anon, authenticated, service_role;

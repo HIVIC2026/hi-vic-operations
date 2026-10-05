@@ -1,6 +1,6 @@
 # Home Insulation Victoria — workflow source of truth
 
-Version 2026-10-03. Owner-approved. **This file and `src/config/workflow-decisions.ts` override older prompts, comments, audit notes, labels and stale implementation text.** Conflicts are found by `bun scripts/scan-retired-terms.ts`.
+Version 2026-10-05. Owner-approved. **This file and `src/config/workflow-decisions.ts` override older prompts, comments and stale implementation text. `docs/STATUS.md` is the only implementation-status register.** Conflicts are found by `bun scripts/scan-retired-terms.ts`.
 
 ## Branding
 Visible name everywhere: **Home Insulation Victoria**. Retired visible names: HI VIC, HI VIC!, HIVIC. Internal identifiers (e.g. `business_unit = 'hivic'`, the locked Xero reference) stay unchanged where renaming risks functionality; renaming needs separate approval.

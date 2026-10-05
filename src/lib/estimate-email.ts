@@ -1,6 +1,7 @@
 import { READY_CHECK_FEE } from "./readycheck.core";
 /** Pure customer outcome email renderers: no data access, delivery, or side effects. */
 import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE } from "./customer-quote-system";
+import { isWellFormedToken } from "./estimatelink.core";
 
 export type CustomerOutcome = "likely" | "onsite" | "ineligible";
 export type EstimateEmailInput = {
@@ -346,6 +347,7 @@ export const V2_THEME = {
 export type LaunchCampaignEmailInput = {
   group: "likely" | "onsite";
   campaignUrl: string;
+  unsubscribeUrl: string;
   firstName?: string | null;
   estimatedTotal: number;
   veuDiscount: number;
@@ -362,6 +364,8 @@ export type LaunchCopyField = "subject" | "previewText" | "headline" | "intro" |
 export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): EstimateEmail {
   const campaign = new URL(input.campaignUrl);
   if (campaign.origin !== BASE || !/^\/estimate\/[A-Za-z0-9_-]{43,128}\/campaign$/.test(campaign.pathname) || campaign.search || campaign.hash) throw new Error("A secure Home Insulation Victoria campaign link is required.");
+  const unsubscribe = new URL(input.unsubscribeUrl);
+  if (unsubscribe.origin !== BASE || unsubscribe.pathname !== "/email/unsubscribe" || !isWellFormedToken(unsubscribe.searchParams.get("t"))) throw new Error("A secure unsubscribe link is required.");
   const amounts = [input.estimatedTotal, input.veuDiscount, input.grossTotal, input.areaM2];
   if (!amounts.every((value) => Number.isFinite(value) && value > 0) || Math.abs(input.estimatedTotal + input.veuDiscount - input.grossTotal) > 0.01) throw new Error("Campaign email estimate values must be positive and reconcile.");
   const onsite = input.group === "onsite";
@@ -371,7 +375,7 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
   const greeting0 = onsite ? `Good news${name ? `, ${escape(name)}` : ""}!` : `Great news${name ? `, ${escape(name)}` : ""}!`;
   const eligibility0 = onsite ? "Your home could be eligible for a VEU ceiling insulation rebate." : "Your home appears eligible for a VEU ceiling insulation rebate.";
   const subject0 = onsite ? `${name ? `${name}, your` : "Your"} home could be eligible for an insulation rebate` : `${name ? `${name}, your` : "Your"} home appears eligible for an insulation rebate`;
-  const previewText0 = onsite ? "One quick manhole video can help us check your home and show your preliminary savings." : "See your preliminary VEU rebate and cost after rebate.";
+  const previewText0 = onsite ? "Send one quick manhole video and jump the queue." : "Save your place for a free Ready Check. No payment and no obligation.";
   const greeting = fill(c.headline) ? escape(fill(c.headline)!) : greeting0;
   const eligibility = fill(c.intro) ? escape(fill(c.intro)!) : eligibility0;
   const subject = fill(c.subject) ?? subject0;
@@ -379,15 +383,17 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
   const row = (content: string, pad: string) => `<tr><td class="lx-pad" style="padding:${pad};${F}">${content}</td></tr>`;
   const hero = `<p style="margin:0 0 8px;${F}color:${TEXT_GREEN};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">Preliminary eligibility result</p><h1 class="lx-h1 hiv-hero-title" style="margin:0 0 14px;${FH}color:${INK};font-size:34px;line-height:39px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:0;">${greeting}</h1><p class="lx-body" style="margin:0;${F}color:${INK};font-size:15px;line-height:1.6;">${eligibility}</p>`;
   const savings = V2_THEME.savings({ address: input.address?.trim() || null, area: input.areaM2, discount: input.veuDiscount, customer: input.estimatedTotal, gross: input.grossTotal, rebateLabel: "Your estimated VEU rebate", costLabel: "Your estimated cost after rebate", qualifier: "Estimate only. Eligibility, measurements and final pricing confirmed after assessment.", hasBreakdown: false, installation: 0, assessment: 0, apFee: 0 }).html;
-  const videoLine = fill(c.video) ?? "If you can do it safely, send one short video from the manhole so we can check the existing insulation. Please don’t climb into or walk through the roof space.";
-  const nextTitle = fill(c.nextTitle) ?? (onsite ? "Help us check your home" : "Save your spot");
+  const videoLine = fill(c.video) ?? "Send us one short video from your manhole. It lets us check your existing insulation before we book you in, so nobody's time is wasted. Homes with a video get booked first.";
+  const nextTitle = fill(c.nextTitle) ?? (onsite ? "Want to jump the queue?" : "Save your spot");
   const urgency = fill(c.urgency) ?? "Demand is high — hundreds of enquiries since 1 October, installers are limited, first come first served.";
-  const buttonText = fill(c.button) ?? (onsite ? "Check my home →" : "See my savings and save my spot →");
-  const nextStep = `<table data-likely-next-step="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUSH}" style="width:100%;border-collapse:separate;background-color:${BLUSH};border-radius:20px;"><tr><td style="padding:22px 22px;${F}"><h2 style="margin:0 0 12px;${FH}color:${INK};font-size:23px;line-height:1.2;font-weight:800;letter-spacing:0;">${escape(nextTitle)}</h2>${onsite ? `<p class="lx-body" style="margin:0 0 12px;${F}color:${INK};font-size:14px;line-height:1.55;">${escape(videoLine)}</p>` : ""}<p style="margin:0 0 12px;${F}color:${INK};font-size:14px;line-height:1.45;font-weight:800;">${escape(urgency)}</p>${V2_THEME.button(campaign.toString(), buttonText)}</td></tr></table>`;
+  const buttonText = fill(c.button) ?? (onsite ? "Send my video →" : "Save my spot →");
+  const videoUrl = new URL(campaign); videoUrl.pathname = videoUrl.pathname.replace(/\/campaign$/, "/video");
+  const actionUrl = onsite ? videoUrl.toString() : campaign.toString();
+  const nextStep = `<table data-likely-next-step="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUSH}" style="width:100%;border-collapse:separate;background-color:${BLUSH};border-radius:20px;"><tr><td style="padding:22px 22px;${F}"><h2 style="margin:0 0 12px;${FH}color:${INK};font-size:23px;line-height:1.2;font-weight:800;letter-spacing:0;">${escape(nextTitle)}</h2>${onsite ? `<p class="lx-body" style="margin:0 0 12px;${F}color:${INK};font-size:14px;line-height:1.55;">${escape(videoLine)} <strong>Homes with a video get booked first.</strong></p><p style="margin:0 0 12px;${F}color:${INK};font-size:12px;line-height:1.5;">Only if you can do it safely. Please don’t climb into or walk through the roof space.</p>` : ""}<p style="margin:0 0 12px;${F}color:${INK};font-size:14px;line-height:1.45;font-weight:800;">${escape(urgency)}</p>${V2_THEME.button(actionUrl, buttonText)}${onsite ? `<p style="margin:12px 0 0;${F}font-size:13px;line-height:1.5;text-align:center;">Can’t do a video? No worries. <a href="${escape(campaign.toString())}" style="color:${BLUE};font-weight:700;">Just save my spot</a></p>` : ""}<p style="margin:10px 0 0;${F}font-size:13px;text-align:center;color:${INK};">No payment, no obligation.</p></td></tr></table>`;
   const footerReason = "We’re the Accredited Person. Independent licensed trades carry out the work. This estimate is based only on your online enquiry; your final price is confirmed after your free onsite Ready Check.";
-  const html = V2_THEME.shell(`${row(V2_THEME.header("Free estimate · no obligation"), "22px 36px 18px")}${row(hero, "8px 36px 24px")}${row(savings, "0 28px 22px")}${row(nextStep, "0 28px 18px")}${row(V2_THEME.whatCouldChange().html, "0 28px 24px")}${V2_THEME.footerRow(V2_THEME.footer(input.reference, null, footerReason, campaign.toString()))}`, previewText, null);
+  const html = V2_THEME.shell(`${row(V2_THEME.header("Free estimate · no obligation"), "22px 36px 18px")}${row(hero, "8px 36px 24px")}${row(savings, "0 28px 22px")}${row(nextStep, "0 28px 18px")}${row(V2_THEME.whatCouldChange().html, "0 28px 24px")}${V2_THEME.footerRow(V2_THEME.footer(input.reference, null, footerReason, unsubscribe.toString()))}`, previewText, null);
   const action = buttonText.replace(/\s*→\s*$/, "");
-  const plainText = [subject, "", greeting, eligibility, ...(onsite ? [videoLine] : []), "", `You could save ${money(input.veuDiscount)}`, `Your estimated cost after rebate: ${money(input.estimatedTotal)} incl. GST`, `Before rebate: ${money(input.grossTotal)}`, `Ceiling: ${number(input.areaM2)} m²`, "", "WHAT THIS INCLUDES", "Free Insulation Measure-Up & Eligibility Check", "R5.0 ceiling insulation — supply & install", "Electrical safety assessment (PIESA)", "Accredited Person (AP) management", "", urgency, `${action}: ${campaign}`, "", "WHAT COULD CHANGE THIS PRICE?", ...V2_THEME.whatCouldChange().changes.map((item) => `• ${item}`), CUSTOMER_WHAT_COULD_CHANGE.closing, "", footerReason, `Remove my enquiry: ${campaign}`, ...(input.reference?.trim() ? [`Reference: ${input.reference.trim()}`] : [])].join("\n");
+  const plainText = [subject, "", greeting, eligibility, ...(onsite ? [videoLine, "Homes with a video get booked first.", "Only if you can do it safely. Please don’t climb into or walk through the roof space."] : []), "", `You could save ${money(input.veuDiscount)}`, `Your estimated cost after rebate: ${money(input.estimatedTotal)} incl. GST`, `Before rebate: ${money(input.grossTotal)}`, `Ceiling: ${number(input.areaM2)} m²`, "", "WHAT THIS INCLUDES", "Free Ready Check", "R5.0 ceiling insulation — supply & install", "Electrical safety assessment (PIESA)", "Accredited Person (AP) management", "", urgency, `${action}: ${actionUrl}`, ...(onsite ? [`Can't do a video? No worries. Just save my spot: ${campaign}`] : []), "No payment, no obligation.", "", "WHAT COULD CHANGE THIS PRICE?", ...V2_THEME.whatCouldChange().changes.map((item) => `• ${item}`), CUSTOMER_WHAT_COULD_CHANGE.closing, "", footerReason, `Remove my enquiry: ${unsubscribe}`, ...(input.reference?.trim() ? [`Reference: ${input.reference.trim()}`] : [])].join("\n");
   return { subject, previewText, html, plainText };
 }
 

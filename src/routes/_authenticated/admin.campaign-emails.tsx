@@ -133,13 +133,13 @@ const firstName = (n: string | null) => n?.trim().split(/\s+/)[0] ?? null;
 function render(group: Group, l: Lead, copy: Copy): { subject: string; previewText: string; html: string; defaults?: never } | { error: string } {
   try {
     const discount = Math.round(l.discount ?? 0), total = Math.round(l.price ?? 0);
-    return renderLaunchCampaignEmail({ group, campaignUrl: SAMPLE_URL, firstName: firstName(l.name), estimatedTotal: total, veuDiscount: discount, grossTotal: total + discount, areaM2: l.area, address: l.address, reference: l.jobNumber, copy });
+    return renderLaunchCampaignEmail({ group, campaignUrl: SAMPLE_URL, unsubscribeUrl: `https://quote.homeinsulationvictoria.com.au/email/unsubscribe?t=${"U".repeat(43)}`, firstName: firstName(l.name), estimatedTotal: total, veuDiscount: discount, grossTotal: total + discount, areaM2: l.area, address: l.address, reference: l.jobNumber, copy });
   } catch (e) { return { error: e instanceof Error ? e.message : "This lead can't be previewed" }; }
 }
 
 const DEFAULT_TEXT: Partial<Record<LaunchCopyField, string>> = {
-  nextTitle: "Save your spot / Help us check your home", urgency: "Demand is high — hundreds of enquiries since 1 October, installers are limited, first come first served.",
-  video: "If you can do it safely, send one short video from the manhole…", button: "See my savings and save my spot → / Check my home →",
+  nextTitle: "Save your spot / Want to jump the queue?", urgency: "Demand is high — hundreds of enquiries since 1 October, installers are limited, first come first served.",
+  video: "Send one short manhole video so we can check the existing insulation…", button: "Save my spot → / Send my video →",
   headline: "Great news, {name}! / Good news, {name}!", intro: "Your home appears eligible… / could be eligible…",
 };
 function placeholderFor(k: LaunchCopyField, d: { subject: string; previewText: string }) {
