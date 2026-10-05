@@ -698,7 +698,7 @@ const SAMPLE_INSTALLER_DATA: InstData = {
   works_for_business: false, primary_contact_name: "Sample Installer representative", business_phone: "0400 000 000", business_email: "sample@example.com",
   legal_entity_name: "Sample Insulation Pty Ltd", trading_name: "Sample Insulation", abn: "51824753556", business_address: SAMPLE_ADDRESS.label, business_address_details: SAMPLE_ADDRESS,
   insurance_uploaded: true, insurer: "Sample insurer", insurance_policy_number: "SAMPLE-001", public_liability_cover_amount: 5_000_000, public_liability_expiry: "2099-12-31",
-  installers: [{ full_legal_name: "Sample Installer One", mobile: "0400 000 001", email: "installer1@example.com", cii_holds: "held", cii_certificate_number: "CII-SAMPLE", cii_issuer: "Sample issuer", cii_issue_date: "2025-01-01" }],
+  installers: [{ full_legal_name: "Sample Installer One", mobile: "0400 000 001", email: "installer1@example.com", cii_holds: "held", cii_certificate_number: "CII-SAMPLE", cii_issuer: "Sample issuer" }],
   electrician_choice: "match", wants_hivic_leads: true, free_measureups_for_hivic_quote_leads: true,
   service_origin: SAMPLE_ADDRESS.label, service_origin_details: SAMPLE_ADDRESS, travel_radius_km: 50,
   typical_days: ["Mon", "Tue", "Wed"], normal_attendance_speed: "3-5 business days", capacity_band: "4-8", accepting_jobs: true,
