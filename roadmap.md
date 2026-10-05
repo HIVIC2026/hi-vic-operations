@@ -162,3 +162,6 @@
 
 ## Onboarding Rates page tidy (Jo, 5 Oct 06:28) — layout/wording only
 - [x] Top line, tidy aligned rows, Optional/Required tags, 3 cards, errors after Save, phone stack; before/after screenshots
+
+## URGENT onboarding repeat-questions + CII fix (Jo, 5 Oct 06:30)
+- [ ] No repeats (am-I-an-installer, signer prefill, address/email same-as), short CII, kind errors, easy dates, 2 E2E runs
