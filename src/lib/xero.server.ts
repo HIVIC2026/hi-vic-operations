@@ -5,7 +5,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import {
   assertHivicInvoice, assertHivicJob, assertHivicPayload, assertHivicReference, buildDueDateUpdate, buildInvoicePayload, evaluateXeroInvoice, findInvoiceByReference, findOrCreateContact, findTrackingOption,
-  invoiceIdemKey, LOCK_STALE_MS, melbourneDate, quoteGuard, XERO_DUE_DATE_UPDATES_ENABLED, xeroReference, type XeroCall,
+  invoiceIdemKey, LOCK_STALE_MS, pickXeroTenant, type XeroMode, type XeroTenant, melbourneDate, quoteGuard, XERO_DUE_DATE_UPDATES_ENABLED, xeroReference, type XeroCall,
 } from "./xero.core";
 import { clearInstallDueDatePatch, ensureInvoice, installDueDatePatch, paymentPatch, xeroDueDate, type InvoiceRow, type InvoiceStore } from "./invoice.lifecycle";
 
@@ -36,11 +36,36 @@ async function rawFetch(path: string, init: { method?: string; body?: unknown; h
   return res.json();
 }
 
-async function tenantCall(): Promise<XeroCall> {
-  const conns = (await rawFetch("/connections")) as { tenantId: string }[];
-  if (!conns[0]) throw new Error("No Xero organisation connected");
-  const tid = conns[0].tenantId;
+async function tenantCall(mode: XeroMode): Promise<XeroCall> {
+  const conns = (await rawFetch("/connections")) as XeroTenant[];
+  const tid = pickXeroTenant(conns, mode).tenantId;
   return (path, init) => rawFetch(path, init, tid);
+}
+
+/** Which Xero organisations are reachable, for the office settings display. Never returns tokens. */
+export async function xeroConnectionStatus() {
+  if (!creds()) return { connected: false, orgs: [] as { name: string; test: boolean }[] };
+  const conns = (await rawFetch("/connections")) as XeroTenant[];
+  return { connected: true, orgs: conns.map((c) => ({ name: c.tenantName ?? "Unnamed organisation", test: /demo company/i.test(c.tenantName ?? "") })) };
+}
+
+async function modeForInvoice(invoiceId: string): Promise<XeroMode> {
+  const { data } = await admin.from("invoices").select("jobs(source)").eq("id", invoiceId).maybeSingle();
+  return (data?.jobs as { source: string | null } | null)?.source === "qa_test" ? "test" : "live";
+}
+
+/** TEST only: record a payment against a qa_test invoice in the Xero Demo Company, then read paid status back. */
+export async function recordDemoTestPayment(invoiceId: string, amount: number, actorId: string) {
+  if ((await modeForInvoice(invoiceId)) !== "test") throw new Error("Test payments are only allowed on TEST jobs.");
+  const { data: inv } = await admin.from("invoices").select("job_id, xero_invoice_id").eq("id", invoiceId).single();
+  if (!inv?.xero_invoice_id) throw new Error("Create the Demo Company invoice first.");
+  const call = await tenantCall("test");
+  const acc = await call(`/api.xro/2.0/Accounts?where=${encodeURIComponent('Type=="BANK"')}`);
+  const bank = acc.Accounts?.[0];
+  if (!bank) throw new Error("Demo Company has no bank account to record the payment against.");
+  await call("/api.xro/2.0/Payments", { method: "PUT", body: { Invoice: { InvoiceID: inv.xero_invoice_id }, Account: { AccountID: bank.AccountID }, Amount: amount, Date: melbourneDate(new Date().toISOString()), Reference: "TEST payment" } });
+  await logEvent(inv.job_id, actorId, "xero_test_payment", `TEST payment of ${amount} recorded in Xero Demo Company`, { invoice_id: invoiceId, amount }, { internal: true });
+  await syncInvoiceFromXero(invoiceId, actorId);
 }
 
 /** Supabase-backed store for the pure invoice lifecycle. */
@@ -81,12 +106,10 @@ export async function loadJobForInvoice(invoiceId: string) {
 export async function requireHivicInvoice(invoiceId: string) {
   const { data } = await admin.from("invoices").select("jobs(business_unit, source)").eq("id", invoiceId).maybeSingle();
   const job = data?.jobs as { business_unit: string | null; source: string | null } | null;
-  if (job?.source === "qa_test") throw new Error("Xero is blocked for TEST journeys.");
   return assertHivicInvoice(invoiceId, async () => job);
 }
 export async function requireHivicJob(jobId: string) {
   const { data } = await admin.from("jobs").select("business_unit, source").eq("id", jobId).maybeSingle();
-  if (data?.source === "qa_test") throw new Error("Xero is blocked for TEST journeys.");
   assertHivicJob(data);
 }
 
@@ -122,7 +145,7 @@ export async function pushInvoiceToXero(invoiceId: string, actorId: string | nul
     if (guard) throw new Error(guard);
     const dueDate = xeroDueDate(inv as unknown as InvoiceRow);
     if (!dueDate) throw new Error("Invoice has no due date.");
-    const call = callOverride ?? (await tenantCall());
+    const call = callOverride ?? (await tenantCall(await modeForInvoice(invoiceId)));
     const reference = xeroReference(job.job_number);
     const tracking = await findTrackingOption(call);
     let x = await findInvoiceByReference(call, reference);
@@ -158,7 +181,7 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
   if (!inv.xero_invoice_id) return pushInvoiceToXero(invoiceId, actorId, callOverride);
   if (!(await claimLock(invoiceId))) throw new Error("A Xero sync for this invoice is already running – try again shortly.");
   try {
-    const call = callOverride ?? (await tenantCall());
+    const call = callOverride ?? (await tenantCall(await modeForInvoice(invoiceId)));
     if (inv.xero_update_pending && inv.balance_due_date && XERO_DUE_DATE_UPDATES_ENABLED) {
       assertHivicReference(inv.xero_reference);
       const u = buildDueDateUpdate(inv.xero_invoice_id, inv.balance_due_date, invoiceId);
@@ -207,7 +230,7 @@ export async function syncSupplierContact(businessId: string, callOverride?: Xer
   if (b.onboarding_status !== "approved") throw new Error("Only approved partner businesses can be set up as Xero suppliers.");
   if (b.xero_contact_id) return { contactId: b.xero_contact_id, created: false };
   try {
-    const call = callOverride ?? (await tenantCall());
+    const call = callOverride ?? (await tenantCall("live"));
     const r = await findOrCreateContact(call, { id: `supplier-${b.id}`, full_name: b.legal_name || b.name, email: b.email });
     await admin.from("businesses").update({ xero_contact_id: r.contactId, xero_contact_status: "synced", xero_contact_error: null, xero_contact_synced_at: new Date().toISOString() }).eq("id", b.id);
     return r;
