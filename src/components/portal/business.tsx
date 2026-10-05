@@ -16,6 +16,7 @@ import {
 } from "@/lib/pilot.functions";
 import { credentialState, ONBOARDING_STATUSES } from "@/lib/pilot.core";
 import { getHigherRates, requestHigherRates, reviewHigherRates } from "@/lib/rate-requests.functions";
+import { openFileViewer } from "@/components/portal/file-viewer";
 
 const CRED_KINDS = ["public_liability_insurance", "workers_comp_insurance", "other_insurance", "electrical_licence", "rec_registration", "installer_certification", "business_registration", "other"] as const;
 const csv = (a: string[] | null | undefined) => (a ?? []).join(", ");
@@ -143,7 +144,7 @@ function Credentials({ businessId, creds, isHivicAdmin, canAdd, onDone }: { busi
             <div className="flex items-center gap-2">
               {st === "expired" ? <Badge variant="destructive">Expired</Badge> : st === "expiring" ? <Badge className="bg-warning-soft text-warning">Expiring soon</Badge> : null}
               <Badge variant="outline" className="capitalize">{c.verification}</Badge>
-              {c.document_path && <Button size="sm" variant="ghost" onClick={async () => { const r = await open({ data: { businessId, path: c.document_path! } }); window.open(r.url, "_blank", "noopener"); }}>View</Button>}
+              {c.document_path && <Button size="sm" variant="ghost" onClick={async () => { const r = await open({ data: { businessId, path: c.document_path! } }); openFileViewer(r.url); }}>View</Button>}
               {isHivicAdmin && c.verification !== "verified" && <Button size="sm" onClick={async () => { await verify({ id: c.id, verification: "verified" }, "Verified"); onDone(); }}>Verify</Button>}
               {isHivicAdmin && c.verification !== "rejected" && <Button size="sm" variant="outline" onClick={async () => { await verify({ id: c.id, verification: "rejected" }, "Rejected"); onDone(); }}>Reject</Button>}
             </div>

@@ -97,10 +97,12 @@ export async function exportJobPack(jobId: string, actorId: string, opts: { incl
 
   const missing: string[] = [];
   if (linkMode) {
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const origin = new URL(getRequest().url).origin;
     const links = [] as { id: string; title: string; signed_url: string | null; expires_in_days: number }[];
     for (const i of items) if (i.storagePath) {
       const { data } = await signFile(BUCKET, i.storagePath, 7 * 86400);
-      links.push({ id: i.id, title: i.title, signed_url: data?.signedUrl ?? null, expires_in_days: 7 });
+      links.push({ id: i.id, title: i.title, signed_url: data?.signedUrl ? `${origin}${data.signedUrl}` : null, expires_in_days: 7 });
     }
     add("download-links.json", strToU8(JSON.stringify(links, null, 2)));
   } else {

@@ -19,6 +19,7 @@ import { getAdminPartnerEnquiries } from "@/lib/admin-records.functions";
 import { activatePartnerApplication, listCertificationLevels, listWorkerCertifications, recordCertificationLevel, recordWorkerCertification } from "@/lib/partner-activation.functions";
 import type { InstData } from "@/lib/installer-onboarding.core";
 import { OnboardingDrafts } from "@/components/portal/onboarding-drafts";
+import { openFileViewer } from "@/components/portal/file-viewer";
 
 type Row = Tables<"partner_enquiries">;
 
@@ -188,7 +189,7 @@ function SignedRecAgreement({ id }: { id: string }) {
         <div className="mt-3 space-y-2 text-sm">
           <div>Version <b>{r.agreement_version}</b> · signed {r.signed_at ? new Date(r.signed_at).toLocaleString("en-AU") : "—"} by <b>{r.signer_name}</b> ({r.signer_position}, {r.signer_email})</div>
           <div className="break-all text-xs text-muted-foreground">SHA-256 {r.agreement_sha256} · IP {r.signed_ip ?? "—"}</div>
-          {r.certificateUrl && <a className="text-primary underline" href={r.certificateUrl} target="_blank" rel="noreferrer">Open Certificate of Currency (link expires in 10 min)</a>}
+          {r.certificateUrl && <button type="button" className="text-primary underline" onClick={() => openFileViewer(r.certificateUrl, "Certificate of Currency")}>Open Certificate of Currency</button>}
           {((r.data as InstData | null)?.installers ?? []).length > 0 && <WorkerCertifications applicationId={id} installers={(r.data as InstData).installers ?? []} />}
           {r.activation ? <p className="rounded bg-success-soft p-2 font-semibold text-success">Activated as an approved partner business on {new Date(r.activation.activated_at).toLocaleDateString("en-AU")}.</p> : <div className="space-y-2"><p className="text-xs text-muted-foreground">Approval accepts the proposed supplier rates shown in the signed agreement and creates the partner file. It does not create worker logins.</p><Button onClick={async () => { await activate({ applicationId: id }, "Partner activated"); await q.refetch(); }}>Accept rates and activate partner</Button></div>}
           <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded bg-muted p-3 text-xs">{r.agreement_text}</pre>

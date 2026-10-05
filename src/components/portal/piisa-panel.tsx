@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { downloadOfficialDocx, getOfficialPrefill, getPiisaPanel, sendPiisaToInstaller } from "@/lib/official-forms.functions";
 import { Section } from "@/components/portal/panels";
+import { openFileViewer } from "@/components/portal/file-viewer";
 
 const DUE: Record<string, string> = {
   not_scheduled: "Not scheduled", due_on_installation_day: "Due on installation day", due_today: "Due today, before work starts",
@@ -76,7 +77,7 @@ function OfficialDocxDownload({ jobId }: { jobId: string }) {
     setBusy(key); setMsg(null);
     try {
       const r = await run({ data: { jobId, key } });
-      window.open(r.url, "_blank", "noopener");
+      openFileViewer(r.url);
       setMsg({ ok: true, text: `${key.toUpperCase()} Word form downloaded (${r.filled} fields filled${r.missed.length ? `; not filled: ${r.missed.join(", ")}` : ""}).` });
     } catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : "Couldn't prepare the Word form." }); }
     finally { setBusy(null); }

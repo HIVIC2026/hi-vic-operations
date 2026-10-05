@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, Link, createRootRouteWithContext, useRouter, HeadContent, Scripts } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import { FileViewerHost } from "@/components/portal/file-viewer";
 import { supabase } from "@/integrations/supabase/client";
 
 import appCss from "../styles.css?url";
@@ -104,6 +105,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <Outlet />
       <Toaster richColors position="top-center" />
+      <FileViewerHost />
     </QueryClientProvider>
   );
 }

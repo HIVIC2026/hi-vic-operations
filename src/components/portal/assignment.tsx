@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Pill } from "./badges";
 import { Section } from "./panels";
+import { openFileViewer } from "@/components/portal/file-viewer";
 
 export function useAssignment(jobId: string) {
   const fn = useServerFn(getAssignment);
@@ -30,7 +31,7 @@ function StatusPill({ s }: { s: string }) {
 
 function CopyLink({ id, which, label }: { id: string; which: "agreement" | "consent" | "final"; label: string }) {
   const fn = useServerFn(getAssignmentDocUrl);
-  return <Button variant="outline" size="sm" onClick={async () => { const r = await fn({ data: { id, which } }); window.open(r.url, "_blank"); }}><FileText className="h-4 w-4" /> {label}</Button>;
+  return <Button variant="outline" size="sm" onClick={async () => { const r = await fn({ data: { id, which } }); openFileViewer(r.url); }}><FileText className="h-4 w-4" /> {label}</Button>;
 }
 
 const Tick = ({ v, set, children }: { v: boolean; set: (b: boolean) => void; children: React.ReactNode }) => (
