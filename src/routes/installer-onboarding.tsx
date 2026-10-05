@@ -1,4 +1,4 @@
-import { BLUE, GREEN, NAVY, MUTED, btn, Check } from "@/components/rec/rec-ui";
+import { BLUE, GREEN, NAVY, MUTED, Check } from "@/components/rec/rec-ui";
 import { WorkerStop } from "@/components/portal/worker-stop";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -41,9 +41,16 @@ export const Route = createFileRoute("/installer-onboarding")({
   component: InstallerOnboarding,
 });
 
+// Calculator look (.estimate-brand): Outfit headings, Figtree text, #FBFCFA canvas, white cards with the soft shadow.
+const ACTION = "#07BF61";
+const LINE = "#E4E9F5";
+const SHADOW = "0 18px 40px -26px rgba(34,55,107,.28), 0 2px 6px -4px rgba(34,55,107,.08)";
+const COL = 560;
+/** Sentence-case buttons: green main action, white secondary. */
+const btn = (primary: boolean, disabled = false): React.CSSProperties => ({ minHeight: 48, padding: "0 22px", borderRadius: 14, border: primary ? "none" : `1px solid ${LINE}`, background: primary ? (disabled ? "#9ADFB9" : ACTION) : "#fff", color: primary ? "#fff" : NAVY, fontWeight: 700, fontSize: 15, cursor: disabled ? "default" : "pointer", fontFamily: "inherit" });
 const input: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #D7DCE8", fontSize: 15, fontFamily: "inherit", color: NAVY, background: "#fff", boxSizing: "border-box", minHeight: 48 };
-const card: React.CSSProperties = { background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E9ECF3", boxShadow: "0 6px 20px -18px rgba(34,55,107,.32)" };
-const DISPLAY = "'Space Grotesk', system-ui, sans-serif";
+const card: React.CSSProperties = { background: "#fff", borderRadius: 22, padding: 24, border: `1px solid ${LINE}`, boxShadow: SHADOW };
+const DISPLAY = "'Outfit', 'Figtree', system-ui, sans-serif";
 const note: React.CSSProperties = { color: MUTED, fontSize: 13, lineHeight: 1.5, margin: "0 0 14px" };
 const okLine: React.CSSProperties = { color: GREEN, fontWeight: 700, fontSize: 13, margin: "0 0 14px" };
 const warn: React.CSSProperties = { background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 10, padding: "9px 12px", fontSize: 13.5, color: "#7A5A00", marginBottom: 12 };
@@ -52,7 +59,7 @@ const removeBtn: React.CSSProperties = { border: "none", background: "none", col
 function Field({ label, required, hint, children, htmlFor, error }: { label: string; required?: boolean; hint?: string; children: React.ReactNode; htmlFor?: string; error?: string | null }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label htmlFor={htmlFor} style={{ display: "block", fontWeight: 700, fontSize: 14, color: NAVY, marginBottom: 6 }}>{label}{required && <span style={{ color: BLUE }}> *</span>}</label>
+      <label htmlFor={htmlFor} style={{ display: "block", fontWeight: 700, fontSize: 14, color: NAVY, marginBottom: 6 }}>{label}</label>
       {children}
       {hint && <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>{hint}</div>}
       {error && <div id={htmlFor ? `${htmlFor}-error` : undefined} role="alert" style={{ color: "#8C1D18", fontSize: 13, fontWeight: 700, marginTop: 5 }}>{error}</div>}
@@ -60,10 +67,11 @@ function Field({ label, required, hint, children, htmlFor, error }: { label: str
   );
 }
 /** Understated sub-heading that separates related questions on one page. */
-function Section({ title, first = false, children }: { title: string; first?: boolean; children: React.ReactNode }) {
+/** One white card per group of related questions, with a short heading. */
+function Section({ title, first: _first = false, children }: { title?: string; first?: boolean; children: React.ReactNode }) {
   return (
-    <section style={{ borderTop: first ? "none" : "1px solid #E4E8F0", paddingTop: first ? 0 : 16, marginTop: first ? 0 : 18 }}>
-      <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 15, color: NAVY, marginBottom: 10 }}>{title}</div>
+    <section style={{ ...card, padding: "20px 20px 6px", marginBottom: 20 }}>
+      {title && <h2 style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 17, color: NAVY, margin: "0 0 14px" }}>{title}</h2>}
       {children}
     </section>
   );
@@ -113,8 +121,8 @@ function RateRow({ label, hint, unit, value, onChange, required = false, last = 
 }
 function RateGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section style={{ background: "#fff", border: "1px solid #E4E9F5", borderRadius: 16, padding: "14px 16px 4px", marginTop: 14 }}>
-      <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 15, color: NAVY }}>{title}</div>
+    <section style={{ ...card, padding: "20px 20px 4px", marginBottom: 20 }}>
+      <h2 style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 17, color: NAVY, margin: 0 }}>{title}</h2>
       {children}
     </section>
   );
@@ -129,14 +137,27 @@ function AddressInput({ value, resolved, onChange, onSelect, onPendingChange, vi
 
 function Choice<T extends string | number | boolean>({ options, value, onChange }: { options: { v: T; l: string }[]; value: T | null | undefined; onChange: (v: T) => void }) {
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${options.length > 3 ? 2 : options.length}, minmax(0, 1fr))`, gap: 8 }}>
       {options.map((o) => {
         const on = value === o.v;
-        return <button type="button" key={String(o.v)} aria-pressed={on} onClick={() => onChange(o.v)} style={{ minHeight: 44, padding: "0 16px", borderRadius: 12, border: `1px solid ${on ? BLUE : "#D7DCE8"}`, background: on ? BLUE : "#fff", color: on ? "#fff" : NAVY, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", maxWidth: "100%", whiteSpace: "normal", textAlign: "left" }}>{o.l}</button>;
+        return <button type="button" key={String(o.v)} aria-pressed={on} onClick={() => onChange(o.v)} style={{ minHeight: 52, padding: "8px 10px", borderRadius: 14, border: `${on ? 2 : 1}px solid ${on ? BLUE : "#D7DCE8"}`, background: on ? "#F3F6FF" : "#fff", color: NAVY, fontWeight: 700, fontSize: 14, lineHeight: 1.25, cursor: "pointer", fontFamily: "inherit", whiteSpace: "normal", textAlign: "center" }}>{o.l}</button>;
       })}
     </div>
   );
 }
+
+/** One friendly line per page: what it's for and roughly how long it takes. */
+const PAGE_INTRO: Partial<Record<StepKey, string>> = {
+  about: "Who you are and your business. About 3 minutes.",
+  insurance: "Your public liability insurance. About 2 minutes.",
+  installers: "Everyone who installs on our jobs. About 2 minutes per person.",
+  electrician: "The electrician you work with, if any. About 1 minute.",
+  services: "How you'd like to work with us, and where. About 2 minutes.",
+  availability: "When you usually work. About 1 minute.",
+  install_pricing: "Your prices for our jobs. About 3 minutes.",
+  bank: "Where we pay you. About 1 minute.",
+  review: "Read the agreement, then sign. About 5 minutes.",
+};
 
 type Reviewed = { version: string; sha256: string } | null;
 
@@ -281,22 +302,14 @@ function InstallerOnboarding() {
   }
 
   const shell = (children: React.ReactNode, footer?: React.ReactNode) => (
-    <div style={{ minHeight: "100vh", background: "#fff", fontFamily: "'DM Sans', system-ui, sans-serif", color: NAVY, overflowX: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: "#FBFCFA", fontFamily: "'Figtree', system-ui, sans-serif", color: NAVY, overflowX: "hidden" }}>
       <style>{`h1,h2,h3{font-family:${DISPLAY}}`}</style>
-      <header style={{ position: "sticky", top: 0, zIndex: 10, background: "rgba(255,255,255,.96)", borderBottom: "1px solid #EEF0F5" }}>
-        <div style={{ maxWidth: 672, margin: "0 auto", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <header style={{ position: "sticky", top: 0, zIndex: 10, background: "rgba(251,252,250,.96)", borderBottom: `1px solid ${LINE}` }}>
+        <div style={{ maxWidth: COL + 40, margin: "0 auto", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <img src={logo.url} alt="Home Insulation Victoria" style={{ height: 40, width: "auto" }} />
-          {started && status === "draft" && <span style={{ fontSize: 13, fontWeight: 700, color: MUTED, whiteSpace: "nowrap" }}>{idx + 1} of {steps.length}</span>}
         </div>
-        {started && status === "draft" && (
-          <div style={{ maxWidth: 672, margin: "0 auto", padding: "0 20px 10px" }}>
-            <div style={{ height: 4, borderRadius: 99, background: "#EEF0F5", overflow: "hidden" }}>
-              <div style={{ width: `${((idx + 1) / steps.length) * 100}%`, height: "100%", background: `linear-gradient(90deg, ${GREEN}, ${BLUE})`, transition: "width .3s" }} />
-            </div>
-          </div>
-        )}
       </header>
-      <main style={{ maxWidth: 672, margin: "0 auto", padding: "24px 20px 128px" }}>{children}</main>
+      <main style={{ maxWidth: COL + 40, margin: "0 auto", padding: "28px 20px 140px" }}>{children}</main>
       {footer}
     </div>
   );
@@ -307,10 +320,10 @@ function InstallerOnboarding() {
 
   if (!started) return shell(
     <div style={{ ...card, padding: 0, overflow: "hidden" }}>
-      <div style={{ height: 6, background: `linear-gradient(90deg, ${GREEN}, ${BLUE})` }} />
+      <div style={{ height: 6, background: ACTION }} />
       <div style={{ padding: "28px 26px 26px" }}>
         {previewBanner}
-        <div style={{ display: "inline-block", fontSize: 12, fontWeight: 800, color: PINK_TEXT, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: DISPLAY, background: BLUSH, borderRadius: 999, padding: "5px 12px" }}>Installer partners</div>
+        <div style={{ display: "inline-block", fontSize: 13, fontWeight: 700, color: PINK_TEXT, fontFamily: DISPLAY, background: BLUSH, borderRadius: 999, padding: "5px 12px" }}>Installer partners</div>
         <h1 style={{ fontSize: 30, fontWeight: 800, margin: "14px 0 8px", color: NAVY, lineHeight: 1.2 }}>Join our <span style={{ textDecoration: "underline", textDecorationColor: PINK, textUnderlineOffset: 5 }}>installer</span> network</h1>
         <p style={{ fontSize: 15, lineHeight: 1.55, color: MUTED, margin: "0 0 22px" }}>Register your installation business with Home Insulation Victoria.</p>
         <div style={{ margin: "0 0 6px", fontFamily: DISPLAY, fontWeight: 800, fontSize: 13, color: NAVY }}>What you'll need</div>
@@ -331,7 +344,7 @@ function InstallerOnboarding() {
   if (status === "submitted") return shell(
     <div style={card}>
       {previewBanner}
-      <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px", color: NAVY }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — your application is in</h1>
+      <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 8px", color: NAVY }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — your application is in</h1>
       <p style={{ color: MUTED, lineHeight: 1.6 }}>Your signed agreement and business details are now with Home Insulation Victoria.</p>
       <Section title="What we're checking" first><TickList items={["Each installer's CII certification", "Your $5 million public liability insurance", "Your proposed supplier rates"]} /></Section>
       <Section title="What happens next"><TickList items={["We confirm your approval and agreed rates", "Your business gets access to the portal", `We contact you at ${d.business_email || "your email"} if we need anything else`]} /></Section>
@@ -341,20 +354,24 @@ function InstallerOnboarding() {
 
   const staffStop = step === "about" && d.works_for_business === true;
   const footer = (
-    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#fff", borderTop: "1px solid #E4E8F0", padding: "12px 20px", zIndex: 10 }}>
-      <div style={{ maxWidth: 672, margin: "0 auto", display: "flex", justifyContent: "space-between", gap: 12 }}>
-        <button style={btn(false, busy || addressPending)} disabled={busy || addressPending} onClick={() => { if (idx === 0) { setStarted(false); window.scrollTo({ top: 0 }); } else void go(-1); }}>Back</button>
-        {step !== "review" && !staffStop && <button style={btn(true, busy || addressPending)} disabled={busy || addressPending} onClick={() => go(1)}>{addressPending ? "Checking address…" : busy ? "Saving…" : "Save & continue"}</button>}
+    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "rgba(255,255,255,.97)", borderTop: `1px solid ${LINE}`, padding: "12px 20px", zIndex: 10 }}>
+      <div className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between" style={{ maxWidth: COL, margin: "0 auto" }}>
+        <button style={{ border: "none", background: "none", color: NAVY, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "inherit", padding: "8px 4px", minHeight: 40, opacity: busy || addressPending ? 0.5 : 1 }} disabled={busy || addressPending} onClick={() => { if (idx === 0) { setStarted(false); window.scrollTo({ top: 0 }); } else void go(-1); }}>Back</button>
+        {step !== "review" && !staffStop && <button className="w-full sm:w-auto" style={{ ...btn(true, busy || addressPending), minHeight: 52, padding: "0 28px" }} disabled={busy || addressPending} onClick={() => go(1)}>{addressPending ? "Checking address…" : busy ? "Saving…" : "Save & continue"}</button>}
       </div>
     </div>
   );
 
   return shell(
-    <div style={card}>
+    <div>
       {previewBanner}
       {isTest && !sampleMode && <div style={{ ...warn, fontWeight: 700 }}>TEST MODE — staff test link. This application is marked as a test and won't count as a real applicant.</div>}
-      <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
-      <div style={{ width: 34, height: 3, borderRadius: 99, background: PINK, margin: "10px 0 18px" }} />
+      <div style={{ fontSize: 14, fontWeight: 700, color: MUTED }}>Step {idx + 1} of {steps.length} · <span style={{ color: NAVY }}>{steps[idx]?.title}</span></div>
+      <div role="progressbar" aria-valuemin={1} aria-valuemax={steps.length} aria-valuenow={idx + 1} aria-label="Progress" style={{ height: 4, borderRadius: 99, background: LINE, overflow: "hidden", margin: "10px 0 18px" }}>
+        <div style={{ width: `${((idx + 1) / steps.length) * 100}%`, height: "100%", background: ACTION, transition: "width .3s" }} />
+      </div>
+      <h1 style={{ fontSize: 28, fontWeight: 800, margin: "0 0 6px", color: NAVY, lineHeight: 1.2 }}>{steps[idx]?.title}</h1>
+      <p style={{ fontSize: 15, color: MUTED, lineHeight: 1.5, margin: "0 0 24px" }}>{PAGE_INTRO[step] ?? ""}</p>
       <div onChange={(e) => unflag(e.target)}>
       <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onReviewReady={setReviewed} errFor={errFor} revision={revision} onUploadBusy={(b) => { navigationLock.current = b; setBusy(b); }} onAddressPending={setAddressPending} />
       </div>
