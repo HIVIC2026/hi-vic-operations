@@ -23,7 +23,7 @@ function Pipeline() {
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl font-extrabold">Pipeline</h1>
-          <p className="text-sm"><strong>{data.live}</strong> live jobs · <span className="font-semibold text-danger">{data.late} late</span>{data.unmapped ? <> · <span className="font-semibold text-danger">{data.unmapped} with no status</span></> : null}</p>
+          <p className="text-sm"><strong>{data.live}</strong> live jobs · <span className="font-semibold text-danger">{data.late} late</span>{" · "}<span className="font-semibold">Waiting list: {data.waitingListTotal}, not contacted yet</span>{data.waitingList.filter((r) => r.total).map((r) => <span key={r.key} className="text-muted-foreground"> ({r.total} {r.label.replace("Not contacted yet: ", "")})</span>)}{data.unmapped ? <> · <span className="font-semibold text-danger">{data.unmapped} with no status</span></> : null}</p>
         </div>
         <Link to="/admin/pipeline" search={includeTest ? {} : { test: true }} className="text-sm font-semibold text-primary underline">{includeTest ? "Hide TEST jobs" : "Include TEST jobs"}</Link>
       </div>

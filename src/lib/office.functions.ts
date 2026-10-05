@@ -34,7 +34,8 @@ export const getPipeline = createServerFn({ method: "GET" }).middleware([require
       return { ...st, total: rows.reduce((a, r) => a + r.total, 0), late: rows.reduce((a, r) => a + r.late, 0), rows };
     });
     const ended = STATUS_KEYS.filter((k) => OFFICE_STATUSES[k].stage === "ended").map((k) => ({ key: k, label: OFFICE_STATUSES[k].label, ...counts[k] }));
-    return { stages, ended, live: stages.reduce((a, s) => a + s.total, 0), late: stages.reduce((a, s) => a + s.late, 0), unmapped, checkedAt: new Date(o.now).toISOString() };
+    const waitingList = STATUS_KEYS.filter((k) => OFFICE_STATUSES[k].stage === "waiting_list").map((k) => ({ key: k, label: OFFICE_STATUSES[k].label, total: counts[k].total }));
+    return { stages, ended, waitingList, waitingListTotal: waitingList.reduce((a, r) => a + r.total, 0), live: stages.reduce((a, s) => a + s.total, 0), late: stages.reduce((a, s) => a + s.late, 0), unmapped, checkedAt: new Date(o.now).toISOString() };
   });
 
 /** Filtered table behind a pipeline count. */

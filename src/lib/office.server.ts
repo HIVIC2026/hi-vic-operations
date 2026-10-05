@@ -73,6 +73,12 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     const rows = pickAll.filter((o) => String(o["job_id"]) === id).map((o) => ({ kind: String(o["kind"]), status: String(o["status"]), offered_at: String(o["offered_at"]), summary: o["summary"], business_name: (o["businesses"] as { name?: string } | null)?.name ?? null }));
     for (const k of ["ready_check", "piesa", "rectification"] as const) { const r = chosenTradeNoAnswer(rows, k); if (r) { tradeChoice.set(id, { kind: k, ...r }); break; } }
   }
+  const sendRows = await Promise.all([
+    all("owner emails sent", (a, b) => scope(admin.from("customer_email_sends").select("job_id, sent_at")).not("sent_at", "is", null).range(a, b)),
+    all("owner messages sent", (a, b) => scope(admin.from("job_communications").select("job_id, sent_at")).eq("direction", "outbound").not("sent_at", "is", null).range(a, b)),
+  ]);
+  const contacted = new Map<string, string>();
+  for (const r of sendRows.flat()) { const k = String(r["job_id"]), v = String(r["sent_at"]); const cur = contacted.get(k); if (!cur || v < cur) contacted.set(k, v); }
   const acc = await all("Ready Check requests", (a, b) => scope(admin.from("ready_check_acceptances").select("job_id")).range(a, b));
   const accepted = new Set(acc.map((r) => String(r["job_id"])));
   const mittiErr = opts.onlyIds ? [] : await all("Mitti syncs", (a, b) => admin.from("external_sync_logs").select("entity_id, system, error, created_at").eq("status", "error").gte("created_at", new Date(now - 3 * 86_400_000).toISOString()).range(a, b));
@@ -114,7 +120,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
       id, stage, createdAt: String(j["created_at"]), lastActivityAt: s(j["last_activity_at"]), enteredStageAt: entered.get(`${id}:${stage}`) ?? null,
       holdRevisitAt: s(j["hold_revisit_at"]), cancelledReason: s(j["cancelled_reason"]),
       campaign: c ? { spotSavedAt: s(c["spot_saved_at"]), optedOutAt: s(c["opted_out_at"]), videoRequested: !!c["video_requested"], mediaReceivedAt: s(c["media_received_at"]), deskCheckStatus: s(c["desk_check_status"]), createdAt: String(c["created_at"]) } : null,
-      estimateSentAt: estLink.get(id) ?? null, rcWindowsOpen: winOpen.get(id)?.length ?? 0, rcAccepted: accepted.has(id), rcOfferAt: offerAt.get(`${id}:rc`) ?? null, rcBookingAt: bookAt.get(`${id}:ready_check`) ?? null, rcSubmittedAt: rcSub.get(id) ?? null,
+      estimateSentAt: estLink.get(id) ?? null, ownerContactedAt: contacted.get(id) ?? null, rcWindowsOpen: winOpen.get(id)?.length ?? 0, rcAccepted: accepted.has(id), rcOfferAt: offerAt.get(`${id}:rc`) ?? null, rcBookingAt: bookAt.get(`${id}:ready_check`) ?? null, rcSubmittedAt: rcSub.get(id) ?? null,
       proposalPending: proposal.get(id) ?? null,
       quote: q ? { releaseState: s(q["release_state"]), holdReason: s(q["release_hold_reason"]), sentAt: s(q["sent_at"]), status: String(q["status"]), acceptedAt: s(q["accepted_at"]) } : null,
       rectQuote: rq ? { releaseState: s(rq["release_state"]), sentAt: s(rq["sent_at"]), status: String(rq["status"]) } : null,
@@ -129,7 +135,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     const jobNumber = String(j["job_number"]);
     return {
       id, jobNumber, owner: (j["owners"] as { full_name?: string } | null)?.full_name ?? null, suburb: prop?.suburb ?? null, source: s(j["source"]), stage, status, facts,
-      needs: { id, jobNumber, suburb: prop?.suburb ?? null, owner: null, stage, status, statusCount: status ? 1 : 0, lastActivityAt: s(j["last_activity_at"]), nextAction: s(j["next_action"]), installDeadline: facts.installDeadline ?? null, installStarted: installStarted.has(id) || !!facts.installedAt, holdRevisitAt: facts.holdRevisitAt ?? null, failures: fails.get(id) ?? [], tradeChoice: tradeChoice.get(id) ?? null },
+      needs: { parked: status?.stage === "waiting_list", id, jobNumber, suburb: prop?.suburb ?? null, owner: null, stage, status, statusCount: status ? 1 : 0, lastActivityAt: s(j["last_activity_at"]), nextAction: s(j["next_action"]), installDeadline: facts.installDeadline ?? null, installStarted: installStarted.has(id) || !!facts.installedAt, holdRevisitAt: facts.holdRevisitAt ?? null, failures: fails.get(id) ?? [], tradeChoice: tradeChoice.get(id) ?? null },
     };
   });
   const partners: PartnerItem[] = [

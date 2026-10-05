@@ -15,6 +15,8 @@ export type NeedsJob = {
   status: OfficeStatus | null; statusCount: number; lastActivityAt: string | null; nextAction: string | null;
   installDeadline: string | null; installStarted: boolean; holdRevisitAt: string | null;
   failures: string[];
+  /** Waiting-list lead never contacted: never in Needs me (Pipeline shows a count). */
+  parked?: boolean;
   /** Office-picked trade declined or ran out (latest offer of that kind). */
   tradeChoice?: { kind: "ready_check" | "piesa" | "rectification"; name: string | null; status: "declined" | "expired" } | null;
 };
@@ -36,6 +38,7 @@ export function buildNeedsMe(i: { now: number; jobs: NeedsJob[]; partners: Partn
   const items: NeedsItem[] = [];
   let onTrack = 0;
   for (const j of i.jobs) {
+    if (j.parked) continue;
     const s = j.status;
     const reasons: { rule: NeedsRule; why: string; urgency: number; action?: string }[] = [];
     if (!isMappedStage(j.stage) || !s || j.statusCount !== 1) reasons.push({ rule: "i_nothing_lost", why: !s ? `Stage "${j.stage}" has no status rule` : `Matched ${j.statusCount} statuses`, urgency: 100, action: "Fix status" });
