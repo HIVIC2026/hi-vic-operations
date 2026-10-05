@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, requireJobRole } from "./workflow.server";
+import { signFile } from "./file-links.server";
 
 const uuid = z.string().uuid();
 
@@ -59,7 +60,7 @@ export const openJobDocument = createServerFn({ method: "POST" }).middleware([re
     const doc = visibleTo(buildDocumentIndex(await loadSources(data.jobId)), role as never).find((d) => d.id === data.docId);
     if (!doc?.storagePath) throw new Error("This document has no stored file you can open.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: s, error } = await supabaseAdmin.storage.from("job-files").createSignedUrl(doc.storagePath, 300);
+    const { data: s, error } = await signFile("job-files", doc.storagePath, 300);
     if (error || !s) throw new Error("Could not open the file.");
     return { url: s.signedUrl };
   });

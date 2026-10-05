@@ -48,6 +48,7 @@ import { Route as AuthenticatedPartnerBulkImportRouteImport } from './routes/_au
 import { Route as AuthenticatedPartnerImportRouteImport } from './routes/_authenticated/partner.import'
 import { Route as AuthenticatedPartnerProfileRouteImport } from './routes/_authenticated/partner.profile'
 import { Route as AuthenticatedPartnerWorkersRouteImport } from './routes/_authenticated/partner.workers'
+import { Route as ApiFilesSplatRouteImport } from './routes/api/files/$'
 import { Route as ApiPublicAddressSearchRouteImport } from './routes/api/public/address-search'
 import { Route as ApiPublicEnquiryRouteImport } from './routes/api/public/enquiry'
 import { Route as ApiPublicPartnerEnquiryRouteImport } from './routes/api/public/partner-enquiry'
@@ -274,6 +275,11 @@ const AuthenticatedPartnerWorkersRoute =
     path: '/partner/workers',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiFilesSplatRoute = ApiFilesSplatRouteImport.update({
+  id: '/api/files/$',
+  path: '/api/files/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicAddressSearchRoute = ApiPublicAddressSearchRouteImport.update({
   id: '/api/public/address-search',
   path: '/api/public/address-search',
@@ -381,6 +387,7 @@ export interface FileRoutesByFullPath {
   '/partner/import': typeof AuthenticatedPartnerImportRoute
   '/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/partner/workers': typeof AuthenticatedPartnerWorkersRoute
+  '/api/files/$': typeof ApiFilesSplatRoute
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
@@ -434,6 +441,7 @@ export interface FileRoutesByTo {
   '/partner/import': typeof AuthenticatedPartnerImportRoute
   '/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/partner/workers': typeof AuthenticatedPartnerWorkersRoute
+  '/api/files/$': typeof ApiFilesSplatRoute
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
@@ -489,6 +497,7 @@ export interface FileRoutesById {
   '/_authenticated/partner/import': typeof AuthenticatedPartnerImportRoute
   '/_authenticated/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/_authenticated/partner/workers': typeof AuthenticatedPartnerWorkersRoute
+  '/api/files/$': typeof ApiFilesSplatRoute
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
@@ -544,6 +553,7 @@ export interface FileRouteTypes {
     | '/partner/import'
     | '/partner/profile'
     | '/partner/workers'
+    | '/api/files/$'
     | '/api/public/address-search'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
@@ -597,6 +607,7 @@ export interface FileRouteTypes {
     | '/partner/import'
     | '/partner/profile'
     | '/partner/workers'
+    | '/api/files/$'
     | '/api/public/address-search'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
@@ -651,6 +662,7 @@ export interface FileRouteTypes {
     | '/_authenticated/partner/import'
     | '/_authenticated/partner/profile'
     | '/_authenticated/partner/workers'
+    | '/api/files/$'
     | '/api/public/address-search'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
@@ -682,6 +694,7 @@ export interface RootRouteChildren {
   EstimateTokenRoute: typeof EstimateTokenRoute
   JoinTokenRoute: typeof JoinTokenRoute
   WTokenRoute: typeof WTokenRoute
+  ApiFilesSplatRoute: typeof ApiFilesSplatRoute
   ApiPublicAddressSearchRoute: typeof ApiPublicAddressSearchRoute
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
   ApiPublicPartnerEnquiryRoute: typeof ApiPublicPartnerEnquiryRoute
@@ -971,6 +984,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPartnerWorkersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/files/$': {
+      id: '/api/files/$'
+      path: '/api/files/$'
+      fullPath: '/api/files/$'
+      preLoaderRoute: typeof ApiFilesSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/address-search': {
       id: '/api/public/address-search'
       path: '/api/public/address-search'
@@ -1145,6 +1165,7 @@ const rootRouteChildren: RootRouteChildren = {
   EstimateTokenRoute: EstimateTokenRoute,
   JoinTokenRoute: JoinTokenRoute,
   WTokenRoute: WTokenRoute,
+  ApiFilesSplatRoute: ApiFilesSplatRoute,
   ApiPublicAddressSearchRoute: ApiPublicAddressSearchRoute,
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
   ApiPublicPartnerEnquiryRoute: ApiPublicPartnerEnquiryRoute,

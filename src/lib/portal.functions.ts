@@ -20,6 +20,7 @@ import { autoAdvanceJob, autoAdvanceOpenJobs } from "./autoadvance.server";
 import { sweepAuthorityExpiry } from "./authority.server";
 import { requireMittiAccess } from "./mitti-membership.server";
 import { mittiAssignBlocker, mittiOverrideAccepted } from "./mitti-membership.core";
+import { signFile } from "./file-links.server";
 
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
 
@@ -891,7 +892,7 @@ export const getEvidenceUrl = createServerFn({ method: "POST" }).middleware([req
     // RLS-checked read proves the caller may see this file
     const { data: f } = await context.supabase.from("evidence_files").select("storage_path").eq("id", data.fileId).maybeSingle();
     if (!f) throw new WorkflowError("Not permitted");
-    const { data: s, error } = await admin.storage.from("job-files").createSignedUrl(f.storage_path, 300);
+    const { data: s, error } = await signFile("job-files", f.storage_path, 300);
     if (error || !s) throw new Error(error?.message);
     return { url: s.signedUrl };
   });
@@ -1138,7 +1139,7 @@ export const getAuthorityDocUrl = createServerFn({ method: "POST" }).middleware(
   .handler(async ({ data, context }) => {
     const { data: a } = await context.supabase.from("owner_authorities").select("document_path").eq("id", data.authorityId).maybeSingle();
     if (!a?.document_path) throw new WorkflowError("No locked document available");
-    const { data: s, error } = await admin.storage.from("job-files").createSignedUrl(a.document_path, 300);
+    const { data: s, error } = await signFile("job-files", a.document_path, 300);
     if (error || !s) throw new Error(error?.message);
     return { url: s.signedUrl };
   });
@@ -1207,7 +1208,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
     const prop = (job?.properties ?? null) as { state: string; occupancy: string | null; enrichment: Record<string, any> } | null;
     const b44 = prop?.enrichment?.["base44"] ?? null;
     const links = await Promise.all((media ?? []).map(async (m) => {
-      const { data: s } = await admin.storage.from("job-files").createSignedUrl(m.storage_path, 3600);
+      const { data: s } = await signFile("job-files", m.storage_path, 3600);
       return { id: m.id, name: m.original_name ?? m.title, mime: m.mime_type, size: m.size_bytes, url: s?.signedUrl ?? null };
     }));
     return JSON.parse(JSON.stringify({
@@ -1419,7 +1420,7 @@ export const getAssignmentDocUrl = createServerFn({ method: "POST" }).middleware
     else if (data.which === "consent") path = (await context.supabase.from("owner_esc_consents").select("copy_path").eq("id", data.id).maybeSingle()).data?.copy_path;
     else path = (await context.supabase.from("customer_assignments").select("final_copy_path").eq("id", data.id).maybeSingle()).data?.final_copy_path;
     if (!path) throw new WorkflowError("No copy available");
-    const { data: s, error } = await admin.storage.from("job-files").createSignedUrl(path, 300);
+    const { data: s, error } = await signFile("job-files", path, 300);
     if (error || !s) throw new Error(error?.message);
     return { url: s.signedUrl };
   });
@@ -1502,7 +1503,7 @@ export const floorplanLink = createServerFn({ method: "POST" }).middleware([requ
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: fp } = await supabaseAdmin.from("property_floorplans").select("storage_path, storage_policy").eq("id", data.id).single();
     if (!fp?.storage_path || fp.storage_policy !== "store_permitted") throw new WorkflowError("This floor plan is not stored in the portal – the licence setting does not permit copying.");
-    const { data: s } = await supabaseAdmin.storage.from("job-files").createSignedUrl(fp.storage_path, 300);
+    const { data: s } = await signFile("job-files", fp.storage_path, 300);
     return { url: s?.signedUrl ?? null };
   });
 

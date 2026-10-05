@@ -6,6 +6,7 @@ import { answersFromDocument, evaluatePiesa, HAZARD_UNRESOLVED } from "./officia
 import { piisaGate, type MaterialFacts, type PiisaPanel, type StoredCopy } from "./piisa-workflow.core";
 import { evaluateHazardRectifications, rectFingerprint, type HazardStatus, type HazardVerification } from "./hazard-rectification.core";
 import { evidenceFromRecords, piisaCarryOver, readyCheckCoverage, type CarryOver, type MeasurementRecord } from "./installer-led.core";
+import { signFile } from "./file-links.server";
 
 export const OFFICIAL_BUCKET = "official-form-copies";
 // The table is not in the generated types until 0075 is applied; keep the untyped access in one place.
@@ -50,7 +51,7 @@ export async function invalidateCopy(id: string, reason: string, actor: string |
 export async function signedCopyUrl(userClient: { from: (t: string) => any }, id: string) {
   const { data, error } = await userClient.from("official_form_signed_copies").select("storage_path").eq("id", id).maybeSingle();
   if (error || !data) throw new Error("Not found.");
-  const r = await db().storage.from(OFFICIAL_BUCKET).createSignedUrl(data.storage_path, 300);
+  const r = await signFile(OFFICIAL_BUCKET, data.storage_path, 300);
   if (r.error) throw new Error(r.error.message);
   return r.data.signedUrl;
 }

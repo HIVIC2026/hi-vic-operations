@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
+import { signFile } from "./file-links.server";
 
 export const getRecOnboardingRecord = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
@@ -15,7 +16,7 @@ export const getRecOnboardingRecord = createServerFn({ method: "POST" }).middlew
     if (error || !r) throw new Error("Onboarding record not found.");
     let certificateUrl: string | null = null;
     if (r.insurance_certificate_path) {
-      const { data: s } = await supabaseAdmin.storage.from("partner-files").createSignedUrl(r.insurance_certificate_path, 600);
+      const { data: s } = await signFile("partner-files", r.insurance_certificate_path, 600);
       certificateUrl = s?.signedUrl ?? null;
     }
     const { data: activation } = await supabaseAdmin.from("partner_activations").select("business_id,rate_card_id,activated_at,override_reason").eq("application_id", r.id).maybeSingle();
