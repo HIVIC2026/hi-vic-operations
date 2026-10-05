@@ -316,7 +316,7 @@ function InstallerOnboarding() {
 
   if (!loaded) return shell(<p>Loading…</p>);
   if (invalidSample) return shell(<div style={card}><h1 style={{ fontSize: 24, fontWeight: 800, color: BLUE }}>That sample page is not available</h1><p style={{ color: MUTED }}>No data has been loaded or saved.</p><a href="/installer-onboarding?sample=welcome" style={{ color: BLUE, fontWeight: 700 }}>Open the welcome sample →</a></div>);
-  const previewBanner = sampleMode ? <div role="status" style={{ ...warn, fontWeight: 700 }}>SAMPLE PREVIEW — no data is saved and no application, invitation or signature is submitted.</div> : null;
+  const previewBanner = sampleMode ? <div role="status" style={{ ...warn, fontWeight: 700 }}>Sample preview — no data is saved and no application, invitation or signature is submitted.</div> : null;
 
   if (!started) return shell(
     <div style={{ ...card, padding: 0, overflow: "hidden" }}>
@@ -365,7 +365,7 @@ function InstallerOnboarding() {
   return shell(
     <div>
       {previewBanner}
-      {isTest && !sampleMode && <div style={{ ...warn, fontWeight: 700 }}>TEST MODE — staff test link. This application is marked as a test and won't count as a real applicant.</div>}
+      {isTest && !sampleMode && <div style={{ ...warn, fontWeight: 700 }}>Test mode — staff test link. This application is marked as a test and won't count as a real applicant.</div>}
       <div style={{ fontSize: 14, fontWeight: 700, color: MUTED }}>Step {idx + 1} of {steps.length} · <span style={{ color: NAVY }}>{steps[idx]?.title}</span></div>
       <div role="progressbar" aria-valuemin={1} aria-valuemax={steps.length} aria-valuenow={idx + 1} aria-label="Progress" style={{ height: 4, borderRadius: 99, background: LINE, overflow: "hidden", margin: "10px 0 18px" }}>
         <div style={{ width: `${((idx + 1) / steps.length) * 100}%`, height: "100%", background: ACTION, transition: "width .3s" }} />
