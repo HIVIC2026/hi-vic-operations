@@ -216,14 +216,16 @@ describe("launch campaign email drafts", () => {
     expect(email.html).toContain("background-color:#07BF61");
     expect(email.html).not.toContain("Open Sans");
     expect(email.html).not.toMatch(/box-shadow:\s*[45]px\s+[45]px\s+0/i);
-    expect(email.html.match(/href="https:\/\/quote\.homeinsulationvictoria\.com\.au\/estimate\/[A]+\/campaign"/g)?.length).toBe(2);
+    expect(email.html.match(/href="https:\/\/quote\.homeinsulationvictoria\.com\.au\/estimate\/[A]+\/campaign"/g)?.length).toBe(1);
+    expect(email.plainText).toContain(`Remove my enquiry: ${unsubscribeUrl}`);
   });
 
   test("Group B asks for one manhole video", () => {
     const email = renderLaunchCampaignEmail({ group: "onsite", campaignUrl, unsubscribeUrl, firstName: "Michael", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150 });
     expect(email.html).toContain("Good news, Michael!");
-    expect(email.html).toContain("send one short video from the manhole");
+    expect(email.html).toContain("Send us one short video from your manhole");
     expect(email.html).toContain("Please don’t climb into or walk through the roof space.");
     expect(email.html).toContain("Send my video →");
+    expect(email.html).toContain("Homes with a video get booked first.");
   });
 });

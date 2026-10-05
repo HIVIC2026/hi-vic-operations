@@ -10,9 +10,9 @@ This is the only current implementation register. `docs/HIV_WORKFLOW_SOURCE_OF_T
 |---|---|---|
 | Public rebate calculator | Built | `/`, `/calculator` |
 | Secure estimate and owner result | Built | `/estimate/$token` |
-| Campaign email/page preview | Partly built | `/campaign-preview`, `/admin/launch-campaign` |
+| Campaign email/page preview | Built | `/campaign-preview`, `/admin/launch-campaign`; save-spot and video-priority drafts, sending locked |
 | One-tap campaign spot saving | Partly built | `/estimate/$token/campaign` — approved copy, area availability and video priority pending |
-| Campaign manhole video | Partly built | `/estimate/$token/video` — upload works; approved priority/copy pending |
+| Campaign manhole video | Built | `/estimate/$token/video` — upload saves the spot, marks video priority and queues office review |
 | Campaign remove-enquiry action | Built | `/estimate/$token/campaign` |
 | Campaign missing-link preparation | Not built | Launch campaign preparation |
 | Owner My job secure-link page | Partly built | `/my-job/$token`; full journey proof pending |
