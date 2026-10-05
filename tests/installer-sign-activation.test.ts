@@ -37,32 +37,33 @@ describe("1/8 address, dates, allowlists, rates", () => {
     expect(firstIncompleteStep({ ...complete, typical_days: ["XYZ"] })).not.toBeNull();
     expect(firstIncompleteStep({ ...complete, travel_radius_km: 0.01 })).not.toBeNull();
     expect(firstIncompleteStep({ ...complete, r5_rate: 0 })).not.toBeNull();
-    expect(firstIncompleteStep({ ...complete, extra_rates: { tile_roof_access: 0 } })).toBeNull();
-    expect(approvedRateItems("installer", { ...complete, extra_rates: { tile_roof_access: 0 } }).find((i) => i.code === "TILE_ROOF_ACCESS")?.unit_price_ex_gst).toBe(0);
+    expect(firstIncompleteStep({ ...complete, extra_rates: { difficult_access: 0 } })).toBeNull();
+    expect(approvedRateItems("installer", { ...complete, extra_rates: { difficult_access: 0 } }).find((i) => i.code === "DIFFICULT_ACCESS")?.unit_price_ex_gst).toBe(0);
   });
-  test("$0 optional extra survives agreement -> office summary -> approved card -> pricing; blank = quoted separately", () => {
-    const d: InstData = { ...complete, extra_rates: { tile_roof_access: 0, metal_roof_access: 55, difficult_access: null } };
-    const n = normaliseInstallerDraft(d);
-    expect(n.extra_rates?.tile_roof_access).toBe(0);
-    expect(n.extra_rates?.difficult_access).toBeNull();
-    const text = agreementText(d);
-    expect(text).toContain("Tile roof access (lift & relay tiles): no extra charge ($0)");
-    expect(text).toContain("Metal sheet roof access: $55.00 / job");
-    expect(text).toMatch(/Difficult \/ restricted ceiling access: no set rate — quoted separately/);
-    const items = approvedRateItems("installer", d);
-    expect(items.find((i) => i.code === "TILE_ROOF_ACCESS")?.unit_price_ex_gst).toBe(0);
-    expect(items.find((i) => i.code === "METAL_ROOF_ACCESS")?.unit_price_ex_gst).toBe(50); // 55 inc GST -> 50 ex
-    expect(items.some((i) => i.code === "DIFFICULT_ACCESS" || i.code === "CALL_OUT_MINIMUM")).toBe(false);
-    expect(installerExtraPricing(items, "tile_roof_access")).toEqual({ kind: "no_extra_charge", unit_price_ex_gst: 0 });
-    expect(installerExtraPricing(items, "metal_roof_access")).toEqual({ kind: "rated", unit_price_ex_gst: 50 });
-    expect(installerExtraPricing(items, "difficult_access")).toEqual({ kind: "quoted_separately" });
+  test("only Difficult access is asked/offered; $0 = no extra charge, blank = quoted separately; retired extras ignored", () => {
+    const rated: InstData = { ...complete, extra_rates: { difficult_access: 55 } };
+    expect(agreementText(rated)).toContain("Difficult access: $55.00 / job");
+    const items = approvedRateItems("installer", rated);
+    expect(items.find((i) => i.code === "DIFFICULT_ACCESS")?.unit_price_ex_gst).toBe(50); // 55 inc GST -> 50 ex
+    expect(installerExtraPricing(items, "difficult_access")).toEqual({ kind: "rated", unit_price_ex_gst: 50 });
+    const free: InstData = { ...complete, extra_rates: { difficult_access: 0 } };
+    expect(agreementText(free)).toContain("Difficult access: no extra charge ($0)");
+    expect(installerExtraPricing(approvedRateItems("installer", free), "difficult_access")).toEqual({ kind: "no_extra_charge", unit_price_ex_gst: 0 });
+    const blank: InstData = { ...complete, extra_rates: { difficult_access: null } };
+    expect(normaliseInstallerDraft(blank).extra_rates?.difficult_access).toBeNull();
+    expect(agreementText(blank)).toMatch(/Difficult access: no set rate — quoted separately/);
+    expect(installerExtraPricing(approvedRateItems("installer", blank), "difficult_access")).toEqual({ kind: "quoted_separately" });
+    // Retired extras left in an old draft are never written into Schedule 3 or a new rate card.
+    const legacy = { ...complete, extra_rates: { tile_roof_access: 80, metal_roof_access: 60, call_out_minimum: 150 } } as unknown as InstData;
+    const text = agreementText(legacy);
+    expect(text).not.toMatch(/Tile roof access|Metal sheet roof access|Minimum charge/);
+    expect(approvedRateItems("installer", legacy).some((i) => ["TILE_ROOF_ACCESS", "METAL_ROOF_ACCESS", "CALL_OUT_MINIMUM"].includes(i.code))).toBe(false);
     // Required base/removal rates never accept $0.
     expect(approvedRateItems("installer", { ...complete, batts_removal_rate: 0 }).some((i) => i.code === "BATTS_REMOVAL")).toBe(false);
     expect(firstIncompleteStep({ ...complete, batts_removal_rate: 0 })).not.toBeNull();
-    // Non-GST registered: $0 stays $0, positive stays as entered.
-    const ng = approvedRateItems("installer", { ...d, gst_registered: false });
-    expect(ng.find((i) => i.code === "TILE_ROOF_ACCESS")?.unit_price_ex_gst).toBe(0);
-    expect(ng.find((i) => i.code === "METAL_ROOF_ACCESS")?.unit_price_ex_gst).toBe(55);
+    const ng = approvedRateItems("installer", { ...free, gst_registered: false });
+    expect(ng.find((i) => i.code === "DIFFICULT_ACCESS")?.unit_price_ex_gst).toBe(0);
+    expect(approvedRateItems("installer", { ...rated, gst_registered: false }).find((i) => i.code === "DIFFICULT_ACCESS")?.unit_price_ex_gst).toBe(55);
   });
   test("installer qualification compatibility value is never null and never implies verification", () => {
     const w = (x: object) => activationWorkers("installer", { ...complete, installers: [{ full_legal_name: "A", email: "a@x.au", ...x }] }, "b", "app")[0]!;

@@ -41,7 +41,7 @@ describe("installer visible pages", () => {
     expect(pageErrors("about", { ...complete, business_address: "" })).toContain("Enter your business address.");
     expect(pageErrors("services", { ...complete, service_origin: "" })).toContain("Enter your service starting location.");
     expect(pageErrors("availability", { ...complete, capacity_band: "" })).toEqual([]);
-    expect(pageErrors("install_pricing", { ...complete, extra_rates: { tile_roof_access: -1 } }).length).toBe(1);
+    expect(pageErrors("install_pricing", { ...complete, extra_rates: { difficult_access: -1 } }).length).toBe(1);
   });
   test("required gates retained", () => {
     expect(firstIncompleteStep(complete)).toBeNull();
@@ -78,7 +78,7 @@ describe("installer visible pages", () => {
   test("rates note appears only after the optional-extra hint and fee copy hides internal overrides", () => {
     const route = readFileSync("src/routes/installer-onboarding.tsx", "utf8");
     const hint = "Enter $0 if it's included at no extra charge. Leave blank to quote it separately on the job before owner approval.";
-    const note = "Keeping access, call-out and other extra charges reasonable helps more homeowners proceed—and creates more opportunities for your business.";
+    const note = "Keeping access charges reasonable helps more homeowners proceed—and creates more opportunities for your business.";
     expect(route.match(new RegExp(note.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))?.length).toBe(1);
     expect(route.indexOf(note)).toBeGreaterThan(route.indexOf(hint));
     const agreement = agreementText(complete);

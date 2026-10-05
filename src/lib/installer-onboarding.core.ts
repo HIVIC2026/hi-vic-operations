@@ -38,10 +38,9 @@ export const WORKER_CII = [
 export type WorkerCii = (typeof WORKER_CII)[number]["v"];
 
 export const EXTRA_ITEMS = [
-  { key: "tile_roof_access", label: "Tile roof access (lift & relay tiles)", unit: "job" },
-  { key: "metal_roof_access", label: "Metal sheet roof access", unit: "job" },
-  { key: "difficult_access", label: "Difficult / restricted ceiling access", unit: "job" },
-  { key: "call_out_minimum", label: "Minimum charge / call-out", unit: "job" },
+  // Jo (5 Oct): only ONE optional extra is asked/offered for new onboarding. Tile/metal roof access and
+  // minimum charge were retired; already-signed agreement texts and stored rate cards keep them as history.
+  { key: "difficult_access", label: "Difficult access", unit: "job" },
 ] as const;
 
 export const CAPACITY_BANDS = [{ v: "1-3", n: 3 }, { v: "4-8", n: 8 }, { v: "9-15", n: 15 }, { v: "15+", n: 20 }] as const;
