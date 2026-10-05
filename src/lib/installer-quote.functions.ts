@@ -40,7 +40,7 @@ export const sendInstallerQuote = createServerFn({ method: "POST" }).middleware(
     const { customerDeliveryState } = await import("./comms.server");
     const delivery = await customerDeliveryState(data.jobId);
     const released = delivery === "ready_to_send";
-    const { error } = await admin.from("quotes").update({ status: released ? "issued" : "draft", sent_at: released ? new Date().toISOString() : null, release_state: released ? "released" : "queued", release_hold_reason: null }).eq("id", q.id).eq("status", "draft");
+    const { error } = await admin.from("quotes").update({ status: "issued", sent_at: released ? new Date().toISOString() : null, release_state: released ? "released" : "queued", release_hold_reason: null }).eq("id", q.id).eq("status", "draft");
     if (error) throw new Error(error.message);
     await logEvent(data.jobId, context.userId, released ? "installer_quote_released" : "installer_quote_queued", released ? "Office released the co-branded owner quote" : "Office approved the co-branded owner quote — queued behind the launch switches", { quote_id: q.id, email_delivery: delivery });
     return { delivery };

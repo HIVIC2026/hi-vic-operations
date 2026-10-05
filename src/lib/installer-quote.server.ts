@@ -45,7 +45,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   if (same) return draft;
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");
   const { data: q, error } = await admin.from("quotes").insert({
-    job_id: jobId, kind: "installation", option_label: "Installer's quote (from Ready Check)", option_code: INSTALLER_QUOTE_CODE, status: releaseState === "released" ? "issued" : "draft", sent_at: sentAt,
+    job_id: jobId, kind: "installation", option_label: "Installer's quote (from Ready Check)", option_code: INSTALLER_QUOTE_CODE, status: releaseState === "held" ? "draft" : "issued", sent_at: sentAt,
     release_state: releaseState, release_hold_reason: rangeReason,
     subtotal_inc_gst: draft.subtotal, gst_amount: Math.round((draft.subtotal - draft.subtotal / 1.1) * 100) / 100,
     veec_discount_inc_gst: draft.discount, discount_note: draft.discountNote, customer_total_inc_gst: draft.afterDiscount, created_by: actorId,

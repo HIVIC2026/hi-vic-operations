@@ -152,10 +152,11 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
     externalSendingEnabled: workflow?.auto_send_quote === true && workflow?.customer_comms_enabled === true,
   });
   const releasedAt = release.status === "issued" ? new Date().toISOString() : null;
+  const availableToOwner = release.state !== "held";
   const discountNote = discountNotes(rules).join(" ") || null;
   const label = rectLines.length ? "R5.0 ceiling insulation + electrical rectification" : "R5.0 ceiling insulation";
   const { data: q, error } = await admin.from("quotes").insert({
-    job_id: jobId, kind: "installation", option_label: label, option_code: "R5_BATTS", status: release.status, sent_at: releasedAt,
+    job_id: jobId, kind: "installation", option_label: label, option_code: "R5_BATTS", status: availableToOwner ? "issued" : "draft", sent_at: releasedAt,
     release_state: release.state, release_hold_reason: release.reason,
     rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal,
     gst_amount: r2(subtotal - subtotal / gstMul), veec_discount_inc_gst: veec, discount_note: discountNote,
@@ -234,7 +235,7 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
     externalSendingEnabled: workflow?.auto_send_quote === true && workflow?.customer_comms_enabled === true,
   });
   const now = new Date().toISOString();
-  await admin.from("quotes").update({ status: release.status, sent_at: release.status === "issued" ? now : null, office_reviewed_at: release.state === "released" ? now : null, office_reviewed_by: null, release_state: release.state, release_hold_reason: release.reason }).eq("id", q.id);
+  await admin.from("quotes").update({ status: release.state === "held" ? "draft" : "issued", sent_at: release.state === "released" ? now : null, office_reviewed_at: release.state === "released" ? now : null, office_reviewed_by: null, release_state: release.state, release_hold_reason: release.reason }).eq("id", q.id);
   const summary = release.state === "held" ? (release.reason ?? "Fix-up quote held for office review") : release.state === "queued" ? "Fix-up quote ready to send — queued behind the launch switches" : "Standard-rate fix-up quote automatically released to the owner";
   await logEvent(jobId, actorId, release.state === "held" ? "rectification_quote_held" : release.state === "queued" ? "rectification_quote_queued" : "rectification_quote_released", summary, { quote_id: q.id, release_state: release.state }, { internal: release.state !== "released" });
   return q.id;
@@ -244,11 +245,11 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
 export async function releaseQueuedQuotes() {
   const { data: workflow } = await admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled").eq("id", 1).maybeSingle();
   if (workflow?.auto_send_quote !== true || workflow?.customer_comms_enabled !== true) return { released: 0 };
-  const { data: queued } = await admin.from("quotes").select("id, job_id, kind").eq("status", "draft").eq("release_state", "queued").limit(200);
+  const { data: queued } = await admin.from("quotes").select("id, job_id, kind").eq("status", "issued").eq("release_state", "queued").limit(200);
   let released = 0;
   for (const quote of queued ?? []) {
     const now = new Date().toISOString();
-    const { data: updated } = await admin.from("quotes").update({ status: "issued", sent_at: now, release_state: "released" }).eq("id", quote.id).eq("status", "draft").eq("release_state", "queued").select("id").maybeSingle();
+    const { data: updated } = await admin.from("quotes").update({ sent_at: now, release_state: "released" }).eq("id", quote.id).eq("status", "issued").eq("release_state", "queued").select("id").maybeSingle();
     if (!updated) continue;
     await logEvent(quote.job_id, null, `${quote.kind}_quote_released`, `${quote.kind === "rectification" ? "Fix-up" : "Installation"} quote automatically released to the owner`, { quote_id: quote.id }, { internal: false });
     released++;
@@ -265,7 +266,7 @@ export async function approveHeldQuote(quoteId: string, actorId: string) {
   if (!quote || quote.status !== "draft" || quote.release_state !== "held") throw new WorkflowError("Only a held draft quote can be approved.");
   const releaseNow = workflow?.auto_send_quote === true && workflow?.customer_comms_enabled === true;
   const now = new Date().toISOString();
-  await admin.from("quotes").update({ release_state: releaseNow ? "released" : "queued", release_hold_reason: null, status: releaseNow ? "issued" : "draft", sent_at: releaseNow ? now : null, office_reviewed_at: now, office_reviewed_by: actorId }).eq("id", quote.id);
+  await admin.from("quotes").update({ release_state: releaseNow ? "released" : "queued", release_hold_reason: null, status: "issued", sent_at: releaseNow ? now : null, office_reviewed_at: now, office_reviewed_by: actorId }).eq("id", quote.id);
   await logEvent(quote.job_id, actorId, "quote_hold_approved", releaseNow ? "Office approved the held quote and released it to the owner" : "Office approved the held quote — queued behind the launch switches", { quote_id: quote.id, prior_reason: quote.release_hold_reason });
   return { releaseState: releaseNow ? "released" as const : "queued" as const };
 }

@@ -266,7 +266,7 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
     queryKey: ["quotes", jobId],
     queryFn: async () => (await supabase.from("quotes").select("*, quote_items(*)").eq("job_id", jobId).neq("status", "superseded").order("created_at")).data ?? [],
   });
-  const visible = (data ?? []).filter((q) => q.status !== "draft" || q.release_state === "released");
+  const visible = (data ?? []).filter((q) => q.status !== "draft" && q.release_state !== "held");
   if (!visible.length) return <Section title="Quotes"><p className="text-sm text-muted-foreground">No quotes yet.</p></Section>;
   const open = visible.some((q) => q.status === "issued" && q.kind === "rectification");
   if (accepting) return <AcceptanceFlow quoteId={accepting} jobId={jobId} onClose={() => setAccepting(null)} />;
