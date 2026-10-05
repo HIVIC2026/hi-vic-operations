@@ -10,8 +10,8 @@ export type RetailSettings = {
   access_standard_multiplier: number; access_moderate_multiplier: number; access_difficult_multiplier: number;
   indicative_veec_value: number; veec_value_source_label: string; veec_value_source_url: string; veec_value_checked_at: string;
   minimum_customer_copayment_inc_gst: number; spec_version: string; spec_source_url: string;
-  /** Jo, 5 Oct 2026: maximum customer discount per job (the Government's published "up to" figures). Editable office settings. */
-  max_discount_metro_inc_gst: number; max_discount_regional_inc_gst: number;
+  /** DEPRECATED (Jo, 5 Oct 2026): no maximum discount exists in the VEU program; columns kept, never applied. */
+  max_discount_metro_inc_gst?: number; max_discount_regional_inc_gst?: number;
 };
 
 /** VEU program minimum customer contribution (inc GST) after the discount — official rule, never waived. */
@@ -19,26 +19,22 @@ export const MIN_CUSTOMER_CONTRIBUTION_INC_GST = 200;
 
 export type DiscountRulesResult = { discount: number; cappedAtMax: boolean; reducedForMin: boolean; cap: number };
 /**
- * The two discount guardrails, applied in order (Jo, 5 Oct 2026):
- * 1. The discount never exceeds the program maximum for the region ($1,500 metro / $2,100 regional defaults).
- *    An unknown region uses the lower metro cap — fails safe, never overstates.
- * 2. The customer always pays at least the $200 minimum contribution; the discount is reduced if needed.
- * VEECs created are unchanged — only the customer-facing discount is capped.
+ * The one discount guardrail (Jo, 5 Oct 2026, from the VEU Industry Pack): the customer always pays at least the
+ * $200 inc GST minimum contribution; the discount is reduced if needed. There is NO maximum discount or VEEC cap
+ * (the $1,500 / $2,100 figures are only the Government's 150 m² example). `metropolitan` is kept for call-site
+ * compatibility and ignored; `cappedAtMax` is always false.
  */
-export function applyDiscountRules(rawDiscount: number, preDiscountTotal: number, metropolitan: boolean | null, s: Pick<RetailSettings, "max_discount_metro_inc_gst" | "max_discount_regional_inc_gst" | "minimum_customer_copayment_inc_gst">): DiscountRulesResult {
-  const cap = metropolitan === false ? Number(s.max_discount_regional_inc_gst) : Number(s.max_discount_metro_inc_gst);
-  const capped = Math.min(rawDiscount, cap);
+export function applyDiscountRules(rawDiscount: number, preDiscountTotal: number, _metropolitan: boolean | null, s: Pick<RetailSettings, "minimum_customer_copayment_inc_gst">): DiscountRulesResult {
   const floor = Number(s.minimum_customer_copayment_inc_gst);
-  const discount = Math.min(capped, Math.max(0, preDiscountTotal - floor));
-  return { discount, cappedAtMax: capped < rawDiscount, reducedForMin: discount < capped, cap };
+  const raw = Math.max(0, rawDiscount);
+  const discount = Math.min(raw, Math.max(0, preDiscountTotal - floor));
+  return { discount, cappedAtMax: false, reducedForMin: discount < raw, cap: Infinity };
 }
 
-/** Plain-English quote/invoice lines when a guardrail changed the discount (Jo-approved wording, 5 Oct 2026). */
-export const DISCOUNT_CAPPED_NOTE = "Government discount (capped at the program maximum)";
+/** Plain-English quote/invoice line when the $200 minimum reduced the discount (Jo-approved wording, 5 Oct 2026). */
 export const DISCOUNT_REDUCED_MIN_NOTE = "Discount reduced so the minimum $200 customer contribution applies";
 export function discountNotes(r: Pick<DiscountRulesResult, "cappedAtMax" | "reducedForMin">): string[] {
   const notes: string[] = [];
-  if (r.cappedAtMax) notes.push(DISCOUNT_CAPPED_NOTE);
   if (r.reducedForMin) notes.push(DISCOUNT_REDUCED_MIN_NOTE);
   return notes;
 }

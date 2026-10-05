@@ -30,7 +30,6 @@ export const getOwnerPrices = createServerFn({ method: "GET" })
         version: c.version, r5: Number(c.r5_install_inc_gst_per_m2), removal: Number(c.removal_inc_gst_per_m2), piesa: Number(c.piesa_assessment_inc_gst),
         apFee: Number(c.ap_management_inc_gst), moderate: Number(c.access_moderate_multiplier), difficult: Number(c.access_difficult_multiplier),
         veecBuy: Number(c.veec_buy_price), veecSale: ws.data?.current_veec_price == null ? 83 : Number(ws.data.current_veec_price),
-        maxDiscountMetro: Number(c.max_discount_metro_inc_gst), maxDiscountRegional: Number(c.max_discount_regional_inc_gst),
       },
       canChangeApFee: canChangeApFee(context.userId, resolveApFeeAllowedIds(process.env["AP_FEE_OVERRIDE_USER_IDS"])),
       history: (hist.data ?? []).map((h) => ({ ...h, who: h.actor_id ? who.get(h.actor_id) ?? "Office" : "Office" })),
@@ -41,13 +40,13 @@ export const setOwnerPrices = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     r5: price, removal: price, piesa: price, apFee: price, moderate: z.number().min(1).max(5).optional(), difficult: z.number().min(1).max(5).optional(),
-    veecBuy: price, maxDiscountMetro: price, maxDiscountRegional: price, reason: z.string().trim().min(3).max(500),
+    veecBuy: price, reason: z.string().trim().min(3).max(500),
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data: cur } = await admin.from("retail_estimator_settings").select("*").eq("is_current", true).single();
-    const map: [keyof typeof data, string][] = [["r5", "r5_install_inc_gst_per_m2"], ["removal", "removal_inc_gst_per_m2"], ["piesa", "piesa_assessment_inc_gst"], ["apFee", "ap_management_inc_gst"], ["moderate", "access_moderate_multiplier"], ["difficult", "access_difficult_multiplier"], ["veecBuy", "veec_buy_price"], ["maxDiscountMetro", "max_discount_metro_inc_gst"], ["maxDiscountRegional", "max_discount_regional_inc_gst"]];
+    const map: [keyof typeof data, string][] = [["r5", "r5_install_inc_gst_per_m2"], ["removal", "removal_inc_gst_per_m2"], ["piesa", "piesa_assessment_inc_gst"], ["apFee", "ap_management_inc_gst"], ["moderate", "access_moderate_multiplier"], ["difficult", "access_difficult_multiplier"], ["veecBuy", "veec_buy_price"]];
     const changes: Record<string, number> = {};
     for (const [k, col] of map) {
       const v = data[k];

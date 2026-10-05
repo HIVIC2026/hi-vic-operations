@@ -156,8 +156,7 @@ function PriceResult({ est, area, fees, settings, onReadyCheck }: { est: Est; ar
     <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Your estimated home upgrade</p>
     <p className="mt-3 text-sm leading-relaxed text-estimate-navy/80">Based on an estimated {area} m² ceiling area{est.scenarios.some((s) => s.key === "full_removal") ? ", assuming your existing insulation can remain" : ""}.</p>
     <div className="mt-4"><QuoteBreakdown rows={customerQuoteRows({ piesa: fees.piesa, installation: standard.installation, apManagement: fees.ap })} gross={standard.pre_discount_total} discount={standard.applied_discount} final={standard.estimated_customer_total} ids={{ final: "total-can_remain" }} /></div>
-    {settings && <p className="mt-3 text-xs leading-relaxed text-estimate-navy/75">Estimated discount — maximum {dollars(settings.max_discount_metro_inc_gst)} in Melbourne / {dollars(settings.max_discount_regional_inc_gst)} in regional Victoria.</p>}
-    {standard.cap_applied && <p className="mt-2 text-sm font-semibold">Government discount (capped at the program maximum).</p>}
+    {settings && <p className="mt-3 text-xs leading-relaxed text-estimate-navy/75">Estimated discount: {dollars(standard.applied_discount)} — confirmed after your assessment.</p>}
     {standard.copayment_capped && <p className="mt-3 text-sm">Discount reduced so the minimum $200 customer contribution applies.</p>}
     <QuoteCardReadyCheckClose href="#confirm" {...(onReadyCheck ? { onSelect: onReadyCheck } : {})} />
   </section>;
