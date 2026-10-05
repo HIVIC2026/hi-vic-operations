@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { BatchOwnerLinksButton } from "@/components/portal/owner-eligibility";
 import { bulkBatchReview, bulkImportBusinesses, confirmBulkBatch, createBulkBatch } from "@/lib/bulk-import.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -243,6 +244,7 @@ function BulkImportPage() {
           <CardContent className="space-y-2">
             <p>{done.created} jobs created{done.skipped ? `, ${done.skipped} skipped` : ""}{done.failed ? `, ${done.failed} could not be imported (office notified)` : ""}.</p>
             <p className="text-sm text-muted-foreground">Nothing has been sent to any customer. The office can see each job in the pipeline.</p>
+            {batchId && <BatchOwnerLinksButton batchId={batchId} />}
             <Button variant="outline" onClick={() => { setBatchId(null); setDone(null); setExtraFiles([]); setPermission(false); setSkip(new Set()); }}>Upload another batch</Button>
           </CardContent>
         </Card>

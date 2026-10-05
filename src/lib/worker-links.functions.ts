@@ -119,7 +119,10 @@ export const jobWorkerLinks = createServerFn({ method: "GET" }).middleware([requ
       admin.from("worker_job_links").select("id, worker_id, business_id, created_at, expires_at, revoked_at, last_opened_at, open_count, partner_workers(full_legal_name, trade_role)").eq("job_id", data.jobId).in("business_id", mine.length ? mine : none).order("created_at", { ascending: false }),
     ]);
     const now = Date.now();
+    // Office flag: last automatic Mitti attempt needs attention (cleared once a form is created/re-shared).
+    const { data: mev } = await admin.from("workflow_events").select("event_type, summary").eq("job_id", data.jobId).in("event_type", ["mitti_access_needed", "mitti_audit_created", "mitti_audit_reshared"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
     return {
+      mittiFlag: office && mev?.event_type === "mitti_access_needed" ? mev.summary : null,
       assignedBusinesses: assigned.length,
       workers: (workers ?? []).map((w) => ({ ...w, blocker: assignBlocker(w, assigned) })),
       links: (links ?? []).map((l) => ({ ...l, state: linkState(l, now) })),
@@ -141,8 +144,10 @@ export const createWorkerJobLink = createServerFn({ method: "POST" }).middleware
     const { error } = await admin.from("worker_job_links").insert({ worker_id: w.id, business_id: w.business_id, job_id: data.jobId, token_hash: await hashToken(token), created_by: context.userId, expires_at: linkExpiry(now) });
     if (error) throw new Error(error.message);
     await logEvent(data.jobId, context.userId, "worker_link_created", `Job link created for ${w.full_legal_name}`, { worker_id: w.id });
+    const { autoAssignReadyCheckForm } = await import("./mitti-autoassign.server");
+    const mitti = await autoAssignReadyCheckForm(data.jobId, w.id, context.userId);
     // Token is returned once; only its hash is stored. Nothing is sent until communications are switched on.
-    return { token, path: `/w/${token}` };
+    return { token, path: `/w/${token}`, mitti };
   });
 
 export const revokeWorkerJobLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

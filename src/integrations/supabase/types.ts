@@ -6058,6 +6058,83 @@ export type Database = {
           },
         ]
       }
+      owner_eligibility_links: {
+        Row: {
+          answers: Json | null
+          business_id: string | null
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          job_id: string
+          result: string | null
+          result_reasons: Json | null
+          revoked_at: string | null
+          ruleset_version: string | null
+          submitted_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          answers?: Json | null
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          job_id: string
+          result?: string | null
+          result_reasons?: Json | null
+          revoked_at?: string | null
+          ruleset_version?: string | null
+          submitted_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          answers?: Json | null
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          job_id?: string
+          result?: string | null
+          result_reasons?: Json | null
+          revoked_at?: string | null
+          ruleset_version?: string | null
+          submitted_at?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_eligibility_links_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_eligibility_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_eligibility_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "owner_eligibility_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       owner_esc_consents: {
         Row: {
           ap_ip: string | null

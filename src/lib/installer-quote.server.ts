@@ -7,7 +7,7 @@ import { HIVIC_PIESA_INC_GST, buildInstallerQuoteDraft, quotedPriceFromEntries }
 
 export const INSTALLER_QUOTE_CODE = "INSTALLER_A1";
 
-export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: string, entries: { label: string; value: string | null }[], auditId: string) {
+export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[], auditId: string) {
   const { data: job } = await admin.from("jobs").select("channel, ap_fee_override_inc_gst, properties(postcode)").eq("id", jobId).single();
   if (!job || job.channel !== "installer_sourced") return null;
   const { data: open } = await admin.from("quotes").select("id, status, subtotal_inc_gst, veec_discount_inc_gst, option_code").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]);

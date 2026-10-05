@@ -17,6 +17,7 @@ import { Route as ElectricianOnboardingRouteImport } from './routes/electrician-
 import { Route as InstallerOnboardingRouteImport } from './routes/installer-onboarding'
 import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as EligibilityTokenRouteImport } from './routes/eligibility.$token'
 import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as JoinTokenRouteImport } from './routes/join.$token'
 import { Route as WTokenRouteImport } from './routes/w.$token'
@@ -99,6 +100,11 @@ const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   id: '/home',
   path: '/home',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const EligibilityTokenRoute = EligibilityTokenRouteImport.update({
+  id: '/eligibility/$token',
+  path: '/eligibility/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const EstimateTokenRoute = EstimateTokenRouteImport.update({
   id: '/estimate/$token',
@@ -348,6 +354,7 @@ export interface FileRoutesByFullPath {
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
   '/w/$token': typeof WTokenRoute
@@ -400,6 +407,7 @@ export interface FileRoutesByTo {
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
   '/w/$token': typeof WTokenRoute
@@ -454,6 +462,7 @@ export interface FileRoutesById {
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
   '/w/$token': typeof WTokenRoute
@@ -508,6 +517,7 @@ export interface FileRouteTypes {
     | '/installer-onboarding'
     | '/step3-email-preview'
     | '/home'
+    | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
     | '/w/$token'
@@ -560,6 +570,7 @@ export interface FileRouteTypes {
     | '/installer-onboarding'
     | '/step3-email-preview'
     | '/home'
+    | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
     | '/w/$token'
@@ -613,6 +624,7 @@ export interface FileRouteTypes {
     | '/installer-onboarding'
     | '/step3-email-preview'
     | '/_authenticated/home'
+    | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
     | '/w/$token'
@@ -666,6 +678,7 @@ export interface RootRouteChildren {
   ElectricianOnboardingRoute: typeof ElectricianOnboardingRoute
   InstallerOnboardingRoute: typeof InstallerOnboardingRoute
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
+  EligibilityTokenRoute: typeof EligibilityTokenRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
   JoinTokenRoute: typeof JoinTokenRoute
   WTokenRoute: typeof WTokenRoute
@@ -740,6 +753,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/home'
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/eligibility/$token': {
+      id: '/eligibility/$token'
+      path: '/eligibility/$token'
+      fullPath: '/eligibility/$token'
+      preLoaderRoute: typeof EligibilityTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/estimate/$token': {
       id: '/estimate/$token'
@@ -1121,6 +1141,7 @@ const rootRouteChildren: RootRouteChildren = {
   ElectricianOnboardingRoute: ElectricianOnboardingRoute,
   InstallerOnboardingRoute: InstallerOnboardingRoute,
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
+  EligibilityTokenRoute: EligibilityTokenRoute,
   EstimateTokenRoute: EstimateTokenRoute,
   JoinTokenRoute: JoinTokenRoute,
   WTokenRoute: WTokenRoute,

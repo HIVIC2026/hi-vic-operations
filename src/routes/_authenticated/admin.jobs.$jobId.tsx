@@ -15,6 +15,7 @@ import { AppShell } from "@/components/portal/AppShell";
 import { Pill, SourceBadge, UrgencyBadge } from "@/components/portal/badges";
 import { AdminAssignmentPanel } from "@/components/portal/assignment";
 import { WorkerLinksPanel } from "@/components/portal/workers";
+import { OwnerEligibilityPanel } from "@/components/portal/owner-eligibility";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, PaymentsPanel, QuotesPanel, Section, TimelinePanel, useJob } from "@/components/portal/panels";
 import { MittiCard, PriceItemForm } from "@/components/portal/mitti";
 import { RequirementCards } from "@/components/portal/requirements";
@@ -134,7 +135,7 @@ function JobDetail() {
           <ComplianceRecords jobId={jobId} /><Compliance jobId={jobId} /><Veec jobId={jobId} /><OfficeJobProfitCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["ESC / VEEC"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("history")} title="Correspondence & history" summary="Worker links, messages, timeline, audit history, all documents and export">
-          <WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin /><div id="target-correspondence" tabIndex={-1} className="scroll-mt-4 outline-none"><Correspondence jobId={jobId} /></div>
+          <OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin /><div id="target-correspondence" tabIndex={-1} className="scroll-mt-4 outline-none"><Correspondence jobId={jobId} /></div>
           <SubHeading>What's happened</SubHeading>
           <div id="target-history" tabIndex={-1} className="scroll-mt-4 outline-none"><ClearTimeline jobId={jobId} /></div>
           <AdminVisitHistory jobId={jobId} />
