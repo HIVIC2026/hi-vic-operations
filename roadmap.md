@@ -220,7 +220,7 @@
 ## Trade launch — open (5 Oct)
 - [ ] Owner no-login actions after Ready Check (quote accept, payment choice, electrician times)
 - [ ] Full owner-picks-times → trade-taps → booked browser run, then scenarios A–D end to end
-- [ ] Payments tab: per-job payout due/status
+- [ ] Money tab (Jo-approved 5 Oct, queued with trade screens, preview only): title "Money"; big green card "Landing in your account {next pay date}" + total + "{N} jobs"; two white tiles "This month" / "All time"; Jobs list = owner surname + suburb, what was done (Safety check / Fixes / Install), amount, status pill — "Coming {day}" (blue), "Being checked" (blush: waiting on our sign-off), "Paid {date}" (mint); "Download statements ›" link; NO payment-terms wording (it's in the agreement); bottom tabs Work / Money / My business (+ Add job for installers). Data from payouts records.
 - [ ] Business tab: workers, rates, bulk upload in one place
 - [ ] Invite/password email — waiting on Jo's wording approval (copy-link works now)
 - [ ] 8 older failing tests (agreement fee clause, PIESA/PIISA templates, ESC) — predate this work
