@@ -233,3 +233,8 @@
 - [x] 5 Job page tracker / Right now / Done when
 - [x] 6 Partners cards / Money overview + payouts
 - [ ] 7 Proof on practice DB + screenshots
+
+## Full dummy runs with Xero Demo Company (Jo, 5 Oct)
+- [ ] Link Xero connection to the Demo Company; show "Connected to: Demo Company (test)" in settings — needs Jo's authorisation
+- [x] Routing built (tests → Demo only; real jobs off). [ ] qa_test jobs only → real Demo Company calls (contact, invoice, test payment, read back paid); real jobs never call Xero while switches off
+- [ ] Re-run scenarios A–D end to end with real Xero; 390px screenshots; fix until passing

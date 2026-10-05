@@ -127,3 +127,24 @@ export function parseXeroDate(d?: string) {
 }
 
 export const lockHeld = (lockAt: string | null, now = Date.now()) => !!lockAt && now - Date.parse(lockAt) < LOCK_STALE_MS;
+
+// ---------- Organisation routing (fail closed) ----------
+/** Live jobs may call Xero only when this switch is turned on. Off = no Xero calls for real jobs. */
+export const XERO_LIVE_CALLS_ENABLED = false;
+export type XeroMode = "test" | "live";
+export type XeroTenant = { tenantId: string; tenantName?: string | null };
+const DEMO = /demo company/i;
+const LIVE = /dc construction solutions/i;
+/** TEST (qa_test) jobs only ever reach the Xero Demo Company; live jobs only ever reach DC Construction Solutions. Never "first org". */
+export function pickXeroTenant(conns: XeroTenant[], mode: XeroMode): XeroTenant {
+  const name = (t: XeroTenant) => t.tenantName ?? "";
+  if (mode === "test") {
+    const t = conns.find((c) => DEMO.test(name(c)));
+    if (!t) throw new Error("Xero Demo Company is not connected – TEST jobs never use the real books. Ask Jo to authorise the Demo Company.");
+    return t;
+  }
+  if (!XERO_LIVE_CALLS_ENABLED) throw new Error("Xero is switched off for real jobs.");
+  const t = conns.find((c) => LIVE.test(name(c)) && !DEMO.test(name(c)));
+  if (!t) throw new Error("DC Construction Solutions Xero organisation is not connected.");
+  return t;
+}

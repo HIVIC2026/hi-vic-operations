@@ -1619,3 +1619,23 @@ export const recordComplianceItem = createServerFn({ method: "POST" }).middlewar
     await autoAdvanceJob(data.jobId, context.userId, "compliance record");
     return { ok: true };
   });
+
+// ---------- Xero organisation display + Demo Company test payment ----------
+export const getXeroConnection = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.supabase);
+    const { xeroConnectionStatus } = await import("./xero.server");
+    try { return { ...(await xeroConnectionStatus()), error: null as string | null }; }
+    catch (e) { return { connected: false, orgs: [] as { name: string; test: boolean }[], error: (e as Error).message }; }
+  });
+
+export const recordXeroTestPayment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ invoiceId: uuid, amount: z.number().positive().max(100000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { recordDemoTestPayment } = await import("./xero.server");
+    try { await recordDemoTestPayment(data.invoiceId, data.amount, context.userId); } catch (e) { throw new WorkflowError((e as Error).message); }
+    const { data: inv } = await admin.from("invoices").select("job_id").eq("id", data.invoiceId).single();
+    if (inv) await advanceAfterDeposit(inv.job_id, context.userId);
+    return { ok: true };
+  });
