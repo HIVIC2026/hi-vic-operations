@@ -200,7 +200,7 @@ export function buildInstallerQuoteDraft(i: {
   if (!(i.measuredM2 && i.measuredM2 > 0)) blockers.push("Measured ceiling area is missing.");
   if (i.ghgReduction == null || i.veecValue == null) blockers.push("VEU discount can't be worked out (postcode or VEEC value missing).");
   const p = i.price.price;
-  const rawDiscount = i.ghgReduction != null && i.veecValue != null ? Math.round(i.ghgReduction * i.veecValue * 100) / 100 : 0;
+  const rawDiscount = i.ghgReduction != null && i.veecValue != null ? Math.round(Math.floor(i.ghgReduction) * i.veecValue * 100) / 100 : 0;
   const preTotal = Math.round(((p?.totalIncGst ?? 0) + (i.piesaIncGst ?? 0) + (i.apFeeIncGst ?? 0)) * 100) / 100;
   const rules = applyDiscountRules(rawDiscount, preTotal, i.caps.metropolitan, {
     minimum_customer_copayment_inc_gst: i.caps.minCopay,
