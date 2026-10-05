@@ -126,6 +126,7 @@ export async function startPiesaAllocation(jobId: string, actorId: string | null
   ]);
   const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec, hasOpenOffers: !!open });
   if (blockers.length) throw new WorkflowError(`${kind === "piesa" ? "PIESA" : "Fix-up"} offers cannot start: ${blockers.join(" ")}`);
+  await (await import("./owner-gates.server")).assertGateA(jobId, kind === "piesa" ? "Safety check offers" : "Fix-up offers");
   return offerNextBatch(jobId, actorId, kind, !!opts.rateToConfirm, opts.onlyBusiness);
 }
 
@@ -294,6 +295,8 @@ export async function visitContacts(jobId: string, userId: string, role: string)
   const { visitIsCurrent } = await import("./allocation.core");
   const live = (rel ?? []).filter((r) => (r.job_assignments as { active: boolean }).active && visitIsCurrent(r.visit_kind, job?.stage ?? ""));
   const owner = job?.owners as { user_id: string | null; full_name: string | null; phone: string | null; email: string | null } | null;
+  // Trades never see owner details until the owner has signed Gate A (incl. consent to share with trades).
+  if (role !== "owner" && !(await (await import("./owner-gates.server")).gateAComplete(jobId))) return { releases: [] };
   if (role === "owner") {
     if (owner?.user_id !== userId) return { releases: [] };
     const trades = await Promise.all(live.map(async (r) => {

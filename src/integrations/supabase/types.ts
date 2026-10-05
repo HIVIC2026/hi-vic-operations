@@ -6451,6 +6451,100 @@ export type Database = {
           },
         ]
       }
+      owner_gate_signatures: {
+        Row: {
+          answers: Json
+          code_id: string | null
+          copy_email_queued: boolean
+          copy_path: string | null
+          doc_draft: boolean
+          doc_key: string
+          doc_version: string
+          gate: string
+          id: string
+          ip: string | null
+          job_id: string
+          method: string
+          signatory_name: string
+          signed_at: string
+          signed_by: string | null
+          signed_text: string
+          signed_text_sha256: string
+          ticked: boolean
+          user_agent: string | null
+          verified_channel: string | null
+          verified_destination: string | null
+        }
+        Insert: {
+          answers?: Json
+          code_id?: string | null
+          copy_email_queued?: boolean
+          copy_path?: string | null
+          doc_draft: boolean
+          doc_key: string
+          doc_version: string
+          gate: string
+          id?: string
+          ip?: string | null
+          job_id: string
+          method: string
+          signatory_name: string
+          signed_at?: string
+          signed_by?: string | null
+          signed_text: string
+          signed_text_sha256: string
+          ticked: boolean
+          user_agent?: string | null
+          verified_channel?: string | null
+          verified_destination?: string | null
+        }
+        Update: {
+          answers?: Json
+          code_id?: string | null
+          copy_email_queued?: boolean
+          copy_path?: string | null
+          doc_draft?: boolean
+          doc_key?: string
+          doc_version?: string
+          gate?: string
+          id?: string
+          ip?: string | null
+          job_id?: string
+          method?: string
+          signatory_name?: string
+          signed_at?: string
+          signed_by?: string | null
+          signed_text?: string
+          signed_text_sha256?: string
+          ticked?: boolean
+          user_agent?: string | null
+          verified_channel?: string | null
+          verified_destination?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_gate_signatures_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_gate_signatures_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "owner_gate_signatures_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       owner_link_codes: {
         Row: {
           attempts: number
@@ -6517,6 +6611,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      owner_paperwork_approvals: {
+        Row: {
+          approved_at: string
+          approved_by: string
+          body_sha256: string
+          doc_key: string
+          doc_version: string
+          id: string
+        }
+        Insert: {
+          approved_at?: string
+          approved_by: string
+          body_sha256: string
+          doc_key: string
+          doc_version: string
+          id?: string
+        }
+        Update: {
+          approved_at?: string
+          approved_by?: string
+          body_sha256?: string
+          doc_key?: string
+          doc_version?: string
+          id?: string
+        }
+        Relationships: []
       }
       owners: {
         Row: {

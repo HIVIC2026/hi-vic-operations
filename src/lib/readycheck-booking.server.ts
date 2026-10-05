@@ -154,6 +154,7 @@ export async function startReadyCheckOffers(jobId: string, actorId: string | nul
   ]);
   const b = readyCheckStartBlockers({ stage: job?.stage ?? "", hasInstaller: inst, openWindows: w.open.length, hasOpenOffers: !!open });
   if (b.length) throw new WorkflowError(`Ready Check offers cannot start: ${b.join(" ")}`);
+  await (await import("./owner-gates.server")).assertGateA(jobId, "Ready Check offers");
   return offerNextReadyCheckBatch(jobId, actorId, onlyBusiness);
 }
 

@@ -257,6 +257,8 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
   if (retired) return [retired]; // server-side: stale clients / direct calls cannot re-enter the legacy path
   const blockers: string[] = [];
   blockers.push(...(await readyCheckBlockers(jobId, to)));
+  // Owner paperwork gates A–D (one rule set for every journey).
+  blockers.push(...(await (await import("./owner-gates.server")).ownerGateStageBlockers(jobId, to)));
   if (["assessment_booked", "assessment_complete", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"].includes(to)) {
     const { complianceRecordBlockers } = await import("./compliance-timeline.core");
     const [{ data: recs }, { data: job }, { data: invs }] = await Promise.all([
