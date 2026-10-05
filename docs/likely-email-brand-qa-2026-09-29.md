@@ -1,3 +1,6 @@
+> [!WARNING]
+> **RETIRED (5 Oct 2026) — this Open Sans / blue-hero / offset-shadow look is no longer our brand. Do not use. Current brand = the live calculator look (.estimate-brand), see .lovable/memory/design/final-portal-design.md.**
+
 # Likely-eligible email brand QA — 29 September 2026
 
 ## Scope

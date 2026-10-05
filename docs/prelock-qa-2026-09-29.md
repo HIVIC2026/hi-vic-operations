@@ -1,3 +1,6 @@
+> [!WARNING]
+> **RETIRED (5 Oct 2026) — this Open Sans / blue-hero / offset-shadow look is no longer our brand. Do not use. Current brand = the live calculator look (.estimate-brand), see .lovable/memory/design/final-portal-design.md.**
+
 # Pre-lock QA audit — homeowner enquiry → estimate → referral → email (2026-09-29)
 
 Audit only. No production code, settings, schedules or database rows changed. No messages sent. Both email locks stayed OFF and the delivery bridge stayed disabled. Evidence folder: `/mnt/documents/prelock-qa/` (33 files: screenshots + `results.json`, fixture data only).
