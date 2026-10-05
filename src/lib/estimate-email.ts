@@ -250,7 +250,7 @@ function renderV2QuoteEmail(input: EstimateEmailInput, kind: "likely" | "onsite"
     : likelyHero;
 
   // 3. Savings module (echoes the standalone calculator) with the single inclusions breakdown
-  const savingsModule = v2SavingsModule({ address, area, areaIsTypical: input.areaIsTypical, discount, customer, gross: hasBreakdown ? gross : packagePrice, rebateLabel, costLabel, qualifier, hasBreakdown, installation, assessment, apFee, apCount: input.apCount });
+  const savingsModule = v2SavingsModule({ address, area, ...(input.areaIsTypical == null ? {} : { areaIsTypical: input.areaIsTypical }), discount, customer, gross: hasBreakdown ? gross : packagePrice, rebateLabel, costLabel, qualifier, hasBreakdown, installation, assessment, apFee, apCount: input.apCount });
   const savings = savingsModule.html;
   const { rows, apCountText } = savingsModule;
 
