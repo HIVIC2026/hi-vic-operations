@@ -28,9 +28,10 @@ describe("automatic installer quote", () => {
     expect(buildInstallerQuoteDraft({ ...base, price: quotedPriceFromEntries(e("R5.0 supply and install", null), false) }).ready).toBe(false);
     expect(buildInstallerQuoteDraft({ ...base, measuredM2: null, price: quotedPriceFromEntries(e("R5.0 supply and install", "2400"), false) }).ready).toBe(false);
   });
-  test("held below $200 co-payment", () => {
+  test("discount reduced so the owner still pays the $200 minimum", () => {
     const d = buildInstallerQuoteDraft({ ...base, ghgReduction: 60, price: quotedPriceFromEntries(e("R5.0 supply and install", "1000"), false) });
-    expect(d.ready).toBe(false);
+    expect(d.ready).toBe(true);
+    expect(d.afterDiscount).toBe(200);
   });
 });
 
