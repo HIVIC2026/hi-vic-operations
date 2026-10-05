@@ -143,8 +143,13 @@ export async function currentApprovedQuote(jobId: string) {
 export async function paymentGate(jobId: string) {
   const { evaluatePaymentGate, paymentRouteFor } = await import("./payment-gate.core");
   const [enabled, quote, { data: job }] = await Promise.all([
-    paymentGateEnabled(), currentApprovedQuote(jobId), admin.from("jobs").select("channel").eq("id", jobId).single(),
+    paymentGateEnabled(), currentApprovedQuote(jobId), admin.from("jobs").select("channel, source, qa_archived_at").eq("id", jobId).single(),
   ]);
+  // TEST journeys only: the latest audited simulated payment (never consulted for real jobs).
+  const { data: sim } = quote && job?.source === "qa_test" && !job.qa_archived_at
+    ? await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "qa_payment_simulated").order("created_at", { ascending: false }).limit(1).maybeSingle()
+    : { data: null };
+  const qaSimulated = sim ? { jobSource: job?.source ?? null, quoteId: ((sim.details as { quote_id?: string } | null)?.quote_id) ?? null } : null;
   const { data: inv } = quote
     ? await admin.from("invoices").select("id, quote_id, total_inc_gst, total_paid").eq("quote_id", quote.id).maybeSingle()
     : { data: null };
@@ -157,7 +162,7 @@ export async function paymentGate(jobId: string) {
     ]);
     plan = (p as never) ?? null; overrideCount = count ?? 0;
   }
-  return evaluatePaymentGate({ enabled, route: paymentRouteFor(job?.channel), currentQuote: quote, invoice: inv, plan, overrideCount });
+  return evaluatePaymentGate({ enabled, route: paymentRouteFor(job?.channel), currentQuote: quote, invoice: inv, plan, overrideCount, qaSimulated });
 }
 
 /** True only when an approved payment option is verified (see paymentGate). */

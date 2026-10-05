@@ -303,3 +303,20 @@ export const archiveQaJourney = createServerFn({ method: "POST" })
     if (error) throw new WorkflowError(`Could not archive this TEST journey: ${error.message}`);
     return { ok: true };
   });
+
+/** TEST journeys only: record a simulated payment for the current accepted quote so PIESA → install can be tested. Audited; never Xero. */
+export const simulateQaPayment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, reason: z.string().trim().min(5).max(300) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireTestAdmin(context);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    await testJob(admin, data.jobId);
+    const { currentApprovedQuote, logEvent } = await import("./workflow.server");
+    const quote = await currentApprovedQuote(data.jobId);
+    if (!quote) throw new WorkflowError("The owner hasn't accepted a quote on this TEST job yet.");
+    await logEvent(data.jobId, context.userId, "qa_payment_simulated", "TEST only: payment simulated (no Xero, no money)", { quote_id: quote.id, reason: data.reason }, { internal: true });
+    const { autoAdvanceJob } = await import("./autoadvance.server");
+    await autoAdvanceJob(data.jobId, context.userId, "qa payment simulated");
+    return { ok: true };
+  });
