@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { classifyEnquiry, contactExclusion, sendHolds, primaryByContact, propertyKey, templateFor, realArea, GROUP_ORDER, type EnquiryInput, type ContactFacts } from "../src/lib/enquiry-groups.core";
-import { captureLinkState, parseCapturePath, validateVideo, homeownerVideoCount, capturePath } from "../src/lib/owner-capture.core";
+import { captureLinkState, parseCapturePath, validateVideo, validateCaptureFile, homeownerVideoCount, capturePath } from "../src/lib/owner-capture.core";
 import { renderEstimateEmail, renderInsulationVideoEmail } from "../src/lib/estimate-email";
 import { GATE1_RULESET_VERSION } from "../src/lib/eligibility.core";
 
@@ -109,6 +109,7 @@ describe("homeowner video capture", () => {
     expect(validateVideo({ mime: "video/quicktime", fileName: "IMG_1.MOV", size: 1e6 }).ok).toBe(true);
     expect(validateVideo({ mime: "", fileName: "clip.mp4", size: 1e6 }).ok).toBe(true);
     expect(validateVideo({ mime: "application/pdf", fileName: "a.pdf", size: 10 }).ok).toBe(false);
+    expect(validateCaptureFile({ mime: "image/jpeg", fileName: "roof.jpg", size: 10 }).ok).toBe(true);
     expect(validateVideo({ mime: "video/mp4", fileName: "a.mp4", size: 300 * 1024 * 1024 }).ok).toBe(false);
   });
   test("Base44 homeowner videos count once; trade/photos do not", () => expect(homeownerVideoCount([

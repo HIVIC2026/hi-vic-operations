@@ -9,7 +9,7 @@ export const FOLLOWUP_3D_MS = 3 * 86_400_000;
 export const FOLLOWUP_STALE_MS = 7 * 86_400_000; // never send a reminder more than 7 days late
 export const OPEN_PRIVACY_NOTE = "Email opens can be affected by mailbox privacy features; clicks and estimate activity are stronger signals.";
 
-export type EventType = "email_sent" | "email_delivered" | "email_opened" | "email_clicked" | "estimate_viewed" | "calculator_used" | "booking_started" | "booking_completed" | "followup_queued" | "followup_sent" | "followup_suppressed" | "email_bounced" | "email_failed";
+export type EventType = "email_sent" | "email_delivered" | "email_opened" | "email_clicked" | "estimate_viewed" | "calculator_used" | "booking_started" | "booking_completed" | "followup_queued" | "followup_sent" | "followup_suppressed" | "email_bounced" | "email_failed" | "opted_out";
 export type EngagementEvent = { event_type: EventType | string; occurred_at: string; metadata?: Record<string, unknown> | null };
 export type Tier = "no_email" | "sent_unopened" | "opened" | "clicked" | "estimate_viewed" | "calculator_engaged" | "booked";
 export type ActiveFollowupKind = "estimate_unopened_3d";

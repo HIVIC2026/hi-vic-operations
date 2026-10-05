@@ -17,7 +17,9 @@ async function campaignLink(token: unknown) {
   const base44 = (property?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
   const insulation = normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation);
   const group = launchGroup(job.eligibility_outcome, insulation);
-  return group ? { link, job, group } : null;
+  if (!group) return null;
+  const { data: consent } = await admin.from("owner_contact_consents").select("consent_status").eq("job_id", job.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return consent?.consent_status === "granted" ? { link, job, group } : null;
 }
 
 export async function campaignPage(token: unknown, testMode = false) {
@@ -28,7 +30,7 @@ export async function campaignPage(token: unknown, testMode = false) {
     admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, desk_check_status").eq("job_id", c.job.id).maybeSingle(),
     resolvePublicEstimate(token, testMode),
   ]);
-  return estimate ? { group: c.group, estimate, response: response ?? null } : null;
+  return estimate ? JSON.parse(JSON.stringify({ group: c.group, estimate, response: response ?? null })) as Record<string, unknown> : null;
 }
 
 export async function saveCampaignSpot(token: unknown) {

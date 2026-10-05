@@ -5,6 +5,7 @@ import { useState } from "react";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
 import { CustomerEstimate } from "@/components/portal/estimate";
 import { getLaunchCampaignPage, saveMySpot, takeMeOffList } from "@/lib/launch-campaign.functions";
+import type { CustomerData } from "@/components/portal/estimate";
 
 export const Route = createFileRoute("/estimate_/$token/campaign")({
   ssr: false,
@@ -18,7 +19,8 @@ function CampaignPage() {
   const getPage = useServerFn(getLaunchCampaignPage);
   const save = useServerFn(saveMySpot);
   const optOut = useServerFn(takeMeOffList);
-  const { data, isLoading, isError, refetch } = useQuery({ queryKey: ["launch_campaign", token], queryFn: () => getPage({ data: { token } }), retry: false, refetchOnWindowFocus: false });
+  type CampaignData = { group: "likely" | "onsite"; estimate: { estimate: CustomerData }; response: { spot_saved_at: string | null; opted_out_at: string | null } | null } | null;
+  const { data, isLoading, isError, refetch } = useQuery({ queryKey: ["launch_campaign", token], queryFn: () => getPage({ data: { token } }) as Promise<CampaignData>, retry: false, refetchOnWindowFocus: false });
   const [busy, setBusy] = useState<"save" | "optout" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const act = async (kind: "save" | "optout") => {
@@ -46,7 +48,7 @@ function CampaignPage() {
           {data.group === "onsite" && <section className="rounded-[22px] border border-estimate-blue-soft bg-estimate-mist p-6">
             <h2 className="font-display text-xl font-bold text-estimate-navy">Help us check from the desk</h2>
             <p className="mt-2 text-sm text-estimate-navy/75">Send a short video from the manhole. You can also add photos. This desk check does not replace the onsite Ready Check.</p>
-            <Link to="/estimate_/$token/video" params={{ token }} className="mt-4 inline-flex h-11 items-center rounded-xl border border-estimate-blue px-4 font-bold text-estimate-blue">Upload a video or photos</Link>
+            <Link to="/estimate/$token/video" params={{ token }} className="mt-4 inline-flex h-11 items-center rounded-xl border border-estimate-blue px-4 font-bold text-estimate-blue">Upload a video or photos</Link>
           </section>}
           <section className="rounded-[22px] border border-estimate-blue-soft bg-white p-6 text-center shadow-[0_18px_50px_rgba(34,55,107,0.09)]">
             <h2 className="font-display text-2xl font-bold text-estimate-navy">Would you like to stay in line?</h2>
