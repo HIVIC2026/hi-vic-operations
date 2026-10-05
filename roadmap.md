@@ -243,3 +243,13 @@
 - [ ] Owners never see HIV phone number / "Call us"; use "Got a question? Message us" → in-portal thread
 - [ ] Only owner call button = call booked trade on visit card
 - [ ] Apply: owner pages, quote pages, campaign emails, reminders; don't publish
+
+## New connectors (Jo, 5 Oct) — after trade launch fixes + Xero Demo loop
+- [ ] 1 Resend (HIV domain; comms off, auto_send false)
+- [ ] 2 Twilio SMS (off for real people)
+- [ ] 3 Xero Demo Company only
+- [ ] 4 Sentry error alerts (owner/trade/office)
+- [ ] 5 Stripe TEST mode deposit from quote link → Xero; gate off; no 50% lock
+- [ ] 6 Google Maps (autocomplete, directions, travel-distance matching)
+- [ ] 7 PostHog (mask owner details in replays)
+Each: Jo approves sign-ins/keys; dummy test on qa_test; preview only.
