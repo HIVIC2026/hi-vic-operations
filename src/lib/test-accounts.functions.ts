@@ -7,6 +7,9 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { WorkflowError } from "./workflow.server";
 
+const uuid = z.string().uuid();
+const QA_DOMAIN = "@hivic-test.example";
+
 type RateItem = { code: string; description: string; category: string; unit: string; display_unit?: string; r_value?: number | null; sort: number; unit_price_ex_gst: number };
 
 type Spec = {
@@ -150,4 +153,127 @@ export const createTestTradeAccounts = createServerFn({ method: "POST" })
       results.push({ name: spec.name, role: spec.role, status: "created" });
     }
     return { results };
+  });
+
+async function requireTestAdmin(context: { supabase: Parameters<typeof import("./workflow.server").requireAdmin>[0]; userId: string }) {
+  const { data: isAdmin } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" });
+  if (!isAdmin) throw new WorkflowError("Admin only.");
+}
+
+async function testJob(admin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"], jobId: string) {
+  const { data: job } = await admin.from("jobs").select("id, owner_id, source, qa_archived_at").eq("id", jobId).maybeSingle();
+  if (!job || job.source !== "qa_test" || job.qa_archived_at) throw new WorkflowError("This action is only available for an active TEST journey.");
+  return job;
+}
+
+async function ensureQaUser(admin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"], email: string, name: string) {
+  const safeEmail = email.trim().toLowerCase();
+  if (!safeEmail.endsWith(QA_DOMAIN)) throw new WorkflowError("TEST role accounts must use the safe test email domain.");
+  const { data: existing } = await admin.from("profiles").select("id").eq("email", safeEmail).maybeSingle();
+  if (existing) return existing.id;
+  const { data, error } = await admin.auth.admin.createUser({ email: safeEmail, password: crypto.randomUUID() + "Qa!", email_confirm: true, user_metadata: { full_name: name, qa_test: true } });
+  if (error || !data.user) throw new WorkflowError(`Could not create ${name}: ${error?.message ?? "unknown error"}`);
+  return data.user.id;
+}
+
+/** Prepare real, RLS-scoped TEST personas for one isolated journey. */
+export const prepareQaJourneyAccess = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireTestAdmin(context);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const job = await testJob(admin, data.jobId);
+    const { data: owner } = await admin.from("owners").select("id, full_name, email").eq("id", job.owner_id).maybeSingle();
+    if (!owner) throw new WorkflowError("The TEST owner record is missing.");
+    const ownerEmail = `qa.owner.${data.jobId.slice(0, 8)}${QA_DOMAIN}`;
+    const ownerId = await ensureQaUser(admin, ownerEmail, `TEST ${owner.full_name}`);
+    await admin.from("profiles").upsert({ id: ownerId, full_name: `TEST ${owner.full_name}`, email: ownerEmail });
+    await admin.from("user_roles").upsert({ user_id: ownerId, role: "owner" }, { onConflict: "user_id,role" });
+    await admin.from("owners").update({ user_id: ownerId }).eq("id", owner.id);
+
+    const personas: Array<{ key: "installer_boss" | "electrician"; email: string; role: "installer" | "electrician" }> = [
+      { key: "installer_boss", email: SPECS[0].email, role: "installer" },
+      { key: "electrician", email: SPECS[3].email, role: "electrician" },
+    ];
+    for (const persona of personas) {
+      const { data: profile } = await admin.from("profiles").select("id, business_id").eq("email", persona.email).maybeSingle();
+      if (!profile?.business_id) throw new WorkflowError("Create the TEST trade accounts first.");
+      await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: "Replaced by Test Centre persona" }).eq("job_id", data.jobId).eq("role", persona.role).eq("active", true).neq("user_id", profile.id);
+      await admin.from("job_assignments").upsert({ job_id: data.jobId, user_id: profile.id, role: persona.role, business_id: profile.business_id, active: true, assigned_by: context.userId }, { onConflict: "job_id,role", ignoreDuplicates: false });
+    }
+
+    const { data: installer } = await admin.from("profiles").select("id, business_id").eq("email", SPECS[0].email).maybeSingle();
+    if (!installer?.business_id) throw new WorkflowError("The TEST installer account is missing.");
+    const { data: worker } = await admin.from("partner_workers").upsert({
+      business_id: installer.business_id, trade_role: "installer", full_legal_name: "TEST Alpha Field Worker",
+      email: "qa.worker.alpha@hivic-test.example", mobile: "0400000199", qualification: "TEST EEC Certified installer",
+      approval_status: "approved", approved_by: context.userId, approved_at: new Date().toISOString(), certification_status: "verified",
+      added_by: context.userId,
+    }, { onConflict: "business_id,email" }).select("id").single();
+    if (!worker) throw new WorkflowError("Could not prepare the TEST worker.");
+    const { newToken, hashToken, linkExpiry } = await import("./worker-links.core");
+    await admin.from("worker_job_links").update({ revoked_at: new Date().toISOString(), revoked_by: context.userId }).eq("worker_id", worker.id).eq("job_id", data.jobId).is("revoked_at", null);
+    const workerToken = newToken();
+    await admin.from("worker_job_links").insert({ worker_id: worker.id, business_id: installer.business_id, job_id: data.jobId, token_hash: await hashToken(workerToken), created_by: context.userId, expires_at: linkExpiry(Date.now()) });
+    return { ownerEmail, installerEmail: SPECS[0].email, electricianEmail: SPECS[3].email, workerPath: `/w/${workerToken}` };
+  });
+
+/** Create a short-lived one-time TEST login link. Never accepts an arbitrary user id. */
+export const issueQaPersonaLink = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, persona: z.enum(["owner", "installer_boss", "electrician"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireTestAdmin(context);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const job = await testJob(admin, data.jobId);
+    let email: string | null = null;
+    if (data.persona === "owner") {
+      const { data: owner } = await admin.from("owners").select("user_id, profiles!owners_user_id_fkey(email)").eq("id", job.owner_id).maybeSingle();
+      email = (owner?.profiles as { email?: string | null } | null)?.email ?? null;
+    } else {
+      const role = data.persona === "installer_boss" ? "installer" : "electrician";
+      const { data: assignment } = await admin.from("job_assignments").select("user_id, profiles!job_assignments_user_id_fkey(email)").eq("job_id", data.jobId).eq("role", role).eq("active", true).maybeSingle();
+      email = (assignment?.profiles as { email?: string | null } | null)?.email ?? null;
+    }
+    if (!email?.endsWith(QA_DOMAIN)) throw new WorkflowError("This TEST persona is not safely isolated.");
+    const { data: link, error } = await admin.auth.admin.generateLink({ type: "magiclink", email, options: { redirectTo: "/home" } });
+    const hashedToken = link.properties?.hashed_token;
+    if (error || !hashedToken) throw new WorkflowError(`Could not open the TEST role: ${error?.message ?? "missing one-time token"}`);
+    return { tokenHash: hashedToken, type: "magiclink" as const, next: "/home" };
+  });
+
+export const simulateQaJourneyTime = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, simulation: z.enum(["response_24h", "response_48h", "piesa_expired"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireTestAdmin(context);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    await testJob(admin, data.jobId);
+    if (data.simulation === "piesa_expired") {
+      const completed = new Date(Date.now() - 31 * 86_400_000).toISOString().slice(0, 10);
+      const { data: changed, error } = await admin.from("piesa_records").update({ completed_date: completed }).eq("job_id", data.jobId).eq("is_current", true).select("id");
+      if (error || !changed?.length) throw new WorkflowError("Add a current PIESA result before testing expiry.");
+    } else {
+      const hours = data.simulation === "response_24h" ? 25 : 49;
+      const assignedAt = new Date(Date.now() - hours * 3_600_000).toISOString();
+      const { data: changed, error } = await admin.from("job_assignments").update({ assigned_at: assignedAt, first_response_at: null, booking_confirmed_at: null }).eq("job_id", data.jobId).eq("active", true).select("id");
+      if (error || !changed?.length) throw new WorkflowError("Assign a TEST trade before simulating no response.");
+    }
+    return { ok: true };
+  });
+
+export const archiveQaJourney = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireTestAdmin(context);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    await testJob(admin, data.jobId);
+    const now = new Date().toISOString();
+    await admin.from("worker_job_links").update({ revoked_at: now, revoked_by: context.userId }).eq("job_id", data.jobId).is("revoked_at", null);
+    await admin.from("job_assignments").update({ active: false, ended_at: now, end_reason: "TEST journey archived" }).eq("job_id", data.jobId).eq("active", true);
+    const { error } = await admin.from("jobs").update({ qa_archived_at: now, stage: "cancelled", cancelled_reason: "TEST journey archived", next_action: "Archived TEST journey" }).eq("id", data.jobId).eq("source", "qa_test");
+    if (error) throw new WorkflowError(`Could not archive this TEST journey: ${error.message}`);
+    return { ok: true };
   });
