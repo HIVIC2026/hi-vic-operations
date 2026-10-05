@@ -13,6 +13,8 @@ const uuid = z.string().uuid();
 const QA_DOMAIN = "@hivic-test.example";
 const QA_INSTALLER_EMAIL = "qa.installer.alpha@hivic-test.example";
 const QA_ELECTRICIAN_EMAIL = "qa.rec.delta@hivic-test.example";
+const QA_WORKER_EMAIL = "qa.worker.alpha@hivic-test.example";
+const QA_PASSWORD = "Hivic-Test-Only-2026!";
 
 type RateItem = { code: string; description: string; category: string; unit: string; display_unit?: string; r_value?: number | null; sort: number; unit_price_ex_gst: number };
 
@@ -116,10 +118,16 @@ export const createTestTradeAccounts = createServerFn({ method: "POST" })
       const { data: existingProfile } = await admin.from("profiles").select("id").eq("email", spec.email).maybeSingle();
       if (existingProfile) {
         uid = existingProfile.id; // recover a half-created account from an earlier run
+        const { error: resetError } = await admin.auth.admin.updateUserById(uid, {
+          password: QA_PASSWORD,
+          email_confirm: true,
+          user_metadata: { full_name: spec.name, qa_test: true },
+        });
+        if (resetError) throw new WorkflowError(`Could not reset ${spec.name}: ${resetError.message}`);
       } else {
         const { data: user, error: userError } = await admin.auth.admin.createUser({
           email: spec.email,
-          password: crypto.randomUUID() + "Qa!",
+          password: QA_PASSWORD,
           email_confirm: true,
           user_metadata: { full_name: spec.name, qa_test: true },
         });
@@ -174,8 +182,12 @@ async function ensureQaUser(admin: SupabaseClient<Database>, email: string, name
   const safeEmail = email.trim().toLowerCase();
   if (!safeEmail.endsWith(QA_DOMAIN)) throw new WorkflowError("TEST role accounts must use the safe test email domain.");
   const { data: existing } = await admin.from("profiles").select("id").eq("email", safeEmail).maybeSingle();
-  if (existing) return existing.id;
-  const { data, error } = await admin.auth.admin.createUser({ email: safeEmail, password: crypto.randomUUID() + "Qa!", email_confirm: true, user_metadata: { full_name: name, qa_test: true } });
+  if (existing) {
+    const { error } = await admin.auth.admin.updateUserById(existing.id, { password: QA_PASSWORD, email_confirm: true, user_metadata: { full_name: name, qa_test: true } });
+    if (error) throw new WorkflowError(`Could not reset ${name}: ${error.message}`);
+    return existing.id;
+  }
+  const { data, error } = await admin.auth.admin.createUser({ email: safeEmail, password: QA_PASSWORD, email_confirm: true, user_metadata: { full_name: name, qa_test: true } });
   if (error || !data.user) throw new WorkflowError(`Could not create ${name}: ${error?.message ?? "unknown error"}`);
   return data.user.id;
 }
@@ -210,9 +222,13 @@ export const prepareQaJourneyAccess = createServerFn({ method: "POST" })
 
     const { data: installer } = await admin.from("profiles").select("id, business_id").eq("email", QA_INSTALLER_EMAIL).maybeSingle();
     if (!installer?.business_id) throw new WorkflowError("The TEST installer account is missing.");
+    const workerUserId = await ensureQaUser(admin, QA_WORKER_EMAIL, "TEST Alpha Field Worker");
+    await admin.from("profiles").upsert({ id: workerUserId, full_name: "TEST Alpha Field Worker", email: QA_WORKER_EMAIL, phone: "0400000199", business_id: installer.business_id });
+    await admin.from("user_roles").upsert({ user_id: workerUserId, role: "installer" }, { onConflict: "user_id,role" });
+    await admin.from("business_members").upsert({ business_id: installer.business_id, user_id: workerUserId, member_role: "field_worker", active: true, added_by: context.userId }, { onConflict: "business_id,user_id" });
     const workerDetails = {
       business_id: installer.business_id, trade_role: "installer", full_legal_name: "TEST Alpha Field Worker",
-      email: "qa.worker.alpha@hivic-test.example", mobile: "0400000199", qualification: "TEST EEC Certified installer",
+      email: QA_WORKER_EMAIL, mobile: "0400000199", user_id: workerUserId, qualification: "TEST EEC Certified installer",
       approval_status: "approved", approved_by: context.userId, approved_at: new Date().toISOString(), certification_status: "verified",
       added_by: context.userId,
     } as const;
