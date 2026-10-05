@@ -230,6 +230,18 @@ export async function measurementBlocker(jobId: string): Promise<string | null> 
   return null;
 }
 
+export const INSTALL_BOOKING_BLOCKER = "No completed install booking is recorded as unlocking this installation — installation must be booked and completed in the portal.";
+
+/** Gap 4: the install booking that unlocked installation must exist and be the completed one. */
+export async function installBookingBlocker(jobId: string): Promise<string | null> {
+  const { data: ev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "install_unlocked_by_booking").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const id = (ev?.details as { booking_id?: string } | null)?.booking_id;
+  if (!id) return INSTALL_BOOKING_BLOCKER;
+  const { data: b } = await admin.from("bookings").select("status, kind").eq("id", id).maybeSingle();
+  if (!b || b.kind !== "installation" || b.status !== "completed") return INSTALL_BOOKING_BLOCKER;
+  return null;
+}
+
 export async function stageEntryBlockers(jobId: string, to: Stage): Promise<string[]> {
   const retired = retiredStageBlocker(to);
   if (retired) return [retired]; // server-side: stale clients / direct calls cannot re-enter the legacy path
@@ -260,6 +272,10 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
     const { priorActivityBlocker } = await import("./verified-eligibility.core");
     const pb = priorActivityBlocker(await priorActivityCheck(jobId));
     if (pb) blockers.push(pb);
+  }
+  if (to === "ap_review" || to === "ready_for_veec") {
+    const ib = await installBookingBlocker(jobId);
+    if (ib) blockers.push(ib);
   }
   if (to === "ready_for_veec") {
     const st = await assignmentStatus(jobId);
