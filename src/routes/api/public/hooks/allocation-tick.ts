@@ -104,6 +104,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           console.error("allocation tick: daily brief failed", (e as Error).message);
           out['ok'] = false;
         }
+        try {
+          // Data only: same sync as the manual button. Never completes gates, moves stages or sends quotes.
+          const { syncPendingMitti } = await import("@/lib/mitti.server");
+          const r = await syncPendingMitti(null);
+          (out as Record<string, unknown>)['mitti'] = { checked: r.length, failed: r.filter((x) => !x.ok).length };
+        } catch (e) {
+          console.error("allocation tick: mitti sync failed", (e as Error).message);
+          (out as Record<string, unknown>)['mitti'] = "failed"; // Mitti outages must not fail the whole tick
+        }
         return Response.json(out, { status: out['ok'] ? 200 : 500 });
       },
     },
