@@ -67,7 +67,7 @@ export function TradeTabs({ installer }: { installer: boolean }) {
   return (
     <nav aria-label="Trade menu" className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-card pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgba(34,55,107,0.08)] md:hidden">
       {tab("/field", "Work", Briefcase, path === "/field" || path.startsWith("/field/"))}
-      {installer && tab("/partner/import", "Add job", PlusCircle, path.startsWith("/partner/import") || path.startsWith("/partner/bulk"))}
+      {installer && tab("/partner/add", "Add job", PlusCircle, path.startsWith("/partner/add") || path.startsWith("/partner/import") || path.startsWith("/partner/bulk"))}
       {tab("/partner/payments", "Payments", Wallet, path.startsWith("/partner/payments"))}
       {tab("/partner/profile", "Business", Building2, path.startsWith("/partner/profile") || path.startsWith("/partner/workers"))}
     </nav>
