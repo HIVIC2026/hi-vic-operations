@@ -31,6 +31,7 @@ const FIELDS = [
   ["r5", "Owner installation price per m² (inc GST)"], ["removal", "Owner removal price per m² (inc GST)"],
   ["moderate", "Moderate access loading (× installation price)"], ["difficult", "Difficult access loading (× installation price)"],
   ["piesa", "Owner PIESA price (inc GST)"], ["apFee", "Accredited Provider fee (inc GST)"], ["veecBuy", "VEEC buy price"],
+  ["maxDiscountMetro", "Maximum discount per job — Melbourne metro (inc GST)"], ["maxDiscountRegional", "Maximum discount per job — regional Victoria (inc GST)"],
 ] as const;
 type Key = (typeof FIELDS)[number][0];
 
@@ -39,11 +40,11 @@ function Prices() {
   const q = useQuery({ queryKey: ["owner-prices"], queryFn: () => load() });
   const save = useAction(setOwnerPrices);
   const saveVeec = useAction(setCurrentVeecPrice);
-  const [f, setF] = useState<Record<Key, string>>({ r5: "", removal: "", moderate: "", difficult: "", piesa: "", apFee: "", veecBuy: "" });
+  const [f, setF] = useState<Record<Key, string>>({ r5: "", removal: "", moderate: "", difficult: "", piesa: "", apFee: "", veecBuy: "", maxDiscountMetro: "", maxDiscountRegional: "" });
   const [reason, setReason] = useState("");
   const [sale, setSale] = useState("");
   const c = q.data?.current;
-  useEffect(() => { if (c) { setF({ r5: String(c.r5), removal: String(c.removal), moderate: String(c.moderate), difficult: String(c.difficult), piesa: String(c.piesa), apFee: String(c.apFee), veecBuy: String(c.veecBuy) }); setSale(String(c.veecSale)); } }, [c]);
+  useEffect(() => { if (c) { setF({ r5: String(c.r5), removal: String(c.removal), moderate: String(c.moderate), difficult: String(c.difficult), piesa: String(c.piesa), apFee: String(c.apFee), veecBuy: String(c.veecBuy), maxDiscountMetro: String(c.maxDiscountMetro), maxDiscountRegional: String(c.maxDiscountRegional) }); setSale(String(c.veecSale)); } }, [c]);
   if (q.error) return <p className="text-sm text-destructive">{(q.error as Error).message}</p>;
   if (!c) return <p className="text-sm text-muted-foreground">Loading…</p>;
   const nums = Object.fromEntries(FIELDS.map(([k]) => [k, Number(f[k])])) as Record<Key, number>;
