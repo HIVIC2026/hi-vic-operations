@@ -71,13 +71,13 @@ export async function gateAComplete(jobId: string) {
 }
 
 async function jobVars(jobId: string) {
-  const { data: j } = await admin.from("jobs").select("job_number, properties(street_address, suburb, postcode), owners(id, full_name, email, phone)").eq("id", jobId).single();
-  const p = j?.properties as { street_address: string | null; suburb: string | null; postcode: string | null } | null;
+  const { data: j } = await admin.from("jobs").select("job_number, properties(address_line, suburb, postcode), owners(id, full_name, email, phone)").eq("id", jobId).single();
+  const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const o = j?.owners as { id: string; full_name: string | null; email: string | null; phone: string | null } | null;
   const { data: inst } = await admin.from("job_assignments").select("businesses(name)").eq("job_id", jobId).eq("role", "installer").eq("active", true).limit(1).maybeSingle();
   return { jobNumber: j?.job_number ?? "", ownerId: o?.id ?? null, vars: {
     owner: o?.full_name, email: o?.email, phone: o?.phone,
-    address: [p?.street_address, p?.suburb, p?.postcode].filter(Boolean).join(", "),
+    address: [p?.address_line, p?.suburb, p?.postcode].filter(Boolean).join(", "),
     installer: (inst?.businesses as { name: string } | null)?.name ?? "your installer",
   } as Record<string, string | null | undefined> };
 }

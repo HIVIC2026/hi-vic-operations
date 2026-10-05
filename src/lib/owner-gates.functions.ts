@@ -11,10 +11,12 @@ const signBody = { key: z.enum(DOC_KEYS), signatoryName: z.string().trim().min(2
 export const ownerPaperworkFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token: z.string().max(200) }).parse(d))
   .handler(async ({ data }) => {
-    const { resolveOwnerJob } = await import("./owner-myjob.server");
-    const v = await resolveOwnerJob(data.token);
-    if (!v) return null;
-    return JSON.parse(JSON.stringify(await (await import("./owner-gates.server")).ownerPaperworkToSign(v.jobId)));
+    const { isWellFormedToken, LINK_PURPOSE, linkUsable } = await import("./estimatelink.core");
+    if (!isWellFormedToken(data.token)) return null;
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: l } = await admin.from("customer_estimate_links").select("job_id, status, expires_at").eq("token", data.token).eq("purpose", LINK_PURPOSE).maybeSingle();
+    if (!l || !linkUsable(l)) return null;
+    return JSON.parse(JSON.stringify(await (await import("./owner-gates.server")).ownerPaperworkToSign(l.job_id)));
   });
 
 export const ownerSignPaperworkFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
