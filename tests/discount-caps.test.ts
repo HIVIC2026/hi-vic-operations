@@ -83,7 +83,7 @@ describe("calculator estimate caps (metro 3058 Mild, regional 3300 Cold)", () =>
 });
 
 describe("installer-supplied draft quote caps", () => {
-  const price = { totalIncGst: 3000, included: ["Supply and install insulation"], otherDescription: null, issues: [] } as never;
+  const price = { price: { totalIncGst: 3000, included: ["Supply and install insulation"], otherDescription: null }, issues: [] } as never;
   test("discount capped at metro maximum and noted", () => {
     const d = buildInstallerQuoteDraft({
       price, measuredM2: 600, ghgReduction: 60, veecValue: 70, piesaIncGst: 349, apFeeIncGst: 349,
@@ -101,7 +101,7 @@ describe("installer-supplied draft quote caps", () => {
     // pre = 3698, raw = 350 → under cap, no reduction
     expect(d.discount).toBe(350);
     const cheap = buildInstallerQuoteDraft({
-      price: { totalIncGst: 400, included: ["Supply and install insulation"], otherDescription: null, issues: [] } as never,
+      price: { price: { totalIncGst: 400, included: ["Supply and install insulation"], otherDescription: null }, issues: [] } as never,
       measuredM2: 100, ghgReduction: 10, veecValue: 70, piesaIncGst: 349, apFeeIncGst: 349,
       caps: { metropolitan: true, maxMetro: 1500, maxRegional: 2100, minCopay: 200 },
     });
