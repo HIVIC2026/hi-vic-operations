@@ -2,10 +2,10 @@
 // waiting on and a due time. Pure and presentation-only — it labels existing facts and NEVER moves a job.
 // Limits are defaults Jo can change in workflow_settings.office_time_limits.
 
-export type OfficeStage = "enquiry" | "ready_check" | "quote" | "safety" | "install" | "signoff" | "ended";
-export type WaitingOn = "Us" | "Owner" | "Installer" | "Electrician" | "Owner + Installer" | "Owner + Electrician" | "System" | "Nobody";
+export type OfficeStage = "waiting_list" | "enquiry" | "ready_check" | "quote" | "safety" | "install" | "signoff" | "ended";
+export type WaitingOn = "Us" | "Owner" | "Installer" | "Electrician" | "Owner + Installer" | "Owner + Electrician" | "System" | "Nobody" | "Office / campaign";
 
-export const OFFICE_STAGES: { key: Exclude<OfficeStage, "ended">; n: number; label: string }[] = [
+export const OFFICE_STAGES: { key: Exclude<OfficeStage, "ended" | "waiting_list">; n: number; label: string }[] = [
   { key: "enquiry", n: 1, label: "Enquiry" },
   { key: "ready_check", n: 2, label: "Ready Check" },
   { key: "quote", n: 3, label: "Quote & pay" },
@@ -19,6 +19,9 @@ type Limit = { d: number } | { h: number } | { bh: number } | null;
 type Def = { stage: OfficeStage; label: string; waiting: WaitingOn; limit: Limit; limitKey?: string; action?: string };
 
 export const OFFICE_STATUSES = {
+  // Waiting list: leads never contacted. No time limit, never late, never in Needs me — Pipeline shows a count only.
+  "waiting_list.ready_to_send": { stage: "waiting_list", label: "Not contacted yet: estimate ready to send", waiting: "Office / campaign", limit: null },
+  "waiting_list.needs_estimate": { stage: "waiting_list", label: "Not contacted yet: needs estimate", waiting: "Office / campaign", limit: null },
   "enquiry.checking": { stage: "enquiry", label: "Checking eligibility", waiting: "System", limit: { d: 1 }, limitKey: "checking_days" },
   "enquiry.estimate_sent": { stage: "enquiry", label: "Estimate sent, waiting for owner", waiting: "Owner", limit: { d: 3 }, limitKey: "estimate_reminder_days", action: "Remind owner" },
   "enquiry.video_asked": { stage: "enquiry", label: "Video asked for", waiting: "Owner", limit: { d: 3 }, limitKey: "video_reminder_days", action: "Remind owner" },
@@ -94,7 +97,10 @@ export type JobFacts = {
   id: string; stage: string; createdAt: string; lastActivityAt: string | null; enteredStageAt: string | null;
   holdRevisitAt?: string | null; cancelledReason?: string | null;
   campaign?: { spotSavedAt: string | null; optedOutAt: string | null; videoRequested: boolean; mediaReceivedAt: string | null; deskCheckStatus: string | null; createdAt: string } | null;
+  /** Estimate link created (NOT proof of sending). */
   estimateSentAt?: string | null;
+  /** Earliest real send record to the owner (customer_email_sends / outbound job_communications with sent_at). Only this may make a status say "sent" or "waiting for owner". */
+  ownerContactedAt?: string | null;
   rcWindowsOpen?: number; rcAccepted?: boolean; rcOfferAt?: string | null; rcBookingAt?: string | null; rcSubmittedAt?: string | null;
   proposalPending?: { kind: string; since: string } | null;
   quote?: { releaseState: string | null; holdReason: string | null; sentAt: string | null; status: string; acceptedAt: string | null } | null;
@@ -142,7 +148,8 @@ export function officeStatus(f: JobFacts, now: number, lim: Record<string, numbe
     case "on_hold": return pick("ended.on_hold", f.lastActivityAt, { due: f.holdRevisitAt ?? null, detail: f.holdRevisitAt ? `Revisit ${f.holdRevisitAt}` : null });
     case "new_enquiry": case "eligibility_review": return pick("enquiry.checking", f.enteredStageAt ?? f.createdAt);
     case "preliminary_estimate_ready": case "ready_check_awaiting_acceptance": case "ready_check_awaiting_payment":
-      return pick("enquiry.estimate_sent", f.estimateSentAt ?? f.enteredStageAt);
+      if (!f.ownerContactedAt) return pick(f.estimateSentAt ? "waiting_list.ready_to_send" : "waiting_list.needs_estimate", f.enteredStageAt);
+      return pick("enquiry.estimate_sent", f.ownerContactedAt);
     case "ready_check_ready_to_schedule": {
       if (f.proposalPending && f.proposalPending.kind === "ready_check") return pick("ready_check.arranging", f.proposalPending.since);
       if (f.rcOfferAt) return pick("ready_check.offered", f.rcOfferAt);
@@ -150,8 +157,9 @@ export function officeStatus(f: JobFacts, now: number, lim: Record<string, numbe
       if (c?.mediaReceivedAt && !c.deskCheckStatus) return pick("enquiry.video_in", c.mediaReceivedAt);
       if (c?.videoRequested && !c.mediaReceivedAt && !c.spotSavedAt) return pick("enquiry.video_asked", c.createdAt);
       if (c?.spotSavedAt) return pick("enquiry.spot_saved", c.spotSavedAt);
-      if (c) return pick("enquiry.estimate_sent", c.createdAt);
-      if (f.estimateSentAt && !f.rcAccepted) return pick("enquiry.estimate_sent", f.estimateSentAt);
+      // Rule: "sent" / "waiting for owner" only with a real send record. Otherwise the lead is on the waiting list.
+      if (!f.ownerContactedAt) return pick(f.estimateSentAt ? "waiting_list.ready_to_send" : "waiting_list.needs_estimate", f.enteredStageAt);
+      if (!f.rcAccepted) return pick("enquiry.estimate_sent", f.ownerContactedAt);
       return pick("ready_check.pick_times", f.enteredStageAt);
     }
     case "ready_check_scheduled": return pick("ready_check.booked", f.enteredStageAt, { due: f.rcBookingAt ? new Date(new Date(f.rcBookingAt).getTime() + DAY).toISOString() : null, detail: f.rcBookingAt ? `Booked ${f.rcBookingAt.slice(0, 10)}` : null });
