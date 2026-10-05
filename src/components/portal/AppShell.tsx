@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getTodos } from "@/lib/todo.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { useMe } from "@/hooks/use-me";
+import { useAccess, useMe } from "@/hooks/use-me";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import { OfficeTopBar } from "@/components/portal/office";
@@ -14,6 +14,7 @@ import { OfficeTopBar } from "@/components/portal/office";
 export function AppShell({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { data: me } = useMe();
+  const { data: access } = useAccess();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const roles = me?.roles ?? [];
@@ -70,9 +71,9 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
       )}
       {(roles.includes("electrician") || roles.includes("installer")) && !roles.includes("admin") && <>
         <Link to="/field" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>My work</Link>
-        {roles.includes("installer") && <Link to="/partner/add" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>Add job</Link>}
-        <Link to="/partner/payments" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>Payments</Link>
-        <Link to="/partner/profile" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>Business</Link>
+        {access?.installerBusinessAdmin && <Link to="/partner/add" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>Add job</Link>}
+        {access?.businessAdmin && <Link to="/partner/payments" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>Payments</Link>}
+        {access?.businessAdmin && <Link to="/partner/profile" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>Business</Link>}
       </>}
       {roles.includes("owner") && <Link to="/owner" className={link} activeProps={active}>My home</Link>}
     </>

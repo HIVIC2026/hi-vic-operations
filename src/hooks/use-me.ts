@@ -37,3 +37,16 @@ export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>)
     }
   };
 }
+
+/** What this signed-in person can open (menus hide what the page guards would bounce). */
+export function useAccess() {
+  return useQuery({
+    queryKey: ["me-access"],
+    queryFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return null;
+      const { loadAccess } = await import("@/lib/route-guards");
+      return loadAccess(u.user.id);
+    },
+  });
+}

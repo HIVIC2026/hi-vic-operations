@@ -251,7 +251,7 @@ export const getPartnerProfile = createServerFn({ method: "POST" }).middleware([
     const { data: methods } = await admin.from("partner_measurement_methods").select("*").eq("business_id", id).order("created_at", { ascending: false });
     const checklist = onboardingChecklist(business as BusinessLike, credentials, !!agreements?.length);
     const { xero_contact_id: _x, xero_contact_error: _e, ...safe } = business;
-    return { business: adminUser ? business : safe, credentials: creds ?? [], members: members ?? [], workers: workers ?? [], relationships: rels ?? [], agreements: agreements ?? [], rateCards: cards ?? [], electricianBusinesses: electricians ?? [], measurementMethods: methods ?? [], checklist, myRole: adminUser ? "hivic_admin" : mine.get(id) };
+    return { business: adminUser ? business : safe, credentials: creds ?? [], members: members ?? [], workers: workers ?? [], relationships: rels ?? [], agreements: agreements ?? [], rateCards: cards ?? [], electricianBusinesses: adminUser ? (electricians ?? []) : [] /* trades never see HIV's electrician network */, measurementMethods: methods ?? [], checklist, myRole: adminUser ? "hivic_admin" : mine.get(id) };
   });
 
 // ---------- Import ----------

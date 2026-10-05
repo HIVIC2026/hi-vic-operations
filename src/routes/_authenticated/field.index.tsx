@@ -25,7 +25,7 @@ function MyWork() {
   const installer = !!me?.roles.includes("installer");
   if (error) return <AppShell><div role="alert" className="rounded-[22px] border bg-card p-6 text-sm"><p>Your work couldn't load. Check your signal and try again.</p><button className="mt-3 font-semibold text-primary underline" onClick={() => refetch()}>Try again</button></div><TradeTabs installer={installer} /></AppShell>;
   if (data === undefined) return <AppShell><p className="text-muted-foreground">Loading your work…</p><TradeTabs installer={installer} /></AppShell>;
-  if (data === null) return <AppShell><p className="rounded-[22px] border bg-card p-6 text-sm text-muted-foreground">Your sign-in isn't linked to an approved business yet. Home Insulation Victoria will sort this out — call the office if it's urgent.</p></AppShell>;
+  if (data === null) return <AppShell><p className="rounded-[22px] border bg-card p-6 text-sm text-muted-foreground">Your sign-in isn't linked to an approved business yet. Home Insulation Victoria will sort this out. Use "Message us" if it's urgent.</p></AppShell>;
   const tasks = data.jobs.map((j) => ({ j, t: tradeTask({ stage: j.stage, bookings: j.bookings, blockers: j.blockers, proposalPending: j.proposal_pending, trade: installer ? "installer" : "electrician" }) }));
   const needs = tasks.filter((x) => x.t.bucket === "needs_you");
   const coming = tasks.filter((x) => x.t.bucket === "coming_up");
