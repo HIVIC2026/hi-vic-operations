@@ -24,11 +24,9 @@ export const verifyOwnerCodeFn = createServerFn({ method: "POST" }).middleware([
 export const ownerAgreementFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token, quoteId: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
-    const { jobIdForToken } = await import("./readycheck-payment.server");
     const { resolveOwnerJob } = await import("./owner-myjob.server");
     const v = await resolveOwnerJob(data.token);
     if (!v?.quote || v.quote.id !== data.quoteId) throw new Error("Quote not found");
-    void jobIdForToken;
     const { buildAcceptancePackage, loadTemplates } = await import("./assignment.server");
     const { templateBlockers } = await import("./assignment.core");
     const templates = await loadTemplates();
@@ -57,11 +55,7 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" }).middleware(
 export const ownerBookingStateFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token }).parse(d))
   .handler(async ({ data }) => {
-    const { jobIdForToken } = await import("./readycheck-payment.server");
-    const { resolveOwnerJob } = await import("./owner-myjob.server");
-    const v = await resolveOwnerJob(data.token);
-    const jobId = v ? await ownerJobId(data.token) : null;
-    void jobIdForToken;
+    const jobId = await ownerJobId(data.token);
     if (!jobId) return null;
     const [{ ownerPiesaWindowState }, { ownerInstallDayState }] = await Promise.all([import("./allocation.server"), import("./install-days.server")]);
     const [piesa, install] = await Promise.all([ownerPiesaWindowState(jobId), ownerInstallDayState(jobId)]);
