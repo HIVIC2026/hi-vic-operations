@@ -167,6 +167,7 @@ export async function signGateDoc(i: SignInput) {
 export async function approvePaperwork(key: GateDocKey, version: string, actorId: string) {
   const d = gateDoc(key);
   if (d.version !== version) throw new WorkflowError("That version is no longer current.");
+  if (d.body.startsWith("DRAFT")) throw new WorkflowError("This is still placeholder DRAFT text. Load Jo's final wording as a new version first, then approve it.");
   const { error } = await admin.from("owner_paperwork_approvals").insert({ doc_key: key, doc_version: version, body_sha256: await sha256(d.body), approved_by: actorId });
   if (error) throw new WorkflowError(error.message.includes("duplicate") ? "Already approved." : error.message);
 }

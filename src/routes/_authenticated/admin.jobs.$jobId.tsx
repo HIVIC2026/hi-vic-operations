@@ -1,3 +1,4 @@
+import { PaperworkStrip } from "@/components/portal/paperwork";
 import { OfficePrestartCard } from "@/components/portal/prestart";
 import { OfficeInstallHoldCard } from "@/components/portal/install-hold";
 import { OfficeAllocationPanel } from "@/components/portal/allocation";
@@ -80,6 +81,7 @@ function JobDetail() {
       <div className="mx-auto max-w-5xl">
       <Link to="/admin/needs-me" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Needs me</Link>
       <JobIdentity jobId={jobId} job={job} onOpen={openTarget} />
+      <PaperworkStrip jobId={jobId} />
       <JobRightNow jobId={jobId} people={{ owner: job.owner_name ?? null, ownerPhone: job.owner_phone ?? null, ownerEmail: job.owner_email ?? null, installer: job.installer_name ?? null, electrician: job.electrician_name ?? null }} />
       <ChooseTradePanel jobId={jobId} />
       <section className="mb-4 rounded-[22px] border bg-card p-5 shadow-sm" aria-label="Done when">

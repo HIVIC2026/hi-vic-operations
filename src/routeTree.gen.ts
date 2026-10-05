@@ -40,6 +40,7 @@ import { Route as AuthenticatedAdminLaunchCampaignRouteImport } from './routes/_
 import { Route as AuthenticatedAdminListRouteImport } from './routes/_authenticated/admin.list'
 import { Route as AuthenticatedAdminMoneyRouteImport } from './routes/_authenticated/admin.money'
 import { Route as AuthenticatedAdminNeedsMeRouteImport } from './routes/_authenticated/admin.needs-me'
+import { Route as AuthenticatedAdminOwnerPaperworkRouteImport } from './routes/_authenticated/admin.owner-paperwork'
 import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authenticated/admin.partners'
 import { Route as AuthenticatedAdminPartnersOverviewRouteImport } from './routes/_authenticated/admin.partners-overview'
 import { Route as AuthenticatedAdminPipelineRouteImport } from './routes/_authenticated/admin.pipeline'
@@ -242,6 +243,12 @@ const AuthenticatedAdminNeedsMeRoute =
   AuthenticatedAdminNeedsMeRouteImport.update({
     id: '/admin/needs-me',
     path: '/admin/needs-me',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminOwnerPaperworkRoute =
+  AuthenticatedAdminOwnerPaperworkRouteImport.update({
+    id: '/admin/owner-paperwork',
+    path: '/admin/owner-paperwork',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminPartnersRoute =
@@ -479,6 +486,7 @@ export interface FileRoutesByFullPath {
   '/admin/list': typeof AuthenticatedAdminListRoute
   '/admin/money': typeof AuthenticatedAdminMoneyRoute
   '/admin/needs-me': typeof AuthenticatedAdminNeedsMeRoute
+  '/admin/owner-paperwork': typeof AuthenticatedAdminOwnerPaperworkRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
   '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
@@ -548,6 +556,7 @@ export interface FileRoutesByTo {
   '/admin/list': typeof AuthenticatedAdminListRoute
   '/admin/money': typeof AuthenticatedAdminMoneyRoute
   '/admin/needs-me': typeof AuthenticatedAdminNeedsMeRoute
+  '/admin/owner-paperwork': typeof AuthenticatedAdminOwnerPaperworkRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
   '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
@@ -619,6 +628,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/list': typeof AuthenticatedAdminListRoute
   '/_authenticated/admin/money': typeof AuthenticatedAdminMoneyRoute
   '/_authenticated/admin/needs-me': typeof AuthenticatedAdminNeedsMeRoute
+  '/_authenticated/admin/owner-paperwork': typeof AuthenticatedAdminOwnerPaperworkRoute
   '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/_authenticated/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
   '/_authenticated/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
@@ -690,6 +700,7 @@ export interface FileRouteTypes {
     | '/admin/list'
     | '/admin/money'
     | '/admin/needs-me'
+    | '/admin/owner-paperwork'
     | '/admin/partners'
     | '/admin/partners-overview'
     | '/admin/pipeline'
@@ -759,6 +770,7 @@ export interface FileRouteTypes {
     | '/admin/list'
     | '/admin/money'
     | '/admin/needs-me'
+    | '/admin/owner-paperwork'
     | '/admin/partners'
     | '/admin/partners-overview'
     | '/admin/pipeline'
@@ -829,6 +841,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/list'
     | '/_authenticated/admin/money'
     | '/_authenticated/admin/needs-me'
+    | '/_authenticated/admin/owner-paperwork'
     | '/_authenticated/admin/partners'
     | '/_authenticated/admin/partners-overview'
     | '/_authenticated/admin/pipeline'
@@ -1120,6 +1133,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminNeedsMeRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/owner-paperwork': {
+      id: '/_authenticated/admin/owner-paperwork'
+      path: '/admin/owner-paperwork'
+      fullPath: '/admin/owner-paperwork'
+      preLoaderRoute: typeof AuthenticatedAdminOwnerPaperworkRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/partners': {
       id: '/_authenticated/admin/partners'
       path: '/admin/partners'
@@ -1398,6 +1418,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminListRoute: typeof AuthenticatedAdminListRoute
   AuthenticatedAdminMoneyRoute: typeof AuthenticatedAdminMoneyRoute
   AuthenticatedAdminNeedsMeRoute: typeof AuthenticatedAdminNeedsMeRoute
+  AuthenticatedAdminOwnerPaperworkRoute: typeof AuthenticatedAdminOwnerPaperworkRoute
   AuthenticatedAdminPartnersRoute: typeof AuthenticatedAdminPartnersRoute
   AuthenticatedAdminPartnersOverviewRoute: typeof AuthenticatedAdminPartnersOverviewRoute
   AuthenticatedAdminPipelineRoute: typeof AuthenticatedAdminPipelineRoute
@@ -1441,6 +1462,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminListRoute: AuthenticatedAdminListRoute,
   AuthenticatedAdminMoneyRoute: AuthenticatedAdminMoneyRoute,
   AuthenticatedAdminNeedsMeRoute: AuthenticatedAdminNeedsMeRoute,
+  AuthenticatedAdminOwnerPaperworkRoute: AuthenticatedAdminOwnerPaperworkRoute,
   AuthenticatedAdminPartnersRoute: AuthenticatedAdminPartnersRoute,
   AuthenticatedAdminPartnersOverviewRoute:
     AuthenticatedAdminPartnersOverviewRoute,
