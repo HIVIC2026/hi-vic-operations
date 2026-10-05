@@ -218,15 +218,14 @@ export function stepFieldErrors(step: StepKey, d: InstData, now = new Date()): F
     case "install_pricing":
       if (typeof d.gst_registered !== "boolean") add("gst_registered", "Tell us if you're GST registered.");
       if (!validRequiredRate(d.r5_rate)) add("rate-r5", "Enter your R5.0 supply & install rate per m².");
-      if (!validOptionalRate(d.r6_rate) || d.r6_rate === 0) add("rate-r6", "R6.0 supply & install: enter a valid rate per m², or leave it blank if you don't install R6.0.");
-      if (!validOptionalRate(d.r7_rate) || d.r7_rate === 0) add("rate-r7", "R7.0 supply & install: enter a valid rate per m², or leave it blank if you don't install R7.0.");
-      if (!validOptionalRate(d.topup_r5_rate) || d.topup_r5_rate === 0) add("rate-topup", "Top up to R5.0: enter a valid rate per m², or leave it blank if you don't offer top-ups.");
-      if (!validOptionalRate(d.vacuum_only_rate) || d.vacuum_only_rate === 0) add("rate-vacuum", "Dust / vermin vacuum only: enter a valid rate per m², or leave it blank if you don't offer this.");
+      if (!validOptionalRate(d.r6_rate) || d.r6_rate === 0) add("rate-r6", "R6.0 supply & install: enter a valid rate per m².");
+      if (!validOptionalRate(d.r7_rate) || d.r7_rate === 0) add("rate-r7", "R7.0 supply & install: enter a valid rate per m².");
+      if (!validOptionalRate(d.topup_r5_rate) || d.topup_r5_rate === 0) add("rate-topup", "Top up to R5.0: enter a valid rate per m².");
       if (!validRequiredRate(d.batts_removal_rate)) add("rate-batts", "Enter your batts removal rate per m² — removal is required for all installer partners.");
       if (!validRequiredRate(d.loose_fill_removal_rate)) add("rate-loose", "Enter your loose fill removal rate per m² — removal is required for all installer partners.");
       break;
     case "extras_pricing":
-      for (const it of EXTRA_ITEMS) if (!validOptionalRate(d.extra_rates?.[it.key] ?? null)) add(`rate-${it.key}`, `${it.label}: enter a valid amount, $0, or leave it blank.`);
+      for (const it of EXTRA_ITEMS) if (!validOptionalRate(d.extra_rates?.[it.key] ?? null)) add(`rate-${it.key}`, `${it.label}: enter a valid amount or $0.`);
       break;
     case "bank":
       if (!txt(d.bank_account_name)) add("bank_account_name", "Enter the bank account name.");
@@ -328,7 +327,7 @@ export function scheduleText(d: InstData): string {
   if (d.r6_rate != null) L.push(`R6.0 ceiling insulation supply & install: ${money(d.r6_rate)} / m²`);
   if (d.r7_rate != null) L.push(`R7.0 ceiling insulation supply & install: ${money(d.r7_rate)} / m²`);
   if (d.topup_r5_rate != null) L.push(`Top up to R5.0 over existing insulation (existing stays in place): ${money(d.topup_r5_rate)} / m²`);
-  if (d.vacuum_only_rate != null) L.push(`Dust / vermin vacuum only (no insulation removed): ${money(d.vacuum_only_rate)} / m²`);
+  // Vacuum-only rate is no longer asked (1.16); saved answers stay as history on older agreements.
   L.push(`Batts removal: ${money(d.batts_removal_rate)} / m²`);
   L.push(`Loose fill removal: ${money(d.loose_fill_removal_rate)} / m²`);
   for (const it of EXTRA_ITEMS) { const v = d.extra_rates?.[it.key]; L.push(`${it.label}: ${typeof v === "number" && v > 0 ? `${money(v)} / ${it.unit}` : v === 0 ? "no extra charge ($0)" : "no set rate — quoted separately on the job before owner approval"}`); }

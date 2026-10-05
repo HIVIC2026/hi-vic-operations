@@ -97,7 +97,7 @@ function RateRow({ label, hint, unit, value, onChange, required = false, last = 
     <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4" style={{ padding: "12px 0", borderBottom: last ? "none" : "1px solid #EDF0F7" }}>
       <div style={{ minWidth: 0 }}>
         <label htmlFor={id} style={{ fontWeight: 700, fontSize: 14, color: NAVY }}>{label}</label>
-        <span style={tag}>{required ? "Required" : "Optional"}</span>
+        {required && <span style={tag}>Required</span>}
         {hint && <div style={{ fontSize: 12.5, color: MUTED, marginTop: 3, lineHeight: 1.4 }}>{hint}</div>}
       </div>
       <div className="sm:w-[210px]">
@@ -486,8 +486,7 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
           <RateRow id="rate-loose" required last label="Loose fill removal" unit="m²" value={d.loose_fill_removal_rate} error={errFor("rate-loose")} onChange={(v) => up({ loose_fill_removal_rate: v })} />
         </RateGroup>
         <RateGroup title="Other">
-          <RateRow id="rate-vacuum" label="Vacuum only" hint="Dust or vermin, no insulation removed" unit="m²" value={d.vacuum_only_rate} error={errFor("rate-vacuum")} onChange={(v) => up({ vacuum_only_rate: v })} />
-          {EXTRA_ITEMS.map((it, i) => <RateRow key={it.key} id={`rate-${it.key}`} label={it.label} hint="Per job, not per m². Enter $0 if it's included at no extra charge. Leave blank to quote it separately on the job before owner approval." unit={it.unit} value={r[it.key]} last={i === EXTRA_ITEMS.length - 1} error={errFor(`rate-${it.key}`)} onChange={(v) => up({ extra_rates: { ...r, [it.key]: v } })} />)}
+          {EXTRA_ITEMS.map((it, i) => <RateRow key={it.key} id={`rate-${it.key}`} label={it.label} hint="Per job, not per m². Enter $0 if it's included at no extra charge." unit={it.unit} value={r[it.key]} last={i === EXTRA_ITEMS.length - 1} error={errFor(`rate-${it.key}`)} onChange={(v) => up({ extra_rates: { ...r, [it.key]: v } })} />)}
         </RateGroup>
       </>;
     }
@@ -609,7 +608,7 @@ function InstallersStep({ d, up, errFor }: { d: InstData; up: (p: Partial<InstDa
             <Field label="Expiry date" required hint="For example 05/10/2028, or pick from the calendar" htmlFor={`installer-${i}-cii-expiry`} error={errFor(`installer-${i}-cii-expiry`)}><DateBox id={`installer-${i}-cii-expiry`} value={x.cii_expiry} onChange={(v) => set(i, { cii_expiry: v })} /></Field>
           </>}
           {(x.cii_holds === "in_training" || x.cii_holds === "not_held") && <p style={warn}>You can still register. This person can't be assigned to jobs until they hold a CII certification and our office has verified it.</p>}
-          <Field label="Other relevant training (optional)"><input style={input} value={x.qualification ?? ""} onChange={(e) => set(i, { qualification: e.target.value })} /></Field>
+          <Field label="Other relevant training"><input style={input} value={x.qualification ?? ""} onChange={(e) => set(i, { qualification: e.target.value })} /></Field>
           <button type="button" style={removeBtn} onClick={() => up({ installers: list.filter((_, j) => j !== i), ...(self ? { self_is_installer: false } : {}) })}>{self ? "I'm not an installer" : `Remove installer ${i + 1}`}</button>
         </section>
       );
