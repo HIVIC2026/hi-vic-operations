@@ -49,6 +49,7 @@ import { Route as AuthenticatedFieldJobIdRouteImport } from './routes/_authentic
 import { Route as AuthenticatedOwnerIndexRouteImport } from './routes/_authenticated/owner.index'
 import { Route as AuthenticatedOwnerJobIdRouteImport } from './routes/_authenticated/owner.$jobId'
 import { Route as AuthenticatedPartnerIndexRouteImport } from './routes/_authenticated/partner.index'
+import { Route as AuthenticatedPartnerAddRouteImport } from './routes/_authenticated/partner.add'
 import { Route as AuthenticatedPartnerBulkImportRouteImport } from './routes/_authenticated/partner.bulk-import'
 import { Route as AuthenticatedPartnerImportRouteImport } from './routes/_authenticated/partner.import'
 import { Route as AuthenticatedPartnerPaymentsRouteImport } from './routes/_authenticated/partner.payments'
@@ -285,6 +286,11 @@ const AuthenticatedPartnerIndexRoute =
     path: '/partner/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedPartnerAddRoute = AuthenticatedPartnerAddRouteImport.update({
+  id: '/partner/add',
+  path: '/partner/add',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedPartnerBulkImportRoute =
   AuthenticatedPartnerBulkImportRouteImport.update({
     id: '/partner/bulk-import',
@@ -433,6 +439,7 @@ export interface FileRoutesByFullPath {
   '/admin/workers': typeof AuthenticatedAdminWorkersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
+  '/partner/add': typeof AuthenticatedPartnerAddRoute
   '/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
   '/partner/import': typeof AuthenticatedPartnerImportRoute
   '/partner/payments': typeof AuthenticatedPartnerPaymentsRoute
@@ -494,6 +501,7 @@ export interface FileRoutesByTo {
   '/admin/workers': typeof AuthenticatedAdminWorkersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
+  '/partner/add': typeof AuthenticatedPartnerAddRoute
   '/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
   '/partner/import': typeof AuthenticatedPartnerImportRoute
   '/partner/payments': typeof AuthenticatedPartnerPaymentsRoute
@@ -557,6 +565,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/workers': typeof AuthenticatedAdminWorkersRoute
   '/_authenticated/field/$jobId': typeof AuthenticatedFieldJobIdRoute
   '/_authenticated/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
+  '/_authenticated/partner/add': typeof AuthenticatedPartnerAddRoute
   '/_authenticated/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
   '/_authenticated/partner/import': typeof AuthenticatedPartnerImportRoute
   '/_authenticated/partner/payments': typeof AuthenticatedPartnerPaymentsRoute
@@ -620,6 +629,7 @@ export interface FileRouteTypes {
     | '/admin/workers'
     | '/field/$jobId'
     | '/owner/$jobId'
+    | '/partner/add'
     | '/partner/bulk-import'
     | '/partner/import'
     | '/partner/payments'
@@ -681,6 +691,7 @@ export interface FileRouteTypes {
     | '/admin/workers'
     | '/field/$jobId'
     | '/owner/$jobId'
+    | '/partner/add'
     | '/partner/bulk-import'
     | '/partner/import'
     | '/partner/payments'
@@ -743,6 +754,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/workers'
     | '/_authenticated/field/$jobId'
     | '/_authenticated/owner/$jobId'
+    | '/_authenticated/partner/add'
     | '/_authenticated/partner/bulk-import'
     | '/_authenticated/partner/import'
     | '/_authenticated/partner/payments'
@@ -1082,6 +1094,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPartnerIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/partner/add': {
+      id: '/_authenticated/partner/add'
+      path: '/partner/add'
+      fullPath: '/partner/add'
+      preLoaderRoute: typeof AuthenticatedPartnerAddRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/partner/bulk-import': {
       id: '/_authenticated/partner/bulk-import'
       path: '/partner/bulk-import'
@@ -1248,6 +1267,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminWorkersRoute: typeof AuthenticatedAdminWorkersRoute
   AuthenticatedFieldJobIdRoute: typeof AuthenticatedFieldJobIdRoute
   AuthenticatedOwnerJobIdRoute: typeof AuthenticatedOwnerJobIdRoute
+  AuthenticatedPartnerAddRoute: typeof AuthenticatedPartnerAddRoute
   AuthenticatedPartnerBulkImportRoute: typeof AuthenticatedPartnerBulkImportRoute
   AuthenticatedPartnerImportRoute: typeof AuthenticatedPartnerImportRoute
   AuthenticatedPartnerPaymentsRoute: typeof AuthenticatedPartnerPaymentsRoute
@@ -1284,6 +1304,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminWorkersRoute: AuthenticatedAdminWorkersRoute,
   AuthenticatedFieldJobIdRoute: AuthenticatedFieldJobIdRoute,
   AuthenticatedOwnerJobIdRoute: AuthenticatedOwnerJobIdRoute,
+  AuthenticatedPartnerAddRoute: AuthenticatedPartnerAddRoute,
   AuthenticatedPartnerBulkImportRoute: AuthenticatedPartnerBulkImportRoute,
   AuthenticatedPartnerImportRoute: AuthenticatedPartnerImportRoute,
   AuthenticatedPartnerPaymentsRoute: AuthenticatedPartnerPaymentsRoute,
