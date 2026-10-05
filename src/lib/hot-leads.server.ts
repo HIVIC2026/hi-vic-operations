@@ -21,14 +21,14 @@ export async function loadHotLeads() {
   const trades: Trade[] = [];
   for (const e of enquiries) {
     const name = (e.company || e.name || "").trim();
-    if (!name || HOT_EXCLUDE.test(`${name} ${e.name ?? ""} ${e.source ?? ""}`) || !e.service_areas?.length) continue;
+    if (name.length < 3 || HOT_EXCLUDE.test(`${name} ${e.name ?? ""} ${e.source ?? ""}`) || !e.service_areas?.length) continue;
     trades.push({ id: e.id, kind: e.enquiry_type === "installer" ? "installer" : "rec", name, areas: e.service_areas });
   }
   for (const a of applications) {
     const d = a.data as Record<string, unknown> | null;
     const name = String(d?.["trading_name"] || d?.["legal_entity_name"] || "").trim();
     const origin = d?.["service_origin_details"] as Trade["origin"];
-    if (a.test_mode || !name || HOT_EXCLUDE.test(name) || !origin || !Number.isFinite(Number(origin.latitude)) || !Number.isFinite(Number(origin.longitude))) continue;
+    if (a.test_mode || name.length < 3 || HOT_EXCLUDE.test(name) || !origin || !Number.isFinite(Number(origin.latitude)) || !Number.isFinite(Number(origin.longitude))) continue;
     trades.push({ id: a.id, kind: a.partner_type === "installer" ? "installer" : "rec", name, origin, radius: Number(d?.["travel_radius_km"]) || null });
   }
   const jobs = [];
@@ -48,7 +48,8 @@ export async function loadHotLeads() {
   });
   const unique = new Map<string, (typeof candidates)[number]>();
   for (const c of candidates) {
-    const key = `${c.owner.email?.trim().toLowerCase()}|${c.property.address_line?.trim().toLowerCase().replace(/\s+/g, " ")}|${c.property.postcode}`;
+    const street = c.property.address_line?.trim().toLowerCase().replace(/\broad\b/g, "rd").replace(/\bstreet\b/g, "st").replace(/\bavenue\b/g, "ave").replace(/\bdrive\b/g, "dr").replace(/\bcrescent\b/g, "cres").replace(/[,.]/g, "").replace(/\s+/g, " ");
+    const key = `${c.owner.email?.trim().toLowerCase()}|${street}|${c.property.postcode}`;
     if (!unique.has(key)) unique.set(key, c);
   }
   const postcodes = [...new Set([...unique.values()].map((c) => c.property.postcode).filter((p): p is string => !!p))];
