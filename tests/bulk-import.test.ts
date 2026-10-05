@@ -111,3 +111,25 @@ describe("bulk import — photos-only and per-file results (5 Oct fix)", () => {
     expect(r.reasons.join(" ")).toContain("please check");
   });
 });
+
+import { linkFiles as _link } from "../src/lib/bulk-import.core";
+describe("photos + one free-text PDF", () => {
+  const files = [
+    { path: "notes.pdf", name: "notes.pdf" },
+    { path: "IMG_1.jpg", name: "IMG_1.jpg" },
+    { path: "IMG_2.jpg", name: "IMG_2.jpg" },
+  ];
+  test("only customer gets every unclaimed photo, flagged low", () => {
+    const [r] = _link([{ full_name: "Mary Smith", phone: "0412345678", source_files: ["notes.pdf"] }], files);
+    expect(r!.matched.map((m) => m.how).sort()).toEqual(["only_lead", "only_lead", "photo_text"]);
+  });
+  test("no address → office review asking for it", () => {
+    const { result, reasons } = sortJob({ full_name: "Mary Smith", unsure: true }, { matchConfidence: "low", duplicate: false });
+    expect(result).toBe("office_review");
+    expect(reasons.join(" ")).toContain("please add it");
+  });
+  test("two customers: photos are not guessed", () => {
+    const r = _link([{ full_name: "A" }, { full_name: "B" }], files);
+    expect(r.every((x) => x.matched.length === 0)).toBe(true);
+  });
+});
