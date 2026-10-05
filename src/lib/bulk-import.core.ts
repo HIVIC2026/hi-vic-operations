@@ -1,5 +1,7 @@
 // Pure rules for the slim bulk installer import. No database, no network — fully unit-tested.
-// Old / non-geotagged photos are used for sorting and quoting only, never as official evidence.
+// Sorting is by Ready Check coverage only: we never judge the installer's price — a price, if
+// present, is simply carried into the draft quote. Old / non-geotagged photos are used for
+// sorting only, never as official evidence.
 
 export type BulkExtracted = {
   full_name?: string | null;
@@ -11,6 +13,9 @@ export type BulkExtracted = {
   area_m2?: number | null;
   existing_insulation?: string | null; // e.g. "none", "old batts ~50mm", "unknown"
   access?: string | null; // e.g. "manhole in hallway, easy", "unknown"
+  roof_type?: string | null; // e.g. "tiled", "tin", "unknown"
+  hazards?: string | null; // e.g. "none seen", "asbestos suspected", "unknown"
+  building_age?: string | null; // e.g. "built 1978", "about 40 years old", "unknown"
   notes?: string | null;
   price_inc_gst?: number | null;
 };
@@ -25,7 +30,7 @@ export type BulkFile = {
   taken_at?: string | null;
 };
 
-export type SortResult = "ready_to_quote" | "needs_visit" | "office_review";
+export type SortResult = "covers_ready_check" | "needs_visit" | "office_review";
 
 /** Normalise an address for matching: lowercase, strip punctuation, collapse spaces. */
 export function normaliseAddress(addr: string | null | undefined): string {
@@ -78,24 +83,52 @@ export function matchFiles(
 
 const KNOWN = (v: string | null | undefined) => {
   const s = (v ?? "").trim().toLowerCase();
-  return s.length > 0 && !["unknown", "not sure", "unsure", "n/a", "na", "?"].includes(s);
+  return s.length > 0 && !["unknown", "not sure", "unsure", "n/a", "na", "?", "none known"].includes(s);
 };
+
+/** The Ready Check items the upload can cover. Key items decide whether a visit is needed;
+ * small items, when missing, become the install-day list instead of forcing a visit. */
+export const READY_CHECK_KEY_ITEMS = [
+  { key: "area_m2", label: "ceiling area / measurements" },
+  { key: "existing_insulation", label: "existing insulation type/depth" },
+  { key: "access", label: "ceiling access" },
+] as const;
+export const READY_CHECK_SMALL_ITEMS = [
+  { key: "roof_type", label: "roof type" },
+  { key: "hazards", label: "hazards" },
+  { key: "building_age", label: "building age" },
+] as const;
+
+function itemKnown(e: BulkExtracted, key: string): boolean {
+  if (key === "area_m2") return !!(e.area_m2 && e.area_m2 > 0);
+  return KNOWN(e[key as keyof BulkExtracted] as string | null | undefined);
+}
+
+/** Ready Check items the upload does not cover, split into key (visit-deciding) and small. */
+export function readyCheckGaps(e: BulkExtracted): { key: string[]; small: string[] } {
+  return {
+    key: READY_CHECK_KEY_ITEMS.filter((i) => !itemKnown(e, i.key)).map((i) => i.label),
+    small: READY_CHECK_SMALL_ITEMS.filter((i) => !itemKnown(e, i.key)).map((i) => i.label),
+  };
+}
 
 /** Official Ready Check evidence still missing — becomes the install-day task list later.
  * Uploaded photos never count as official evidence here (no verified GPS/date at this stage). */
 export function missingEvidence(e: BulkExtracted, matched: FileMatch[]): string[] {
-  const missing: string[] = [];
-  const hasGeotagged = matched.length > 0; // matched files exist, but GPS/recency unverified → never counts
-  void hasGeotagged;
-  missing.push("Geotagged photo of ceiling area with tape measure (depth)");
-  if (!KNOWN(e.existing_insulation)) missing.push("Geotagged photo showing existing insulation");
-  else missing.push("Geotagged photo confirming existing insulation");
-  missing.push("Geotagged photo of ceiling access / manhole");
-  missing.push("Geotagged photo of front of property");
+  void matched; // matched files exist, but GPS/recency unverified → never counts as official
+  const missing: string[] = [
+    "Geotagged photo of ceiling area with tape measure (depth)",
+    KNOWN(e.existing_insulation) ? "Geotagged photo confirming existing insulation" : "Geotagged photo showing existing insulation",
+    "Geotagged photo of ceiling access / manhole",
+    "Geotagged photo of front of property",
+  ];
+  const { small } = readyCheckGaps(e);
+  for (const s of small) missing.push(`Confirm ${s} on the day`);
   return missing;
 }
 
-/** Sort one extracted job against the Ready Check requirements. */
+/** Sort one extracted job by how much of the Ready Check the upload covers.
+ * Price is never a factor — it is simply carried into the draft quote when present. */
 export function sortJob(
   e: BulkExtracted,
   opts: { matchConfidence: "high" | "low" | "none"; duplicate: boolean },
@@ -106,17 +139,14 @@ export function sortJob(
   if (!e.full_name && !e.phone && !e.email) reasons.push("No customer name or contact details");
   if (reasons.length > 0) return { result: "office_review", reasons };
 
-  const gaps: string[] = [];
-  if (!(e.area_m2 && e.area_m2 > 0)) gaps.push("no ceiling area / measurements");
-  if (!KNOWN(e.existing_insulation)) gaps.push("existing insulation not known");
-  if (!KNOWN(e.access)) gaps.push("ceiling access not known");
-  if (gaps.length > 0) {
-    return { result: "needs_visit", reasons: [`Missing: ${gaps.join("; ")} — a visit is needed before quoting`] };
+  const gaps = readyCheckGaps(e);
+  if (gaps.key.length > 0) {
+    return { result: "needs_visit", reasons: [`Missing: ${gaps.key.join("; ")} — a Ready Check visit is needed`] };
   }
-  const out = ["Area, existing insulation and access all supplied — enough to quote without a revisit"];
+  const out = ["Measurements, existing insulation and access all supplied — covers the Ready Check, no visit needed"];
+  if (gaps.small.length > 0) out.push(`Small items for the install-day list: ${gaps.small.join("; ")}`);
   if (opts.matchConfidence === "low") out.push("Some files matched by filename only — check them");
-  if (e.price_inc_gst == null) out.push("No price in the upload — quote will wait for the installer's price");
-  return { result: "ready_to_quote", reasons: out };
+  return { result: "covers_ready_check", reasons: out };
 }
 
 /** Mark duplicates within the batch and against existing portal keys. Returns a note per row index. */
