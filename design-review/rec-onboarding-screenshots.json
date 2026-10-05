@@ -1,7 +1,0 @@
-[
-  { "file": "/tmp/browser/rec-final/screenshots/welcome-1280.png", "viewport": 1280, "innerWidth": 1280, "scrollWidth": 1280, "state": "restored welcome" },
-  { "file": "/tmp/browser/rec-final/screenshots/welcome-390.png", "viewport": 390, "innerWidth": 390, "scrollWidth": 390, "state": "restored welcome" },
-  { "file": "/tmp/browser/rec-final/screenshots/about-invalid-before-390.png", "viewport": 390, "innerWidth": 390, "scrollWidth": 390, "state": "about-you sample before incomplete forward attempt" },
-  { "file": "/tmp/browser/rec-final/screenshots/about-resume-390.png", "viewport": 390, "innerWidth": 390, "scrollWidth": 390, "state": "same sample draft resumed after Back to Welcome" },
-  { "file": "/tmp/browser/rec-final/screenshots/staff-invitation-390.png", "viewport": 390, "innerWidth": 390, "scrollWidth": 390, "state": "electrician staff invitation sample" }
-]
