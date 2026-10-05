@@ -97,8 +97,8 @@ export async function aiExtractRows(rawRows: Record<string, string>[], documents
   });
   const result = streamText({
     model: provider.responses("openai/gpt-6-astra"),
+    instructions: EXTRACT_PROMPT,
     messages: [
-      { role: "system", content: EXTRACT_PROMPT },
       { role: "user", content: JSON.stringify({ rows: rawRows, documents: documents.map((d) => ({ name: d.name, text: d.text.slice(0, 20_000) })) }).slice(0, 150_000) },
     ],
     providerOptions: {
