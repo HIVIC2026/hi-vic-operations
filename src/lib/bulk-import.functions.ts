@@ -116,9 +116,13 @@ export const addBulkElectrician = createServerFn({ method: "POST" }).middleware(
   .handler(async ({ data, context }) => {
     await requireMember(context.userId, data.businessId);
     const mobile = data.mobile.replace(/\D/g, "");
-    const { data: own } = await admin.from("electrician_nominations").select("id,contact_name,business_id,status").eq("nominating_business_id", data.businessId).is("job_id", null).is("ended_at", null).or(`phone.eq.${mobile}${data.email ? `,email.ilike.${data.email}` : ""}`).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    let ownQuery = admin.from("electrician_nominations").select("id,contact_name,business_id,status").eq("nominating_business_id", data.businessId).is("job_id", null).is("ended_at", null);
+    ownQuery = data.email ? ownQuery.or(`phone.eq.${mobile},email.ilike.${data.email.replace(/[%_,]/g, "")}`) : ownQuery.eq("phone", mobile);
+    const { data: own } = await ownQuery.order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (own) return { nominationId: own.id, businessId: own.business_id, name: own.contact_name, status: own.business_id ? "Already signed up ✓" : `Waiting for ${own.contact_name} to sign up` };
-    const { data: matched } = await admin.from("businesses").select("id").eq("onboarding_status", "approved").or(`phone.eq.${mobile}${data.email ? `,email.ilike.${data.email}` : ""}`).limit(1).maybeSingle();
+    let matchQuery = admin.from("businesses").select("id").eq("onboarding_status", "approved");
+    matchQuery = data.email ? matchQuery.or(`phone.eq.${mobile},email.ilike.${data.email.replace(/[%_,]/g, "")}`) : matchQuery.eq("phone", mobile);
+    const { data: matched } = await matchQuery.limit(1).maybeSingle();
     const invite = newToken();
     const { data: nomination, error } = await admin.from("electrician_nominations").insert({
       contact_name: data.name, phone: mobile, email: data.email ?? null, business_name: data.business ?? null,
