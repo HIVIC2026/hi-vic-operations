@@ -94,7 +94,7 @@ function Money({ value, onChange, unit }: { value: number | null | undefined; on
 function RateRow({ label, hint, unit, value, onChange, required = false, last = false, id, error }: { label: string; hint?: string; unit: string; value: number | null | undefined; onChange: (v: number | null) => void; required?: boolean; last?: boolean; id?: string; error?: string | null }) {
   const tag: React.CSSProperties = { display: "inline-block", marginLeft: 8, padding: "1px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, verticalAlign: "middle", background: required ? "#EEF1FB" : "#F1F3F7", color: required ? BLUE : MUTED };
   return (
-    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-4" style={{ padding: "12px 0", borderBottom: last ? "none" : "1px solid #EDF0F7" }}>
+    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4" style={{ padding: "12px 0", borderBottom: last ? "none" : "1px solid #EDF0F7" }}>
       <div style={{ minWidth: 0 }}>
         <label htmlFor={id} style={{ fontWeight: 700, fontSize: 14, color: NAVY }}>{label}</label>
         <span style={tag}>{required ? "Required" : "Optional"}</span>

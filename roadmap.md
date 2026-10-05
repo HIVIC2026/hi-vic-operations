@@ -161,4 +161,4 @@
 - [ ] Before/after desktop + phone each stage; no rule/gate/data/compliance wording changes
 
 ## Onboarding Rates page tidy (Jo, 5 Oct 06:28) — layout/wording only
-- [ ] Top line, tidy aligned rows, Optional/Required tags, 3 cards, errors after Save, phone stack; before/after screenshots
+- [x] Top line, tidy aligned rows, Optional/Required tags, 3 cards, errors after Save, phone stack; before/after screenshots
