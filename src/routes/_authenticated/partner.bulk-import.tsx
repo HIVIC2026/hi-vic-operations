@@ -334,6 +334,7 @@ function BulkImportPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {summary.rows === 0 && <p className="text-sm">No customers were found in these files. Check the list below, then add a customer list, or name folders/files by address (e.g. "14 Example St"), and upload again.</p>}
+            {summary.rows === 0 && <Button variant="outline" onClick={() => { setBatchId(null); setExtraFiles([]); setPermission(false); setLocalReads([]); }}>Upload again</Button>}
             <FileResultList items={summary.file_results ?? localReads} />
             <div className="flex flex-wrap gap-2">
               <Badge variant="default">{summary.covers_ready_check ?? 0} cover the Ready Check</Badge>
