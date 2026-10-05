@@ -171,6 +171,38 @@ Merge **To action** into Today. Show “Wants a spot” as a lead task, not a se
 4. Test Centre, clearly marked TEST.
 5. Public calculator and application-form links under “Open public pages,” not in the main menu.
 
+## Approved “nothing lost” safety net
+
+This belongs inside **Today → Needs me** and the top of each job page. It must not become another menu item or a second task system.
+
+| Rule | Current state | Where it lives now | Smallest safe addition |
+|---|---|---|---|
+| Every active job has a next step, who has the ball and a due date; missing values show as “No next step” | **Partly built** | Shared next-step and party rules: `src/lib/nextstep.core.ts`, `src/lib/waiting.core.ts`; secure fact loader: `src/lib/waiting.functions.ts`; stage changes set a default next action in `src/lib/workflow.server.ts` | Add one pure completeness check for every non-terminal job. Feed missing next step, party or due date into the existing office exception list as **No next step**. Show the same three facts in every job header. Do not create a second workflow source. |
+| Every stage has a target time; over-target or inactive jobs are flagged | **Partly built** | Party-based 24h/48h and 3-day/7-day targets: `src/lib/waiting.core.ts`; generic seven-day inactivity check: `src/lib/stuck.core.ts`; pipeline wiring: `src/lib/portal.functions.ts` | Add a configurable presentation target for each active stage, with a safe fallback. Combine stage age and `last_activity_at`, then feed breaches into **Needs me**. Keep regulatory deadlines, booking times and the PIESA clock authoritative over generic targets. |
+| Mitti, Xero and email failures always appear in Needs me with the reason | **Partly built** | Xero errors already reach the office list through `src/lib/xero.server.ts`, `src/lib/todo.functions.ts` and `src/lib/todo.core.ts`; failed/undelivered job messages already reach the exception list through `src/lib/needs.server.ts`; Mitti errors are stored by `src/lib/mitti.server.ts` but currently stay on the job’s Mitti panel | Extend the existing exception loader to include unresolved Mitti errors and any failed email rows not represented in `job_communications`. Use stable failure keys so one fault appears once and clears only when the underlying record succeeds. |
+| “Later” returns next morning; a second snooze requires a reason | **New** | No snooze state or control exists. The current to-action list is deliberately derived and clears only when its source record changes: `src/lib/todo.core.ts` | Add one small audited snooze record keyed to the existing stable task key and staff member. First Later returns at the next Melbourne morning; subsequent Later requires a reason. Snoozing hides only the presentation row and never changes job stage, deadlines or blockers. |
+| A job ends only as Complete, Cancelled with reason, or On hold with revisit date; overdue holds are flagged | **Partly built** | Complete is compliance-gated in `src/lib/workflow.server.ts`; cancelled/on-hold are protected terminal/exception states; `setHold` in `src/lib/portal.functions.ts` already requires a reason and preserves the prior stage | Require a revisit date when placing a job on hold, retain the existing reason, and add overdue holds to Needs me. Keep resume reversible through the stored prior stage. Add a database guard only if the practice-database proof shows the server guard alone cannot cover every write path. |
+| Quiet owners receive reminders, a final notice, then closure frees the spot | **New as a whole-job rule** | A narrow unopened-estimate reminder exists in `src/lib/followups.server.ts`; owner due/flag timing exists in `src/lib/waiting.core.ts`. There is no universal final-notice-and-close journey | Reuse the existing queued, idempotent communication pattern. Define stage-specific eligibility and cancellation exclusions; prepare reminder and final-notice wording for Jo’s approval; after the approved response window, cancel with a fixed audited reason and release only the relevant reservation/offer. Nothing sends while communication switches are off. |
+| Daily “nothing lost” count reconciles every job to exactly one stage | **New** | The 7am portal-only brief exists in `src/lib/daily-brief.server.ts`; the database gives each job one enum stage, while presentation grouping lives in `src/lib/workflow.ts` | Add a read-only reconciliation to the morning brief: total active jobs must equal the sum of the six office groups plus separately counted On hold, Completed and Cancelled jobs. Flag null/unknown/unmapped, duplicate presentation membership, and load failures instead of showing a false all-clear. |
+| Quiet trades retain 24h reminder / 48h flag, then work can be offered elsewhere | **Partly built** | Timings are locked in `src/config/workflow-decisions.ts`; coordination exceptions and re-offer paths live in `src/lib/allocation.core.ts`, `src/lib/allocation.functions.ts`, `src/lib/pilot.functions.ts` and `src/lib/readycheck-booking.server.ts`; the office list is loaded by `src/lib/needs.server.ts` | Keep the existing timers. Standardise the 48h action across Ready Check, PIESA, rectification and installation: show one clear **Offer to another trade** action where reassignment is permitted, preserving the old assignment and history. Never silently replace the accepted installation provider where owner approval is required. |
+
+### Six office stages
+
+The active workflow maps cleanly enough for a **presentation-only** six-stage view. It must not replace the detailed database stages or transition guards.
+
+| Office stage | Detailed stages shown inside it |
+|---|---|
+| **Enquiry** | `new_enquiry`, `eligibility_review`, `preliminary_estimate_ready` |
+| **Ready Check** | `ready_check_awaiting_acceptance`, legacy Ready Check payment record, ready to schedule, scheduled, complete |
+| **Quote & pay** | `measured_estimate_ready`, `measured_quote_accepted`, `ready_for_installer_quotes`, `awaiting_quote_acceptance`, `awaiting_deposit_payment` |
+| **Safety check** | PIESA window pending/scheduled/complete, electrical variation, rectification required/approval/scheduling/booked |
+| **Install** | `installation_scheduling`, `installation_booked` |
+| **Sign-off** | `evidence_outstanding`, `ap_review`, `ready_for_veec` |
+
+**Exceptions:** Complete, Cancelled and On hold are statuses outside the six active stages. On hold also keeps the office stage it paused in. The four retired assessment stages remain readable for history and display under Safety check with a **Legacy** label; they are never re-entered. Rectification sits under Safety check because it resolves the electrical clearance, even though its quote is still shown in the job’s Quote & pay records.
+
+Technical approach: add a pure `officeGroupForStage` mapping beside the existing `PIPELINE_PHASES` in `src/lib/workflow.ts`. Do not change the stage enum, stored job stages, `STAGE_ORDER`, transitions or compliance gates.
+
 ## Proposed per-role structure
 
 - **Owner:** one home screen. Top shows the single next step; then appointment/status; completed steps collapsed; help/messages last. Never show all possible future actions.
@@ -194,14 +226,16 @@ Merge **To action** into Today. Show “Wants a spot” as a lead task, not a se
 ## Safe rebuild stages after launch
 
 1. **Office frame only:** replace the menu with six destinations; preserve every old address and action.
-2. **Today:** merge the two attention lists and add Work/Partners/Money summaries. No workflow changes.
-3. **Work lists:** replace the five pipeline menu entries with tabs and a clear default table; retain the board as an optional view.
-4. **Job page:** reorder existing panels around “Do this now”; no gate, wording, data or action changes.
-5. **Leads:** put enquiries, interests and campaigns behind one page; preserve each campaign’s current safety locks.
-6. **Partners and Money:** regroup the existing screens into tabs; add no new commercial behavior.
-7. **Installer and electrician:** separate boss tools from onsite next-step screens; merge duplicate add-customer entry points.
-8. **Owner:** show only the current next step and collapse completed/history sections.
-9. **Cleanup:** hide launch/QA tools from normal menus, guard internal previews, then retire duplicate UI only after link-use checks.
+2. **Safety-net read model:** add the six-stage presentation mapping and one read-only completeness check. Prove every active job resolves to exactly one office stage, next step, responsible party and due date before changing the screens.
+3. **Today:** merge the two attention lists into **Needs me**; include No next step, overdue/inactive work, overdue holds and every unresolved Mitti/Xero/message failure. Add Work/Partners/Money summaries and the daily nothing-lost count.
+4. **Job page:** reorder existing panels around “Do this now,” showing next step, who has the ball, due date and safety-net reason. No gate or compliance wording changes.
+5. **Later and hold controls:** add audited next-morning snoozing and mandatory hold revisit dates, practice database first with an undo file. Do not let either change the underlying workflow deadline.
+6. **Work lists:** replace the five pipeline menu entries with six presentation-stage tabs and a clear default table; retain detailed stages and the board as optional views.
+7. **Leads and quiet owners:** put enquiries, interests and campaigns behind one page; preserve safety locks. Add the reminder/final-notice/closure sequence only after Jo approves its exact wording and timing.
+8. **Partners and Money:** regroup the existing screens into tabs; add no new commercial behavior. Standardise the existing 24h/48h quiet-trade handoff without silently changing accepted providers.
+9. **Installer and electrician:** separate boss tools from onsite next-step screens; merge duplicate add-customer entry points.
+10. **Owner:** show only the current next step and collapse completed/history sections.
+11. **Cleanup and proof:** hide launch/QA tools from normal menus, guard internal previews, verify every active job appears once in the morning count, then retire duplicate UI only after link-use checks.
 
 Each stage is presentation-only, previewed separately, checked on desktop and phone, and reversible. Live job rules, stages, evidence, pricing, sending, payment and Xero behavior remain untouched.
 
