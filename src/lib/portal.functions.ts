@@ -800,9 +800,12 @@ export const completeInstallation = createServerFn({ method: "POST" }).middlewar
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
+    const { data: unlockBooking } = await admin.from("bookings").select("id, scheduled_start").eq("job_id", data.jobId).eq("kind", "installation").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle();
     await transition(data.jobId, "evidence_outstanding", context.userId, "Installation marked complete by installer");
     await admin.from("jobs").update({ installation_completed_at: new Date().toISOString() }).eq("id", data.jobId);
     await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "installation").eq("status", "confirmed");
+    // Gap 4: record exactly which confirmed install booking unlocked installation (AP review requires it completed).
+    if (unlockBooking) await logEvent(data.jobId, context.userId, "install_unlocked_by_booking", "Installation recorded against the confirmed install booking", { booking_id: unlockBooking.id, scheduled_start: unlockBooking.scheduled_start }, { internal: true });
     await logEvent(data.jobId, context.userId, ASSIGNMENT_EVENTS.INSTALLATION_COMPLETED, "Eligible installation undertaken");
     await autoAdvanceJob(data.jobId, context.userId, "installation completed");
     return { ok: true };
