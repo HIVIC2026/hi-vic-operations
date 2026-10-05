@@ -100,7 +100,7 @@
 - [x] C office-only profit card (AP fee, VEEC spread with current VEEC price $83, PIESA markup, installer markup, totals)
 - [x] D office-editable owner prices with history + Margins view (Prices & margins page)
 - [x] Bulk installer import slim build — upload + AI match + sort + review + create jobs; practice DB proven, live migration applied with undo file
-- [ ] Bulk import next steps (later): auto Mitti install-day tasks from stored missing evidence; owner eligibility link (questions only); installer acceptance notification + CC rules
+- [x] Bulk import next steps (later): auto Mitti install-day tasks from stored missing evidence; owner eligibility link (questions only); installer acceptance notification + CC rules
 
 ## Queued after bulk import (plan only, awaiting go)
 - [ ] Per-installer-company pricing method (Automatic from onboarding rates / Assessor Form A1 / Installer owner enters price) — awaiting Jo's 4 decisions in plan
@@ -111,13 +111,13 @@
 - [x] Check matching, stages, sorting reasons, missing evidence, tick blocking, job tagging, draft quote math, nothing sent
 - [x] Fix bugs (AI system-message fix), deleted ALL test data; reported pass/fail
 ## Job 2 (after Job 1) — PLAN ONLY
-- [ ] Owner eligibility link for installer-supplied customers (questions only, no signatures; installer told result)
+- [x] Owner eligibility link for installer-supplied customers (questions only, no signatures; installer told result)
 - [ ] PLAN READY: 5 booking-control answers + gap list (awaiting Jo's go on fixes)
 - [ ] END-TO-END TEST: installer assessor Ready Check flow (worker add/approve/assign, /w/token link, Mitti form, sync back, quote); delete all test data after
-- [ ] PLAN READY: owner eligibility link (awaiting Jo's go)
-- [ ] BUILD (approved): Gap 1 — PIESA Mitti form only after confirmed PIESA booking
-- [ ] BUILD (approved): Gap 3 — 15-min automatic Mitti sync on existing timer (data only; keep manual Sync)
-- [ ] BUILD (approved): Gap 4 — record which confirmed install booking unlocked installation; AP review requires it completed
+- [x] PLAN READY: owner eligibility link (awaiting Jo's go)
+- [x] BUILD (approved): Gap 1 — PIESA Mitti form only after confirmed PIESA booking
+- [x] BUILD (approved): Gap 3 — 15-min automatic Mitti sync on existing timer (data only; keep manual Sync)
+- [x] BUILD (approved): Gap 4 — record which confirmed install booking unlocked installation; AP review requires it completed
 - [ ] NOT DOING: Gap 2 (installer keeps date box); Gap 5 later
 
 - [ ] R-value per job (min R5.0) — plan approved 5 Oct; waits for current build (gaps 1/3/4) + Jo go + Jo pricing decisions (R6/R7 owner prices, markup, launch scope, "Other" values, rebate wording)
@@ -125,5 +125,5 @@
 - [x] R6.0/R7.0 optional installer rates (onboarding, office page, profile request→office approval)
 
 ## Queued 5 Oct (Jo approved) — before live-safety check
-- [ ] BUILD: owner eligibility link for installer-sourced customers (questions only; eligible / needs assessment / not eligible; installer told; copy per job + bulk copy per upload batch; nothing sends)
-- [ ] BUILD: auto "Create & assign Mitti assessment" when approved worker with confirmed Mitti access is assigned to an installer-sourced job needing a Ready Check; otherwise "needs Mitti access" flag
+- [x] BUILD: owner eligibility link for installer-sourced customers (questions only; eligible / needs assessment / not eligible; installer told; copy per job + bulk copy per upload batch; nothing sends)
+- [x] BUILD: auto "Create & assign Mitti assessment" when approved worker with confirmed Mitti access is assigned to an installer-sourced job needing a Ready Check; otherwise "needs Mitti access" flag
