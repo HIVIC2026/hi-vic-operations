@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { asUser, ID, ROLLBACK, ROLLBACK107, rateDb } from "./helpers/pglite-rate-requests";
+import { asUser, ID, ROLLBACK, ROLLBACK107, ROLLBACK110, rateDb } from "./helpers/pglite-rate-requests";
 
 const ins = (biz: string, r6: string, r7 = "null", status = "pending") =>
   `INSERT INTO public.installer_rate_requests(business_id, r6_rate, r7_rate, requested_by, status) VALUES ('${biz}', ${r6}, ${r7}, '${ID.inst}', '${status}')`;
 const insTopup = (biz: string, topup: string) =>
   `INSERT INTO public.installer_rate_requests(business_id, topup_r5_rate, requested_by) VALUES ('${biz}', ${topup}, '${ID.inst}')`;
+const insVacuum = (biz: string, vacuum: string) =>
+  `INSERT INTO public.installer_rate_requests(business_id, vacuum_only_rate, requested_by) VALUES ('${biz}', ${vacuum}, '${ID.inst}')`;
 
 describe("0106 installer rate requests (practice database)", () => {
   test("applies, accepts blank or positive rates, refuses zero/negative", async () => {
