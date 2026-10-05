@@ -1,71 +1,59 @@
-# Interim path: ReInsulate starts this week with his own leads
+# Pricing method per installer company (installer-sourced jobs)
 
-Plan only. No changes until "go". Preview first; nothing sent; payment gate stays off.
+Queued after the bulk import. Plan only — nothing is built until you say go.
 
-## Before anything: ReInsulate's business record
-- His business must be **approved** in Partners, with his **commercial setup** entered (route = Home Insulation Victoria issues the full invoice). Without it, his jobs stop at payment ("Commercial setup required"). Office task, no build.
-- His onsite worker(s) must be approved with **Full certification + expiry** recorded, or no assessment link can be issued. Office task, no build.
+## What it does
 
-## 1. One-off office import of his lead list
-**Exists today:** an installer-side import (paste text / one spreadsheet row / files → draft → confirm). Confirmed jobs are tagged permanently to his business as installer-supplied. Works in preview and live.
-**Missing:**
-- Only the installer's own team can confirm; office cannot import on his behalf.
-- One row at a time; no whole-sheet import.
-- Duplicate check is by owner email only, not by address.
-- An area (m²) is required for every row; his list may lack some.
+The office sets a "Pricing method" on each approved installer company. It applies only to jobs that installer brings in. Jobs Home Insulation Victoria brings in keep the current pricing, with the $30/m² owner price.
 
-**Smallest safe build:**
-- Office-only "Import for installer" panel on his Partners page: pick business, paste/upload the spreadsheet, see one table of rows (parsed with the existing pattern reader, no AI), fix gaps, tick "installer has the owner's permission to contact" (recorded who/when), then confirm.
-- Each row goes through the same job-creation path as today, so tagging and audit are identical. Office is recorded as the confirmer, with a note "on behalf of ReInsulate".
-- Duplicate check by cleaned address (and email): matches are shown and skipped, never merged automatically. Matches to an existing Home Insulation Victoria job go to office review (job source is permanent and won't be changed).
-- Missing area allowed: job is flagged "area needed" instead of being refused.
-- No owner messages created; nothing sent.
-- Photos: attached to the job as files only; not counted as evidence (that's the full bulk-import build).
+| Choice | Who sets the installer's price | Ready Check form used |
+|---|---|---|
+| 1. Automatic | The portal: the installer's approved onboarding rates × the Ready Check measurements | Form without the price section |
+| 2. Assessor enters price | The assessor, onsite (today's Form A1) | Form with the price section (current) |
+| 3. Installer owner enters price | The installer company's owner, on each job in their portal | Form without the price section |
 
-## 2. Tagged eligibility link
-**Exists today:** the real eligibility form is the Base44 website, which sends signed enquiries in; they always become Home Insulation Victoria leads. The portal calculator at "/" only records interest, it does not create jobs.
-**Missing:** any way to tag an enquiry to an installer.
+Every route builds the customer quote the same way: installer price + AP fee $349 + PIESA $349 − VEU discount, with no markup. The quote is always a draft until the office reviews it. Nothing is sent.
 
-**Two options (Jo to choose):**
-- **A (recommended, no Base44 change):** a short portal page, e.g. `/check/<code>`, with his code in the link. Same eligibility questions as Base44 in tap form; creates or updates his installer-supplied job. Address matched first: if his job already exists at that address, the answers attach to it (no duplicate). If a Home Insulation Victoria job exists there, it goes to office review.
-- **B:** Base44 passes his code through on the signed handoff. Needs a Base44 change; Step 1 is locked, so I would not do this without your say-so.
+- Default for existing companies: **2. Assessor enters price**, so nothing changes for anyone until the office picks a different method.
+- Every change records who made it, when, and the reason. A change only affects jobs whose quote has not been drafted yet. Quotes already drafted, issued or accepted keep their prices.
+- Bulk-upload price (already built) still wins: if a price was found in the upload, it goes straight into the draft quote, whatever the method.
 
-Either way: no consent or signatures on this link (they're signed at quote acceptance), no automatic messages, and his code can be switched off by the office.
+## Rates onboarding already collects
 
-## 3. Assessment link per job
-**Exists today:** worker job links. Office or installer picks an approved, certified worker on the job and gets a secure link to the existing Ready Check / Mitti assessment form. Refused if the worker isn't approved or certified. Works today.
-**Missing:** only the button wording. Change to exactly "Start assessment" (Ready Check form) and "Start install" (install form), which you already asked for.
+These rates are inc GST, or a total rate if the installer is not GST registered. They are saved on the installer's approved rate card when the office approves them.
+- R5.0 ceiling insulation supply & install, per m² (required)
+- Batts removal, per m² (required)
+- Loose fill removal, per m² (required)
+- Optional flat charges per job. For each one the installer enters an amount, enters $0 for "no extra charge", or leaves it blank, meaning "quoted separately":
+  - Tile roof access (lift & relay tiles)
+  - Metal sheet roof access
+  - Difficult / restricted ceiling access
+  - Minimum charge / call-out
 
-## 4. Quote
-**Exists today:** the installer-supplied quote is drafted **automatically from his priced Ready Check form** (installer price + PIESA $349 + AP fee $349 − discount, no markup, co-branded). Office reviews and sends. Owner accepts and signs consent + VEEC assignment as today.
-**Missing:** office can't type his price straight in. If he quotes outside the form, nothing is drafted.
+## Are they enough for Automatic?
 
-**Smallest safe build:** an office-only "Enter installer's price" box on the job: his total price inc GST (plus optional removal/extras lines with descriptions). It builds the same draft quote type, with the same PIESA, AP fee and discount lines and the same checks (no markup, PIESA and AP fee from the price settings). Reason + who/when recorded. The office "send" step and owner acceptance stay as they are. Existing quotes untouched.
+**Mostly yes for a standard job:** R5.0 install × measured area, plus removal × the area to remove, plus the roof or access extras. The Ready Check already records roof type (Tiles / Metal sheet / Other), access (Easy / Moderate / Difficult), area per ceiling space, insulation type (Batts / Loose fill), and the area to remove.
 
-## 5. Office notified on acceptance
-**Exists today:** acceptance moves the job and it shows in the to-do list under "Open quote", so the office sees it, but with no specific alert.
-**Smallest safe build:** on acceptance of an installer-supplied quote, add an office to-do "Customer accepted — [job]" and a queued (not sent) notice to the installer, matching your earlier co-brand/notify request.
+**Gaps.** When one of these happens, the portal won't guess. The job goes to "Price needed": the office or the installer owner enters the price, or the office adds the missing rate.
+1. **Mixed removal:** if one ceiling area has both batts and loose fill, the form records one "area to remove" figure, so the portal can't tell which removal rate applies. Fix: price at the higher rate and flag it for the office, or add a split question to the form. Your call.
+2. **Extra left blank** (quoted separately): if the job needs that extra, for example tile access, a price is needed.
+3. **"Moderate" access:** onboarding only has a Difficult rate. Planned treatment: Moderate is no extra charge. Please confirm.
+4. **Roof type "Other" or removal "Not sure":** price needed.
+5. **Minimum charge:** planned treatment: if the calculated installer price is below the minimum, use the minimum. Please confirm.
+6. **No rates for:** downlight covers, top-up (as opposed to full R5.0), and other R-values. These are always "price needed" for now.
 
-## Edge cases
-- Same address imported twice in the list → shown once, second flagged.
-- Owner fills the tagged link before the import → import finds the job by address and skips it.
-- Address already a Home Insulation Victoria lead → office decides; never retagged automatically.
-- Already installed → office marks Not eligible (no VEEC possible).
-- No email for an owner → row allowed, flagged "contact missing"; owner can't get quote links until added.
+## Your decisions needed
 
-## Publishing
-- Real customers and his installer only reach the **live** site, so parts 1–5 need publishing to work for real.
-- Publishing pushes **everything** currently in preview, not just this: onboarding form fixes, capacity limits removed, the $30/m² fixed-price quotes and separate PIESA/AP lines, Prices & margins page, office profit card, AP approval queue, reminders/daily brief/Today page, Ready Check booking, cancellations/no-shows. Sending and payment gate stay off after publishing.
-- Recommended: click-through test of the new pricing page and the whole ReInsulate path in preview first, then publish once.
+1. Mixed batts + loose fill: use the higher rate and flag it, or add a split question to the Ready Check?
+2. Moderate access = no extra charge?
+3. Minimum charge = the floor price for the installer's part?
+4. Default method for new companies: Assessor (2)?
 
-## Effect on records / undo
-- No existing records or quotes changed. Likely one small database addition (installer link code + switch on the business; maybe an "area needed" flag), proven on the practice database first.
-- Undo: roll back in History; imported test jobs can be cancelled with a reason (kept for audit).
+## Technical details
 
-## Order
-1. Office tasks (approve business, commercial setup, worker certification) — can start now.
-2. Part 3 wording + Part 4 office price box (smallest, unblocks a quote).
-3. Part 1 office import.
-4. Part 5 acceptance notice.
-5. Part 2 tagged link (after Jo picks A or B).
-6. Browser test in preview, then publish.
+- Database: one new column on businesses, `installer_pricing_method` (`automatic` | `assessor` | `owner_entered`, default `assessor`), plus a change-history table. Additive only: proven on the practice database first, with an undo file, and no existing rows changed.
+- Pure rule: `installerAutoPrice(rateCard, readyCheck)` in a new `installer-pricing.core.ts`. It returns either the price lines or "price needed" with reasons. Unit tests cover every gap above.
+- Form choice: `readyCheckVariant` uses the company's method, not just the channel. Only "assessor" gets `ready_check_priced`.
+- Owner-entered route: an installer-portal page for each job showing the Ready Check summary and one total price box, which feeds the existing draft-quote builder. Only members of that company can use it. It records who entered the price and when.
+- Office: a selector on the partner page, with a required reason and the change history.
+- Quote builder: reuse the existing installer draft (installer price + PIESA + AP − discount). Automatic writes the itemised installer lines as one "Insulation works by your installer" total, so customers never see installer rates.
