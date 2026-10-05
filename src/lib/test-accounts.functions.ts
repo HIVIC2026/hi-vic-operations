@@ -208,12 +208,17 @@ export const prepareQaJourneyAccess = createServerFn({ method: "POST" })
 
     const { data: installer } = await admin.from("profiles").select("id, business_id").eq("email", SPECS[0].email).maybeSingle();
     if (!installer?.business_id) throw new WorkflowError("The TEST installer account is missing.");
-    const { data: worker } = await admin.from("partner_workers").upsert({
+    const workerDetails = {
       business_id: installer.business_id, trade_role: "installer", full_legal_name: "TEST Alpha Field Worker",
       email: "qa.worker.alpha@hivic-test.example", mobile: "0400000199", qualification: "TEST EEC Certified installer",
       approval_status: "approved", approved_by: context.userId, approved_at: new Date().toISOString(), certification_status: "verified",
       added_by: context.userId,
-    }, { onConflict: "business_id,email" }).select("id").single();
+    } as const;
+    const { data: existingWorker } = await admin.from("partner_workers").select("id").eq("business_id", installer.business_id).eq("email", workerDetails.email).maybeSingle();
+    const workerResult = existingWorker
+      ? await admin.from("partner_workers").update(workerDetails).eq("id", existingWorker.id).select("id").maybeSingle()
+      : await admin.from("partner_workers").insert(workerDetails).select("id").maybeSingle();
+    const worker = workerResult.data;
     if (!worker) throw new WorkflowError("Could not prepare the TEST worker.");
     const { newToken, hashToken, linkExpiry } = await import("./worker-links.core");
     await admin.from("worker_job_links").update({ revoked_at: new Date().toISOString(), revoked_by: context.userId }).eq("worker_id", worker.id).eq("job_id", data.jobId).is("revoked_at", null);
@@ -232,12 +237,12 @@ export const issueQaPersonaLink = createServerFn({ method: "POST" })
     const job = await testJob(admin, data.jobId);
     let email: string | null = null;
     if (data.persona === "owner") {
-      const { data: owner } = await admin.from("owners").select("user_id, profiles!owners_user_id_fkey(email)").eq("id", job.owner_id).maybeSingle();
-      email = (owner?.profiles as { email?: string | null } | null)?.email ?? null;
+      const { data: owner } = await admin.from("owners").select("user_id").eq("id", job.owner_id).maybeSingle();
+      if (owner?.user_id) email = (await admin.from("profiles").select("email").eq("id", owner.user_id).maybeSingle()).data?.email ?? null;
     } else {
       const role = data.persona === "installer_boss" ? "installer" : "electrician";
-      const { data: assignment } = await admin.from("job_assignments").select("user_id, profiles!job_assignments_user_id_fkey(email)").eq("job_id", data.jobId).eq("role", role).eq("active", true).maybeSingle();
-      email = (assignment?.profiles as { email?: string | null } | null)?.email ?? null;
+      const { data: assignment } = await admin.from("job_assignments").select("user_id").eq("job_id", data.jobId).eq("role", role).eq("active", true).maybeSingle();
+      if (assignment?.user_id) email = (await admin.from("profiles").select("email").eq("id", assignment.user_id).maybeSingle()).data?.email ?? null;
     }
     if (!email?.endsWith(QA_DOMAIN)) throw new WorkflowError("This TEST persona is not safely isolated.");
     const { data: link, error } = await admin.auth.admin.generateLink({ type: "magiclink", email });
