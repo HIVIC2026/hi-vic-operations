@@ -111,3 +111,21 @@ describe("Needs me safety net (rule → practice job → flagged)", () => {
     expect(out.items.length + out.onTrack + ended).toBe(STATUS_KEYS.length);
   });
 });
+
+// Rule (Jo, 5 Oct): a status may only say "sent" / "waiting for owner" with a real send record.
+import { officeStatus as _os, OFFICE_STATUSES as _S, STATUS_KEYS as _K } from "../src/lib/office-status.core";
+import { buildNeedsMe as _nm } from "../src/lib/needs-me.core";
+import { test as _t, expect as _e } from "bun:test";
+_t("no send record → waiting list, never 'sent'/'waiting for owner', never late or in Needs me", () => {
+  const now = Date.parse("2026-10-05T00:00:00Z");
+  const base = { id: "j", stage: "ready_check_ready_to_schedule", createdAt: "2026-01-01T00:00:00Z", lastActivityAt: "2026-01-01T00:00:00Z", enteredStageAt: "2026-01-01T00:00:00Z" };
+  const a = _os({ ...base, estimateSentAt: "2026-01-02T00:00:00Z" }, now)!;
+  _e(a.key).toBe("waiting_list.ready_to_send"); _e(a.late).toBe(false);
+  _e(_os({ ...base }, now)!.key).toBe("waiting_list.needs_estimate");
+  _e(_os({ ...base, stage: "preliminary_estimate_ready", estimateSentAt: "2026-01-02T00:00:00Z" }, now)!.stage).toBe("waiting_list");
+  _e(_os({ ...base, campaign: { spotSavedAt: null, optedOutAt: null, videoRequested: false, mediaReceivedAt: null, deskCheckStatus: null, createdAt: "2026-01-02T00:00:00Z" } }, now)!.stage).toBe("waiting_list");
+  _e(_os({ ...base, estimateSentAt: "2026-01-02T00:00:00Z", ownerContactedAt: "2026-10-01T00:00:00Z" }, now)!.key).toBe("enquiry.estimate_sent");
+  for (const k of _K) if (/sent|waiting for owner/i.test(_S[k].label) && _S[k].stage === "enquiry") _e(k).not.toContain("waiting_list");
+  const n = _nm({ now, jobs: [{ id: "j", jobNumber: "HV-1", suburb: null, owner: null, stage: base.stage, status: a, statusCount: 1, lastActivityAt: base.lastActivityAt, nextAction: null, installDeadline: null, installStarted: false, holdRevisitAt: null, failures: [], parked: true }], partners: [], snoozes: [], lim: {} });
+  _e(n.items.length).toBe(0);
+});
