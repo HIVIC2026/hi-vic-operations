@@ -546,19 +546,21 @@ function ReviewPanel({ d, up, preview, load, onReady }: { d: InstData; up: (p: P
 /** Date box that takes 05/10/2028, 5/10/28 or a calendar pick; stores ISO yyyy-mm-dd. Unreadable text stays as typed
  *  (so validation can say why) and is never silently changed. */
 function DateBox({ id, value, onChange }: { id: string; value?: string | null | undefined; onChange: (v: string) => void }) {
-  const [text, setText] = useState(formatDateAu(value));
+  // While typing, the box shows exactly what was typed; otherwise it shows the saved date as dd/mm/yyyy.
+  const [draft, setDraft] = useState<string | null>(null);
   const picker = useRef<HTMLInputElement>(null);
-  useEffect(() => { const iso = parseDateInput(text); if ((iso ?? text) !== (value ?? "")) setText(formatDateAu(value)); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
-  const commit = (t: string) => { setText(t); onChange(t.trim() === "" ? "" : parseDateInput(t) ?? t.trim()); };
+  const shown = draft ?? formatDateAu(value);
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "center", maxWidth: 280, position: "relative" }}>
-      <input id={id} style={{ ...input, flex: 1, minWidth: 0 }} inputMode="numeric" placeholder="dd/mm/yyyy" autoComplete="off" value={text}
-        onChange={(e) => commit(e.target.value)} onBlur={() => { const iso = parseDateInput(text); if (iso) setText(formatDateAu(iso)); }} />
+      <input id={id} style={{ ...input, flex: 1, minWidth: 0 }} inputMode="numeric" placeholder="dd/mm/yyyy" autoComplete="off" value={shown}
+        onFocus={() => setDraft(formatDateAu(value))}
+        onChange={(e) => { const t = e.target.value; setDraft(t); onChange(t.trim() === "" ? "" : parseDateInput(t) ?? t.trim()); }}
+        onBlur={() => setDraft(null)} />
       <button type="button" aria-label="Pick from calendar" onClick={() => { const el = picker.current; if (!el) return; try { el.showPicker(); } catch { el.focus(); el.click(); } }}
-        style={{ minWidth: 48, minHeight: 48, borderRadius: 12, border: "1px solid #D7DCE8", background: "#fff", cursor: "pointer", color: NAVY, fontSize: 18 }}>
+        style={{ minWidth: 48, minHeight: 48, borderRadius: 12, border: "1px solid #D7DCE8", background: "#fff", cursor: "pointer", color: NAVY }}>
         <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
       </button>
-      <input ref={picker} type="date" tabIndex={-1} aria-hidden="true" value={parseDateInput(text) ?? ""} onChange={(e) => { if (e.target.value) { setText(formatDateAu(e.target.value)); onChange(e.target.value); } }}
+      <input ref={picker} type="date" tabIndex={-1} aria-hidden="true" value={parseDateInput(value ?? "") ?? ""} onChange={(e) => { if (e.target.value) { setDraft(null); onChange(e.target.value); } }}
         style={{ position: "absolute", right: 0, bottom: 0, width: 48, height: 1, opacity: 0, pointerEvents: "none", border: 0, padding: 0 }} />
     </div>
   );
