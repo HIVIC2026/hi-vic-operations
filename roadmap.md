@@ -101,3 +101,6 @@
 - [x] D office-editable owner prices with history + Margins view (Prices & margins page)
 - [x] Bulk installer import slim build — upload + AI match + sort + review + create jobs; practice DB proven, live migration applied with undo file
 - [ ] Bulk import next steps (later): auto Mitti install-day tasks from stored missing evidence; owner eligibility link (questions only); installer acceptance notification + CC rules
+
+## Queued after bulk import (plan only, awaiting go)
+- [ ] Per-installer-company pricing method (Automatic from onboarding rates / Assessor Form A1 / Installer owner enters price) — awaiting Jo's 4 decisions in plan
