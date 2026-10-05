@@ -24,6 +24,13 @@ describe("TEST browser harness safety", () => {
     expect(accounts).not.toContain("userId: z.string()");
   });
 
+  test("all TEST personas have resettable sign-in accounts", () => {
+    expect(accounts).toContain('const QA_PASSWORD = "Hivic-Test-Only-2026!"');
+    expect(accounts).toContain("admin.auth.admin.updateUserById");
+    expect(accounts).toContain('const QA_WORKER_EMAIL = "qa.worker.alpha@hivic-test.example"');
+    expect(accounts).toContain('member_role: "field_worker"');
+  });
+
   test("email and Xero boundaries reject qa_test jobs", () => {
     expect(xero).toContain('source === "qa_test"');
     expect(followups).toContain('job.source === "qa_test"');
