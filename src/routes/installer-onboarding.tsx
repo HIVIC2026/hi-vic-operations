@@ -469,7 +469,7 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
           <RateRow required last label="Loose fill removal" unit="m²" value={d.loose_fill_removal_rate} onChange={(v) => up({ loose_fill_removal_rate: v })} />
           <p style={{ ...note, marginTop: 6 }}>Removal is required of all installer partners.</p>
         </Section>
-        <Section title={`Access & extras — optional (${unit})`}>
+        <Section title={`Difficult access — optional (${unit}, per job)`}>
           {EXTRA_ITEMS.map((it, i) => <RateRow key={it.key} label={it.label} unit={it.unit} value={r[it.key]} last={i === EXTRA_ITEMS.length - 1} onChange={(v) => up({ extra_rates: { ...r, [it.key]: v } })} />)}
           <p style={{ ...note, marginTop: 6 }}>Enter $0 if it's included at no extra charge. Leave blank to quote it separately on the job before owner approval.</p>
           <p style={{ background: BLUSH, color: PINK_TEXT, borderRadius: 8, padding: "9px 11px", fontSize: 13, fontWeight: 700, lineHeight: 1.45, margin: "0 0 6px" }}>Keeping access charges reasonable helps more homeowners proceed—and creates more opportunities for your business.</p>
