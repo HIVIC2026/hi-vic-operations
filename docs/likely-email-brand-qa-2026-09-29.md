@@ -1,3 +1,6 @@
+> [!WARNING]
+> **RETIRED BRANDING**: This document describes an outdated visual direction (Open Sans, blue hero, offset-shadow elements). Do not use as guidance for new development.
+
 # Likely-eligible email brand QA — 29 September 2026
 
 ## Scope

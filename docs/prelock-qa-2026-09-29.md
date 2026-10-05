@@ -1,3 +1,6 @@
+> [!WARNING]
+> **RETIRED BRANDING**: This document describes an outdated visual direction (Open Sans, blue hero, offset-shadow elements). Do not use as guidance for new development.
+
 # Pre-lock QA audit — homeowner enquiry → estimate → referral → email (2026-09-29)
 
 Audit only. No production code, settings, schedules or database rows changed. No messages sent. Both email locks stayed OFF and the delivery bridge stayed disabled. Evidence folder: `/mnt/documents/prelock-qa/` (33 files: screenshots + `results.json`, fixture data only).
