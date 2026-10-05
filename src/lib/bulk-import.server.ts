@@ -234,23 +234,30 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
   const postcode = String((job?.properties as { postcode: string | null } | null)?.postcode ?? "").trim();
   const [{ data: loc }, { data: rs }] = await Promise.all([
     admin.from("veu_location_variables").select("*").eq("postcode", postcode).maybeSingle(),
-    admin.from("retail_estimator_settings").select("ap_management_inc_gst, indicative_veec_value").eq("is_current", true).maybeSingle(),
+    admin.from("retail_estimator_settings").select("ap_management_inc_gst, indicative_veec_value, minimum_customer_copayment_inc_gst, max_discount_metro_inc_gst, max_discount_regional_inc_gst").eq("is_current", true).maybeSingle(),
   ]);
   const ghg = loc ? ghgEquivalentReduction(e.area_m2, loc as unknown as LocationVariables).ghgReduction : null;
   const veecValue = rs ? Number(rs.indicative_veec_value) : null;
   const apFee = job?.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
   if (ghg == null || veecValue == null || apFee == null) return false; // office quotes manually
-  const discount = Math.round(ghg * veecValue * 100) / 100;
+  const rawDiscount = Math.round(ghg * veecValue * 100) / 100;
   const lines = [
     { code: "INSTALLER_PRICE", description: "Insulation works by your installer", quantity: 1, unit: "flat", unit_price_inc_gst: e.price_inc_gst, line_total_inc_gst: e.price_inc_gst, is_other: false, explanation: null, sort: 0 },
     { code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: HIVIC_PIESA_INC_GST, line_total_inc_gst: HIVIC_PIESA_INC_GST, is_other: false, explanation: null, sort: 1 },
     { code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: apFee, line_total_inc_gst: apFee, is_other: false, explanation: null, sort: 2 },
   ];
   const subtotal = Math.round((e.price_inc_gst + HIVIC_PIESA_INC_GST + apFee) * 100) / 100;
+  // Same guardrails as every other quote: region's program maximum, then the $200 minimum contribution.
+  const rules = applyDiscountRules(rawDiscount, subtotal, loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null, {
+    max_discount_metro_inc_gst: rs ? Number(rs.max_discount_metro_inc_gst) : 1500,
+    max_discount_regional_inc_gst: rs ? Number(rs.max_discount_regional_inc_gst) : 2100,
+    minimum_customer_copayment_inc_gst: rs ? Number(rs.minimum_customer_copayment_inc_gst) : 200,
+  });
+  const discount = Math.round(rules.discount * 100) / 100;
   const { data: q, error } = await admin.from("quotes").insert({
     job_id: jobId, kind: "installation", option_label: "Installer's quote (from bulk upload)", option_code: "INSTALLER_A1", status: "draft",
     subtotal_inc_gst: subtotal, gst_amount: Math.round((subtotal - subtotal / 1.1) * 100) / 100,
-    veec_discount_inc_gst: discount, customer_total_inc_gst: Math.round((subtotal - discount) * 100) / 100, created_by: actorId,
+    veec_discount_inc_gst: discount, discount_note: discountNotes(rules).join(" ") || null, customer_total_inc_gst: Math.round((subtotal - discount) * 100) / 100, created_by: actorId,
   }).select("id").single();
   if (error || !q) throw new BulkImportError(error?.message ?? "Quote could not be saved.");
   const { error: ie } = await admin.from("quote_items").insert(lines.map((l) => ({ ...l, quote_id: q.id })));
