@@ -10,7 +10,7 @@ import { getLaunchCampaignOffice, saveDesktopInsulationCheck } from "@/lib/launc
 
 export const Route = createFileRoute("/_authenticated/admin/launch-campaign")({
   component: LaunchCampaignOffice,
-  head: () => ({ meta: [{ title: "Existing leads campaign – Home Insulation Victoria Operations" }] }),
+  head: () => ({ meta: [{ title: "Existing leads campaign – Home Insulation Victoria Operations" }, { name: "description", content: "Review saved spots and desktop insulation checks." }, { property: "og:title", content: "Existing leads campaign – Home Insulation Victoria Operations" }, { property: "og:description", content: "Review saved spots and desktop insulation checks." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
 });
 
 const LABEL: Record<string, string> = { pending: "Needs desk check", looks_eligible: "Looks eligible", not_eligible: "Not eligible", needs_onsite_check: "Needs onsite check", not_needed: "No desk check" };

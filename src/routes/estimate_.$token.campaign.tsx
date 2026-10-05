@@ -39,7 +39,7 @@ function CampaignPage() {
       {isLoading ? <p role="status" className="py-16 text-center text-sm text-muted-foreground">Loading your estimate…</p>
       : isError || !data ? <section className="estimate-offset rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">This link isn't available</h1><p className="mt-2 text-sm">Please contact Home Insulation Victoria and we'll help.</p></section>
       : data.response?.opted_out_at ? <Result title="You're off the list" body="We won't send any more campaign messages about this enquiry." />
-      : data.response?.spot_saved_at ? <Result title="You're on the list" body="We'll contact you to book your free Ready Check." />
+      : data.response?.spot_saved_at ? <Result title="You're on the list" body="We'll be in touch within 2 business days to book your free Ready Check." />
       : <div className="space-y-5">
           <section className="estimate-offset overflow-hidden rounded-[22px] border border-estimate-blue-soft bg-white px-5 py-7 shadow-[0_18px_50px_rgba(34,55,107,0.09)] sm:px-10 sm:py-10">
             <p className="text-sm font-semibold text-estimate-blue">Your preliminary estimate</p>

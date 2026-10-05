@@ -18,8 +18,12 @@ async function campaignLink(token: unknown) {
   const insulation = normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation);
   const group = launchGroup(job.eligibility_outcome, insulation);
   if (!group) return null;
-  const { data: consent } = await admin.from("owner_contact_consents").select("consent_status").eq("job_id", job.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  return consent?.consent_status === "granted" ? { link, job, group } : null;
+  const { data: response } = await admin.from("lead_campaign_responses").select("opted_out_at").eq("job_id", job.id).maybeSingle();
+  if (!response?.opted_out_at) {
+    const { data: consent } = await admin.from("owner_contact_consents").select("consent_status").eq("job_id", job.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (consent?.consent_status !== "granted") return null;
+  }
+  return { link, job, group };
 }
 
 export async function campaignPage(token: unknown, testMode = false) {
@@ -37,23 +41,14 @@ export async function saveCampaignSpot(token: unknown) {
   const c = await campaignLink(token);
   if (!c) throw new Error("This link is no longer available.");
   const now = new Date().toISOString();
-  const { data: existing } = await admin.from("lead_campaign_responses").select("opted_out_at").eq("job_id", c.job.id).maybeSingle();
+  const { data: existing } = await admin.from("lead_campaign_responses").select("opted_out_at, spot_saved_at").eq("job_id", c.job.id).maybeSingle();
   if (existing?.opted_out_at) throw new Error("This enquiry has already been taken off the list.");
-  const { error } = await admin.from("lead_campaign_responses").upsert({
-    job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, spot_saved_at: now,
-    video_requested: c.group === "onsite", desk_check_status: c.group === "onsite" ? "pending" : "not_needed", updated_at: now,
-  }, { onConflict: "job_id" });
+  if (existing?.spot_saved_at) return { ok: true as const };
+  const { error } = existing
+    ? await admin.from("lead_campaign_responses").update({ spot_saved_at: now, updated_at: now }).eq("job_id", c.job.id).is("opted_out_at", null).is("spot_saved_at", null)
+    : await admin.from("lead_campaign_responses").insert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, spot_saved_at: now, video_requested: c.group === "onsite", desk_check_status: c.group === "onsite" ? "pending" : "not_needed", updated_at: now });
   if (error) throw new Error("We couldn't save your place. Please try again.");
   await logEvent(c.job.id, null, "campaign_spot_saved", "Owner saved a place for a free Ready Check", { campaign: LAUNCH_CAMPAIGN }, { internal: true });
-  return { ok: true as const };
-}
-
-export async function saveCampaignSpotForTest(token: unknown) {
-  const c = await campaignLink(token);
-  if (!c || c.job.source !== "qa_test") throw new Error("Campaign testing is limited to qa_test jobs.");
-  const now = new Date().toISOString();
-  const { error } = await admin.from("lead_campaign_responses").upsert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, spot_saved_at: now, video_requested: c.group === "onsite", desk_check_status: c.group === "onsite" ? "pending" : "not_needed", updated_at: now }, { onConflict: "job_id" });
-  if (error) throw new Error(error.message);
   return { ok: true as const };
 }
 
@@ -79,8 +74,18 @@ export async function optOutCampaign(token: unknown) {
 }
 
 export async function markCampaignMediaReceived(jobId: string, linkId: string) {
+  const { data: job } = await admin.from("jobs").select("source, stage, eligibility_outcome, eligibility_review_required, properties(enrichment)").eq("id", jobId).maybeSingle();
+  if (!job || !["base44", "qa_test"].includes(job.source ?? "") || (!LAUNCH_COPY_APPROVED && job.source !== "qa_test") || job.eligibility_review_required || ["cancelled", "complete"].includes(job.stage)) return;
+  const property = job.properties as { enrichment: Record<string, unknown> | null } | null;
+  const base44 = (property?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
+  if (launchGroup(job.eligibility_outcome, normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation)) !== "onsite") return;
+  const { data: link } = await admin.from("customer_estimate_links").select("id").eq("id", linkId).eq("job_id", jobId).maybeSingle();
+  if (!link) return;
   const now = new Date().toISOString();
-  await admin.from("lead_campaign_responses").upsert({ job_id: jobId, estimate_link_id: linkId, campaign: LAUNCH_CAMPAIGN, video_requested: true, media_received_at: now, desk_check_status: "pending", updated_at: now }, { onConflict: "job_id" });
+  const { data: existing } = await admin.from("lead_campaign_responses").select("desk_check_status, media_received_at").eq("job_id", jobId).maybeSingle();
+  const patch = { media_received_at: existing?.media_received_at ?? now, updated_at: now, ...(existing && !["not_needed", "pending"].includes(existing.desk_check_status) ? {} : { desk_check_status: "pending" }) };
+  if (existing) await admin.from("lead_campaign_responses").update(patch).eq("job_id", jobId);
+  else await admin.from("lead_campaign_responses").insert({ job_id: jobId, estimate_link_id: linkId, campaign: LAUNCH_CAMPAIGN, video_requested: true, ...patch });
 }
 
 export async function launchCampaignOffice() {
