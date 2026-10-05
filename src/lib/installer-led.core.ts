@@ -1,6 +1,7 @@
 // Installer-led jobs: the installer brings their own customer; Home Insulation Victoria is the AP and invoices the
 // owner with co-branding. Pure rules only.
 import { FORMS, validateQuotedPrice, type QuotedPrice } from "./mitti-forms.core";
+import { MIN_CUSTOMER_CONTRIBUTION_INC_GST, applyDiscountRules, discountNotes } from "./estimate.core";
 
 export const HIVIC_PIESA_INC_GST = 349;
 export type ElectricianChoice = "installer_own" | "hivic_matched" | "installer_own_hivic_books";
@@ -12,16 +13,17 @@ export function piesaChargeIncGst(choice: ElectricianChoice | null, _ownRecPiesa
 }
 
 export type OwnerPriceInput = { installerQuoteIncGst: number; piesaIncGst: number | null; rectificationIncGst: number; apFeeIncGst: number | null; veecDiscountIncGst: number };
-/** Owner's co-branded invoice: installer quote + PIESA + rectification + AP fee − VEU discount; minimum $200 co-payment. */
+/** Owner's co-branded invoice: installer quote + PIESA + rectification + AP fee − VEU discount. The discount is reduced if needed so the owner always pays at least the $200 minimum contribution (official VEU rule). */
 export function installerLedOwnerPrice(i: OwnerPriceInput) {
   const blockers: string[] = [];
   if (!(i.installerQuoteIncGst > 0)) blockers.push("Installer quote amount is missing.");
   if (i.piesaIncGst == null) blockers.push("PIESA price not agreed for the chosen electrician.");
   if (i.apFeeIncGst == null) blockers.push("Home Insulation Victoria AP fee for installer-led jobs is not set.");
   const total = Math.round((i.installerQuoteIncGst + (i.piesaIncGst ?? 0) + i.rectificationIncGst + (i.apFeeIncGst ?? 0)) * 100) / 100;
-  const afterDiscount = Math.round((total - i.veecDiscountIncGst) * 100) / 100;
-  if (afterDiscount < 200) blockers.push("Owner co-payment would be below the $200 minimum.");
-  return { total, discount: i.veecDiscountIncGst, afterDiscount, blockers, ready: blockers.length === 0 };
+  if (total < MIN_CUSTOMER_CONTRIBUTION_INC_GST) blockers.push(`Job total is below the $${MIN_CUSTOMER_CONTRIBUTION_INC_GST} minimum customer contribution.`);
+  const discount = Math.round(Math.min(i.veecDiscountIncGst, Math.max(0, total - MIN_CUSTOMER_CONTRIBUTION_INC_GST)) * 100) / 100;
+  const afterDiscount = Math.round((total - discount) * 100) / 100;
+  return { total, discount, afterDiscount, reducedForMin: discount < i.veecDiscountIncGst, blockers, ready: blockers.length === 0 };
 }
 
 /**
