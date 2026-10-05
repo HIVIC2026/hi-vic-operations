@@ -10,7 +10,7 @@ const ID = { office: "00000000-0000-4000-8000-0000000000a1", inst: "00000000-000
 async function db() {
   const d = new PGlite();
   await d.exec(`
-CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role; CREATE SCHEMA auth;
+CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS; CREATE SCHEMA auth;
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 GRANT USAGE ON SCHEMA auth, public TO anon, authenticated, service_role;
 CREATE TABLE public.businesses (id uuid primary key, name text);
