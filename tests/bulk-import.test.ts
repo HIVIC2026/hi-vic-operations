@@ -87,7 +87,7 @@ describe("lead stage", () => {
     expect(leadStage({ area_m2: 120 }, 0)).toBe("visited");
     expect(leadStage({ full_name: "A" }, 2)).toBe("visited");
   });
-  test("price found → visited and quoted", () => expect(leadStage({ price_inc_gst: 4000 }, 0)).toBe("visited_quoted"));
+  test("price found → quoted", () => expect(leadStage({ price_inc_gst: 4000 }, 0)).toBe("quoted"));
   test("permission wording is exact", () => expect(CONTACT_PERMISSION_WORDING).toBe("I confirm these customers are happy for Home Insulation Victoria to contact them."));
 });
 

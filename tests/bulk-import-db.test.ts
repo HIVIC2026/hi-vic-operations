@@ -73,6 +73,35 @@ describe("bulk import tables (practice database)", () => {
     expect(row.rows[0].missing_evidence[0]).toContain("tape");
   });
 
+  test("review stores the four progress choices and private electrician plans", async () => {
+    const db = await bulkDb();
+    await asUser(db, ID.installer);
+    const b = await db.query<{ id: string }>(
+      `INSERT INTO public.bulk_import_batches(business_id, created_by, electrician_plan) VALUES ($1,$2,'{"mode":"job_by_job"}') RETURNING id`,
+      [ID.biz, ID.installer],
+    );
+    for (const [i, stage] of ["not_visited", "visited", "quoted", "installed"].entries()) {
+      await db.query(
+        `INSERT INTO public.bulk_import_rows(batch_id,row_index,import_stage,electrician_plan) VALUES ($1,$2,$3,'{"mode":"mine","nomination_id":"private"}')`,
+        [b.rows[0].id, i, stage],
+      );
+    }
+    const rows = await db.query<{ import_stage: string; electrician_plan: { nomination_id: string } }>(`SELECT import_stage,electrician_plan FROM public.bulk_import_rows WHERE batch_id=$1 ORDER BY row_index`, [b.rows[0].id]);
+    expect(rows.rows.map((r) => r.import_stage)).toEqual(["not_visited", "visited", "quoted", "installed"]);
+    expect(rows.rows.every((r) => r.electrician_plan.nomination_id === "private")).toBe(true);
+    await expect(db.query(`INSERT INTO public.bulk_import_rows(batch_id,row_index,import_stage) VALUES ($1,9,'sent')`, [b.rows[0].id])).rejects.toThrow();
+  });
+
+  test("confirmed batches and their row history cannot be changed", async () => {
+    const db = await bulkDb();
+    await asUser(db, ID.installer);
+    const b = await db.query<{ id: string }>(`INSERT INTO public.bulk_import_batches(business_id, created_by) VALUES ($1,$2) RETURNING id`, [ID.biz, ID.installer]);
+    await db.query(`INSERT INTO public.bulk_import_rows(batch_id,row_index) VALUES ($1,0)`, [b.rows[0].id]);
+    await db.query(`UPDATE public.bulk_import_batches SET status='confirmed', confirmed_at=now() WHERE id=$1`, [b.rows[0].id]);
+    await expect(db.query(`UPDATE public.bulk_import_batches SET list_filename='changed.csv' WHERE id=$1`, [b.rows[0].id])).rejects.toThrow();
+    await expect(db.query(`UPDATE public.bulk_import_rows SET import_stage='quoted' WHERE batch_id=$1`, [b.rows[0].id])).rejects.toThrow();
+  });
+
   test("rollback removes only the two new tables", async () => {
     const db = await bulkDb();
     await db.exec(BULK_ROLLBACK_SQL);
