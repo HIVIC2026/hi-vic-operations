@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { WorkerStatus } from "@/components/portal/workers";
 import { decideWorker, listWorkerApprovals } from "@/lib/worker-links.functions";
+import { prepareTradeLogin } from "@/lib/trade-access.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/workers")({
   head: () => ({ meta: [{ title: "Staff approvals – Home Insulation Victoria Operations" }, { name: "description", content: "Approve staff listed under partner companies before they get job links." }, { property: "og:title", content: "Staff approvals – Home Insulation Victoria Operations" }, { property: "og:description", content: "Approve staff listed under partner companies before they get job links." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -33,10 +34,18 @@ function Approvals() {
 
 function Row({ w, onDone }: { w: { id: string; full_legal_name: string; trade_role: string; licence_number: string | null; qualification: string | null; mobile: string | null; email: string | null; approval_status: string; rejection_reason: string | null; businesses: unknown }; onDone: () => void }) {
   const decide = useServerFn(decideWorker);
+  const prepare = useServerFn(prepareTradeLogin);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const act = async (approve: boolean) => {
     try { await decide({ data: { id: w.id, approve, reason: approve ? null : reason } }); toast.success(approve ? "Staff member approved" : "Staff member rejected"); onDone(); } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
+  };
+  const login = async () => {
+    try {
+      const r = await prepare({ data: { workerId: w.id, send: false, redirectTo: window.location.origin } });
+      if (r.link) { await navigator.clipboard.writeText(r.link).catch(() => undefined); toast.success("Sign-in set up. Set-password link copied — send it to them yourself (invite emails are off until Jo approves the wording)."); }
+      onDone();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
   };
   return (
     <li className="rounded-xl border bg-card p-3 text-sm">
@@ -49,6 +58,7 @@ function Row({ w, onDone }: { w: { id: string; full_legal_name: string; trade_ro
         <div className="flex items-center gap-2">
           <WorkerStatus s={w.approval_status} />
           {w.approval_status !== "approved" && <Button size="sm" onClick={() => act(true)}>Approve</Button>}
+          {w.approval_status === "approved" && <Button size="sm" variant="outline" onClick={login}>Copy set-password link</Button>}
           {w.approval_status !== "rejected" && !rejecting && <Button size="sm" variant="outline" onClick={() => setRejecting(true)}>Reject</Button>}
         </div>
       </div>

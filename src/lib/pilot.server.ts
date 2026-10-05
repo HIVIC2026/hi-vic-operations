@@ -71,3 +71,14 @@ export async function applyCobrand(jobId: string) {
 export async function logPartner(jobId: string | null, actorId: string, type: string, summary: string, details: Record<string, unknown> = {}) {
   if (jobId) await logEvent(jobId, actorId, type, summary, details);
 }
+
+/** Jobs created by TEST sign-ins or for TEST businesses are always saved as qa_test so they never touch live automation. */
+export async function intakeSourceFor(userId: string, businessId: string | null, fallback: string): Promise<string> {
+  const [{ data: u }, { data: b }] = await Promise.all([
+    admin.auth.admin.getUserById(userId),
+    businessId ? admin.from("businesses").select("name").eq("id", businessId).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+  ]);
+  const testUser = u?.user?.user_metadata?.["qa_test"] === true || /@hivic-test\.example$/i.test(u?.user?.email ?? "");
+  const testBiz = /^TEST\b/i.test(b?.name ?? "");
+  return testUser || testBiz ? "qa_test" : fallback;
+}

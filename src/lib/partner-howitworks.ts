@@ -60,12 +60,12 @@ export const PAYMENT_TERMS = {
 };
 
 export const PORTAL_ONLY_COMMS = {
-  title: "How we all talk: through the portal only",
+  title: "How we keep in touch",
   points: [
-    "All contact with owners, electricians and our team happens in the job's messages in the portal — no phone calls, no outside texts.",
-    "That way everyone can see where the job is up to, and it's our shared audit record.",
-    "Booking dates are proposed and accepted in the portal: electrician proposes Tuesday 10am → owner accepts → locked in. Everyone sees it.",
-    "Owner contact details stay masked — the portal is the channel.",
+    "Once you accept a visit, you and the owner can see each other's name, phone and email for that visit only. Call or text them to agree a time.",
+    "Use these contact details only to arrange and complete this Home Insulation Victoria job. Do not use them for unrelated marketing or future work unless the owner separately agrees.",
+    "A visit is booked once the time is recorded in the portal and the other person (or our office) confirms it.",
+    "Portal messages are optional and saved on the job for everyone to see.",
   ],
 };
 

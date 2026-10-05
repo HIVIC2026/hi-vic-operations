@@ -806,6 +806,13 @@
       "when": 1791193910104,
       "tag": "0114_auto_quote_release",
       "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1791198724109,
+      "tag": "0115_trade_job_access",
+      "breakpoints": true
     }
   ]
 }

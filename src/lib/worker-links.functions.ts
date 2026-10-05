@@ -194,9 +194,15 @@ export const getWorkerJobView = createServerFn({ method: "POST" })
     ]);
     if (!j) throw new Error("This job is no longer available.");
     const mittiId = w.trade_role === "electrician" ? a?.external_mitti_id : (m?.external_source === "mitti" ? m.external_id : null) ?? a?.external_mitti_id;
+    // Approved direct-contact rule: owner name, phone and email for the active visit only.
+    const { data: rels } = await admin.from("contact_releases").select("visit_kind, job_assignments!inner(business_id, active)").eq("job_id", l.job_id).is("revoked_at", null).eq("job_assignments.business_id", l.business_id);
+    const { visitIsCurrent } = await import("./allocation.core");
+    const released = (rels ?? []).some((r) => (r.job_assignments as { active: boolean }).active && visitIsCurrent(r.visit_kind, j.stage ?? ""));
+    const { data: oc } = released ? await admin.from("job_overview").select("owner_name, owner_phone, owner_email").eq("id", l.job_id).maybeSingle() : { data: null };
     return {
       worker: { name: w.full_legal_name, firstName: firstName(w.full_legal_name), role: w.trade_role, business: bizName },
       job: { ...j, owner_first_name: firstName(j.owner_name), owner_name: undefined },
+      ownerContact: oc ? { name: oc.owner_name, phone: oc.owner_phone, email: oc.owner_email } : null,
       mittiUrl: mittiId ? `https://app.au.mitti.com/inspections/${mittiId}` : null,
       bookings: books ?? [],
       timeline: events ?? [],

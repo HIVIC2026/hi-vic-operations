@@ -1,81 +1,60 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { Plus } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { CalendarDays, ChevronDown, ChevronRight } from "lucide-react";
 import { AppShell } from "@/components/portal/AppShell";
-import { JobCard } from "@/components/portal/JobCard";
-import { useAction, useMe } from "@/hooks/use-me";
-import { submitInstallerJob } from "@/lib/portal.functions";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { OfferCard, TradeTabs } from "@/components/portal/trade-work";
+import { InstallerDayOffer } from "@/components/portal/install-days";
+import { useMe } from "@/hooks/use-me";
+import { partnerDashboard } from "@/lib/pilot.functions";
+import { tradeTask } from "@/lib/trade-work.core";
 
 export const Route = createFileRoute("/_authenticated/field/")({
-  head: () => ({ meta: [{ title: "My jobs – Home Insulation Victoria Portal" }, { name: "description", content: "Your assigned Home Insulation Victoria jobs." }, { property: "og:title", content: "My jobs – Home Insulation Victoria Portal" }, { property: "og:description", content: "Your assigned Home Insulation Victoria jobs." }] }),
-  component: FieldJobs,
+  head: () => ({ meta: [{ title: "My work – Home Insulation Victoria" }, { name: "description", content: "Your job offers, things to do and booked visits." }, { property: "og:title", content: "My work – Home Insulation Victoria" }, { property: "og:description", content: "Your job offers, things to do and booked visits." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  component: MyWork,
 });
 
-function FieldJobs() {
+const when = (iso: string) => new Date(iso).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Australia/Melbourne" });
+
+function MyWork() {
   const { data: me } = useMe();
-  const { data: jobs = [], isLoading } = useQuery({
-    queryKey: ["fieldjobs", me?.user.id],
-    enabled: !!me,
-    queryFn: async () => {
-      const uid = me?.user.id;
-      if (!uid) return [];
-      return (await supabase.from("job_overview").select("*").or(`electrician_id.eq.${uid},installer_id.eq.${uid}`).not("stage", "in", "(complete,cancelled)").order("last_activity_at", { ascending: false })).data ?? [];
-    },
-  });
-  const isInstaller = me?.roles.includes("installer");
+  const load = useServerFn(partnerDashboard);
+  const { data, error, refetch } = useQuery({ queryKey: ["partner-dashboard"], queryFn: () => load(), refetchInterval: 60_000 });
+  const [showWaiting, setShowWaiting] = useState(false);
+  const installer = !!me?.roles.includes("installer");
+  if (error) return <AppShell><div role="alert" className="rounded-[22px] border bg-card p-6 text-sm"><p>Your work couldn't load. Check your signal and try again.</p><button className="mt-3 font-semibold text-primary underline" onClick={() => refetch()}>Try again</button></div><TradeTabs installer={installer} /></AppShell>;
+  if (data === undefined) return <AppShell><p className="text-muted-foreground">Loading your work…</p><TradeTabs installer={installer} /></AppShell>;
+  if (data === null) return <AppShell><p className="rounded-[22px] border bg-card p-6 text-sm text-muted-foreground">Your sign-in isn't linked to an approved business yet. Home Insulation Victoria will sort this out — call the office if it's urgent.</p></AppShell>;
+  const tasks = data.jobs.map((j) => ({ j, t: tradeTask({ stage: j.stage, bookings: j.bookings, blockers: j.blockers, proposalPending: j.proposal_pending }) }));
+  const needs = tasks.filter((x) => x.t.bucket === "needs_you");
+  const coming = tasks.filter((x) => x.t.bucket === "coming_up");
+  const waiting = tasks.filter((x) => x.t.bucket === "waiting");
+  const card = ({ j, t }: (typeof tasks)[number]) => {
+    const p = j.property as { address_line?: string | null; suburb?: string | null } | null;
+    return (
+      <Link key={j.id} to="/field/$jobId" params={{ jobId: j.id }} className="flex items-center gap-3 rounded-[22px] border bg-card p-4 shadow-sm">
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold">{t.label}</div>
+          <div className="truncate text-sm text-muted-foreground">{[j.owner, p?.address_line ?? p?.suburb].filter(Boolean).join(" · ") || "Address shows once the visit is arranged"}</div>
+          {t.reason && <div className="mt-1 text-sm text-danger">{t.reason}</div>}
+        </div>
+        <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+      </Link>
+    );
+  };
   return (
     <AppShell>
-      <h1 className="mb-1 text-2xl font-bold">My jobs</h1>
-      <p className="mb-4 text-sm text-muted-foreground">Jobs assigned to you. Tap a job to work through it onsite.</p>
-      {isInstaller && <SubmitJob />}
-      {isLoading ? <p className="text-muted-foreground">Loading…</p> : jobs.length ? (
-        <div className="grid gap-3 sm:grid-cols-2">{jobs.map((j) => <JobCard key={j.id} job={j} to="/field/$jobId" />)}</div>
-      ) : <p className="rounded-xl border bg-card p-6 text-center text-muted-foreground">No jobs assigned right now.</p>}
+      <div className="pb-20">
+        <h1 className="font-display text-2xl font-extrabold">My work</h1>
+        <p className="mb-4 text-sm text-muted-foreground">{(data.business as { name?: string }).name}</p>
+        {data.blocker && <p className="mb-4 rounded-[22px] border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">{data.blocker}</p>}
+        {(data.offers.length > 0 || !!data.installDays?.length) && <section className="mb-6"><h2 className="mb-2 font-display text-lg font-extrabold">New job offers</h2><div className="grid gap-3 sm:grid-cols-2">{data.offers.map((o) => <OfferCard key={o.id} o={o} onDone={refetch} />)}{data.installDays?.map((o) => <InstallerDayOffer key={o.job_id} o={o} onDone={refetch} />)}</div></section>}
+        <section className="mb-6"><h2 className="mb-2 font-display text-lg font-extrabold">Needs you</h2>{needs.length ? <div className="grid gap-3">{needs.map(card)}</div> : <p className="rounded-[22px] border bg-card p-4 text-sm text-muted-foreground">Nothing for you to do right now.</p>}</section>
+        <section className="mb-6"><h2 className="mb-2 font-display text-lg font-extrabold">Coming up</h2>{coming.length ? <div className="grid gap-3">{coming.map(({ j, t }) => { const b = j.bookings[0]; const p = j.property as { address_line?: string | null; suburb?: string | null } | null; return <Link key={j.id} to="/field/$jobId" params={{ jobId: j.id }} className="flex items-center gap-3 rounded-[22px] border bg-card p-4 shadow-sm"><CalendarDays className="h-6 w-6 shrink-0 text-primary" /><div className="min-w-0 flex-1"><div className="font-semibold">{b ? when(b.scheduled_start) : t.label}</div><div className="truncate text-sm text-muted-foreground">{t.label} · {[j.owner, p?.address_line ?? p?.suburb].filter(Boolean).join(" · ")}</div></div><ChevronRight className="h-5 w-5 text-muted-foreground" /></Link>; })}</div> : <p className="rounded-[22px] border bg-card p-4 text-sm text-muted-foreground">No booked visits.</p>}</section>
+        {waiting.length > 0 && <section><button className="mb-2 flex w-full items-center justify-between rounded-[22px] border bg-card p-4 text-left font-semibold" aria-expanded={showWaiting} onClick={() => setShowWaiting((v) => !v)}>Waiting on others ({waiting.length})<ChevronDown className={`h-5 w-5 transition ${showWaiting ? "rotate-180" : ""}`} /></button>{showWaiting && <div className="grid gap-3">{waiting.map(card)}</div>}</section>}
+      </div>
+      <TradeTabs installer={installer} />
     </AppShell>
-  );
-}
-
-function SubmitJob() {
-  const [open, setOpen] = useState(false);
-  const nav = useNavigate();
-  const submit = useAction(submitInstallerJob);
-  const empty = { full_name: "", email: "", phone: "", address_line: "", suburb: "", postcode: "", occupancy: "owner_occupied" as "owner_occupied" | "rental", area: "", life: false };
-  const [f, setF] = useState(empty);
-  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button className="mb-4 h-12 w-full sm:w-auto"><Plus /> Submit a job to Home Insulation Victoria</Button></DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Submit your customer's job</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">Home Insulation Victoria handles eligibility, customer acceptance, the electrician/PIESA visit, evidence review and VEEC. You stay the installer on this job.</p>
-        <form className="grid gap-3" onSubmit={async (e) => {
-          e.preventDefault();
-          const r = await submit({ full_name: f.full_name, email: f.email, phone: f.phone || null, address_line: f.address_line, suburb: f.suburb || null, postcode: f.postcode || null, occupancy: f.occupancy, estimated_area_m2: f.area ? Number(f.area) : null, area_unknown: !f.area, life_support: f.life }, "Job submitted to Home Insulation Victoria");
-          if (r) { setOpen(false); setF(empty); nav({ to: "/field/$jobId", params: { jobId: r.job_id } }); }
-        }}>
-          <div><Label>Owner full name</Label><Input className="h-12" value={f.full_name} onChange={set("full_name")} required /></div>
-          <div><Label>Owner email</Label><Input className="h-12" type="email" value={f.email} onChange={set("email")} required /></div>
-          <div><Label>Owner phone</Label><Input className="h-12" type="tel" value={f.phone} onChange={set("phone")} /></div>
-          <div><Label>Street address</Label><Input className="h-12" value={f.address_line} onChange={set("address_line")} required minLength={3} /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Suburb</Label><Input className="h-12" value={f.suburb} onChange={set("suburb")} /></div>
-            <div><Label>Postcode</Label><Input className="h-12" inputMode="numeric" value={f.postcode} onChange={set("postcode")} /></div>
-          </div>
-          <div><Label>Occupancy</Label>
-            <select className="h-12 w-full rounded-md border bg-background px-2 text-sm" value={f.occupancy} onChange={(e) => setF({ ...f, occupancy: e.target.value as "owner_occupied" | "rental" })}>
-              <option value="owner_occupied">Owner-occupied</option><option value="rental">Rental</option>
-            </select></div>
-          <div><Label>Estimated ceiling area m² (optional)</Label><Input className="h-12" inputMode="decimal" value={f.area} onChange={set("area")} /></div>
-          <label className="flex min-h-12 items-center gap-2 text-sm"><input type="checkbox" className="h-5 w-5" checked={f.life} onChange={(e) => setF({ ...f, life: e.target.checked })} /> Someone at the property uses life support equipment</label>
-          <Button type="submit" className="h-12">Submit to Home Insulation Victoria</Button>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }

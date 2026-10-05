@@ -278,8 +278,10 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
     owner_id: ownerId, address_line: e.address_line!, suburb: e.suburb ?? null, postcode: e.postcode ?? null, state: "VIC",
   }).select("id").single();
   if (pe || !prop) throw new BulkImportError(pe?.message ?? "Property could not be created.");
+  const { intakeSourceFor } = await import("./pilot.server");
+  const source = await intakeSourceFor(actorId, batch.business_id, "bulk_import");
   const { data: job, error: je } = await admin.from("jobs").insert({
-    owner_id: ownerId, property_id: prop.id, stage: "new_enquiry", source: "bulk_import", business_unit: "hivic",
+    owner_id: ownerId, property_id: prop.id, stage: "new_enquiry", source, business_unit: "hivic",
     channel: "installer_sourced", originating_installer_business_id: batch.business_id, originating_installer_user_id: actorId,
     external_enquiry_id: `bulk:${rowId}`,
     next_action: "Office review — imported from installer bulk upload",

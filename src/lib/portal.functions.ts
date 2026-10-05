@@ -93,7 +93,8 @@ export const submitInstallerJob = createServerFn({ method: "POST" }).middleware(
     const biz = prof?.businesses as { name: string; business_type: string; is_active: boolean } | null;
     if (!prof?.business_id || !biz || biz.business_type !== "eec_installer" || !biz.is_active)
       throw new WorkflowError("Your account isn't linked to an approved EEC installer business yet. Ask Home Insulation Victoria to set this up.");
-    const res = await upsertEnquiry(data, "installer_portal", context.userId, { channel: "installer_sourced", businessId: prof.business_id, userId: context.userId });
+    const { intakeSourceFor } = await import("./pilot.server");
+    const res = await upsertEnquiry(data, await intakeSourceFor(context.userId, prof.business_id, "installer_portal"), context.userId, { channel: "installer_sourced", businessId: prof.business_id, userId: context.userId });
     await admin.from("job_assignments").insert({ job_id: res.job_id, user_id: context.userId, role: "installer", business_id: prof.business_id, assigned_by: context.userId });
     await logEvent(res.job_id, context.userId, "contractor_assigned", `Installer assigned (originating installer): ${prof.full_name ?? "installer"} – ${biz.name}`);
     return res;

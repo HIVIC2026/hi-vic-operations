@@ -44,5 +44,10 @@ export const getTodos = createServerFn({ method: "GET" }).middleware([requireSup
       pendingWorkers: ok(pw, "pending workers").map((w) => ({ id: w.id, full_legal_name: w.full_legal_name, created_at: w.created_at, business: (w.businesses as { name: string } | null)?.name ?? null })),
       acceptedQuoteJobs: new Set(ok(accQ, "accepted quotes").map((r) => r.job_id)),
     });
+    // Onsite forms that trades can't open yet because the Mitti form isn't connected.
+    const { data: ws, error: wsErr } = await admin.from("workflow_settings").select("mitti_ready_check_template_id, mitti_ready_check_priced_template_id, mitti_piesa_template_id, mitti_piisa_template_id").eq("id", 1).maybeSingle();
+    if (wsErr) throw new Error(`Could not load form settings: ${wsErr.message}`);
+    const forms: [string, string | null | undefined][] = [["A1 Ready Check (installer's own customer)", ws?.mitti_ready_check_priced_template_id], ["A2 Ready Check (our lead)", ws?.mitti_ready_check_template_id], ["B PIESA electrical safety check", ws?.mitti_piesa_template_id], ["C PIISA installer safety check", ws?.mitti_piisa_template_id]];
+    for (const [name, id] of forms) if (!id) items.unshift({ key: `mitti-form:${name}`, category: "Compliance", jobId: null, jobNumber: null, property: null, title: `Onsite form not set up: ${name}`, action: "Connect the Mitti form in Compliance → Mitti forms. Trades see “Form being set up” until then.", tab: null, since: null, urgent: true });
     return { items, checkedAt: new Date().toISOString() };
   });

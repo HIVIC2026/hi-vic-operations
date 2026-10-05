@@ -9,10 +9,10 @@ import { FORMS, buildSheet, type FormKey } from "@/lib/mitti-forms.core";
 import { connectMittiForm, getMittiForms } from "@/lib/mitti-forms.functions";
 
 const ORDER: { key: FormKey; letter: string; forWho: string; who: string }[] = [
-  { key: "ready_check", letter: "A", forWho: "For a customer WE brought you", who: "Installer · free Ready Check on a Home Insulation Victoria lead (no price)" },
-  { key: "ready_check_priced", letter: "B", forWho: "For a customer THE INSTALLER brought", who: "Installer · free Ready Check on their own customer (with quoted price)" },
-  { key: "piesa", letter: "C", forWho: "For every job that needs electrical work", who: "Licensed electrician · official DEECA PIESA" },
-  { key: "piisa", letter: "D", forWho: "For every installation", who: "Lead installer · official DEECA PIISA on install day" },
+  { key: "ready_check", letter: "A2", forWho: "For a customer WE brought you", who: "Installer · free Ready Check on a Home Insulation Victoria lead (no price)" },
+  { key: "ready_check_priced", letter: "A1", forWho: "For a customer THE INSTALLER brought", who: "Installer · free Ready Check on their own customer (with quoted price)" },
+  { key: "piesa", letter: "B", forWho: "For every job that needs electrical work", who: "Licensed electrician · official DEECA PIESA" },
+  { key: "piisa", letter: "C", forWho: "For every installation", who: "Lead installer · official DEECA PIISA on install day" },
 ];
 
 export function MittiFormsSection() {

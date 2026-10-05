@@ -17,6 +17,7 @@ import { Route as CampaignPreviewRouteImport } from './routes/campaign-preview'
 import { Route as ElectricianOnboardingRouteImport } from './routes/electrician-onboarding'
 import { Route as InstallerOnboardingRouteImport } from './routes/installer-onboarding'
 import { Route as QaAccessRouteImport } from './routes/qa-access'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as EligibilityTokenRouteImport } from './routes/eligibility.$token'
@@ -50,6 +51,7 @@ import { Route as AuthenticatedOwnerJobIdRouteImport } from './routes/_authentic
 import { Route as AuthenticatedPartnerIndexRouteImport } from './routes/_authenticated/partner.index'
 import { Route as AuthenticatedPartnerBulkImportRouteImport } from './routes/_authenticated/partner.bulk-import'
 import { Route as AuthenticatedPartnerImportRouteImport } from './routes/_authenticated/partner.import'
+import { Route as AuthenticatedPartnerPaymentsRouteImport } from './routes/_authenticated/partner.payments'
 import { Route as AuthenticatedPartnerProfileRouteImport } from './routes/_authenticated/partner.profile'
 import { Route as AuthenticatedPartnerWorkersRouteImport } from './routes/_authenticated/partner.workers'
 import { Route as ApiFilesSplatRouteImport } from './routes/api/files/$'
@@ -105,6 +107,11 @@ const InstallerOnboardingRoute = InstallerOnboardingRouteImport.update({
 const QaAccessRoute = QaAccessRouteImport.update({
   id: '/qa-access',
   path: '/qa-access',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Step3EmailPreviewRoute = Step3EmailPreviewRouteImport.update({
@@ -290,6 +297,12 @@ const AuthenticatedPartnerImportRoute =
     path: '/partner/import',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedPartnerPaymentsRoute =
+  AuthenticatedPartnerPaymentsRouteImport.update({
+    id: '/partner/payments',
+    path: '/partner/payments',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPartnerProfileRoute =
   AuthenticatedPartnerProfileRouteImport.update({
     id: '/partner/profile',
@@ -392,6 +405,7 @@ export interface FileRoutesByFullPath {
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/qa-access': typeof QaAccessRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
@@ -421,6 +435,7 @@ export interface FileRoutesByFullPath {
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
   '/partner/import': typeof AuthenticatedPartnerImportRoute
+  '/partner/payments': typeof AuthenticatedPartnerPaymentsRoute
   '/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/partner/workers': typeof AuthenticatedPartnerWorkersRoute
   '/api/files/$': typeof ApiFilesSplatRoute
@@ -451,6 +466,7 @@ export interface FileRoutesByTo {
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/qa-access': typeof QaAccessRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
@@ -480,6 +496,7 @@ export interface FileRoutesByTo {
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
   '/partner/import': typeof AuthenticatedPartnerImportRoute
+  '/partner/payments': typeof AuthenticatedPartnerPaymentsRoute
   '/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/partner/workers': typeof AuthenticatedPartnerWorkersRoute
   '/api/files/$': typeof ApiFilesSplatRoute
@@ -512,6 +529,7 @@ export interface FileRoutesById {
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
   '/qa-access': typeof QaAccessRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
@@ -541,6 +559,7 @@ export interface FileRoutesById {
   '/_authenticated/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/_authenticated/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
   '/_authenticated/partner/import': typeof AuthenticatedPartnerImportRoute
+  '/_authenticated/partner/payments': typeof AuthenticatedPartnerPaymentsRoute
   '/_authenticated/partner/profile': typeof AuthenticatedPartnerProfileRoute
   '/_authenticated/partner/workers': typeof AuthenticatedPartnerWorkersRoute
   '/api/files/$': typeof ApiFilesSplatRoute
@@ -573,6 +592,7 @@ export interface FileRouteTypes {
     | '/electrician-onboarding'
     | '/installer-onboarding'
     | '/qa-access'
+    | '/reset-password'
     | '/step3-email-preview'
     | '/home'
     | '/eligibility/$token'
@@ -602,6 +622,7 @@ export interface FileRouteTypes {
     | '/owner/$jobId'
     | '/partner/bulk-import'
     | '/partner/import'
+    | '/partner/payments'
     | '/partner/profile'
     | '/partner/workers'
     | '/api/files/$'
@@ -632,6 +653,7 @@ export interface FileRouteTypes {
     | '/electrician-onboarding'
     | '/installer-onboarding'
     | '/qa-access'
+    | '/reset-password'
     | '/step3-email-preview'
     | '/home'
     | '/eligibility/$token'
@@ -661,6 +683,7 @@ export interface FileRouteTypes {
     | '/owner/$jobId'
     | '/partner/bulk-import'
     | '/partner/import'
+    | '/partner/payments'
     | '/partner/profile'
     | '/partner/workers'
     | '/api/files/$'
@@ -692,6 +715,7 @@ export interface FileRouteTypes {
     | '/electrician-onboarding'
     | '/installer-onboarding'
     | '/qa-access'
+    | '/reset-password'
     | '/step3-email-preview'
     | '/_authenticated/home'
     | '/eligibility/$token'
@@ -721,6 +745,7 @@ export interface FileRouteTypes {
     | '/_authenticated/owner/$jobId'
     | '/_authenticated/partner/bulk-import'
     | '/_authenticated/partner/import'
+    | '/_authenticated/partner/payments'
     | '/_authenticated/partner/profile'
     | '/_authenticated/partner/workers'
     | '/api/files/$'
@@ -753,6 +778,7 @@ export interface RootRouteChildren {
   ElectricianOnboardingRoute: typeof ElectricianOnboardingRoute
   InstallerOnboardingRoute: typeof InstallerOnboardingRoute
   QaAccessRoute: typeof QaAccessRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
   EligibilityTokenRoute: typeof EligibilityTokenRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
@@ -830,6 +856,13 @@ declare module '@tanstack/react-router' {
       path: '/qa-access'
       fullPath: '/qa-access'
       preLoaderRoute: typeof QaAccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/step3-email-preview': {
@@ -1063,6 +1096,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPartnerImportRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/partner/payments': {
+      id: '/_authenticated/partner/payments'
+      path: '/partner/payments'
+      fullPath: '/partner/payments'
+      preLoaderRoute: typeof AuthenticatedPartnerPaymentsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/partner/profile': {
       id: '/_authenticated/partner/profile'
       path: '/partner/profile'
@@ -1210,6 +1250,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOwnerJobIdRoute: typeof AuthenticatedOwnerJobIdRoute
   AuthenticatedPartnerBulkImportRoute: typeof AuthenticatedPartnerBulkImportRoute
   AuthenticatedPartnerImportRoute: typeof AuthenticatedPartnerImportRoute
+  AuthenticatedPartnerPaymentsRoute: typeof AuthenticatedPartnerPaymentsRoute
   AuthenticatedPartnerProfileRoute: typeof AuthenticatedPartnerProfileRoute
   AuthenticatedPartnerWorkersRoute: typeof AuthenticatedPartnerWorkersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
@@ -1245,6 +1286,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOwnerJobIdRoute: AuthenticatedOwnerJobIdRoute,
   AuthenticatedPartnerBulkImportRoute: AuthenticatedPartnerBulkImportRoute,
   AuthenticatedPartnerImportRoute: AuthenticatedPartnerImportRoute,
+  AuthenticatedPartnerPaymentsRoute: AuthenticatedPartnerPaymentsRoute,
   AuthenticatedPartnerProfileRoute: AuthenticatedPartnerProfileRoute,
   AuthenticatedPartnerWorkersRoute: AuthenticatedPartnerWorkersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
@@ -1266,6 +1308,7 @@ const rootRouteChildren: RootRouteChildren = {
   ElectricianOnboardingRoute: ElectricianOnboardingRoute,
   InstallerOnboardingRoute: InstallerOnboardingRoute,
   QaAccessRoute: QaAccessRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
   EligibilityTokenRoute: EligibilityTokenRoute,
   EstimateTokenRoute: EstimateTokenRoute,
