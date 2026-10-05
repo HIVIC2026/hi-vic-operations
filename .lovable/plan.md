@@ -32,4 +32,7 @@ Remove stale project notes so there is one trustworthy status list, then restyle
 ## Deferred sequence
 After this higher-priority cleanup and Bulk job upload task:
 1. Update the launch campaign email, plain text, one-tap save confirmation and preview. Add postcode-level Ready Check availability, default off, and hide time picking until enabled.
+   - Group B video uploads also save the spot, mark video priority, sort first in office, and use the approved “jump the queue” copy.
+   - Add office review for videos that appear likely ineligible, without notifying the owner automatically.
+   - Report missing active-link counts for both groups and generate links only when the campaign is prepared.
 2. Continue the approved electrician and installer trade screens.
