@@ -141,7 +141,7 @@
 - [ ] Per-company AP management fee (office setting, default $349 inc GST; ReInsulate $299 pilot). Discount $70/VEEC for all (no $50 option). PIESA $349 to owner, electrician paid agreed rate.
 - [ ] Installer payouts: installer-supplied = full quoted price within 7 days of AP approval AND owner paid in full; HIV leads = agreed rate within 7 days of AP approval. Never wait for VEEC. Payout due date/status on office view + installer portal; office marks paid, no money moves.
 - [ ] Per-company "Installer sends own quote" mode: Quote figures panel per job + copyable owner acceptance link (live figures; owner reviews, signs consent + VEEC assignment). Nothing sends.
-- Visual restyle: ON HOLD (Jo, 5 Oct).
+- Visual restyle: replaced by Final portal design (below).
 
 ## Before live-safety check (Jo, 5 Oct 04:36)
 - [x] Round DOWN to whole VEECs everywhere (21.294 → 21)
@@ -151,11 +151,11 @@
 - Note: $299 AP fee ReInsulate ONLY; all others + HIV leads $349
 - [ ] Then live-safety check → SAFE TO PUBLISH or blockers; do not publish
 
-## Visual restyle "warm and friendly" (Jo approved 5 Oct) — QUEUED after publish + installer commercial options build
-- [ ] Stage 1: tokens (Nunito, cream/blush/pink/navy palette, radii) + shared pieces (cards, pills, rows, illustration SVGs, table shell)
-- [ ] Stage 2: Office Today + left nav
-- [ ] Stage 3: Installer portal home + installer job page
-- [ ] Stage 4: Electrician home + job card
-- [ ] Stage 5: Homeowner portal
-- [ ] Stage 6: onboarding, eligibility link, calculator/estimate, email web views (not locked likely email), admin tables
-- [ ] Before/after screenshots desktop + phone each stage; no logic/data/compliance wording changes
+## Final portal design (Jo approved 5 Oct 06:24) — REPLACES "warm and friendly" (discarded). Queued after bulk-upload fixes, file viewer, commercial build
+- [ ] Stage 1: calculator look portal-wide (tokens, logo header/menu, cards, buttons, house-progress signature)
+- [ ] Stage 2: Office Today + Work/Partners/Money menu
+- [ ] Stage 3: Office job page
+- [ ] Stage 4: Installer / electrician / homeowner job screens (phone first)
+- [ ] Stage 5: Upload leads single screen
+- [ ] Stage 6: AP sign-off exception-first
+- [ ] Before/after desktop + phone each stage; no rule/gate/data/compliance wording changes
