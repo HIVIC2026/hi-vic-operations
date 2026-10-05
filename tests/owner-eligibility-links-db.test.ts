@@ -35,11 +35,13 @@ describe("0108 owner eligibility links (practice database)", () => {
     await as(d, ID.inst); expect((await d.query("select id from public.owner_eligibility_links")).rows.length).toBe(1);
     await as(d, ID.other); expect((await d.query("select id from public.owner_eligibility_links")).rows.length).toBe(0);
   });
-  test("installer cannot write; office can", async () => {
+  test("signed-in users cannot write; only the server can", async () => {
     const d = await db();
     await as(d, ID.inst);
     await expect(d.exec(`UPDATE public.owner_eligibility_links SET revoked_at = now()`)).rejects.toThrow();
     await as(d, ID.office);
+    await expect(d.exec(`UPDATE public.owner_eligibility_links SET revoked_at = now()`)).rejects.toThrow();
+    await d.exec("RESET ROLE; SET ROLE service_role");
     const r = await d.query(`UPDATE public.owner_eligibility_links SET revoked_at = now() RETURNING id`);
     expect(r.rows.length).toBe(1);
   });
