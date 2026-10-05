@@ -17,7 +17,7 @@ export function OwnerHouse({ level, size = "lg", className }: { level: number; s
           x={s.x} y={s.y} width={s.w} height={s.h} rx={1.5}
           className={cn(
             "transition-[fill] duration-[400ms] ease-out motion-reduce:transition-none",
-            s.i < lv ? "fill-owner-house-pink" : "fill-estimate-mist",
+            s.i < lv ? "fill-owner-house-pink" : "fill-estimate-mist stroke-estimate-line [stroke-width:0.8]",
           )}
         />
       ))}
