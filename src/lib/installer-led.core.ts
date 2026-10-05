@@ -182,22 +182,30 @@ export function quotedPriceFromEntries(entries: { label: string; value: string |
 }
 
 export type InstallerQuoteLine = { code: string; description: string; quantity: number; unit: string; unit_price_inc_gst: number; line_total_inc_gst: number; is_other: boolean; explanation: string | null; sort: number };
-export type InstallerQuoteDraft = { ready: boolean; blockers: string[]; lines: InstallerQuoteLine[]; subtotal: number; discount: number; afterDiscount: number };
+export type InstallerQuoteDraft = { ready: boolean; blockers: string[]; lines: InstallerQuoteLine[]; subtotal: number; discount: number; afterDiscount: number; discountNote: string | null };
+
+/** Region's program maximum + $200 minimum for the discount. metropolitan null/unknown uses the lower metro cap. */
+export type DiscountCaps = { metropolitan: boolean | null; maxMetro: number; maxRegional: number; minCopay: number };
 
 /**
  * Owner quote for an installer-brought job: installer price (with ticked inclusions) + $349 PIESA + AP fee − VEU discount.
- * Discount = Eq 48.1 reduction for the measured m² × the VEEC value setting (same as the calculator). No lead fee, no margin.
+ * Discount = Eq 48.1 reduction for the measured m² × the VEEC value setting (same as the calculator), capped at the
+ * region's program maximum, then reduced if needed so the owner pays at least the $200 minimum. No lead fee, no margin.
  */
 export function buildInstallerQuoteDraft(i: {
   price: ReturnType<typeof quotedPriceFromEntries>; measuredM2: number | null; ghgReduction: number | null; veecValue: number | null;
-  piesaIncGst: number | null; apFeeIncGst: number | null;
+  piesaIncGst: number | null; apFeeIncGst: number | null; caps: DiscountCaps;
 }): InstallerQuoteDraft {
   const blockers = [...i.price.issues];
   if (!(i.measuredM2 && i.measuredM2 > 0)) blockers.push("Measured ceiling area is missing.");
   if (i.ghgReduction == null || i.veecValue == null) blockers.push("VEU discount can't be worked out (postcode or VEEC value missing).");
   const p = i.price.price;
-  const discount = i.ghgReduction != null && i.veecValue != null ? Math.round(i.ghgReduction * i.veecValue * 100) / 100 : 0;
-  const owner = installerLedOwnerPrice({ installerQuoteIncGst: p?.totalIncGst ?? 0, piesaIncGst: i.piesaIncGst, rectificationIncGst: 0, apFeeIncGst: i.apFeeIncGst, veecDiscountIncGst: discount });
+  const rawDiscount = i.ghgReduction != null && i.veecValue != null ? Math.round(i.ghgReduction * i.veecValue * 100) / 100 : 0;
+  const preTotal = Math.round(((p?.totalIncGst ?? 0) + (i.piesaIncGst ?? 0) + (i.apFeeIncGst ?? 0)) * 100) / 100;
+  const rules = applyDiscountRules(rawDiscount, preTotal, i.caps.metropolitan, {
+    max_discount_metro_inc_gst: i.caps.maxMetro, max_discount_regional_inc_gst: i.caps.maxRegional, minimum_customer_copayment_inc_gst: i.caps.minCopay,
+  });
+  const owner = installerLedOwnerPrice({ installerQuoteIncGst: p?.totalIncGst ?? 0, piesaIncGst: i.piesaIncGst, rectificationIncGst: 0, apFeeIncGst: i.apFeeIncGst, veecDiscountIncGst: rules.discount });
   for (const b of owner.blockers) if (!blockers.includes(b)) blockers.push(b);
   const lines: InstallerQuoteLine[] = [];
   if (p) {
@@ -206,5 +214,5 @@ export function buildInstallerQuoteDraft(i: {
   }
   if (i.piesaIncGst != null) lines.push({ code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: i.piesaIncGst, line_total_inc_gst: i.piesaIncGst, is_other: false, explanation: null, sort: 1 });
   if (i.apFeeIncGst != null && i.apFeeIncGst > 0) lines.push({ code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: i.apFeeIncGst, line_total_inc_gst: i.apFeeIncGst, is_other: false, explanation: null, sort: 2 });
-  return { ready: blockers.length === 0, blockers, lines, subtotal: owner.total, discount, afterDiscount: owner.afterDiscount };
+  return { ready: blockers.length === 0, blockers, lines, subtotal: owner.total, discount: owner.discount, afterDiscount: owner.afterDiscount, discountNote: discountNotes(rules).join(" ") || null };
 }
