@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CalculatorRouteImport } from './routes/calculator'
 import { Route as ElectricianOnboardingRouteImport } from './routes/electrician-onboarding'
 import { Route as InstallerOnboardingRouteImport } from './routes/installer-onboarding'
+import { Route as QaAccessRouteImport } from './routes/qa-access'
 import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as EligibilityTokenRouteImport } from './routes/eligibility.$token'
@@ -93,6 +94,11 @@ const ElectricianOnboardingRoute = ElectricianOnboardingRouteImport.update({
 const InstallerOnboardingRoute = InstallerOnboardingRouteImport.update({
   id: '/installer-onboarding',
   path: '/installer-onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QaAccessRoute = QaAccessRouteImport.update({
+  id: '/qa-access',
+  path: '/qa-access',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Step3EmailPreviewRoute = Step3EmailPreviewRouteImport.update({
@@ -378,6 +384,7 @@ export interface FileRoutesByFullPath {
   '/calculator': typeof CalculatorRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
+  '/qa-access': typeof QaAccessRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
@@ -435,6 +442,7 @@ export interface FileRoutesByTo {
   '/calculator': typeof CalculatorRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
+  '/qa-access': typeof QaAccessRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
@@ -494,6 +502,7 @@ export interface FileRoutesById {
   '/calculator': typeof CalculatorRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
+  '/qa-access': typeof QaAccessRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
@@ -553,6 +562,7 @@ export interface FileRouteTypes {
     | '/calculator'
     | '/electrician-onboarding'
     | '/installer-onboarding'
+    | '/qa-access'
     | '/step3-email-preview'
     | '/home'
     | '/eligibility/$token'
@@ -610,6 +620,7 @@ export interface FileRouteTypes {
     | '/calculator'
     | '/electrician-onboarding'
     | '/installer-onboarding'
+    | '/qa-access'
     | '/step3-email-preview'
     | '/home'
     | '/eligibility/$token'
@@ -668,6 +679,7 @@ export interface FileRouteTypes {
     | '/calculator'
     | '/electrician-onboarding'
     | '/installer-onboarding'
+    | '/qa-access'
     | '/step3-email-preview'
     | '/_authenticated/home'
     | '/eligibility/$token'
@@ -727,6 +739,7 @@ export interface RootRouteChildren {
   CalculatorRoute: typeof CalculatorRoute
   ElectricianOnboardingRoute: typeof ElectricianOnboardingRoute
   InstallerOnboardingRoute: typeof InstallerOnboardingRoute
+  QaAccessRoute: typeof QaAccessRoute
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
   EligibilityTokenRoute: typeof EligibilityTokenRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
@@ -790,6 +803,13 @@ declare module '@tanstack/react-router' {
       path: '/installer-onboarding'
       fullPath: '/installer-onboarding'
       preLoaderRoute: typeof InstallerOnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/qa-access': {
+      id: '/qa-access'
+      path: '/qa-access'
+      fullPath: '/qa-access'
+      preLoaderRoute: typeof QaAccessRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/step3-email-preview': {
@@ -1224,6 +1244,7 @@ const rootRouteChildren: RootRouteChildren = {
   CalculatorRoute: CalculatorRoute,
   ElectricianOnboardingRoute: ElectricianOnboardingRoute,
   InstallerOnboardingRoute: InstallerOnboardingRoute,
+  QaAccessRoute: QaAccessRoute,
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
   EligibilityTokenRoute: EligibilityTokenRoute,
   EstimateTokenRoute: EstimateTokenRoute,
