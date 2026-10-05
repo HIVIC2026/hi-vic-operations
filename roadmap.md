@@ -106,9 +106,9 @@
 - [ ] Per-installer-company pricing method (Automatic from onboarding rates / Assessor Form A1 / Installer owner enters price) — awaiting Jo's 4 decisions in plan
 
 ## Job 1 (approved 5 Oct) — end-to-end TEST of bulk upload before installer email
-- [ ] Confirm three notes applied (Ready Check coverage sorting, one permission tick, automatic stage)
-- [ ] Browser test as TEST installer "TEST – delete": messy Excel (8 customers, odd columns, dup row, typo address), zip folders + loose + unmatched photo, email-text-only leads
-- [ ] Check matching, stages, sorting reasons, missing evidence, tick blocking, job tagging, draft quote math, nothing sent
-- [ ] Fix bugs, then delete ALL test data; report pass/fail per check
+- [x] Confirm three notes applied (Ready Check coverage sorting, one permission tick, automatic stage)
+- [x] Browser test as TEST installer "TEST – delete": messy Excel (8 customers, odd columns, dup row, typo address), zip folders + loose + unmatched photo, email-text-only leads
+- [x] Check matching, stages, sorting reasons, missing evidence, tick blocking, job tagging, draft quote math, nothing sent
+- [x] Fix bugs (AI system-message fix), deleted ALL test data; reported pass/fail
 ## Job 2 (after Job 1) — PLAN ONLY
 - [ ] Owner eligibility link for installer-supplied customers (questions only, no signatures; installer told result)
