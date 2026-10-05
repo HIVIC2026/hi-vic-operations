@@ -31,7 +31,7 @@ export async function campaignPage(token: unknown, testMode = false) {
   if (!c) return null;
   const { resolvePublicEstimate } = await import("./estimatelink.server");
   const [{ data: response }, estimate] = await Promise.all([
-    admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, desk_check_status").eq("job_id", c.job.id).maybeSingle(),
+    admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, desk_check_status, queue_priority").eq("job_id", c.job.id).maybeSingle(),
     resolvePublicEstimate(token, testMode),
   ]);
   const owner = c.job.owners as { full_name: string | null } | null;
@@ -39,7 +39,8 @@ export async function campaignPage(token: unknown, testMode = false) {
   const base44 = (property?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
   const insulation = normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation);
   const address = [property?.address_line, property?.suburb, property?.state, property?.postcode].filter(Boolean).join(", ");
-  return estimate ? JSON.stringify({ group: c.group, estimate, response: response ?? null, owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
+  const { data: availability } = await admin.from("customer_delivery_settings").select("ready_check_available_postcodes").eq("id", 1).maybeSingle();
+  return estimate ? JSON.stringify({ group: c.group, estimate, response: response ?? null, bookingAvailable: !!property?.postcode && (availability?.ready_check_available_postcodes ?? []).includes(property.postcode), owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
 }
 
 export async function saveCampaignSpot(token: unknown) {
@@ -88,14 +89,14 @@ export async function markCampaignMediaReceived(jobId: string, linkId: string) {
   if (!link) return;
   const now = new Date().toISOString();
   const { data: existing } = await admin.from("lead_campaign_responses").select("desk_check_status, media_received_at").eq("job_id", jobId).maybeSingle();
-  const patch = { media_received_at: existing?.media_received_at ?? now, updated_at: now, ...(existing && !["not_needed", "pending"].includes(existing.desk_check_status) ? {} : { desk_check_status: "pending" }) };
+  const patch = { media_received_at: existing?.media_received_at ?? now, spot_saved_at: existing?.spot_saved_at ?? now, queue_priority: "video", updated_at: now, ...(existing && !["not_needed", "pending"].includes(existing.desk_check_status) ? {} : { desk_check_status: "pending" }) };
   if (existing) await admin.from("lead_campaign_responses").update(patch).eq("job_id", jobId);
   else await admin.from("lead_campaign_responses").insert({ job_id: jobId, estimate_link_id: linkId, campaign: LAUNCH_CAMPAIGN, video_requested: true, ...patch });
 }
 
 export async function launchCampaignOffice() {
   const [{ data: rows, error }, { data: sends }, { data: events }] = await Promise.all([
-    admin.from("lead_campaign_responses").select("id, job_id, spot_saved_at, opted_out_at, media_received_at, desk_check_status, desk_check_reason, created_at, jobs(job_number, owners(full_name), properties(address_line, suburb, postcode))").order("spot_saved_at", { ascending: true, nullsFirst: false }),
+    admin.from("lead_campaign_responses").select("id, job_id, spot_saved_at, opted_out_at, media_received_at, desk_check_status, desk_check_reason, queue_priority, created_at, jobs(job_number, owners(full_name), properties(address_line, suburb, postcode))").order("queue_priority", { ascending: false }).order("spot_saved_at", { ascending: true, nullsFirst: false }),
     admin.from("customer_email_sends").select("status").eq("purpose", LAUNCH_CAMPAIGN),
     admin.from("customer_engagement_events").select("event_type").eq("source", "launch_campaign"),
   ]);
@@ -114,7 +115,7 @@ export async function launchCampaignOffice() {
     },
     rows: (rows ?? []).map((r) => {
       const job = r.jobs as { job_number: string | null; owners: { full_name: string | null } | null; properties: { address_line: string | null; suburb: string | null; postcode: string | null } | null } | null;
-      return { id: r.id, jobId: r.job_id, jobNumber: job?.job_number ?? null, owner: job?.owners?.full_name ?? null, property: [job?.properties?.address_line, job?.properties?.suburb, job?.properties?.postcode].filter(Boolean).join(", "), spotSavedAt: r.spot_saved_at, optedOutAt: r.opted_out_at, mediaReceivedAt: r.media_received_at, deskCheckStatus: r.desk_check_status, deskCheckReason: r.desk_check_reason };
+      return { id: r.id, jobId: r.job_id, jobNumber: job?.job_number ?? null, owner: job?.owners?.full_name ?? null, property: [job?.properties?.address_line, job?.properties?.suburb, job?.properties?.postcode].filter(Boolean).join(", "), spotSavedAt: r.spot_saved_at, optedOutAt: r.opted_out_at, mediaReceivedAt: r.media_received_at, queuePriority: r.queue_priority, deskCheckStatus: r.desk_check_status, deskCheckReason: r.desk_check_reason };
     }),
   };
 }
