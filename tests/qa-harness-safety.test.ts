@@ -6,6 +6,7 @@ describe("TEST browser harness safety", () => {
   const xero = readFileSync("src/lib/xero.server.ts", "utf8");
   const followups = readFileSync("src/lib/followups.server.ts", "utf8");
   const coverage = readFileSync("src/lib/coverage.functions.ts", "utf8");
+  const workflow = readFileSync("src/lib/workflow.server.ts", "utf8");
 
   test("every privileged harness action verifies admin and qa_test", () => {
     for (const name of ["prepareQaJourneyAccess", "issueQaPersonaLink", "simulateQaJourneyTime", "archiveQaJourney"]) {
@@ -27,6 +28,11 @@ describe("TEST browser harness safety", () => {
     expect(xero).toContain('source === "qa_test"');
     expect(followups).toContain('job.source === "qa_test"');
     expect(coverage).toContain('job.source === "qa_test"');
+  });
+
+  test("TEST identities cannot act on live or archived jobs", () => {
+    expect(workflow).toContain('user_metadata?.["qa_test"] === true');
+    expect(workflow).toContain('job.source !== "qa_test" || job.qa_archived_at');
   });
 
   test("cleanup revokes access and archives instead of deleting audit history", () => {
