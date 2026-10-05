@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
 import { finishCaptureUpload, getCaptureStatus, startCaptureUpload } from "@/lib/owner-capture.functions";
-import { validateVideo } from "@/lib/owner-capture.core";
+import { validateCaptureFile } from "@/lib/owner-capture.core";
 import { PUBLIC_CALCULATOR_URL } from "@/lib/estimate-email";
 
 // Public no-login optional homeowner video. The token is the only credential; nothing is fetched during SSR.
@@ -42,7 +42,7 @@ function VideoPage() {
 
   const upload = async (file: File) => {
     last.current = file;
-    const v = validateVideo({ mime: file.type, fileName: file.name, size: file.size });
+    const v = validateCaptureFile({ mime: file.type, fileName: file.name, size: file.size });
     if (!v.ok) return setPhase({ k: "error", msg: v.error });
     setPhase({ k: "uploading", name: file.name });
     try {
@@ -72,31 +72,31 @@ function VideoPage() {
           <div className="mt-6 space-y-4">
             <section className="rounded-2xl border bg-card p-6">
               <p className="text-xs font-bold uppercase tracking-wide text-primary">Optional · {data.reference}{data.suburb ? ` · ${data.suburb}` : ""}</p>
-              <h1 className="mt-1 font-display text-3xl font-bold leading-tight">Send us a short video of your ceiling insulation</h1>
-              <p className="mt-3 text-[15px]">You told us there's already some insulation in your ceiling. A short phone video helps us review your enquiry sooner.</p>
+               <h1 className="mt-1 font-display text-3xl font-bold leading-tight">Send a short video from the manhole</h1>
+               <p className="mt-3 text-[15px]">A short phone video helps our office check the insulation level from the desk. You can also send photos.</p>
               <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
                 <li>Only record if you can do it safely — for example, holding your phone up through the ceiling hatch while standing on a stable ladder.</li>
                 <li><strong>Please don't climb into or walk through the roof space.</strong></li>
-                <li>Slowly pan across the insulation for 20–60 seconds. MP4 or iPhone MOV, up to 200 MB.</li>
+                 <li>Slowly pan across the insulation for 20–60 seconds. You can also add clear photos. Up to five files.</li>
               </ul>
             </section>
             <section className="rounded-2xl border bg-card p-6" aria-live="polite">
               <input ref={cam} type="file" accept="video/*" capture="environment" className="hidden" onChange={onFile} data-testid="camera-input" />
-              <input ref={pick} type="file" accept="video/*,.mov,.mp4,.m4v" className="hidden" onChange={onFile} data-testid="upload-input" />
+               <input ref={pick} type="file" accept="video/*,image/*,.mov,.mp4,.m4v,.heic,.heif" className="hidden" onChange={onFile} data-testid="upload-input" />
               {phase.k === "done" ? (
                 <div role="status" className="text-center">
-                  <h2 className="font-display text-xl font-bold">Thanks — we've got your video</h2>
-                  <p className="mt-2 text-sm text-muted-foreground">Our office will review it. It doesn't confirm eligibility on its own — we still confirm everything at your free onsite check.</p>
+                   <h2 className="font-display text-xl font-bold">Thanks — we've got your file</h2>
+                   <p className="mt-2 text-sm text-muted-foreground">Our office will review it. Your answer stays declared and this desk check does not confirm final eligibility.</p>
                 </div>
               ) : data.remaining <= 0 ? (
-                <p role="status" className="text-center text-sm">We've already received your videos. Thank you!</p>
+                 <p role="status" className="text-center text-sm">We've already received your files. Thank you!</p>
               ) : (
                 <div className="space-y-3">
                   <button disabled={phase.k === "uploading"} onClick={() => cam.current?.click()} className="h-12 w-full rounded-xl bg-primary font-bold text-primary-foreground disabled:opacity-60">Record a video</button>
-                  <button disabled={phase.k === "uploading"} onClick={() => pick.current?.click()} className="h-12 w-full rounded-xl border font-bold disabled:opacity-60">Choose a video from my phone</button>
+                   <button disabled={phase.k === "uploading"} onClick={() => pick.current?.click()} className="h-12 w-full rounded-xl border font-bold disabled:opacity-60">Choose a video or photo</button>
                   {phase.k === "uploading" && <p role="status" className="text-center text-sm">Uploading {phase.name}… please keep this page open.</p>}
                   {phase.k === "error" && <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">{phase.msg}{last.current && <button className="ml-2 font-semibold underline" onClick={() => last.current && upload(last.current)}>Try again</button>}</div>}
-                  <p className="text-xs text-muted-foreground">If your camera won't open or you've blocked camera access, use "Choose a video" instead.</p>
+                   <p className="text-xs text-muted-foreground">You can return to this page to add more files.</p>
                 </div>
               )}
             </section>
