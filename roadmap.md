@@ -224,3 +224,12 @@
 - [ ] Business tab: workers, rates, bulk upload in one place
 - [ ] Invite/password email — waiting on Jo's wording approval (copy-link works now)
 - [ ] 8 older failing tests (agreement fee clause, PIESA/PIISA templates, ESC) — predate this work
+
+## Office portal restructure (Jo, 5 Oct) — supersedes layout audit/proposal
+- [x] 1 Top bar nav + tabbed sections (all old routes kept)
+- [x] 2 One status per job rulebook (pure mapping + settings defaults)
+- [x] 3 Needs me (rules a–k, Later/snooze)
+- [x] 4 Pipeline panels + filtered table
+- [x] 5 Job page tracker / Right now / Done when
+- [x] 6 Partners cards / Money overview + payouts
+- [ ] 7 Proof on practice DB + screenshots

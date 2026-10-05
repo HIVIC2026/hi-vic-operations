@@ -29,3 +29,5 @@
 - REC onboarding keeps legacy step keys for validation/history but maps them through nine visible page groups; every group validates all member steps and persists its canonical legacy anchor. Why: old drafts resume safely without duplicated one-question pages or weakened gates.
 
 - Installer onboarding keeps legacy step keys for history but shows nine page groups (`INSTALLER_VISIBLE_PAGES`); each group validates all members and persists its first member as anchor; contact details are asked once and signing authority only at signing. Why: old drafts resume safely.
+- Office status (6 stages, one status, waiting-on, due) is derived only by pure `office-status.core.ts`; Needs me rules a–k only by `needs-me.core.ts`; facts gathered in `office.server.ts`; time limits override defaults via `workflow_settings.office_time_limits`. Why: one rulebook labels jobs and never moves them.
+- Office navigation is the top bar + tab map in `src/lib/office-nav.ts`; old admin routes stay as tabs. Why: links and bookmarks keep working.

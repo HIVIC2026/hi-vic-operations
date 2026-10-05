@@ -35,7 +35,12 @@ import { Route as AuthenticatedAdminEnquiryGroupsRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminHotLeadsRouteImport } from './routes/_authenticated/admin.hot-leads'
 import { Route as AuthenticatedAdminInterestsRouteImport } from './routes/_authenticated/admin.interests'
 import { Route as AuthenticatedAdminLaunchCampaignRouteImport } from './routes/_authenticated/admin.launch-campaign'
+import { Route as AuthenticatedAdminListRouteImport } from './routes/_authenticated/admin.list'
+import { Route as AuthenticatedAdminMoneyRouteImport } from './routes/_authenticated/admin.money'
+import { Route as AuthenticatedAdminNeedsMeRouteImport } from './routes/_authenticated/admin.needs-me'
 import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authenticated/admin.partners'
+import { Route as AuthenticatedAdminPartnersOverviewRouteImport } from './routes/_authenticated/admin.partners-overview'
+import { Route as AuthenticatedAdminPipelineRouteImport } from './routes/_authenticated/admin.pipeline'
 import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authenticated/admin.pricing'
 import { Route as AuthenticatedAdminTeamUpsRouteImport } from './routes/_authenticated/admin.team-ups'
 import { Route as AuthenticatedAdminTestCentreRouteImport } from './routes/_authenticated/admin.test-centre'
@@ -210,10 +215,38 @@ const AuthenticatedAdminLaunchCampaignRoute =
     path: '/admin/launch-campaign',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminListRoute = AuthenticatedAdminListRouteImport.update({
+  id: '/admin/list',
+  path: '/admin/list',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminMoneyRoute = AuthenticatedAdminMoneyRouteImport.update({
+  id: '/admin/money',
+  path: '/admin/money',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminNeedsMeRoute =
+  AuthenticatedAdminNeedsMeRouteImport.update({
+    id: '/admin/needs-me',
+    path: '/admin/needs-me',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminPartnersRoute =
   AuthenticatedAdminPartnersRouteImport.update({
     id: '/admin/partners',
     path: '/admin/partners',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminPartnersOverviewRoute =
+  AuthenticatedAdminPartnersOverviewRouteImport.update({
+    id: '/admin/partners-overview',
+    path: '/admin/partners-overview',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminPipelineRoute =
+  AuthenticatedAdminPipelineRouteImport.update({
+    id: '/admin/pipeline',
+    path: '/admin/pipeline',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminPricingRoute =
@@ -428,7 +461,12 @@ export interface FileRoutesByFullPath {
   '/admin/hot-leads': typeof AuthenticatedAdminHotLeadsRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/admin/launch-campaign': typeof AuthenticatedAdminLaunchCampaignRoute
+  '/admin/list': typeof AuthenticatedAdminListRoute
+  '/admin/money': typeof AuthenticatedAdminMoneyRoute
+  '/admin/needs-me': typeof AuthenticatedAdminNeedsMeRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
+  '/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
+  '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -490,7 +528,12 @@ export interface FileRoutesByTo {
   '/admin/hot-leads': typeof AuthenticatedAdminHotLeadsRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/admin/launch-campaign': typeof AuthenticatedAdminLaunchCampaignRoute
+  '/admin/list': typeof AuthenticatedAdminListRoute
+  '/admin/money': typeof AuthenticatedAdminMoneyRoute
+  '/admin/needs-me': typeof AuthenticatedAdminNeedsMeRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
+  '/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
+  '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -554,7 +597,12 @@ export interface FileRoutesById {
   '/_authenticated/admin/hot-leads': typeof AuthenticatedAdminHotLeadsRoute
   '/_authenticated/admin/interests': typeof AuthenticatedAdminInterestsRoute
   '/_authenticated/admin/launch-campaign': typeof AuthenticatedAdminLaunchCampaignRoute
+  '/_authenticated/admin/list': typeof AuthenticatedAdminListRoute
+  '/_authenticated/admin/money': typeof AuthenticatedAdminMoneyRoute
+  '/_authenticated/admin/needs-me': typeof AuthenticatedAdminNeedsMeRoute
   '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
+  '/_authenticated/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
+  '/_authenticated/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/_authenticated/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/_authenticated/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/_authenticated/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -618,7 +666,12 @@ export interface FileRouteTypes {
     | '/admin/hot-leads'
     | '/admin/interests'
     | '/admin/launch-campaign'
+    | '/admin/list'
+    | '/admin/money'
+    | '/admin/needs-me'
     | '/admin/partners'
+    | '/admin/partners-overview'
+    | '/admin/pipeline'
     | '/admin/pricing'
     | '/admin/team-ups'
     | '/admin/test-centre'
@@ -680,7 +733,12 @@ export interface FileRouteTypes {
     | '/admin/hot-leads'
     | '/admin/interests'
     | '/admin/launch-campaign'
+    | '/admin/list'
+    | '/admin/money'
+    | '/admin/needs-me'
     | '/admin/partners'
+    | '/admin/partners-overview'
+    | '/admin/pipeline'
     | '/admin/pricing'
     | '/admin/team-ups'
     | '/admin/test-centre'
@@ -743,7 +801,12 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/hot-leads'
     | '/_authenticated/admin/interests'
     | '/_authenticated/admin/launch-campaign'
+    | '/_authenticated/admin/list'
+    | '/_authenticated/admin/money'
+    | '/_authenticated/admin/needs-me'
     | '/_authenticated/admin/partners'
+    | '/_authenticated/admin/partners-overview'
+    | '/_authenticated/admin/pipeline'
     | '/_authenticated/admin/pricing'
     | '/_authenticated/admin/team-ups'
     | '/_authenticated/admin/test-centre'
@@ -996,11 +1059,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminLaunchCampaignRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/list': {
+      id: '/_authenticated/admin/list'
+      path: '/admin/list'
+      fullPath: '/admin/list'
+      preLoaderRoute: typeof AuthenticatedAdminListRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/money': {
+      id: '/_authenticated/admin/money'
+      path: '/admin/money'
+      fullPath: '/admin/money'
+      preLoaderRoute: typeof AuthenticatedAdminMoneyRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/needs-me': {
+      id: '/_authenticated/admin/needs-me'
+      path: '/admin/needs-me'
+      fullPath: '/admin/needs-me'
+      preLoaderRoute: typeof AuthenticatedAdminNeedsMeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/partners': {
       id: '/_authenticated/admin/partners'
       path: '/admin/partners'
       fullPath: '/admin/partners'
       preLoaderRoute: typeof AuthenticatedAdminPartnersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/partners-overview': {
+      id: '/_authenticated/admin/partners-overview'
+      path: '/admin/partners-overview'
+      fullPath: '/admin/partners-overview'
+      preLoaderRoute: typeof AuthenticatedAdminPartnersOverviewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/pipeline': {
+      id: '/_authenticated/admin/pipeline'
+      path: '/admin/pipeline'
+      fullPath: '/admin/pipeline'
+      preLoaderRoute: typeof AuthenticatedAdminPipelineRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/pricing': {
@@ -1256,7 +1354,12 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminHotLeadsRoute: typeof AuthenticatedAdminHotLeadsRoute
   AuthenticatedAdminInterestsRoute: typeof AuthenticatedAdminInterestsRoute
   AuthenticatedAdminLaunchCampaignRoute: typeof AuthenticatedAdminLaunchCampaignRoute
+  AuthenticatedAdminListRoute: typeof AuthenticatedAdminListRoute
+  AuthenticatedAdminMoneyRoute: typeof AuthenticatedAdminMoneyRoute
+  AuthenticatedAdminNeedsMeRoute: typeof AuthenticatedAdminNeedsMeRoute
   AuthenticatedAdminPartnersRoute: typeof AuthenticatedAdminPartnersRoute
+  AuthenticatedAdminPartnersOverviewRoute: typeof AuthenticatedAdminPartnersOverviewRoute
+  AuthenticatedAdminPipelineRoute: typeof AuthenticatedAdminPipelineRoute
   AuthenticatedAdminPricingRoute: typeof AuthenticatedAdminPricingRoute
   AuthenticatedAdminTeamUpsRoute: typeof AuthenticatedAdminTeamUpsRoute
   AuthenticatedAdminTestCentreRoute: typeof AuthenticatedAdminTestCentreRoute
@@ -1293,7 +1396,13 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminHotLeadsRoute: AuthenticatedAdminHotLeadsRoute,
   AuthenticatedAdminInterestsRoute: AuthenticatedAdminInterestsRoute,
   AuthenticatedAdminLaunchCampaignRoute: AuthenticatedAdminLaunchCampaignRoute,
+  AuthenticatedAdminListRoute: AuthenticatedAdminListRoute,
+  AuthenticatedAdminMoneyRoute: AuthenticatedAdminMoneyRoute,
+  AuthenticatedAdminNeedsMeRoute: AuthenticatedAdminNeedsMeRoute,
   AuthenticatedAdminPartnersRoute: AuthenticatedAdminPartnersRoute,
+  AuthenticatedAdminPartnersOverviewRoute:
+    AuthenticatedAdminPartnersOverviewRoute,
+  AuthenticatedAdminPipelineRoute: AuthenticatedAdminPipelineRoute,
   AuthenticatedAdminPricingRoute: AuthenticatedAdminPricingRoute,
   AuthenticatedAdminTeamUpsRoute: AuthenticatedAdminTeamUpsRoute,
   AuthenticatedAdminTestCentreRoute: AuthenticatedAdminTestCentreRoute,
