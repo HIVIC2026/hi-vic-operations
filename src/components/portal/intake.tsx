@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { getIntakeSummary } from "@/lib/portal.functions";
 import { Pill } from "./badges";
+import { openFileViewer } from "@/components/portal/file-viewer";
 
 const yn = (v: string | null | undefined) => (v ? v.charAt(0).toUpperCase() + v.slice(1).replace(/_/g, " ") : "Not answered");
 const when = (s: string | null | undefined) => (s ? new Date(s).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" }) : "—");
@@ -75,7 +76,7 @@ export function IntakeSummary({ jobId }: { jobId: string }) {
         <div className="space-y-1 text-sm">
           <div className="text-xs font-medium uppercase text-muted-foreground">Photos & videos ({data.media.length})</div>
           {data.media.map((m) => (
-            <div key={m.id}>{m.url ? <a className="text-primary underline" href={m.url} target="_blank" rel="noreferrer">{m.name}</a> : m.name}</div>
+            <div key={m.id}>{m.url ? <button type="button" className="text-primary underline" onClick={() => openFileViewer(m.url, m.name)}>{m.name}</button> : m.name}</div>
           ))}
           {data.lastMediaFailure && <div className="text-destructive">{data.lastMediaFailure.summary} ({when(data.lastMediaFailure.created_at)})</div>}
         </div>
