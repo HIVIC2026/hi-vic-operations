@@ -11,9 +11,10 @@ Build the approved electrician offer first, then reuse the same phone-first comp
 5. Record couldn't-enter reasons as an office rebooking exception and preserve the same installer as first re-offer, without bypassing existing booking guards.
 6. Create one shared pre-start section for the electrician safety check, installer Ready Check and installer install day, remembering its three checks per job and gating the relevant Mitti Start button.
 7. Replace the installer install-day checklist with the approved simple day card, Mitti PIISA/photos/bag-label launch, and complete-or-missing-photo outcome.
-8. Extend the existing offer payload loader so only the required anonymised facts are present before acceptance, while owner identity and address remain available only after the atomic booking succeeds.
-9. Add focused tests for both offer variants, the three pre-start uses, remembered gating, Mitti outcomes, rebooking priority and the simplified install day.
-10. Check offer, taken and all three day-page states at 390px, then confirm the preview build and relevant tests.
+8. Finish the shared My work home with installer content for Ready Check offers, install actions, coming-up work, monthly earnings and the four installer tabs.
+9. Extend the existing offer payload loader so only the required anonymised facts are present before acceptance, while owner identity and address remain available only after the atomic booking succeeds.
+10. Add focused tests for both offer variants, shared My work variants, the three pre-start uses, remembered gating, Mitti outcomes, rebooking priority and the simplified install day.
+11. Check offer, taken, My work and all three day-page states at 390px, then confirm the preview build and relevant tests.
 
 ## Technical details
 - Preserve `accept_ready_check_offer` and the existing electrician atomic acceptance function as the only booking writes.
