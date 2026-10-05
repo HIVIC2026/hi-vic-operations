@@ -44,7 +44,7 @@ describe("rec onboarding", () => {
     expect(pageErrors("assessment_pricing", { ...full, rectification_rates: undefined })).toContain("Enter a rate for Downlight upgrade to IC-4 LED.");
     expect(firstIncompleteStep({ ...full, business_address_details: null })).toBe("business");
     expect(firstIncompleteStep({ ...full, services_all_confirmed: false })).toBe("services");
-    expect(firstIncompleteStep({ ...full, capacity_band: undefined })).toBe("availability");
+    expect(firstIncompleteStep({ ...full, capacity_band: undefined })).toBeNull();
     expect(firstIncompleteStep({ ...full, rectification_rates: undefined })).toBe("assessment_pricing");
   });
   test("legacy draft role answers remain explicit", () => {

@@ -59,7 +59,7 @@ describe("partner enquiry endpoint", () => {
     const r1 = await handlePartnerEnquiry(a, hdr(await sign(a)), db.deps);
     const r2 = await handlePartnerEnquiry(b, hdr(await sign(b)), db.deps);
     expect(r2.body.created).toBe(false); expect(r2.body.id).toBe(r1.body.id);
-    expect(db.rows.size).toBe(1); expect([...db.rows.values()][0].property_count).toBe(130);
+    expect(db.rows.size).toBe(1); expect([...db.rows.values()][0].notes).toBe("Updated");
   });
   test("validation: bad type / missing submission_id / overlong fields -> 400", async () => {
     const db = fakeDb();
