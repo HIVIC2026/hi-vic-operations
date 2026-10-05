@@ -6,7 +6,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { logEvent } from "./workflow.server";
 import { logPartner } from "./pilot.server";
-import { ghgEquivalentReduction, type LocationVariables } from "./activity48.core";
+import { type LocationVariables } from "./activity48.core";
 import { HIVIC_PIESA_INC_GST } from "./installer-led.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
