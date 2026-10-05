@@ -246,7 +246,7 @@
 
 ## New connectors (Jo, 5 Oct) — after trade launch fixes + Xero Demo loop
 - [ ] 1 Resend (HIV domain; comms off, auto_send false)
-- [ ] 2 Twilio SMS (off for real people)
+- [ ] 2 Twilio SMS (off for real people). Owner sign/act items = email+SMS (one line + secure link), one 24h reminder both channels; trade offers SMS+email; info-only stays email
 - [ ] 3 Xero Demo Company only
 - [ ] 4 Sentry error alerts (owner/trade/office)
 - [ ] 5 Stripe TEST mode deposit from quote link → Xero; gate off; no 50% lock

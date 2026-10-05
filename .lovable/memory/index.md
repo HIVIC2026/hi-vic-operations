@@ -33,3 +33,4 @@ Homeowner questions "previous VEU upgrade" and "rented vs owner-occupied" DELETE
 - [Ready Check naming](mem://constraints/ready-check-naming) — likely email LOCKED as approved 2026-10-01; customer name "Free Insulation Measure-Up & Eligibility Check", portal service still Ready Check, no Ready Check wording in likely email
 - [Never ask twice](mem://constraints/never-ask-twice) — full rule: no repeat questions across forms; Ready Check-only items never on install day
 - [Installer invitation approved copy](mem://features/installer-invitation-copy) — exact approved email; "online portal" never "app"/messaging; pink paperwork line leads admin-support paragraph, not rates
+- [Owner action channels](mem://features/owner-sms-email-channels) — sign/act items email+SMS (one line + link), one 24h reminder both; trade offers SMS+email; info email only
