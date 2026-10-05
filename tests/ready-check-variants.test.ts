@@ -117,7 +117,7 @@ describe("the real Mitti templates", () => {
         { label: "Total quoted price (inc GST)", value: "$2,400" },
         { label: "What else is included?", value: null },
       ], false),
-      measuredM2: 100, ghgReduction: 20, veecValue: 70, piesaIncGst: 349, apFeeIncGst: 349,
+      measuredM2: 100, ghgReduction: 20, veecValue: 70, piesaIncGst: 349, apFeeIncGst: 349, caps: { metropolitan: true, maxMetro: 1500, maxRegional: 2100, minCopay: 200 },
     });
     expect(d.ready).toBe(true);
     expect(d.lines[0]?.unit_price_inc_gst).toBe(2400);
@@ -182,5 +182,20 @@ describe("the real own-leads A2 template (HIVIC sourced, downloaded 2026-10-02)"
     expect(p.issues.some((i) => /Installer flagged hazards/.test(i))).toBe(true);
     expect(p.issues.some((i) => /Ready Check as failed/.test(i))).toBe(true);
     expect(p.patch.notes).toContain("installer reasons: Asbestos suspected in the ceiling space");
+  });
+});
+
+describe("retired price items (Jo, 5 Oct)", () => {
+  test("spec lists only R5.0 / Removal / Difficult access / Other; live template's Tile lift + Metal sheet still parse", async () => {
+    const { PRICE_ITEMS, PRICING_FIELDS } = await import("../src/lib/mitti-forms.core");
+    expect([...PRICE_ITEMS]).toEqual(["R5.0 supply and install", "Removal of existing insulation", "Difficult access", "Other"]);
+    expect(PRICING_FIELDS[0]!.choices).not.toContain("Tile lift");
+    expect(PRICING_FIELDS[0]!.choices).not.toContain("Metal sheet access");
+    const p = quotedPriceFromEntries([
+      { label: "What's included in your quote?", value: "R5.0 supply and install, Tile lift, Metal sheet access" },
+      { label: "Total quoted price (inc GST)", value: "2400" },
+      { label: "What else is included?", value: null },
+    ], false);
+    expect(p.issues).toEqual([]);
   });
 });

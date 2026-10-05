@@ -59,3 +59,11 @@ Starts only after the current build (gaps 1, 3, 4) and only on Jo's go. Same rul
 - New nullable columns: `quotes.product_name`, `quotes.product_r_value`, and the job's install-day `packaging_product` / `packaging_r_value`. A trigger rejects values below 5.0. Rate-card lines get `R6_BATTS` / `R7_BATTS` codes.
 - One pure `rvalue.core.ts` handles parsing ("R6", "R 6.0", "R6.0 batts"), the minimum check and the packaging comparison, with tests.
 - Old quotes with no R-value are shown as R5.0 for display only. Their stored data is never rewritten.
+
+## Addition (Jo, 5 Oct): install-day product check (plan only)
+- Install-day Mitti form: required product label photo plus brand, model and R-value fields.
+- Portal checks brand/model against an office-maintained copy of the VEU product register (no live lookup assumed); not found → office review.
+- Product type must be batts, blanket or rigid board, minimum R5.0, and at least the quoted R-value.
+- Blocked: foil / foil-faced, combustible, blow-in / loose-fill, expanding / foaming products → AP review cannot pass; office flag with reason.
+- Result recorded on the job file and VEEC form record; AP queue shows it as a flag.
+- Size: about 1.5 days on top of the R-value plan, plus Mitti template update.

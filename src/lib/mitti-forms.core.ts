@@ -61,11 +61,13 @@ const PIISA_SUPPLEMENTAL: FormField[] = [
 ];
 
 /** Pricing section — installer-sourced jobs only (Form A1). Tick what's included, describe Other, ONE total price. */
-export const PRICE_ITEMS = ["R5.0 supply and install", "Removal of existing insulation", "Difficult access", "Tile lift", "Metal sheet access", "Other"] as const;
+export const PRICE_ITEMS = ["R5.0 supply and install", "Removal of existing insulation", "Difficult access", "Other"] as const;
+/** Retired by Jo (5 Oct) but still accepted so answers from the not-yet-updated live Mitti template keep parsing. */
+export const LEGACY_PRICE_ITEMS = ["Tile lift", "Metal sheet access"] as const;
 /** The installer's form may word an inclusion slightly differently; both mean the same line. */
 const PRICE_ALIASES: Record<string, string> = { "r5.0 ceiling insulation - supply & install": "R5.0 supply and install" };
 export const PRICING_FIELDS: FormField[] = [
-  { label: "What's included in your quote?", type: "multichoice", required: true, choices: ["R5.0 ceiling insulation - supply & install", "Removal of existing insulation", "Other"], source: "portal – 'R5.0 ceiling insulation - supply & install' must be ticked; Removal ticked only when an area says Remove" },
+  { label: "What's included in your quote?", type: "multichoice", required: true, choices: ["R5.0 ceiling insulation - supply & install", "Removal of existing insulation", "Difficult access", "Other"], source: "portal – 'R5.0 ceiling insulation - supply & install' must be ticked; Removal ticked only when an area says Remove" },
   { label: "What else is included?", type: "text", required: true, when: "Other is ticked", source: "portal – required only when Other is ticked" },
   { label: "Total quoted price (inc GST)", type: "number", required: true, source: "portal – one total incl GST; becomes the installer line on the owner's co-branded quote" },
 ];
@@ -87,7 +89,7 @@ const READY_CHECK_FIELDS: FormField[] = [
       // 2. Getting into the ceiling
       { label: "Assessor", type: "text", required: true, prefill: true, source: "portal – person doing the measure-up" },
       { label: "Installer photo at front of premises with photo ID", type: "media", required: false, source: `${G} Table 4 – the installer-sourced A1 form collects it at installation instead` },
-      { label: "Roof type", type: "choice", required: true, choices: ["Tiles", "Metal sheet", "Other"], aliases: ["What type of roof does the home have?"], source: "portal – quoting: tile lift / metal-sheet access extras" },
+      { label: "Roof type", type: "choice", required: true, choices: ["Tiles", "Metal sheet", "Other"], aliases: ["What type of roof does the home have?"], source: "portal – site context for the install crew" },
       // A1 has no separate "Other" detail question for the roof; the office sees the parsed report on review.
       { label: "Describe the roof type", type: "text", required: true, when: "Other", notRequiredIf: ["What type of roof does the home have?"], source: "portal – quoting" },
       { label: "How easy is the ceiling access?", type: "choice", required: true, choices: ["Easy", "Moderate", "Difficult"], aliases: ["How would you rate the ceiling access?"], source: "portal – quoting: access difficulty" },
@@ -302,7 +304,7 @@ export function validateQuotedPrice(input: {
     const v = (raw ?? "").trim().toLowerCase();
     if (!v) continue;
     const key = (PRICE_ALIASES[v] ?? v).toLowerCase();
-    const m = (PRICE_ITEMS as readonly string[]).find((p) => p.toLowerCase() === key);
+    const m = ([...PRICE_ITEMS, ...LEGACY_PRICE_ITEMS] as readonly string[]).find((p) => p.toLowerCase() === key);
     if (!m) issues.push(`Unknown included item "${raw}".`);
     else if (!included.includes(m)) included.push(m);
   }

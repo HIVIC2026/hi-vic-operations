@@ -6,9 +6,13 @@ const e = (inc: string, total: string | null) => [
   { label: "Total quoted price (inc GST)", value: total },
   { label: "What else is included?", value: null },
 ];
-const base = { measuredM2: 100, ghgReduction: 20, veecValue: 70, piesaIncGst: 349, apFeeIncGst: 349 };
+const base = { measuredM2: 100, ghgReduction: 20, veecValue: 70, piesaIncGst: 349, apFeeIncGst: 349, caps: { metropolitan: true, maxMetro: 1500, maxRegional: 2100, minCopay: 200 } };
 
 describe("automatic installer quote", () => {
+  test("whole VEECs: 20.9 rounds down to 20", () => {
+    const d = buildInstallerQuoteDraft({ ...base, ghgReduction: 20.9, price: quotedPriceFromEntries(e("R5.0 supply and install", "2400"), false) });
+    expect(d.discount).toBe(1400);
+  });
   test("installer price + 349 PIESA + 349 AP − discount from m²", () => {
     const d = buildInstallerQuoteDraft({ ...base, price: quotedPriceFromEntries(e("R5.0 supply and install, Tile lift", "$2,400"), false) });
     expect(d.ready).toBe(true);
@@ -24,8 +28,15 @@ describe("automatic installer quote", () => {
     expect(buildInstallerQuoteDraft({ ...base, price: quotedPriceFromEntries(e("R5.0 supply and install", null), false) }).ready).toBe(false);
     expect(buildInstallerQuoteDraft({ ...base, measuredM2: null, price: quotedPriceFromEntries(e("R5.0 supply and install", "2400"), false) }).ready).toBe(false);
   });
-  test("held below $200 co-payment", () => {
+  test("discount reduced so the owner still pays the $200 minimum", () => {
     const d = buildInstallerQuoteDraft({ ...base, ghgReduction: 60, price: quotedPriceFromEntries(e("R5.0 supply and install", "1000"), false) });
-    expect(d.ready).toBe(false);
+    expect(d.ready).toBe(true);
+    expect(d.afterDiscount).toBe(200);
+  });
+});
+
+describe("Industry Pack example", () => {
+  test("0.00546 × 150 × 25 × 1.04 = 21.294 → 21 whole VEECs", () => {
+    expect(Math.floor(0.00546 * 150 * 25 * 1.04)).toBe(21);
   });
 });

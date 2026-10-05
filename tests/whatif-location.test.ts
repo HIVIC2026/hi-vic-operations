@@ -12,7 +12,7 @@ describe("address-aware what-if calculator", () => {
   test("original 3336 matches baseline and same postcode reproduces it", () => {
     const r = resolveWhatIfLocation(original, null);
     expect(r.status).toBe("original");
-    expect(disc(original)).toBeCloseTo(1481.76, 2);
+    expect(disc(original)).toBeCloseTo(1470, 2);
     const same = resolveWhatIfLocation(original, sel("3336"));
     expect(same.status === "alternate" && disc(same.location)).toBeCloseTo(disc(original), 6);
   });

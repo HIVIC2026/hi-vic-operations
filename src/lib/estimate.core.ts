@@ -97,10 +97,10 @@ export type EstimateResult = {
   scenarios: Scenario[]; primary: Scenario;
   access_adjustment: { moderate: number; difficult: number };
 };
-/** Full indicative estimate. Discount = unrounded Eq 48.1 reduction × indicative VEEC value, capped at the region's program maximum, then reduced if needed so the customer pays at least the $200 minimum. */
+/** Full indicative estimate. Discount = whole VEECs (Eq 48.1 reduction rounded down) × indicative VEEC value, then reduced if needed so the customer pays at least the $200 minimum. */
 export function computeEstimate(area: AreaCandidate, loc: LocationVariables, insulation: InsulationDeclared, s: RetailSettings): EstimateResult {
   const ghg = ghgEquivalentReduction(area.m2, loc);
-  const raw = ghg.ghgReduction * Number(s.indicative_veec_value);
+  const raw = Math.floor(ghg.ghgReduction) * Number(s.indicative_veec_value); // whole VEECs only (rounded down)
   const metro = loc.metropolitan_or_regional === "Metropolitan";
   const scenarios = [priceScenario("can_remain", area.m2, 0, s, raw, metro)];
   if (needsRemovalScenario(insulation)) scenarios.push(priceScenario("full_removal", area.m2, area.m2, s, raw, metro));
