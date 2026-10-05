@@ -57,7 +57,7 @@ export type InstData = {
   service_origin?: string; service_origin_details?: ResolvedAddress | null; travel_radius_km?: number | null; excluded_areas?: string;
   typical_days?: string[]; normal_attendance_speed?: string;
   capacity_band?: string; daily_capacity_m2?: number | null; accepting_jobs?: boolean;
-  gst_registered?: boolean | null; r5_rate?: number | null; r6_rate?: number | null; r7_rate?: number | null; batts_removal_rate?: number | null; loose_fill_removal_rate?: number | null;
+  gst_registered?: boolean | null; r5_rate?: number | null; r6_rate?: number | null; r7_rate?: number | null; topup_r5_rate?: number | null; batts_removal_rate?: number | null; loose_fill_removal_rate?: number | null;
   extra_rates?: Partial<Record<(typeof EXTRA_ITEMS)[number]["key"], number | null>>;
   bank_account_name?: string; bank_bsb?: string; bank_account_number?: string;
   agreement_reviewed?: boolean;
@@ -215,6 +215,7 @@ export function stepFieldErrors(step: StepKey, d: InstData, now = new Date()): F
       if (!validRequiredRate(d.r5_rate)) add("rate-r5", "Enter your R5.0 supply & install rate per m².");
       if (!validOptionalRate(d.r6_rate) || d.r6_rate === 0) add("rate-r6", "R6.0 supply & install: enter a valid rate per m², or leave it blank if you don't install R6.0.");
       if (!validOptionalRate(d.r7_rate) || d.r7_rate === 0) add("rate-r7", "R7.0 supply & install: enter a valid rate per m², or leave it blank if you don't install R7.0.");
+      if (!validOptionalRate(d.topup_r5_rate) || d.topup_r5_rate === 0) add("rate-topup", "Top up to R5.0: enter a valid rate per m², or leave it blank if you don't offer top-ups.");
       if (!validRequiredRate(d.batts_removal_rate)) add("rate-batts", "Enter your batts removal rate per m² — removal is required for all installer partners.");
       if (!validRequiredRate(d.loose_fill_removal_rate)) add("rate-loose", "Enter your loose fill removal rate per m² — removal is required for all installer partners.");
       break;
@@ -320,6 +321,7 @@ export function scheduleText(d: InstData): string {
   // Optional higher R-values appear only when supplied, so existing agreement text is unchanged.
   if (d.r6_rate != null) L.push(`R6.0 ceiling insulation supply & install: ${money(d.r6_rate)} / m²`);
   if (d.r7_rate != null) L.push(`R7.0 ceiling insulation supply & install: ${money(d.r7_rate)} / m²`);
+  if (d.topup_r5_rate != null) L.push(`Top up to R5.0 over existing insulation (existing stays in place): ${money(d.topup_r5_rate)} / m²`);
   L.push(`Batts removal: ${money(d.batts_removal_rate)} / m²`);
   L.push(`Loose fill removal: ${money(d.loose_fill_removal_rate)} / m²`);
   for (const it of EXTRA_ITEMS) { const v = d.extra_rates?.[it.key]; L.push(`${it.label}: ${typeof v === "number" && v > 0 ? `${money(v)} / ${it.unit}` : v === 0 ? "no extra charge ($0)" : "no set rate — quoted separately on the job before owner approval"}`); }
