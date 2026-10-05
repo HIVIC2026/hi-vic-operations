@@ -32,12 +32,30 @@ describe("bulk import core rules", () => {
     expect(matchFiles(full, [files[1]]).confidence).toBe("none");
   });
 
-  test("ready to quote only when area, insulation and access are all known", () => {
+  test("covers the Ready Check when area, insulation and access are all known — price never affects sorting", () => {
     const r = sortJob(full, { matchConfidence: "high", duplicate: false });
-    expect(r.result).toBe("ready_to_quote");
+    expect(r.result).toBe("covers_ready_check");
+    expect(sortJob({ ...full, price_inc_gst: null }, { matchConfidence: "high", duplicate: false }).result).toBe("covers_ready_check");
     expect(sortJob({ ...full, area_m2: null }, { matchConfidence: "high", duplicate: false }).result).toBe("needs_visit");
     expect(sortJob({ ...full, existing_insulation: "unknown" }, { matchConfidence: "high", duplicate: false }).result).toBe("needs_visit");
     expect(sortJob({ ...full, access: "" }, { matchConfidence: "high", duplicate: false }).result).toBe("needs_visit");
+  });
+
+  test("small missing items (roof type, hazards, building age) go to the install-day list, not a visit", () => {
+    const r = sortJob(full, { matchConfidence: "high", duplicate: false }); // full has no roof_type/hazards/building_age
+    expect(r.result).toBe("covers_ready_check");
+    expect(r.reasons.join(" ")).toContain("install-day list");
+    expect(r.reasons.join(" ")).toContain("roof type");
+    const complete = { ...full, roof_type: "tiled", hazards: "none seen", building_age: "built 1978" };
+    expect(sortJob(complete, { matchConfidence: "high", duplicate: false }).reasons.join(" ")).not.toContain("install-day list");
+  });
+
+  test("needs a visit lists exactly which key items are missing", () => {
+    const r = sortJob({ ...full, area_m2: null, access: "unknown" }, { matchConfidence: "high", duplicate: false });
+    expect(r.result).toBe("needs_visit");
+    expect(r.reasons[0]).toContain("ceiling area / measurements");
+    expect(r.reasons[0]).toContain("ceiling access");
+    expect(r.reasons[0]).not.toContain("existing insulation");
   });
 
   test("office review when no address, no contact, or duplicate", () => {
@@ -56,7 +74,8 @@ describe("bulk import core rules", () => {
 
   test("uploaded photos never count as official evidence — missing list always recorded", () => {
     const m = missingEvidence(full, [{ path: "a", name: "b", how: "folder" }]);
-    expect(m.length).toBe(4);
+    expect(m.length).toBe(7); // 4 official photos + 3 small items to confirm on the day
     expect(m.join(" ")).toContain("tape measure");
+    expect(m.join(" ")).toContain("Confirm roof type");
   });
 });

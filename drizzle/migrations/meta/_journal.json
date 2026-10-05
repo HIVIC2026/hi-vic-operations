@@ -729,6 +729,13 @@
       "when": 1791158006764,
       "tag": "0103_0104_bulk_import",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1791158542830,
+      "tag": "0104_bulk_import_sort_labels",
+      "breakpoints": true
     }
   ]
 }

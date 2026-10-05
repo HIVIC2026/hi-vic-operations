@@ -27,12 +27,12 @@ type ManifestFile = { path: string; name: string; folder: string | null; type: s
 type ReviewRow = {
   id: string; row_index: number; status: string; duplicate_note: string | null;
   extracted: { full_name?: string | null; address_line?: string | null; suburb?: string | null; postcode?: string | null; area_m2?: number | null; price_inc_gst?: number | null; phone?: string | null; email?: string | null };
-  matched_files: { name: string; how: string }[]; sort_result: "ready_to_quote" | "needs_visit" | "office_review" | null;
+  matched_files: { name: string; how: string }[]; sort_result: "covers_ready_check" | "needs_visit" | "office_review" | null;
   sort_reasons: string[]; missing_evidence: string[];
 };
 
 const SORT_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  ready_to_quote: { label: "Ready to quote — no revisit", variant: "default" },
+  covers_ready_check: { label: "Covers the Ready Check — no visit needed", variant: "default" },
   needs_visit: { label: "Needs a visit", variant: "secondary" },
   office_review: { label: "Office review", variant: "destructive" },
 };
@@ -115,7 +115,7 @@ function BulkImportPage() {
     enabled: !!batchId,
   });
   const rows = (review?.rows ?? []) as unknown as ReviewRow[];
-  const summary = review?.batch?.summary as { rows?: number; ready_to_quote?: number; needs_visit?: number; office_review?: number; duplicates?: number } | null;
+  const summary = review?.batch?.summary as { rows?: number; covers_ready_check?: number; needs_visit?: number; office_review?: number; duplicates?: number } | null;
 
   async function analyse() {
     if (!listFile || !effectiveBiz) return;
@@ -184,7 +184,7 @@ function BulkImportPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2">
-              <Badge variant="default">{summary.ready_to_quote ?? 0} ready to quote</Badge>
+              <Badge variant="default">{summary.covers_ready_check ?? 0} cover the Ready Check</Badge>
               <Badge variant="secondary">{summary.needs_visit ?? 0} need a visit</Badge>
               <Badge variant="destructive">{summary.office_review ?? 0} office review</Badge>
               {(summary.duplicates ?? 0) > 0 && <Badge variant="outline">{summary.duplicates} possible duplicates (skipped)</Badge>}

@@ -11,7 +11,7 @@ describe("bulk import tables (practice database)", () => {
     );
     const batchId = b.rows[0].id;
     await db.query(
-      `INSERT INTO public.bulk_import_rows(batch_id, row_index, extracted, sort_result) VALUES ($1,0,'{"full_name":"TEST Owner"}','ready_to_quote')`,
+      `INSERT INTO public.bulk_import_rows(batch_id, row_index, extracted, sort_result) VALUES ($1,0,'{"full_name":"TEST Owner"}','covers_ready_check')`,
       [batchId],
     );
     const rows = await db.query(`SELECT * FROM public.bulk_import_rows WHERE batch_id=$1`, [batchId]);
