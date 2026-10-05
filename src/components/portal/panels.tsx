@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { requiredDepositCents } from "@/lib/payment-gate.core";
 import { QUOTE_EXPIRED_OWNER_MESSAGE, quoteExpiresAt, quoteIsExpired } from "@/lib/quote-expiry.core";
 import { depositPctFor } from "@/config/workflow-decisions";
+import { veecDiscountLabel } from "@/lib/estimate.core";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, FileUp, Lock, Paperclip, ShieldAlert } from "lucide-react";

@@ -8,7 +8,7 @@ import { logEvent } from "./workflow.server";
 import { logPartner } from "./pilot.server";
 import { ghgEquivalentReduction, type LocationVariables } from "./activity48.core";
 import { HIVIC_PIESA_INC_GST } from "./installer-led.core";
-import { applyDiscountRules, discountNotes } from "./estimate.core";
+import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
   dedupeKey, findDuplicates, leadStage, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
   type BulkExtracted, type BulkFile,
