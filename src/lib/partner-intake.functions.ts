@@ -36,7 +36,6 @@ const installerFormSchema = z.object({
   free_quotes_for_hivic_leads: z.union([z.boolean(), z.enum(["yes", "no"])]).nullish()
     .transform((v) => (v == null ? null : v === true || v === "yes")),
   booking_lead_time: z.string().trim().max(200).nullish(),
-  weekly_capacity: z.string().trim().max(200).nullish(),
   notes: z.string().trim().max(5000).nullish(),
 });
 
@@ -57,7 +56,6 @@ const electricianFormSchema = z.object({
   estimated_piesa_fee_inc_gst: z.coerce.number().min(0).max(100000).nullish(),
   estimated_return_visit_fee_inc_gst: z.coerce.number().min(0).max(100000).nullish(),
   booking_lead_time: z.string().trim().max(200).nullish(),
-  weekly_capacity: z.string().trim().max(200).nullish(),
   notes: z.string().trim().max(5000).nullish(),
 });
 

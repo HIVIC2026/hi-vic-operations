@@ -148,7 +148,7 @@ export const assignContractor = createServerFn({ method: "POST" }).middleware([r
   });
 
 export const setUserRole = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ userId: uuid, role: z.enum(["admin", "electrician", "installer", "owner", "property_manager"]), grant: z.boolean() }).parse(d))
+  .inputValidator((d) => z.object({ userId: uuid, role: z.enum(["admin", "electrician", "installer", "owner"]), grant: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     if (!data.grant && data.role === "admin" && data.userId === context.userId) throw new WorkflowError("You cannot remove your own admin role.");

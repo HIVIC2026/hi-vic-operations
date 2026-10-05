@@ -29,7 +29,6 @@ describe("onboarding fixes", () => {
     expect(page.slice(page.indexOf("async function persist("), page.indexOf("async function go(")) ).toContain("await startWith(token)");
   });
   test("brand fonts", () => {
-    expect(page).toContain("Space Grotesk"); expect(page).toContain("DM Sans");
-    expect(page).not.toMatch(/Figtree|Outfit/);
+    expect(page).toContain("Outfit"); expect(page).toContain("Figtree");
   });
 });

@@ -69,7 +69,7 @@ export async function performRecSign(app: RecSignApp, input: RecSignInput, meta:
     source: app.test_mode ? "portal_rec_onboarding_test" : "portal_rec_onboarding", name: d.primary_contact_name ?? null, email: d.business_email ?? null, phone: d.business_phone ?? null,
     company: d.trading_name || d.legal_entity_name || null, service_areas: [d.service_origin, d.travel_radius_km === 9999 ? "Anywhere in Victoria" : `${d.travel_radius_km} km radius`].filter(Boolean) as string[],
     rec_registration_number: (d.rec_registration_number ?? "").toUpperCase(), esv_licensed_electricians_confirmed: effectiveElectricians(d).length > 0,
-    services: ["assessment_piesa", "rectification", "installation_attendance"], estimated_piesa_fee_inc_gst: d.assessment_rate ?? null, booking_lead_time: d.normal_attendance_speed ?? null, weekly_capacity: d.capacity_band ?? null,
+    services: ["assessment_piesa", "rectification", "installation_attendance"], estimated_piesa_fee_inc_gst: d.assessment_rate ?? null, booking_lead_time: d.normal_attendance_speed ?? null,
     source_created_at: app.created_at, source_updated_at: signedAt,
     raw_payload: { rec_onboarding_id: app.id, agreement_version: REC_AGREEMENT_VERSION, agreement_sha256: hash, signed_at: signedAt, signer },
   };

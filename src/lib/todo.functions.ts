@@ -19,7 +19,7 @@ export const getTodos = createServerFn({ method: "GET" }).middleware([requireSup
       admin.from("rectification_items").select("id, job_id, description, created_at").eq("needs_office_pricing", true),
       admin.from("ceiling_measurements").select("id, job_id, created_at").eq("is_current", true).eq("status", "needs_review"),
       admin.from("reassignment_requests").select("id, job_id, role, reason, created_at").is("resolved_at", null),
-      admin.from("partner_enquiries").select("id, name, enquiry_type, source, created_at").eq("status", "new").or("source.is.null,source.not.in.(portal_rec_onboarding_test,portal_installer_onboarding_test)"),
+      admin.from("partner_enquiries").select("id, name, enquiry_type, source, created_at").in("status", ["new", "submitted"]).neq("enquiry_type", "property_manager").or("source.is.null,source.not.in.(portal_rec_onboarding_test,portal_installer_onboarding_test)"),
       admin.from("esc_notifications").select("id, job_id, status, due_by, sent_at, last_error, created_at").is("sent_at", null),
       admin.from("bookings").select("id, job_id, scheduled_start").eq("kind", "installation").in("status", ["proposed", "confirmed"]),
       admin.from("piesa_deliveries").select("job_id, recipient"),

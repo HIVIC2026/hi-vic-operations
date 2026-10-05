@@ -2,9 +2,9 @@
 // No I/O. Used by the public form (live validation) and the server (authoritative checks).
 import { REC_AGREEMENT_SECTIONS } from "./rec-agreement.text";
 
-export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-2.4-2026-10-03";
+export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-2.5-2026-10-05";
 /** Earlier signed agreements remain valid for office activation; only new signatures use the current version. */
-export const ACTIVATABLE_REC_VERSIONS: readonly string[] = ["HI-VIC-A48-REC-2.3-2026-10-01", REC_AGREEMENT_VERSION];
+export const ACTIVATABLE_REC_VERSIONS: readonly string[] = ["HI-VIC-A48-REC-2.3-2026-10-01", "HI-VIC-A48-REC-2.4-2026-10-03", REC_AGREEMENT_VERSION];
 export const REC_AGREEMENT_TITLE = "Activity 48 Registered Electrical Contractor Partner Agreement";
 export const AP_ENTITY = "DC Construction Solutions Pty Ltd ABN 44 671 613 979 trading as Home Insulation Victoria";
 export const MIN_PL_COVER = 5_000_000;
@@ -50,7 +50,6 @@ export const RECT_ITEMS = [
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 export const LEAD_TIMES = ["1-2 business days", "3-5 business days", "1-2 weeks", "2-4 weeks", "More than 4 weeks", "Varies"] as const;
 export const RADII = [{ v: 25, l: "25 km" }, { v: 50, l: "50 km" }, { v: 75, l: "75 km" }, { v: 100, l: "100 km" }, { v: 9999, l: "Anywhere in Victoria" }] as const;
-export const CAPACITY_BANDS = [{ v: "1-5", n: 5 }, { v: "6-10", n: 10 }, { v: "11-20", n: 20 }, { v: "20+", n: 25 }] as const;
 
 export type Electrician = { full_legal_name?: string; licence_number?: string; mobile?: string; email?: string };
 export type ResolvedAddress = {
@@ -113,7 +112,7 @@ export const STEPS = [
   { key: "services", title: "Home Insulation Victoria work" },
   { key: "coverage", title: "Where you work" },
   { key: "availability", title: "When you're available to work" },
-  { key: "capacity", title: "Weekly capacity" },
+  { key: "capacity", title: "Availability" }, // legacy draft anchor; no longer shown or required
   { key: "assessment_pricing", title: "PIESA pricing" },
   { key: "rectification_pricing", title: "Rectification pricing" },
   { key: "bank", title: "Payment details" },
@@ -137,7 +136,7 @@ export const REC_VISIBLE_PAGES: readonly VisibleRecPage[] = [
   { key: "business", title: "Business details", members: ["business", "contact"] },
   { key: "insurance", title: "Insurance", members: ["insurance"] },
   { key: "services", title: "Work & coverage", members: ["services", "coverage"] },
-  { key: "availability", title: "Availability", members: ["availability", "capacity"] },
+  { key: "availability", title: "Availability", members: ["availability"] },
   { key: "assessment_pricing", title: "Rates", members: ["assessment_pricing", "rectification_pricing"] },
   { key: "bank", title: "Payment details", members: ["bank"] },
   { key: "review", title: "Review agreement", members: ["review"] },
@@ -334,8 +333,7 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       if (typeof d.accepting_jobs !== "boolean") e.push("Tell us if you're accepting new Home Insulation Victoria work now.");
       break;
     case "capacity":
-      if (!CAPACITY_BANDS.some((b) => b.v === d.capacity_band)) e.push("Choose your weekly capacity.");
-      break;
+      break; // Trades manage their own diaries; stored legacy answers are ignored.
     case "assessment_pricing":
       if (d.works_under_rec === true) break; // rates agreed with the host REC
       if (typeof d.gst_registered !== "boolean") e.push("Tell us if you're GST registered.");
@@ -377,7 +375,7 @@ export function firstIncompleteStep(d: RecData, now = new Date()): StepKey | nul
 
 export const MATERIAL_FIELDS = [
   "legal_entity_name", "trading_name", "abn", "rec_registration_number", "business_address", "primary_contact_name", "business_phone", "business_email", "licence_number", "service_origin", "travel_radius_km",
-  "excluded_areas", "typical_days", "normal_attendance_speed", "capacity_band", "services_all_confirmed",
+  "excluded_areas", "typical_days", "normal_attendance_speed", "services_all_confirmed",
   "assessment_rate", "installation_attendance_rate", "rectification_rates", "custom_rectification_rates", "coes_fee_choice", "coes_fee", "gst_registered", "electricians",
   "works_under_rec", "host_rec_name", "host_rec_number",
   "insurer", "insurance_policy_number", "public_liability_cover_amount", "public_liability_expiry", "insurance_uploaded",
@@ -413,13 +411,13 @@ export function scheduleText(d: RecData): string {
   const sparks = effectiveElectricians(d);
   if (sparks.length === 0) lines.push("To be confirmed with the Home Insulation Victoria office before any work is allocated.");
   sparks.forEach((x, i) => lines.push(`${i + 1}. ${x.full_legal_name} — licence ${x.licence_number}`));
-  lines.push("", "SCHEDULE 2 — SERVICES, COVERAGE AND CAPACITY");
+  lines.push("", "SCHEDULE 2 — SERVICES, COVERAGE AND AVAILABILITY");
   lines.push("Required electrical services (all three, as required for each job):",
     "- Pre-installation electrical safety assessment (PIESA)",
     "- Electrical rectification (completing required electrical work after approval)",
     "- Installation-day electrical attendance (when required for the job)");
   lines.push(`Service origin: ${d.service_origin ?? ""}; radius: ${d.travel_radius_km === 9999 ? "anywhere in Victoria" : `${d.travel_radius_km} km`}${d.excluded_areas ? `; excluded: ${d.excluded_areas}` : ""}`);
-  lines.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}; weekly assessments: ${d.capacity_band ?? ""}`);
+  lines.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}`);
   lines.push("", `SCHEDULE 3 — PROPOSED SUPPLIER RATES (${gst}; not binding until accepted by Home Insulation Victoria under clause 17)`);
   lines.push(`Pre-insulation electrical safety assessment (PIESA): ${money(d.assessment_rate)} / visit`);
   lines.push(`Installation-day attendance: ${money(d.installation_attendance_rate)} / visit`);

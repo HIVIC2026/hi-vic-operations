@@ -62,7 +62,7 @@ export function installerEnquiry(app: InstallerSignApp, d: InstData, hash: strin
     estimated_loose_fill_removal_rate_per_sqm_inc_gst: d.loose_fill_removal_rate ?? null,
     free_quotes_for_hivic_leads: d.free_quotes_for_hivic_leads ?? null,
     free_measureups_for_hivic_quote_leads: d.free_measureups_for_hivic_quote_leads ?? null,
-    booking_lead_time: d.normal_attendance_speed ?? null, weekly_capacity: d.capacity_band ?? null,
+    booking_lead_time: d.normal_attendance_speed ?? null,
     source_created_at: app.created_at, source_updated_at: signedAt,
     raw_payload: {
       rec_onboarding_id: app.id, partner_type: "installer", gst_registered: d.gst_registered ?? null, r6_rate: d.r6_rate ?? null, r7_rate: d.r7_rate ?? null, topup_r5_rate: d.topup_r5_rate ?? null, vacuum_only_rate: d.vacuum_only_rate ?? null, wants_hivic_leads: d.wants_hivic_leads ?? null, accepting_jobs: d.accepting_jobs ?? null, daily_capacity_m2: d.daily_capacity_m2 ?? null,
