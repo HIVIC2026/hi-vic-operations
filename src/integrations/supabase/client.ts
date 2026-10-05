@@ -44,13 +44,14 @@ export function createSupabaseClient(options?: { storageKey?: string }) {
     throw new Error(message);
   }
 
+  const qaStorageKey = options?.storageKey ?? (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('hivic-qa-auth-storage-key') ?? undefined : undefined);
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     global: {
       fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
     },
     auth: {
-      storage: brokeredPreviewStorage(),
-      storageKey: options?.storageKey,
+      storage: qaStorageKey ? sessionStorage : brokeredPreviewStorage(),
+      storageKey: qaStorageKey,
       persistSession: true,
       autoRefreshToken: true,
     },
