@@ -26,7 +26,7 @@ Visible name everywhere: **Home Insulation Victoria**. Retired visible names: HI
 18. Electrician completes PIESA.
 19. Mitti syncs PIESA result.
 20. No rectification: electrical clearance can unlock installation request.
-21. Rectification: Home Insulation Victoria reviews the draft rectification quote before sending.
+21. Rectification: standard agreed-rate fix-up quotes release automatically; non-standard or manually priced items are held for office review.
 22. Owner approves rectification quote.
 23. Owner and electrician arrange rectification.
 24. Electrician completes rectification and Section C.
@@ -75,7 +75,7 @@ Sender: Home Insulation Victoria. External sending behind launch controls. Track
 Every office-only action has a server-side role guard; hiding UI is not enough.
 
 ## Quotes
-Preliminary: estimate only, not binding, never the final price, unlocks neither payment nor PIESA. Confirmed insulation quote: only after verified eligibility, excludes rectification unless separately quoted, approval locks to the exact version. Rectification quote: from PIESA/Mitti data, always office-reviewed before sending, separate. Generated quotes enter office review unless that type and route are explicitly approved for automatic sending.
+Preliminary: estimate only, not binding, never the final price, unlocks neither payment nor PIESA. Confirmed insulation quote: only after verified eligibility, priced from the current rates and measured area. It releases automatically unless its price differs from the owner's current estimate by more than the configured tolerance (default 15%), it contains an extra not on the agreed rate card, or an installer-supplied price falls outside the configured per-m² range (blank means no range check). Fix-up quotes release automatically only when every item uses a standard agreed rate; non-standard, other or manually priced items are held. A held quote shows the office the reason. While either the quote or customer-communications launch switch is off, an otherwise releasable quote remains queued and nothing goes to the owner. Owner approval still locks to the exact quote version, with the permanent audit trail and required signing unchanged.
 
 ## Hard stops (Needs attention)
 See `hardStops` in `src/config/workflow-decisions.ts`.

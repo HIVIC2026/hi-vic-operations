@@ -1,0 +1,10 @@
+ALTER TABLE public.quotes DROP CONSTRAINT IF EXISTS quotes_release_state_valid;
+ALTER TABLE public.quotes DROP COLUMN IF EXISTS release_hold_reason;
+ALTER TABLE public.quotes DROP COLUMN IF EXISTS release_state;
+ALTER TABLE public.workflow_settings DROP CONSTRAINT IF EXISTS workflow_settings_installer_quote_range_order;
+ALTER TABLE public.workflow_settings DROP CONSTRAINT IF EXISTS workflow_settings_installer_quote_max_positive;
+ALTER TABLE public.workflow_settings DROP CONSTRAINT IF EXISTS workflow_settings_installer_quote_min_positive;
+ALTER TABLE public.workflow_settings DROP CONSTRAINT IF EXISTS workflow_settings_quote_variance_range;
+ALTER TABLE public.workflow_settings DROP COLUMN IF EXISTS installer_quote_max_inc_gst_per_m2;
+ALTER TABLE public.workflow_settings DROP COLUMN IF EXISTS installer_quote_min_inc_gst_per_m2;
+ALTER TABLE public.workflow_settings DROP COLUMN IF EXISTS quote_estimate_variance_tolerance_pct;

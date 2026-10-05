@@ -266,13 +266,14 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
     queryKey: ["quotes", jobId],
     queryFn: async () => (await supabase.from("quotes").select("*, quote_items(*)").eq("job_id", jobId).neq("status", "superseded").order("created_at")).data ?? [],
   });
-  if (!data?.length) return <Section title="Quotes"><p className="text-sm text-muted-foreground">No quotes yet.</p></Section>;
-  const open = data.some((q) => q.status === "issued" && q.kind === "rectification");
+  const visible = (data ?? []).filter((q) => q.status !== "draft" && q.release_state !== "held");
+  if (!visible.length) return <Section title="Quotes"><p className="text-sm text-muted-foreground">No quotes yet.</p></Section>;
+  const open = visible.some((q) => q.status === "issued" && q.kind === "rectification");
   if (accepting) return <AcceptanceFlow quoteId={accepting} jobId={jobId} onClose={() => setAccepting(null)} />;
   return (
     <Section title="Quotes (all prices inc GST)">
       <div className="grid gap-3 md:grid-cols-3">
-        {data.map((q) => (
+        {visible.map((q) => (
           <div key={q.id} className="flex flex-col rounded-lg border p-3">
             <div className="flex items-start justify-between gap-2"><div className="font-semibold">{q.option_label}</div><Pill t={q.status === "accepted" ? "good" : q.status === "declined" ? "bad" : "info"}>{q.status}</Pill></div>
             <ul className="mt-2 flex-1 space-y-1 text-sm">

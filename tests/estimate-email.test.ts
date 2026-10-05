@@ -202,8 +202,10 @@ describe("launch campaign email drafts", () => {
     const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150 });
     expect(email.html).toContain("Great news, Sarah!");
     expect(email.html).toContain("You could save $1,470");
-    expect(email.html).toContain("See my savings");
-    expect(email.html).not.toContain("Save my spot");
+    expect(email.html).toContain("Free estimate · no obligation");
+    expect(email.html).toContain("See my savings and save my spot →");
+    expect(email.html).toContain("What this includes");
+    expect(email.html).toContain("What could change this price?");
     expect(email.html).toContain("font-family:'Figtree',Arial,Helvetica,sans-serif");
     expect(email.html).toContain("font-family:'Outfit','Figtree',Arial,Helvetica,sans-serif");
     expect(email.html).toContain("background-color:#FBFCFA");
@@ -212,14 +214,15 @@ describe("launch campaign email drafts", () => {
     expect(email.html).toContain("background-color:#FDF2F6");
     expect(email.html).toContain("background-color:#07BF61");
     expect(email.html).not.toContain("Open Sans");
-    expect(email.html).not.toContain("text-transform:uppercase");
     expect(email.html).not.toMatch(/box-shadow:\s*[45]px\s+[45]px\s+0/i);
+    expect(email.html.match(/href="https:\/\/quote\.homeinsulationvictoria\.com\.au\/estimate\/[A]+\/campaign"/g)?.length).toBe(2);
   });
 
   test("Group B asks for one manhole video", () => {
     const email = renderLaunchCampaignEmail({ group: "onsite", campaignUrl, firstName: "Michael", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150 });
     expect(email.html).toContain("Good news, Michael!");
-    expect(email.html).toContain("one quick video from the manhole");
-    expect(email.html).toContain("Check my home");
+    expect(email.html).toContain("send one short video from the manhole");
+    expect(email.html).toContain("Please don’t climb into or walk through the roof space.");
+    expect(email.html).toContain("Check my home →");
   });
 });

@@ -177,5 +177,13 @@
 
 ## Launch campaign calculator/email rebuild (Jo, 5 Oct 09:21, preview only)
 - [x] Rebuild `/estimate/$token/campaign` around the real shared PublicCalculator with enquiry prefill, one Save my spot action, quiet opt-out, and Group B video card.
-- [x] Rebuild Group A/B campaign emails in their own current calculator-brand shell (Outfit/Figtree, soft cards, green action); one campaign-page button only, no sending.
-- [ ] Capture 390px screenshots of prefilled Group A/B pages and both emails; do not publish.
+- [x] Replace the separate campaign email shell with exact shared `renderV2QuoteEmail` / `V2_THEME` pieces, including the same savings, inclusions, next-step, price-change and footer modules; campaign-only CTA/copy and opt-out.
+- [x] Capture Group A/B campaign email screenshots at 390px and 640px; sending stays OFF and nothing is published.
+
+## Automatic quote release with exception holds (Jo, 5 Oct 09:46, preview only)
+- [x] Confirmed insulation quotes auto-queue after verified eligibility when current-rate pricing is within the configurable estimate variance (default 15%) and has no unrated extras; held quotes show reasons and retain exact-version approval.
+- [x] Installer-supplied confirmed quotes optionally hold outside a configurable normal per-m² range; blank means no range check.
+- [x] Rectification quotes auto-queue only when every line is standard and agreed-rate priced; other/non-standard/manual-price lines hold for office review.
+- [x] Global sending switches remain authoritative: OFF means ready-to-send/queued only, with no external delivery.
+- [x] Update workflow source-of-truth and focused tests: within 15%, over 15%, extra item, non-standard fix-up, and switches-off queued only.
+- [x] Schema additions have an undo file and passed on PGlite before live application. Not published.

@@ -572,7 +572,8 @@ export const generateInstallerQuotes = createServerFn({ method: "POST" }).middle
     if (pre.length) throw new WorkflowError(`Blocked: ${pre.join(" • ")}`);
     await genInstaller(data.jobId, context.userId);
     { const { applyCobrand } = await import("./pilot.server"); await applyCobrand(data.jobId); }
-    if (stage === "ready_for_installer_quotes") await transition(data.jobId, "awaiting_quote_acceptance", context.userId, "Installation quotes issued to owner");
+    const { data: released } = await admin.from("quotes").select("id").eq("job_id", data.jobId).eq("kind", "installation").eq("status", "issued").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (stage === "ready_for_installer_quotes" && released) await transition(data.jobId, "awaiting_quote_acceptance", context.userId, "Installation quote released to owner");
     await autoAdvanceJob(data.jobId, context.userId, "quotes generated");
     return { ok: true };
   });
@@ -582,9 +583,18 @@ export const regenerateRectificationQuote = createServerFn({ method: "POST" }).m
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const stage = await getStage(data.jobId);
-    await generateRectificationQuote(data.jobId, context.userId);
-    if (stage === "rectification_required") await transition(data.jobId, "awaiting_owner_rectification_approval", context.userId, "Rectification quote issued to owner");
+    const quoteId = await generateRectificationQuote(data.jobId, context.userId);
+    const { data: released } = await admin.from("quotes").select("id").eq("id", quoteId).eq("status", "issued").maybeSingle();
+    if (stage === "rectification_required" && released) await transition(data.jobId, "awaiting_owner_rectification_approval", context.userId, "Fix-up quote released to owner");
     return { ok: true };
+  });
+
+export const approveHeldQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ quoteId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { approveHeldQuote: approve } = await import("./quotes.server");
+    return approve(data.quoteId, context.userId);
   });
 
 export const adjustQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -598,7 +608,7 @@ export const adjustQuote = createServerFn({ method: "POST" }).middleware([requir
 export const respondToQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
   .inputValidator((d) => z.object({
     quoteId: uuid, accept: z.boolean(), consent: z.boolean().optional(), reason: z.string().max(1000).optional(),
-    windowId: uuid.optional(), noneSuit: z.boolean().optional(),
+    windowId: uuid.optional(), noneSuit: z.boolean().optional(), expectedVersion: z.number().int().optional(),
     signing: z.object({
       signatoryName: z.string().trim().min(2).max(200), authorityType: z.enum(["owner", "authorised_representative"]), over18: z.boolean(),
       readConsumerInfo: z.boolean(), acceptAgreement: z.boolean(), signatureName: z.string().trim().max(200),
@@ -611,6 +621,10 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
     await requireJobRole(context.supabase, q.job_id, ["owner", "admin"]);
     if (q.status === "expired") throw new WorkflowError("This quote has expired. Please contact us for an updated quote.");
     if (q.status !== "issued") throw new WorkflowError("This quote is no longer open.");
+    // Exact-version acceptance: if the owner's screen shows a version (any manual adjustment bumps it),
+    // accepting an older version is rejected instead of silently approving changed pricing.
+    if (data.accept && data.expectedVersion != null && data.expectedVersion !== q.version)
+      throw new WorkflowError("This quote has been updated since you opened it. Please review the latest version before accepting.");
     if (data.accept) {
       const { quoteIsExpired } = await import("./quote-expiry.core");
       if (quoteIsExpired(q)) throw new WorkflowError("This quote has expired. Please contact us for an updated quote.");

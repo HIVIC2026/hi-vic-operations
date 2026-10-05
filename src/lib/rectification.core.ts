@@ -48,3 +48,4 @@ export function rectQuoteUnanswered(q: { kind: string; status: string; sent_at: 
 export function heldWindowAction(startsAt: string, now: Date = new Date()): "book" | "lapsed" {
   return new Date(startsAt).getTime() > now.getTime() ? "book" : "lapsed";
 }
+
