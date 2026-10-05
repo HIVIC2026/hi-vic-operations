@@ -129,7 +129,9 @@
 - [x] BUILD: auto "Create & assign Mitti assessment" when approved worker with confirmed Mitti access is assigned to an installer-sourced job needing a Ready Check; otherwise "needs Mitti access" flag
 
 ## In progress — discount cap + $200 minimum (Jo approved, must be in the publish)
-- Max discount: $1,500 metro / $2,100 regional, editable office settings; apply in calculator, estimate emails/pages, HIV owner quotes, installer-supplied draft quotes (bulk import + A1), tax invoice, margins/profit view. VEECs created unchanged.
+- Max discount: RETIRED (Jo, 5 Oct, VEU Industry Pack) — no cap exists; only the $200 minimum contribution applies. Cap columns kept in the database, unused.
+- OPEN (Jo decision): calculator values the unrounded figure (21.294 for the Industry Pack example), not whole VEECs (21).
+- OPEN (needs plan + Jo go): installed product type is not recorded or checked — block foil/foil-faced, combustible, loose-fill/blow-in, expanding/foaming; batts/blanket/rigid board only, min R5, on the VEU product register.
 - Min customer contribution $200 inc GST enforced in same places; reduce discount if needed.
 - Wording: calculator never shows more than cap; quote lines when capped/reduced.
 - Answer: how calculator computes VEECs (factor per m² by region, max area, source) — no factor changes.
