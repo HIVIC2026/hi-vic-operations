@@ -8,6 +8,7 @@ const S: RetailSettings = {
   access_standard_multiplier: 1, access_moderate_multiplier: 1.1, access_difficult_multiplier: 1.25, indicative_veec_value: 70,
   veec_value_source_label: "DEECA webinar", veec_value_source_url: "https://www.energy.vic.gov.au/x", veec_value_checked_at: "2026-09-29",
   minimum_customer_copayment_inc_gst: 200, spec_version: "25.0", spec_source_url: A48_SPEC.sourceUrl,
+  max_discount_metro_inc_gst: 1500, max_discount_regional_inc_gst: 2100,
 };
 const owner = (m2: number) => pickArea({ owner: m2 })!;
 
