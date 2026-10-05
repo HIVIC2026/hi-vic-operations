@@ -36,3 +36,4 @@ Homeowner questions "previous VEU upgrade" and "rented vs owner-occupied" DELETE
 - [Owner Save my spot picker](mem://design/owner-save-my-spot) — approved time picker; four 2-hour windows used everywhere; min 3 picks
 - [Owner My job page](mem://design/owner-my-job-page) — Jo-approved phone-first owner page spec (token link, house fill, navy action card, 5 steps)
 - [Owner action channels](mem://features/owner-sms-email-channels) — sign/act items email+SMS (one line + link), one 24h reminder both; trade offers SMS+email; info email only
+- [Season-neutral owner wording](mem://constraints/season-neutral-wording) — never "warm"/"warmer"/"cold" in owner copy; approved replacements listed
