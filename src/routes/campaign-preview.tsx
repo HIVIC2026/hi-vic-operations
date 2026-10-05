@@ -19,7 +19,15 @@ const campaignUrl = `https://quote.homeinsulationvictoria.com.au/estimate/${"A".
 
 export const Route = createFileRoute("/campaign-preview")({
   headers: () => ({ "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" }),
-  head: () => ({ meta: [{ title: "Launch campaign previews — Home Insulation Victoria" }, { name: "robots", content: "noindex, nofollow" }] }),
+  head: () => ({ meta: [
+    { title: "Launch campaign previews — Home Insulation Victoria" },
+    { name: "description", content: "Private previews of Home Insulation Victoria launch campaign pages and emails." },
+    { property: "og:title", content: "Launch campaign previews — Home Insulation Victoria" },
+    { property: "og:description", content: "Private previews of Home Insulation Victoria launch campaign pages and emails." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+    { name: "robots", content: "noindex, nofollow" },
+  ] }),
   component: CampaignPreview,
 });
 
