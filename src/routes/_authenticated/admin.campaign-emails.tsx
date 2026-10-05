@@ -20,7 +20,7 @@ export const Route = createFileRoute("/_authenticated/admin/campaign-emails")({
 
 type Group = "likely" | "onsite";
 type Copy = Partial<Record<LaunchCopyField, string>>;
-type Lead = { id: string; jobNumber: string | null; name: string; suburb: string | null; address: string | null; area: number; price: number | null; discount: number | null };
+type Lead = { id: string; jobNumber: string | null; name: string | null; suburb: string | null; address: string | null; area: number; price: number | null; discount: number | null };
 
 const SAMPLE_URL = "https://quote.homeinsulationvictoria.com.au/estimate/PREVIEWonlyPREVIEWonlyPREVIEWonlyPREVIEWonl/campaign";
 const SAMPLE: Lead = { id: "sample", jobNumber: "HV-SAMPLE", name: "Sarah Mitchell", suburb: "Frankston", address: "14 Banksia Street, Frankston VIC 3199", area: 120, price: 1188, discount: 1890 };
@@ -128,7 +128,7 @@ function CampaignEmailsPage() {
   );
 }
 
-const firstName = (n: string) => n.trim().split(/\s+/)[0] ?? null;
+const firstName = (n: string | null) => n?.trim().split(/\s+/)[0] ?? null;
 
 function render(group: Group, l: Lead, copy: Copy): { subject: string; previewText: string; html: string; defaults?: never } | { error: string } {
   try {
