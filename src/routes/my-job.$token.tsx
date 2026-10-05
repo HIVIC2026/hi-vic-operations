@@ -10,6 +10,10 @@ import { HOUSE_LEVEL } from "@/lib/owner-house.core";
 import { ownerHeadline, quoteKicker } from "@/lib/owner-headlines.core";
 import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
 import { PAYMENT_OPTION_SUMMARY } from "@/lib/payment-gate.core";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { OwnerCodeGate, SignerFields, Tick, signBtn } from "@/components/owner/OwnerSign";
+import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerChooseInstallDaysFn, ownerChoosePiesaFn, ownerSignConsentFn } from "@/lib/owner-link.functions";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 export const Route = createFileRoute("/my-job/$token")({
@@ -40,7 +44,7 @@ function MyJobPage() {
   const load = useServerFn(getOwnerMyJob);
   const { data, isLoading } = useQuery({ queryKey: ["my-job", token], queryFn: () => load({ data: { token } }) as Promise<View | null>, retry: false, refetchOnWindowFocus: false });
   return (
-    <div className="min-h-screen bg-estimate-canvas pb-10 text-estimate-navy">
+    <div className="estimate-brand min-h-screen bg-estimate-canvas pb-10 text-estimate-navy">
       <header className="mx-auto flex max-w-[480px] items-center justify-between px-5 py-4">
         <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-10 w-auto max-w-[130px] object-contain" />
         {data?.jobNumber && <span className="rounded-full bg-estimate-blush px-3 py-1 text-xs font-bold">{data.jobNumber}</span>}
@@ -65,7 +69,7 @@ function Unavailable() {
 function Hero({ v, level, size = "lg", headline }: { v: View; level: number; size?: "sm" | "lg"; headline: string }) {
   const step = v.hero.step as number;
   return (
-    <section className="rounded-[26px] bg-estimate-mist p-5">
+    <section data-testid="owner-hero" className="rounded-[26px] border border-estimate-line bg-estimate-mist p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {v.firstName && <p className="text-sm font-semibold">Hi {v.firstName}</p>}
@@ -112,9 +116,99 @@ function Home({ v, token }: { v: View; token: string }) {
           <span className={p.state === "done" ? "text-estimate-green" : p.state === "now" ? "font-bold text-estimate-blue" : "text-estimate-navy/60"}>{p.state === "done" ? `Done${p.at ? ` ${day(p.at)}` : ""}` : p.mustBy ? `Must be by ${day(p.mustBy)}` : p.state === "now" ? "Now" : "To come"}</span>
         </li>))}</ol>
     </section>
+    {v.consent && <ConsentCard token={token} startsAt={v.consent.scheduledStart} />}
     <Numbers v={v} />
     <BottomList />
   </>;
+}
+
+function useSession() { return useState<string | null>(null); }
+const errText = (e: unknown) => (e instanceof Error ? e.message : "Please try again.");
+
+function AcceptQuote({ token, quote }: { token: string; quote: { id: string; version: number } }) {
+  const [open, setOpen] = useState(false);
+  const [session, setSession] = useSession();
+  const load = useServerFn(ownerAgreementFn);
+  const accept = useServerFn(ownerAcceptQuoteFn);
+  const qc = useQueryClient();
+  const { data: ag } = useQuery({ queryKey: ["owner-agreement", quote.id], queryFn: () => load({ data: { token, quoteId: quote.id } }), enabled: open });
+  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative", sig: "" });
+  const [over18, setOver18] = useState(false); const [read, setRead] = useState(false); const [agree, setAgree] = useState(false);
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  if (!open) return <button className={`${signBtn} mt-4`} onClick={() => setOpen(true)}>Say yes and sign</button>;
+  if (!session) return <div className="mt-4"><OwnerCodeGate token={token} onVerified={setSession} /></div>;
+  const blocked = (ag?.blockers ?? []) as string[];
+  return (
+    <div className="mt-4 space-y-3">
+      {ag?.consumerRights && <details className="rounded-2xl bg-estimate-mist p-3 text-sm"><summary className="cursor-pointer font-bold">Your consumer information ({ag.consumerRights.version})</summary><p className="mt-2 whitespace-pre-wrap">{ag.consumerRights.body}</p></details>}
+      {ag?.agreementWording && <details className="rounded-2xl bg-estimate-mist p-3 text-sm"><summary className="cursor-pointer font-bold">The agreement ({ag.agreementWording.version})</summary><p className="mt-2 whitespace-pre-wrap">{ag.agreementWording.body}</p></details>}
+      {blocked.length > 0 && <p role="alert" className="rounded-2xl bg-estimate-blush p-3 text-sm font-semibold">{blocked.join(" ")}</p>}
+      <SignerFields v={f} set={(p) => setF({ ...f, ...p })} />
+      <Tick on={over18} set={setOver18}>I'm 18 or older.</Tick>
+      <Tick on={read} set={setRead}>I've read the consumer information.</Tick>
+      <Tick on={agree} set={setAgree}>I accept this quote and the agreement.</Tick>
+      {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+      <button className={signBtn} disabled={busy || blocked.length > 0 || !over18 || !read || !agree || f.name.trim().length < 2 || f.sig.trim().length < 2} onClick={async () => {
+        setErr(""); setBusy(true);
+        try { await accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { signatoryName: f.name, authorityType: f.authority, signatureName: f.sig, over18, readConsumerInfo: read, acceptAgreement: agree, assistance: "none" } } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); }
+        catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+      }}>{busy ? "Signing…" : "Sign and say yes"}</button>
+    </div>
+  );
+}
+
+const SLOTS = [["8-10", "8–10am"], ["10-12", "10am–12"], ["12-14", "12–2pm"], ["14-16", "2–4pm"]] as const;
+function nextDays(n: number, from = 1) { const out: string[] = []; const d = new Date(); d.setDate(d.getDate() + from); while (out.length < n) { if (d.getDay() !== 0) out.push(d.toISOString().slice(0, 10)); d.setDate(d.getDate() + 1); } return out; }
+
+function BookPickers({ token }: { token: string }) {
+  const load = useServerFn(ownerBookingStateFn);
+  const choosePiesa = useServerFn(ownerChoosePiesaFn);
+  const chooseDays = useServerFn(ownerChooseInstallDaysFn);
+  const { data, refetch } = useQuery({ queryKey: ["owner-booking", token], queryFn: () => load({ data: { token } }) });
+  const [session, setSession] = useSession();
+  const [picks, setPicks] = useState<{ date: string; slot: (typeof SLOTS)[number][0] }[]>([]);
+  const [days, setDays] = useState<string[]>([]);
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  if (!data) return null;
+  const any = data.piesa.canPick || data.install.canPick;
+  const tile = (on: boolean) => `min-h-12 rounded-2xl border px-2 text-sm font-bold ${on ? "border-estimate-green bg-estimate-mint" : "border-estimate-line bg-card"}`;
+  const go = async (f: () => Promise<unknown>) => { setErr(""); setBusy(true); try { await f(); setPicks([]); setDays([]); await refetch(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
+  return <>
+    {!any && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">{data.piesa.windows.length ? <><p className="font-bold">Your safety check times are with our electricians.</p><ul className="mt-2 space-y-1">{data.piesa.windows.map((w: any) => <li key={w.starts_at}>{visitPill(w.starts_at)}</li>)}</ul></> : data.install.openDays.length ? <p className="font-bold">Your install days are with your installer.</p> : <p className="font-bold">Nothing to pick right now. We'll let you know.</p>}</section>}
+    {any && !session && <OwnerCodeGate token={token} onVerified={setSession} />}
+    {any && session && data.piesa.canPick && <section className="rounded-[22px] bg-card p-5 shadow-sm">
+      <h3 className="font-display text-lg font-extrabold">Safety check times</h3>
+      <p className="mt-1 text-sm">Pick 3 to 5 times across at least 3 days.</p>
+      <div className="mt-3 space-y-3">{nextDays(8).map((d) => <div key={d}><p className="text-xs font-bold">{day(d + "T02:00:00Z")}</p><div className="mt-1 grid grid-cols-2 gap-2">{SLOTS.map(([k, l]) => { const on = picks.some((p) => p.date === d && p.slot === k); return <button key={k} className={tile(on)} onClick={() => setPicks(on ? picks.filter((p) => !(p.date === d && p.slot === k)) : picks.length < 5 ? [...picks, { date: d, slot: k }] : picks)}>{l}</button>; })}</div></div>)}</div>
+      <button className={`${signBtn} mt-4`} disabled={busy || picks.length < 3} onClick={() => go(() => choosePiesa({ data: { token, session, picks } }))}>Send my {picks.length} times</button>
+    </section>}
+    {any && session && data.install.canPick && <section className="rounded-[22px] bg-card p-5 shadow-sm">
+      <h3 className="font-display text-lg font-extrabold">Install days</h3>
+      <p className="mt-1 text-sm">Pick the days that suit you{data.install.deadline ? `, before ${day(data.install.deadline + "T02:00:00Z")}` : ""}.</p>
+      <div className="mt-3 grid grid-cols-2 gap-2">{(data.install.days as string[]).map((d) => { const on = days.includes(d); return <button key={d} className={tile(on)} onClick={() => setDays(on ? days.filter((x) => x !== d) : days.length < 5 ? [...days, d] : days)}>{day(d + "T02:00:00Z")}</button>; })}</div>
+      <button className={`${signBtn} mt-4`} disabled={busy || !days.length} onClick={() => go(() => chooseDays({ data: { token, session, days } }))}>Send my days</button>
+    </section>}
+    {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+  </>;
+}
+
+function ConsentCard({ token, startsAt }: { token: string; startsAt: string | null }) {
+  const sign = useServerFn(ownerSignConsentFn);
+  const qc = useQueryClient();
+  const [session, setSession] = useSession();
+  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative", sig: "" });
+  const [ok, setOk] = useState(false); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  return <section className="rounded-[22px] bg-estimate-blush p-5">
+    <p className="text-xs font-bold uppercase tracking-wide">You need to do this</p>
+    <h2 className="mt-1 font-display text-xl font-extrabold">Sign your install consent</h2>
+    <p className="mt-1 text-sm">For your install{startsAt ? ` on ${visitPill(startsAt)}` : ""}. It must be signed at least 24 hours before.</p>
+    <div className="mt-3">{!session ? <OwnerCodeGate token={token} onVerified={setSession} /> : <div className="space-y-3 rounded-[22px] bg-card p-4">
+      <SignerFields v={f} set={(p) => setF({ ...f, ...p })} />
+      <Tick on={ok} set={setOk}>I consent to the information sharing for my install.</Tick>
+      {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+      <button className={signBtn} disabled={busy || !ok || f.name.trim().length < 2 || f.sig.trim().length < 2} onClick={async () => { setErr(""); setBusy(true); try { await sign({ data: { token, session, signatoryName: f.name, authorityType: f.authority, signatureName: f.sig, accept: ok } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } }}>Sign</button>
+    </div>}</div>
+  </section>;
 }
 
 function Numbers({ v }: { v: View }) {
@@ -177,7 +271,7 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
         </ul>
         <p className="mt-2 text-xs text-estimate-navy/70">{PAYMENT_OPTION_SUMMARY}</p>
         {q.status === "issued"
-          ? <a href="/auth" className="mt-4 flex h-12 items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">Say yes and sign</a>
+          ? <AcceptQuote token={token} quote={q} />
           : <p className="mt-4 rounded-full bg-estimate-mint px-4 py-3 text-center text-sm font-bold text-estimate-green">You said yes. Thanks!</p>}
       </section>
     </>}
@@ -194,8 +288,8 @@ function BookScreen({ v, token }: { v: View; token: string }) {
       <p className="mt-1 text-sm">First the electrician does a quick safety check. Your install can be from {v.piesaInstallGapDays} days after that, and must be within 30 days.</p>
       <p className="mt-2 text-sm">For example, a safety check on {day(today)} means an install between {day(earliestInstall(today, v.piesaInstallGapDays))} and {day(installDeadline(today))}.</p>
       <p className="mt-2 text-sm">Pick 2-hour windows that suit you: {TWO_HOUR_WINDOWS.join(", ")}.</p>
-      <a href="/auth" className="mt-4 flex h-12 items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">Pick my times</a>
     </section>
+    <BookPickers token={token} />
   </>;
 }
 

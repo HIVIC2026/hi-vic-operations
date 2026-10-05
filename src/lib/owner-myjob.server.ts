@@ -22,6 +22,7 @@ export async function resolveOwnerJob(token: unknown) {
     admin.from("workflow_settings").select("office_time_limits, piesa_install_window_days").eq("id", 1).maybeSingle(),
   ]);
   if (!j) return null;
+  const { data: consent } = await admin.from("owner_esc_consents").select("status, scheduled_start").eq("job_id", jobId).eq("status", "awaiting_owner").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const stage = j.stage as string;
   const quote = (quotes ?? []).find((q) => q.status === "accepted") ?? (quotes ?? [])[0] ?? null;
   const rebate = quote ? n(quote.veec_discount_inc_gst) : n(est?.applied_discount);
@@ -57,7 +58,8 @@ export async function resolveOwnerJob(token: unknown) {
     address: formatPropertyAddress(j.properties as never) || null, stage, hero, action, trade: upcoming ? trade : null,
     visit: upcoming ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, progress,
     numbers: { rebate, cost: total, paid },
-    quote: quote ? { status: quote.status, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: i.description, amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total) : null } : null,
+    quote: quote ? { id: quote.id, status: quote.status, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: i.description, amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total) : null } : null,
+    consent: consent ? { scheduledStart: consent.scheduled_start } : null,
     piesaInstallGapDays: n(limits["piesa_install_gap_days"] ?? DEFAULT_PIESA_INSTALL_GAP_DAYS),
   };
 }

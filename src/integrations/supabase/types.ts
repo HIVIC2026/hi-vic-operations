@@ -6451,6 +6451,73 @@ export type Database = {
           },
         ]
       }
+      owner_link_codes: {
+        Row: {
+          attempts: number
+          channel: string
+          code_hash: string
+          created_at: string
+          destination_masked: string
+          expires_at: string
+          id: string
+          job_id: string
+          owner_user_id: string | null
+          session_expires_at: string | null
+          session_hash: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          attempts?: number
+          channel: string
+          code_hash: string
+          created_at?: string
+          destination_masked: string
+          expires_at: string
+          id?: string
+          job_id: string
+          owner_user_id?: string | null
+          session_expires_at?: string | null
+          session_hash?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          attempts?: number
+          channel?: string
+          code_hash?: string
+          created_at?: string
+          destination_masked?: string
+          expires_at?: string
+          id?: string
+          job_id?: string
+          owner_user_id?: string | null
+          session_expires_at?: string | null
+          session_hash?: string | null
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_link_codes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_link_codes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "owner_link_codes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       owners: {
         Row: {
           created_at: string

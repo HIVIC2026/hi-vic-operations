@@ -16,6 +16,7 @@ This is the only current implementation register. `docs/HIV_WORKFLOW_SOURCE_OF_T
 | Campaign remove-enquiry action | Built | `/estimate/$token/campaign` |
 | Campaign missing-link preparation | Not built | Launch campaign preparation |
 | Owner My job secure-link page | Partly built | `/my-job/$token`; full journey proof pending |
+| No-login owner signing (6-digit code): quote acceptance, safety-check/install time picks, install consent | Built | `/my-job/$token` |
 | Owner house progress graphic | Partly built | Shared `OwnerHouse`; not yet on every owner screen/email |
 | Save my spot / Ready Check times | Partly built | Four 2-hour windows built; campaign area switch pending |
 | Quote acceptance and payment choices | Partly built | Owner quote flow; sign-in retained; full dummy proof pending |

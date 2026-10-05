@@ -606,8 +606,7 @@ export const adjustQuote = createServerFn({ method: "POST" }).middleware([requir
     return { ok: true };
   });
 
-export const respondToQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
-  .inputValidator((d) => z.object({
+export const respondToQuoteSchema = z.object({
     quoteId: uuid, accept: z.boolean(), consent: z.boolean().optional(), reason: z.string().max(1000).optional(),
     windowId: uuid.optional(), noneSuit: z.boolean().optional(), expectedVersion: z.number().int().optional(),
     signing: z.object({
@@ -615,11 +614,23 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
       readConsumerInfo: z.boolean(), acceptAgreement: z.boolean(), signatureName: z.string().trim().max(200),
       assistance: z.enum(["none", "interpreter", "support_understanding", "both"]),
     }).optional(),
-  }).parse(d))
-  .handler(async ({ data, context }) => {
+  });
+
+export const respondToQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth, withRequestMeta])
+  .inputValidator((d) => respondToQuoteSchema.parse(d))
+  .handler(async ({ data, context }) => respondToQuoteImpl(data, {
+    userId: context.userId, ip: context.ip, userAgent: context.userAgent,
+    authorize: (jobId) => requireJobRole(context.supabase, jobId, ["owner", "admin"]).then(() => undefined),
+    isOwner: async (jobId) => (await context.supabase.rpc("is_job_owner", { _job: jobId, _user: context.userId })).data === true,
+  }));
+
+export type QuoteActor = { userId: string; ip: string | null; userAgent: string | null; authorize: (jobId: string) => Promise<void>; isOwner: (jobId: string) => Promise<boolean> };
+
+/** Shared by the signed-in owner page and the no-login secure link (after a verified 6-digit code). */
+export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSchema>, context: QuoteActor) {
     const { data: q } = await admin.from("quotes").select("*").eq("id", data.quoteId).single();
     if (!q) throw new WorkflowError("Quote not found");
-    await requireJobRole(context.supabase, q.job_id, ["owner", "admin"]);
+    await context.authorize(q.job_id);
     if (q.status === "expired") throw new WorkflowError("This quote has expired. Please contact us for an updated quote.");
     if (q.status !== "issued") throw new WorkflowError("This quote is no longer open.");
     // Exact-version acceptance: if the owner's screen shows a version (any manual adjustment bumps it),
@@ -642,8 +653,7 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
     // Installation acceptance is the commercial agreement only. ESC consent and VEEC assignment are later forms.
     if (q.kind === "installation") {
       if (!data.signing) throw new WorkflowError("The customer must review and sign the customer agreement to accept this quote.");
-      const { data: isOwner } = await context.supabase.rpc("is_job_owner", { _job: q.job_id, _user: context.userId });
-      if (!isOwner) throw new WorkflowError("Only the customer can sign the agreement.");
+      if (!(await context.isOwner(q.job_id))) throw new WorkflowError("Only the customer can sign the agreement.");
       const { assistance: _a, ...chk } = data.signing;
       await assertAgreementCanSign(chk);
     }
@@ -703,7 +713,7 @@ export const respondToQuote = createServerFn({ method: "POST" }).middleware([req
     await createInvoiceForQuote(q.id, context.userId);
     await advanceAfterDeposit(q.job_id, context.userId);
     return { ok: true };
-  });
+}
 
 // ---------- Payments (Xero mirror + gates) ----------
 /** Deposit routing now lives in the central auto-advance helper (never bypasses blockers). */
