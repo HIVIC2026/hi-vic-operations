@@ -28,7 +28,7 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 }
 
 
-function createSupabaseClient() {
+export function createSupabaseClient(options?: { storageKey?: string }) {
   // Use import.meta.env for client-side (Vite build-time replacement)
   // Fall back to process.env for SSR (server-side rendering)
   const SUPABASE_URL = import.meta.env['VITE_SUPABASE_URL'] || process.env['SUPABASE_URL'];
@@ -50,6 +50,7 @@ function createSupabaseClient() {
     },
     auth: {
       storage: brokeredPreviewStorage(),
+      storageKey: options?.storageKey,
       persistSession: true,
       autoRefreshToken: true,
     },
