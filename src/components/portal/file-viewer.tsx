@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 
-type Open = { url: string; title?: string };
+type Open = { url: string; title?: string | undefined };
 const listeners = new Set<(f: Open) => void>();
 
 /** Show an uploaded document inside the portal (PDF/image preview + Download). Links are app-domain only. */

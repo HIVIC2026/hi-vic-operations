@@ -128,7 +128,7 @@ export const partnerFileUrl = createServerFn({ method: "POST" }).middleware([req
     if (!data.path.startsWith(`partners/${data.businessId}/`)) throw new WorkflowError("Invalid path");
     const { data: s, error } = await signFile("job-files", data.path, 300);
     if (error) throw new WorkflowError(error.message);
-    return { url: s.signedUrl };
+    return { url: s!.signedUrl };
   });
 
 export const setBankDetails = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

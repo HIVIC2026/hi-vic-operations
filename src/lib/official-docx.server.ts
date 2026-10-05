@@ -56,5 +56,5 @@ export async function officialDocxUrl(userClient: { from: (t: string) => any }, 
   const { OFFICIAL_BUCKET } = await import("./official-forms.server");
   const r = await signFile(OFFICIAL_BUCKET, path, 300);
   if (r.error) throw new Error(r.error.message);
-  return r.data.signedUrl;
+  return r.data!.signedUrl;
 }

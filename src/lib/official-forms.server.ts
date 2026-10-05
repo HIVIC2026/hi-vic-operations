@@ -53,7 +53,7 @@ export async function signedCopyUrl(userClient: { from: (t: string) => any }, id
   if (error || !data) throw new Error("Not found.");
   const r = await signFile(OFFICIAL_BUCKET, data.storage_path, 300);
   if (r.error) throw new Error(r.error.message);
-  return r.data.signedUrl;
+  return r.data!.signedUrl;
 }
 
 export async function materialFacts(jobId: string, piesa: StoredCopy | null): Promise<{ facts: MaterialFacts; installDate: string | null }> {
