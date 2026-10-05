@@ -260,3 +260,6 @@ Each: Jo approves sign-ins/keys; dummy test on qa_test; preview only.
 - [x] Declined/expired pick -> Needs me with "Pick another" / "Send to all"; no auto-widening
 - [ ] Browser run on a TEST job (owner times -> pick -> decline -> Needs me) during the A–D role run
 - [ ] Travel-distance "nearest" once Google Maps is connected (postcode proxy now)
+
+## Owner "My job" page rebuild (Jo-approved 5 Oct) — after trade launch fixes, preview only
+- [ ] Build per mem://design/owner-my-job-page (token link, hero house fill, navy action card, who's coming, 5 steps, numbers, bottom list); remove badges/progress bar/stacked panels
