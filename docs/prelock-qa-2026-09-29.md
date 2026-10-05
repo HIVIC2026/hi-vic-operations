@@ -1,5 +1,5 @@
 > [!WARNING]
-> **RETIRED BRANDING**: This document describes an outdated visual direction (Open Sans, blue hero, offset-shadow elements). Do not use as guidance for new development.
+> **RETIRED (5 Oct 2026) — this Open Sans / blue-hero / offset-shadow look is no longer our brand. Do not use. Current brand = the live calculator look (.estimate-brand), see .lovable/memory/design/final-portal-design.md.**
 
 # Pre-lock QA audit — homeowner enquiry → estimate → referral → email (2026-09-29)
 
