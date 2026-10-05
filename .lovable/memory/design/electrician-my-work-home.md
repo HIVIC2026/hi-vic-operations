@@ -3,7 +3,7 @@ name: Electrician "My work" home screen (Jo-approved 5 Oct)
 description: Approved phone-first electrician home screen — greeting, open-offer navy strip, Your move, Coming up, This month, Work/Money/My business tabs
 type: design
 ---
-Preview only; queued with the electrician job offer (mem://design/electrician-job-offer), after the trade launch fixes. Phone-first, calculator look (Outfit 800 headings, Figtree body, canvas #FBFCFA, navy #22376B, green #07BF61 actions, logo on the header).
+Preview only; queued with the electrician job offer and the offer/on-the-day screens (mem://design/electrician-offer-screens), after the trade launch fixes. Phone-first, calculator look (Outfit 800 headings, Figtree body, canvas #FBFCFA, navy #22376B, green #07BF61 actions, logo on the header).
 
 Header: real HIV logo (CUSTOMER_BRAND.logoUrl) + today's date.
 
