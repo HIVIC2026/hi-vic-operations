@@ -6,6 +6,7 @@
 - [ ] Restyle `/partner/bulk-import` in the calculator look without changing its current import capabilities.
 - [ ] Fix duplicate skipping, office-review hold before job creation, Past uploads, large photo batches, and stale single-job import copy.
 - [ ] Preserve batch permission audit, six-month supplied-photo age, install-day-only photos, 50 m GPS and zero lead fee on installer-owned customers.
+- [ ] Campaign save-spot update after cleanup/bulk upload (Jo, 5 Oct 21:12; draft only): new Group A/B wording; Free Ready Check everywhere; removal caveats; real remove-enquiry link; matching plain text; one-tap spot confirmation with OwnerHouse level 0 and rebate; Group B optional video; no time picker unless postcode availability setting is on, default off; update campaign preview.
 
 - [x] Show signed installer applications in the correct office pending approval list without altering records.
 - [x] Fix REC business/origin address picker selection races, including outside-click lock during pending details.
