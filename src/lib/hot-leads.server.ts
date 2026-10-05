@@ -28,7 +28,7 @@ export async function loadHotLeads() {
     const d = a.data as Record<string, unknown> | null;
     const name = String(d?.["trading_name"] || d?.["legal_entity_name"] || "").trim();
     const origin = d?.["service_origin_details"] as Trade["origin"];
-    if (a.test_mode || name.length < 3 || HOT_EXCLUDE.test(name) || !origin || !Number.isFinite(Number(origin.latitude)) || !Number.isFinite(Number(origin.longitude))) continue;
+    if (a.test_mode || name.length < 3 || HOT_EXCLUDE.test(`${name} ${String(d?.["primary_contact_name"] ?? "")} ${String(d?.["legal_entity_name"] ?? "")}`) || !origin || !Number.isFinite(Number(origin.latitude)) || !Number.isFinite(Number(origin.longitude))) continue;
     trades.push({ id: a.id, kind: a.partner_type === "installer" ? "installer" : "rec", name, origin, radius: Number(d?.["travel_radius_km"]) || null });
   }
   const jobs = [];

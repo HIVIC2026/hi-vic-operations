@@ -42,5 +42,5 @@ export function hotRegion(postcode: string | null): string {
 export function hotCoverage(postcode: string | null, trades: Trade[]) {
   const region = regionForPostcode(postcode);
   const matches = trades.filter((t) => tradeCovers(t, postcode, region));
-  return { installers: matches.filter((t) => t.kind === "installer").map((t) => t.name), electricians: matches.filter((t) => t.kind === "rec").map((t) => t.name), checkCoverage: postcode === "3340" || postcode === "3434" };
+  return { installers: [...new Set(matches.filter((t) => t.kind === "installer").map((t) => t.name))], electricians: [...new Set(matches.filter((t) => t.kind === "rec").map((t) => t.name))], checkCoverage: postcode === "3340" || postcode === "3434" };
 }
