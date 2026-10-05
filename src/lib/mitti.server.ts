@@ -57,14 +57,17 @@ async function templateIds() {
   return { readyCheck: data?.mitti_ready_check_template_id?.trim() || null, readyCheckPriced: data?.mitti_ready_check_priced_template_id?.trim() || null, piesa: data?.mitti_piesa_template_id?.trim() || null };
 }
 
-export async function createAssignMittiAudit(jobId: string, actorId: string, call: MittiCall = realMittiCall) {
+export const PIESA_BOOKING_MISSING = "The PIESA form can only be created once a PIESA visit is confirmed in the portal.";
+
+/** opts.assignee: hand the Ready Check to this specific approved worker (auto-assign); opts.readyCheck forces the installer Ready Check form. */
+export async function createAssignMittiAudit(jobId: string, actorId: string | null, call: MittiCall = realMittiCall, opts: { assignee?: { userId: string; fullName: string | null; email: string }; readyCheck?: boolean } = {}) {
   const { data: job } = await admin.from("jobs").select("id,job_number,business_unit,stage,estimated_area_m2,life_support,life_support_status,property_id,owner_id,channel").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
   const scope = await jobScope(jobId);
   if (scope.scope === "COMPLETE") throw new WorkflowError("Both site requirements are already complete – no Mitti audit needed.");
   // The Ready Check comes before any PIESA, so in Ready Check stages the installer form is sent even though no PIESA exists yet.
   const readyCheckStage = job.stage === "ready_check_ready_to_schedule" || job.stage === "ready_check_scheduled";
-  const measureOnly = readyCheckStage || scope.scope === "MEASURE_UP_ONLY";
+  const measureOnly = !!opts.readyCheck || readyCheckStage || scope.scope === "MEASURE_UP_ONLY";
   const role = measureOnly ? "installer" : "electrician";
   // Role-specific forms only; the old combined template is never used for new audits.
   // Ready Check variant: installer-sourced jobs get the priced form (A1), our leads the evidence-only form (A2).
@@ -74,14 +77,17 @@ export async function createAssignMittiAudit(jobId: string, actorId: string, cal
   // Official PIESA stays blocked from live use until its mapping is approved and its source confirmed.
   if (!measureOnly) { const b = officialFormUseBlocker("piesa"); if (b) throw new WorkflowError(b); }
 
-  const [{ data: prop }, { data: owner }, { data: asg }, { data: booking }, { data: a }] = await Promise.all([
+  const [{ data: prop }, { data: owner }, { data: asgRow }, { data: booking }, { data: a }] = await Promise.all([
     admin.from("properties").select("address_line,suburb,state,postcode,occupancy,enrichment").eq("id", job.property_id).single(),
     admin.from("owners").select("full_name,email,phone").eq("id", job.owner_id).single(),
     admin.from("job_assignments").select("user_id, profiles:user_id(full_name,email)").eq("job_id", jobId).eq("role", role).eq("active", true).maybeSingle(),
-    admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "assessment").neq("status", "cancelled").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("bookings").select("scheduled_start,status").eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
     admin.from("assessments").select("id,status,external_mitti_id").eq("job_id", jobId).maybeSingle(),
   ]);
   if (!measureOnly && a?.status === "complete") throw new WorkflowError("Electrical assessment is already complete and locked.");
+  // Gap 1: no PIESA form until the PIESA visit is confirmed in the portal.
+  if (!measureOnly && !booking) throw new WorkflowError(PIESA_BOOKING_MISSING);
+  const asg = opts.assignee ? { user_id: opts.assignee.userId, profiles: { full_name: opts.assignee.fullName, email: opts.assignee.email } } : asgRow;
   if (!asg) throw new WorkflowError(`Assign an ${role} before creating the Mitti assessment.`);
   const m = scope.measurementRow;
   const existingAuditId = measureOnly ? (m?.external_source === "mitti" && m.status !== "complete" ? m.external_id : null) : a?.external_mitti_id ?? null;
