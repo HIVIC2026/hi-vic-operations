@@ -253,3 +253,10 @@
 - [ ] 6 Google Maps (autocomplete, directions, travel-distance matching)
 - [ ] 7 PostHog (mask owner details in replays)
 Each: Jo approves sign-ins/keys; dummy test on qa_test; preview only.
+
+## Choose a trade (Jo, 5 Oct)
+- [x] Office job page "Choose a trade" (Ready Check installers, PIESA/fix-up electricians), eligible only, nearest by postcode, area + load
+- [x] Offer to one trade only, same offer/window; logged "Office chose X"
+- [x] Declined/expired pick -> Needs me with "Pick another" / "Send to all"; no auto-widening
+- [ ] Browser run on a TEST job (owner times -> pick -> decline -> Needs me) during the A–D role run
+- [ ] Travel-distance "nearest" once Google Maps is connected (postcode proxy now)
