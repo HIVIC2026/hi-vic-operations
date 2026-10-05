@@ -20,7 +20,10 @@ function CampaignPage() {
   const save = useServerFn(saveMySpot);
   const optOut = useServerFn(takeMeOffList);
   type CampaignData = { group: "likely" | "onsite"; estimate: { estimate: CustomerData }; response: { spot_saved_at: string | null; opted_out_at: string | null } | null } | null;
-  const { data, isLoading, isError, refetch } = useQuery({ queryKey: ["launch_campaign", token], queryFn: () => getPage({ data: { token } }) as Promise<CampaignData>, retry: false, refetchOnWindowFocus: false });
+  const { data, isLoading, isError, refetch } = useQuery({ queryKey: ["launch_campaign", token], queryFn: async () => {
+    const json = await getPage({ data: { token } });
+    return json ? JSON.parse(json) as CampaignData : null;
+  }, retry: false, refetchOnWindowFocus: false });
   const [busy, setBusy] = useState<"save" | "optout" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const act = async (kind: "save" | "optout") => {

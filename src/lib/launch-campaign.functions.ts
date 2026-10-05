@@ -7,10 +7,7 @@ const token = z.string().max(200);
 
 export const getLaunchCampaignPage = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token }).parse(d))
-  .handler(async ({ data, context }) => {
-    const json = await (await import("./launch-campaign.server")).campaignPage(data.token, context.assessmentTestMode);
-    return json ? JSON.parse(json) as { group: "likely" | "onsite"; estimate: { estimate: Record<string, unknown> }; response: { spot_saved_at: string | null; opted_out_at: string | null } | null } : null;
-  });
+  .handler(async ({ data, context }) => (await import("./launch-campaign.server")).campaignPage(data.token, context.assessmentTestMode));
 
 export const saveMySpot = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token }).parse(d))
