@@ -142,3 +142,11 @@
 - [ ] Installer payouts: installer-supplied = full quoted price within 7 days of AP approval AND owner paid in full; HIV leads = agreed rate within 7 days of AP approval. Never wait for VEEC. Payout due date/status on office view + installer portal; office marks paid, no money moves.
 - [ ] Per-company "Installer sends own quote" mode: Quote figures panel per job + copyable owner acceptance link (live figures; owner reviews, signs consent + VEEC assignment). Nothing sends.
 - Visual restyle: ON HOLD (Jo, 5 Oct).
+
+## Before live-safety check (Jo, 5 Oct 04:36)
+- [ ] Round DOWN to whole VEECs everywhere (21.294 → 21)
+- [ ] Ready Check price items: remove Tile lift / Metal sheet access (spec, AI prompt); validator still accepts live template
+- [ ] Onboarding: remove pink access-charges note entirely
+- [ ] R-value plan: add install-day product check (plan only)
+- Note: $299 AP fee ReInsulate ONLY; all others + HIV leads $349
+- [ ] Then live-safety check → SAFE TO PUBLISH or blockers; do not publish
