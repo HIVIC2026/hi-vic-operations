@@ -87,13 +87,13 @@ function AddCustomer() {
         <section className={card}>
           <h2 className="mb-3 font-display text-lg font-extrabold">1 · Owner and home</h2>
           <div className="grid gap-3">
-            <div><Label>Owner name</Label><Input className="h-12" value={o.full_name} onChange={set("full_name")} autoComplete="off" /></div>
-            <div className="grid grid-cols-2 gap-3"><div><Label>Mobile</Label><Input className="h-12" type="tel" inputMode="tel" value={o.phone} onChange={set("phone")} /></div><div><Label>Email</Label><Input className="h-12" type="email" value={o.email} onChange={set("email")} /></div></div>
-            <div><Label>Street address</Label><Input className="h-12" value={o.address_line} onChange={set("address_line")} /></div>
-            <div className="grid grid-cols-2 gap-3"><div><Label>Suburb</Label><Input className="h-12" value={o.suburb} onChange={set("suburb")} /></div><div><Label>Postcode</Label><Input className="h-12" inputMode="numeric" value={o.postcode} onChange={set("postcode")} /></div></div>
+            <div><Label htmlFor="ac-1">Owner name</Label><Input id="ac-1" className="h-12" value={o.full_name} onChange={set("full_name")} autoComplete="off" /></div>
+            <div className="grid grid-cols-2 gap-3"><div><Label htmlFor="ac-2">Mobile</Label><Input id="ac-2" className="h-12" type="tel" inputMode="tel" value={o.phone} onChange={set("phone")} /></div><div><Label htmlFor="ac-3">Email</Label><Input id="ac-3" className="h-12" type="email" value={o.email} onChange={set("email")} /></div></div>
+            <div><Label htmlFor="ac-4">Street address</Label><Input id="ac-4" className="h-12" value={o.address_line} onChange={set("address_line")} /></div>
+            <div className="grid grid-cols-2 gap-3"><div><Label htmlFor="ac-5">Suburb</Label><Input id="ac-5" className="h-12" value={o.suburb} onChange={set("suburb")} /></div><div><Label htmlFor="ac-6">Postcode</Label><Input id="ac-6" className="h-12" inputMode="numeric" value={o.postcode} onChange={set("postcode")} /></div></div>
             <div><Label>Who lives there?</Label><div className="mt-1 grid grid-cols-2 gap-2">{(["owner_occupied", "rental"] as const).map((v) => <Button key={v} type="button" size="field" variant={o.occupancy === v ? "default" : "outline"} onClick={() => setO({ ...o, occupancy: v })}>{v === "owner_occupied" ? "Owner lives there" : "Rental"}</Button>)}</div></div>
             <div><Label>Where are you up to?</Label><div className="mt-1 grid gap-2">{([["not_visited", "Not visited yet"], ["measured", "Visited and measured"], ["quoted", "Measured and quoted"]] as const).map(([v, l]) => <Button key={v} type="button" size="field" variant={progress === v ? "default" : "outline"} onClick={() => setProgress(v)}>{l}</Button>)}</div></div>
-            {progress === "not_visited" && <div><Label>Rough ceiling size (m²)</Label><Input className="h-12" inputMode="decimal" value={o.rough} onChange={set("rough")} placeholder="Your best guess" /></div>}
+            {progress === "not_visited" && <div><Label htmlFor="ac-7">Rough ceiling size (m²)</Label><Input id="ac-7" className="h-12" inputMode="decimal" value={o.rough} onChange={set("rough")} placeholder="Your best guess" /></div>}
           </div>
         </section>
 
