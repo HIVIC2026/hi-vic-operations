@@ -82,11 +82,20 @@ async function ensureOwnerUser(jobId: string, channel: "sms" | "email"): Promise
   const meta = { full_name: owner.full_name, owner_link: true, ...(source === "qa_test" ? { qa_test: true } : {}) };
   const res = channel === "email" && owner.email
     ? await admin.auth.admin.createUser({ email: owner.email, email_confirm: true, user_metadata: meta })
-    : await admin.auth.admin.createUser({ phone: owner.phone!, phone_confirm: true, user_metadata: meta });
+    : await admin.auth.admin.createUser({ phone: toE164(owner.phone!), phone_confirm: true, user_metadata: meta });
   if (res.error || !res.data.user) throw new Error(`Could not record the owner's verified identity: ${res.error?.message ?? "unknown"}`);
   const uid = res.data.user.id;
   await admin.from("owners").update({ user_id: uid }).eq("id", owner.id).is("user_id", null);
   await admin.from("user_roles").upsert({ user_id: uid, role: "owner" }, { onConflict: "user_id,role", ignoreDuplicates: true });
   const { data: o } = await admin.from("owners").select("user_id").eq("id", owner.id).single();
   return o?.user_id ?? uid;
+}
+
+/** Australian numbers to +61 form (auth requires E.164). */
+export function toE164(v: string): string {
+  const d = v.replace(/[^\d+]/g, "");
+  if (d.startsWith("+")) return d;
+  if (d.startsWith("61")) return `+${d}`;
+  if (d.startsWith("0")) return `+61${d.slice(1)}`;
+  return `+61${d}`;
 }
