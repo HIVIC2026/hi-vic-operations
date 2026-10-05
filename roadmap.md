@@ -150,3 +150,12 @@
 - [x] R-value plan: add install-day product check (plan only)
 - Note: $299 AP fee ReInsulate ONLY; all others + HIV leads $349
 - [ ] Then live-safety check → SAFE TO PUBLISH or blockers; do not publish
+
+## Visual restyle "warm and friendly" (Jo approved 5 Oct) — QUEUED after publish + installer commercial options build
+- [ ] Stage 1: tokens (Nunito, cream/blush/pink/navy palette, radii) + shared pieces (cards, pills, rows, illustration SVGs, table shell)
+- [ ] Stage 2: Office Today + left nav
+- [ ] Stage 3: Installer portal home + installer job page
+- [ ] Stage 4: Electrician home + job card
+- [ ] Stage 5: Homeowner portal
+- [ ] Stage 6: onboarding, eligibility link, calculator/estimate, email web views (not locked likely email), admin tables
+- [ ] Before/after screenshots desktop + phone each stage; no logic/data/compliance wording changes
