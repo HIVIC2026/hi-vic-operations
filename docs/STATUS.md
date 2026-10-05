@@ -86,3 +86,29 @@ This is the only current implementation register. `docs/HIV_WORKFLOW_SOURCE_OF_T
 - Reconnect Xero with the Demo Company available.
 - Supply/approve the Mitti Ready Check, PIESA and PIISA template IDs.
 - Decide whether owner quote signing may happen without sign-in.
+## Owner paperwork gates A–D (5 Oct)
+| Feature | Status | Where |
+|---|---|---|
+| One gate rule set for every journey (web, installer single, bulk J1, bulk J2) | Built | `owner-gates.core.ts`, enforced in `stageEntryBlockers`, Ready Check / safety-check offer start, trade contact release |
+| Gate A: contact + privacy consent (also records owner contact consent, unblocking emails) | Built (DRAFT wording) | `/my-job/$token` Paperwork card |
+| Gate A: consent to share name/address/phone with trades | Built (DRAFT wording) | `/my-job/$token` |
+| Gate A: confirm details + owner/tenant | Built (DRAFT wording) | `/my-job/$token` |
+| Gate A: tenant landlord details | Built (DRAFT wording) | `/my-job/$token` |
+| Gate A: landlord consent | Partly built — office records it; landlord-signed flow and wording not built | office job page Paperwork strip |
+| Gate A: life support question | Built (DRAFT wording); a Yes switches job life support on | `/my-job/$token` |
+| Gate A: bulk J2 "installer visited with my permission" | Built (DRAFT wording) | `/my-job/$token` |
+| Gate B: customer agreement + consumer rights | Partly built — existing signing; HIV agreement wording not loaded (only DRAFT consumer rights) | quote acceptance |
+| Gate B: cooling-off notice | Partly built — slot only, wording/rules pending lawyer | `/my-job/$token` |
+| Gate B: payment option / instalment terms acknowledgement | Built (DRAFT wording) | `/my-job/$token` |
+| Gate C: ESC consent (Reg 23A), PIESA copy delivered | Built (existing records, now listed in gate) | — |
+| Gate C: life support plan (when relevant) | Built (DRAFT wording) | `/my-job/$token` |
+| Gate C: PIESA owner declaration via Mitti | Not built — joins Gate C once mapping approved | — |
+| Gate D: final VEEC assignment | Built (existing) | — |
+| Code-verified no-login signing, typed name + tick, stored version/text/time/IP/verified contact, PDF in job file | Built | `owner_gate_signatures` (permanent) |
+| Signed copy emailed to owner | Built — queued only for real jobs; sending off | outbox |
+| Logged-in signing of new gate documents | Partly built — server function `signPaperworkFn` exists; no portal screen yet | — |
+| DRAFT slots block real jobs; TEST jobs may sign DRAFT | Built | — |
+| Owner paperwork settings page (version, Draft/Approved, approver) | Built | `/admin/owner-paperwork` |
+| Office job page Paperwork strip A/B/C/D | Built | `/admin/jobs/$jobId` |
+| Needs me flags jobs blocked on Gate A/B | Built | `/admin/needs-me` |
+| Scenario F tests (all journeys) | Built — passing | `tests/owner-gates-scenario-f.test.ts`, `tests/owner-paperwork-db.test.ts` |
