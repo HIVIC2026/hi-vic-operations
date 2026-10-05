@@ -49,17 +49,3 @@ export function heldWindowAction(startsAt: string, now: Date = new Date()): "boo
   return new Date(startsAt).getTime() > now.getTime() ? "book" : "lapsed";
 }
 
-// ---- Auto-queue vs hold (Operating Model v2, smallest safe addition) ----
-// "Standard agreed-rate" = every required item is a catalogue rate (not "Other"), not flagged
-// needs_office_pricing, and the generated quote was not manually adjusted after creation.
-export type RectItemFact = { is_other: boolean; needs_office_pricing: boolean };
-export function rectQuoteIsStandardOnly(items: RectItemFact[], manuallyAdjusted: boolean): boolean {
-  if (manuallyAdjusted) return false;
-  if (!items.length) return false;
-  return items.every((i) => !i.is_other && !i.needs_office_pricing);
-}
-
-/** Auto-queue only when the switch is on AND every line is standard/agreed-rate; otherwise unchanged (hold for office review). */
-export function rectAutoQueueDecision(switchOn: boolean, items: RectItemFact[], manuallyAdjusted: boolean): "auto_queue" | "hold" {
-  return switchOn && rectQuoteIsStandardOnly(items, manuallyAdjusted) ? "auto_queue" : "hold";
-}

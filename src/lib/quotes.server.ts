@@ -4,6 +4,7 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import { quoteInputsFromMeasurement, type MeasurementLike } from "./scope.core";
 import { lookupLocation } from "./activity48.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
+import { confirmedQuoteDecision, currentEstimateTotal, rectificationQuoteDecision } from "./quote-release.core";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -138,14 +139,28 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   const wv = wholeVeecDiscount(qi.areaM2, loc, Number(rs.indicative_veec_value));
   const rules = applyDiscountRules(wv.raw, subtotal, metro, rs);
   const veec = r2(rules.discount);
+  const customerTotal = r2(subtotal - veec);
+  const [{ data: workflow }, { data: estimate }] = await Promise.all([
+    admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled, quote_estimate_variance_tolerance_pct").eq("id", 1).maybeSingle(),
+    admin.from("indicative_estimates").select("scenarios").eq("job_id", jobId).eq("status", "current").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  const release = confirmedQuoteDecision({
+    estimateTotal: currentEstimateTotal(estimate?.scenarios, qi.removalM2 > 0),
+    quoteTotal: customerTotal,
+    tolerancePct: Number(workflow?.quote_estimate_variance_tolerance_pct ?? 15),
+    hasUnratedExtras: rectLines.some((line) => line.is_other),
+    externalSendingEnabled: workflow?.auto_send_quote === true && workflow.customer_comms_enabled === true,
+  });
+  const releasedAt = release.status === "issued" ? new Date().toISOString() : null;
   const discountNote = discountNotes(rules).join(" ") || null;
   const label = rectLines.length ? "R5.0 ceiling insulation + electrical rectification" : "R5.0 ceiling insulation";
   const { data: q, error } = await admin.from("quotes").insert({
-    job_id: jobId, kind: "installation", option_label: label, option_code: "R5_BATTS", status: "issued", sent_at: new Date().toISOString(),
+    job_id: jobId, kind: "installation", option_label: label, option_code: "R5_BATTS", status: release.status, sent_at: releasedAt,
+    release_state: release.state, release_hold_reason: release.reason,
     rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal,
     gst_amount: r2(subtotal - subtotal / gstMul), veec_discount_inc_gst: veec, discount_note: discountNote,
     veec_count: wv.veecs, veec_unit_value_inc_gst: wv.unitValue,
-    customer_total_inc_gst: r2(subtotal - veec), created_by: actorId,
+    customer_total_inc_gst: customerTotal, created_by: actorId,
   }).select("id").single();
   if (error || !q) throw new Error(error?.message);
   await admin.from("quote_items").insert([
@@ -156,7 +171,8 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
     quote_id: q.id, cost_ex_gst: calc.installerCostEx, ap_margin_ex_gst: calc.installerMarkup.markupEx, ap_fee_ex_gst: r2(Number(rs.ap_management_inc_gst) / gstMul),
     calc_snapshot: { pricing_rule: HIV_PRICING_RULE, installer_markup: calc.installerMarkup, measurement_id: qi.measurementId, area_m2: qi.areaM2, removal_m2: qi.removalM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access, discount_notes: discountNotes(rules), discount_cap_applied: rules.cappedAtMax, discount_reduced_for_minimum: rules.reducedForMin },
   });
-  await logEvent(jobId, actorId, "installer_quotes_generated", "Installation quote generated (fixed owner prices)", { quote_ids: [q.id], rate_card: card.name, pricing_rule: HIV_PRICING_RULE });
+  const summary = release.state === "held" ? release.reason! : release.state === "queued" ? "Installation quote ready to send — queued behind the launch switches" : "Installation quote automatically released to the owner";
+  await logEvent(jobId, actorId, release.state === "held" ? "installation_quote_held" : release.state === "queued" ? "installation_quote_queued" : "installation_quote_released", summary, { quote_ids: [q.id], rate_card: card.name, pricing_rule: HIV_PRICING_RULE, release_state: release.state }, { internal: release.state !== "released" });
   return [q.id];
 }
 
@@ -211,29 +227,47 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
   if (error || !q) throw new Error(error?.message);
   await admin.from("quote_items").insert(lines.map((l) => ({ ...l, quote_id: q.id })));
   await admin.from("quote_internals").insert({ quote_id: q.id, cost_ex_gst: r2(cost), calc_snapshot: { rate_card_version: card.version } });
-  await logEvent(jobId, actorId, "rectification_quote_generated", `Rectification quote drafted (${lines.length} lines) — office review required before it is sent`, { quote_id: q.id });
-  await autoQueueRectificationQuote(jobId, q.id, items as { is_other: boolean; needs_office_pricing: boolean }[]);
+  const { data: workflow } = await admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled").eq("id", 1).maybeSingle();
+  const release = rectificationQuoteDecision({
+    hasNonStandardItem: items.some((item) => item.is_other),
+    manuallyPriced: items.some((item) => item.needs_office_pricing || item.other_unit_price_inc_gst != null),
+    externalSendingEnabled: workflow?.auto_send_quote === true && workflow.customer_comms_enabled === true,
+  });
+  const now = new Date().toISOString();
+  await admin.from("quotes").update({ status: release.status, sent_at: release.status === "issued" ? now : null, office_reviewed_at: release.state === "released" ? now : null, office_reviewed_by: null, release_state: release.state, release_hold_reason: release.reason }).eq("id", q.id);
+  const summary = release.state === "held" ? release.reason! : release.state === "queued" ? "Fix-up quote ready to send — queued behind the launch switches" : "Standard-rate fix-up quote automatically released to the owner";
+  await logEvent(jobId, actorId, release.state === "held" ? "rectification_quote_held" : release.state === "queued" ? "rectification_quote_queued" : "rectification_quote_released", summary, { quote_id: q.id, release_state: release.state }, { internal: release.state !== "released" });
   return q.id;
 }
 
-/** Smallest safe auto-queue: only when workflow_settings.auto_queue_rectification_quote is on AND every
- * required line is a standard agreed-rate item (no "Other", none needing office pricing). Any other/
- * non-standard/manually-priced line always holds in the normal office review queue — switch on or off,
- * nothing here changes manual review/send for those. Never touches comms/sending switches: issuing here
- * only flips status like the existing manual send does; actual delivery still follows the comms switches
- * elsewhere (see followups.server.ts / comms.server.ts). */
-async function autoQueueRectificationQuote(jobId: string, quoteId: string, items: { is_other: boolean; needs_office_pricing: boolean }[]) {
-  const { data: ws } = await admin.from("workflow_settings").select("auto_queue_rectification_quote").eq("id", 1).maybeSingle();
-  const { rectAutoQueueDecision } = await import("./rectification.core");
-  const decision = rectAutoQueueDecision(!!ws?.auto_queue_rectification_quote, items, false);
-  if (decision !== "auto_queue") return; // hold: unchanged draft, waits in the office review queue
+/** Release queued quotes only when both quote automation and the master customer-comms switch are on. */
+export async function releaseQueuedQuotes() {
+  const { data: workflow } = await admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled").eq("id", 1).maybeSingle();
+  if (workflow?.auto_send_quote !== true || workflow.customer_comms_enabled !== true) return { released: 0 };
+  const { data: queued } = await admin.from("quotes").select("id, job_id, kind").eq("status", "draft").eq("release_state", "queued").limit(200);
+  let released = 0;
+  for (const quote of queued ?? []) {
+    const now = new Date().toISOString();
+    const { data: updated } = await admin.from("quotes").update({ status: "issued", sent_at: now, release_state: "released" }).eq("id", quote.id).eq("status", "draft").eq("release_state", "queued").select("id").maybeSingle();
+    if (!updated) continue;
+    await logEvent(quote.job_id, null, `${quote.kind}_quote_released`, `${quote.kind === "rectification" ? "Fix-up" : "Installation"} quote automatically released to the owner`, { quote_id: quote.id }, { internal: false });
+    released++;
+  }
+  return { released };
+}
+
+/** Office approval clears an exception hold; launch switches still decide released now vs queued. */
+export async function approveHeldQuote(quoteId: string, actorId: string) {
+  const [{ data: quote }, { data: workflow }] = await Promise.all([
+    admin.from("quotes").select("id, job_id, kind, status, release_state, release_hold_reason").eq("id", quoteId).maybeSingle(),
+    admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled").eq("id", 1).maybeSingle(),
+  ]);
+  if (!quote || quote.status !== "draft" || quote.release_state !== "held") throw new WorkflowError("Only a held draft quote can be approved.");
+  const releaseNow = workflow?.auto_send_quote === true && workflow.customer_comms_enabled === true;
   const now = new Date().toISOString();
-  const { data: u } = await admin.from("quotes").update({ office_reviewed_at: now, office_reviewed_by: null, status: "issued", sent_at: now })
-    .eq("id", quoteId).eq("status", "draft").select("id").maybeSingle();
-  if (!u) return; // raced with a manual review/send — leave whatever happened as the record of truth
-  await logEvent(jobId, null, "rectification_quote_auto_queued",
-    "All rectification lines were standard agreed-rate items — auto-reviewed and queued to the owner (no office step needed)",
-    { quote_id: quoteId, switch: "auto_queue_rectification_quote" }, { internal: true });
+  await admin.from("quotes").update({ release_state: releaseNow ? "released" : "queued", release_hold_reason: null, status: releaseNow ? "issued" : "draft", sent_at: releaseNow ? now : null, office_reviewed_at: now, office_reviewed_by: actorId }).eq("id", quote.id);
+  await logEvent(quote.job_id, actorId, "quote_hold_approved", releaseNow ? "Office approved the held quote and released it to the owner" : "Office approved the held quote — queued behind the launch switches", { quote_id: quote.id, prior_reason: quote.release_hold_reason });
+  return { releaseState: releaseNow ? "released" as const : "queued" as const };
 }
 
 /** Admin manual adjustment with mandatory reason; before/after snapshot kept for audit. */

@@ -54,9 +54,9 @@ export function installerPriceRangeReason(pricePerM2: number | null, min: number
   return null;
 }
 
-export function currentEstimateTotal(scenarios: unknown): number | null {
+export function currentEstimateTotal(scenarios: unknown, removalRequired = false): number | null {
   if (!Array.isArray(scenarios)) return null;
-  const first = scenarios[0] as { by_access?: { standard?: { estimated_customer_total?: unknown } } } | undefined;
-  const value = Number(first?.by_access?.standard?.estimated_customer_total);
+  const scenario = (removalRequired ? scenarios.find((row) => (row as { key?: unknown })?.key === "full_removal") : scenarios.find((row) => (row as { key?: unknown })?.key === "can_remain")) ?? scenarios[0];
+  const value = Number((scenario as { by_access?: { standard?: { estimated_customer_total?: unknown } } } | undefined)?.by_access?.standard?.estimated_customer_total);
   return Number.isFinite(value) && value > 0 ? value : null;
 }

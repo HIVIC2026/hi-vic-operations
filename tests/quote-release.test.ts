@@ -26,7 +26,9 @@ describe("automatic quote release", () => {
     expect(installerPriceRangeReason(55, 30, 50)).toContain("above the normal range");
   });
   test("reads the current estimate total from its stored customer scenario", () => {
-    expect(currentEstimateTotal([{ by_access: { standard: { estimated_customer_total: 3379 } } }])).toBe(3379);
+    const scenarios = [{ key: "can_remain", by_access: { standard: { estimated_customer_total: 3379 } } }, { key: "full_removal", by_access: { standard: { estimated_customer_total: 5629 } } }];
+    expect(currentEstimateTotal(scenarios)).toBe(3379);
+    expect(currentEstimateTotal(scenarios, true)).toBe(5629);
     expect(currentEstimateTotal(null)).toBeNull();
   });
 });
