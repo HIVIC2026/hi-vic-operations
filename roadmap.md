@@ -216,3 +216,11 @@
 - [ ] Hide unrelated old TEST jobs from TEST trade dashboards
 - [ ] Plain-words reason when a job can't move
 - [ ] Re-run role scenarios A-D and report step by step
+
+## Trade launch — open (5 Oct)
+- [ ] Owner no-login actions after Ready Check (quote accept, payment choice, electrician times)
+- [ ] Full owner-picks-times → trade-taps → booked browser run, then scenarios A–D end to end
+- [ ] Payments tab: per-job payout due/status
+- [ ] Business tab: workers, rates, bulk upload in one place
+- [ ] Invite/password email — waiting on Jo's wording approval (copy-link works now)
+- [ ] 8 older failing tests (agreement fee clause, PIESA/PIISA templates, ESC) — predate this work
