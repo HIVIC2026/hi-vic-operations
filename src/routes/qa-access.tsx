@@ -19,7 +19,7 @@ function QaAccess() {
     const storageKey = `hivic-qa-${token_hash.slice(0, 12)}`;
     const qaClient = createSupabaseClient({ storageKey });
     void qaClient.auth.verifyOtp({ token_hash, type: "magiclink" }).then(async ({ data, error: authError }) => {
-      if (authError || data.user?.user_metadata?.qa_test !== true || !data.user.email?.endsWith("@hivic-test.example")) {
+      if (authError || data.user?.user_metadata?.["qa_test"] !== true || !data.user.email?.endsWith("@hivic-test.example")) {
         await qaClient.auth.signOut();
         setError(authError?.message ?? "This is not an approved TEST account.");
         return;

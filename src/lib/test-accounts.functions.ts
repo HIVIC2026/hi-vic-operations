@@ -11,6 +11,8 @@ import { WorkflowError } from "./workflow.server";
 
 const uuid = z.string().uuid();
 const QA_DOMAIN = "@hivic-test.example";
+const QA_INSTALLER_EMAIL = "qa.installer.alpha@hivic-test.example";
+const QA_ELECTRICIAN_EMAIL = "qa.rec.delta@hivic-test.example";
 
 type RateItem = { code: string; description: string; category: string; unit: string; display_unit?: string; r_value?: number | null; sort: number; unit_price_ex_gst: number };
 
@@ -195,8 +197,8 @@ export const prepareQaJourneyAccess = createServerFn({ method: "POST" })
     await admin.from("owners").update({ user_id: ownerId }).eq("id", owner.id);
 
     const personas: Array<{ key: "installer_boss" | "electrician"; email: string; role: "installer" | "electrician" }> = [
-      { key: "installer_boss", email: SPECS[0].email, role: "installer" },
-      { key: "electrician", email: SPECS[3].email, role: "electrician" },
+      { key: "installer_boss", email: QA_INSTALLER_EMAIL, role: "installer" },
+      { key: "electrician", email: QA_ELECTRICIAN_EMAIL, role: "electrician" },
     ];
     for (const persona of personas) {
       const { data: profile } = await admin.from("profiles").select("id, business_id").eq("email", persona.email).maybeSingle();
@@ -206,7 +208,7 @@ export const prepareQaJourneyAccess = createServerFn({ method: "POST" })
       if (assignmentError) throw new WorkflowError(`Could not assign the TEST ${persona.role}: ${assignmentError.message}`);
     }
 
-    const { data: installer } = await admin.from("profiles").select("id, business_id").eq("email", SPECS[0].email).maybeSingle();
+    const { data: installer } = await admin.from("profiles").select("id, business_id").eq("email", QA_INSTALLER_EMAIL).maybeSingle();
     if (!installer?.business_id) throw new WorkflowError("The TEST installer account is missing.");
     const workerDetails = {
       business_id: installer.business_id, trade_role: "installer", full_legal_name: "TEST Alpha Field Worker",
@@ -224,7 +226,7 @@ export const prepareQaJourneyAccess = createServerFn({ method: "POST" })
     await admin.from("worker_job_links").update({ revoked_at: new Date().toISOString(), revoked_by: context.userId }).eq("worker_id", worker.id).eq("job_id", data.jobId).is("revoked_at", null);
     const workerToken = newToken();
     await admin.from("worker_job_links").insert({ worker_id: worker.id, business_id: installer.business_id, job_id: data.jobId, token_hash: await hashToken(workerToken), created_by: context.userId, expires_at: linkExpiry(Date.now()) });
-    return { ownerEmail, installerEmail: SPECS[0].email, electricianEmail: SPECS[3].email, workerPath: `/w/${workerToken}` };
+    return { ownerEmail, installerEmail: QA_INSTALLER_EMAIL, electricianEmail: QA_ELECTRICIAN_EMAIL, workerPath: `/w/${workerToken}` };
   });
 
 /** Create a short-lived one-time TEST login link. Never accepts an arbitrary user id. */
