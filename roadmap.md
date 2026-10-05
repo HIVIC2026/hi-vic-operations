@@ -138,5 +138,7 @@
 - Test 50/150/300/600 m² metro+regional and a cheap job hitting $200 min.
 
 ## Queued AFTER live-safety check + publish (Jo approved 5 Oct) — installer commercial options + installer-sent quotes
-- [ ] Per-company "Customer discount model" (installer-sourced): Option 1 $70/VEEC + $349 AP + $349 PIESA (default); Option 2 no AP fee, editable $/VEEC (default $50) + $349 PIESA. $200 minimum always. Applies to installer calculator estimates, draft quotes, quotes, tax invoice, margins.
+- [ ] Per-company AP management fee (office setting, default $349 inc GST; ReInsulate $299 pilot). Discount $70/VEEC for all (no $50 option). PIESA $349 to owner, electrician paid agreed rate.
+- [ ] Installer payouts: installer-supplied = full quoted price within 7 days of AP approval AND owner paid in full; HIV leads = agreed rate within 7 days of AP approval. Never wait for VEEC. Payout due date/status on office view + installer portal; office marks paid, no money moves.
 - [ ] Per-company "Installer sends own quote" mode: Quote figures panel per job + copyable owner acceptance link (live figures; owner reviews, signs consent + VEEC assignment). Nothing sends.
+- Visual restyle: ON HOLD (Jo, 5 Oct).

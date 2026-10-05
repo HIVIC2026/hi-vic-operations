@@ -1,54 +1,73 @@
-# Installer commercial options + installer-sent quotes
+# Installer commercial terms, payouts and installer-sent quotes
 
-Queued: starts only after the live-safety check and Jo's publish. Preview only, practice database first with an undo file, no existing records changed, nothing sends.
+Queued: starts only after the live-safety check and Jo's publish. Preview only. Database changes are tested on the practice database first, with an undo file. No existing records are changed and nothing is sent. The visual restyle stays on hold.
 
-## 1. Customer discount model (per installer company)
-An office-only setting on the partner page with change history (who, when, reason).
+## 1. AP management fee per installer company
+- New office-only setting on the partner page: "AP management fee (inc GST)". It defaults to $349; ReInsulate is set to $299 for the pilot. Every change records who, when and why.
+- The existing per-job office override still wins when it is set.
+- The customer discount stays at $70 per VEEC for everyone. There is no $50 option.
+- The owner pays $349 for PIESA. The electrician is paid their own agreed PIESA rate out of it.
+- The $200 minimum customer contribution always applies.
+- One shared calculation feeds:
+  - the estimates the installer sees
+  - draft quotes (bulk import and Ready Check)
+  - owner quotes
+  - the tax invoice (which copies the quote)
+  - the margins and profit view
+- Each quote stores the fee it was built with. Quotes already issued or accepted never change.
 
-| | Option 1 (default) | Option 2 |
+## 2. Installer payouts (tracking only; no money moves)
+
+| Job type | Installer is paid | Due date |
 |---|---|---|
-| Customer discount per VEEC | $70 (current office VEEC value) | editable, default $50 |
-| AP management fee | $349 | none |
-| PIESA | $349 | $349 |
-| $200 minimum contribution | always | always |
+| Installer-supplied | Their full quoted price | 7 days after the later of: AP approval in the queue, and the owner paying their share in full |
+| HIV lead | Their agreed rate | 7 days after AP approval. Owner payment is not a condition; chasing the owner is HIV's job. |
 
-- Companies without a setting use Option 1. Existing companies are not changed.
-- One shared calculation is used everywhere for installer-sourced jobs: the estimates the installer sees, bulk-import and Ready Check draft quotes, the owner quote, the tax invoice (which copies the quote), and the margins and profit view.
-- Each quote keeps a record of the model and figures it was built with, so a later change never alters a quote that has already been issued or accepted.
-- Our own (HIV-generated) jobs are unchanged.
+- Payouts never wait for VEEC registration.
+- Status per job: Not yet due (shows what it is waiting for), Due (with date), Overdue, Paid.
+- The office marks a payout paid, with date, reference and who did it. Nothing is sent to Xero or the bank.
+- The payout date and status show:
+  - on a new office Payouts list, next to the margins view
+  - on the job's profit card
+  - in the installer's portal, for their own jobs only, without margins
 
-## 2. "Installer sends own quote" mode (per company, office switch, off by default)
+## 3. "Installer sends own quote" mode (per company, office switch, off by default)
 - **Quote figures panel** on each job in the installer's portal. The installer enters their price; the panel shows:
   - VEECs
   - VEU discount
   - PIESA fee
-  - AP fee (Option 1 only)
-  - $200 minimum adjustment
-  - total the customer pays
-  - the required wording ("Home Insulation Victoria is the Accredited Person…"). Jo approves the exact text; until then it is marked draft.
-- **Price changes:** saving a price updates the job's draft quote and is recorded with who and when. Once the owner has accepted, the price locks.
-- **Acceptance link:** a copyable owner link, one per job, which the installer puts on their own quote's "proceed" button. It opens our acceptance page, which always shows the latest saved figures; if the price changed after the link was shared, the owner sees the new figures. The owner reviews the Home Insulation Victoria figures, then signs consent and the VEEC assignment using the existing quote-acceptance signing.
-- **Notices:** the office gets a portal notice when the owner accepts. Nothing is emailed or texted.
+  - that company's AP fee
+  - any $200 minimum adjustment
+  - the total the customer pays
+  - the required wording ("Home Insulation Victoria is the Accredited Person…"). It stays marked draft until Jo approves the exact text.
+- **Price changes:** saving a price updates the job's draft quote and is recorded with who and when. The price locks once the owner accepts.
+- **Acceptance link:** a copyable owner link for each job. It opens our acceptance page, which always shows the latest figures. The owner reviews the figures, then signs consent and the VEEC assignment using the existing acceptance signing. The office gets a portal notice when the owner accepts. Nothing is emailed or texted.
 
-## Database (practice database first, undo file)
-- New columns on the business record: discount model, Option 2 $/VEEC, and the own-quote switch. Defaults: Option 1, $50, off.
-- A history table for changes to these settings.
-- New columns on quotes: model snapshot, and a link token for the acceptance page. Blank on existing quotes.
-- New tables get grants and access rules. Nothing is renamed or deleted.
+## Database (practice database first, with undo file)
+- **Business record:** new columns for the AP fee (default $349) and the own-quote switch (default off), plus a history table for changes to them.
+- **Quotes:** new columns for the AP fee used and the acceptance-link token.
+- **Payouts:** a new office-only payout table (job, installer, amount, due date, status, paid by/date/reference). Installers can read only their own rows.
+- Grants and access rules on every new table. Nothing is renamed or deleted.
+- ReInsulate's $299 is a one-off settings change, made only after you confirm it in the preview.
 
 ## Testing
-- Automated checks:
-  - Option 1 and Option 2 maths at 50, 150 and 600 m², including a cheap job hitting the $200 minimum.
-  - Option 2 never charges an AP fee.
-  - Default is Option 1.
-  - Issued quotes keep their figures.
-  - The link shows the latest price and refuses once the quote is locked or cancelled.
-- In the browser, with a clearly named TEST company and job: the office sets Option 2 and turns on own-quote mode; the installer enters a price and copies the link; the owner opens it on a phone-size screen, sees the matching figures, and the installer changes the price and the owner sees the update; then the owner accepts. Afterwards I confirm no messages were sent and delete all test data.
+- **Automated:**
+  - fee maths at $349 and $299 for 50, 150 and 600 m², plus a cheap job that hits the $200 minimum
+  - the per-job override still wins
+  - payout due dates for both job types, including the owner paying after AP approval
+  - payouts never depend on the VEEC
+  - the acceptance link shows the latest price, and refuses once the price is locked or the quote is cancelled
+- **Browser:** using a TEST company:
+  1. The office sets a $299 fee and turns on own-quote mode.
+  2. The installer enters a price and copies the link.
+  3. On a phone-size screen, the owner sees figures that match. When the installer changes the price, the owner sees the update. The owner then accepts.
+  4. I approve the job in the AP queue, check the payout date and mark it paid.
+  5. I confirm nothing was sent, then delete all test data.
 
 ## Size
-About 2 to 3 days.
+About 3 days.
 
 ## Needs Jo
-1. Exact required wording for the panel.
-2. Whether a price change after the owner opens the link should show a "figures updated" notice.
-3. Whether Option 2 still records the $349 AP fee internally (it will be $0 to the customer either way).
+1. The exact required wording for the panel.
+2. Whether the $299 applies to ReInsulate jobs that already have quotes. The plan says new quotes only.
+3. The installer payout amount on HIV leads: confirm it is the agreed rate inc GST.
