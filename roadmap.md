@@ -112,3 +112,6 @@
 - [x] Fix bugs (AI system-message fix), deleted ALL test data; reported pass/fail
 ## Job 2 (after Job 1) — PLAN ONLY
 - [ ] Owner eligibility link for installer-supplied customers (questions only, no signatures; installer told result)
+- [ ] PLAN READY: 5 booking-control answers + gap list (awaiting Jo's go on fixes)
+- [ ] END-TO-END TEST: installer assessor Ready Check flow (worker add/approve/assign, /w/token link, Mitti form, sync back, quote); delete all test data after
+- [ ] PLAN READY: owner eligibility link (awaiting Jo's go)
