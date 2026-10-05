@@ -39,5 +39,6 @@ Homeowner questions "previous VEU upgrade" and "rented vs owner-occupied" DELETE
 - [Owner headlines](mem://constraints/owner-headlines) — final per-stage hero lines with real rebate; no warm/cold/cool; government only on quote
 - [Electrician My work home](mem://design/electrician-my-work-home) — approved phone-first home: greeting, open-offer navy strip, Your move, Coming up, This month, Work/Money/My business tabs
 - [Electrician offer + on-the-day screens](mem://design/electrician-offer-screens) — "It's yours!" taken banner, and on-the-day page with Mitti "Start check" then all-clear/fixes outcome cards
+- [Installer Ready Check offer](mem://design/installer-ready-check-offer) — shared electrician-offer flow with installer-specific SMS, area/source, current insulation and own-rate rough install value
 - [Trade Money tab](mem://design/trade-money-tab) — Jo-approved 5 Oct: green landing card, month/all-time tiles, payout list pills, statements link; no payment terms
 - [Trade My business tab](mem://design/trade-my-business-tab) — Jo-approved 5 Oct: jobs switch pauses allocation, expiry alert auto-stops offers, paperwork pills, work radius, team, footer links
