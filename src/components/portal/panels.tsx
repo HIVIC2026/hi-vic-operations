@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AcceptanceFlow } from "./assignment";
 import { AuthorityBadge, PaymentBadge, Pill } from "./badges";
+import { openFileViewer } from "@/components/portal/file-viewer";
 
 export function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -132,7 +133,7 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
       {req.notes && <p className="mt-1 text-xs text-muted-foreground">{req.notes}</p>}
       <div className="mt-2 flex flex-wrap gap-2">
         {req.evidence_files.map((f) => (
-          <button key={f.id} className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs hover:bg-secondary" onClick={async () => window.open((await openUrl({ data: { fileId: f.id } })).url, "_blank")}>
+          <button key={f.id} className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs hover:bg-secondary" onClick={async () => openFileViewer((await openUrl({ data: { fileId: f.id } })).url)}>
             <Paperclip className="h-3 w-3" /> {f.file_name}
           </button>
         ))}
@@ -409,7 +410,7 @@ export function AdminAuthorityPanel({ jobId }: { jobId: string }) {
           </dl>
         ) : <p className="text-sm text-muted-foreground">No legacy record for this job.</p>}
         <div className="mt-3 flex flex-wrap gap-2">
-          {cur?.document_path && <Button variant="ghost" onClick={async () => window.open((await doc({ data: { authorityId: cur.id } })).url, "_blank")}><Paperclip /> Locked record</Button>}
+          {cur?.document_path && <Button variant="ghost" onClick={async () => openFileViewer((await doc({ data: { authorityId: cur.id } })).url)}><Paperclip /> Locked record</Button>}
         </div>
       </Section>
       <Section title="Authority wording snapshot">
@@ -435,7 +436,7 @@ export function DocumentsPanel({ jobId }: { jobId: string }) {
     <Section title="Documents">
       {!accepted.length && <p className="text-sm text-muted-foreground">No documents yet.</p>}
       {accepted.map((a) => (
-        <button key={a.id} className="flex w-full items-center gap-2 rounded border p-3 text-left text-sm hover:bg-muted" onClick={async () => window.open((await doc({ data: { authorityId: a.id } })).url, "_blank")}>
+        <button key={a.id} className="flex w-full items-center gap-2 rounded border p-3 text-left text-sm hover:bg-muted" onClick={async () => openFileViewer((await doc({ data: { authorityId: a.id } })).url)}>
           <Paperclip className="h-4 w-4" /> Owner Authority v{a.version} · accepted {fmtDate(a.accepted_at)}
         </button>
       ))}
