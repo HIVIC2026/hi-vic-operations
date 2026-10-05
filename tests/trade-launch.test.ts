@@ -34,6 +34,8 @@ describe("My work task wording", () => {
     const soon = new Date(Date.now() + 86_400_000).toISOString();
     expect(tradeTask({ stage: "installation_booked", bookings: [{ kind: "installation", scheduled_start: soon }], blockers: [] }).bucket).toBe("coming_up");
     expect(tradeTask({ stage: "ap_review", bookings: [], blockers: [] }).bucket).toBe("waiting");
+    expect(tradeTask({ stage: "installation_scheduling", bookings: [], blockers: [], trade: "electrician" }).label).toBe("Waiting for the installer");
+    expect(tradeTask({ stage: "piesa_scheduled", bookings: [], blockers: [], trade: "electrician" }).bucket).toBe("needs_you");
   });
   test("trade screens no longer show stage codes, SLA or deposit badges", () => {
     const page = readFileSync("src/routes/_authenticated/field.index.tsx", "utf8") + readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8");
