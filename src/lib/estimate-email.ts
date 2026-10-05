@@ -367,7 +367,7 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
   const onsite = input.group === "onsite";
   const name = input.firstName?.trim().replace(/\s+/g, " ").slice(0, 60) || null;
   const c = input.copy ?? {};
-  const fill = (v: string | undefined) => (v && v.trim() ? v.trim().replace(/\{name\}\s*/g, name ? `${name} ` : "").replace(/\s+([,!.])/g, "$1") : null);
+  const fill = (v: string | undefined) => (v && v.trim() ? v.trim().replace(/\{name\}\s*/g, name ? `${name} ` : "").replace(/\s+([,!.])/g, "$1").replace(/^[,\s]+/, "").replace(/^./, (x) => x.toUpperCase()) : null);
   const greeting0 = onsite ? `Good news${name ? `, ${escape(name)}` : ""}!` : `Great news${name ? `, ${escape(name)}` : ""}!`;
   const eligibility0 = onsite ? "Your home could be eligible for a VEU ceiling insulation rebate." : "Your home appears eligible for a VEU ceiling insulation rebate.";
   const subject0 = onsite ? `${name ? `${name}, your` : "Your"} home could be eligible for an insulation rebate` : `${name ? `${name}, your` : "Your"} home appears eligible for an insulation rebate`;
