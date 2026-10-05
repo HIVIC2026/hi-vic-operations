@@ -45,27 +45,29 @@ export function createSupabaseClient(options?: { storageKey?: string }) {
   }
 
   const qaStorageKey = options?.storageKey ?? (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('hivic-qa-auth-storage-key') ?? undefined : undefined);
+  const auth = {
+    storage: qaStorageKey ? sessionStorage : brokeredPreviewStorage(),
+    ...(qaStorageKey ? { storageKey: qaStorageKey } : {}),
+    persistSession: true,
+    autoRefreshToken: true,
+  };
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     global: {
       fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
     },
-    auth: {
-      storage: qaStorageKey ? sessionStorage : brokeredPreviewStorage(),
-      storageKey: qaStorageKey,
-      persistSession: true,
-      autoRefreshToken: true,
-    },
+    auth,
   });
 }
 
-let _supabase: ReturnType<typeof createSupabaseClient> | undefined;
+type BrowserSupabaseClient = ReturnType<typeof createSupabaseClient>;
+let _supabase: BrowserSupabaseClient | undefined;
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
-export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>, {
+export const supabase = new Proxy({} as BrowserSupabaseClient, {
   get(_, prop, receiver) {
     if (!_supabase) _supabase = createSupabaseClient();
-    return Reflect.get(_supabase, prop, receiver);
+    return Reflect.get(_supabase as BrowserSupabaseClient, prop, receiver);
   },
 });
 
