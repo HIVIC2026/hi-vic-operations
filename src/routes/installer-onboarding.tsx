@@ -89,13 +89,34 @@ function Money({ value, onChange, unit }: { value: number | null | undefined; on
     </div>
   );
 }
-/** One rate line: item on the left, amount on the right. */
-function RateRow({ label, unit, value, onChange, required = false, last = false }: { label: string; unit: string; value: number | null | undefined; onChange: (v: number | null) => void; required?: boolean; last?: boolean }) {
+/** One rate line: short name (+ optional hint) on the left, a fixed-width "$ [box] /unit" on the right.
+ *  Stacks name-then-box on phones. Errors show under the box only after Save & continue. */
+function RateRow({ label, hint, unit, value, onChange, required = false, last = false, id, error }: { label: string; hint?: string; unit: string; value: number | null | undefined; onChange: (v: number | null) => void; required?: boolean; last?: boolean; id?: string; error?: string | null }) {
+  const tag: React.CSSProperties = { display: "inline-block", marginLeft: 8, padding: "1px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, verticalAlign: "middle", background: required ? "#EEF1FB" : "#F1F3F7", color: required ? BLUE : MUTED };
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "10px 0", borderBottom: last ? "none" : "1px solid #EDF0F7" }}>
-      <span style={{ fontWeight: 700, fontSize: 14, color: NAVY, minWidth: 0 }}>{label}{required && <span style={{ color: BLUE }}> *</span>}</span>
-      <Money value={value} onChange={onChange} unit={unit} />
+    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-4" style={{ padding: "12px 0", borderBottom: last ? "none" : "1px solid #EDF0F7" }}>
+      <div style={{ minWidth: 0 }}>
+        <label htmlFor={id} style={{ fontWeight: 700, fontSize: 14, color: NAVY }}>{label}</label>
+        <span style={tag}>{required ? "Required" : "Optional"}</span>
+        {hint && <div style={{ fontSize: 12.5, color: MUTED, marginTop: 3, lineHeight: 1.4 }}>{hint}</div>}
+      </div>
+      <div className="sm:w-[210px]">
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontWeight: 700 }}>$</span>
+          <input id={id} aria-invalid={error ? true : undefined} aria-describedby={error && id ? `${id}-error` : undefined} style={{ ...input, flex: 1, minWidth: 0, ...(error ? { borderColor: "#B3261E" } : {}) }} type="number" inputMode="decimal" min="0" step="0.01" value={value ?? ""} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />
+          <span style={{ color: MUTED, fontSize: 14, width: 36, flexShrink: 0 }}>/{unit}</span>
+        </div>
+        {error && <div id={id ? `${id}-error` : undefined} role="alert" style={{ color: "#8C1D18", fontSize: 12.5, fontWeight: 700, marginTop: 5 }}>{error}</div>}
+      </div>
     </div>
+  );
+}
+function RateGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section style={{ background: "#fff", border: "1px solid #E4E9F5", borderRadius: 16, padding: "14px 16px 4px", marginTop: 14 }}>
+      <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 15, color: NAVY }}>{title}</div>
+      {children}
+    </section>
   );
 }
 
