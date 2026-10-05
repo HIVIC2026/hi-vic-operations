@@ -1,35 +1,54 @@
-# Plan: VEU $200 minimum customer contribution — audit findings and fix
+# Installer commercial options + installer-sent quotes
 
-PLAN ONLY. Queued after the extras removal, before the live-safety check. Rule from energy.vic.gov.au: ceiling insulation under VEU has a minimum customer contribution of $200 inc GST. The "$1,500 metro / $2,100 regional" figures are a government example for an average 150 m² home, not a cap.
+Queued: starts only after the live-safety check and Jo's publish. Preview only, practice database first with an undo file, no existing records changed, nothing sends.
 
-## Answers from the code
+## 1. Customer discount model (per installer company)
+An office-only setting on the partner page with change history (who, when, reason).
 
-### 1) Is the $200 minimum enforced, and where?
-
-| Place | Enforced? | How |
+| | Option 1 (default) | Option 2 |
 |---|---|---|
-| Public calculator + Step 3 estimate (`estimate.core.ts`) | YES | Discount is capped so the customer total never goes below the $200 setting; a flag shows "The discount is limited so your contribution meets the program minimum." |
-| Installer-supplied draft quotes (`installer-led.core.ts`) | PARTLY | If the total after discount would be under $200, the quote is BLOCKED with "Owner co-payment would be below the $200 minimum." The discount is not reduced automatically — the office has to fix it by hand. |
-| Owner quote on our own leads (`quotes.server.ts`) | NO | Discount = area × a flat per-m² credit, capped only at the quote subtotal. The customer total can fall below $200 — even to $0. |
-| Tax invoice (Xero) | NO | It copies the quote's discount as a negative line. Correct once the quote is correct; no check of its own. |
+| Customer discount per VEEC | $70 (current office VEEC value) | editable, default $50 |
+| AP management fee | $349 | none |
+| PIESA | $349 | $349 |
+| $200 minimum contribution | always | always |
 
-Also already correct: the compliance timeline and the installer agreement both record the $200 co-payment as a VEEC-creation requirement.
+- Companies without a setting use Option 1. Existing companies are not changed.
+- One shared calculation is used everywhere for installer-sourced jobs: the estimates the installer sees, bulk-import and Ready Check draft quotes, the owner quote, the tax invoice (which copies the quote), and the margins and profit view.
+- Each quote keeps a record of the model and figures it was built with, so a later change never alters a quote that has already been issued or accepted.
+- Our own (HIV-generated) jobs are unchanged.
 
-### 2) Hard-coded maximum discount?
-None. No "up to $1,500 / $2,100" cap exists anywhere.
+## 2. "Installer sends own quote" mode (per company, office switch, off by default)
+- **Quote figures panel** on each job in the installer's portal. The installer enters their price; the panel shows:
+  - VEECs
+  - VEU discount
+  - PIESA fee
+  - AP fee (Option 1 only)
+  - $200 minimum adjustment
+  - total the customer pays
+  - the required wording ("Home Insulation Victoria is the Accredited Person…"). Jo approves the exact text; until then it is marked draft.
+- **Price changes:** saving a price updates the job's draft quote and is recorded with who and when. Once the owner has accepted, the price locks.
+- **Acceptance link:** a copyable owner link, one per job, which the installer puts on their own quote's "proceed" button. It opens our acceptance page, which always shows the latest saved figures; if the price changed after the link was shared, the owner sees the new figures. The owner reviews the Home Insulation Victoria figures, then signs consent and the VEEC assignment using the existing quote-acceptance signing.
+- **Notices:** the office gets a portal notice when the owner accepts. Nothing is emailed or texted.
 
-### 3) "Up to $X" wording in the calculator?
-None. The calculator shows the computed estimate only. The benchmark note mentions the government's 150 m² example (about $1,482) as a calibration reference, not as an "up to" claim.
+## Database (practice database first, undo file)
+- New columns on the business record: discount model, Option 2 $/VEEC, and the own-quote switch. Defaults: Option 1, $50, off.
+- A history table for changes to these settings.
+- New columns on quotes: model snapshot, and a link token for the acceptance page. Blank on existing quotes.
+- New tables get grants and access rules. Nothing is renamed or deleted.
 
-### 4) Suggested wording when the discount is reduced
-"Your discount has been reduced so your contribution meets the VEU program minimum of $200 (including GST)." (Jo to approve.)
+## Testing
+- Automated checks:
+  - Option 1 and Option 2 maths at 50, 150 and 600 m², including a cheap job hitting the $200 minimum.
+  - Option 2 never charges an AP fee.
+  - Default is Option 1.
+  - Issued quotes keep their figures.
+  - The link shows the latest price and refuses once the quote is locked or cancelled.
+- In the browser, with a clearly named TEST company and job: the office sets Option 2 and turns on own-quote mode; the installer enters a price and copies the link; the owner opens it on a phone-size screen, sees the matching figures, and the installer changes the price and the owner sees the update; then the owner accepts. Afterwards I confirm no messages were sent and delete all test data.
 
-## What's missing and the fix (about half a day)
+## Size
+About 2 to 3 days.
 
-1. One shared rule `applyMinCopay(total, rawDiscount)` in a pure core file: returns the discount reduced so the customer pays at least $200, plus a "reduced" flag. Tested.
-2. HIV owner quote builder: use it (replacing the subtotal-only cap).
-3. Installer-supplied draft quotes: use it to reduce the discount automatically instead of blocking (block only if the total before discount is under $200).
-4. Quote and invoice text: when the flag is set, show the approved sentence above near the discount line.
-5. Tests: calculator (already covered), HIV quote, installer draft, and a case where the raw discount would take the customer below $200.
-
-No database change needed — the $200 setting already exists in the price settings. No existing quotes or records touched; new quotes only. Preview only, sending stays off.
+## Needs Jo
+1. Exact required wording for the panel.
+2. Whether a price change after the owner opens the link should show a "figures updated" notice.
+3. Whether Option 2 still records the $349 AP fee internally (it will be $0 to the customer either way).
