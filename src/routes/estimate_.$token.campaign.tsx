@@ -52,7 +52,7 @@ function CampaignPage() {
             heading={`${data.owner.firstName ? `${data.owner.firstName}, here's` : "Here's"} how much you could save`}
             hideRegistration
             resultAction={() => <div className="mt-4"><Button type="button" disabled={!!busy} onClick={() => void act("save")} className="min-h-12 w-full bg-estimate-green text-estimate-white hover:bg-estimate-accent">{busy === "save" ? "Saving…" : "Save my spot"}</Button><p className="mt-2 text-center text-xs text-estimate-navy/75">Saving your spot does not book a visit.</p>{error && <p role="alert" className="mt-2 text-center text-sm text-danger">{error}</p>}</div>}
-            footer={<footer className="mx-auto mt-6 max-w-[1080px] border-t border-estimate-line px-4 pb-6 pt-4 text-center text-xs text-estimate-navy/75"><Button type="button" variant="link" disabled={!!busy} onClick={() => void act("optout")} className="h-auto whitespace-normal p-0 text-xs font-normal text-estimate-navy/70 underline">I&apos;m no longer interested — remove my enquiry</Button></footer>}
+            footer={<footer className="mx-auto mt-6 max-w-[1080px] border-t border-estimate-line px-4 pb-6 pt-4 text-center text-xs text-estimate-navy/75"><Button type="button" variant="link" aria-label="Take me off the list" disabled={!!busy} onClick={() => void act("optout")} className="h-auto whitespace-normal p-0 text-xs font-normal text-estimate-navy/70 underline">I&apos;m no longer interested — remove my enquiry</Button></footer>}
           />}
         </div>}
     </main>

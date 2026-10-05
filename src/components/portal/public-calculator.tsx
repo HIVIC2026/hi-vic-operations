@@ -326,7 +326,7 @@ export function PublicCalculator({ settings, initialValues, heading, resultActio
                   {standard.copayment_capped && <p className="mt-2 text-xs leading-relaxed">Discount reduced so the minimum $200 customer contribution applies.</p>}
                 </div>
 
-                {resultAction ? resultAction({ address: picked?.full ?? addressText.trim(), suburb, postcode, ceilingM2: m2, insulation }) : <button
+                {resultAction ? resultAction({ address: picked?.full ?? addressText.trim(), suburb, postcode, ceilingM2: m2 ?? 0, insulation }) : <button
                   type="button"
                   onClick={scrollToRegister}
                   className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-estimate-green px-4 text-base font-extrabold text-estimate-white shadow-lg shadow-estimate-green/25 transition hover:bg-estimate-accent active:scale-[0.99]"
