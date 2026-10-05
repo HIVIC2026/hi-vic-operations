@@ -223,7 +223,7 @@ function InstallerOnboarding() {
   };
   const unflag = (target: EventTarget) => {
     const id = (target as HTMLElement | null)?.id;
-    if (id && flagged.has(id)) setFlagged((f) => { const n = new Set(f); n.delete(id); return n; });
+    if (id && flagged.has(id)) setTimeout(() => setFlagged((f) => { const n = new Set(f); n.delete(id); return n; }), 0);
   };
   const up = (patch: Partial<InstData>) => setD((x) => applyMaterialReset(x, { ...x, ...patch }));
 
@@ -355,7 +355,7 @@ function InstallerOnboarding() {
       {isTest && !sampleMode && <div style={{ ...warn, fontWeight: 700 }}>TEST MODE — staff test link. This application is marked as a test and won't count as a real applicant.</div>}
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
       <div style={{ width: 34, height: 3, borderRadius: 99, background: PINK, margin: "10px 0 18px" }} />
-      <div onChangeCapture={(e) => unflag(e.target)} onInputCapture={(e) => unflag(e.target)}>
+      <div onChange={(e) => unflag(e.target)}>
       <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onReviewReady={setReviewed} errFor={errFor} revision={revision} onUploadBusy={(b) => { navigationLock.current = b; setBusy(b); }} onAddressPending={setAddressPending} />
       </div>
       {step === "review" && <SignStep d={d} token={token ?? ""} reviewed={reviewed} preview={sampleMode} relaxed={testMode} revision={() => revision.current}
