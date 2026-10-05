@@ -50,6 +50,8 @@ export const RECT_ITEMS = [
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 export const LEAD_TIMES = ["1-2 business days", "3-5 business days", "1-2 weeks", "2-4 weeks", "More than 4 weeks", "Varies"] as const;
 export const RADII = [{ v: 25, l: "25 km" }, { v: 50, l: "50 km" }, { v: 75, l: "75 km" }, { v: 100, l: "100 km" }, { v: 9999, l: "Anywhere in Victoria" }] as const;
+/** Legacy values retained only so old drafts and signed snapshots can still be read. */
+export const CAPACITY_BANDS = [{ v: "1-5", n: 5 }, { v: "6-10", n: 10 }, { v: "11-20", n: 20 }, { v: "20+", n: 25 }] as const;
 
 export type Electrician = { full_legal_name?: string; licence_number?: string; mobile?: string; email?: string };
 export type ResolvedAddress = {
@@ -136,7 +138,7 @@ export const REC_VISIBLE_PAGES: readonly VisibleRecPage[] = [
   { key: "business", title: "Business details", members: ["business", "contact"] },
   { key: "insurance", title: "Insurance", members: ["insurance"] },
   { key: "services", title: "Work & coverage", members: ["services", "coverage"] },
-  { key: "availability", title: "Availability", members: ["availability"] },
+  { key: "availability", title: "Availability", members: ["availability", "capacity"] },
   { key: "assessment_pricing", title: "Rates", members: ["assessment_pricing", "rectification_pricing"] },
   { key: "bank", title: "Payment details", members: ["bank"] },
   { key: "review", title: "Review agreement", members: ["review"] },
