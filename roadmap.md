@@ -103,7 +103,7 @@
 - [x] Bulk import next steps (later): auto Mitti install-day tasks from stored missing evidence; owner eligibility link (questions only); installer acceptance notification + CC rules
 
 ## Queued after bulk import (plan only, awaiting go)
-- [ ] Per-installer-company pricing method (Automatic from onboarding rates / Assessor Form A1 / Installer owner enters price) — awaiting Jo's 4 decisions in plan
+- [ ] Per-installer-company pricing method (Automatic from onboarding rates / Assessor Form A1 / Installer owner enters price) — Jo decision 5 Oct: top-up pricing stays simple — the installer's "Top up to R5.0" rate per m² applies to the whole top-up area regardless of existing depth/R-value; NO extra "existing R-value" question on the Ready Check. Still awaiting: mixed-removal handling, moderate access price, minimum-charge-as-floor, new-company default method.
 
 ## Job 1 (approved 5 Oct) — end-to-end TEST of bulk upload before installer email
 - [x] Confirm three notes applied (Ready Check coverage sorting, one permission tick, automatic stage)
