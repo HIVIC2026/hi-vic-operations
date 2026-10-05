@@ -73,11 +73,11 @@ describe("installer visible pages", () => {
     expect(blocked.some((x) => x.page === "insurance")).toBe(true);
     expect(blocked.some((x) => x.page === "install_pricing")).toBe(true);
     expect(blocked.map((x) => x.key)).toEqual(expect.arrayContaining(["review", "acknowledgements", "signer-name", "signer-position", "signer-email"]));
-    expect(INSTALLER_AGREEMENT_VERSION).toBe("HI-VIC-A48-INST-1.15-2026-10-05");
+    expect(INSTALLER_AGREEMENT_VERSION).toBe("HI-VIC-A48-INST-1.16-2026-10-05");
   });
   test("pink access-charges note is removed and fee copy hides internal overrides", () => {
     const route = readFileSync("src/routes/installer-onboarding.tsx", "utf8");
-    const hint = "Enter $0 if it's included at no extra charge. Leave blank to quote it separately on the job before owner approval.";
+    const hint = "Enter $0 if it's included at no extra charge.";
     const note = "Keeping access charges reasonable helps more homeowners proceed—and creates more opportunities for your business.";
     expect(route).toContain(hint);
     expect(route).not.toContain(note);
