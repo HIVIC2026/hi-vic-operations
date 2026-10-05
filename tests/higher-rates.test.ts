@@ -15,3 +15,14 @@ test("validation: blank ok, zero/negative/fraction-of-cent refused", () => {
   for (const v of [0, -5, 25.555]) expect(e({ r6_rate: v }).length).toBeGreaterThan(0);
   expect(e({ r7_rate: 30.5 })).toEqual([]);
 });
+test("top-up rate: blank → no row; supplied → TOPUP_R5 row at r_value 5, ex GST", () => {
+  expect(codes(base)).not.toContain("TOPUP_R5");
+  const items = approvedRateItems("installer", { ...base, topup_r5_rate: 16.5 } as never) as { code: string; r_value: number | null; unit_price_ex_gst: number }[];
+  expect(items.find((i) => i.code === "TOPUP_R5")).toMatchObject({ r_value: 5, unit_price_ex_gst: 15 });
+});
+test("top-up validation: blank ok, zero/negative refused", () => {
+  const e = (x: object) => stepErrors("install_pricing", { ...base, ...x } as never).map((i: { key?: string; field?: string }) => i.key ?? i.field);
+  expect(e({})).toEqual([]);
+  for (const v of [0, -1, 10.555]) expect(e({ topup_r5_rate: v }).length).toBeGreaterThan(0);
+  expect(e({ topup_r5_rate: 16.5 })).toEqual([]);
+});
