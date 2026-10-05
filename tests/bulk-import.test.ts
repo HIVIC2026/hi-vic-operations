@@ -82,11 +82,11 @@ describe("bulk import core rules", () => {
 
 import { leadStage, CONTACT_PERMISSION_WORDING } from "../src/lib/bulk-import.core";
 describe("lead stage", () => {
-  it("contact details only → not visited", () => expect(leadStage({ full_name: "A", phone: "1" }, 0)).toBe("not_visited"));
-  it("measurements or photos → visited", () => {
+  test("contact details only → not visited", () => expect(leadStage({ full_name: "A", phone: "1" }, 0)).toBe("not_visited"));
+  test("measurements or photos → visited", () => {
     expect(leadStage({ area_m2: 120 }, 0)).toBe("visited");
     expect(leadStage({ full_name: "A" }, 2)).toBe("visited");
   });
-  it("price found → visited and quoted", () => expect(leadStage({ price_inc_gst: 4000 }, 0)).toBe("visited_quoted"));
-  it("permission wording is exact", () => expect(CONTACT_PERMISSION_WORDING).toBe("I confirm these customers are happy for Home Insulation Victoria to contact them."));
+  test("price found → visited and quoted", () => expect(leadStage({ price_inc_gst: 4000 }, 0)).toBe("visited_quoted"));
+  test("permission wording is exact", () => expect(CONTACT_PERMISSION_WORDING).toBe("I confirm these customers are happy for Home Insulation Victoria to contact them."));
 });
