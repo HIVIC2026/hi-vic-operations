@@ -133,7 +133,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string, cal
 }
 
 /** Apply measure-up values from Mitti through the central plan (never overwrites an accepted measurement). */
-async function applyMeasure(jobId: string, actorId: string, auditId: string, source: "electrician" | "installer", values: Record<string, unknown>, snapshot: unknown) {
+async function applyMeasure(jobId: string, actorId: string | null, auditId: string, source: "electrician" | "installer", values: Record<string, unknown>, snapshot: unknown) {
   const s = await jobScope(jobId);
   const plan = planMeasurementUpdate({ scope: s.scope, current: s.measurementRow as MeasurementLike | null, incoming: values, source, external: { source: "mitti", id: auditId } });
   if (plan.action === "create")
@@ -149,7 +149,7 @@ async function applyMeasure(jobId: string, actorId: string, auditId: string, sou
 }
 
 /** Save Mitti's finished PDF report to the job's private files, once per completed audit version. Never throws. */
-async function saveMittiReport(jobId: string, actorId: string, auditId: string, modifiedAt: string | null, label: string, call: MittiCall) {
+async function saveMittiReport(jobId: string, actorId: string | null, auditId: string, modifiedAt: string | null, label: string, call: MittiCall) {
   const key = `${auditId}:${modifiedAt ?? "completed"}`;
   try {
     const { data: ex } = await admin.from("documents").select("id").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
@@ -178,7 +178,7 @@ async function saveMittiReport(jobId: string, actorId: string, auditId: string, 
 }
 
 /** Sync the STORED audit(s) only. Never completes a requirement. */
-export async function syncMittiAssessment(jobId: string, actorId: string, call: MittiCall = realMittiCall) {
+export async function syncMittiAssessment(jobId: string, actorId: string | null, call: MittiCall = realMittiCall) {
   const { data: job } = await admin.from("jobs").select("job_number,business_unit,channel").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
   if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for Home Insulation Victoria jobs.");
@@ -264,7 +264,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string, call: 
   return { locked, completed, issues };
 }
 
-export async function syncPendingMitti(actorId: string, call: MittiCall = realMittiCall) {
+export async function syncPendingMitti(actorId: string | null, call: MittiCall = realMittiCall) {
   const [{ data: as }, { data: ms }] = await Promise.all([
     admin.from("assessments").select("job_id,jobs!inner(business_unit)").not("external_mitti_id", "is", null).neq("status", "complete").eq("jobs.business_unit", "hivic"),
     admin.from("ceiling_measurements").select("job_id,jobs!inner(business_unit)").eq("external_source", "mitti").eq("is_current", true).neq("status", "complete").eq("jobs.business_unit", "hivic"),
