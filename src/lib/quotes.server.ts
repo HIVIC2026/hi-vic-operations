@@ -132,13 +132,17 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]);
   const ownSubtotal = r2(calc.lines.reduce((a, l) => a + l.line_total_inc_gst, 0));
   const subtotal = r2(ownSubtotal + rectTotal);
-  // LEGACY flat per-m² VEEC credit, unchanged by this pricing rule.
-  const veec = r2(Math.min(ownSubtotal, qi.areaM2 * Number(settings.veec_credit_per_m2_inc_gst)));
+  // LEGACY flat per-m² VEEC credit basis, unchanged — but the customer discount is capped at the
+  // region's program maximum and reduced if needed so the $200 minimum contribution applies (Jo, 5 Oct 2026).
+  const rawVeec = qi.areaM2 * Number(settings.veec_credit_per_m2_inc_gst);
+  const rules = applyDiscountRules(rawVeec, subtotal, metro, rs);
+  const veec = r2(rules.discount);
+  const discountNote = discountNotes(rules).join(" ") || null;
   const label = rectLines.length ? "R5.0 ceiling insulation + electrical rectification" : "R5.0 ceiling insulation";
   const { data: q, error } = await admin.from("quotes").insert({
     job_id: jobId, kind: "installation", option_label: label, option_code: "R5_BATTS", status: "issued", sent_at: new Date().toISOString(),
     rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal,
-    gst_amount: r2(subtotal - subtotal / gstMul), veec_discount_inc_gst: veec,
+    gst_amount: r2(subtotal - subtotal / gstMul), veec_discount_inc_gst: veec, discount_note: discountNote,
     customer_total_inc_gst: r2(subtotal - veec), created_by: actorId,
   }).select("id").single();
   if (error || !q) throw new Error(error?.message);
