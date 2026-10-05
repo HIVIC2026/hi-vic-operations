@@ -7,6 +7,7 @@ import piesaDocx from "./official-docx-piesa.data";
 import piisaDocx from "./official-docx-piisa.data";
 import { OFFICIAL_TEMPLATES, officialFormUseBlocker, type OfficialKey } from "./official-forms.core";
 import { fillOfficialDocxXml } from "./official-docx.core";
+import { signFile } from "./file-links.server";
 
 const DATA_PREFIX = "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,";
 
@@ -53,7 +54,7 @@ export async function officialDocxUrl(userClient: { from: (t: string) => any }, 
   const path = (data.storage_path as string).replace(/\.json$/, ".docx");
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { OFFICIAL_BUCKET } = await import("./official-forms.server");
-  const r = await supabaseAdmin.storage.from(OFFICIAL_BUCKET).createSignedUrl(path, 300);
+  const r = await signFile(OFFICIAL_BUCKET, path, 300);
   if (r.error) throw new Error(r.error.message);
-  return r.data.signedUrl;
+  return r.data!.signedUrl;
 }

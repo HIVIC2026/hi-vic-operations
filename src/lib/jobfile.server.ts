@@ -7,6 +7,7 @@ import {
   type JobSources, type Role,
 } from "./jobfile.core";
 import { logEvent } from "./workflow.server";
+import { signFile } from "./file-links.server";
 
 const BUCKET = "job-files";
 
@@ -96,10 +97,12 @@ export async function exportJobPack(jobId: string, actorId: string, opts: { incl
 
   const missing: string[] = [];
   if (linkMode) {
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const origin = new URL(getRequest().url).origin;
     const links = [] as { id: string; title: string; signed_url: string | null; expires_in_days: number }[];
     for (const i of items) if (i.storagePath) {
-      const { data } = await admin.storage.from(BUCKET).createSignedUrl(i.storagePath, 7 * 86400);
-      links.push({ id: i.id, title: i.title, signed_url: data?.signedUrl ?? null, expires_in_days: 7 });
+      const { data } = await signFile(BUCKET, i.storagePath, 7 * 86400);
+      links.push({ id: i.id, title: i.title, signed_url: data?.signedUrl ? `${origin}${data.signedUrl}` : null, expires_in_days: 7 });
     }
     add("download-links.json", strToU8(JSON.stringify(links, null, 2)));
   } else {
@@ -122,7 +125,7 @@ export async function exportJobPack(jobId: string, actorId: string, opts: { incl
   const path = `${jobId}/exports/job-pack-${stamp.replace(/[:.]/g, "-")}.zip`;
   const up = await admin.storage.from(BUCKET).upload(path, body, { contentType: "application/zip", upsert: false });
   if (up.error) throw new Error(`Could not store job pack: ${up.error.message}`);
-  const { data: signed } = await admin.storage.from(BUCKET).createSignedUrl(path, 3600);
+  const { data: signed } = await signFile(BUCKET, path, 3600);
   await logEvent(jobId, actorId, "job_pack_exported", `Job pack exported (${items.length} items, ${plan.mode})`, { path, ...opts, mode: plan.mode, count: items.length, missing }, { internal: true });
   return { url: signed?.signedUrl ?? null, mode: plan.mode, count: items.length, missing: missing.length };
 }

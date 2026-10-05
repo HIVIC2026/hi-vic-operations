@@ -14,6 +14,7 @@ import {
   relationshipOwnerFor, revisionBlocker, splitInvoicingBlocker, supplierTotal, verifiedServiceAreaMatch, type BusinessLike, type ConfirmedFacts, type ElecCandidate, type Extracted,
 } from "./pilot.core";
 import { loadBusiness, myBusinesses, requireApprovedPartner, requireMember, sha, sweepPartnerExpiry } from "./pilot.server";
+import { signFile } from "./file-links.server";
 
 const uuid = z.string().uuid();
 const isAdmin = async (sb: { rpc: (n: "is_admin") => PromiseLike<{ data: unknown }> }) => !!(await sb.rpc("is_admin")).data;
@@ -125,9 +126,9 @@ export const partnerFileUrl = createServerFn({ method: "POST" }).middleware([req
   .handler(async ({ data, context }) => {
     if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.businessId);
     if (!data.path.startsWith(`partners/${data.businessId}/`)) throw new WorkflowError("Invalid path");
-    const { data: s, error } = await admin.storage.from("job-files").createSignedUrl(data.path, 300);
+    const { data: s, error } = await signFile("job-files", data.path, 300);
     if (error) throw new WorkflowError(error.message);
-    return { url: s.signedUrl };
+    return { url: s!.signedUrl };
   });
 
 export const setBankDetails = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

@@ -15,6 +15,7 @@ import { useAction } from "@/hooks/use-me";
 import { exportJobPackFn, getJobFile, getJobFileHeader, logCommunication, openJobDocument } from "@/lib/jobfile.functions";
 import { DOC_CATEGORIES, inCategory, searchItems, type DocCategory, type DocItem, type TimelineFilter } from "@/lib/jobfile.core";
 import { fmtDate } from "@/lib/workflow";
+import { openFileViewer } from "@/components/portal/file-viewer";
 
 type JobFile = Awaited<ReturnType<typeof import("@/lib/jobfile.server").buildJobFile>>;
 type JobRow = import("@/integrations/supabase/types").Database["public"]["Views"]["job_overview"]["Row"];
@@ -74,7 +75,7 @@ function DocRow({ jobId, d }: { jobId: string; d: DocItem }) {
         {d.immutable && <Lock className="h-3.5 w-3.5 text-muted-foreground" aria-label="Immutable" />}
         <Pill t={STATUS_TONE[d.status] ?? "neutral"}>{d.status}</Pill>
         <span className="text-xs text-muted-foreground">{fmtDT(d.at)}</span>
-        {d.storagePath && <Button size="sm" variant="outline" onClick={async () => { const r = await open({ jobId, docId: d.id }); if (r?.url) window.open(r.url, "_blank", "noopener"); }}>Open</Button>}
+        {d.storagePath && <Button size="sm" variant="outline" onClick={async () => { const r = await open({ jobId, docId: d.id }); if (r?.url) openFileViewer(r.url); }}>Open</Button>}
         {!d.storagePath && d.sourceUrl && <a className="text-xs text-primary underline" href={d.sourceUrl} target="_blank" rel="noreferrer">Source</a>}
       </div>
       {more && (

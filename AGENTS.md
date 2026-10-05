@@ -28,4 +28,3 @@
 - REC onboarding keeps legacy step keys for validation/history but maps them through nine visible page groups; every group validates all member steps and persists its canonical legacy anchor. Why: old drafts resume safely without duplicated one-question pages or weakened gates.
 
 - Installer onboarding keeps legacy step keys for history but shows nine page groups (`INSTALLER_VISIBLE_PAGES`); each group validates all members and persists its first member as anchor; contact details are asked once and signing authority only at signing. Why: old drafts resume safely.
-- Bulk upload reads every file in the browser (lists/Word/text locally; PDFs and photos via AI `readBulkFile`; photo GPS via OpenStreetMap `geocodeBulkPhotos`), never stops on one bad file, and always reaches the server so leads can come from file names/photos alone (flagged `unsure` → office review); each file gets a plain-English result line. Why: messy uploads must never dead-end.
