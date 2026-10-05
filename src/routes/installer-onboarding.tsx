@@ -1,4 +1,4 @@
-import { BLUE, GREEN, NAVY, MUTED, btn, Check } from "@/components/rec/rec-ui";
+import { BLUE, GREEN, NAVY, MUTED, Check } from "@/components/rec/rec-ui";
 import { WorkerStop } from "@/components/portal/worker-stop";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -41,9 +41,16 @@ export const Route = createFileRoute("/installer-onboarding")({
   component: InstallerOnboarding,
 });
 
+// Calculator look (.estimate-brand): Outfit headings, Figtree text, #FBFCFA canvas, white cards with the soft shadow.
+const ACTION = "#07BF61";
+const LINE = "#E4E9F5";
+const SHADOW = "0 18px 40px -26px rgba(34,55,107,.28), 0 2px 6px -4px rgba(34,55,107,.08)";
+const COL = 560;
+/** Sentence-case buttons: green main action, white secondary. */
+const btn = (primary: boolean, disabled = false): React.CSSProperties => ({ minHeight: 48, padding: "0 22px", borderRadius: 14, border: primary ? "none" : `1px solid ${LINE}`, background: primary ? (disabled ? "#9ADFB9" : ACTION) : "#fff", color: primary ? "#fff" : NAVY, fontWeight: 700, fontSize: 15, cursor: disabled ? "default" : "pointer", fontFamily: "inherit" });
 const input: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #D7DCE8", fontSize: 15, fontFamily: "inherit", color: NAVY, background: "#fff", boxSizing: "border-box", minHeight: 48 };
-const card: React.CSSProperties = { background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E9ECF3", boxShadow: "0 6px 20px -18px rgba(34,55,107,.32)" };
-const DISPLAY = "'Space Grotesk', system-ui, sans-serif";
+const card: React.CSSProperties = { background: "#fff", borderRadius: 22, padding: 24, border: `1px solid ${LINE}`, boxShadow: SHADOW };
+const DISPLAY = "'Outfit', 'Figtree', system-ui, sans-serif";
 const note: React.CSSProperties = { color: MUTED, fontSize: 13, lineHeight: 1.5, margin: "0 0 14px" };
 const okLine: React.CSSProperties = { color: GREEN, fontWeight: 700, fontSize: 13, margin: "0 0 14px" };
 const warn: React.CSSProperties = { background: "#FFF8E6", border: "1px solid #E0A100", borderRadius: 10, padding: "9px 12px", fontSize: 13.5, color: "#7A5A00", marginBottom: 12 };
@@ -52,7 +59,7 @@ const removeBtn: React.CSSProperties = { border: "none", background: "none", col
 function Field({ label, required, hint, children, htmlFor, error }: { label: string; required?: boolean; hint?: string; children: React.ReactNode; htmlFor?: string; error?: string | null }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label htmlFor={htmlFor} style={{ display: "block", fontWeight: 700, fontSize: 14, color: NAVY, marginBottom: 6 }}>{label}{required && <span style={{ color: BLUE }}> *</span>}</label>
+      <label htmlFor={htmlFor} style={{ display: "block", fontWeight: 700, fontSize: 14, color: NAVY, marginBottom: 6 }}>{label}</label>
       {children}
       {hint && <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>{hint}</div>}
       {error && <div id={htmlFor ? `${htmlFor}-error` : undefined} role="alert" style={{ color: "#8C1D18", fontSize: 13, fontWeight: 700, marginTop: 5 }}>{error}</div>}
@@ -60,10 +67,11 @@ function Field({ label, required, hint, children, htmlFor, error }: { label: str
   );
 }
 /** Understated sub-heading that separates related questions on one page. */
-function Section({ title, first = false, children }: { title: string; first?: boolean; children: React.ReactNode }) {
+/** One white card per group of related questions, with a short heading. */
+function Section({ title, first: _first = false, children }: { title?: string; first?: boolean; children: React.ReactNode }) {
   return (
-    <section style={{ borderTop: first ? "none" : "1px solid #E4E8F0", paddingTop: first ? 0 : 16, marginTop: first ? 0 : 18 }}>
-      <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 15, color: NAVY, marginBottom: 10 }}>{title}</div>
+    <section style={{ ...card, padding: "20px 20px 6px", marginBottom: 20 }}>
+      {title && <h2 style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 17, color: NAVY, margin: "0 0 14px" }}>{title}</h2>}
       {children}
     </section>
   );
@@ -113,8 +121,8 @@ function RateRow({ label, hint, unit, value, onChange, required = false, last = 
 }
 function RateGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section style={{ background: "#fff", border: "1px solid #E4E9F5", borderRadius: 16, padding: "14px 16px 4px", marginTop: 14 }}>
-      <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 15, color: NAVY }}>{title}</div>
+    <section style={{ ...card, padding: "20px 20px 4px", marginBottom: 20 }}>
+      <h2 style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 17, color: NAVY, margin: 0 }}>{title}</h2>
       {children}
     </section>
   );
@@ -129,14 +137,27 @@ function AddressInput({ value, resolved, onChange, onSelect, onPendingChange, vi
 
 function Choice<T extends string | number | boolean>({ options, value, onChange }: { options: { v: T; l: string }[]; value: T | null | undefined; onChange: (v: T) => void }) {
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${options.length > 3 ? 2 : options.length}, minmax(0, 1fr))`, gap: 8 }}>
       {options.map((o) => {
         const on = value === o.v;
-        return <button type="button" key={String(o.v)} aria-pressed={on} onClick={() => onChange(o.v)} style={{ minHeight: 44, padding: "0 16px", borderRadius: 12, border: `1px solid ${on ? BLUE : "#D7DCE8"}`, background: on ? BLUE : "#fff", color: on ? "#fff" : NAVY, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", maxWidth: "100%", whiteSpace: "normal", textAlign: "left" }}>{o.l}</button>;
+        return <button type="button" key={String(o.v)} aria-pressed={on} onClick={() => onChange(o.v)} style={{ minHeight: 52, padding: "8px 10px", borderRadius: 14, border: `${on ? 2 : 1}px solid ${on ? BLUE : "#D7DCE8"}`, background: on ? "#F3F6FF" : "#fff", color: NAVY, fontWeight: 700, fontSize: 14, lineHeight: 1.25, cursor: "pointer", fontFamily: "inherit", whiteSpace: "normal", textAlign: "center" }}>{o.l}</button>;
       })}
     </div>
   );
 }
+
+/** One friendly line per page: what it's for and roughly how long it takes. */
+const PAGE_INTRO: Partial<Record<StepKey, string>> = {
+  about: "Who you are and your business. About 3 minutes.",
+  insurance: "Your public liability insurance. About 2 minutes.",
+  installers: "Everyone who installs on our jobs. About 2 minutes per person.",
+  electrician: "The electrician you work with, if any. About 1 minute.",
+  services: "How you'd like to work with us, and where. About 2 minutes.",
+  availability: "When you usually work. About 1 minute.",
+  install_pricing: "Your prices for our jobs. About 3 minutes.",
+  bank: "Where we pay you. About 1 minute.",
+  review: "Read the agreement, then sign. About 5 minutes.",
+};
 
 type Reviewed = { version: string; sha256: string } | null;
 
@@ -281,36 +302,28 @@ function InstallerOnboarding() {
   }
 
   const shell = (children: React.ReactNode, footer?: React.ReactNode) => (
-    <div style={{ minHeight: "100vh", background: "#fff", fontFamily: "'DM Sans', system-ui, sans-serif", color: NAVY, overflowX: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: "#FBFCFA", fontFamily: "'Figtree', system-ui, sans-serif", color: NAVY, overflowX: "hidden" }}>
       <style>{`h1,h2,h3{font-family:${DISPLAY}}`}</style>
-      <header style={{ position: "sticky", top: 0, zIndex: 10, background: "rgba(255,255,255,.96)", borderBottom: "1px solid #EEF0F5" }}>
-        <div style={{ maxWidth: 672, margin: "0 auto", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <header style={{ position: "sticky", top: 0, zIndex: 10, background: "rgba(251,252,250,.96)", borderBottom: `1px solid ${LINE}` }}>
+        <div style={{ maxWidth: COL + 40, margin: "0 auto", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <img src={logo.url} alt="Home Insulation Victoria" style={{ height: 40, width: "auto" }} />
-          {started && status === "draft" && <span style={{ fontSize: 13, fontWeight: 700, color: MUTED, whiteSpace: "nowrap" }}>{idx + 1} of {steps.length}</span>}
         </div>
-        {started && status === "draft" && (
-          <div style={{ maxWidth: 672, margin: "0 auto", padding: "0 20px 10px" }}>
-            <div style={{ height: 4, borderRadius: 99, background: "#EEF0F5", overflow: "hidden" }}>
-              <div style={{ width: `${((idx + 1) / steps.length) * 100}%`, height: "100%", background: `linear-gradient(90deg, ${GREEN}, ${BLUE})`, transition: "width .3s" }} />
-            </div>
-          </div>
-        )}
       </header>
-      <main style={{ maxWidth: 672, margin: "0 auto", padding: "24px 20px 128px" }}>{children}</main>
+      <main style={{ maxWidth: COL + 40, margin: "0 auto", padding: "28px 20px 140px" }}>{children}</main>
       {footer}
     </div>
   );
 
   if (!loaded) return shell(<p>Loading…</p>);
   if (invalidSample) return shell(<div style={card}><h1 style={{ fontSize: 24, fontWeight: 800, color: BLUE }}>That sample page is not available</h1><p style={{ color: MUTED }}>No data has been loaded or saved.</p><a href="/installer-onboarding?sample=welcome" style={{ color: BLUE, fontWeight: 700 }}>Open the welcome sample →</a></div>);
-  const previewBanner = sampleMode ? <div role="status" style={{ ...warn, fontWeight: 700 }}>SAMPLE PREVIEW — no data is saved and no application, invitation or signature is submitted.</div> : null;
+  const previewBanner = sampleMode ? <div role="status" style={{ ...warn, fontWeight: 700 }}>Sample preview — no data is saved and no application, invitation or signature is submitted.</div> : null;
 
   if (!started) return shell(
     <div style={{ ...card, padding: 0, overflow: "hidden" }}>
-      <div style={{ height: 6, background: `linear-gradient(90deg, ${GREEN}, ${BLUE})` }} />
+      <div style={{ height: 6, background: ACTION }} />
       <div style={{ padding: "28px 26px 26px" }}>
         {previewBanner}
-        <div style={{ display: "inline-block", fontSize: 12, fontWeight: 800, color: PINK_TEXT, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: DISPLAY, background: BLUSH, borderRadius: 999, padding: "5px 12px" }}>Installer partners</div>
+        <div style={{ display: "inline-block", fontSize: 13, fontWeight: 700, color: PINK_TEXT, fontFamily: DISPLAY, background: BLUSH, borderRadius: 999, padding: "5px 12px" }}>Installer partners</div>
         <h1 style={{ fontSize: 30, fontWeight: 800, margin: "14px 0 8px", color: NAVY, lineHeight: 1.2 }}>Join our <span style={{ textDecoration: "underline", textDecorationColor: PINK, textUnderlineOffset: 5 }}>installer</span> network</h1>
         <p style={{ fontSize: 15, lineHeight: 1.55, color: MUTED, margin: "0 0 22px" }}>Register your installation business with Home Insulation Victoria.</p>
         <div style={{ margin: "0 0 6px", fontFamily: DISPLAY, fontWeight: 800, fontSize: 13, color: NAVY }}>What you'll need</div>
@@ -331,7 +344,7 @@ function InstallerOnboarding() {
   if (status === "submitted") return shell(
     <div style={card}>
       {previewBanner}
-      <h1 style={{ fontSize: 24, fontWeight: 800, margin: "0 0 8px", color: NAVY }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — your application is in</h1>
+      <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 8px", color: NAVY }}>Thanks, {d.primary_contact_name?.split(" ")[0] || "partner"} — your application is in</h1>
       <p style={{ color: MUTED, lineHeight: 1.6 }}>Your signed agreement and business details are now with Home Insulation Victoria.</p>
       <Section title="What we're checking" first><TickList items={["Each installer's CII certification", "Your $5 million public liability insurance", "Your proposed supplier rates"]} /></Section>
       <Section title="What happens next"><TickList items={["We confirm your approval and agreed rates", "Your business gets access to the portal", `We contact you at ${d.business_email || "your email"} if we need anything else`]} /></Section>
@@ -341,20 +354,24 @@ function InstallerOnboarding() {
 
   const staffStop = step === "about" && d.works_for_business === true;
   const footer = (
-    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#fff", borderTop: "1px solid #E4E8F0", padding: "12px 20px", zIndex: 10 }}>
-      <div style={{ maxWidth: 672, margin: "0 auto", display: "flex", justifyContent: "space-between", gap: 12 }}>
-        <button style={btn(false, busy || addressPending)} disabled={busy || addressPending} onClick={() => { if (idx === 0) { setStarted(false); window.scrollTo({ top: 0 }); } else void go(-1); }}>Back</button>
-        {step !== "review" && !staffStop && <button style={btn(true, busy || addressPending)} disabled={busy || addressPending} onClick={() => go(1)}>{addressPending ? "Checking address…" : busy ? "Saving…" : "Save & continue"}</button>}
+    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "rgba(255,255,255,.97)", borderTop: `1px solid ${LINE}`, padding: "12px 20px", zIndex: 10 }}>
+      <div className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between" style={{ maxWidth: COL, margin: "0 auto" }}>
+        <button style={{ border: "none", background: "none", color: NAVY, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "inherit", padding: "8px 4px", minHeight: 40, opacity: busy || addressPending ? 0.5 : 1 }} disabled={busy || addressPending} onClick={() => { if (idx === 0) { setStarted(false); window.scrollTo({ top: 0 }); } else void go(-1); }}>Back</button>
+        {step !== "review" && !staffStop && <button className="w-full sm:w-auto" style={{ ...btn(true, busy || addressPending), minHeight: 52, padding: "0 28px" }} disabled={busy || addressPending} onClick={() => go(1)}>{addressPending ? "Checking address…" : busy ? "Saving…" : "Save & continue"}</button>}
       </div>
     </div>
   );
 
   return shell(
-    <div style={card}>
+    <div>
       {previewBanner}
-      {isTest && !sampleMode && <div style={{ ...warn, fontWeight: 700 }}>TEST MODE — staff test link. This application is marked as a test and won't count as a real applicant.</div>}
-      <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", color: BLUE }}>{steps[idx]?.title}</h1>
-      <div style={{ width: 34, height: 3, borderRadius: 99, background: PINK, margin: "10px 0 18px" }} />
+      {isTest && !sampleMode && <div style={{ ...warn, fontWeight: 700 }}>Test mode — staff test link. This application is marked as a test and won't count as a real applicant.</div>}
+      <div style={{ fontSize: 14, fontWeight: 700, color: MUTED }}>Step {idx + 1} of {steps.length} · <span style={{ color: NAVY }}>{steps[idx]?.title}</span></div>
+      <div role="progressbar" aria-valuemin={1} aria-valuemax={steps.length} aria-valuenow={idx + 1} aria-label="Progress" style={{ height: 4, borderRadius: 99, background: LINE, overflow: "hidden", margin: "10px 0 18px" }}>
+        <div style={{ width: `${((idx + 1) / steps.length) * 100}%`, height: "100%", background: ACTION, transition: "width .3s" }} />
+      </div>
+      <h1 style={{ fontSize: 28, fontWeight: 800, margin: "0 0 6px", color: NAVY, lineHeight: 1.2 }}>{steps[idx]?.title}</h1>
+      <p style={{ fontSize: 15, color: MUTED, lineHeight: 1.5, margin: "0 0 24px" }}>{PAGE_INTRO[step] ?? ""}</p>
       <div onChange={(e) => unflag(e.target)}>
       <StepBody step={step} d={d} up={up} token={token ?? ""} setError={setError} preview={sampleMode} onReviewReady={setReviewed} errFor={errFor} revision={revision} onUploadBusy={(b) => { navigationLock.current = b; setBusy(b); }} onAddressPending={setAddressPending} />
       </div>
@@ -382,15 +399,17 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
   switch (step) {
     case "about":
       return <>
+        <Section title="Getting started">
         <Field label="What would you like to do?" required>
           <Choice options={[{ v: false as boolean, l: "Register my installation business" }, { v: true as boolean, l: "Join as staff" }]} value={d.works_for_business ?? null} onChange={(v) => up({ works_for_business: v })} />
         </Field>
+        </Section>
         {d.works_for_business === true && <>
           <WorkerStop who="business" />
           <button type="button" style={{ ...btn(false), marginTop: 12 }} onClick={() => up({ works_for_business: false })}>Register my business instead</button>
         </>}
         {d.works_for_business === false && <>
-          <Section title="Your contact details">
+          <Section title="Contact">
             <Field label="Your name" required htmlFor="primary_contact_name" error={errFor("primary_contact_name")}><input style={input} placeholder="e.g. Sam Taylor" autoComplete="name" {...t("primary_contact_name")} /></Field>
             <Field label="Your mobile" required htmlFor="business_phone" error={errFor("business_phone")}><input style={input} type="tel" autoComplete="tel" {...t("business_phone")} /></Field>
             <Field label="Your email" required htmlFor="business_email" error={errFor("business_email")}><input style={input} type="email" autoComplete="email" {...t("business_email")} /></Field>
@@ -411,12 +430,15 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
       const list = d.preferred_electricians ?? [];
       const set = (i: number, p: Partial<NonNullable<InstData["preferred_electricians"]>[number]>) => up({ preferred_electricians: list.map((x, j) => (j === i ? { ...x, ...p } : p.is_primary ? { ...x, is_primary: false } : x)) });
       return <>
+        <Section title="Your electrician">
         <Field label="Do you work with an electrician?" required>
           <Choice options={[{ v: "have", l: "Yes — add them" }, { v: "match", l: "No — match me with one" }, { v: "later", l: "Not sure yet" }]} value={d.electrician_choice ?? null}
             onChange={(v) => up({ electrician_choice: v as "have" | "match" | "later", preferred_electricians: v === "have" && list.length === 0 ? [{ is_primary: true }] : list })} />
         </Field>
+        {d.electrician_choice === "have" && <p style={note}>Nominate your preferred electrician for approval. We’ll confirm the next steps.</p>}
+        {d.electrician_choice === "later" && <p style={note}>You can add one later. Until then we match each job with an approved local electrician.</p>}
+        </Section>
         {d.electrician_choice === "have" && <>
-          <p style={note}>Nominate your preferred electrician for approval. We’ll confirm the next steps.</p>
           {list.map((x, i) => (
             <Section key={i} title={`Electrician ${i + 1} · ${x.is_primary ? "Main" : "Backup"}`}>
               <Field label="Name" required><input style={input} value={x.name ?? ""} onChange={(e) => set(i, { name: e.target.value })} /></Field>
@@ -431,10 +453,9 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
               </div>
             </Section>
           ))}
-          {list.length < 5 && <div style={{ margin: "16px 0" }}><button type="button" style={btn(false)} onClick={() => up({ preferred_electricians: [...list, { is_primary: list.length === 0 }] })}>+ Add another electrician</button></div>}
-          <Check required checked={!!d.electrician_contact_consent} onChange={(v) => up({ electrician_contact_consent: v })}>{list.length > 1 ? "These electricians have" : "This electrician has"} agreed to be contacted by Home Insulation Victoria.</Check>
+          {list.length < 5 && <div style={{ margin: "0 0 20px" }}><button type="button" style={btn(false)} onClick={() => up({ preferred_electricians: [...list, { is_primary: list.length === 0 }] })}>+ Add another electrician</button></div>}
+          <Section title="Consent"><Check required checked={!!d.electrician_contact_consent} onChange={(v) => up({ electrician_contact_consent: v })}>{list.length > 1 ? "These electricians have" : "This electrician has"} agreed to be contacted by Home Insulation Victoria.</Check></Section>
         </>}
-        {d.electrician_choice === "later" && <p style={note}>You can add one later. Until then we match each job with an approved local electrician.</p>}
       </>;
     }
     case "services":
@@ -460,21 +481,22 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
       </>;
     case "availability": {
       const days = d.typical_days ?? [];
-      return <>
+      return <Section title="Your week">
         <Field label="Typical installation days" required>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{DAYS.map((x) => { const on = days.includes(x); return <button key={x} type="button" aria-pressed={on} onClick={() => up({ typical_days: on ? days.filter((y) => y !== x) : DAYS.filter((y) => days.includes(y) || y === x) })} style={{ minWidth: 56, minHeight: 44, borderRadius: 12, border: `1px solid ${on ? BLUE : "#D7DCE8"}`, background: on ? BLUE : "#fff", color: on ? "#fff" : NAVY, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{x}</button>; })}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{DAYS.map((x) => { const on = days.includes(x); return <button key={x} type="button" aria-pressed={on} onClick={() => up({ typical_days: on ? days.filter((y) => y !== x) : DAYS.filter((y) => days.includes(y) || y === x) })} style={{ minWidth: 56, minHeight: 48, borderRadius: 14, border: `${on ? 2 : 1}px solid ${on ? BLUE : "#D7DCE8"}`, background: on ? "#F3F6FF" : "#fff", color: NAVY, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{x}</button>; })}</div>
         </Field>
         <Field label="Usual lead time" required><Choice options={LEAD_TIMES.map((l) => ({ v: l as string, l }))} value={d.normal_attendance_speed} onChange={(v) => up({ normal_attendance_speed: v })} /></Field>
         <Field label="Are you accepting new work now?" required error={errFor("accepting_jobs")}><Choice options={[{ v: "yes", l: "Yes" }, { v: "no", l: "No, not right now" }]} value={d.accepting_jobs === true ? "yes" : d.accepting_jobs === false ? "no" : null} onChange={(v) => up({ accepting_jobs: v === "yes" })} /></Field>
-        <p style={{ margin: 0, fontSize: 13, color: "#5B6478" }}>You can change this later.</p>
-      </>;
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: MUTED }}>You can change this later.</p>
+      </Section>;
     }
     case "install_pricing": {
       const r = d.extra_rates ?? {};
       return <>
-        <p style={note}>Allocation also depends on location, availability and reliable service.</p>
+        <Section title="GST">
         <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
-        <p style={note}>{d.gst_registered === false ? "Your price per m² (total price). Leave blank anything you don't do." : "Your price per m², including GST. Leave blank anything you don't do."} Home Insulation Victoria reviews them before they apply.</p>
+        </Section>
+        <p style={{ ...note, fontSize: 14, margin: "0 0 16px" }}>{d.gst_registered === false ? "Your price per m² (total price). Leave blank anything you don't do." : "Your price per m², including GST. Leave blank anything you don't do."} Home Insulation Victoria reviews them before they apply. Allocation also depends on location, availability and reliable service.</p>
         <RateGroup title="Installing">
           <RateRow id="rate-r5" required label="R5.0" unit="m²" value={d.r5_rate} error={errFor("rate-r5")} onChange={(v) => up({ r5_rate: v })} />
           <RateRow id="rate-r6" label="R6.0" unit="m²" value={d.r6_rate} error={errFor("rate-r6")} onChange={(v) => up({ r6_rate: v })} />
@@ -491,14 +513,14 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
       </>;
     }
     case "bank":
-      return <>
+      return <Section title="Bank account">
         <p style={note}>Kept private and used only for approved Home Insulation Victoria payments.</p>
         <Field label="Account name" required htmlFor="bank_account_name" error={errFor("bank_account_name")}><input style={input} autoComplete="off" {...t("bank_account_name")} /></Field>
         <Field label="BSB" required hint="6 digits" htmlFor="bank_bsb" error={errFor("bank_bsb")}><input style={input} inputMode="numeric" autoComplete="off" {...t("bank_bsb")} /></Field>
         <Field label="Account number" required htmlFor="bank_account_number" error={errFor("bank_account_number")}><input style={input} inputMode="numeric" autoComplete="off" {...t("bank_account_number")} /></Field>
-      </>;
+      </Section>;
     case "review":
-      return <ReviewPanel d={d} up={up} preview={preview} load={() => getInstallerAgreement({ data: { token } })} onReady={onReviewReady} />;
+      return <Section><ReviewPanel d={d} up={up} preview={preview} load={() => getInstallerAgreement({ data: { token } })} onReady={onReviewReady} /></Section>;
     default:
       return null;
   }
@@ -531,7 +553,7 @@ function ReviewPanel({ d, up, preview, load, onReady }: { d: InstData; up: (p: P
   }, [signature, preview, attempt]);
   const loaded = text !== null && !failed;
   return <>
-    <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 15, color: NAVY, marginBottom: 4 }}>1. Review the agreement</div>
+    <h2 style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 17, color: NAVY, margin: "0 0 4px" }}>1. Review the agreement</h2>
     <div style={{ fontSize: 13, color: MUTED, marginBottom: 4 }}>Activity 48 · VEU · Version {version || "—"} · Installer: {d.trading_name || d.legal_entity_name} · ABN {d.abn}</div>
     <div style={{ fontSize: 14, fontWeight: 800, color: GREEN, marginBottom: 10 }}>AP accreditation number: A003654</div>
     {failed ? <div role="alert" style={{ border: "1px solid #F3B4AE", borderRadius: 12, padding: 14, fontSize: 14, color: "#8C1D18", background: "#FFF5F4", marginBottom: 14 }}>
@@ -577,16 +599,18 @@ function InstallersStep({ d, up, errFor }: { d: InstData; up: (p: Partial<InstDa
     else up({ self_is_installer: false, installers: others.length ? others : [{}] });
   };
   return <>
-    <p style={note}>Everyone who installs on Home Insulation Victoria jobs. Our office checks each person's CII certification before they can be assigned.</p>
+    <Section title="About you">
+    <p style={note}>Our office checks each person's CII certification before they can be assigned.</p>
     <Field label="Are you one of the installers?" required htmlFor="self_is_installer" error={errFor("self_is_installer")}>
       <div id="self_is_installer" tabIndex={-1}><Choice options={[{ v: true as boolean, l: "Yes" }, { v: false as boolean, l: "No" }]} value={d.self_is_installer ?? (list.some((x) => x.is_self) ? true : null)} onChange={chooseSelf} /></div>
     </Field>
+    </Section>
     {list.map((x, i) => {
       const self = !!x.is_self;
       const showContact = !self || editingSelf || !!errFor(`installer-${i}-name`) || !!errFor(`installer-${i}-mobile`) || !!errFor(`installer-${i}-email`);
       return (
-        <section key={i} style={{ border: "1px solid #E4E9F5", borderRadius: 16, padding: "14px 16px", marginTop: 14 }}>
-          <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 15, color: NAVY, marginBottom: 10 }}>{self ? "You" : `Installer ${i + 1}`}</div>
+        <section key={i} style={{ ...card, padding: "20px", marginBottom: 20 }}>
+          <h2 style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 17, color: NAVY, margin: "0 0 14px" }}>{self ? "You" : `Installer ${i + 1}`}</h2>
           {self && !showContact && (
             <div style={{ display: "flex", gap: 10, alignItems: "flex-start", background: "#EDFAF2", borderRadius: 12, padding: "10px 12px", marginBottom: 14 }}>
               <span style={{ color: GREEN, fontWeight: 800 }}>✓</span>
@@ -613,7 +637,7 @@ function InstallersStep({ d, up, errFor }: { d: InstData; up: (p: Partial<InstDa
         </section>
       );
     })}
-    {(d.self_is_installer != null || list.length > 0) && <div id="add-installer" tabIndex={-1} style={{ marginTop: 16 }}><button type="button" style={btn(false)} onClick={() => up({ installers: [...list, {}] })}>+ Add {list.length ? "another" : "an"} installer</button></div>}
+    {(d.self_is_installer != null || list.length > 0) && <div id="add-installer" tabIndex={-1} style={{ marginTop: 4 }}><button type="button" style={btn(false)} onClick={() => up({ installers: [...list, {}] })}>+ Add {list.length ? "another" : "an"} installer</button></div>}
     {errFor("add-installer") && <div role="alert" style={{ color: "#8C1D18", fontSize: 13, fontWeight: 700, marginTop: 6 }}>{errFor("add-installer")}</div>}
   </>;
 }
@@ -636,18 +660,22 @@ function InsuranceStep({ d, up, token, setError, preview, revision, onUploadBusy
     } catch (e) { setError(e instanceof Error ? e.message : "Upload failed."); } finally { setUploading(false); onUploadBusy(false); }
   }
   return <>
+    <Section title="Your certificate">
     {d.insurance_uploaded
       ? <p style={okLine}>✓ Certificate uploaded — only the Home Insulation Victoria office can view it. {!preview && <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>Replace<input type="file" hidden accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif" onChange={(e) => onFile(e.target.files?.[0])} /></label>}</p>
       : <Field label="Certificate of Currency" required hint="PDF, JPG or PNG, up to 10 MB">
           <label style={{ ...btn(false, uploading), display: "inline-flex", alignItems: "center" }}>{uploading ? "Uploading…" : "Upload certificate"}<input type="file" hidden disabled={uploading} accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif" onChange={(e) => onFile(e.target.files?.[0])} /></label>
         </Field>}
     {errFor("insurance-upload") && <div role="alert" style={{ color: "#8C1D18", fontSize: 13, fontWeight: 700, margin: "-8px 0 14px" }}>{errFor("insurance-upload")}</div>}
+    </Section>
+    <Section title="Policy details">
     <Field label="Insurer" required htmlFor="insurer" error={errFor("insurer")}><input id="insurer" style={input} value={d.insurer ?? ""} onChange={(e) => up({ insurer: e.target.value })} /></Field>
     <Field label="Policy number" required htmlFor="insurance_policy_number" error={errFor("insurance_policy_number")}><input id="insurance_policy_number" style={input} value={d.insurance_policy_number ?? ""} onChange={(e) => up({ insurance_policy_number: e.target.value })} /></Field>
     <Field label="Public liability cover" required hint="Minimum $5,000,000"><Money value={d.public_liability_cover_amount} onChange={(v) => up({ public_liability_cover_amount: v })} />
       {typeof d.public_liability_cover_amount === "number" && d.public_liability_cover_amount < 5_000_000 && <div role="alert" style={{ color: "#B42318", fontWeight: 700, fontSize: 14, marginTop: 6 }}>Cover must be at least $5,000,000. You can't continue with less.</div>}
     </Field>
     <Field label="Expiry date" required hint="For example 30/06/2027, or pick from the calendar" htmlFor="public_liability_expiry" error={errFor("public_liability_expiry")}><DateBox id="public_liability_expiry" value={d.public_liability_expiry} onChange={(v) => up({ public_liability_expiry: v })} /></Field>
+    </Section>
   </>;
 }
 
@@ -676,8 +704,8 @@ function SignStep({ d, token, reviewed, preview, relaxed, revision, saveReviewed
       onSigned(); window.scrollTo({ top: 0 });
     } catch (e) { setErr(e instanceof Error ? e.message : "Could not sign. Please try again."); } finally { setBusy(false); }
   }
-  return <section style={{ borderTop: "1px solid #E4E8F0", marginTop: 20, paddingTop: 18, opacity: reviewDone ? 1 : 0.6 }}>
-    <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 15, color: NAVY, marginBottom: 4 }}>2. Sign</div>
+  return <section style={{ ...card, padding: 20, marginBottom: 20, opacity: reviewDone ? 1 : 0.6 }}>
+    <h2 style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 17, color: NAVY, margin: "0 0 4px" }}>2. Sign</h2>
     <p style={note}>{reviewDone ? "You're signing electronically. We store the exact wording, version, your details and the time." : "Tick the review box above to sign."}</p>
     <div id="signing-acknowledgements" tabIndex={-1}>{ACKNOWLEDGEMENTS.map((a) => <Check key={a.key} disabled={!reviewDone} checked={!!acks[a.key]} onChange={(v) => setAcks((x) => ({ ...x, [a.key]: v }))}>{a.text}</Check>)}</div>
     <Field label="Signer full legal name" required htmlFor="signer-name"><input id="signer-name" style={input} disabled={!reviewDone} value={name} onChange={(e) => setName(e.target.value)} /></Field>
@@ -688,7 +716,7 @@ function SignStep({ d, token, reviewed, preview, relaxed, revision, saveReviewed
       {blockers.map((b) => <div key={b.key} style={{ marginTop: 5 }}>• <button type="button" onClick={() => { if (b.page && b.page !== "review") onGoToPage(b.page); else { const el = b.target ? document.getElementById(b.target) : null; el?.scrollIntoView({ block: "center" }); el?.focus(); } }} style={{ border: 0, padding: 0, background: "transparent", color: "inherit", textDecoration: "underline", font: "inherit", fontWeight: 700, cursor: "pointer", textAlign: "left" }}>{b.message}</button></div>)}
     </div>}
     {err && <p style={{ color: "#B3261E", fontSize: 14 }}>{err}</p>}
-    <button style={{ ...btn(true, !ready || busy), width: "100%" }} disabled={!ready || busy || preview} onClick={sign}>{busy ? "Signing…" : preview ? "Preview only — signing disabled" : "Sign agreement & submit"}</button>
+    <button style={{ ...btn(true, !ready || busy), width: "100%", minHeight: 52 }} disabled={!ready || busy || preview} onClick={sign}>{busy ? "Signing…" : preview ? "Preview only — signing disabled" : "Sign agreement & submit"}</button>
   </section>;
 }
 
