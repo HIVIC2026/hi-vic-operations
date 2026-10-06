@@ -4,7 +4,7 @@
 import opentype from "opentype.js";
 import { PNG } from "pngjs";
 import { Buffer } from "node:buffer";
-import { AMOUNT_LH, AMOUNT_SIZE, amountArtWidth } from "./email-art.core";
+import { AMOUNT_LH, AMOUNT_SIZE, HEADER_ART_W, amountArtWidth } from "./email-art.core";
 import { FIGTREE_800_WOFF, LOGO_PNG, OUTFIT_800_WOFF, PARTY_PNG } from "./email-hero-assets";
 
 export const HERO_WIDTH = 600; // shown at 600px; drawn at 2x
@@ -122,46 +122,70 @@ export type HeroSpec = { caps: string; capsColor: string; capsSize: number; emoj
 const hex = (h: string): RGB => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
 export const plainHeadline = (segs: HeroSeg[]) => segs.map((x) => x.t).join("");
 
-/** Email header art: logo + pill, caps line (optional colour emoji), headline with green amount. Returns PNG bytes. */
+/** Email header art, drawn phone-first (v7): natural width 354px = 390px phone column, so it never shrinks on a phone.
+ * Logo + one-line pill, caps line (optional colour emoji), headline with green amount. Returns PNG bytes at 3x. */
 export function renderHeaderArt(spec: HeroSpec): Uint8Array {
   const { outfit, figtree } = font();
-  // Layout in 1x email pixels, matching the HTML preview: 22px top, 142x61 logo, 26px gap, caps line, 8px gap, headline, 568px text width.
-  const PAD = 16, TEXT_W = HERO_WIDTH - PAD * 2;
-  const H1 = spec.size * S, LH = spec.lineHeight * S;
+  const S3 = 3, W3 = HEADER_ART_W * S3;
+  const H1 = spec.size * S3, LH = spec.lineHeight * S3;
   const words: { t: string; c: RGB }[] = [];
   for (const seg of spec.segs) for (const t of seg.t.split(" ")) if (t) words.push({ t, c: seg.green ? GREEN : NAVY });
   const space = outfit.getAdvanceWidth(" ", H1);
   const lines: { t: string; c: RGB }[][] = [[]]; let lw = 0;
   for (const w of words) {
     const ww = outfit.getAdvanceWidth(w.t, H1);
-    if (lines[lines.length - 1].length && lw + space + ww > TEXT_W * S) { lines.push([]); lw = 0; }
+    if (lines[lines.length - 1].length && lw + space + ww > W3) { lines.push([]); lw = 0; }
     lw += (lines[lines.length - 1].length ? space : 0) + ww; lines[lines.length - 1].push(w);
   }
-  const top = 22 * S, logoH = 61 * S, capsTop = top + logoH + 26 * S, capsSize = spec.capsSize * S;
-  const capsLH = Math.round(spec.capsSize * 1.3 * S);
-  const h1Top = capsTop + capsLH + 8 * S;
-  const height = h1Top + lines.length * LH + 14 * S;
-  const cv = new Canvas(W, height);
+  const logoW = 124 * S3, logoH = Math.round((124 * 61) / 142) * S3;
+  const top = 22 * S3, capsTop = top + logoH + 24 * S3, capsSize = spec.capsSize * S3;
+  const capsLH = Math.round(spec.capsSize * 1.3 * S3);
+  const h1Top = capsTop + capsLH + 8 * S3;
+  const height = h1Top + lines.length * LH + 14 * S3;
+  const cv = new Canvas(W3, height);
   const { logo, party } = images();
-  cv.image(logo, PAD * S, top, 142 * S, logoH);
-  // Pill: 10px Figtree 800, .7px tracking, 7x11 padding, right-aligned, one line, centred on the logo.
-  const pSize = 10 * S, pTrack = 0.7 * S, label = "FREE ESTIMATE · NO OBLIGATION";
+  cv.image(logo, 0, top, logoW, logoH);
+  // Pill: largest Figtree 800 size (max 11px) that fits on one line beside the logo.
+  const label = "FREE ESTIMATE · NO OBLIGATION", room = W3 - logoW - 10 * S3;
+  let pSize = 11 * S3, pTrack = 0.6 * S3, padX = 10 * S3;
+  while (spaced(null, figtree, label, 0, 0, pSize, pTrack, NAVY) + padX * 2 > room && pSize > 9 * S3) { pSize -= 0.25 * S3; pTrack = Math.max(0.3 * S3, pTrack - 0.05 * S3); padX = Math.max(8 * S3, padX - 0.5 * S3); }
   const tw = spaced(null, figtree, label, 0, 0, pSize, pTrack, NAVY);
-  const pw = tw + 22 * S, ph = Math.round(pSize * 1.2) + 14 * S;
-  const px = W - PAD * S - pw, py = top + (logoH - ph) / 2;
+  const pw = tw + padX * 2, ph = Math.round(pSize * 1.2) + 13 * S3;
+  const px = W3 - pw, py = top + (logoH - ph) / 2;
   cv.fill([roundRect(px, py, pw, ph, ph / 2)], BLUSH);
   const capRatio = (figtree.tables.os2?.sCapHeight ?? 700) / figtree.unitsPerEm;
-  spaced(cv, figtree, label, px + 11 * S, py + ph / 2 + (capRatio * pSize) / 2, pSize, pTrack, NAVY);
+  spaced(cv, figtree, label, px + padX, py + ph / 2 + (capRatio * pSize) / 2, pSize, pTrack, NAVY);
   const capsCap = capRatio * capsSize, capsBase = capsTop + capsLH / 2 + capsCap / 2;
-  let cx = PAD * S;
-  if (spec.emoji) { const emo = Math.round(13 * S); cv.image(party, cx, Math.round(capsBase - capsCap / 2 - emo / 2), emo, emo); cx += emo + 5 * S; }
-  spaced(cv, figtree, spec.caps.toUpperCase(), cx, capsBase, capsSize, 1.4 * S, hex(spec.capsColor));
+  let cx = 0;
+  if (spec.emoji) { const emo = Math.round(14 * S3); cv.image(party, cx, Math.round(capsBase - capsCap / 2 - emo / 2), emo, emo); cx += emo + 5 * S3; }
+  spaced(cv, figtree, spec.caps.toUpperCase(), cx, capsBase, capsSize, 1.4 * S3, hex(spec.capsColor));
   const asc = outfit.ascender / outfit.unitsPerEm * H1, desc = -outfit.descender / outfit.unitsPerEm * H1;
   lines.forEach((ln, i) => {
     const base = h1Top + i * LH + (LH - (asc + desc)) / 2 + asc;
-    let pen = PAD * S;
+    let pen = 0;
     for (const w of ln) { cv.fill(flatten(outfit.getPath(w.t, pen, base, H1)), w.c); pen += outfit.getAdvanceWidth(w.t, H1) + space; }
   });
+  return cv.png();
+}
+
+/** Card heading art: "h2" = Outfit 800 23/28 navy; "caps" = Figtree 800 11px, 1.4px tracking. 3x, on the card colour. */
+export function measureHeading(text: string, style: "h2" | "caps") {
+  const { outfit, figtree } = font();
+  if (style === "h2") return { w: Math.ceil(outfit.getAdvanceWidth(text, 23)) + 2, h: 28 };
+  return { w: Math.ceil(spaced(null, figtree, text.toUpperCase(), 0, 0, 11, 1.4, NAVY)) + 2, h: 15 };
+}
+export function renderHeadingArt(text: string, style: "h2" | "caps", bg: string): Uint8Array {
+  const { outfit, figtree } = font();
+  const S3 = 3, m = measureHeading(text, style);
+  const cv = new Canvas(m.w * S3, m.h * S3); const b = hex(bg);
+  for (let i = 0; i < cv.data.length; i += 4) { cv.data[i] = b[0]; cv.data[i + 1] = b[1]; cv.data[i + 2] = b[2]; }
+  if (style === "h2") {
+    const size = 23 * S3, asc = outfit.ascender / outfit.unitsPerEm * size, desc = -outfit.descender / outfit.unitsPerEm * size;
+    cv.fill(flatten(outfit.getPath(text, S3, (cv.h - (asc + desc)) / 2 + asc, size)), NAVY);
+  } else {
+    const size = 11 * S3, cap = ((figtree.tables.os2?.sCapHeight ?? 700) / figtree.unitsPerEm) * size;
+    spaced(cv, figtree, text.toUpperCase(), S3, cv.h / 2 + cap / 2, size, 1.4 * S3, NAVY);
+  }
   return cv.png();
 }
 
@@ -187,8 +211,7 @@ export function campaignHeroSpec(kind: "likely" | "onsite" | "spot", firstName: 
   if (kind === "likely") return { caps: "Your rebate is waiting", capsColor: "#00BF63", capsSize: 11, emoji: true, size: 32, lineHeight: 37, segs: [{ t: `Great news${name ? `, ${name}` : ""}! You could take ` }, { t: rebate, green: true }, { t: " off your ceiling insulation" }] };
   if (kind === "onsite") {
     const segs = [{ t: `${name ? `${name}, take` : "Take"} ` }, { t: rebate, green: true }, { t: " off your ceiling insulation" }];
-    const long = plainHeadline(segs).length > 54;
-    return { caps: "Jump the queue", capsColor: "#067A45", capsSize: 10, emoji: false, size: long ? 23 : 34, lineHeight: long ? 28 : 39, segs };
+    return { caps: "Jump the queue", capsColor: "#067A45", capsSize: 11, emoji: false, size: 32, lineHeight: 37, segs };
   }
-  return { caps: "You're on the list", capsColor: "#067A45", capsSize: 10, emoji: false, size: 34, lineHeight: 39, segs: [{ t: `Spot saved${name ? `, ${name}` : ""}. Your ` }, { t: rebate, green: true }, { t: " rebate is waiting." }] };
+  return { caps: "You're on the list", capsColor: "#067A45", capsSize: 11, emoji: false, size: 32, lineHeight: 37, segs: [{ t: `Spot saved${name ? `, ${name}` : ""}. Your ` }, { t: rebate, green: true }, { t: " rebate is waiting." }] };
 }

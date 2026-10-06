@@ -10,7 +10,7 @@ export const Route = createFileRoute("/api/public/email-art/$token/$file")({
   server: {
     handlers: {
       GET: async ({ params }) => {
-        const kind = /^(headline|spot|pay)\.png$/.exec(params.file)?.[1];
+        const kind = /^(headline|spot|pay|next|cap-estimate|cap-gets)\.png$/.exec(params.file)?.[1];
         if (!kind || !/^[A-Za-z0-9_-]{43,128}$/.test(params.token)) return notFound();
         try {
           const { campaignLink } = await import("@/lib/launch-campaign.server");
@@ -22,6 +22,13 @@ export const Route = createFileRoute("/api/public/email-art/$token/$file")({
           const owner = c.job.owners as { full_name: string | null } | null;
           const firstName = owner?.full_name?.trim().split(/\s+/)[0] ?? null;
           let png: Uint8Array;
+          if (kind === "next" || kind === "cap-estimate" || kind === "cap-gets") {
+            const { HEADING_ART, nextTitleFor } = await import("@/lib/email-art.core");
+            const text = kind === "next" ? nextTitleFor(c.group === "onsite" ? "onsite" : "likely") : kind === "cap-estimate" ? "Your estimate" : "What you get";
+            const a = HEADING_ART[text];
+            png = art.renderHeadingArt(a.text, a.style, a.bg);
+            return new Response(png as unknown as BodyInit, { status: 200, headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400", "X-Robots-Tag": "noindex", "Referrer-Policy": "no-referrer" } });
+          }
           if (kind === "spot") {
             const { data: r } = await admin.from("lead_campaign_responses").select("spot_saved_at, saved_veu_discount").eq("job_id", c.job.id).maybeSingle();
             if (!r?.spot_saved_at || !(Number(r.saved_veu_discount) > 0)) return notFound();
