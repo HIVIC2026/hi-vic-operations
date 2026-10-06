@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addBulkElectrician, bulkBatchReview, bulkElectricianChoices, bulkImportBusinesses, confirmBulkBatch, createBulkBatch, geocodeBulkPhotos, listBulkBatches, readBulkFile, setBulkReviewPlan, setBulkRowAddress } from "@/lib/bulk-import.functions";
@@ -252,7 +252,8 @@ function BulkImportPage() {
   const [batchId, setBatchId] = useState<string | null>(null);
   const [skip, setSkip] = useState<Set<string>>(new Set());
   const [permission, setPermission] = useState(false);
-  const [done, setDone] = useState<{ created: number; skipped: number; failed: number; ownerLinks: { jobNumber: string; owner: string; path: string }[] } | null>(null);
+  const confirming = useRef(false);
+  const [done, setDone] = useState<{ created: number; skipped: number; failed: number; alreadyTaken?: number; remaining?: number; ownerLinks: { jobNumber: string; owner: string; path: string }[] } | null>(null);
   const [batchPlan, setBatchPlan] = useState<ElectricianPlan>({ mode: "hivic" });
   const [rowStages, setRowStages] = useState<Record<string, LeadStage>>({});
   const [rowPlans, setRowPlans] = useState<Record<string, ElectricianPlan>>({});
@@ -302,7 +303,8 @@ function BulkImportPage() {
   }
 
   async function confirmAll() {
-    if (!batchId) return;
+    if (!batchId || confirming.current) return;
+    confirming.current = true;
     setBusy(true);
     try {
       await savePlan({ data: { batchId, batchPlan, rows: rows.map((r) => ({ rowId: r.id, stage: rowStages[r.id] ?? "not_visited", plan: batchPlan.mode === "job_by_job" ? (rowPlans[r.id] ?? { mode: "hivic" }) : null })) } });
@@ -310,7 +312,7 @@ function BulkImportPage() {
       setDone(res);
       qc.invalidateQueries({ queryKey: ["bulk-review", batchId] });
       toast.success(`${res.created} jobs created.`);
-    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); confirming.current = false; }
   }
 
   return (
@@ -396,7 +398,7 @@ function BulkImportPage() {
         <Card>
           <CardHeader><CardTitle>Done</CardTitle></CardHeader>
           <CardContent className="space-y-2">
-            <p>{done.created} jobs created{done.skipped ? `, ${done.skipped} skipped` : ""}{done.failed ? `, ${done.failed} could not be imported (office notified)` : ""}.</p>
+            <p>{done.created} jobs created{done.skipped ? `, ${done.skipped} skipped` : ""}{done.failed ? `, ${done.failed} could not be imported yet` : ""}.</p>{done.remaining ? <p className="text-sm font-semibold">{done.remaining} still to fix — this upload stays open. Fix them in Past uploads, then confirm again; jobs already added are never added twice.</p> : null}
             <p className="text-sm text-muted-foreground">Nothing has been sent to any customer. The office can see each job in the pipeline.</p>
             {!!done.ownerLinks.length && <details className="rounded-lg border p-3"><summary className="cursor-pointer font-semibold">Queued owner confirmation links</summary><div className="mt-2 space-y-2">{done.ownerLinks.map((l) => <div key={l.path} className="rounded bg-muted p-2 text-sm"><b>{l.jobNumber} · {l.owner}</b><div className="break-all text-muted-foreground">{l.path}</div></div>)}</div></details>}
             <Button variant="outline" onClick={() => { setBatchId(null); setDone(null); setExtraFiles([]); setPermission(false); setSkip(new Set()); setLocalReads([]); }}>Upload another batch</Button>
