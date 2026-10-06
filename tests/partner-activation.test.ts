@@ -32,7 +32,7 @@ describe("partner activation", () => {
     const data = { primary_contact_name: "Sam Spark", licence_number: "A123", business_phone: "0412345678", business_email: "SAM@SPARK.COM.AU" } as RecData;
     expect(activationWorkers("rec", data, "business-1", "application-1")).toEqual([{
       business_id: "business-1", trade_role: "electrician", full_legal_name: "Sam Spark", email: "sam@spark.com.au",
-      mobile: "0412345678", licence_number: "A123", qualification: null, source_application_id: "application-1",
+      mobile: "0412345678", licence_number: "A123", licence_expires_on: null, qualification: null, source_application_id: "application-1",
     }]);
   });
 
