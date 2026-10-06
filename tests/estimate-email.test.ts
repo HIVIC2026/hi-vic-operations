@@ -29,7 +29,7 @@ describe("customer outcome email renderers", () => {
     expect(email.plainText).not.toContain("A secure unsubscribe link appears below");
     expect(h).not.toMatch(/<form|<input|<iframe|<script|\son\w+=/i);
     expect(`${h} ${email.plainText}`).not.toMatch(/undefined|NaN|\$0\b|Gate 1|guaranteed|energy bill/i);
-    expect(email.subject).toBe("Alex, you could save $1,325 on ceiling insulation");
+    expect(email.subject).toBe("Alex, you could save $1,325 on ceiling insulation 🎉");
     for (const t of ["How much could you save on ceiling insulation?", "Your estimated VEU rebate: You could save $1,325", "Your estimated cost after rebate: $3,747", "✓ Free Insulation Measure-Up & Eligibility Check: FREE", "We measure your ceiling, assess whether any existing insulation can stay or needs removal, and confirm eligibility and the job scope.", "R5.0 ceiling insulation — supply & install: $4,023", "Electrical safety assessment (PIESA): $349", "Accredited Person (AP) management: $700", "FREE INSULATION MEASURE-UP & ELIGIBILITY CHECK", "Your installer measures the ceiling, assesses any existing insulation, confirms eligibility and prepares the job scope so we can confirm your quote.", "Demand is high. Installer availability is limited.", `Arrange my free measure-up & eligibility check: ${estimateUrl}#confirm`, "Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.", "No payment required. No obligation to proceed with installation.", "• Final measured ceiling size", "Want to explore a different ceiling size? Open the calculator: https://estimate.homeinsulationvictoria.com.au/"]) expect(email.plainText).toContain(t);
   });
 
@@ -202,12 +202,11 @@ describe("launch campaign email drafts", () => {
   test("Group A uses Jo's final approved layout (6 Oct)", () => {
     const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", insulation: "none", myJobUrl: `https://estimate.homeinsulationvictoria.com.au/my-job/${token}` });
     expect(email.subject).toBe("Great news, Sarah! $1,470 off your ceiling insulation");
-    expect(email.html).toContain(">Your rebate is waiting</p>");
-    expect(email.html).not.toContain("🎉");
+    expect(email.html).toContain(">🎉 Your rebate is waiting</p>");
     expect(email.html).not.toContain("Your price can change");
     expect(email.html.split("Estimate only.").length - 1).toBe(1);
     expect(email.html).toContain('<h1 class="lx-h1 hiv-hero-title"');
-    expect(email.html).toContain('Great news, Sarah! <span style="color:#07BF61;">$1,470</span> off your insulation');
+    expect(email.html).toContain('Sarah, take <span style="color:#07BF61;">$1,470</span> off your ceiling insulation');
     expect(email.html).toContain("That means you pay about <strong>$3,379</strong> instead of $4,849, and enjoy lower power bills for years to come.");
     expect(email.html).toContain("Hundreds of homes have enquired since 1 October. Spots go in order.");
     expect(email.html).toContain("Free · no payment · no obligation");

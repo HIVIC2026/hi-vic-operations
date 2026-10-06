@@ -5,7 +5,7 @@ const i = { firstName: "Sarah", rebate: 1470.6, suburb: "Ballarat", shortAddress
 describe("spot saved confirmations", () => {
   test("text wording", () => {
     const s = renderSpotSavedSms(i);
-    expect(s.startsWith("Spot saved, Sarah! Your $1,470 rebate is waiting.")).toBe(true);
+    expect(s.startsWith("Spot saved, Sarah! 🎉 Your $1,470 rebate is waiting.")).toBe(true);
     expect(s).toContain("an installer's free in Ballarat.");
     expect(s).toContain("Your job: https://estimate.homeinsulationvictoria.com.au/my-job/abc\n– Home Insulation Victoria");
   });
