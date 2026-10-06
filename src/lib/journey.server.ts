@@ -186,7 +186,7 @@ const TINY_JPEG = Uint8Array.from(atob("/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAMCAgIC
 const FRANKSTON = { lat: -38.1446, lng: 145.1257 };
 
 /** Upload one TEST evidence photo (geotagged at the TEST address) into the job's private files, as a phone upload would. */
-async function uploadEvidence(ctx: JourneyCtx, category: string, by: string, gate = "ready_check") {
+async function uploadEvidence(ctx: JourneyCtx, category: string, by: string, gate: "assessment" | "electrical" | "installation" = "assessment") {
   await assertOwnTestJob(ctx);
   let { data: req } = await admin.from("evidence_requirements").select("id").eq("job_id", ctx.jobId!).eq("category", category as never).limit(1).maybeSingle();
   if (!req) {
