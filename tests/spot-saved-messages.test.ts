@@ -12,7 +12,7 @@ describe("spot saved confirmations", () => {
   test("email wording, no phone / call us", () => {
     const e = renderSpotSavedEmail(i);
     expect(e.subject).toBe("Spot saved. Your $1,470 rebate is waiting");
-    for (const t of ["You're on the list", "Spot saved, Sarah. Your", "free Ready Check at 12 Smith St, Ballarat", "Heads up: the waiting list is huge.", "See my job →", "No payment · no obligation", "DC Construction Solutions Pty Ltd", "Privacy", "Remove my enquiry", "#07BF61"]) expect(e.html).toContain(t);
+    for (const t of ["/api/public/email-art/", "/spot.png", 'alt="Spot saved, Sarah. Your', "free Ready Check at 12 Smith St, Ballarat", "Heads up: the waiting list is huge.", "See my job →", "No payment · no obligation", "DC Construction Solutions Pty Ltd", "Privacy", "Remove my enquiry", "#07BF61"]) expect(e.html).toContain(t);
     expect(/call us|phone|1300|04\d{2}/i.test(e.html + e.text)).toBe(false);
   });
   test("address bits", () => expect(addressBits("12 Smith St", "Ballarat")).toEqual({ suburb: "Ballarat", short: "12 Smith St, Ballarat" }));
