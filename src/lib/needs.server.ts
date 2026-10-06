@@ -41,6 +41,11 @@ export async function loadNeedsHivic() {
     if ((vBk ?? []).some((b) => b.job_id === e.job_id && b.kind === d.kind && b.created_at > e.created_at)) return [];
     return [{ job_id: e.job_id, code: d.code as "trade_no_show", created_at: e.created_at, detail: e.summary ?? undefined }];
   });
+  const [{ data: tOff }, { offersWithNoTaker }, { offerSuggestHours }] = await Promise.all([
+    admin.from("partner_offers").select("id, job_id, kind, status, offered_at").in("kind", ["ready_check", "piesa"]).gte("offered_at", new Date(Date.now() - 30 * 86_400_000).toISOString()),
+    import("./offer-timing.core"), import("./trade-view.server"),
+  ]);
+  const offerNoTaker = offersWithNoTaker(tOff ?? [], await offerSuggestHours());
   const { data: rcInst } = await admin.from("job_assignments").select("job_id").eq("role", "installer").eq("active", true);
   const withInst = new Set((rcInst ?? []).map((a) => a.job_id));
   const jobRows = ok(jobs, "jobs").filter((j) => j.source !== "qa_test");
@@ -73,6 +78,7 @@ export async function loadNeedsHivic() {
     rectUnanswered: ok(rsent, "rectification quotes sent"),
     prestart: await (await import("./prestart.server")).prestartNeeds(now).catch((e) => { console.error("pre-start needs failed", (e as Error).message); return undefined; }),
     visitFlags,
+    offerNoTaker,
     readyCheckNoTaker: (rcEv ?? []).filter((e): e is { job_id: string; created_at: string } => !!e.job_id && !withInst.has(e.job_id)),
     installFlags: (instEv ?? []).filter((e) => !!e.job_id).map((e) => ({ job_id: e.job_id!, code: e.event_type as "install_ten_days_left" | "install_days_declined", created_at: e.created_at, detail: e.event_type === "install_ten_days_left" ? `Last day ${(e.details as { deadline?: string } | null)?.deadline ?? "?"}.` : undefined })),
   });

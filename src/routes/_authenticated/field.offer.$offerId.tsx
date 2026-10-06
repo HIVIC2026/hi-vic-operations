@@ -65,7 +65,7 @@ function OfferPage() {
   }
   if (tooSlow || data.status !== "pending") return (
     <TradeShell installer={rc}>
-      <section className={`${card} text-center`}><h1 className="font-display text-xl font-extrabold">{mode === "declined" ? "No worries" : "Too slow this time, someone grabbed it."}</h1><p className="mt-1 text-sm">{mode === "declined" ? "We'll offer it to someone else." : "More coming."}</p></section>
+      <section className={`${card} text-center`}><h1 className="font-display text-xl font-extrabold">{mode === "declined" || data.status === "declined" ? "No worries" : "This job has been taken"}</h1><p className="mt-1 text-sm">{mode === "declined" || data.status === "declined" ? "We'll offer it to someone else." : "Someone else grabbed it first. More coming."}</p></section>
       <Link to="/field" className={ghostBtn}>Back to my work</Link>
     </TradeShell>
   );
@@ -92,7 +92,7 @@ function OfferPage() {
       </section>
       {mode === "cant" ? (
         <section className={card}>
-          <h2 className="font-display text-lg font-extrabold">Can't make these?</h2>
+          <h2 className="font-display text-lg font-extrabold">Suggest another time</h2>
           <p className="mt-1 text-sm">Tell us a time that works and we'll check with the owner.</p>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} maxLength={300} placeholder="e.g. Thursday morning" className="mt-3 w-full rounded-2xl border border-estimate-line p-3 text-base" />
           <button type="button" className={`${ghostBtn} mt-3`} onClick={async () => { await reply({ data: { offerId, reply: "cant_make", note: note.trim() || null } }); setMode("cant_sent"); }}>Send to the office</button>
@@ -106,9 +106,10 @@ function OfferPage() {
         <div className="grid grid-cols-2 gap-2">{data.windows.map((w) => { const t = dayTile(w.start); return (
           <button key={w.id} type="button" disabled={!!busy} onClick={() => tap(w.id, w.start)} className="flex min-h-20 flex-col items-center justify-center rounded-[18px] border-2 border-estimate-green bg-card p-3 font-bold"><span className="text-sm">{t.day}</span><span className="font-display text-lg font-extrabold">{busy === w.id ? "Booking…" : t.window}</span></button>); })}</div>
         <div className="flex justify-between px-1 pt-1 text-sm font-bold text-estimate-blue">
-          <button type="button" onClick={() => setMode("cant")}>Can't make these</button>
+          {data.canSuggest ? <button type="button" onClick={() => setMode("cant")}>Suggest another time</button> : <span />}
           <button type="button" onClick={async () => { await reply({ data: { offerId, reply: "not_for_me", note: null } }); setMode("declined"); await refetch(); }}>Not for me</button>
         </div>
+        {!data.canSuggest && <p className="pt-1 text-xs text-estimate-navy/70">Can't make these? If nobody takes it, you can suggest another time from {data.suggestUnlockLabel}.</p>}
         <p className="pt-2 text-center text-xs text-estimate-navy/70">Address and owner details show once you take it.</p>
       </section>
     </TradeShell>
