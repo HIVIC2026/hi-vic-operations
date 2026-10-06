@@ -203,12 +203,13 @@ describe("launch campaign email drafts", () => {
   test("Group A uses Jo's final approved layout (6 Oct)", () => {
     const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", insulation: "none", myJobUrl: `https://estimate.homeinsulationvictoria.com.au/my-job/${token}` });
     expect(email.subject).toBe("Great news, Sarah! $1,470 off your ceiling insulation 🎉");
-    expect(email.html).toContain(">🎉 Your rebate is waiting</p>");
+    // v6: header, caps line and headline are one per-owner image; alt text carries the headline.
+    expect(email.html).toContain(`<img src="https://estimate.homeinsulationvictoria.com.au/api/public/email-hero/${token}.png" width="600" alt="Great news, Sarah! You could take $1,470 off your ceiling insulation"`);
+    expect(email.html).not.toContain("Your rebate is waiting</p>");
+    expect(email.html).not.toContain("<h1");
+    expect(email.html).not.toContain("FREE ESTIMATE");
     expect(email.html).toContain("Your price can change");
     expect(email.html.split("Estimate only.").length - 1).toBe(1);
-    expect(email.html).toContain('<h1 class="hiv-hero-title"');
-    expect(email.html).toContain("font-size:32px;line-height:37px");
-    expect(email.html).toContain('Great news, Sarah! You could take <span style="font-family:\'Figtree\',\'Avenir Next\',\'Avenir\',\'Segoe UI\',\'Helvetica Neue\',Helvetica,Arial,sans-serif;color:#00BF63;">$1,470</span> off your ceiling insulation');
     for (const m of email.html.matchAll(/<(p|td|a|span|strong|h1|h2|div|li)\b[^>]*>/g)) if (/style="/.test(m[0]) || /^<(strong|h1|h2)/.test(m[0])) expect(m[0]).toContain("font-family:");
     expect(email.html).toContain("'Outfit','Avenir Next','Avenir','Century Gothic','Segoe UI',Helvetica,Arial,sans-serif");
     expect(email.html).not.toContain("font-family:Arial,Helvetica,sans-serif!important");
@@ -239,4 +240,15 @@ describe("launch campaign email drafts", () => {
     expect(email.html).not.toContain("Contact us");
   });
 
+});
+
+describe("Group A header image", () => {
+  test("renders a 1200px-wide PNG for short, long and missing names", async () => {
+    const { renderEmailHeroPng } = await import("../src/lib/email-hero.core");
+    for (const [n, r] of [["Jo", "$1,120"], ["Christopher", "$12,250"], [null, "$1,890"]] as const) {
+      const png = renderEmailHeroPng(n, r);
+      expect(Array.from(png.slice(1, 4))).toEqual([80, 78, 71]);
+      expect(new DataView(png.buffer, png.byteOffset).getUint32(16)).toBe(1200);
+    }
+  });
 });
