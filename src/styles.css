@@ -70,6 +70,8 @@
   --color-brand-dark: var(--brand-dark);
   --color-brand-dark-foreground: var(--brand-dark-foreground);
   --color-estimate-blue: var(--estimate-blue);
+  --color-estimate-logo-green: #00BF63;
+  --color-estimate-heads-up: #FFF6E0;
   --color-estimate-green: var(--estimate-green);
   --color-estimate-navy: var(--estimate-navy);
   --color-estimate-blue-soft: var(--estimate-blue-soft);

@@ -32,7 +32,7 @@ export async function campaignPage(token: unknown, testMode = false) {
   if (!c) return null;
   const { resolvePublicEstimate } = await import("./estimatelink.server");
   const [{ data: response }, estimate] = await Promise.all([
-    admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, desk_check_status, queue_priority").eq("job_id", c.job.id).maybeSingle(),
+    admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, desk_check_status, queue_priority, saved_total, saved_veu_discount").eq("job_id", c.job.id).maybeSingle(),
     resolvePublicEstimate(token, testMode),
   ]);
   const owner = c.job.owners as { full_name: string | null } | null;
@@ -41,7 +41,7 @@ export async function campaignPage(token: unknown, testMode = false) {
   const insulation = normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation);
   const address = [property?.address_line, property?.suburb, property?.state, property?.postcode].filter(Boolean).join(", ");
   const { data: availability } = await admin.from("customer_delivery_settings").select("ready_check_available_postcodes").eq("id", 1).maybeSingle();
-  return estimate ? JSON.stringify({ group: c.group, estimate, response: response ?? null, bookingAvailable: !!property?.postcode && (availability?.ready_check_available_postcodes ?? []).includes(property.postcode), owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
+  return estimate ? JSON.stringify({ group: c.group, estimate, response: response ?? null, bookingAvailable: !!property?.postcode && (availability?.ready_check_available_postcodes ?? []).includes(property.postcode), owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, home: { suburb: property?.suburb ?? null, short: [property?.address_line, property?.suburb].filter(Boolean).join(", ") || null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
 }
 
 export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; insulation: "none" | "present" | "unknown" | null } | null) {
@@ -80,6 +80,7 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
   if (row?.opted_out_at) throw new Error("This enquiry has already been taken off the list.");
   if (!row?.spot_saved_at) throw new Error("We couldn't save your place. Please try again.");
   if (firstSave) await logEvent(c.job.id, null, "campaign_spot_saved", price ? `Owner saved a place for a free Ready Check at $${Math.floor(price.total)} (rebate $${Math.floor(price.discount)})` : "Owner saved a place for a free Ready Check", { campaign: LAUNCH_CAMPAIGN, ...snapshot }, { internal: true });
+  if (firstSave) await queueSpotSavedConfirmations(c.job.id, String(token));
   return { ok: true as const };
 }
 
@@ -129,6 +130,11 @@ export async function markCampaignMediaReceived(jobId: string, linkId: string) {
   const patch = { media_received_at: existing?.media_received_at ?? now, spot_saved_at: existing?.spot_saved_at ?? now, queue_priority: "video", updated_at: now, ...(existing && !["not_needed", "pending"].includes(existing.desk_check_status) ? {} : { desk_check_status: "pending" }) };
   if (existing) await admin.from("lead_campaign_responses").update(patch).eq("job_id", jobId);
   else await admin.from("lead_campaign_responses").insert({ job_id: jobId, estimate_link_id: linkId, campaign: LAUNCH_CAMPAIGN, video_requested: true, ...patch });
+  // A video that is the FIRST save sends the confirmation once; a video after saving never re-sends.
+  if (!existing?.spot_saved_at) {
+    const { data: l } = await admin.from("customer_estimate_links").select("token").eq("id", linkId).maybeSingle();
+    if (l?.token) await queueSpotSavedConfirmations(jobId, l.token);
+  }
 }
 
 export async function launchCampaignOffice() {
@@ -168,4 +174,44 @@ export async function recordDeskCheck(responseId: string, outcome: DeskCheckOutc
   const summary = outcome === "looks_eligible" ? "Desktop insulation check: looks eligible (under R2.0)" : outcome === "not_eligible" ? `Desktop insulation check: not eligible – ${reason.trim()}` : "Desktop insulation check: needs onsite check";
   await logEvent(data.job_id, actorId, "desktop_insulation_check", summary, { outcome, reason: reason.trim() }, { internal: true });
   return { ok: true as const };
+}
+
+const OWNER_BASE = "https://quote.homeinsulationvictoria.com.au";
+/**
+ * Jo-approved "Spot saved" text + email. Queued ONCE per job (never on a second tap, a second device,
+ * a calculator save or a video upload after saving). Sending is off, so both are recorded as queued only;
+ * the TEST allowlist still decides who could ever receive them.
+ */
+export async function queueSpotSavedConfirmations(jobId: string, token: string) {
+  const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "spot_saved_confirmation_queued").limit(1).maybeSingle();
+  if (done) return { queued: false as const };
+  const [{ data: job }, { data: r }] = await Promise.all([
+    admin.from("jobs").select("source, owners(full_name, phone, email), properties(address_line, suburb)").eq("id", jobId).maybeSingle(),
+    admin.from("lead_campaign_responses").select("saved_veu_discount").eq("job_id", jobId).maybeSingle(),
+  ]);
+  if (!job) return { queued: false as const };
+  const { renderSpotSavedEmail, renderSpotSavedSms, addressBits } = await import("./spot-saved-messages.core");
+  const { testSendBlocker } = await import("./test-send.core");
+  const { unsubscribeUrlForJob } = await import("./emailsafety.server");
+  const owner = job.owners as { full_name: string | null; phone: string | null; email: string | null } | null;
+  const prop = job.properties as { address_line: string | null; suburb: string | null } | null;
+  const bits = addressBits(prop?.address_line ?? null, prop?.suburb ?? null);
+  const input = { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, rebate: Number(r?.saved_veu_discount ?? 0), suburb: bits.suburb, shortAddress: bits.short, myJobUrl: `${OWNER_BASE}/my-job/${token}`, optOutUrl: await unsubscribeUrlForJob(jobId) };
+  const sms = renderSpotSavedSms(input);
+  const email = renderSpotSavedEmail(input);
+  const now = new Date().toISOString();
+  const rows = [
+    { channel: "sms", to: owner?.phone ?? null, subject: null, body: sms },
+    { channel: "email", to: owner?.email ?? null, subject: email.subject, body: email.text },
+  ] as const;
+  for (const m of rows) {
+    const allow = testSendBlocker({ channel: m.channel, to: m.to, jobSource: job.source, partnerIsTest: false });
+    await admin.from("job_communications").insert({
+      job_id: jobId, direction: "outbound", channel: m.channel, recipients: m.to ? [m.to] : [], subject: m.subject, body: m.body, provider: "queued",
+      sent_at: null, delivery_status: "queued", visibility: "customer", source_event: `spot_saved:${m.channel}`,
+      source_reference: allow ? `Queued (sending off). Allowlist: ${allow}` : "Queued (sending off). On TEST allowlist", created_at: now,
+    } as never);
+  }
+  await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved text and email queued (sending is off)", { sms: !!owner?.phone, email: !!owner?.email }, { internal: true });
+  return { queued: true as const };
 }
