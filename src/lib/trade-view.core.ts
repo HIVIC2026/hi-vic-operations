@@ -119,3 +119,12 @@ export function dayTile(startIso: string): { day: string; window: string } {
   const time = s.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", timeZone: tz }).replace(":00", "").replace(" ", "");
   return { day: `${wd} ${dn}`, window: WINDOW_LABEL[hr] ?? time };
 }
+
+/** Review E: "Couldn't get in" only from a booked Ready Check whose visit day (Melbourne) is today or earlier. */
+export function couldntGetInBlocker(stage: string | null, bookingStart: string | null, now: Date): string | null {
+  if (stage !== "ready_check_scheduled") return "This job doesn't have a booked Ready Check.";
+  if (!bookingStart) return "There's no booked Ready Check to cancel.";
+  const day = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  if (day(new Date(bookingStart)) > day(now)) return "You can only report this on or after the visit day.";
+  return null;
+}

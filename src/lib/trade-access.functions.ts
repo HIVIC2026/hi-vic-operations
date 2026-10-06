@@ -37,6 +37,9 @@ export const prepareTradeLogin = createServerFn({ method: "POST" }).middleware([
     let link: string | null = null;
     let userId = prof?.id ?? null;
     if (data.send) {
+      // Review I: invite emails obey the central communications master switch (fails closed when off or missing).
+      const { data: ws } = await admin.from("workflow_settings").select("customer_comms_enabled").eq("id", 1).maybeSingle();
+      if (ws?.customer_comms_enabled !== true) throw new WorkflowError("Sending is switched off. Copy the link instead.");
       const { data: inv, error } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo, data: { full_name: w.full_legal_name } });
       if (error && !userId) throw new WorkflowError(`Invite could not be sent: ${error.message}`);
       userId = userId ?? inv?.user?.id ?? null;

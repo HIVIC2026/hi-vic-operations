@@ -3,7 +3,7 @@ import { CODE_MAX_ATTEMPTS } from "./owner-verify.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
 import { hashToken, newToken } from "./worker-links.core";
-import { CODE_TTL_MIN, SESSION_TTL_MIN, codeBlocker, maskContact, newCode, requestBlocker, sessionUsable } from "./owner-verify.core";
+import { CODES_PER_HOUR, CODE_TTL_MIN, SESSION_TTL_MIN, codeBlocker, maskContact, newCode, requestBlocker, sessionUsable } from "./owner-verify.core";
 import { logEvent, WorkflowError } from "./workflow.server";
 
 async function jobForLink(token: unknown) {
@@ -33,11 +33,11 @@ export async function requestOwnerCode(token: unknown, channel: "sms" | "email")
   const { owner, source } = await ownerOf(jobId);
   const masked = maskContact(channel, channel === "sms" ? owner?.phone : owner?.email);
   if (!masked) throw new WorkflowError(channel === "sms" ? "We don't have a mobile number for you. Try email instead." : "We don't have an email for you. Try text instead.");
-  const { count } = await admin.from("owner_link_codes").select("id", { count: "exact", head: true }).eq("job_id", jobId).gte("created_at", new Date(Date.now() - 3600_000).toISOString());
-  const rb = requestBlocker(count ?? 0);
-  if (rb) throw new WorkflowError(rb);
+  // Review H: limit check + insert are one locked database step (issue_owner_link_code), so parallel requests can't exceed it.
   const code = newCode();
-  const { data: row, error } = await admin.from("owner_link_codes").insert({ job_id: jobId, channel, destination_masked: masked, code_hash: await codeHash(jobId, code), expires_at: new Date(Date.now() + CODE_TTL_MIN * 60_000).toISOString() }).select("id").single();
+  const { data: newId, error } = await admin.rpc("issue_owner_link_code", { _job: jobId, _channel: channel, _masked: masked, _hash: await codeHash(jobId, code), _expires: new Date(Date.now() + CODE_TTL_MIN * 60_000).toISOString(), _max: CODES_PER_HOUR });
+  if (!error && !newId) throw new WorkflowError(requestBlocker(CODES_PER_HOUR)!);
+  const row = newId ? { id: newId as string } : null;
   if (error || !row) throw new Error(error?.message ?? "Could not create a code");
   await logEvent(jobId, null, "owner_code_requested", `Owner asked for a signing code by ${channel === "sms" ? "text" : "email"} (${masked}); delivery follows the sending switches`, { code_id: row.id, channel }, { internal: true });
   if (source !== "qa_test") {

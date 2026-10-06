@@ -64,6 +64,7 @@ export async function finishCapture(token: unknown, x: { path: string; fileName:
     await admin.storage.from(BUCKET).remove([x.path]);
     throw new Error("That file isn't a supported video or photo. Please try again with MP4, MOV, JPG, PNG or HEIC.");
   }
+  { const { verifyStoredUpload } = await import("./upload-safety.server"); await verifyStoredUpload(BUCKET, x.path, storedMime); }
   const safeName = x.fileName.replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "file";
   const { error, data: ins } = await admin.from("documents").insert({
     job_id: jobId, kind: CAPTURE_KIND, title: `Homeowner insulation ${storedMime.startsWith("video/") ? "video" : "photo"}: ${safeName}`, storage_path: x.path, mime_type: storedMime,

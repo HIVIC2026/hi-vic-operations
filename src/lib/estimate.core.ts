@@ -159,3 +159,15 @@ export function whatIfEstimate(m2: number | null, loc: LocationVariables | null,
   if (m2 == null || !loc || !s) return null;
   return computeEstimate({ m2, source: "owner_estimate", basis: "calculator assumption", id: null, label: CALC_ASSUMPTION_LABEL }, loc, insulation, s);
 }
+
+/** Review F: office quote edits. Discount = whole VEECs × the settings VEEC value, unless an audited override; the minimum contribution always applies. */
+export function quoteAdjustmentDiscount(requested: number, subtotal: number, veecValue: number, minimum: number, override: boolean):
+  { ok: true; discount: number; veecs: number | null; reducedForMin: boolean } | { ok: false; error: string } {
+  if (!(veecValue > 0)) return { ok: false, error: "VEEC value is not set in settings." };
+  const req = Math.max(0, Math.round(requested * 100) / 100);
+  const n = req / veecValue;
+  const whole = Math.abs(n - Math.round(n)) < 1e-9;
+  if (!whole && !override) return { ok: false, error: `The discount must be a whole number of VEECs × $${veecValue}. Tick "office override" and give a reason to use another amount.` };
+  const discount = Math.round(Math.min(req, Math.max(0, subtotal - minimum)) * 100) / 100;
+  return { ok: true, discount, veecs: whole && discount === req ? Math.round(n) : null, reducedForMin: discount < req };
+}

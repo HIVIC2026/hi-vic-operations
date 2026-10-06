@@ -46,10 +46,10 @@ function MyWork() {
             <span className="min-w-0 flex-1"><span className="block font-bold">{b.what} · {b.surname}</span><span className="block truncate text-sm text-estimate-navy/70">{b.address}</span></span><ChevronRight className="h-5 w-5" />
           </Link>); })}</div> : <p className={`${card} text-sm`}>Nothing booked yet.</p>}
       </section>
-      <section className="flex items-center justify-between rounded-[22px] bg-estimate-green-soft p-4">
+      {data.month && <section className="flex items-center justify-between rounded-[22px] bg-estimate-green-soft p-4">
         <span><span className="block text-xs font-bold uppercase tracking-wide">This month</span><span className="font-bold">{data.month.jobs} {installer ? `install${data.month.jobs === 1 ? "" : "s"}` : `job${data.month.jobs === 1 ? "" : "s"}`} done</span></span>
         <span className="font-display text-2xl font-extrabold">{aud(data.month.earned)}</span>
-      </section>
+      </section>}
     </TradeShell>
   );
 }

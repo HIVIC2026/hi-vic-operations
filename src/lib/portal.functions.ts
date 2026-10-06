@@ -599,10 +599,10 @@ export const approveHeldQuote = createServerFn({ method: "POST" }).middleware([r
   });
 
 export const adjustQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ quoteId: uuid, reason: z.string().trim().min(5).max(1000), items: z.array(z.object({ id: uuid, quantity: z.number().min(0), unit_price_inc_gst: z.number().min(0) })), veecDiscount: z.number().min(0).optional() }).parse(d))
+  .inputValidator((d) => z.object({ quoteId: uuid, reason: z.string().trim().min(5).max(1000), items: z.array(z.object({ id: uuid, quantity: z.number().min(0), unit_price_inc_gst: z.number().min(0) })), veecDiscount: z.number().min(0).optional(), discountOverride: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    await adjustQuoteImpl(data.quoteId, context.userId, data.reason, data.items, data.veecDiscount);
+    await adjustQuoteImpl(data.quoteId, context.userId, data.reason, data.items, data.veecDiscount, data.discountOverride ?? false);
     return { ok: true };
   });
 
@@ -888,6 +888,7 @@ export const requestEvidenceUpload = createServerFn({ method: "POST" }).middlewa
     const req = await requirementWithAccess(context.supabase, data.requirementId);
     { const { INSTALL_EVIDENCE_CATEGORIES } = await import("./prestart.core"); if (INSTALL_EVIDENCE_CATEGORIES.includes(req.category)) { const { requirePrestartClear } = await import("./prestart.server"); await requirePrestartClear(req.job_id); } }
     if (!/^(image\/|video\/|application\/pdf)/.test(data.mimeType)) throw new WorkflowError("Only photos, videos and PDFs are accepted.");
+    { const { allowedUpload } = await import("./upload-safety.core"); if (!allowedUpload(data.fileName, data.mimeType)) throw new WorkflowError("Only photos (JPG, PNG, WEBP, HEIC), videos (MP4, MOV) and PDFs are accepted."); }
     await enforcePhotoLocation(context.supabase, req.job_id, data.mimeType, data.fix);
     const safe = data.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `${req.job_id}/${req.category}/${crypto.randomUUID()}-${safe}`;
@@ -902,6 +903,7 @@ export const confirmEvidenceUpload = createServerFn({ method: "POST" }).middlewa
     const req = await requirementWithAccess(context.supabase, data.requirementId);
     { const { INSTALL_EVIDENCE_CATEGORIES } = await import("./prestart.core"); if (INSTALL_EVIDENCE_CATEGORIES.includes(req.category)) { const { requirePrestartClear } = await import("./prestart.server"); await requirePrestartClear(req.job_id); } }
     if (!data.path.startsWith(`${req.job_id}/${req.category}/`)) throw new WorkflowError("Invalid path");
+    { const { allowedUpload } = await import("./upload-safety.core"); const m = allowedUpload(data.fileName, data.mimeType); if (!m) throw new WorkflowError("That file type isn't accepted."); const { verifyStoredUpload } = await import("./upload-safety.server"); await verifyStoredUpload("job-files", data.path, m); }
     const loc = await enforcePhotoLocation(context.supabase, req.job_id, data.mimeType, data.fix);
     await admin.from("evidence_files").insert({ requirement_id: req.id, job_id: req.job_id, storage_path: data.path, file_name: data.fileName, mime_type: data.mimeType, size_bytes: data.size, uploaded_by: context.userId,
       lat: data.fix?.lat ?? null, lng: data.fix?.lng ?? null, location_accuracy_m: data.fix?.accuracyM ?? null, captured_at: data.fix?.capturedAt ?? new Date().toISOString(),
@@ -1001,7 +1003,7 @@ export const updateVeec = createServerFn({ method: "POST" }).middleware([require
       throw new WorkflowError("VEEC can only be lodged once the job is Ready for VEEC.");
     const { data: prev } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,notes,query_text,query_received_at,reply_draft").eq("job_id", jobId).maybeSingle();
     const { veecUpdateBlockers, veecCompletesJob } = await import("./veec.core");
-    const blockers = veecUpdateBlockers(prev, { ...patch, reason: reason ?? null }, new Date().toISOString().slice(0, 10));
+    const blockers = veecUpdateBlockers(prev, { ...patch, reason: reason ?? null }, (await import("./veec.core")).melbourneToday());
     if (blockers.length) throw new WorkflowError(blockers.join(" "));
     await admin.from("veec_lodgements").update({ ...patch, updated_at: new Date().toISOString() }).eq("job_id", jobId);
     await logEvent(jobId, context.userId, "veec_updated", `VEEC lodgement ${data.status.replace("_", " ")}`, { ...rest, previous: prev, reason: reason ?? null }, { internal: true });

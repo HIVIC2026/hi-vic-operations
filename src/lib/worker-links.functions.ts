@@ -63,12 +63,15 @@ export const removeWorker = createServerFn({ method: "POST" }).middleware([requi
   .inputValidator((d) => z.object({ id: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const { data: w } = await admin.from("partner_workers").select("id, business_id").eq("id", data.id).maybeSingle();
+    const { data: w } = await admin.from("partner_workers").select("id, business_id, profile_id").eq("id", data.id).maybeSingle();
     if (!w) throw new Error("Worker not found.");
     if (!(await isAdminCaller(context.supabase))) await requireMember(context.userId, w.business_id, true);
+    if (w.profile_id && w.profile_id === context.userId) throw new Error("You can't remove yourself. Ask the office.");
     const now = new Date().toISOString();
     await admin.from("partner_workers").update({ removed_at: now }).eq("id", w.id);
     await admin.from("worker_job_links").update({ revoked_at: now, revoked_by: context.userId }).eq("worker_id", w.id).is("revoked_at", null);
+    // Review D: removing a worker also switches off their business sign-in (never the boss's own row).
+    if (w.profile_id) await admin.from("business_members").update({ active: false } as never).eq("business_id", w.business_id).eq("user_id", w.profile_id).neq("member_role", "business_admin");
     return { ok: true };
   });
 

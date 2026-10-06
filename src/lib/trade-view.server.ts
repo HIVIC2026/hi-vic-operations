@@ -23,6 +23,12 @@ export async function tradeContext(userId: string) {
   return { biz: b as Biz, kind, boss: m.member_role === "business_admin", firstName: prof?.full_name?.trim().split(/\s+/)[0] ?? null, profile: prof, isTest: isTestPartner(b) };
 }
 
+/** Review D: bosses see every active assignment for the business; workers only their own. */
+function assignmentQuery(c: { biz: { id: string }; boss: boolean }, userId: string) {
+  const q = admin.from("job_assignments").select("job_id, business_id, role").eq("business_id", c.biz.id).eq("active", true);
+  return c.boss ? q : q.eq("user_id", userId);
+}
+
 async function ctxOrThrow(userId: string) {
   const c = await tradeContext(userId);
   if (!c) throw new WorkflowError("Your sign-in isn't linked to an approved business yet.");
@@ -37,7 +43,7 @@ export async function tradeHome(userId: string) {
   const now = new Date();
   const [{ data: offers }, { data: asg }] = await Promise.all([
     admin.from("partner_offers").select("id, kind, summary, expires_at").eq("business_id", c.biz.id).eq("status", "pending").order("offered_at", { ascending: false }),
-    admin.from("job_assignments").select("job_id").eq("business_id", c.biz.id).eq("active", true),
+    assignmentQuery(c, userId),
   ]);
   const jobIds = [...new Set((asg ?? []).map((a) => a.job_id))];
   const none = ["00000000-0000-0000-0000-000000000000"];
@@ -63,12 +69,12 @@ export async function tradeHome(userId: string) {
   const wk0 = new Date(now); wk0.setDate(now.getDate() - ((now.getDay() + 6) % 7)); wk0.setHours(0, 0, 0, 0);
   const wk1 = new Date(wk0.getTime() + 7 * 86_400_000);
   const week = (books ?? []).filter((b) => mine.includes(b.kind) && byId.has(b.job_id) && new Date(b.scheduled_start) >= wk0 && new Date(b.scheduled_start) < wk1).length;
-  const money = await tradeMoneyRows(c.biz.id, c.kind, c.isTest);
+  const money = c.boss ? await tradeMoneyRows(c.biz.id, c.kind, c.isTest) : [];
   const m0 = new Date(now.getFullYear(), now.getMonth(), 1);
   const month = money.filter((r) => r.doneAt && new Date(r.doneAt) >= m0);
   const offerList = (offers ?? []).filter((o) => (c.kind === "installer" ? o.kind === "ready_check" || o.kind === "installer" : o.kind === "piesa" || o.kind === "rectification"))
     .map((o) => ({ id: o.id, kind: o.kind, suburb: (o.summary as { suburb?: string | null })?.suburb ?? null, expiresAt: o.expires_at }));
-  return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, month: { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0) } };
+  return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, month: c.boss ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0) } : null };
 }
 
 /** One offer, trade-side. Owner and address only once this business has taken it. */
@@ -82,7 +88,9 @@ export async function tradeOffer(offerId: string, userId: string) {
     : await admin.from("appointment_proposals").select("id, starts_at, ends_at, status").eq("job_id", o.job_id).not("piesa_window_round", "is", null).order("starts_at");
   const windows = (winRows ?? []).filter((w) => w.status === "open" || w.status === "proposed").map((w) => ({ id: w.id, start: w.starts_at, end: w.ends_at }));
   let locked: null | { owner: string | null; phone: string | null; address: string; start: string; end: string | null } = null;
-  if (o.status === "accepted") {
+  // Review B: contact details only while this business still holds an ACTIVE assignment on the job (and, for a worker, their own).
+  const { data: liveAsg } = o.status === "accepted" ? await assignmentQuery(c, userId).eq("job_id", o.job_id).limit(1).maybeSingle() : { data: null };
+  if (o.status === "accepted" && liveAsg) {
     const bk = o.kind === "ready_check" ? "ready_check" : o.kind === "piesa" ? "assessment" : o.kind;
     const [{ data: b }, { data: j }] = await Promise.all([
       admin.from("bookings").select("scheduled_start, scheduled_end").eq("job_id", o.job_id).eq("kind", bk as never).neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -148,7 +156,7 @@ export async function tradeOfferReply(offerId: string, userId: string, reply: "n
 /** Day page for any of the three visit kinds. */
 export async function tradeDay(jobId: string, userId: string) {
   const c = await ctxOrThrow(userId);
-  const { data: asg } = await admin.from("job_assignments").select("business_id, role").eq("job_id", jobId).eq("business_id", c.biz.id).eq("active", true).limit(1).maybeSingle();
+  const { data: asg } = await assignmentQuery(c, userId).eq("job_id", jobId).limit(1).maybeSingle();
   if (!asg) throw new WorkflowError("This job isn't assigned to you.");
   const kinds = c.kind === "installer" ? ["installation", "ready_check"] : ["assessment", "rectification"];
   const [{ data: bks }, { data: j }, { data: a }, { data: rc }, { data: q }, { data: miss }, { data: ws }, { data: fixes }] = await Promise.all([
@@ -182,11 +190,21 @@ export async function tradeDay(jobId: string, userId: string) {
 export async function tradeCouldntGetIn(jobId: string, reason: string, userId: string) {
   const c = await ctxOrThrow(userId);
   if (!(COULDNT_GET_IN as readonly string[]).includes(reason)) throw new WorkflowError("Pick one of the reasons.");
-  const { data: asg } = await admin.from("job_assignments").select("id").eq("job_id", jobId).eq("business_id", c.biz.id).eq("role", "installer").eq("active", true).maybeSingle();
+  const aq = admin.from("job_assignments").select("id").eq("job_id", jobId).eq("business_id", c.biz.id).eq("role", "installer").eq("active", true);
+  const { data: asg } = await (c.boss ? aq : aq.eq("user_id", userId)).limit(1).maybeSingle();
   if (!asg) throw new WorkflowError("This job isn't assigned to you.");
-  await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed");
+  // Review E: only from a booked Ready Check whose visit is today or past (Melbourne date), via the central guarded transition.
+  const [{ data: job }, { data: bk }] = await Promise.all([
+    admin.from("jobs").select("stage").eq("id", jobId).single(),
+    admin.from("bookings").select("id, scheduled_start").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  const { couldntGetInBlocker } = await import("./trade-view.core");
+  const blocker = couldntGetInBlocker(job?.stage ?? null, bk?.scheduled_start ?? null, new Date());
+  if (blocker) throw new WorkflowError(blocker);
+  const { transition } = await import("./workflow.server");
+  await transition(jobId, "ready_check_ready_to_schedule", userId, `Installer couldn't get in (${reason})`, { reason, business_id: c.biz.id }, { nextAction: `Needs me: rebook the Ready Check (${reason}). Offer back to ${c.biz.name} first.` });
+  await admin.from("bookings").update({ status: "cancelled" }).eq("id", bk!.id).eq("status", "confirmed");
   await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: `Couldn't get in: ${reason}` } as never).eq("id", asg.id);
-  await admin.from("jobs").update({ stage: "ready_check_ready_to_schedule", next_action: `Needs me: rebook the Ready Check (${reason}). Offer back to ${c.biz.name} first.` } as never).eq("id", jobId);
   await logEvent(jobId, userId, "trade_couldnt_get_in", `Needs me: installer couldn't get in (${reason}). Rebook with the owner; offer back to ${c.biz.name} first.`, { reason, business_id: c.biz.id, reoffer_first_to: c.biz.id, needs_office: true }, { internal: true });
   return { ok: true };
 }
@@ -216,6 +234,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
 
 export async function tradeMoney(userId: string) {
   const c = await ctxOrThrow(userId);
+  if (!c.boss) throw new WorkflowError("Money is only shown to the business boss.");
   const rows = await tradeMoneyRows(c.biz.id, c.kind, c.isTest);
   const now = new Date(), m0 = new Date(now.getFullYear(), now.getMonth(), 1);
   const coming = rows.filter((r) => r.state.kind === "coming");

@@ -99,6 +99,7 @@ export const addCredential = createServerFn({ method: "POST" }).middleware([requ
   .handler(async ({ data, context }) => {
     if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.businessId);
     if (data.document_path && !data.document_path.startsWith(`partners/${data.businessId}/`)) throw new WorkflowError("Invalid document path");
+    if (data.document_path) { const { allowedUpload } = await import("./upload-safety.core"); const m = allowedUpload(data.document_path, null); if (!m) throw new WorkflowError("That file type isn't accepted."); const { verifyStoredUpload } = await import("./upload-safety.server"); await verifyStoredUpload("job-files", data.document_path, m); }
     const { error } = await admin.from("business_credentials").insert({ business_id: data.businessId, profile_id: data.profileId ?? null, kind: data.kind, label: data.label, number: data.number ?? null, issuer: data.issuer ?? null, expires_at: data.expires_at ?? null, critical: data.critical, document_path: data.document_path ?? null, created_by: context.userId });
     if (error) throw new WorkflowError(error.message);
     return { ok: true };
@@ -116,6 +117,7 @@ export const partnerUploadUrl = createServerFn({ method: "POST" }).middleware([r
   .inputValidator((d) => z.object({ businessId: uuid, folder: z.enum(["credentials", "imports", "branding"]), fileName: z.string().trim().min(1).max(200) }).parse(d))
   .handler(async ({ data, context }) => {
     if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.businessId);
+    { const { allowedUpload } = await import("./upload-safety.core"); if (!allowedUpload(data.fileName, null, { imports: data.folder === "imports" })) throw new WorkflowError("That file type isn't accepted. Please upload a PDF, photo, video, Word, Excel, CSV, text, email or ZIP file."); }
     const path = `partners/${data.businessId}/${data.folder}/${crypto.randomUUID()}-${data.fileName.replace(/[^\w.\-]+/g, "_")}`;
     const { data: s, error } = await admin.storage.from("job-files").createSignedUploadUrl(path);
     if (error) throw new WorkflowError(error.message);
@@ -267,6 +269,8 @@ export const createImport = createServerFn({ method: "POST" }).middleware([requi
     await requireMember(context.userId, data.businessId);
     await requireApprovedPartner(data.businessId);
     for (const f of data.files) if (!f.path.startsWith(`partners/${data.businessId}/imports/`)) throw new WorkflowError("Invalid file path");
+    { const { allowedUpload } = await import("./upload-safety.core"); const { verifyStoredUpload } = await import("./upload-safety.server");
+      for (const f of data.files) { const m = allowedUpload(f.name, f.type, { imports: true }); if (!m) throw new WorkflowError(`${f.name}: that file type isn't accepted.`); await verifyStoredUpload("job-files", f.path, m); } }
     const parts: Extracted[] = [];
     if (data.csv) { const rows = parseCsv(data.csv); const r = rows[data.csvRow]; if (!r) throw new WorkflowError("That CSV row was not found."); parts.push(extractFromCsvRow(r)); }
     if (data.text) parts.push(extractFromText(data.text));
