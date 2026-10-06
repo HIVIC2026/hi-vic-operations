@@ -201,8 +201,8 @@ describe("launch campaign email drafts", () => {
 
   test("Group A uses Jo's final approved layout (6 Oct)", () => {
     const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", insulation: "none", myJobUrl: `https://estimate.homeinsulationvictoria.com.au/my-job/${token}` });
-    expect(email.subject).toBe("Great news, Sarah! $1,470 off your ceiling insulation 🎉");
-    expect(email.html).toContain(">🎉 Your rebate is waiting</p>");
+    expect(email.subject).toBe("Great news, Sarah! $1,470 off your ceiling insulation");
+    expect(email.html).toContain(">Your rebate is waiting</p>");
     expect(email.html).toContain('Great news, Sarah! You could take <span style="color:#07BF61;">$1,470</span> off your ceiling insulation');
     expect(email.html).toContain("That means you pay about <strong>$3,379</strong> instead of $4,849, and enjoy lower power bills for years to come.");
     expect(email.html).toContain("Hundreds of homes have enquired since 1 October. Spots go in order.");
