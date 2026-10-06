@@ -1,4 +1,5 @@
 import { simpleEmail } from "./simple-email.core";
+import { invitationShell, inv } from "./invitation-email.core";
 import { AMOUNT_LH, HEADER_ART_W, HEADING_ART, amountArtWidth, emailArtUrl } from "./email-art.core";
 import { dedupeAddress } from "./address";
 import { READY_CHECK_FEE } from "./readycheck.core";
@@ -463,19 +464,17 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
     ["VEU rebate", `−${rebate}`, "color:#07BF61;"],
     ["You pay about", customer, "font-weight:bold;"],
   ];
-  const paragraph = (html: string) => `<p style="font-size:15px;line-height:1.55;margin:0 0 12px;">${html}</p>`;
-  const bodyHtml = paragraph(escape(home)) + prices.map(([label, value, style]) => paragraph(`<span style="${style}">${escape(label)}: ${escape(value)}</span>`)).join("") + paragraph("<strong>Free Ready Check</strong>") + paragraph("Hundreds of homes have enquired since 1 October. Spots go in order.");
+  // v9 (Jo, 6 Oct): built on the partner invitation template shell, reused verbatim.
+  const bodyRows =
+    inv.pad(inv.h1(heading) + "\n" + inv.lead(escape(home)), "8px 40px 0") +
+    inv.pad(inv.rows(prices.map(([label, value, style]) => ({ label, value, style: style.replace("#07BF61", "#008A45") })))) +
+    inv.pad(inv.p(`${inv.tag("FREE")}&nbsp; <strong style="color:#22376B;">Free Ready Check</strong>`, "20px 0 12px") + inv.p("Hundreds of homes have enquired since 1 October. Spots go in order.", "0 0 20px")) +
+    inv.pad(inv.button(campaign.toString(), "Save my spot →") + inv.small("Free · no payment · no obligation", true), "0 40px 24px");
   const privacy = `<a href="${escape(PRIVACY_URL)}" style="color:#3C51C4;">Privacy</a>`;
   const remove = `<a href="${escape(unsubscribe.toString())}" style="color:#3C51C4;">Remove my enquiry</a>`;
-  const textLines = [home, ...prices.map(([label, value]) => `${label}: ${value}`), "Free Ready Check", "Hundreds of homes have enquired since 1 October. Spots go in order."];
-  const mail = simpleEmail(heading, [], { label: "Save my spot →", url: campaign.toString() }, {
-    testLabel: false, previewText,
-    bodyHtml,
-    afterButtonHtml: paragraph("Free · no payment · no obligation"),
-    footerHtml: paragraph("DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.") + paragraph(`${privacy} · ${remove}`),
-    textLines,
-  });
-  return { subject, previewText, html: mail.html, plainText: [mail.text, "Free · no payment · no obligation", "", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.", `Privacy: ${PRIVACY_URL}`, `Remove my enquiry: ${unsubscribe.toString()}`].join("\n") };
+  const html = invitationShell({ title: subject, previewText, bodyRows, footerExtraHtml: `${privacy} · ${remove}` });
+  const textLines = [heading, "", home, ...prices.map(([label, value]) => `${label}: ${value}`), "FREE Ready Check", "Hundreds of homes have enquired since 1 October. Spots go in order.", "", `Save my spot →: ${campaign.toString()}`, "Free · no payment · no obligation"];
+  return { subject, previewText, html, plainText: [...textLines, "", "DC Construction Solutions Pty Ltd", "ABN 44 671 613 979", "Trading as Home Insulation Victoria", `Privacy: ${PRIVACY_URL}`, `Remove my enquiry: ${unsubscribe.toString()}`].join("\n") };
 }
 
 // ---------------------------------------------------------------------------
