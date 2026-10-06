@@ -55,9 +55,11 @@ export async function syncOwnerConsent(jobId: string, actorId: string | null) {
 }
 
 async function storeCopy(jobId: string, path: string, text: string, title: string, actorId: string | null) {
-  const up = await admin.storage.from("job-files").upload(path, new Blob([text], { type: "text/plain" }), { contentType: "text/plain", upsert: false });
+  path = path.replace(/\.txt$/, ".pdf");
+  const { textToPdf } = await import("./signed-pdf.server");
+  const up = await admin.storage.from("job-files").upload(path, new Blob([await textToPdf(`Home Insulation Victoria — ${title}`, text) as BlobPart], { type: "application/pdf" }), { contentType: "application/pdf", upsert: false });
   if (up.error) return null;
-  await admin.from("documents").insert({ job_id: jobId, kind: "esc_consent", title, storage_path: path, mime_type: "text/plain", uploaded_by: actorId });
+  await admin.from("documents").insert({ job_id: jobId, kind: "esc_consent", title, storage_path: path, mime_type: "application/pdf", uploaded_by: actorId });
   return path;
 }
 
