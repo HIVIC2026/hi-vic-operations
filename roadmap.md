@@ -10,6 +10,16 @@
 - [x] Show onboarding/new email side by side at 390px with web fonts blocked before one Jo-only TEST send; HV-1609, Resend 01a112b7-00e5-7096-9142-49789371b318; no publish.
 - [x] v9 rebuilt on installer invitation template; Jo-only test 01a112bc-d116-77f7-8f73-6bf307f85511.
 
+## Review fixes before Deep publish (6 Oct)
+- [x] Melbourne today everywhere + test
+- [x] Public sign-up off; owner auto-link needs verified email code
+- [x] Sample partners suspended/inactive (nothing deleted)
+- [x] Rate offer: code signing, 14-day expiry, new link; partner pages calculator look
+- [x] No double sends (sent-unknown, Resend idempotency key)
+- [x] xlsx 0.20.3; bulk reading re-run
+- [x] Unused fonts removed
+- [ ] Screenshots of office counter-offer panel (needs office sign-in approval)
+
 ## Next
 - [ ] Partner applications (Jo, 7 Oct; after automation settings): office view shows EVERY onboarding question + answer grouped by step (all of rec_onboarding_applications.data), bank masked to last 3, blanks "Not answered", Print / PDF; jobs-per-week (installer + electrician) and installers/crews (installer) for NEW applicants; existing show "Not asked (onboarded before this question)" — NO "One more question" task / no contact to onboarded partners incl. Deep (per earlier change; awaiting confirmation since resend asked for it); verify on Deep 52760973 + screenshot; send nothing.
 - [ ] Move real owner/partner emails from the Base44 delivery bridge to Resend (Lovable sends); keep sending OFF.
