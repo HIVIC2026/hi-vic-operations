@@ -1,6 +1,10 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
 
-## Current priority — campaign v9 (Jo, 6 Oct)
+## Current priority — campaign v12 picture (Jo, 6 Oct)
+- [x] Recover exact approved v10 HTML; capture Sarah at 700px / scale 2 with Google Fonts blocked, Arial → Liberation Sans; crop after estimate disclaimer, footer excluded. PNG 338,861 bytes (331 KB), 1280×2492; picture visually checked.
+- [ ] Upload picture to PUBLIC storage and send ONE v12 TEST to Jo on HV-1609 using existing safeguards. BLOCKED: workspace rejects public buckets (`public_buckets_blocked`); owner/admin must enable public buckets in workspace Settings → Privacy & Security. No email sent, no renderer changes, no publish; await Jo's verdict after eventual send.
+
+## Previous campaign v9
 - [x] Identify the exact Jo onboarding email and other onboarding subjects.
 - [x] Reuse its renderer for Group A, Group B and hot leads, preserving approved subject/preview and fresh estimate breakdown.
 - [x] Show onboarding/new email side by side at 390px with web fonts blocked before one Jo-only TEST send; HV-1609, Resend 01a112b7-00e5-7096-9142-49789371b318; no publish.
