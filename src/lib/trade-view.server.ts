@@ -252,7 +252,7 @@ export async function tradeBusiness(userId: string) {
     admin.from("partner_workers").select("full_legal_name, trade_role, approval_status, licence_expires_on, profile_id").eq("business_id", c.biz.id).is("removed_at", null),
     c.kind === "electrician" ? r.from("electrician_rates").select("rate_inc_gst").eq("business_id", c.biz.id).eq("service_type", "piesa").eq("status", "active").maybeSingle() : Promise.resolve({ data: null }),
     admin.from("partner_agreements").select("signed_at").eq("business_id", c.biz.id).order("signed_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("business_bank_details").select("id").eq("business_id", c.biz.id).limit(1).maybeSingle(),
+    admin.from("business_bank_details").select("business_id").eq("business_id", c.biz.id).limit(1).maybeSingle(),
   ]);
   const { data: boss } = await admin.from("business_members").select("user_id, member_role, profiles!business_members_user_id_fkey(full_name)").eq("business_id", c.biz.id).eq("active", true);
   const licence = c.kind === "electrician" ? (workers ?? []).map((w) => w.licence_expires_on).filter(Boolean).sort()[0] ?? null : null;
