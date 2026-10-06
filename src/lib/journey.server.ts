@@ -123,7 +123,12 @@ const s3: StepFn = async (ctx, r) => {
   const { submitReadyCheckWindows, startReadyCheckOffers } = await import("./readycheck-booking.server");
   const { data: j } = await admin.from("jobs").select("stage").eq("id", ctx.jobId!).single();
   ctx.notes["stage_before_offer"] = j?.stage;
-  const picks = [2, 3, 4].map((d) => ({ date: melbourneDate(d), slot: "10-12" as const }));
+  const { piesaWindowBlockers } = await import("./piesa-windows.core");
+  const picks: { date: string; slot: "10-12" }[] = [];
+  for (let d = 2; d < 21 && picks.length < 3; d++) {
+    const p = { date: melbourneDate(d), slot: "10-12" as const };
+    if (!piesaWindowBlockers([...picks, p, p, p].slice(0, Math.max(3, picks.length + 1)) as never, new Date()).some((b) => /business day/i.test(b))) picks.push(p);
+  }
   await submitReadyCheckWindows(ctx.jobId!, picks);
   await startReadyCheckOffers(ctx.jobId!, ctx.actorId, ctx.installer.business_id);
   const { data: offers } = await admin.from("partner_offers").select("id, business_id, status").eq("job_id", ctx.jobId!).eq("kind", "ready_check");
