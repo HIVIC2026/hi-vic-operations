@@ -3,7 +3,7 @@ import { isSpotSavedStage } from "./owner-myjob.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
 import { formatPropertyAddress, shortAddress } from "./address";
-import { DEFAULT_PIESA_INSTALL_GAP_DAYS, OWNER_STEPS, ownerAction, ownerHero } from "./owner-myjob.core";
+import { DEFAULT_PIESA_INSTALL_GAP_DAYS, OWNER_STEPS, ownerAction, ownerCanCancel, ownerHero } from "./owner-myjob.core";
 import { splitForOption } from "./payment-gate.core";
 
 const n = (v: unknown) => Number(v ?? 0) || 0;
@@ -70,5 +70,26 @@ export async function resolveOwnerJob(token: unknown) {
       optOutUrl: await (await import("./emailsafety.server")).unsubscribeUrlForJob(jobId),
     } : null,
     piesaInstallGapDays: n(limits["piesa_install_gap_days"] ?? DEFAULT_PIESA_INSTALL_GAP_DAYS),
+    canCancel: ownerCanCancel(stage, ((await admin.from("bookings").select("kind").eq("job_id", jobId).in("status", ["proposed", "confirmed"])).data ?? []).map((b) => b.kind)),
   };
+}
+
+/** Owner "Cancel my job" from the no-login My job page. Allowed only until the safety check is booked. */
+export async function cancelOwnerJob(token: unknown): Promise<{ ok: boolean; reason?: string }> {
+  if (!isWellFormedToken(token)) return { ok: false, reason: "Link not recognised." };
+  const { data: l } = await admin.from("customer_estimate_links").select("job_id, status, expires_at").eq("token", token as string).eq("purpose", LINK_PURPOSE).maybeSingle();
+  if (!l || !linkUsable(l)) return { ok: false, reason: "Link not recognised." };
+  const [{ data: j }, { data: bk }] = await Promise.all([
+    admin.from("jobs").select("stage").eq("id", l.job_id).single(),
+    admin.from("bookings").select("id, kind, status").eq("job_id", l.job_id).in("status", ["proposed", "confirmed"]),
+  ]);
+  if (!j) return { ok: false, reason: "Link not recognised." };
+  if (j.stage === "cancelled") return { ok: true };
+  if (!ownerCanCancel(j.stage, (bk ?? []).map((b) => b.kind))) return { ok: false, reason: "Your safety check is booked, so this can't be cancelled here. Reply to any of our emails and we'll help." };
+  const { error } = await admin.from("jobs").update({ stage: "cancelled", cancelled_reason: "Owner cancelled from My job", next_action: "Owner cancelled. Tell any assigned trade." }).eq("id", l.job_id).eq("stage", j.stage);
+  if (error) throw new Error(error.message);
+  if (bk?.length) await admin.from("bookings").update({ status: "cancelled" }).in("id", bk.map((b) => b.id));
+  const { logEvent } = await import("./workflow.server");
+  await logEvent(l.job_id, null, "owner_cancelled_job", "Owner cancelled their job from My job (before the safety check was booked). No charge.", { bookings_cancelled: bk?.length ?? 0, trades_to_notify: true }, { from: j.stage as never, to: "cancelled" });
+  return { ok: true };
 }
