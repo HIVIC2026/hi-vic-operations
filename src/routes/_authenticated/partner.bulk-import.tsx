@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addBulkElectrician, bulkBatchReview, bulkElectricianChoices, bulkImportBusinesses, confirmBulkBatch, createBulkBatch, geocodeBulkPhotos, listBulkBatches, readBulkFile, setBulkReviewPlan, setBulkRowAddress } from "@/lib/bulk-import.functions";
