@@ -1,4 +1,3 @@
-import { dedupeAddress } from "./address";
 import { READY_CHECK_FEE } from "./readycheck.core";
 /** Pure customer outcome email renderers: no data access, delivery, or side effects. */
 import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE } from "./customer-quote-system";
@@ -301,7 +300,158 @@ function renderV2QuoteEmail(input: EstimateEmailInput, kind: "likely" | "onsite"
     qualifier,
     ...(address ? [`Property: ${address}`] : []),
     `Ceiling: ${number(area)} m²${input.areaIsTypical ? " (typical-home assumption)" : ""}`,
-    `Want to explore a different ceiling size? Open the calculator: ${PUBLIC_CALCULATOR_URL}`, "", "YOUR ESTIMATE", `Normal price: ${gross}`, `Your rebate: −${rebate}`, `You pay about: ${customer}`, basedOn, `Try a different size: ${calculatorUrl}`, "", "WHAT YOU GET", ...gets.map(([t, d]) => `✓ ${t} — ${d}`), "", nextTitle, ...(onsite ? [videoLine, "Only if you can do it safely. Please don’t climb into or walk through the roof space."] : [lowerText!]), `${action}: ${actionUrl}`, "No payment, no obligation.", "", changeNote, "", "Home Insulation Victoria", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.", footerReason, `Privacy: ${PRIVACY_URL}`, ...(myJob ? [`See my job: ${myJob}`] : []), `Remove my enquiry: ${unsubscribe}`, ...(input.reference?.trim() ? [`Reference: ${input.reference.trim()}`] : [])].join("\n");
+    `Want to explore a different ceiling size? Open the calculator: ${PUBLIC_CALCULATOR_URL}`, "", "WHAT THIS INCLUDES", ...rows.map(({ title, description, plain }) => `✓ ${title}${plain}
+${description}`),
+    ...(apCountText ? [`We’re one of only ${apCountText} Accredited Person${input.apCount === 1 ? "" : "s"} approved for VEU ceiling insulation in Victoria.`] : []), "",
+    "FREE INSULATION MEASURE-UP & ELIGIBILITY CHECK",
+    "Your installer measures the ceiling, assesses any existing insulation, confirms eligibility and prepares the job scope so we can confirm your quote.",
+    "Demand is high. Installer availability is limited.",
+    `Arrange my free measure-up & eligibility check: ${confirmTarget}`,
+    "Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.",
+    "No payment required. No obligation to proceed with installation.", "",
+    "WHAT COULD CHANGE THIS PRICE?",
+    ...changes.map((item) => `• ${item}`),
+    CUSTOMER_WHAT_COULD_CHANGE.closing, "",
+    ...v2FooterPlain(input.reference, referralUrl, "You’re receiving this because you requested an insulation estimate."),
+  ].join("\n");
+  return { subject, previewText, html, plainText };
+}
+
+export function renderIneligibleOutcomeEmail(input: IneligibleOutcomeEmailInput): EstimateEmail {
+  const referralUrl = validReferralUrl(input.referralUrl);
+  if (!referralUrl) throw new Error("A Home Insulation Victoria referral link is required.");
+  const reasons = cleanReasons(input.reasons);
+  const resultUrl = input.resultUrl ?? `${SITE}/homeowner`;
+  const parsedResultUrl = new URL(resultUrl);
+  const secureEstimateResult = parsedResultUrl.origin === BASE && /^\/estimate\/[A-Za-z0-9_-]+\/?$/.test(parsedResultUrl.pathname) && !parsedResultUrl.search && (!parsedResultUrl.hash || parsedResultUrl.hash === "#result");
+  const homeownerResult = parsedResultUrl.origin === SITE && parsedResultUrl.pathname === "/homeowner" && !parsedResultUrl.search && !parsedResultUrl.hash;
+  if (!secureEstimateResult && !homeownerResult) throw new Error("A secure Home Insulation Victoria result link is required.");
+  const subject = "Your ceiling insulation eligibility result";
+  const previewText = "Your preliminary eligibility result, and what to do if any details look wrong.";
+  const fallback = "Based on the details provided, the property doesn’t meet the current requirements for a VEU ceiling insulation rebate.";
+  const resultReasons = [...new Set(reasons.length ? reasons : [fallback])];
+  const intro = "Based on the information provided, this property doesn’t appear eligible for a VEU ceiling insulation rebate at this stage.";
+  const row = (content: string, pad: string) => `<tr><td class="lx-pad" style="padding:${pad};${F}">${content}</td></tr>`;
+  const hero = `<p style="margin:0 0 8px;${F}color:${TEXT_GREEN};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">Preliminary eligibility result</p><h1 class="lx-h1 hiv-hero-title" style="margin:0 0 14px;${FH}color:${INK};font-size:34px;line-height:39px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:0;">Your ceiling insulation eligibility result</h1><p class="lx-body" style="margin:0;${F}color:${INK};font-size:15px;line-height:1.6;">${escape(intro)}</p>`;
+  const found = `<table data-ineligible-found="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MIST}" style="width:100%;border-collapse:separate;background-color:${MIST};border-radius:18px;"><tr><td class="lx-result-pad" style="padding:20px 20px;${F}"><p style="margin:0 0 10px;${FH}color:${INK};font-size:17px;line-height:1.3;font-weight:800;">What we found</p>${resultReasons.map(neutralItem).join("")}<p style="margin:10px 0 0;padding-top:10px;border-top:1px solid ${LINE};${F}color:${INK};font-size:12.5px;line-height:1.5;">For eligible upgrades, we coordinate pre-vetted installers and electricians, compliance and the rebate paperwork.</p></td></tr></table>`;
+  const review = `<table data-ineligible-review="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUSH}" style="width:100%;border-collapse:separate;background-color:${BLUSH};border-radius:20px;"><tr><td style="padding:22px 22px;${F}"><h2 style="margin:0 0 12px;${FH}color:${INK};font-size:23px;line-height:1.2;font-weight:800;letter-spacing:0;">Something doesn’t look right?</h2><p class="lx-body" style="margin:0 0 14px;${F}color:${INK};font-size:14px;line-height:1.55;">If any details are incorrect, review your result or contact us so we can check them.</p>${v2Button(resultUrl, "Review my result →")}<p style="margin:10px 0 0;${F}color:${INK};font-size:13px;line-height:1.5;text-align:center;">Or <a href="${SITE}/contact" style="color:${BLUE};font-weight:800;text-decoration:underline;">contact us</a></p></td></tr></table>`;
+  const refer = `<p data-ineligible-referral="true" style="margin:0;${F}color:${INK};font-size:13.5px;line-height:1.55;text-align:center;">Know someone else thinking about ceiling insulation? They can check their own eligibility. <a href="${escape(referralUrl)}" style="color:${BLUE};font-weight:800;text-decoration:underline;white-space:nowrap;">Refer&nbsp;a&nbsp;friend&nbsp;→</a></p>`;
+  const reason = "You’re receiving this because you requested an eligibility check.";
+  const html = likelyV2Shell(`${row(v2Header("Eligibility result"), "22px 36px 18px")}${row(hero, "8px 36px 24px")}${row(found, "0 28px 18px")}${row(review, "0 28px 18px")}${row(refer, "4px 36px 24px")}${v2FooterRow(v2Footer(input.reference, referralUrl, reason))}`, previewText, null);
+  const plainText = [
+    subject, "", "Your ceiling insulation eligibility result", "", intro, "",
+    "WHAT WE FOUND", ...resultReasons.map((r) => `• ${r}`),
+    "For eligible upgrades, we coordinate pre-vetted installers and electricians, compliance and the rebate paperwork.", "",
+    "SOMETHING DOESN’T LOOK RIGHT?",
+    "If any details are incorrect, review your result or contact us so we can check them.",
+    `Review my result: ${resultUrl}`,
+    `Or contact us: ${SITE}/contact`, "",
+    "Know someone else thinking about ceiling insulation? They can check their own eligibility.",
+    `Refer a friend: ${referralUrl}`, "",
+    ...v2FooterPlain(input.reference, referralUrl, reason),
+  ].join("\n");
+  return { subject, previewText, html, plainText };
+}
+
+/** Shared approved theme kit for other customer emails (follow-ups, service updates). Read-only re-export; does not alter outcome emails. */
+export const V2_THEME = {
+  shell: likelyV2Shell, header: v2Header, button: v2Button, footer: v2Footer, footerPlain: v2FooterPlain, footerRow: v2FooterRow, neutralItem, savings: v2SavingsModule, whatCouldChange: v2WhatCouldChange,
+  F, FH, colors: { BLUE, GREEN, INK, TEXT_GREEN, MIST, MINT, BLUSH, LINE, WHITE }, site: SITE,
+} as const;
+
+export type LaunchCampaignEmailInput = {
+  group: "likely" | "onsite";
+  campaignUrl: string;
+  unsubscribeUrl: string;
+  firstName?: string | null;
+  estimatedTotal: number;
+  veuDiscount: number;
+  grossTotal: number;
+  areaM2: number;
+  address?: string | null;
+  reference?: string | null;
+  /** Declared existing insulation; drives the removal sentence. */
+  insulation?: string | null;
+  /** Cost breakdown (defaults: current $349 PIESA, $349 AP fee, installation = price before discount minus both; $70 per VEEC). */
+  installation?: number; assessmentFee?: number; apFee?: number; veecValue?: number;
+  /** Owner's no-login My job link (same token). Optional. */
+  myJobUrl?: string | null;
+  /** Office draft wording (preview only). Blank/missing = approved default. "{name}" = first name. */
+  copy?: Partial<Record<LaunchCopyField, string>> | null;
+};
+export const CAMPAIGN_H1_MAX_CHARS = 54;
+export type LaunchCopyField = "subject" | "previewText" | "headline" | "intro" | "video" | "nextTitle" | "urgency" | "button";
+
+/** Draft-only launch email. Jo-approved opening (6 Oct 2026): logo-green caps line, navy headline with green rebate, plain on white, big green button in the opening. */
+/** Origins campaign links may use: the live customer domain, plus the preview host for allowlisted TEST sends only. */
+export const CAMPAIGN_LINK_ORIGINS = [BASE] as const;
+
+/** Jo-approved final Save my spot email (6 Oct 2026). Group A and B share one structure. */
+export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): EstimateEmail {
+  // Same greens as the locked likely-eligible email: GREEN for amounts/buttons, TEXT_GREEN for small caps text.
+  const LOGO_GREEN = GREEN;
+  const origins: readonly string[] = CAMPAIGN_LINK_ORIGINS;
+  const campaign = new URL(input.campaignUrl);
+  if (!origins.includes(campaign.origin) || !/^\/estimate\/[A-Za-z0-9_-]{43,128}\/campaign$/.test(campaign.pathname) || campaign.search || campaign.hash) throw new Error("A secure Home Insulation Victoria campaign link is required.");
+  const unsubscribe = new URL(input.unsubscribeUrl);
+  if (!origins.includes(unsubscribe.origin) || !["/email/unsubscribe", "/api/public/unsubscribe"].includes(unsubscribe.pathname) || !isWellFormedToken(unsubscribe.searchParams.get("t"))) throw new Error("A secure unsubscribe link is required.");
+  const myJob = input.myJobUrl ? new URL(input.myJobUrl) : null;
+  if (myJob && (!origins.includes(myJob.origin) || !/^\/my-job\/[A-Za-z0-9_-]{43,128}$/.test(myJob.pathname))) throw new Error("A secure My job link is required.");
+  const amounts = [input.estimatedTotal, input.veuDiscount, input.grossTotal, input.areaM2];
+  if (!amounts.every((value) => Number.isFinite(value) && value > 0) || Math.abs(input.estimatedTotal + input.veuDiscount - input.grossTotal) > 0.01) throw new Error("Campaign email estimate values must be positive and reconcile.");
+  const onsite = input.group === "onsite";
+  const name = input.firstName?.trim().replace(/\s+/g, " ").slice(0, 60) || null;
+  const c = input.copy ?? {};
+  const fill = (v: string | undefined) => (v && v.trim() ? v.trim().replace(/\{name\}\s*/g, name ? `${name} ` : "").replace(/\s+([,!.])/g, "$1").replace(/^[,\s]+/, "").replace(/^./, (x) => x.toUpperCase()) : null);
+  const rebate = money(input.veuDiscount), customer = money(input.estimatedTotal), gross = money(input.grossTotal);
+  const address = input.address?.trim() || null;
+  const suburb = (() => { if (!address) return null; const parts = address.split(",").map((p) => p.trim()).filter(Boolean); return parts.length > 1 ? (parts[1] ?? "").replace(/\s+VIC\s+\d{4}$/i, "") || null : null; })();
+  const subject0 = onsite ? `${name ? `${name}, jump` : "Jump"} the queue for your ${rebate} rebate` : `Great news${name ? `, ${name}` : ""}! ${rebate} off your ceiling insulation 🎉`;
+  const previewText0 = onsite ? "One short manhole video moves you up the list." : "Save your spot in one tap. Installers are booking up fast.";
+  const subject = fill(c.subject) ?? subject0;
+  const previewText = fill(c.previewText) ?? previewText0;
+  const capsLine = onsite ? "Jump the queue" : "🎉 Your rebate is waiting";
+  const headlinePlain = `${name ? `${name}, take` : "Take"} ${rebate} off your ceiling insulation`;
+  const green = `<span style="color:${LOGO_GREEN};">${escape(rebate)}</span>`;
+  const headline = `${name ? `${escape(name)}, take` : "Take"} ${green} off your ceiling insulation`;
+  // Fits two lines at 390px on the likely-eligible h1 step (28px phone) up to ~54 characters (measured); longer names/amounts drop to the likely-eligible h2 step (23px).
+  const longHeadline = headlinePlain.length > CAMPAIGN_H1_MAX_CHARS;
+  const h1Style = longHeadline ? "font-size:23px;line-height:1.2;" : "font-size:34px;line-height:39px;mso-line-height-rule:exactly;";
+  const bodyPlain = `Your ${suburb ? `${suburb} ` : ""}home ${onsite ? "could be eligible" : "looks eligible"} for the Victorian Energy Upgrades rebate. That means you pay about ${customer} instead of ${gross}, and enjoy lower power bills for years to come.`;
+  const bodyLine = `Your ${suburb ? `${escape(suburb)} ` : ""}home ${onsite ? "could be eligible" : "looks eligible"} for the Victorian Energy Upgrades rebate. That means you pay about <strong>${escape(customer)}</strong> instead of ${escape(gross)}, and enjoy lower power bills for years to come.`;
+  const boldLine = onsite ? "Homes that send a quick manhole video get booked first." : "Hundreds of homes have enquired since 1 October. Spots go in order.";
+  const buttonText = fill(c.button) ?? (onsite ? "Send my video and jump the queue →" : "Save my spot →");
+  const videoUrl = new URL(campaign); videoUrl.pathname = videoUrl.pathname.replace(/\/campaign$/, "/video");
+  const actionUrl = onsite ? videoUrl.toString() : campaign.toString();
+  const underButton = onsite
+    ? `No video? <a href="${escape(campaign.toString())}" style="color:${BLUE};font-weight:700;">Just save my spot</a> · free, no obligation`
+    : "Free · no payment · no obligation";
+  const row = (content: string, pad: string) => `<tr><td class="lx-pad" style="padding:${pad};${F}">${content}</td></tr>`;
+  const hero = `<p style="margin:0 0 8px;${F}color:${TEXT_GREEN};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">${capsLine}</p><h1 class="${longHeadline ? "" : "lx-h1 "}hiv-hero-title" style="margin:0 0 14px;${FH}color:${INK};${h1Style}font-weight:800;letter-spacing:0;">${headline}</h1><p class="lx-body" style="margin:0 0 12px;${F}color:${INK};font-size:15px;line-height:1.6;">${bodyLine}</p><p style="margin:0 0 16px;${F}color:${INK};font-size:14px;line-height:1.5;font-weight:800;">${boldLine}</p>${V2_THEME.button(actionUrl, buttonText)}<p style="margin:10px 0 0;${F}font-size:13px;line-height:1.5;text-align:center;color:${INK};">${underButton}</p>`;
+  const calculatorUrl = new URL(campaign); calculatorUrl.pathname = calculatorUrl.pathname.replace(/\/campaign$/, "/calculator");
+  const removal = input.insulation === "none" ? "No old insulation removal needed." : "If old insulation needs removing, we'll confirm it at your Ready Check.";
+  const basedOn = `Based on ${address ? `${address} and ` : ""}a ${number(input.areaM2)} m² ceiling. ${removal}`;
+  const caps = (t: string) => `<p style="margin:0 0 10px;${F}color:${INK};font-size:11px;line-height:1.3;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">${t}</p>`;
+  const estRow = (label: string, value: string, style: string) => `<tr><td style="padding:6px 0;${F}color:${INK};font-size:14px;">${label}</td><td align="right" style="padding:6px 0;${F}${style}">${value}</td></tr>`;
+  const gets: [string, string][] = [["Free Ready Check", "We measure your roof space and confirm the job."], ["R5.0 ceiling insulation", "Supplied and fitted by a certified installer."], ["Electrical safety check", "By a licensed electrician, as the rules require."], ["Rebate paperwork, done for you", "We handle the forms and the claim."]];
+  const estimateCard = `<table data-campaign-estimate="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MIST}" style="width:100%;border-collapse:separate;background-color:${MIST};border-radius:20px;"><tr><td style="padding:22px 22px;${F}">${caps("Your estimate")}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">${estRow("Normal price", escape(gross), `color:${INK};font-size:14px;`)}${estRow("Your rebate", `−${escape(rebate)}`, `color:${LOGO_GREEN};font-size:14px;font-weight:800;`)}<tr><td style="padding:10px 0 4px;border-top:1px solid ${LINE};${F}color:${INK};font-size:14px;font-weight:800;">You pay about</td><td align="right" style="padding:10px 0 4px;border-top:1px solid ${LINE};${FH}color:${INK};font-size:34px;line-height:1.1;font-weight:800;">${escape(customer)}</td></tr></table><p style="margin:10px 0 18px;${F}color:#5A6785;font-size:12px;line-height:1.5;">${escape(basedOn)} <a href="${escape(calculatorUrl.toString())}" style="color:${BLUE};font-weight:700;">Try a different size →</a></p>${caps("What you get")}${gets.map(([t, d]) => `<p style="margin:0 0 8px;${F}color:${INK};font-size:13.5px;line-height:1.5;"><span style="color:${LOGO_GREEN};font-weight:800;">✓</span>&nbsp; <strong>${escape(t)}</strong> — ${escape(d)}</p>`).join("")}</td></tr></table>`;
+  const assessmentFee = input.assessmentFee ?? 349, apFeeAmt = input.apFee ?? 349, veecValue = input.veecValue ?? 70;
+  const installation = input.installation ?? input.grossTotal - assessmentFee - apFeeAmt;
+  const veecs = Math.round(input.veuDiscount / veecValue);
+  if (!(installation > 0) || Math.abs(installation + assessmentFee + apFeeAmt - input.grossTotal) > 0.01) throw new Error("Campaign email cost breakdown must add up to the price before discount.");
+  void estimateCard;
+  const savingsHtml = v2SavingsModule({ address, area: input.areaM2, discount: input.veuDiscount, customer: input.estimatedTotal, gross: input.grossTotal, rebateLabel: "Your estimated VEU rebate", costLabel: "Your estimated cost after rebate", qualifier: "Estimate only. Eligibility, measurements and final pricing confirmed after assessment.", hasBreakdown: true, installation, assessment: assessmentFee, apFee: apFeeAmt, calculatorUrl: calculatorUrl.toString(), ...(Math.abs(veecs * veecValue - input.veuDiscount) < 0.01 ? { totals: { veecs, veecValue } } : {}) }).html;
+  const videoLine = fill(c.video) ?? "Send us one short video from your manhole. It lets us check your existing insulation before we book you in, so nobody's time is wasted. Homes with a video get booked first.";
+  const nextTitle = fill(c.nextTitle) ?? (onsite ? "Want to jump the queue?" : "Hold your place in line");
+  const lowerText = onsite ? null : "One tap and you're in. We'll be in touch to book your free Ready Check as soon as an installer is free near you.";
+  const nextStep = `<table data-likely-next-step="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUSH}" style="width:100%;border-collapse:separate;background-color:${BLUSH};border-radius:20px;"><tr><td style="padding:22px 22px;${F}"><h2 style="margin:0 0 12px;${FH}color:${INK};font-size:23px;line-height:1.2;font-weight:800;letter-spacing:0;">${escape(nextTitle)}</h2>${onsite ? `<p class="lx-body" style="margin:0 0 12px;${F}color:${INK};font-size:14px;line-height:1.55;">${escape(videoLine)} <strong>Homes with a video get booked first.</strong></p><p style="margin:0 0 12px;${F}color:${INK};font-size:12px;line-height:1.5;">Only if you can do it safely. Please don’t climb into or walk through the roof space.</p>` : `<p class="lx-body" style="margin:0 0 12px;${F}color:${INK};font-size:14px;line-height:1.55;">${escape(lowerText!)}</p>`}${V2_THEME.button(actionUrl, buttonText)}${onsite ? `<p style="margin:12px 0 0;${F}font-size:13px;line-height:1.5;text-align:center;">Can’t do a video? No worries. <a href="${escape(campaign.toString())}" style="color:${BLUE};font-weight:700;">Just save my spot</a></p>` : ""}<p style="margin:10px 0 0;${F}font-size:13px;text-align:center;color:${INK};">No payment, no obligation.</p></td></tr></table>`;
+  const footerReason = "We’re the Accredited Person. Independent licensed trades carry out the work. This estimate is based only on your online enquiry; your final price is confirmed after your free onsite Ready Check.";
+  const link = (href: string, t: string) => `<a href="${escape(href)}" style="color:${BLUE};text-decoration:underline;">${t}</a>`;
+  const footerLinks = [link(`${PRIVACY_URL}`, "Privacy"), ...(myJob ? [link(myJob.toString(), "See my job")] : []), link(unsubscribe.toString(), "Remove my enquiry")].join("&nbsp;·&nbsp;");
+  const footer = `<p style="margin:0 0 5px;${F}color:${INK};font-size:14px;line-height:1.4;font-weight:800;text-align:center;">Home Insulation Victoria</p><p style="margin:0;${F}color:#5A6785;font-size:12px;line-height:1.5;text-align:center;">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.</p><p style="margin:5px 0 9px;${F}color:#5A6785;font-size:12px;line-height:1.5;text-align:center;">${escape(footerReason)}</p><p style="margin:0;${F}font-size:12px;line-height:1.5;text-align:center;">${footerLinks}</p>${input.reference?.trim() ? `<p style="margin:6px 0 0;${F}color:#5A6785;font-size:11px;text-align:center;">Reference: ${escape(input.reference.trim())}</p>` : ""}`;
+  const html = V2_THEME.shell(`${row(V2_THEME.header("Free estimate · no obligation", true), "22px 36px 18px")}${row(hero, "8px 36px 24px")}${row(savingsHtml, "0 28px 22px")}${row(nextStep, "0 28px 24px")}${V2_THEME.footerRow(footer)}`, previewText, null);
+  const action = buttonText.replace(/\s*→\s*$/, "");
+  const plainText = [subject, "", capsLine.toUpperCase(), headlinePlain, bodyPlain, boldLine, `${action}: ${actionUrl}`, onsite ? `No video? Just save my spot: ${campaign}` : "Free · no payment · no obligation", "", "WHAT THIS INCLUDES", "✓ Free Insulation Measure-Up & Eligibility Check: FREE", `✓ R5.0 ceiling insulation — supply & install: ${money(installation)}`, `✓ Electrical safety assessment (PIESA): ${money(assessmentFee)}`, `✓ Accredited Person (AP) management: ${money(apFeeAmt)}`, `Price before discount: ${gross}`, `VEU discount (${veecs} VEECs × ${money(veecValue)}): −${rebate}`, `You pay about: ${customer}`, "Estimate only. Eligibility, measurements and final pricing confirmed after assessment.", `Try a different size: ${calculatorUrl}`, "", nextTitle, ...(onsite ? [videoLine, "Only if you can do it safely. Please don’t climb into or walk through the roof space."] : [lowerText!]), `${action}: ${actionUrl}`, "No payment, no obligation.", "", "Home Insulation Victoria", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.", footerReason, `Privacy: ${PRIVACY_URL}`, ...(myJob ? [`See my job: ${myJob}`] : []), `Remove my enquiry: ${unsubscribe}`, ...(input.reference?.trim() ? [`Reference: ${input.reference.trim()}`] : [])].join("\n");
   return { subject, previewText, html, plainText };
 }
 
