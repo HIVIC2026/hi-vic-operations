@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, LogOut, Search } from "lucide-react";
 import { getNeedsMe, getJobRightNow, searchOffice } from "@/lib/office.functions";
+import { needsMeTotal } from "@/lib/needs-me.core";
 import { ENQUIRY_TABS, SECTION_TABS, isEnquiryPage, sectionFor, tabActive, type OfficeSection, type OfficeTab } from "@/lib/office-nav";
 import { OFFICE_STAGES, timeLeft } from "@/lib/office-status.core";
 import { aud } from "@/lib/workflow";
