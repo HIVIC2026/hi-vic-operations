@@ -132,3 +132,4 @@ Locked rules:
 - "Today" and date-only defaults always come from `melbourneToday()` in `src/lib/melbourne-time.core.ts`; never `toISOString().slice(0,10)`. Why: UTC dates are a day behind Melbourne every morning.
 - A delivery error that is not a definite provider refusal (`DeliveryRejectedError`) is recorded as `delivered_unrecorded` (sent-unknown) and never retried automatically. Why: timeouts after acceptance would send twice.
 - Partner rate-offer links expire after 14 days and acceptance needs an office-issued 6-digit code + tick + typed name. Why: signing parity with owner forms while partner sending is off.
+- Customer estimate follow-ups have one active template only: the unopened three-day reminder; engaged customers, all seven-day slots, and both retired legacy kinds are suppressed before delivery. Why: withdrawn reminders must never reach customers while historical rows remain auditable.
