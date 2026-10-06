@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, WorkflowError } from "./workflow.server";
 import { approvalFlags, buildPartnerProfile } from "./partner-profile.core";
+import { melbourneToday } from "@/lib/melbourne-time.core";
 
 const uuid = z.string().uuid();
 
@@ -15,7 +16,7 @@ export const getPartnerProfilePreview = createServerFn({ method: "POST" }).middl
     const { loadProfileInputs } = await import("./partner-profile.server");
     const inputs = await loadProfileInputs(admin, data.applicationId);
     const profile = buildPartnerProfile(inputs.meta, inputs.data, inputs.cii, inputs.existingCapabilities);
-    return { profile, flags: approvalFlags(profile, inputs.peers, new Date().toISOString().slice(0, 10)), isTest: inputs.isTest, existingBusinessId: inputs.existingBusinessId, activatedBusinessId: inputs.activatedBusinessId, approvalMessage: inputs.approvalMessage };
+    return { profile, flags: approvalFlags(profile, inputs.peers, melbourneToday()), isTest: inputs.isTest, existingBusinessId: inputs.existingBusinessId, activatedBusinessId: inputs.activatedBusinessId, approvalMessage: inputs.approvalMessage };
   });
 
 export const markApplicationTest = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

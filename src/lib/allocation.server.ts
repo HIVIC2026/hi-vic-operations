@@ -11,6 +11,7 @@ import {
   nextOfferBatch, offerExpiryBusinessHours, piesaOfferBlockers, rankRecCandidates, recEligibilityBlocker, type RecCandidate, type VisitKind,
 } from "./allocation.core";
 import { melbourneYmd } from "./piesa-windows.core";
+import { melbourneToday } from "@/lib/melbourne-time.core";
 
 const NONE = ["00000000-0000-0000-0000-000000000000"];
 
@@ -114,7 +115,7 @@ async function agreedElectricianRates(businessIds: string[], kind: "piesa" | "re
   const { data, error } = await (admin as unknown as { from: (t: string) => any }).from("electrician_rates") // eslint-disable-line @typescript-eslint/no-explicit-any
     .select("id, business_id, service_type, rate_inc_gst, status, effective_from, effective_to").eq("status", "active").eq("service_type", service).in("business_id", businessIds);
   if (error) return out;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = melbourneToday();
   for (const b of businessIds) {
     const r = selectAgreedRate(data ?? [], b, service, today);
     if (r) out.set(b, { id: r.id, rate: Number(r.rate_inc_gst) });

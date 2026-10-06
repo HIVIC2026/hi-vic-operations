@@ -1,3 +1,4 @@
+import { melbourneToday } from "./melbourne-time.core";
 // Pure rules for the portal REC (electrician) onboarding + partner agreement signing.
 // No I/O. Used by the public form (live validation) and the server (authoritative checks).
 import { REC_AGREEMENT_SECTIONS } from "./rec-agreement.text";

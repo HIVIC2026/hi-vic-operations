@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerCodeGate, SignerFields, Tick, signBtn } from "@/components/owner/OwnerSign";
 import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerChooseInstallDaysFn, ownerChoosePiesaFn, ownerSignConsentFn } from "@/lib/owner-link.functions";
+import { melbourneToday } from "@/lib/melbourne-time.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 export const Route = createFileRoute("/my-job/$token")({
@@ -301,7 +302,7 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
 }
 
 function BookScreen({ v, token }: { v: View; token: string }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = melbourneToday();
   return <>
     <Back token={token} />
     <Hero v={v} level={HOUSE_LEVEL.book_visits} size="sm" headline={ownerHeadline("booking_visits", v.numbers.rebate)} />

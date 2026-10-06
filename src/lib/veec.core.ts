@@ -1,3 +1,4 @@
+import { melbourneToday } from "./melbourne-time.core";
 // Pure VEEC lodgement rules. No I/O. Used by updateVeec and stageEntryBlockers("complete").
 export type VeecStatus = "not_submitted" | "submitted" | "query" | "approved" | "rejected";
 export interface VeecRecord {

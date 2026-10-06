@@ -22,6 +22,7 @@ import { sweepAuthorityExpiry } from "./authority.server";
 import { requireMittiAccess } from "./mitti-membership.server";
 import { mittiAssignBlocker, mittiOverrideAccepted } from "./mitti-membership.core";
 import { signFile } from "./file-links.server";
+import { melbourneToday } from "@/lib/melbourne-time.core";
 
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
 
@@ -1054,7 +1055,7 @@ export const markVeecReplySent = createServerFn({ method: "POST" }).middleware([
     await requireAdmin(context.supabase);
     const { data: v } = await admin.from("veec_lodgements").select("status").eq("job_id", data.jobId).maybeSingle();
     if (v?.status !== "query") throw new WorkflowError("This lodgement is not in Registry query.");
-    if (data.sentDate > new Date().toISOString().slice(0, 10)) throw new WorkflowError("Reply sent date cannot be in the future.");
+    if (data.sentDate > melbourneToday()) throw new WorkflowError("Reply sent date cannot be in the future.");
     await admin.from("veec_lodgements").update({ reply_draft: data.replyDraft, reply_sent_at: data.sentDate, reply_sent_by: context.userId, updated_at: new Date().toISOString() }).eq("job_id", data.jobId);
     await logEvent(data.jobId, context.userId, "veec_reply_sent", "Registry query reply sent (recorded by office)", { sent_date: data.sentDate }, { internal: true });
     return { ok: true };
@@ -1519,7 +1520,7 @@ export const solarSmokeTest = createServerFn({ method: "POST" }).middleware([req
     const { gatherEvidence, defaultFetchJson } = await import("./intelligence.gather");
     const { defaultProviderHttp } = await import("./providers.gather");
     const g = await gatherEvidence({ addressLine: p.address_line, suburb: p.suburb, postcode: p.postcode, state: p.state, ownerEstimateM2: null, partnerMeasurement: null, provider: null,
-      providers: { cfg: { pricefinder: null, solarKey: key, nearmapKey: null, vicmapBuildings: null }, http: defaultProviderHttp, referenceDate: new Date().toISOString().slice(0, 10) } }, defaultFetchJson);
+      providers: { cfg: { pricefinder: null, solarKey: key, nearmapKey: null, vicmapBuildings: null }, http: defaultProviderHttp, referenceDate: melbourneToday() } }, defaultFetchJson);
     const c = g.checks.find((x) => x.source_key === "google_solar");
     return { configured: true, status: c?.status ?? "unknown", detail: c?.error ?? null, http_status: c?.http_status ?? null, latency_ms: c?.latency_ms ?? null,
       summary: (() => { const v = g.facts.find((f) => f.key === "solar_summary")?.value; return v ? JSON.stringify(v) : null; })() };
@@ -1624,7 +1625,7 @@ export const recordComplianceItem = createServerFn({ method: "POST" }).middlewar
   .inputValidator((d) => z.object({ jobId: uuid, key: z.enum(RECORD_KEYS), occurredAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), reference: z.string().trim().max(200).nullable(), notes: z.string().trim().max(1000).nullable() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    if (data.occurredAt > new Date().toISOString().slice(0, 10)) throw new WorkflowError("Date cannot be in the future.");
+    if (data.occurredAt > melbourneToday()) throw new WorkflowError("Date cannot be in the future.");
     const { error } = await admin.from("job_compliance_records").insert({ job_id: data.jobId, record_key: data.key, occurred_at: `${data.occurredAt}T00:00:00Z`, reference: data.reference, notes: data.notes, recorded_by: context.userId });
     if (error) throw new Error(error.message);
     await logEvent(data.jobId, context.userId, "compliance_record", `Recorded: ${data.key.replace(/_/g, " ")}`, data, { internal: true });
