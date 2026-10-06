@@ -162,3 +162,28 @@ export async function verifyAndPromote(db: Db, folder: string, appId: string, pa
   await db.rpc("finish_quarantine_validation", { _path: path, _app: appId, _accepted: true, _bytes: size });
   return { finalPath, mime: INSURANCE_MIME[verdict.type], updated_at: String(updated.updated_at) };
 }
+
+/** Same verification as the insurance certificate, for a per-worker document (e.g. PIISA). Caller records the path. */
+export async function verifyAndStoreDoc(db: Db, folder: string, appId: string, path: string, claimedMime: string, label: string) {
+  if (!isOwnQuarantinePath(path, folder, appId)) throw new Error("Invalid upload.");
+  const { data: claimed, error: claimError } = await db.rpc("begin_quarantine_validation", { _path: path, _app: appId });
+  if (claimError || claimed !== true) throw new Error("This upload has expired or was already checked. Please upload the file again.");
+  const bucket = db.storage.from(BUCKET);
+  let size = 0;
+  const reject = async (msg: string): Promise<never> => {
+    await db.rpc("finish_quarantine_validation", { _path: path, _app: appId, _accepted: false, _bytes: size });
+    await cleanupQuarantine(db, "rejected", { app: appId });
+    throw new Error(msg);
+  };
+  const { data: blob } = await bucket.download(path);
+  if (!blob) return reject("Upload not found. Please try again.");
+  const bytes = new Uint8Array(await (blob as Blob).arrayBuffer());
+  size = bytes.length;
+  const verdict = verifyInsuranceBytes(bytes, claimedMime);
+  if (!verdict.ok) return reject(verdict.reason);
+  const finalPath = `${folder}/${appId}/${label}-${crypto.randomUUID()}.${verdict.type}`;
+  const { error: moveError } = await bucket.move(path, finalPath);
+  if (moveError) return reject("Could not store the certificate. Please try again.");
+  await db.rpc("finish_quarantine_validation", { _path: path, _app: appId, _accepted: true, _bytes: size });
+  return { finalPath };
+}
