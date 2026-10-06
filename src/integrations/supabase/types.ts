@@ -7495,10 +7495,16 @@ export type Database = {
           email: string
           full_legal_name: string
           id: string
+          licence_expires_on: string | null
           licence_number: string | null
           linked_at: string | null
           linked_by: string | null
           mobile: string | null
+          piisa_certificate_path: string | null
+          piisa_completed_on: string | null
+          piisa_status: string | null
+          piisa_verified_at: string | null
+          piisa_verified_by: string | null
           profile_id: string | null
           qualification: string | null
           rejection_reason: string | null
@@ -7520,10 +7526,16 @@ export type Database = {
           email: string
           full_legal_name: string
           id?: string
+          licence_expires_on?: string | null
           licence_number?: string | null
           linked_at?: string | null
           linked_by?: string | null
           mobile?: string | null
+          piisa_certificate_path?: string | null
+          piisa_completed_on?: string | null
+          piisa_status?: string | null
+          piisa_verified_at?: string | null
+          piisa_verified_by?: string | null
           profile_id?: string | null
           qualification?: string | null
           rejection_reason?: string | null
@@ -7545,10 +7557,16 @@ export type Database = {
           email?: string
           full_legal_name?: string
           id?: string
+          licence_expires_on?: string | null
           licence_number?: string | null
           linked_at?: string | null
           linked_by?: string | null
           mobile?: string | null
+          piisa_certificate_path?: string | null
+          piisa_completed_on?: string | null
+          piisa_status?: string | null
+          piisa_verified_at?: string | null
+          piisa_verified_by?: string | null
           profile_id?: string | null
           qualification?: string | null
           rejection_reason?: string | null
