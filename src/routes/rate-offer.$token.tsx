@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
 import { acceptRateOffer, declineRateOffer, loadRateOffer } from "@/lib/rate-offer.functions";
 
 export const Route = createFileRoute("/rate-offer/$token")({
@@ -32,7 +33,7 @@ function RateOfferPage() {
   const act = async (fn: () => Promise<unknown>) => { setBusy(true); setErr(null); try { await fn(); await q.refetch(); setMode("view"); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
   return (
     <main className="mx-auto max-w-xl space-y-5 bg-background px-4 py-8">
-      <img src="/hiv-logo.png" alt="Home Insulation Victoria" className="h-10" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+      <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-10 w-auto" />
       <h1 className="font-display text-3xl font-extrabold text-foreground">Review our rate offer</h1>
       {q.isLoading && <p className="text-muted-foreground">Loading…</p>}
       {q.error && <p className="text-destructive">{(q.error as Error).message}</p>}
