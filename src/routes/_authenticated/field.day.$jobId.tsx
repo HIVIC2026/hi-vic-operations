@@ -27,7 +27,7 @@ function DayPage() {
   if (error) return <TradeShell installer={installer}><p role="alert" className={card}>{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading your day…</p></TradeShell>;
   const t = data.start ? dayTile(data.start) : null;
-  const isToday = data.start ? new Date(data.start).toDateString() === new Date().toDateString() : false;
+  const isToday = data.start ? dayTile(data.start).day === dayTile(new Date().toISOString()).day : false;
   const pill = data.kind === "install" ? `Install ${isToday ? "today" : t?.day ?? ""} · ${t?.window ?? ""}` : `${isToday ? "Today" : t?.day ?? ""} · ${t?.window ?? ""}`;
   const o = data.outcome;
   const back = <Link to="/field" className={ghostBtn}>Back to my work</Link>;
