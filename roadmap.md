@@ -34,7 +34,7 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [ ] Tidy done: staged-migrations archived, /qa-access same-site, existingPortalKeys paged, quote AP-fee override. Open: separate file-signing secret (needs new secret), calculator-interest rate limit + video upload limits (DB change), allocation-tick review, retired Owner Authority/simulateReadyCheckPayment removal, b64 copies, split portal.functions.ts, docs/pending-migrations archive
 
 ## Second review (Jo, 6 Oct) — in order, tests after each
-- [x] A Upload file types: bucket allow-lists, signature checks, safe file serving, CSP sandbox, report unsafe stored files
+- [ ] A (bucket type limits NOT applied — SQL ready in docs/pending-migrations/review-A-*; rest done) Upload file types: bucket allow-lists, signature checks, safe file serving, CSP sandbox, report unsafe stored files
 - [x] B Accepted offer contact details need active assignment
 - [x] C Trades never read customer quote prices
 - [x] D Trade access: Money boss-only, workers own jobs, removal deactivates membership
