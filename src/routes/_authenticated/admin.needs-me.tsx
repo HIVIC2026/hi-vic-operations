@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getNeedsMe, snoozeNeedsItem } from "@/lib/office.functions";
 import { sendOfferToAll } from "@/lib/trade-choice.functions";
-import { RULE_LABEL, type NeedsItem } from "@/lib/needs-me.core";
+import { RULE_LABEL, needsMeTotal, type NeedsItem } from "@/lib/needs-me.core";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/admin/needs-me")({
@@ -48,7 +48,7 @@ function Row({ it, includeTest }: { it: NeedsItem; includeTest: boolean }) {
         </div>
         <div className="flex shrink-0 gap-2 [&>*]:flex-1 sm:[&>*]:flex-none">
           {it.jobId && it.choiceKind && <Button size="sm" variant="outline" onClick={() => void widen()}>Send to all</Button>}
-          {it.jobId ? <Button asChild size="sm"><Link to="/admin/jobs/$jobId" params={{ jobId: it.jobId }} {...(it.choiceKind ? { hash: "choose-trade" } : {})}>{it.action}</Link></Button> : it.href === "/admin/businesses" ? <Button asChild size="sm"><Link to="/admin/businesses">{it.action}</Link></Button> : <Button asChild size="sm"><Link to="/admin/partners" search={{ enquiry: undefined }}>{it.action}</Link></Button>}
+          {it.jobId ? <Button asChild size="sm"><Link to="/admin/jobs/$jobId" params={{ jobId: it.jobId }} {...(it.choiceKind ? { hash: "choose-trade" } : {})}>{it.action}</Link></Button> : it.href === "/admin/hot-leads" ? <Button asChild size="sm"><Link to="/admin/hot-leads">{it.action}</Link></Button> : it.href === "/admin/pipeline" ? <Button asChild size="sm"><Link to="/admin/pipeline">{it.action}</Link></Button> : it.href === "/admin/businesses" ? <Button asChild size="sm"><Link to="/admin/businesses">{it.action}</Link></Button> : <Button asChild size="sm"><Link to="/admin/partners" search={{ enquiry: undefined }}>{it.action}</Link></Button>}
           {it.jobId && <Button size="sm" variant="outline" onClick={() => void later()}>Later</Button>}
         </div>
       </div>
@@ -70,7 +70,7 @@ function NeedsMe() {
   return (
     <AppShell>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-        <div><h1 className="font-display text-3xl font-extrabold">Needs me</h1><p className="text-sm text-muted-foreground">Most urgent first. Every row says why it's here.</p></div>
+        <div><h1 className="font-display text-3xl font-extrabold">Needs me</h1><p className="text-sm text-muted-foreground">{data ? `${needsMeTotal(data.items)} need you. ` : ""}Most urgent first. Every row says why it's here.</p></div>
         <Link to="/admin/needs-me" search={includeTest ? {} : { test: true }} className="text-sm font-semibold text-primary underline">{includeTest ? "Hide TEST jobs" : "Include TEST jobs"}</Link>
       </div>
       {error ? <div role="alert" className="rounded-[22px] border border-danger/40 bg-danger-soft p-4 text-sm text-danger">Needs me couldn't load — this does NOT mean nothing needs you. {(error as Error).message} <button className="font-semibold underline" onClick={() => void refetch()}>Try again</button></div>

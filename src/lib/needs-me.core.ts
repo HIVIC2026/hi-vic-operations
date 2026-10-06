@@ -27,6 +27,8 @@ export type NeedsItem = {
   dueAt: string | null; timeLeft: string | null; urgency: number; action: string; href: string | null; snoozeCount: number;
   /** Set when the office's chosen trade didn't take the offer: show "Pick another" + "Send to all". */
   choiceKind?: "ready_check" | "piesa" | "rectification";
+  /** Grouped row: how many enquiries it stands for (waiting-list enquiries are summarised, not listed one by one). */
+  count?: number;
 };
 
 const DAY = 86_400_000;
@@ -37,8 +39,9 @@ export function buildNeedsMe(i: { now: number; jobs: NeedsJob[]; partners: Partn
   const snooze = new Map(i.snoozes.map((s) => [`${s.jobId}:${s.ruleKey}`, s]));
   const items: NeedsItem[] = [];
   let onTrack = 0;
+  const waiting = new Map<string, number>();
   for (const j of i.jobs) {
-    if (j.parked) continue;
+    if (j.parked) { const k = j.status?.key ?? "waiting_list.needs_estimate"; waiting.set(k, (waiting.get(k) ?? 0) + 1); continue; }
     const s = j.status;
     const reasons: { rule: NeedsRule; why: string; urgency: number; action?: string }[] = [];
     if (!isMappedStage(j.stage) || !s || j.statusCount !== 1) reasons.push({ rule: "i_nothing_lost", why: !s ? `Stage "${j.stage}" has no status rule` : `Matched ${j.statusCount} statuses`, urgency: 100, action: "Fix status" });
@@ -84,8 +87,16 @@ export function buildNeedsMe(i: { now: number; jobs: NeedsJob[]; partners: Partn
     if (sn && new Date(sn.until).getTime() > now) continue;
     items.push({ key: `partner:${p.key}`, jobId: null, jobNumber: null, suburb: null, what: p.title, why: (sn ? "Back from Later · " : "") + p.why, rule: "j_partner", dueAt: p.dueAt, timeLeft: timeLeft(p.dueAt, now), urgency: 40, action: "Review", href: p.href, snoozeCount: sn?.count ?? 0 });
   }
+  const ready = waiting.get("waiting_list.ready_to_send") ?? 0, noEst = waiting.get("waiting_list.needs_estimate") ?? 0;
+  if (ready) items.push({ key: "waiting:ready_to_send", jobId: null, jobNumber: null, suburb: null, what: `${ready} enquir${ready === 1 ? "y" : "ies"} not contacted yet — estimate ready to send`, why: "Each one needs the Save my spot email from you before anything else can happen.", rule: "a_waiting_on_us", dueAt: null, timeLeft: null, urgency: 58, action: "Open Hot leads", href: "/admin/hot-leads", snoozeCount: 0, count: ready });
+  if (noEst) items.push({ key: "waiting:needs_estimate", jobId: null, jobNumber: null, suburb: null, what: `${noEst} enquir${noEst === 1 ? "y" : "ies"} not contacted yet — no estimate yet`, why: "Each one needs an estimate checked and sent by you.", rule: "a_waiting_on_us", dueAt: null, timeLeft: null, urgency: 57, action: "Open Pipeline", href: "/admin/pipeline", snoozeCount: 0, count: noEst });
   items.sort((a, b) => b.urgency - a.urgency || (a.dueAt ?? "9").localeCompare(b.dueAt ?? "9"));
   return { items, onTrack };
+}
+
+/** Badge number: every enquiry or item that needs the office (grouped rows count each enquiry they stand for). */
+export function needsMeTotal(items: Pick<NeedsItem, "count">[]) {
+  return items.reduce((n, it) => n + (it.count ?? 1), 0);
 }
 
 /** "Later" = tomorrow 7am Melbourne (approximated as 7am AEST/AEDT via UTC offset of the next day). */
