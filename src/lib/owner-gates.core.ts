@@ -13,7 +13,7 @@ export type GateDocKey =
   | "cooling_off_notice" | "payment_terms" | "veec_assignment_consent"
   | "life_support_plan" | "piesa_owner_declaration";
 
-export type GateDoc = { key: GateDocKey; gate: Gate; title: string; version: string; body: string; signer: "owner" | "office"; tick: string };
+export type GateDoc = { key: GateDocKey; gate: Gate; title: string; version: string; body: string; signer: "owner" | "office"; tick: string; draftNote?: string };
 
 const DRAFT = "DRAFT — wording pending Jo's approval. Not for use on real jobs.";
 
