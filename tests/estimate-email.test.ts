@@ -6,9 +6,9 @@ const CUSTOMER_VISUAL_SYSTEM_BORDER = "border:1px solid #D4DAF5";
 import { CUSTOMER_BRAND, CUSTOMER_EXISTING_INSULATION_NOTE, CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_QUOTE_ORDER, CUSTOMER_WHAT_COULD_CHANGE } from "../src/lib/customer-quote-system";
 
 const token = "A".repeat(43);
-const estimateUrl = `https://quote.homeinsulationvictoria.com.au/estimate/${token}`;
+const estimateUrl = `https://estimate.homeinsulationvictoria.com.au/estimate/${token}`;
 const referralUrl = `https://homeinsulationvictoria.com.au/homeowner?ref=${token}`;
-const unsubscribeUrl = `https://quote.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${token}`;
+const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${token}`;
 const common = { estimateUrl, estimatedTotal: 3396, veuDiscount: 1325, areaM2: 134.1, referralUrl, reference: "HV-1001" };
 const detailed = { ...common, estimatedTotal: 3747, installationPrice: 4023, assessmentFee: 349, apFee: 700, grossProjectTotal: 5072, amountPayableNow: 0, estimatedRemainingBalance: 3747 };
 
@@ -34,7 +34,7 @@ describe("customer outcome email renderers", () => {
   });
 
   test("likely eligible fallbacks: typical area, no name, no address, tracked CTA", () => {
-    const tracked = `https://quote.homeinsulationvictoria.com.au/t/e/${"T".repeat(43)}`;
+    const tracked = `https://estimate.homeinsulationvictoria.com.au/t/e/${"T".repeat(43)}`;
     const e = renderEstimateEmail({ ...common, outcome: "likely", areaIsTypical: true, trackingClickUrl: tracked });
     expect(e.html).toContain("Good news — based on what you’ve told us, your home looks likely to qualify for a VEU ceiling insulation rebate.");
     expect(e.html).not.toContain("Property:");
@@ -196,8 +196,8 @@ d2("copy normalisation", () => {
 });
 
 describe("launch campaign email drafts", () => {
-  const campaignUrl = `https://quote.homeinsulationvictoria.com.au/estimate/${token}/campaign`;
-  const unsubscribeUrl = `https://quote.homeinsulationvictoria.com.au/email/unsubscribe?t=${token}`;
+  const campaignUrl = `https://estimate.homeinsulationvictoria.com.au/estimate/${token}/campaign`;
+  const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${token}`;
 
   test("Group A uses the approved opening and save-my-spot card", () => {
     const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350" });
@@ -222,7 +222,7 @@ describe("launch campaign email drafts", () => {
     expect(email.html).not.toContain("Open Sans");
     expect(email.html).not.toMatch(/box-shadow:\s*[45]px\s+[45]px\s+0/i);
     expect(email.plainText).toContain(`Remove my enquiry: ${unsubscribeUrl}`);
-    expect(email.plainText).toContain("Open the calculator: https://quote.homeinsulationvictoria.com.au/estimate/");
+    expect(email.plainText).toContain("Open the calculator: https://estimate.homeinsulationvictoria.com.au/estimate/");
   });
 
   test("Group B uses the approved jump-the-queue opening", () => {

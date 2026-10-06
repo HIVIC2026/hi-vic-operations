@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { editHotLeadEmail, getHotLeads, sendHotLeadsBatch } from "@/lib/hot-leads.functions";
+import { editHotLeadEmail, getHotLeads, getPossibleDuplicates, sendHotLeadsBatch } from "@/lib/hot-leads.functions";
 import { HOT_STATUS_LABEL, hotSelectionBlocker } from "@/lib/hot-leads.core";
 
 const title = "Hot leads – Home Insulation Victoria Operations";
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authenticated/admin/hot-leads")({
   component: HotLeadsPage,
 });
 
-type ListKey = "likely" | "warm" | "test";
+type ListKey = "likely" | "warm" | "test" | "dupes";
 const money = (n: number | null) => n === null ? "—" : new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(Math.floor(n));
 const when = (s: string | null) => s ? new Date(s).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
 type Row = Awaited<ReturnType<typeof getHotLeads>>["list"][number];
@@ -27,7 +27,7 @@ function HotLeadsPage() {
   const load = useServerFn(getHotLeads);
   const send = useServerFn(sendHotLeadsBatch);
   const qc = useQueryClient();
-  const { data, isPending, error } = useQuery({ queryKey: ["hot-leads", tab], queryFn: () => load({ data: { list: tab } }), refetchInterval: 15000 });
+  const { data, isPending, error } = useQuery({ queryKey: ["hot-leads", tab], queryFn: () => load({ data: { list: tab === "dupes" ? "likely" : tab } }), refetchInterval: 15000, enabled: tab !== "dupes" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -77,10 +77,10 @@ function HotLeadsPage() {
 
   return <AppShell wide><div className="space-y-4">
     <h1 className="font-display text-2xl font-bold">Hot leads</h1>
-    <div className="flex flex-wrap gap-2" role="tablist">{([["likely", "Hot"], ["warm", "Warm"], ["test", "TEST (Jo only)"]] as const).map(([k, l]) => <Button key={k} role="tab" aria-selected={tab === k} variant={tab === k ? "default" : "outline"} onClick={() => { setTab(k); setProgress(null); }}>{l}</Button>)}</div>
+    <div className="flex flex-wrap gap-2" role="tablist">{([["likely", "Hot"], ["warm", "Warm"], ["test", "TEST (Jo only)"], ["dupes", "Possible duplicates"]] as const).map(([k, l]) => <Button key={k} role="tab" aria-selected={tab === k} variant={tab === k ? "default" : "outline"} onClick={() => { setTab(k); setProgress(null); }}>{l}</Button>)}</div>
     {tab === "warm" && <p className="text-sm text-muted-foreground">Needs onsite confirmation, no insulation, owner-entered area. Nothing is ticked; the Save my spot email isn't approved for these homes yet.</p>}
     {tab === "test" && <p className="text-sm text-muted-foreground">TEST jobs only. Emails go to Jo's test inbox and nobody else.</p>}
-    {isPending ? <p role="status">Loading leads…</p> : error ? <p role="alert" className="text-destructive">Could not load leads: {(error as Error).message}</p> : data && <>
+    {tab === "dupes" ? <Duplicates /> : isPending ? <p role="status">Loading leads…</p> : error ? <p role="alert" className="text-destructive">Could not load leads: {(error as Error).message}</p> : data && <>
       <div className="flex flex-wrap gap-3 text-sm"><strong>{rows.length} leads</strong>{tab !== "test" && <><span>Ready to send {ready.length}</span><span>Held {hold.length}</span><span>{data.duplicates} duplicate records hidden</span></>}</div>
       {tab === "likely" && <div className="flex flex-wrap gap-2">{counts.map(([region, n]) => <span key={region} className="rounded-full border px-3 py-1 text-sm">{region} {n}</span>)}</div>}
       <div className="sticky top-0 z-10 rounded-2xl border bg-card p-4">
@@ -109,4 +109,15 @@ function EditEmail({ row, onClose }: { row: Row; onClose: () => void }) {
     {err && <p className="text-sm text-destructive">{err}</p>}
     <Button onClick={async () => { try { await save({ data: { jobId: row.id, email, reason } }); onClose(); } catch (e) { setErr((e as Error).message); } }}>Save email</Button>
   </DialogContent></Dialog>;
+}
+
+function Duplicates() {
+  const load = useServerFn(getPossibleDuplicates);
+  const { data, isPending, error } = useQuery({ queryKey: ["possible-duplicates"], queryFn: () => load() });
+  if (isPending) return <p role="status">Looking for duplicates…</p>;
+  if (error) return <p role="alert" className="text-destructive">Could not check duplicates: {(error as Error).message}</p>;
+  return <section><p className="text-sm text-muted-foreground">Same owner (email or mobile) and same address on more than one open job. Nothing is merged or deleted — Jo decides. The newest is shown first.</p>
+    <p className="mt-2 font-semibold">{data.length} possible duplicate groups</p>
+    <div className="mt-3 space-y-3">{data.map((g) => <div key={g.jobs[0]!.id} className="rounded-2xl border bg-card p-4 text-sm"><div className="font-semibold">{g.jobs[0]!.name} · {g.jobs[0]!.address}</div>
+      <ul className="mt-2 space-y-1">{g.jobs.map((j, i) => <li key={j.id}><Link to="/admin/jobs/$jobId" params={{ jobId: j.id }} className="font-semibold text-primary underline">{j.jobNumber}</Link> · {new Date(j.createdAt).toLocaleDateString("en-AU")} · {j.stage.replace(/_/g, " ")} {i === 0 ? "· newest" : ""}</li>)}</ul></div>)}</div></section>;
 }

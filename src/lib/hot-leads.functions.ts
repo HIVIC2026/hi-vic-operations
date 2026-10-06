@@ -26,3 +26,10 @@ export const editHotLeadEmail = createServerFn({ method: "POST" }).middleware([r
     await requireAdmin(context.supabase);
     return (await import("./hot-leads-send.server")).updateHotLeadEmail(data.jobId, data.email, data.reason, context.userId);
   });
+
+export const getPossibleDuplicates = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    return (await import("./hot-leads.server")).loadPossibleDuplicates();
+  });

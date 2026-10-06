@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { renderSpotSavedEmail, renderSpotSavedSms, addressBits } from "../src/lib/spot-saved-messages.core";
 import { readFileSync } from "node:fs";
-const i = { firstName: "Sarah", rebate: 1470.6, suburb: "Ballarat", shortAddress: "12 Smith St, Ballarat", myJobUrl: "https://quote.homeinsulationvictoria.com.au/my-job/abc", optOutUrl: "https://quote.homeinsulationvictoria.com.au/email/unsubscribe?t=x" };
+const i = { firstName: "Sarah", rebate: 1470.6, suburb: "Ballarat", shortAddress: "12 Smith St, Ballarat", myJobUrl: "https://estimate.homeinsulationvictoria.com.au/my-job/abc", optOutUrl: "https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=x" };
 describe("spot saved confirmations", () => {
   test("text wording", () => {
     const s = renderSpotSavedSms(i);
     expect(s.startsWith("Spot saved, Sarah! 🎉 Your $1,470 rebate is waiting.")).toBe(true);
     expect(s).toContain("an installer's free in Ballarat.");
-    expect(s).toContain("Your job: https://quote.homeinsulationvictoria.com.au/my-job/abc\n– Home Insulation Victoria");
+    expect(s).toContain("Your job: https://estimate.homeinsulationvictoria.com.au/my-job/abc\n– Home Insulation Victoria");
   });
   test("email wording, no phone / call us", () => {
     const e = renderSpotSavedEmail(i);

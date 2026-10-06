@@ -9,9 +9,9 @@
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
 
+- `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 # Project rules
 - Launch and hot-lead campaigns share `lead_campaign_responses`; every recipient-facing entry stays token-scoped and idempotent, and campaign send controls fail closed until copy approval. Why: owners need one auditable response without accidental sends.
-- `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 - Staff portal presentation-only derivations and exact disclosure targets live in pure `src/lib/portal-presentation.core.ts`; they may label existing facts but never decide workflow or eligibility. Why: focused UI tests must not duplicate or alter domain rules.
 - Service Coverage is a read-only operational summary derived from approved partner credentials, verified postcodes, active enquiries, and approved workers; it never assigns work or changes partner status. Why: coverage planning must not trigger operational actions.
 - Domain, workflow, payment, compliance and integration rules live in `src/lib/AGENTS.md`; read it before changing `src/lib`. Why: keeps this file small.
@@ -20,7 +20,6 @@
 - The PIESA request and all scheduling go through one payment-option gate (`evaluatePaymentGate`/`piesaRequestBlockers` in `payment-gate.core.ts`, mirrored by SQL `invoice_deposit_cleared`), behind a switch that fails closed when off or missing. Why: one route-aware rule, no silent fallback to a retired rule.
 - Test Centre jobs use `jobs.source = 'qa_test'` from creation and never enter post-intake automation. Why: launch testing must remain visibly isolated from live work and external actions.
 - The bare address `/` is the public calculator on every host; the same calculator also answers at `/calculator`, and staff sign in at `/auth`. Why: customers already have the plain link, so the calculator must stay on the home page.
-- Likely and onsite outcome emails share one renderer (`renderV2QuoteEmail` in `estimate-email.ts`) whose onsite-only differences are explicit branches; ineligible reuses the same header/button/footer helpers (`v2Header`, `v2Button`, `v2Footer`). Any change must keep the approved likely output byte-identical (hash-check before/after). Why: one visual system, without silently changing the locked likely email.
 - Customer estimate follow-ups have one active template only: the unopened three-day reminder; engaged customers, all seven-day slots, and both retired legacy kinds are suppressed before delivery. Why: withdrawn reminders must never reach customers while historical rows remain auditable.
 - The current calculator exists only at the customer-domain root through `/calculator`; secure estimate pages do not embed the retired what-if calculator or track calculator use. Why: customers use one current calculator and obsolete variants stay deleted.
 - The server entry detaches GET/HEAD rendering requests from the local adapter's socket-owned abort signal; keep mutation requests unchanged. Why: cancelled preview navigation must not throw after response close and blank the page.

@@ -2,7 +2,8 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { computeEstimate, type RetailSettings } from "./estimate.core";
 import type { LocationVariables } from "./activity48.core";
 import { emailTypo, hotCoverage, hotRegion, hotStatus, sharedEmailFlags, HOT_EXCLUDE, HOT_EXCLUDED_JOBS, HOT_HIDDEN_DUPLICATES, HOT_HOLD_REGIONS, type Trade } from "./hot-leads.core";
-import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
+import { LAUNCH_CAMPAIGN, savedPriceFromEstimate } from "./launch-campaign.core";
+import { discountIsWholeVeecs } from "./estimate.core";
 import { TEST_ALLOWLIST } from "./test-send.core";
 
 const need = <T>(result: { data: T; error: { message: string } | null }, label: string): T => {
@@ -37,7 +38,7 @@ export async function loadHotLeads(group: HotList = "likely") {
   }
   const jobs = [];
   for (let offset = 0; ; offset += 500) {
-    let q = admin.from("jobs").select("id,job_number,created_at,source,stage,eligibility_outcome,eligibility_review_required,estimated_area_m2,owners(full_name,email),properties(address_line,suburb,postcode),indicative_estimates(id,status,created_at,area_m2,area_source,insulation_declared)");
+    let q = admin.from("jobs").select("id,job_number,created_at,source,stage,eligibility_outcome,eligibility_review_required,estimated_area_m2,owners(full_name,email),properties(address_line,suburb,postcode),indicative_estimates(id,status,created_at,area_m2,area_source,insulation_declared,applied_discount,scenarios)");
     if (group === "test") q = q.eq("source", "qa_test").not("stage", "in", "(cancelled,complete)");
     else q = q.eq("source", "base44").eq("channel", "hivic_sourced").in("eligibility_outcome", group === "likely" ? ["likely_eligible"] : group === "warm" ? ["needs_onsite_confirmation"] : ["likely_eligible", "needs_onsite_confirmation"]).eq("stage", "ready_check_ready_to_schedule").eq("eligibility_review_required", false);
     const page = need(await q.order("created_at", { ascending: false }).range(offset, offset + 499), "Jobs");
@@ -68,8 +69,11 @@ export async function loadHotLeads(group: HotList = "likely") {
     const site = locations.get(property.postcode ?? "");
     const value = site ? computeEstimate({ m2: Number(estimate.area_m2), source: "owner_estimate", basis: "declared", id: null, label: "Your estimate" }, site, "none", settings) : null;
     const coverage = hotCoverage(property.postcode, trades);
+    const saved = savedPriceFromEstimate(estimate as never);
+    const priceCheck = value && saved ? Math.abs(value.primary.by_access.standard.estimated_customer_total - saved.total) < 0.005 && Math.abs(value.applied_discount - saved.discount) < 0.005 : false;
+    const wholeVeecs = saved ? discountIsWholeVeecs(saved.discount, saved.total, Number(settings.indicative_veec_value)) : false;
     const addressSuburb = property.address_line?.match(/,\s*([^,]+?)\s+VIC\s+\d{4}\s*$/i)?.[1]?.trim() ?? null;
-    return { id: j.id, jobNumber: j.job_number, source: j.source, eligibility: j.eligibility_outcome, name: owner.full_name, email: owner.email, address: property.address_line, suburb: property.suburb || addressSuburb, postcode: property.postcode, area: Number(estimate.area_m2), region: hotRegion(property.postcode), ...coverage, price: value?.primary.by_access.standard.estimated_customer_total ?? null, discount: value?.applied_discount ?? null, installation: value?.primary.by_access.standard.installation ?? null, veecs: value ? Math.floor(value.ghg.ghgReduction) : null };
+    return { id: j.id, jobNumber: j.job_number, source: j.source, eligibility: j.eligibility_outcome, name: owner.full_name, email: owner.email, address: property.address_line, suburb: property.suburb || addressSuburb, postcode: property.postcode, area: Number(estimate.area_m2), region: hotRegion(property.postcode), ...coverage, price: saved?.total ?? null, discount: saved?.discount ?? null, priceCheck, wholeVeecs, installation: value?.primary.by_access.standard.installation ?? null, veecs: value ? Math.floor(value.ghg.ghgReduction) : null };
   });
   const ids = rows.map((r) => r.id);
   const [sendsR, respR, optR, linkR] = ids.length ? await Promise.all([
@@ -91,6 +95,8 @@ export async function loadHotLeads(group: HotList = "likely") {
     if (others?.length) flags.push(`Same email as ${others.join(", ")}. Pick one home to send to.`);
     if (!linked.has(r.id)) flags.push("No secure estimate link yet, so this home can't be sent the email.");
     if (r.price === null) flags.push("No preliminary price for this postcode yet.");
+    else if (!r.wholeVeecs) flags.push("Price is not a whole number of VEECs. Recalculate before sending.");
+    else if (!r.priceCheck) flags.push("Saved estimate does not match the current price settings. Recalculate before sending.");
     const hold = group !== "test" && HOT_HOLD_REGIONS.has(r.region);
     const sentAt = sent.get(r.id) ?? null;
     const status = hotStatus({ sentAt, spotSavedAt: resp.get(r.id)?.spot_saved_at ?? null, optedOutAt: resp.get(r.id)?.opted_out_at ?? opt.get(r.id) ?? null });
@@ -104,4 +110,16 @@ export async function loadHotLeads(group: HotList = "likely") {
   const check = rows.filter((r) => r.checkCoverage);
   const groupCount = (items: typeof rows) => [...items.reduce((map, row) => map.set(row.region, (map.get(row.region) ?? 0) + 1), new Map<string, number>())].map(([region, count]) => ({ region, count })).sort((a, b) => b.count - a.count);
   return { list, covered, noElectrician, check, otherGaps: rows.filter((r) => !covered.includes(r) && !noElectrician.includes(r)), counts: groupCount(covered), gapCounts: groupCount(noElectrician), totalCandidates: candidates.length, duplicates: candidates.length - unique.size, settings: { installationRate: Number(settings.r5_install_inc_gst_per_m2), ap: Number(settings.ap_management_inc_gst), piesa: Number(settings.piesa_assessment_inc_gst), veec: Number(settings.indicative_veec_value) }, sendingLocked: true };
+}
+/** Open website jobs that look like the same owner + home. Flag only for Jo; never merged or deleted here. */
+export async function loadPossibleDuplicates() {
+  const { possibleDuplicateGroups } = await import("./enquiry-repeat.core");
+  const jobs: { id: string; job_number: string | null; created_at: string; stage: string; owners: unknown; properties: unknown }[] = [];
+  for (let o = 0; ; o += 1000) {
+    const page = need(await admin.from("jobs").select("id,job_number,created_at,stage,owners(full_name,email,phone),properties(address_line,postcode)").eq("source", "base44").not("stage", "in", "(cancelled,complete)").range(o, o + 999), "Jobs");
+    jobs.push(...(page ?? [])); if (!page || page.length < 1000) break;
+  }
+  const flat = jobs.map((j) => { const ow = j.owners as { full_name: string | null; email: string | null; phone: string | null } | null; const p = j.properties as { address_line: string | null; postcode: string | null } | null;
+    return { id: j.id, jobNumber: j.job_number, name: ow?.full_name ?? null, email: ow?.email ?? null, phone: ow?.phone ?? null, address: p?.address_line ?? null, postcode: p?.postcode ?? null, createdAt: j.created_at, stage: j.stage }; });
+  return possibleDuplicateGroups(flat).map((g) => ({ keep: g[0]!.jobNumber, jobs: g }));
 }

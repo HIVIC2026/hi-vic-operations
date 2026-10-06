@@ -7,7 +7,7 @@ import { renderFollowupEmail } from "../src/lib/followup-email";
 
 const src = (p: string) => readFileSync(p, "utf8");
 const JOB = "7f1c2b9e-1111-4222-8333-944455556666";
-const estimateUrl = `https://quote.homeinsulationvictoria.com.au/estimate/${newReferralToken()}`;
+const estimateUrl = `https://estimate.homeinsulationvictoria.com.au/estimate/${newReferralToken()}`;
 
 describe("referral tokens", () => {
   test("opaque, 43 chars, unique", () => {

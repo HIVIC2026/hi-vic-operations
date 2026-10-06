@@ -46,6 +46,9 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean): Promise
   if (!link?.token) return r("skipped", "No secure estimate link yet.");
   const price = savedPriceFromEstimate(est ?? null);
   if (!price || !price.areaM2) return r("skipped", "No current preliminary price.");
+  const { discountIsWholeVeecs } = await import("./estimate.core");
+  const { data: cfg } = await admin.from("retail_estimator_settings").select("indicative_veec_value").eq("is_current", true).maybeSingle();
+  if (!discountIsWholeVeecs(price.discount, price.total, Number(cfg?.indicative_veec_value))) return r("blocked", "Discount is not a whole number of VEECs. Recalculate the estimate first.");
   if (!isTest) {
     const { hasCurrentOwnerContactConsent } = await import("./comms.server");
     if (!(await hasCurrentOwnerContactConsent(jobId))) return r("skipped", "No current contact consent.");
@@ -95,7 +98,7 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean): Promise
     await finish("failed", isTest ? "resend_test" : "bridge", (e as Error).message.slice(0, 300));
     return r("failed", (e as Error).message);
   }
-  await logEvent(jobId, actorId, "save_my_spot_email_sent", `Save my spot email sent from Hot leads${isTest ? " (TEST, allowlist only)" : ""}`, { campaign: LAUNCH_CAMPAIGN, to_test: isTest }, { internal: true });
+  await logEvent(jobId, actorId, "save_my_spot_email_sent", `Save my spot email sent from Hot leads${isTest ? " (TEST, allowlist only)" : ""}`, { campaign: LAUNCH_CAMPAIGN, to_test: isTest }, { internal: true }).catch(() => null);
   return r("sent", isTest ? "Sent to Jo's test inbox" : "Sent");
 }
 

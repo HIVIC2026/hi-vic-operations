@@ -22,7 +22,7 @@ type Group = "likely" | "onsite";
 type Copy = Partial<Record<LaunchCopyField, string>>;
 type Lead = { id: string; jobNumber: string | null; name: string | null; suburb: string | null; address: string | null; area: number; price: number | null; discount: number | null };
 
-const SAMPLE_URL = "https://quote.homeinsulationvictoria.com.au/estimate/PREVIEWonlyPREVIEWonlyPREVIEWonlyPREVIEWonl/campaign";
+const SAMPLE_URL = "https://estimate.homeinsulationvictoria.com.au/estimate/PREVIEWonlyPREVIEWonlyPREVIEWonlyPREVIEWonl/campaign";
 const SAMPLE: Lead = { id: "sample", jobNumber: "HV-SAMPLE", name: "Sarah Mitchell", suburb: "Frankston", address: "14 Banksia Street, Frankston VIC 3199", area: 120, price: 1188, discount: 1890 };
 const GROUP_LABEL: Record<Group, string> = { likely: "Group A — no insulation (Save my spot)", onsite: "Group B — has insulation (video check)" };
 const FIELDS: { key: LaunchCopyField; label: string; long?: boolean; onsiteOnly?: boolean }[] = [
@@ -133,7 +133,7 @@ const firstName = (n: string | null) => n?.trim().split(/\s+/)[0] ?? null;
 function render(group: Group, l: Lead, copy: Copy): { subject: string; previewText: string; html: string; defaults?: never } | { error: string } {
   try {
     const discount = Math.round(l.discount ?? 0), total = Math.round(l.price ?? 0);
-    return renderLaunchCampaignEmail({ group, campaignUrl: SAMPLE_URL, unsubscribeUrl: `https://quote.homeinsulationvictoria.com.au/email/unsubscribe?t=${"U".repeat(43)}`, firstName: firstName(l.name), estimatedTotal: total, veuDiscount: discount, grossTotal: total + discount, areaM2: l.area, address: l.address, reference: l.jobNumber, copy });
+    return renderLaunchCampaignEmail({ group, campaignUrl: SAMPLE_URL, unsubscribeUrl: `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${"U".repeat(43)}`, firstName: firstName(l.name), estimatedTotal: total, veuDiscount: discount, grossTotal: total + discount, areaM2: l.area, address: l.address, reference: l.jobNumber, copy });
   } catch (e) { return { error: e instanceof Error ? e.message : "This lead can't be previewed" }; }
 }
 
