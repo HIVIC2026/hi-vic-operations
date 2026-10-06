@@ -85,6 +85,7 @@ import { Route as TOFileRouteImport } from './routes/t.o.$file'
 import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authenticated/admin.jobs.$jobId'
 import { Route as AuthenticatedFieldDayJobIdRouteImport } from './routes/_authenticated/field.day.$jobId'
 import { Route as AuthenticatedFieldOfferOfferIdRouteImport } from './routes/_authenticated/field.offer.$offerId'
+import { Route as ApiPublicEmailHeroFileRouteImport } from './routes/api/public/email-hero.$file'
 import { Route as ApiPublicHooksAllocationTickRouteImport } from './routes/api/public/hooks/allocation-tick'
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
 import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/public/hooks/post-intake'
@@ -501,6 +502,11 @@ const AuthenticatedFieldOfferOfferIdRoute =
     path: '/offer/$offerId',
     getParentRoute: () => AuthenticatedFieldRoute,
   } as any)
+const ApiPublicEmailHeroFileRoute = ApiPublicEmailHeroFileRouteImport.update({
+  id: '/api/public/email-hero/$file',
+  path: '/api/public/email-hero/$file',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHooksAllocationTickRoute =
   ApiPublicHooksAllocationTickRouteImport.update({
     id: '/api/public/hooks/allocation-tick',
@@ -608,6 +614,7 @@ export interface FileRoutesByFullPath {
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
+  '/api/public/email-hero/$file': typeof ApiPublicEmailHeroFileRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
@@ -686,6 +693,7 @@ export interface FileRoutesByTo {
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
+  '/api/public/email-hero/$file': typeof ApiPublicEmailHeroFileRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
@@ -770,6 +778,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
   '/_authenticated/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/_authenticated/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
+  '/api/public/email-hero/$file': typeof ApiPublicEmailHeroFileRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
@@ -854,6 +863,7 @@ export interface FileRouteTypes {
     | '/admin/jobs/$jobId'
     | '/field/day/$jobId'
     | '/field/offer/$offerId'
+    | '/api/public/email-hero/$file'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
@@ -932,6 +942,7 @@ export interface FileRouteTypes {
     | '/admin/jobs/$jobId'
     | '/field/day/$jobId'
     | '/field/offer/$offerId'
+    | '/api/public/email-hero/$file'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
@@ -1015,6 +1026,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/jobs/$jobId'
     | '/_authenticated/field/day/$jobId'
     | '/_authenticated/field/offer/$offerId'
+    | '/api/public/email-hero/$file'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
@@ -1049,6 +1061,7 @@ export interface RootRouteChildren {
   EstimateTokenVideoRoute: typeof EstimateTokenVideoRoute
   TETokenRoute: typeof TETokenRoute
   TOFileRoute: typeof TOFileRoute
+  ApiPublicEmailHeroFileRoute: typeof ApiPublicEmailHeroFileRoute
   ApiPublicHooksAllocationTickRoute: typeof ApiPublicHooksAllocationTickRoute
   ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
   ApiPublicHooksPostIntakeRoute: typeof ApiPublicHooksPostIntakeRoute
@@ -1590,6 +1603,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFieldOfferOfferIdRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
+    '/api/public/email-hero/$file': {
+      id: '/api/public/email-hero/$file'
+      path: '/api/public/email-hero/$file'
+      fullPath: '/api/public/email-hero/$file'
+      preLoaderRoute: typeof ApiPublicEmailHeroFileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/allocation-tick': {
       id: '/api/public/hooks/allocation-tick'
       path: '/api/public/hooks/allocation-tick'
@@ -1802,6 +1822,7 @@ const rootRouteChildren: RootRouteChildren = {
   EstimateTokenVideoRoute: EstimateTokenVideoRoute,
   TETokenRoute: TETokenRoute,
   TOFileRoute: TOFileRoute,
+  ApiPublicEmailHeroFileRoute: ApiPublicEmailHeroFileRoute,
   ApiPublicHooksAllocationTickRoute: ApiPublicHooksAllocationTickRoute,
   ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,
   ApiPublicHooksPostIntakeRoute: ApiPublicHooksPostIntakeRoute,
