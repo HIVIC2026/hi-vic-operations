@@ -114,6 +114,39 @@ const s2: StepFn = async (ctx, r) => {
   ctx.screens.push({ step: "s2_owner_links", persona: "owner_token", path: `/my-job/${ctx.token}`, mustSee: ["saved"] });
 };
 
+
+/** Owner signs every outstanding item for the given gates via the real secure-link path: code request → 6-digit
+ *  code → signing session → signGateDoc. On this TEST job only, the code's stored hash is set to a known code
+ *  (we can't read a real one, and nothing is delivered to the TEST address). */
+async function ownerSignGates(ctx: JourneyCtx, r: StepResult, gates: ("A" | "B" | "C" | "D")[], answers: Record<string, string> = {}) {
+  await assertOwnTestJob(ctx);
+  const ov = await import("./owner-verify.server");
+  const { hashToken } = await import("./worker-links.core");
+  await ov.requestOwnerCode(ctx.token, "email");
+  const { data: code } = await admin.from("owner_link_codes").select("id").eq("job_id", ctx.jobId!).is("verified_at", null).order("created_at", { ascending: false }).limit(1).single();
+  const known = "246810";
+  await admin.from("owner_link_codes").update({ code_hash: await hashToken(`owner-code:${ctx.jobId}:${known}`) }).eq("id", code!.id).eq("job_id", ctx.jobId!);
+  let wrong = false; try { await ov.verifyOwnerCode(ctx.token, "000000"); } catch { wrong = true; }
+  check(r, "wrong 6-digit code is refused", wrong);
+  const { session } = await ov.verifyOwnerCode(ctx.token, known);
+  const s = await ov.ownerSession(ctx.token, session);
+  const og = await import("./owner-gates.server");
+  const signed: string[] = [];
+  for (let i = 0; i < 15; i++) {
+    const p = await og.ownerPaperworkToSign(ctx.jobId!);
+    const next = p.todo.find((t) => (gates as string[]).includes(t.gate));
+    if (!next) break;
+    await og.signGateDoc({ jobId: s.jobId, key: next.key as never, signatoryName: "Test Journey", ticked: true, method: "link_code", signedBy: s.userId, ip: "127.0.0.1", userAgent: "journey-test",
+      answers: { role: "owner", life_support: "no", payment_option: "deposit", ...answers }, verified: { channel: s.channel, destination: s.destination, codeId: s.codeId } });
+    signed.push(next.key);
+  }
+  const left = (await og.ownerPaperworkToSign(ctx.jobId!)).todo.filter((t) => (gates as string[]).includes(t.gate));
+  check(r, `owner paperwork ${gates.join("/")} all signed`, left.length === 0, left.length ? `still to sign: ${left.map((t) => t.key).join(", ")}` : `signed ${signed.join(", ") || "nothing new"}`);
+  const { count: pdfs } = await admin.from("owner_gate_signatures").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!);
+  check(r, "each signature recorded", (pdfs ?? 0) >= signed.length, `${pdfs} signatures`);
+  return signed;
+}
+
 // ---------- Step 3: office ----------
 const s3: StepFn = async (ctx, r) => {
   await assertOwnTestJob(ctx);
@@ -122,6 +155,7 @@ const s3: StepFn = async (ctx, r) => {
   const row = office.rows.find((x) => x.jobId === ctx.jobId);
   check(r, "job shows in office Spot saved list", !!row?.spotSavedAt, row ? "row without saved time" : `${office.rows.length} rows, not this job`);
   // Owner picks Ready Check times (3 windows on 3 days), then the office offers to the TEST installer only.
+  await ownerSignGates(ctx, r, ["A"]);
   const { submitReadyCheckWindows, startReadyCheckOffers } = await import("./readycheck-booking.server");
   const { data: j } = await admin.from("jobs").select("stage").eq("id", ctx.jobId!).single();
   ctx.notes["stage_before_offer"] = j?.stage;
