@@ -248,10 +248,12 @@ const s4: StepFn = async (ctx, r) => {
   await transition(ctx.jobId!, "ready_check_complete", ctx.actorId, "TEST journey: Ready Check done");
   const { generateInstallerQuotes } = await import("./quotes.server");
   await generateInstallerQuotes(ctx.jobId!, ctx.actorId);
-  const { data: q } = await admin.from("quotes").select("id, status, subtotal_inc_gst, veec_discount_inc_gst, total_inc_gst").eq("job_id", ctx.jobId!).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: q } = await admin.from("quotes").select("id, status, subtotal_inc_gst, veec_discount_inc_gst").eq("job_id", ctx.jobId!).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
   check(r, "quote created", !!q);
   const st = await settings();
-  const sub = Number(q!.subtotal_inc_gst), disc = Number(q!.veec_discount_inc_gst), tot = Number((q as { total_inc_gst?: number }).total_inc_gst ?? sub - disc);
+  const sub = Number(q!.subtotal_inc_gst), disc = Number(q!.veec_discount_inc_gst), tot = sub - disc;
+  const exp = ctx.notes["expected"] as { gross: number; discount: number; pay: number };
+  check(r, "quote matches the estimate the owner saw (same 120 m²)", sub === exp.gross && disc === exp.discount, `quote ${sub} − ${disc}; estimate ${exp.gross} − ${exp.discount}`);
   check(r, "quote discount is whole VEECs × settings value", Number.isInteger(Math.round(disc * 100) / 100 / st.veecValue), `$${disc} / $${st.veecValue}`);
   check(r, "quote total = subtotal − discount, at least the minimum", Math.abs(tot - (sub - disc)) < 0.01 && tot >= st.minimum, `${sub} − ${disc} = ${tot}`);
   ctx.quoteId = q!.id;
