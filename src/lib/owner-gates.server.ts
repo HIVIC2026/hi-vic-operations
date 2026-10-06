@@ -192,7 +192,7 @@ export async function paperworkCatalogue() {
   });
   const own = GATE_DOCS.map((d) => {
     const a = (appr ?? []).find((x) => x.doc_key === d.key && x.doc_version === d.version);
-    return { key: d.key, gate: d.gate, title: d.title, version: d.version, status: approved[d.key] ? "Approved" : "Draft", approvedBy: who(a?.approved_by ?? null), approvedAt: a?.approved_at ?? null, managedIn: "Here" };
+    return { key: d.key, gate: d.gate, title: d.title, version: d.version, status: approved[d.key] ? "Approved" : ((d as { draftNote?: string }).draftNote ?? "Draft"), approvedBy: who(a?.approved_by ?? null), approvedAt: a?.approved_at ?? null, managedIn: "Here" };
   });
   return [...own, ...fromTemplates].sort((x, y) => x.gate.localeCompare(y.gate));
 }
