@@ -53,7 +53,7 @@ export function ChooseTradePanel({ jobId }: { jobId: string }) {
             <span>Accepts: {t.acceptRate != null ? `${t.acceptRate}%` : "no history"}{t.avgAcceptHours != null ? ` · avg ${t.avgAcceptHours}h` : ""}</span>
           </div>
           {t.blocker && <p className="text-xs font-semibold text-destructive">Can't be offered: {t.blocker}</p>}
-          {t.warnings.length > 0 && <p className="text-xs font-semibold text-warning-foreground">⚠ {t.warnings.join(" · ")}</p>}
+          {t.warnings.length > 0 && <p className="text-xs font-semibold text-destructive">⚠ {t.warnings.join(" · ")}</p>}
         </div>
       </label>
     </li>
