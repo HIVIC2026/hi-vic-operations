@@ -59,7 +59,10 @@ import { Route as AuthenticatedAdminVeecRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAdminWorkersRouteImport } from './routes/_authenticated/admin.workers'
 import { Route as AuthenticatedFieldIndexRouteImport } from './routes/_authenticated/field.index'
 import { Route as AuthenticatedFieldJobIdRouteImport } from './routes/_authenticated/field.$jobId'
+import { Route as AuthenticatedFieldBusinessRouteImport } from './routes/_authenticated/field.business'
+import { Route as AuthenticatedFieldMoneyRouteImport } from './routes/_authenticated/field.money'
 import { Route as AuthenticatedFieldSetupRouteImport } from './routes/_authenticated/field.setup'
+import { Route as AuthenticatedFieldWelcomeRouteImport } from './routes/_authenticated/field.welcome'
 import { Route as AuthenticatedOwnerIndexRouteImport } from './routes/_authenticated/owner.index'
 import { Route as AuthenticatedOwnerJobIdRouteImport } from './routes/_authenticated/owner.$jobId'
 import { Route as AuthenticatedPartnerIndexRouteImport } from './routes/_authenticated/partner.index'
@@ -357,11 +360,28 @@ const AuthenticatedFieldJobIdRoute = AuthenticatedFieldJobIdRouteImport.update({
   path: '/$jobId',
   getParentRoute: () => AuthenticatedFieldRoute,
 } as any)
+const AuthenticatedFieldBusinessRoute =
+  AuthenticatedFieldBusinessRouteImport.update({
+    id: '/business',
+    path: '/business',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
+const AuthenticatedFieldMoneyRoute = AuthenticatedFieldMoneyRouteImport.update({
+  id: '/money',
+  path: '/money',
+  getParentRoute: () => AuthenticatedFieldRoute,
+} as any)
 const AuthenticatedFieldSetupRoute = AuthenticatedFieldSetupRouteImport.update({
   id: '/setup',
   path: '/setup',
   getParentRoute: () => AuthenticatedFieldRoute,
 } as any)
+const AuthenticatedFieldWelcomeRoute =
+  AuthenticatedFieldWelcomeRouteImport.update({
+    id: '/welcome',
+    path: '/welcome',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
 const AuthenticatedOwnerIndexRoute = AuthenticatedOwnerIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -560,7 +580,10 @@ export interface FileRoutesByFullPath {
   '/admin/veec': typeof AuthenticatedAdminVeecRoute
   '/admin/workers': typeof AuthenticatedAdminWorkersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
+  '/field/business': typeof AuthenticatedFieldBusinessRoute
+  '/field/money': typeof AuthenticatedFieldMoneyRoute
   '/field/setup': typeof AuthenticatedFieldSetupRoute
+  '/field/welcome': typeof AuthenticatedFieldWelcomeRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/partner/add': typeof AuthenticatedPartnerAddRoute
   '/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
@@ -635,7 +658,10 @@ export interface FileRoutesByTo {
   '/admin/veec': typeof AuthenticatedAdminVeecRoute
   '/admin/workers': typeof AuthenticatedAdminWorkersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
+  '/field/business': typeof AuthenticatedFieldBusinessRoute
+  '/field/money': typeof AuthenticatedFieldMoneyRoute
   '/field/setup': typeof AuthenticatedFieldSetupRoute
+  '/field/welcome': typeof AuthenticatedFieldWelcomeRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/partner/add': typeof AuthenticatedPartnerAddRoute
   '/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
@@ -716,7 +742,10 @@ export interface FileRoutesById {
   '/_authenticated/admin/veec': typeof AuthenticatedAdminVeecRoute
   '/_authenticated/admin/workers': typeof AuthenticatedAdminWorkersRoute
   '/_authenticated/field/$jobId': typeof AuthenticatedFieldJobIdRoute
+  '/_authenticated/field/business': typeof AuthenticatedFieldBusinessRoute
+  '/_authenticated/field/money': typeof AuthenticatedFieldMoneyRoute
   '/_authenticated/field/setup': typeof AuthenticatedFieldSetupRoute
+  '/_authenticated/field/welcome': typeof AuthenticatedFieldWelcomeRoute
   '/_authenticated/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/_authenticated/partner/add': typeof AuthenticatedPartnerAddRoute
   '/_authenticated/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
@@ -797,7 +826,10 @@ export interface FileRouteTypes {
     | '/admin/veec'
     | '/admin/workers'
     | '/field/$jobId'
+    | '/field/business'
+    | '/field/money'
     | '/field/setup'
+    | '/field/welcome'
     | '/owner/$jobId'
     | '/partner/add'
     | '/partner/bulk-import'
@@ -872,7 +904,10 @@ export interface FileRouteTypes {
     | '/admin/veec'
     | '/admin/workers'
     | '/field/$jobId'
+    | '/field/business'
+    | '/field/money'
     | '/field/setup'
+    | '/field/welcome'
     | '/owner/$jobId'
     | '/partner/add'
     | '/partner/bulk-import'
@@ -952,7 +987,10 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/veec'
     | '/_authenticated/admin/workers'
     | '/_authenticated/field/$jobId'
+    | '/_authenticated/field/business'
+    | '/_authenticated/field/money'
     | '/_authenticated/field/setup'
+    | '/_authenticated/field/welcome'
     | '/_authenticated/owner/$jobId'
     | '/_authenticated/partner/add'
     | '/_authenticated/partner/bulk-import'
@@ -1370,11 +1408,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFieldJobIdRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
+    '/_authenticated/field/business': {
+      id: '/_authenticated/field/business'
+      path: '/business'
+      fullPath: '/field/business'
+      preLoaderRoute: typeof AuthenticatedFieldBusinessRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
+    '/_authenticated/field/money': {
+      id: '/_authenticated/field/money'
+      path: '/money'
+      fullPath: '/field/money'
+      preLoaderRoute: typeof AuthenticatedFieldMoneyRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
     '/_authenticated/field/setup': {
       id: '/_authenticated/field/setup'
       path: '/setup'
       fullPath: '/field/setup'
       preLoaderRoute: typeof AuthenticatedFieldSetupRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
+    '/_authenticated/field/welcome': {
+      id: '/_authenticated/field/welcome'
+      path: '/welcome'
+      fullPath: '/field/welcome'
+      preLoaderRoute: typeof AuthenticatedFieldWelcomeRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
     '/_authenticated/owner/': {
@@ -1638,7 +1697,10 @@ const AuthenticatedAdminRouteWithChildren =
 
 interface AuthenticatedFieldRouteChildren {
   AuthenticatedFieldJobIdRoute: typeof AuthenticatedFieldJobIdRoute
+  AuthenticatedFieldBusinessRoute: typeof AuthenticatedFieldBusinessRoute
+  AuthenticatedFieldMoneyRoute: typeof AuthenticatedFieldMoneyRoute
   AuthenticatedFieldSetupRoute: typeof AuthenticatedFieldSetupRoute
+  AuthenticatedFieldWelcomeRoute: typeof AuthenticatedFieldWelcomeRoute
   AuthenticatedFieldIndexRoute: typeof AuthenticatedFieldIndexRoute
   AuthenticatedFieldDayJobIdRoute: typeof AuthenticatedFieldDayJobIdRoute
   AuthenticatedFieldOfferOfferIdRoute: typeof AuthenticatedFieldOfferOfferIdRoute
@@ -1646,7 +1708,10 @@ interface AuthenticatedFieldRouteChildren {
 
 const AuthenticatedFieldRouteChildren: AuthenticatedFieldRouteChildren = {
   AuthenticatedFieldJobIdRoute: AuthenticatedFieldJobIdRoute,
+  AuthenticatedFieldBusinessRoute: AuthenticatedFieldBusinessRoute,
+  AuthenticatedFieldMoneyRoute: AuthenticatedFieldMoneyRoute,
   AuthenticatedFieldSetupRoute: AuthenticatedFieldSetupRoute,
+  AuthenticatedFieldWelcomeRoute: AuthenticatedFieldWelcomeRoute,
   AuthenticatedFieldIndexRoute: AuthenticatedFieldIndexRoute,
   AuthenticatedFieldDayJobIdRoute: AuthenticatedFieldDayJobIdRoute,
   AuthenticatedFieldOfferOfferIdRoute: AuthenticatedFieldOfferOfferIdRoute,
