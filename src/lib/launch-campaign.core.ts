@@ -35,3 +35,19 @@ export function savedPriceLabel(saved: { total: number | null; discount: number 
   const changed = !!current && (Math.floor(current.total) !== Math.floor(saved.total) || (!!saved.estimateId && !!current.estimateId && current.estimateId !== saved.estimateId && Math.floor(current.total) !== Math.floor(saved.total)));
   return { text, changed, changeNote: changed ? "Estimate has changed since" : null };
 }
+
+/** Saved-price snapshot from what the owner calculator showed (whatIfEstimate standard scenario). */
+export function savedPriceFromCalculator(est: { scenarios: { by_access: { standard: { estimated_customer_total: number; applied_discount: number; pre_discount_total: number } } }[] } | null, areaM2: number, insulation: string | null): SavedPrice | null {
+  const st = est?.scenarios[0]?.by_access.standard;
+  if (!st) return null;
+  return { estimateId: null, total: Number(st.estimated_customer_total), discount: Number(st.applied_discount ?? 0), gross: Number(st.pre_discount_total ?? 0), areaM2, insulation };
+}
+
+const INSULATION_WORDS: Record<string, string> = { none: "none", present: "some there", unknown: "not sure" };
+/** Job-history note when the owner changes their ceiling size or insulation answer on their own calculator; null when unchanged. */
+export function ownerCalculatorChangeNote(before: { areaM2: number | null; insulation: string | null }, after: { areaM2: number; insulation: string | null }): string | null {
+  const parts: string[] = [];
+  if (before.areaM2 == null || Math.round(before.areaM2) !== Math.round(after.areaM2)) parts.push(before.areaM2 == null ? `Owner set ceiling size to ${Math.round(after.areaM2)} m² on the calculator` : `Owner changed ceiling size from ${Math.round(before.areaM2)} to ${Math.round(after.areaM2)} m² on the calculator`);
+  if (after.insulation && before.insulation !== after.insulation) parts.push(`Owner changed existing-insulation answer${before.insulation ? ` from "${INSULATION_WORDS[before.insulation] ?? before.insulation}"` : ""} to "${INSULATION_WORDS[after.insulation] ?? after.insulation}" on the calculator`);
+  return parts.length ? parts.join(". ") : null;
+}
