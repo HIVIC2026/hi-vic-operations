@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { createRateOffer, getRateOffers, sendRateOfferEmail } from "@/lib/rate-offer.functions";
+import { createRateOffer, getRateOffers, issueRateOfferCode, reissueRateOfferLink, sendRateOfferEmail } from "@/lib/rate-offer.functions";
 import { OFFER_STATE_LABEL, type OfferItem } from "@/lib/rate-offer.core";
 
 const money = (n: number) => `$${n.toFixed(2)}`;
@@ -17,6 +17,7 @@ export function RateOfferPanel({ applicationId, onActivate }: { applicationId: s
   const [note, setNote] = useState("");
   const [link, setLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [code, setCode] = useState<string | null>(null);
   const r = q.data;
   if (q.isLoading) return <p className="text-sm text-muted-foreground">Loading rates…</p>;
   if (q.error || !r) return <p className="text-sm text-destructive">{(q.error as Error)?.message ?? "Could not load rates."}</p>;
@@ -47,6 +48,16 @@ export function RateOfferPanel({ applicationId, onActivate }: { applicationId: s
       )}
       {st.kind === "declined" && typeof offer?.response?.["message"] === "string" && <p className="text-sm">Partner's message: “{String(offer.response["message"])}”</p>}
       {st.kind === "accepted" && <p className="text-xs text-muted-foreground">Signed by {String(offer!.response?.["signer_name"] ?? "")} ({String(offer!.response?.["signer_position"] ?? "")}) on {new Date(offer!.responded_at!).toLocaleString("en-AU")}. Activation will use these agreed rates.</p>}
+      {st.kind === "waiting" && (
+        <div className="space-y-2 rounded border p-2 text-sm" data-offer-waiting-tools>
+          <p className="text-xs text-muted-foreground">The partner link lasts 14 days. To sign, the partner needs a 6-digit code from you (it lasts 15 minutes). Nothing is sent automatically.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" disabled={busy} onClick={async () => { setBusy(true); try { const res = await reissueRateOfferLink({ data: { applicationId } }); setLink(`${window.location.origin}${res.path}`); setCode(null); toast.success("New link made. The old link no longer works."); } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); } }}>Make a new link</Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={async () => { setBusy(true); try { setCode((await issueRateOfferCode({ data: { applicationId } })).code); } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); } }}>Get signing code</Button>
+          </div>
+          {code && <p className="font-mono text-lg font-bold tracking-widest" data-signing-code>{code} <span className="font-sans text-xs font-normal text-muted-foreground">read this to the partner; valid 15 minutes</span></p>}
+        </div>
+      )}
       {link && (
         <div className="space-y-2 rounded border border-primary/40 p-2 text-sm">
           <p className="font-semibold">Partner link (shown once — copy it now)</p>
