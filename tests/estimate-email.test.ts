@@ -204,10 +204,13 @@ describe("launch campaign email drafts", () => {
     const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", insulation: "none", myJobUrl: `https://estimate.homeinsulationvictoria.com.au/my-job/${token}` });
     expect(email.subject).toBe("Great news, Sarah! $1,470 off your ceiling insulation 🎉");
     // v6: header, caps line and headline are one per-owner image; alt text carries the headline.
-    expect(email.html).toContain(`<img src="https://estimate.homeinsulationvictoria.com.au/api/public/email-hero/${token}.png" width="600" alt="Great news, Sarah! You could take $1,470 off your ceiling insulation"`);
+    expect(email.html).toContain(`<img src="https://estimate.homeinsulationvictoria.com.au/api/public/email-art/${token}/headline.png" width="600" alt="Great news, Sarah! You could take $1,470 off your ceiling insulation"`);
     expect(email.html).not.toContain("Your rebate is waiting</p>");
     expect(email.html).not.toContain("<h1");
     expect(email.html).not.toContain("FREE ESTIMATE");
+    expect(email.html).toContain(`/api/public/email-art/${token}/pay.png" width="`);
+    expect(email.html).toContain('alt="$3,379"');
+    expect(email.html).toContain("<!--[if mso]><v:roundrect");
     expect(email.html).toContain("Your price can change");
     expect(email.html.split("Estimate only.").length - 1).toBe(1);
     for (const m of email.html.matchAll(/<(p|td|a|span|strong|h1|h2|div|li)\b[^>]*>/g)) if (/style="/.test(m[0]) || /^<(strong|h1|h2)/.test(m[0])) expect(m[0]).toContain("font-family:");
@@ -230,7 +233,7 @@ describe("launch campaign email drafts", () => {
   test("Group B keeps its jump-the-queue opening on the same structure", () => {
     const email = renderLaunchCampaignEmail({ group: "onsite", campaignUrl, unsubscribeUrl, firstName: "Michael", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "28 Sample Road, Bendigo VIC 3550" });
     expect(email.subject).toBe("Michael, jump the queue for your $1,470 rebate");
-    expect(email.html).toContain(">Jump the queue</p>");
+    expect(email.html).toContain(`/api/public/email-art/${token}/headline.png`);
     expect(email.html).toContain("Your Bendigo home could be eligible for the Victorian Energy Upgrades rebate");
     expect(email.html).toContain("Want to jump the queue?");
     expect(email.html).toContain("Your estimate");

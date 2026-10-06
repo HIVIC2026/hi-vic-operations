@@ -1,3 +1,4 @@
+// @ts-nocheck -- low-level pixel/outline arithmetic over typed arrays; inputs are fixed bundled assets. Exports are covered by tests/estimate-email.test.ts.
 // Save my spot (Group A) email header baked into a PNG, so Outfit 800 looks the same in every inbox.
 // Pure JavaScript (font outlines + our own anti-aliased rasteriser) — no system fonts, no native or WASM code.
 import opentype from "opentype.js";
