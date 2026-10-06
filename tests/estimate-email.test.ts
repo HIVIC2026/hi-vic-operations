@@ -204,7 +204,7 @@ describe("launch campaign email drafts", () => {
     const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", insulation: "none", myJobUrl: `https://estimate.homeinsulationvictoria.com.au/my-job/${token}` });
     expect(email.subject).toBe("Great news, Sarah! $1,470 off your ceiling insulation 🎉");
     // v6: header, caps line and headline are one per-owner image; alt text carries the headline.
-    expect(email.html).toContain(`<img src="https://estimate.homeinsulationvictoria.com.au/api/public/email-art/${token}/headline.png" width="600" alt="Great news, Sarah! You could take $1,470 off your ceiling insulation"`);
+    expect(email.html).toContain(`<img src="https://estimate.homeinsulationvictoria.com.au/api/public/email-art/${token}/headline.png" width="354" alt="Great news, Sarah! You could take $1,470 off your ceiling insulation"`);
     expect(email.html).not.toContain("Your rebate is waiting</p>");
     expect(email.html).not.toContain("<h1");
     expect(email.html).not.toContain("FREE ESTIMATE");
@@ -246,12 +246,18 @@ describe("launch campaign email drafts", () => {
 });
 
 describe("Group A header image", () => {
-  test("renders a 1200px-wide PNG for short, long and missing names", async () => {
+  test("renders a 1062px-wide (354 at 3x, phone-first) PNG for short, long and missing names", async () => {
     const { renderEmailHeroPng } = await import("../src/lib/email-hero.core");
     for (const [n, r] of [["Jo", "$1,120"], ["Christopher", "$12,250"], [null, "$1,890"]] as const) {
       const png = renderEmailHeroPng(n, r);
       expect(Array.from(png.slice(1, 4))).toEqual([80, 78, 71]);
-      expect(new DataView(png.buffer, png.byteOffset).getUint32(16)).toBe(1200);
+      expect(new DataView(png.buffer, png.byteOffset).getUint32(16)).toBe(1062);
     }
   });
+});
+
+import { HEADING_ART } from "../src/lib/email-art.core";
+import { measureHeading } from "../src/lib/email-hero.core";
+test("v7 heading art sizes match the bundled fonts", () => {
+  for (const a of Object.values(HEADING_ART)) expect(measureHeading(a.text, a.style)).toEqual({ w: a.w, h: a.h });
 });

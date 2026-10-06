@@ -20,6 +20,8 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Group A email EXACT per Jo 5:17pm (v4 approved); send one "[TEST v4 – APPROVED]" to Jo only; Group B same structure, not sent.
 - [x] Email font stacks (Jo 6 Oct): campaign A/B + spot-saved use Outfit/Figtree fallback stacks inline everywhere; one "[TEST v5 – FONTS]" Group A to Jo only.
 
+- [x] v7 phone-first email art (Jo, 6 Oct): header drawn at 354px phone width, card headings as images, side-by-side check, one "[TEST v7]" Group A to Jo only.
+
 ## Security/correctness review (Jo approved, 6 Oct) — one at a time, tests after each
 - [x] 1 Test account passwords random; TEST businesses marked test; report TEST Alpha non-test job
 - [x] 2 Bulk import never reuses owners; exact email match
