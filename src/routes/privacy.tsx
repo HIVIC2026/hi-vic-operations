@@ -46,11 +46,6 @@ function PrivacyPage() {
           </a>
         </header>
 
-        {PRIVACY_DRAFT && (
-          <p className="mb-4 rounded-xl border border-estimate-line bg-estimate-blush px-4 py-2.5 text-center text-[0.72rem] font-extrabold uppercase tracking-wide text-estimate-navy">
-            Draft — awaiting Jo's approval of the wording
-          </p>
-        )}
 
         <div className="rounded-[22px] bg-estimate-white p-5 shadow-sm sm:p-8">
           <h1 className="text-[1.6rem] font-extrabold leading-tight tracking-tight text-estimate-navy sm:text-[2rem]">Privacy policy</h1>
