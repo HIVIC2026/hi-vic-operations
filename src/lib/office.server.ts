@@ -27,7 +27,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   const now = Date.now();
   const scope = <T extends { in: (c: string, v: string[]) => T }>(q: T) => (opts.onlyIds ? q.in("job_id", opts.onlyIds) : q);
   const jobQ = () => {
-    let q = admin.from("jobs").select("id, job_number, stage, source, created_at, last_activity_at, hold_revisit_at, cancelled_reason, next_action, installation_completed_at, qa_archived_at, owners(full_name), properties(suburb, postcode)");
+    let q = admin.from("jobs").select("id, job_number, stage, source, created_at, last_activity_at, hold_revisit_at, cancelled_reason, next_action, installation_completed_at, qa_archived_at, offer_dispatch_override, owners(full_name), properties(suburb, postcode)");
     if (opts.onlyIds) q = q.in("id", opts.onlyIds);
     return q;
   };
@@ -73,6 +73,30 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   for (const id of pickJobs) {
     const rows = pickAll.filter((o) => String(o["job_id"]) === id).map((o) => ({ kind: String(o["kind"]), status: String(o["status"]), offered_at: String(o["offered_at"]), summary: o["summary"], business_name: (o["businesses"] as { name?: string } | null)?.name ?? null }));
     for (const k of ["ready_check", "piesa", "rectification"] as const) { const r = chosenTradeNoAnswer(rows, k); if (r) { tradeChoice.set(id, { kind: k, ...r }); break; } }
+  }
+  // Office picks first (Jo, 7 Oct): "Choose trades for this job", and "no taker after 24h — add more trades".
+  const offerChoice = new Map<string, NonNullable<NeedsJob["offerChoice"]>>();
+  const timed = live.filter((j) => j["stage"] === "ready_check_ready_to_schedule" || j["stage"] === "piesa_and_install_window_pending");
+  if (timed.length) {
+    const tIds = timed.map((j) => String(j["id"]));
+    const [tOffers, tAsg, mode, hours] = await Promise.all([
+      all("timed offers", (a, b) => admin.from("partner_offers").select("id, job_id, kind, status, offered_at").in("kind", ["ready_check", "piesa"]).in("job_id", tIds).range(a, b)),
+      all("trade assignments", (a, b) => admin.from("job_assignments").select("job_id, role").eq("active", true).in("job_id", tIds).range(a, b)),
+      (await import("./offer-dispatch.server")).dispatchMode(),
+      (await import("./trade-view.server")).offerSuggestHours(),
+    ]);
+    const { officePicks, needsChooseTrades } = await import("./offer-dispatch.core");
+    const { offersWithNoTaker } = await import("./offer-timing.core");
+    const rows = tOffers.map((o) => ({ id: String(o["id"]), job_id: String(o["job_id"]), kind: String(o["kind"]), status: String(o["status"]), offered_at: String(o["offered_at"]) }));
+    const noTaker = new Set(offersWithNoTaker(rows, hours, new Date(now)).map((r) => `${r.job_id}:${r.kind}`));
+    for (const j of timed) {
+      const id = String(j["id"]); const k = j["stage"] === "ready_check_ready_to_schedule" ? "ready_check" as const : "piesa" as const;
+      if (noTaker.has(`${id}:${k}`)) { offerChoice.set(id, { kind: k, state: "no_taker", hours }); continue; }
+      const hasTrade = tAsg.some((a) => String(a["job_id"]) === id && a["role"] === (k === "piesa" ? "electrician" : "installer"));
+      const out = rows.filter((o) => o.job_id === id && o.kind === k && (o.status === "pending" || o.status === "accepted")).length;
+      const readyForOffer = k === "piesa" || wins.some((w) => String(w["job_id"]) === id && w["status"] === "open");
+      if (needsChooseTrades({ officePicks: officePicks(mode, s(j["offer_dispatch_override"])), readyForOffer, hasTrade, offersThisRound: out })) offerChoice.set(id, { kind: k, state: "choose", hours });
+    }
   }
   const sendRows = await Promise.all([
     all("owner emails sent", (a, b) => scope(admin.from("customer_email_sends").select("job_id, sent_at")).not("sent_at", "is", null).range(a, b)),
@@ -161,7 +185,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     const jobNumber = String(j["job_number"]);
     return {
       id, jobNumber, owner: (j["owners"] as { full_name?: string } | null)?.full_name ?? null, suburb: prop?.suburb ?? null, source: s(j["source"]), stage, status, facts,
-      needs: { parked: status?.stage === "waiting_list", id, jobNumber, suburb: prop?.suburb ?? null, owner: null, stage, status, statusCount: status ? 1 : 0, lastActivityAt: s(j["last_activity_at"]), nextAction: s(j["next_action"]), installDeadline: facts.installDeadline ?? null, installStarted: installStarted.has(id) || !!facts.installedAt, holdRevisitAt: facts.holdRevisitAt ?? null, failures: fails.get(id) ?? [], tradeChoice: tradeChoice.get(id) ?? null },
+      needs: { parked: status?.stage === "waiting_list", id, jobNumber, suburb: prop?.suburb ?? null, owner: null, stage, status, statusCount: status ? 1 : 0, lastActivityAt: s(j["last_activity_at"]), nextAction: s(j["next_action"]), installDeadline: facts.installDeadline ?? null, installStarted: installStarted.has(id) || !!facts.installedAt, holdRevisitAt: facts.holdRevisitAt ?? null, failures: fails.get(id) ?? [], tradeChoice: tradeChoice.get(id) ?? null, offerChoice: offerChoice.get(id) ?? null },
     };
   });
   const partners: PartnerItem[] = [
