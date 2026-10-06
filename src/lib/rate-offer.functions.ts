@@ -80,13 +80,6 @@ export const createRateOffer = createServerFn({ method: "POST" }).middleware([re
     return { token, path: `/rate-offer/${token}` };
   });
 
-/** Issues a fresh partner link for the open offer (links are never stored in plain form). */
-export const reissueRateOfferLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ applicationId: uuid }).parse(d))
-  .handler(async () => {
-    throw new WorkflowError("For safety the link is only shown once, when the offer is saved. Copy it then; to replace a lost link, ask for a new round.");
-  });
-
 export const sendRateOfferEmail = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ applicationId: uuid }).parse(d))
   .handler(async ({ context }) => {
