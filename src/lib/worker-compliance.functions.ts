@@ -60,7 +60,7 @@ export const savePiisa = createServerFn({ method: "POST" }).middleware([requireS
     const { admin, w } = await canEditWorker(context.supabase as never, context.userId, data.workerId);
     if (!data.path.startsWith(`workers/${w.id}/piisa-`)) throw new Error("Invalid upload.");
     if (data.completedOn > today()) throw new Error("The date can't be in the future.");
-    const { data: list } = await admin.storage.from("partner-files").list(`workers/${w.id}`, { search: data.path.split("/").pop() });
+    const { data: list } = await admin.storage.from("partner-files").list(`workers/${w.id}`, { search: data.path.split("/").pop() ?? "" });
     if (!list?.length) throw new Error("Upload not found. Please try again.");
     const { error } = await admin.from("partner_workers").update({ piisa_status: "done", piisa_completed_on: data.completedOn, piisa_certificate_path: data.path, piisa_verified_at: null, piisa_verified_by: null }).eq("id", w.id);
     if (error) throw new Error("Couldn't save. Please try again.");
