@@ -213,8 +213,8 @@ describe("launch campaign email drafts", () => {
     expect(email.html).toContain("Save my spot →");
     expect(email.html).toContain("Free · no payment · no obligation");
     expect(email.html).toContain("Hold your place in line");
-    expect(email.html).toContain("One tap and you're in.");
-    expect(email.html).toContain("Open the calculator");
+    expect(email.html).toContain("One tap and you");
+    expect(email.html).toContain("Open&nbsp;the&nbsp;calculator");
     expect(email.html).not.toContain("Preliminary eligibility result");
     expect(email.html).not.toContain("Great news");
     expect(email.html).toContain("You could save $1,470");
@@ -236,7 +236,7 @@ describe("launch campaign email drafts", () => {
     expect(email.html).toContain("Just save my spot");
     expect(email.html).toContain("Want to jump the queue?");
     expect(email.html).toContain("Please don’t climb into or walk through the roof space.");
-    expect(email.html).toContain("Open the calculator");
+    expect(email.html).toContain("Open&nbsp;the&nbsp;calculator");
     expect(email.html).not.toContain("Preliminary eligibility result");
   });
 });

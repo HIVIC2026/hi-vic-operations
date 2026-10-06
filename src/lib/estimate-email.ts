@@ -376,7 +376,7 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
   const c = input.copy ?? {};
   const fill = (v: string | undefined) => (v && v.trim() ? v.trim().replace(/\{name\}\s*/g, name ? `${name} ` : "").replace(/\s+([,!.])/g, "$1").replace(/^[,\s]+/, "").replace(/^./, (x) => x.toUpperCase()) : null);
   const rebate = money(input.veuDiscount);
-  const suburb = (() => { const a = input.address?.trim(); if (!a) return null; const parts = a.split(",").map((p) => p.trim()).filter(Boolean); return parts.length > 1 ? parts[1].replace(/\s+VIC\s+\d{4}$/i, "") : null; })();
+  const suburb = (() => { const a = input.address?.trim(); if (!a) return null; const parts = a.split(",").map((p) => p.trim()).filter(Boolean); return parts.length > 1 ? (parts[1] ?? "").replace(/\s+VIC\s+\d{4}$/i, "") || null : null; })();
   const subject0 = onsite ? `${name ? `${name}, jump` : "Jump"} the queue for your ${rebate} rebate` : `${name ? `${name}, ` : ""}${rebate} off your ceiling insulation is waiting`;
   const previewText0 = onsite ? "One short manhole video moves you up the list." : "Save your spot in one tap. Installers are booking up fast.";
   const subject = fill(c.subject) ?? subject0;
