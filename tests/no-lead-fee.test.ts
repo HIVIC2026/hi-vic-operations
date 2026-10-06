@@ -26,7 +26,7 @@ describe("C03 no lead fee", () => {
     const all = INSTALLER_AGREEMENT_SECTIONS.flatMap((s) => s.paras).join("\n");
     expect(all).toContain(NO);
     expect(all).not.toMatch(/\$220|deducted from the Installer's payout/);
-    expect(agreementText({} as never)).toContain("1.14");
+    expect(agreementText({} as never)).toContain(`Version: ${INSTALLER_AGREEMENT_VERSION}`);
   });
   test("office fee editor and fee service are gone", () => {
     expect(existsSync("src/lib/partner-fees.functions.ts")).toBe(false);

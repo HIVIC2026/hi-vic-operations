@@ -28,6 +28,8 @@ const { installationDateBlocker } = await import("../src/lib/workflow");
 
 const J = "job-1";
 const future = new Date(Date.now() + 30 * 864e5).toISOString();
+// Owner paperwork gates A–D are covered by their own tests; these check payment/signing gates only.
+const notPaperwork = (b: string[]) => b.filter((x) => !x.startsWith("Owner paperwork "));
 function seed(over: Partial<Record<string, Row[]>> = {}) {
   tables = {
     jobs: [{ id: J, channel: "hivic_sourced", commercial_model: "hivic_invoices_owner", stage: "assessment_booked" }],
@@ -82,7 +84,7 @@ describe("existing guards unchanged", () => {
     seed({ invoices: [{ id: "inv", job_id: J, kind: "installation", deposit_paid_at: null }] });
     expect((await stageEntryBlockers(J, "rectification_scheduling")).some((b) => b === PAYMENT_RULE_PENDING)).toBe(true); // switch off: no 50% fallback
     seed();
-    expect(await stageEntryBlockers(J, "installation_scheduling")).toEqual([PAYMENT_RULE_PENDING]);
+    expect(notPaperwork(await stageEntryBlockers(J, "installation_scheduling"))).toEqual([PAYMENT_RULE_PENDING]);
   });
 });
 
@@ -97,6 +99,6 @@ describe("Activity 48 sequence gates", () => {
   });
   test("agreement unlocks deposit stage (invoice path) without any VEEC assignment", async () => {
     seed();
-    expect(await stageEntryBlockers(J, "awaiting_deposit_payment")).toEqual([]);
+    expect(notPaperwork(await stageEntryBlockers(J, "awaiting_deposit_payment"))).toEqual([]);
   });
 });
