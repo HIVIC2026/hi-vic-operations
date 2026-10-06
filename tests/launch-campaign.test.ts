@@ -24,7 +24,7 @@ describe("existing leads launch campaign", () => {
     const page = readFileSync("src/routes/estimate_.$token.campaign.tsx", "utf8");
     expect(page).toContain("Save my spot");
     expect(page).toContain("Take me off the list");
-    expect(page).toContain("does not book a visit");
+    expect(page).not.toMatch(/bookReadyCheck|Book now/i);
     expect(page).not.toContain("Book your Ready Check");
   });
 });

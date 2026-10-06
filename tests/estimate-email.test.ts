@@ -200,47 +200,31 @@ describe("launch campaign email drafts", () => {
   const campaignUrl = `https://estimate.homeinsulationvictoria.com.au/estimate/${token}/campaign`;
   const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${token}`;
 
-  test("Group A uses Jo's final approved layout (6 Oct)", () => {
-    const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", insulation: "none", myJobUrl: `https://estimate.homeinsulationvictoria.com.au/my-job/${token}` });
+  test("v8 SHORT Group A: system fonts, logo, two lines, one button to the campaign page, nothing else", () => {
+    const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", insulation: "none", reference: "HV-1" });
     expect(email.subject).toBe("Great news, Sarah! $1,470 off your ceiling insulation 🎉");
-    // v6: header, caps line and headline are one per-owner image; alt text carries the headline.
-    expect(email.html).toContain(`<img src="https://estimate.homeinsulationvictoria.com.au/api/public/email-art/${token}/headline.png" width="354" alt="Great news, Sarah! You could take $1,470 off your ceiling insulation"`);
-    expect(email.html).not.toContain("Your rebate is waiting</p>");
-    expect(email.html).not.toContain("<h1");
-    expect(email.html).not.toContain("FREE ESTIMATE");
-    expect(email.html).toContain(`/api/public/email-art/${token}/pay.png" width="`);
-    expect(email.html).toContain('alt="$3,379"');
+    expect(email.previewText).toBe("Save your spot in one tap. Installers are booking up fast.");
+    expect(email.html).toContain('alt="Home Insulation Victoria"');
+    expect(email.html).toContain("Great news, Sarah!");
+    expect(email.html).toContain("Your Ballarat home looks eligible for the Victorian Energy Upgrades rebate.");
+    expect(email.html).toContain('You could save <strong style="color:#00BF63;font-weight:700;">$1,470</strong>.');
+    expect(email.html).toContain(`href="${campaignUrl}"`);
+    expect(email.html).toContain("See my estimate →");
     expect(email.html).toContain("<!--[if mso]><v:roundrect");
-    expect(email.html).toContain("Your price can change");
-    expect(email.html.split("Estimate only.").length - 1).toBe(1);
-    for (const m of email.html.matchAll(/<(p|td|a|span|strong|h1|h2|div|li)\b[^>]*>/g)) if (/style="/.test(m[0]) || /^<(strong|h1|h2)/.test(m[0])) expect(m[0]).toContain("font-family:");
-    expect(email.html).toContain("'Outfit','Avenir Next','Avenir','Century Gothic','Segoe UI',Helvetica,Arial,sans-serif");
-    expect(email.html).not.toContain("font-family:Arial,Helvetica,sans-serif!important");
-    expect(email.html.replace(/<strong[^>]*>/g, "<strong>")).toContain("That means you pay about <strong>$3,379</strong> instead of $4,849, and enjoy lower power bills for years to come.");
-    expect(email.html).toContain("Hundreds of homes have enquired since 1 October. Spots go in order.");
     expect(email.html).toContain("Free · no payment · no obligation");
-    expect(email.html).toContain("Hold your place in line");
-    for (const t of ["Your estimate", "Normal price", "$4,849", "Your rebate", "−$1,470", "You pay about", "$3,379", "What you get", "Free Ready Check</strong><br><span style=\"font-family:\x27Figtree\x27,\x27Avenir Next\x27,\x27Avenir\x27,\x27Segoe UI\x27,\x27Helvetica Neue\x27,Helvetica,Arial,sans-serif;color:#5A6785;\">We measure your roof space and confirm the job.</span>", "R5.0 ceiling insulation</strong><br><span style=\"font-family:\x27Figtree\x27,\x27Avenir Next\x27,\x27Avenir\x27,\x27Segoe UI\x27,\x27Helvetica Neue\x27,Helvetica,Arial,sans-serif;color:#5A6785;\">Supplied and fitted by a certified installer.</span>", "Electrical safety check</strong><br><span style=\"font-family:\x27Figtree\x27,\x27Avenir Next\x27,\x27Avenir\x27,\x27Segoe UI\x27,\x27Helvetica Neue\x27,Helvetica,Arial,sans-serif;color:#5A6785;\">By a licensed electrician, as the rules require.</span>", "Rebate paperwork, done for you</strong><br><span style=\"font-family:\x27Figtree\x27,\x27Avenir Next\x27,\x27Avenir\x27,\x27Segoe UI\x27,\x27Helvetica Neue\x27,Helvetica,Arial,sans-serif;color:#5A6785;\">We handle the forms and the claim.</span>", "Try a different size →", "Remove my enquiry", "Privacy", "Doesn&#39;t include removing old insulation (you told us there isn&#39;t any)."]) expect(email.html).toContain(t);
-    expect(email.html).not.toContain("See my job");
-    for (const t of CAMPAIGN_BANNED) { expect(email.html).not.toContain(t); expect(email.plainText).not.toContain(t); }
-    expect(email.html).toContain("Based on 14 Example Street, Ballarat VIC 3350 and a 150 m² ceiling.");
-    expect(email.html).toContain("We never add work or cost without showing you first and getting your OK.");
-    for (const t of ["Contact us", "What could change this price?"]) expect(email.html).not.toContain(t);
-    expect(email.html).toContain("background-color:#F3F6FF");
-    expect(email.plainText).toContain(`Remove my enquiry: ${unsubscribeUrl}`);
-    expect(email.plainText).toContain(`/estimate/${token}/calculator`);
+    expect(email.html).toContain("max-width:560px");
+    expect(email.html).toContain("DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.");
+    expect(email.html).toContain("Remove my enquiry");
+    expect(email.html).toContain("Privacy");
+    for (const t of ["Outfit", "Figtree", "email-art", "Your estimate", "What you get", "Hold your place in line", "Save my spot", "$3,379", "<h1", "<h2", "Contact us"]) expect(email.html).not.toContain(t);
+    expect(email.plainText).toContain(`See my estimate: ${campaignUrl}`);
   });
-  test("Group B keeps its jump-the-queue opening on the same structure", () => {
+  test("v8 SHORT Group B: same short email, could-be-eligible line, links to its page", () => {
     const email = renderLaunchCampaignEmail({ group: "onsite", campaignUrl, unsubscribeUrl, firstName: "Michael", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "28 Sample Road, Bendigo VIC 3550" });
     expect(email.subject).toBe("Michael, jump the queue for your $1,470 rebate");
-    expect(email.html).toContain(`/api/public/email-art/${token}/headline.png`);
-    expect(email.html).toContain("Your Bendigo home could be eligible for the Victorian Energy Upgrades rebate");
-    expect(email.html).toContain("Want to jump the queue?");
-    expect(email.html).toContain("Your estimate");
-    for (const t of CAMPAIGN_BANNED) expect(email.html).not.toContain(t);
-    const dup = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Jo", estimatedTotal: 3178, veuDiscount: 1120, grossTotal: 4298, areaM2: 120, address: "20 Banksia Street, Frankston VIC 3199, Frankston VIC 3199" });
-    expect(dup.html).toContain("Based on 20 Banksia Street, Frankston VIC 3199 and a");
-    expect(email.html).not.toContain("Contact us");
+    expect(email.html).toContain("Your Bendigo home could be eligible for the Victorian Energy Upgrades rebate.");
+    expect(email.html).toContain(`href="${campaignUrl}"`);
+    expect(email.html).not.toContain("/video");
   });
 
 });

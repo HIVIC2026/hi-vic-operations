@@ -19,10 +19,10 @@ describe("owner calculator (opened from an owner token)", () => {
     expect(save).toMatch(/from\("jobs"\)\.update\(\{ estimated_area_m2/);
   });
 
-  test("campaign email's calculator link opens the owner calculator, not the public one", () => {
+  test("v8: the short campaign email links only to the owner's campaign page (the calculator link lives there)", () => {
     const e = renderLaunchCampaignEmail({ group: "likely", campaignUrl: `https://estimate.homeinsulationvictoria.com.au/estimate/${TOKEN}/campaign`, unsubscribeUrl: `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${TOKEN}`, estimatedTotal: 1850, veuDiscount: 1470, grossTotal: 3320, areaM2: 120, firstName: "Sam" } as never);
-    expect(e.html).toContain(`/estimate/${TOKEN}/calculator`);
-    expect(e.plainText).toContain(`/estimate/${TOKEN}/calculator`);
+    expect(e.html).toContain(`/estimate/${TOKEN}/campaign`);
+    expect(e.html).not.toContain("/calculator");
   });
 
   test("Save my spot from the calculator: one row, no new job, double tap safe", async () => {
