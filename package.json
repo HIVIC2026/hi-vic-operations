@@ -9,7 +9,8 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test": "bun ./scripts/test-isolated.ts 8"
   },
   "overrides": {
     "rolldown": "1.2.1"

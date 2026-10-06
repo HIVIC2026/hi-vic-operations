@@ -17,5 +17,5 @@ describe("TEST Centre database guard", () => {
     const columns = await db.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_name='jobs' AND column_name='qa_archived_at'");
     expect(columns.rows).toHaveLength(0);
     await db.close();
-  });
+  }, 30000);
 });

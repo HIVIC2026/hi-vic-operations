@@ -5,7 +5,7 @@ import { AppShell } from "@/components/portal/AppShell";
 import { useAction } from "@/hooks/use-me";
 import { updatePartnerEnquiry } from "@/lib/portal.functions";
 import { getRecOnboardingRecord } from "@/lib/rec-onboarding-admin.functions";
-import { PARTNER_STATUSES, PARTNER_TYPES, PARTNER_TYPE_LABEL, partnerIssues, type PartnerType } from "@/lib/partner.core";
+import { PARTNER_STATUSES, PARTNER_TYPES, PARTNER_TYPE_LABEL, partnerIssues, ciiSummary, type PartnerType } from "@/lib/partner.core";
 const SHOWN_TYPES = PARTNER_TYPES;
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -106,7 +106,7 @@ function Partners() {
                           <div className="truncate text-muted-foreground">{r.email}</div>
                           <div className="mt-2 space-y-0.5">
                             
-                            {t === "installer" && <><div>CII: {r.cii_certification_status ?? "—"}</div><div>Areas: {r.service_areas?.join(", ") || "—"}</div><div>Indicative R5 rate: {r.estimated_r5_install_rate_per_sqm_inc_gst == null ? "—" : `$${r.estimated_r5_install_rate_per_sqm_inc_gst}/m² inc GST`}</div></>}
+                            {t === "installer" && <><div>CII: {ciiSummary(r)}</div><div>Areas: {r.service_areas?.join(", ") || "—"}</div><div>Indicative R5 rate: {r.estimated_r5_install_rate_per_sqm_inc_gst == null ? "—" : `$${r.estimated_r5_install_rate_per_sqm_inc_gst}/m² inc GST`}</div></>}
                             {t === "electrician_rec" && <><div>REC: {r.rec_registration_number ?? "—"} · ESV confirmed: {r.esv_licensed_electricians_confirmed == null ? "—" : r.esv_licensed_electricians_confirmed ? "Yes" : "No"}</div><div>Areas: {r.service_areas?.join(", ") || "—"}</div><div>PIESA fee: {money(r.estimated_piesa_fee_inc_gst)}</div><div>Services: {r.services?.join(", ") || "—"}</div></>}
                           </div>
                           <div className="mt-2 text-xs text-muted-foreground">Submitted {date(r.source_created_at ?? r.created_at)}</div>
