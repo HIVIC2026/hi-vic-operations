@@ -29,15 +29,59 @@ export function tradeCovers(trade: Trade, postcode: string | null, region: Regio
   }
   return regionsForDeclaredAreas((trade.areas ?? []).filter((label) => !/\bVIC\s+\d{4}\s+\d+\s*km/i.test(label))).includes(region);
 }
+/** Office display groups (Jo, 6 Oct 2026). Presentation only; never decides eligibility or assignment. */
 export function hotRegion(postcode: string | null): string {
+  const n = Number(postcode);
   const r = regionForPostcode(postcode);
   if (r.startsWith("mel_")) return "Melbourne metro";
   if (r === "mornington") return "Mornington Peninsula";
   if (r === "geelong") return "Geelong";
   if (r === "hume") return "Goulburn & Hume";
-  if (r === "gippsland") return "Gippsland";
-  if (r === "bendigo_macedon") return "Bendigo / Loddon";
-  return ["ballarat", "wimmera_mallee", "south_west"].includes(r) ? "Western Victoria" : "Other Victoria";
+  if (r === "gippsland") return n >= 3875 && n <= 3909 ? "Far East Gippsland" : "Gippsland";
+  if ((n >= 3340 && n <= 3357) || (n >= 3430 && n <= 3448)) return "Ballarat / Macedon";
+  if (n >= 3450 && n <= 3599 && !(n >= 3480 && n <= 3509)) return "Bendigo / Loddon";
+  return ["ballarat", "wimmera_mallee", "south_west", "bendigo_macedon"].includes(r) ? "Western Victoria" : "Other Victoria";
+}
+/** Regions with no local trade confirmed yet (Jo, 6 Oct 2026). Leads here are held, never ticked by default. */
+export const HOT_HOLD_REGIONS = new Set(["Bendigo / Loddon", "Far East Gippsland"]);
+/** Specific jobs Jo excluded (QA, her own tests, 1 m²). */
+export const HOT_EXCLUDED_JOBS = new Set(["HV-1059", "HV-1061", "HV-1063", "HV-1257", "HV-1291", "HV-1161"]);
+/** Older duplicate records Jo asked to hide (newest kept). */
+export const HOT_HIDDEN_DUPLICATES = new Set(["HV-1225", "HV-1242", "HV-1286", "HV-1475", "HV-1180"]);
+
+const TYPO_DOMAINS = new Set(["gmai.com", "gmial.com", "gmal.com", "gmail.co", "gmail.con", "gnail.com", "hotmial.com", "hotmai.com", "hotmail.con", "outlok.com", "yaho.com", "yahoo.con", "bigpond.con", "iclod.com", "icloud.con"]);
+export function emailTypo(email: string | null | undefined): string | null {
+  const domain = (email ?? "").trim().toLowerCase().split("@")[1];
+  return domain && TYPO_DOMAINS.has(domain) ? `The email domain "${domain}" looks like a typo. Check it with the owner before sending.` : null;
+}
+
+export type HotStatus = "not_sent" | "sent" | "spot_saved" | "opted_out";
+export function hotStatus(x: { sentAt: string | null; spotSavedAt: string | null; optedOutAt: string | null }): HotStatus {
+  if (x.optedOutAt) return "opted_out";
+  if (x.spotSavedAt) return "spot_saved";
+  return x.sentAt ? "sent" : "not_sent";
+}
+export const HOT_STATUS_LABEL: Record<HotStatus, string> = { not_sent: "Not sent", sent: "Sent", spot_saved: "Spot saved", opted_out: "Opted out" };
+
+/** Shared-email flags: one owner email covering more than one home. Returns jobNumber -> other job numbers. */
+export function sharedEmailFlags(rows: { jobNumber: string | null; email: string | null }[]) {
+  const by = new Map<string, string[]>();
+  for (const r of rows) { const e = (r.email ?? "").trim().toLowerCase(); if (e && r.jobNumber) by.set(e, [...(by.get(e) ?? []), r.jobNumber]); }
+  const out = new Map<string, string[]>();
+  for (const list of by.values()) if (list.length > 1) for (const j of list) out.set(j, list.filter((x) => x !== j));
+  return out;
+}
+
+/** Selection blocker before sending. null = OK. Two homes on the same email: Jo must pick one. */
+export function hotSelectionBlocker(selected: { jobNumber: string | null; email: string | null }[]): string | null {
+  const seen = new Map<string, string>();
+  for (const r of selected) {
+    const e = (r.email ?? "").trim().toLowerCase();
+    if (!e) continue;
+    if (seen.has(e)) return `${seen.get(e)} and ${r.jobNumber} share one email. Pick one home for this email.`;
+    seen.set(e, r.jobNumber ?? "");
+  }
+  return null;
 }
 export function hotCoverage(postcode: string | null, trades: Trade[]) {
   const region = regionForPostcode(postcode);
