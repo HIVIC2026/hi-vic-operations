@@ -66,7 +66,7 @@ export async function tradeHome(userId: string) {
   const money = await tradeMoneyRows(c.biz.id, c.kind, c.isTest);
   const m0 = new Date(now.getFullYear(), now.getMonth(), 1);
   const month = money.filter((r) => r.doneAt && new Date(r.doneAt) >= m0);
-  const offerList = (offers ?? []).filter((o) => (c.kind === "installer" ? o.kind === "ready_check" || o.kind === "installation" : o.kind === "piesa" || o.kind === "rectification"))
+  const offerList = (offers ?? []).filter((o) => (c.kind === "installer" ? o.kind === "ready_check" || o.kind === "installer" : o.kind === "piesa" || o.kind === "rectification"))
     .map((o) => ({ id: o.id, kind: o.kind, suburb: (o.summary as { suburb?: string | null })?.suburb ?? null, expiresAt: o.expires_at }));
   return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, month: { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0) } };
 }
@@ -206,7 +206,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   return rows.map((b) => {
     const j = b.jobs as { job_number: string; owners: { full_name: string | null } | null; properties: { suburb: string | null } | null };
     const pe = (paid ?? []).find((p) => p.job_id === b.job_id && ((p.details as { kind?: string })?.kind ?? b.kind) === b.kind);
-    const of = (offers ?? []).find((o) => o.job_id === b.job_id && (o.kind === "piesa" ? "assessment" : o.kind) === b.kind);
+    const of = (offers ?? []).find((o) => o.job_id === b.job_id && (o.kind === "piesa" ? "assessment" : o.kind === "installer" ? "installation" : o.kind) === b.kind);
     const sum = (of?.summary ?? {}) as { electrician_rate_inc_gst?: number; installer_pay_inc_gst?: number; fixes_pay_inc_gst?: number };
     const amount = Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst : b.kind === "rectification" ? sum.fixes_pay_inc_gst : sum.installer_pay_inc_gst) ?? 0) || null;
     const state = payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null });
