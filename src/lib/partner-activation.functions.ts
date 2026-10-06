@@ -40,6 +40,17 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
     const plan = planActivation(type, app as never, application, certs, blockers);
     if (!plan.workers.length || plan.workers.some((w) => !w.full_legal_name || !w.email)) throw new WorkflowError("Every nominated worker needs a complete profile before approval.");
     if (!plan.items.length) throw new WorkflowError("No valid agreed rates were found in the signed application.");
+    // A counter-offer, once made, governs the rate card: never the original proposal.
+    const { offerState, offerActivationBlocker, applyAgreedRates } = await import("./rate-offer.core");
+    const { data: offerRows, error: offerErr } = await (admin as unknown as { from: (t: string) => any }).from("partner_rate_offers").select("id, round, status, items, note, gst_registered, created_at, responded_at, response").eq("application_id", app.id); // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (offerErr) throw new WorkflowError("Could not check rate offers; nothing was approved.");
+    const offer = offerState(offerRows ?? []);
+    const offerBlock = offerActivationBlocker(offer);
+    if (offerBlock) throw new WorkflowError(offerBlock);
+    if (offer.kind === "accepted") {
+      plan.items = applyAgreedRates(plan.items, offer.offer);
+      (plan as unknown as { snapshot: Record<string, unknown> }).snapshot = { ...(plan as unknown as { snapshot: Record<string, unknown> }).snapshot, rates: plan.items, rate_offer_id: offer.offer.id, rate_offer_round: offer.offer.round, rate_source: "accepted_counter_offer" };
+    }
     if (!plan.bank.account_name || !plan.bank.bsb || !plan.bank.account_number) throw new WorkflowError("Complete bank details are required in the signed onboarding application.");
     const { data: rows, error: rpcError } = await admin.rpc("activate_partner_application", { _app_id: app.id, _actor: context.userId, _override: data.overrideReason ?? null, _plan: plan as unknown as Json } as never);
     if (rpcError?.message.includes("activate:no_verified_installer")) throw new WorkflowError("No installer on this application has a current office-verified CII certification (a later check may have rejected it). Nothing was approved.");
