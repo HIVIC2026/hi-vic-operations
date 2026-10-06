@@ -57,7 +57,7 @@ describe("rec onboarding", () => {
     expect(visibleSteps(full).some((s) => s.key === "howitworks")).toBe(false);
     expect(stepErrors("about", { ...full, licence_number: undefined })).toContain("Enter your Victorian electrician licence number.");
     expect(stepErrors("about", { ...full, contact_is_licensed_electrician: null })).toContain("Confirm you are a licensed electrician to continue.");
-    expect(effectiveElectricians(full)).toEqual([{ full_legal_name: "Sam Smith", licence_number: "A123", mobile: "0412345678", email: "sam@spark.com.au" }]);
+    expect(effectiveElectricians(full)).toEqual([{ full_legal_name: "Sam Smith", licence_number: "A123", licence_expiry: "2030-01-01", mobile: "0412345678", email: "sam@spark.com.au" }]);
     // an explicit legacy list always wins
     expect(effectiveElectricians({ ...full, electricians: [{ full_legal_name: "Other", licence_number: "B9", mobile: "0400000000", email: "o@x.com" }] })[0].full_legal_name).toBe("Other");
   });
