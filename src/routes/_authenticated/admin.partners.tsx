@@ -51,7 +51,7 @@ function Partners() {
   const { data: testIds = [] } = useQuery({ queryKey: ["partner_test_marks"], queryFn: () => loadTests(), staleTime: 30_000 });
   const testSet = new Set(testIds);
   const real = rows.filter((row) => !testSet.has(row.id));
-  const visible = (queue === "tests" ? rows.filter((row) => testSet.has(row.id)) : real).filter((row) => queue === "tests" || queue === "approval" ? ["new", "contacted", "onboarding"].includes(row.status) && isOnboarding(row) : queue === "enquiries" ? ["new", "contacted", "onboarding"].includes(row.status) && !isOnboarding(row) : queue === "approved" ? row.status === "approved" : ["declined", "closed"].includes(row.status)));
+  const visible = (queue === "tests" ? rows.filter((row) => testSet.has(row.id)) : real).filter((row) => queue === "tests" || (queue === "approval" ? ["new", "contacted", "onboarding"].includes(row.status) && isOnboarding(row) : queue === "enquiries" ? ["new", "contacted", "onboarding"].includes(row.status) && !isOnboarding(row) : queue === "approved" ? row.status === "approved" : ["declined", "closed"].includes(row.status)));
   const of = (t: PartnerType) => visible.filter((r) => r.enquiry_type === t);
   // Open a linked enquiry once; closing it must not reopen it while the link is being cleared.
   const autoOpened = useRef<string | null>(null);
