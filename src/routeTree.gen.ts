@@ -73,6 +73,7 @@ import { Route as ApiPublicAddressSearchRouteImport } from './routes/api/public/
 import { Route as ApiPublicEnquiryRouteImport } from './routes/api/public/enquiry'
 import { Route as ApiPublicPartnerEnquiryRouteImport } from './routes/api/public/partner-enquiry'
 import { Route as ApiPublicUnsubscribeRouteImport } from './routes/api/public/unsubscribe'
+import { Route as EstimateTokenCalculatorRouteImport } from './routes/estimate_.$token.calculator'
 import { Route as EstimateTokenCampaignRouteImport } from './routes/estimate_.$token.campaign'
 import { Route as EstimateTokenVideoRouteImport } from './routes/estimate_.$token.video'
 import { Route as TETokenRouteImport } from './routes/t.e.$token'
@@ -431,6 +432,11 @@ const ApiPublicUnsubscribeRoute = ApiPublicUnsubscribeRouteImport.update({
   path: '/api/public/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EstimateTokenCalculatorRoute = EstimateTokenCalculatorRouteImport.update({
+  id: '/estimate_/$token/calculator',
+  path: '/estimate/$token/calculator',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EstimateTokenCampaignRoute = EstimateTokenCampaignRouteImport.update({
   id: '/estimate_/$token/campaign',
   path: '/estimate/$token/campaign',
@@ -560,6 +566,7 @@ export interface FileRoutesByFullPath {
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
+  '/estimate/$token/calculator': typeof EstimateTokenCalculatorRoute
   '/estimate/$token/campaign': typeof EstimateTokenCampaignRoute
   '/estimate/$token/video': typeof EstimateTokenVideoRoute
   '/t/e/$token': typeof TETokenRoute
@@ -633,6 +640,7 @@ export interface FileRoutesByTo {
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
+  '/estimate/$token/calculator': typeof EstimateTokenCalculatorRoute
   '/estimate/$token/campaign': typeof EstimateTokenCampaignRoute
   '/estimate/$token/video': typeof EstimateTokenVideoRoute
   '/t/e/$token': typeof TETokenRoute
@@ -712,6 +720,7 @@ export interface FileRoutesById {
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
+  '/estimate_/$token/calculator': typeof EstimateTokenCalculatorRoute
   '/estimate_/$token/campaign': typeof EstimateTokenCampaignRoute
   '/estimate_/$token/video': typeof EstimateTokenVideoRoute
   '/t/e/$token': typeof TETokenRoute
@@ -791,6 +800,7 @@ export interface FileRouteTypes {
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/api/public/unsubscribe'
+    | '/estimate/$token/calculator'
     | '/estimate/$token/campaign'
     | '/estimate/$token/video'
     | '/t/e/$token'
@@ -864,6 +874,7 @@ export interface FileRouteTypes {
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/api/public/unsubscribe'
+    | '/estimate/$token/calculator'
     | '/estimate/$token/campaign'
     | '/estimate/$token/video'
     | '/t/e/$token'
@@ -942,6 +953,7 @@ export interface FileRouteTypes {
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
     | '/api/public/unsubscribe'
+    | '/estimate_/$token/calculator'
     | '/estimate_/$token/campaign'
     | '/estimate_/$token/video'
     | '/t/e/$token'
@@ -981,6 +993,7 @@ export interface RootRouteChildren {
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
   ApiPublicPartnerEnquiryRoute: typeof ApiPublicPartnerEnquiryRoute
   ApiPublicUnsubscribeRoute: typeof ApiPublicUnsubscribeRoute
+  EstimateTokenCalculatorRoute: typeof EstimateTokenCalculatorRoute
   EstimateTokenCampaignRoute: typeof EstimateTokenCampaignRoute
   EstimateTokenVideoRoute: typeof EstimateTokenVideoRoute
   TETokenRoute: typeof TETokenRoute
@@ -1442,6 +1455,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/estimate_/$token/calculator': {
+      id: '/estimate_/$token/calculator'
+      path: '/estimate/$token/calculator'
+      fullPath: '/estimate/$token/calculator'
+      preLoaderRoute: typeof EstimateTokenCalculatorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/estimate_/$token/campaign': {
       id: '/estimate_/$token/campaign'
       path: '/estimate/$token/campaign'
@@ -1691,6 +1711,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
   ApiPublicPartnerEnquiryRoute: ApiPublicPartnerEnquiryRoute,
   ApiPublicUnsubscribeRoute: ApiPublicUnsubscribeRoute,
+  EstimateTokenCalculatorRoute: EstimateTokenCalculatorRoute,
   EstimateTokenCampaignRoute: EstimateTokenCampaignRoute,
   EstimateTokenVideoRoute: EstimateTokenVideoRoute,
   TETokenRoute: TETokenRoute,

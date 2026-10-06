@@ -2,8 +2,9 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { declaredExtras } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
-import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, deskCheckReasonError, launchGroup, savedPriceFromEstimate, savedPriceLabel, type DeskCheckOutcome } from "./launch-campaign.core";
+import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, deskCheckReasonError, launchGroup, ownerCalculatorChangeNote, savedPriceFromCalculator, savedPriceFromEstimate, savedPriceLabel, type DeskCheckOutcome } from "./launch-campaign.core";
 import { logEvent } from "./workflow.server";
+import { whatIfEstimate } from "./estimate.core";
 
 async function campaignLink(token: unknown) {
   if (!isWellFormedToken(token)) return null;
@@ -43,13 +44,31 @@ export async function campaignPage(token: unknown, testMode = false) {
   return estimate ? JSON.stringify({ group: c.group, estimate, response: response ?? null, bookingAvailable: !!property?.postcode && (availability?.ready_check_available_postcodes ?? []).includes(property.postcode), owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
 }
 
-export async function saveCampaignSpot(token: unknown) {
+export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; insulation: "none" | "present" | "unknown" | null } | null) {
   const c = await campaignLink(token);
   if (!c) throw new Error("This link is no longer available.");
   const now = new Date().toISOString();
   const { data: est } = await admin.from("indicative_estimates").select("id, area_m2, insulation_declared, scenarios").eq("job_id", c.job.id).eq("status", "current").maybeSingle();
-  const price = savedPriceFromEstimate(est ?? null);
-  const snapshot = { saved_estimate_id: price?.estimateId ?? null, saved_total: price?.total ?? null, saved_veu_discount: price?.discount ?? null, saved_gross_total: price?.gross ?? null, saved_area_m2: price?.areaM2 ?? null, saved_insulation: price?.insulation ?? null, saved_estimate_url: `/estimate/${String(token)}/campaign` };
+  let price = savedPriceFromEstimate(est ?? null);
+  // Owner calculator: snapshot exactly what the calculator showed, recomputed server-side from the same pure core.
+  if (calc) {
+    const { resolvePublicEstimate } = await import("./estimatelink.server");
+    const pub = await resolvePublicEstimate(token, false) as { estimate?: { calc?: { location: never; settings: never } | null } } | null;
+    const cc = pub?.estimate?.calc;
+    const shown = cc ? whatIfEstimate(calc.areaM2, cc.location, calc.insulation, cc.settings) : null;
+    price = savedPriceFromCalculator(shown as never, calc.areaM2, calc.insulation) ?? price;
+    const property = c.job.properties as { enrichment: Record<string, unknown> | null } | null;
+    const base44 = (property?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
+    const { data: prev } = await admin.from("lead_campaign_responses").select("saved_insulation").eq("job_id", c.job.id).maybeSingle();
+    const beforeIns = prev?.saved_insulation ?? normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation);
+    const note = ownerCalculatorChangeNote({ areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation: beforeIns }, calc);
+    if (note) {
+      // Store the new size on the EXISTING job only — never a new job or enquiry.
+      await admin.from("jobs").update({ estimated_area_m2: calc.areaM2 }).eq("id", c.job.id);
+      await logEvent(c.job.id, null, "owner_calculator_change", note, { area_m2: calc.areaM2, insulation: calc.insulation, previous_area_m2: c.job.estimated_area_m2, estimate: price }, { internal: true });
+    }
+  }
+  const snapshot = { saved_estimate_id: price?.estimateId ?? null, saved_total: price?.total ?? null, saved_veu_discount: price?.discount ?? null, saved_gross_total: price?.gross ?? null, saved_area_m2: price?.areaM2 ?? null, saved_insulation: price?.insulation ?? null, saved_estimate_url: `/estimate/${String(token)}/${calc ? "calculator" : "campaign"}` };
   // Idempotent: ON CONFLICT (job_id) DO NOTHING, then fill an existing unsaved row. Double taps / two devices both succeed.
   const ins = await admin.from("lead_campaign_responses").upsert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, spot_saved_at: now, video_requested: c.group === "onsite", desk_check_status: c.group === "onsite" ? "pending" : "not_needed", updated_at: now, ...snapshot }, { onConflict: "job_id", ignoreDuplicates: true }).select("id");
   let firstSave = !ins.error && (ins.data?.length ?? 0) > 0;
