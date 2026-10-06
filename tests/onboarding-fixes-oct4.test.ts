@@ -4,7 +4,7 @@ import { stepErrors, type InstData } from "../src/lib/installer-onboarding.core"
 
 const page = readFileSync("src/routes/installer-onboarding.tsx", "utf8");
 const recPage = readFileSync("src/routes/electrician-onboarding.tsx", "utf8");
-const worker = { full_legal_name: "A B", mobile: "0412345679", email: "a@example.com", cii_holds: "held" as const, cii_certificate_number: "C1", cii_issuer: "EEC", cii_issue_date: "2024-01-01" };
+const worker = { full_legal_name: "A B", piisa_done: "no", mobile: "0412345679", email: "a@example.com", cii_holds: "held" as const, cii_certificate_number: "C1", cii_issuer: "EEC", cii_issue_date: "2024-01-01" };
 const errs = (d: InstData, k: string) => stepErrors(k as never, d).join(" | ");
 
 describe("onboarding fixes", () => {

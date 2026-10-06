@@ -386,6 +386,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
           <Field label="Your name" required><input style={input} placeholder="e.g. Sam Taylor" {...t("primary_contact_name")} /></Field>
           <Check checked={d.contact_is_licensed_electrician === true} onChange={(v) => up({ contact_is_licensed_electrician: v ? true : null })} required error={showErrors && d.contact_is_licensed_electrician !== true ? "Confirm you are a licensed electrician to continue." : null}>I am a licensed electrician.</Check>
           <Field label="Your Victorian electrician licence number" required hint="Your personal Energy Safe Victoria electrical licence number."><input style={input} {...t("licence_number", true)} /></Field>
+          <Field label="Electrical licence expiry date" required><input style={input} type="date" value={d.licence_expiry ?? ""} onChange={(e) => up({ licence_expiry: e.target.value })} /></Field>
           <Field label="Your mobile" required><input style={input} type="tel" {...t("business_phone")} /></Field>
           <Field label="Your email" required><input style={input} type="email" {...t("business_email")} /></Field>
         </>}

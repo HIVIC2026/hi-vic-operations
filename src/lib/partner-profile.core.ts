@@ -61,9 +61,16 @@ export function buildPartnerProfile(app: AppMeta, data: Data, cii: Map<string, C
       })
     : [
         { kind: "rec_registration", label: "REC number", number: txt(data["rec_registration_number"]) ?? txt(data["host_rec_number"]), issuer: "Energy Safe Victoria", expires_at: null, has_file: false, verified: false },
-        { kind: "esv_licence", label: "ESV electrical licence", holder: txt(data["primary_contact_name"]), number: txt(data["licence_number"]), issuer: "Energy Safe Victoria", expires_at: null, has_file: false, verified: false },
+        { kind: "esv_licence", label: "ESV electrical licence", holder: txt(data["primary_contact_name"]), number: txt(data["licence_number"]), issuer: "Energy Safe Victoria", expires_at: txt(data["licence_expiry"]) ?? txt(((data["electricians"] as Data[] | undefined)?.[0] ?? {})["licence_expiry"]), has_file: false, verified: false },
       ];
-  if (installer) licences.push({ kind: "piisa_training", label: "PIISA training", number: null, issuer: null, expires_at: null, has_file: false, verified: false });
+  if (installer) {
+    const files = (data["piisa_files"] ?? {}) as Record<string, string>;
+    for (const w of people) {
+      const email = normaliseEmail(w["email"]) ?? "";
+      const done = w["piisa_done"] === "yes" ? true : w["piisa_done"] === "no" ? false : null;
+      licences.push({ kind: "piisa_training", label: done === false ? "PIISA training not done" : "PIISA training", holder: txt(w["full_legal_name"]), number: done == null ? null : done ? "done" : "not_done", issuer: null, expires_at: done ? txt(w["piisa_date"]) : null, has_file: !!files[email], verified: false });
+    }
+  }
   return {
     business: {
       legal_name: txt(data["legal_entity_name"]), trading_name: txt(data["trading_name"]), abn: normaliseAbn(data["abn"]), type,
@@ -100,11 +107,17 @@ export function approvalFlags(p: PartnerProfile, peers: { r5: number[]; piesa: n
     if (!cii.length || cii.some((c) => !c.number)) out.push("Missing CII certification number for an installer.");
     if (cii.some((c) => c.number && !c.verified)) out.push("CII certification not yet verified by the office.");
     if (cii.some((c) => c.number && !c.expires_at)) out.push("Missing CII certification expiry date.");
-    out.push("PIISA training not recorded in the application.");
+    const piisa = p.licences.filter((l) => l.kind === "piisa_training");
+    if (!piisa.length || piisa.some((l) => l.number == null)) out.push("PIISA training missing for an installer.");
+    if (piisa.some((l) => l.number === "not_done")) out.push("PIISA training not done.");
+    if (piisa.some((l) => l.number === "done" && !l.has_file)) out.push("PIISA certificate missing.");
+    if (piisa.some((l) => l.number === "done" && l.has_file)) out.push("PIISA certificate to verify before jobs.");
   } else {
     if (!p.licences.find((l) => l.kind === "rec_registration")?.number) out.push("Missing REC number.");
     if (!p.licences.find((l) => l.kind === "esv_licence")?.number) out.push("Missing ESV licence number.");
-    out.push("Missing licence expiry (the form does not ask for it yet).");
+    const esv = p.licences.find((l) => l.kind === "esv_licence");
+    if (!esv?.expires_at) out.push("Licence expiry missing.");
+    else { const d = daysUntil(esv.expires_at, today); if (d < 0) out.push("Licence expired."); else if (d <= 60) out.push(`Licence expires in ${d} days.`); }
   }
   const unusual = (label: string, v: number | null, xs: number[]) => {
     const m = median(xs.filter((x) => x > 0)); if (v == null || m == null || xs.length < 3) return;

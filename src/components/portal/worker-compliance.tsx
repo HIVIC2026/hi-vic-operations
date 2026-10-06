@@ -1,0 +1,106 @@
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { AlertTriangle, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
+import { addLicenceExpiry, myTeamCompliance, officePiisaFileUrl, officeVerifyPiisa, officeWorkerCompliance, piisaUploadSlot, savePiisa } from "@/lib/worker-compliance.functions";
+
+type Row = { id: string; name: string; role: string; missing: ("licence_expiry" | "piisa")[]; warning: string | null; piisa: string; licenceExpiry: string | null };
+
+/** Trade My business: "missing" items with a one-tap Add it, plus licence lapse warnings. */
+export function TeamCompliancePrompts() {
+  const load = useServerFn(myTeamCompliance);
+  const { data } = useQuery({ queryKey: ["team-compliance"], queryFn: () => load() as Promise<Row[]> });
+  const rows = (data ?? []).filter((r) => r.missing.length || r.warning || r.piisa === "awaiting_check");
+  if (!rows.length) return null;
+  return (
+    <section data-testid="team-compliance" className="mb-4 space-y-3">
+      {rows.map((r) => <PromptCard key={r.id} r={r} />)}
+    </section>
+  );
+}
+
+function PromptCard({ r }: { r: Row }) {
+  const [open, setOpen] = useState<null | "licence_expiry" | "piisa">(null);
+  const qc = useQueryClient();
+  const done = () => { setOpen(null); void qc.invalidateQueries({ queryKey: ["team-compliance"] }); };
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <p className="font-semibold">{r.name}</p>
+      {r.warning && <p className="mt-1 flex items-start gap-2 text-sm text-destructive"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{r.warning}</p>}
+      {r.missing.includes("licence_expiry") && <MissingLine label="Electrical licence expiry date: missing" onAdd={() => setOpen("licence_expiry")} />}
+      {r.missing.includes("piisa") && <MissingLine label={r.piisa === "not_done" ? "PIISA training: not done yet" : "PIISA training: missing"} onAdd={() => setOpen("piisa")} />}
+      {r.piisa === "awaiting_check" && <p className="mt-2 text-sm text-muted-foreground">PIISA certificate uploaded. Our office is checking it.</p>}
+      {r.warning && !r.missing.length && open !== "licence_expiry" && <Button size="sm" variant="outline" className="mt-2" onClick={() => setOpen("licence_expiry")}>Add new expiry date</Button>}
+      {open === "licence_expiry" && <LicenceForm workerId={r.id} onDone={done} />}
+      {open === "piisa" && <PiisaForm workerId={r.id} onDone={done} />}
+    </div>
+  );
+}
+
+function MissingLine({ label, onAdd }: { label: string; onAdd: () => void }) {
+  return <div className="mt-2 flex items-center justify-between gap-3 text-sm"><span>{label}</span><Button size="sm" className="h-10" onClick={onAdd}>Add it</Button></div>;
+}
+
+function LicenceForm({ workerId, onDone }: { workerId: string; onDone: () => void }) {
+  const save = useServerFn(addLicenceExpiry);
+  const [v, setV] = useState(""); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  return (
+    <div className="mt-3 space-y-2">
+      <label className="block text-sm font-medium">Electrical licence expiry date<Input type="date" className="mt-1 h-12" value={v} onChange={(e) => setV(e.target.value)} /></label>
+      <Button className="h-12 w-full" disabled={!v || busy} onClick={async () => { setBusy(true); setErr(""); try { await save({ data: { workerId, expiry: v } }); onDone(); } catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); } finally { setBusy(false); } }}>Save</Button>
+      {err && <p role="alert" className="text-sm text-destructive">{err}</p>}
+    </div>
+  );
+}
+
+function PiisaForm({ workerId, onDone }: { workerId: string; onDone: () => void }) {
+  const slot = useServerFn(piisaUploadSlot); const save = useServerFn(savePiisa);
+  const [date, setDate] = useState(""); const [file, setFile] = useState<File | null>(null); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    if (!file) return;
+    const type = file.type as "application/pdf" | "image/jpeg" | "image/png";
+    if (!["application/pdf", "image/jpeg", "image/png"].includes(type)) { setErr("Upload a PDF, JPG or PNG."); return; }
+    setBusy(true); setErr("");
+    try {
+      const s = await slot({ data: { workerId, contentType: type, size: file.size } });
+      const { error } = await supabase.storage.from("partner-files").uploadToSignedUrl(s.path, s.token, file, { contentType: type });
+      if (error) throw new Error("Upload failed. Please try again.");
+      await save({ data: { workerId, completedOn: date, path: s.path } });
+      onDone();
+    } catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); } finally { setBusy(false); }
+  };
+  return (
+    <div className="mt-3 space-y-2">
+      <label className="block text-sm font-medium">Date completed<Input type="date" className="mt-1 h-12" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+      <label className="block text-sm font-medium">PIISA certificate<Input type="file" accept="application/pdf,image/jpeg,image/png" className="mt-1 h-12" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
+      <Button className="h-12 w-full" disabled={!date || !file || busy} onClick={() => void submit()}>{busy ? "Uploading…" : "Save"}</Button>
+      {err && <p role="alert" className="text-sm text-destructive">{err}</p>}
+    </div>
+  );
+}
+
+/** Office: licence and PIISA flags across all trades, with Verify for uploaded PIISA certificates. */
+export function OfficeWorkerCompliance() {
+  const load = useServerFn(officeWorkerCompliance); const verify = useServerFn(officeVerifyPiisa); const file = useServerFn(officePiisaFileUrl);
+  const { data, refetch } = useQuery({ queryKey: ["office-worker-compliance"], queryFn: () => load() });
+  const [err, setErr] = useState("");
+  if (!data?.length) return null;
+  return (
+    <section data-testid="office-worker-compliance" className="mb-6 rounded-2xl border border-border bg-card p-4">
+      <h2 className="font-display text-lg font-bold">Licences and PIISA training</h2>
+      <ul className="mt-3 divide-y divide-border">{data.map((r) => (
+        <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+          <div><p className="font-semibold">{r.name} <span className="font-normal text-muted-foreground">· {r.role}{r.business ? ` · ${r.business}` : ""}</span></p>
+            <p className="text-muted-foreground">{[...r.flags, ...(r.warning && !r.flags.length ? [r.warning] : [])].join(" · ")}</p></div>
+          {r.piisa === "awaiting_check" && <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={async () => { const u = await file({ data: { workerId: r.id } }); if (u.url) window.open(u.url, "_blank", "noopener"); }}>View certificate</Button>
+            <Button size="sm" onClick={async () => { setErr(""); try { await verify({ data: { workerId: r.id } }); await refetch(); } catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); } }}><Check className="mr-1 h-4 w-4" />Verify PIISA</Button>
+          </div>}
+        </li>))}</ul>
+      {err && <p role="alert" className="mt-2 text-sm text-destructive">{err}</p>}
+    </section>
+  );
+}

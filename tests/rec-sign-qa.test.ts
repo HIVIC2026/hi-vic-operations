@@ -10,7 +10,7 @@ import { recDb, sha256, PENDING_SQL } from "./helpers/pglite-rec";
 
 const addr = (label: string, state = "VIC", country = "AU") => ({ label, state, postcode: "3000", country: country as "AU", provider: "google_places_au" as const });
 const full: RecData = {
-  works_under_rec: false, primary_contact_name: "Sam Smith", contact_is_licensed_electrician: true, licence_number: "A123", business_phone: "0412345678", business_email: "sam@spark.com.au",
+  works_under_rec: false, primary_contact_name: "Sam Smith", contact_is_licensed_electrician: true, licence_number: "A123", licence_expiry: "2030-01-01", business_phone: "0412345678", business_email: "sam@spark.com.au",
   legal_entity_name: "Spark Pty Ltd", trading_name: "Spark", abn: "51824753556", rec_registration_number: "REC 12345",
   business_address: "1 Main St, Melbourne VIC 3000", business_address_details: addr("1 Main St, Melbourne VIC 3000"),
   insurance_uploaded: true, insurer: "QBE", insurance_policy_number: "P1", public_liability_cover_amount: 5_000_000, public_liability_expiry: "2099-01-01",

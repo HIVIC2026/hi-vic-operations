@@ -41,7 +41,7 @@ const dataSchema = z.object({
   legal_entity_name: s(200), trading_name: s(200), abn: s(20), cii_status: s(20), cii_details: s(1000),
   business_address: s(300), primary_contact_name: s(200), business_phone: s(30), business_email: s(320), authorised_to_register: z.boolean().optional(), works_for_business: z.boolean().nullable().optional(),
   insurer: s(200), insurance_policy_number: s(100), public_liability_cover_amount: n, public_liability_expiry: s(10),
-  installers: z.array(z.object({ full_legal_name: s(200), qualification: s(300), mobile: s(30), email: s(320), cii_holds: z.enum(["held", "in_training", "not_held"]).nullable().optional(), cii_certificate_number: s(80), cii_issuer: s(200), cii_issue_date: s(10), cii_level: z.enum(["full", "provisional"]).nullable().optional(), cii_expiry: s(10), is_self: z.boolean().optional() })).max(50).optional(),
+  installers: z.array(z.object({ full_legal_name: s(200), qualification: s(300), mobile: s(30), email: s(320), cii_holds: z.enum(["held", "in_training", "not_held"]).nullable().optional(), cii_certificate_number: s(80), cii_issuer: s(200), cii_issue_date: s(10), cii_level: z.enum(["full", "provisional"]).nullable().optional(), cii_expiry: s(10), is_self: z.boolean().optional(), piisa_done: z.enum(["yes", "no"]).nullable().optional(), piisa_date: s(10), piisa_uploaded: z.boolean().optional() })).max(50).optional(),
   self_is_installer: z.boolean().nullable().optional(),
   service_batts_removal: z.boolean().optional(), service_loose_fill_removal: z.boolean().optional(), wants_hivic_leads: z.boolean().nullable().optional(), free_quotes_for_hivic_leads: z.boolean().nullable().optional(), free_measureups_for_hivic_quote_leads: z.boolean().nullable().optional(),
   service_origin: s(300), travel_radius_km: n, excluded_areas: s(2000),
@@ -57,9 +57,15 @@ const dataSchema = z.object({
   electrician_contact_consent: z.boolean().optional(),
 }).strict();
 
+/** Applicants see only "uploaded"; certificate paths stay server-side in data.piisa_files (keyed by lower-case email). */
+function piisaView(d: InstData & { piisa_files?: Record<string, string> }, insurance: boolean) {
+  const { piisa_files: files = {}, ...rest } = d;
+  return { ...rest, insurance_uploaded: insurance, installers: (rest.installers ?? []).map((x) => ({ ...x, piisa_uploaded: !!files[(x.email ?? "").trim().toLowerCase()] })) } as InstData;
+}
+
 function publicView(app: { status: string; step_key: string | null; data: unknown; insurance_certificate_path: string | null; signed_at: string | null; agreement_version: string | null; test_mode?: boolean | null }) {
   const relaxed = mayRelaxRequiredSteps({ test_mode: !!app.test_mode, allow_incomplete_sign: (app as { allow_incomplete_sign?: boolean | null }).allow_incomplete_sign ?? null });
-  return { status: app.status, step_key: app.step_key, data: { ...(app.data as InstData), insurance_uploaded: !!app.insurance_certificate_path }, signed_at: app.signed_at, agreement_version: app.agreement_version, updated_at: (app as { updated_at?: string }).updated_at ?? null, test_mode: !!app.test_mode, relaxed };
+  return { status: app.status, step_key: app.step_key, data: piisaView(app.data as InstData & { piisa_files?: Record<string, string> }, !!app.insurance_certificate_path), signed_at: app.signed_at, agreement_version: app.agreement_version, updated_at: (app as { updated_at?: string }).updated_at ?? null, test_mode: !!app.test_mode, relaxed };
 }
 
 // Public start: browser-supplied random resume token (replay-safe) plus optional staff link; never a test flag.
@@ -101,7 +107,10 @@ export const saveInstallerOnboarding = createServerFn({ method: "POST" })
     if (app.status !== "draft") throw new Error("This application has already been signed and submitted.");
     // Compare-and-swap: a save from a tab holding an older revision never overwrites newer answers.
     if (Date.parse(data.base_updated_at) !== Date.parse(app.updated_at)) throw new Error("Your application changed in another tab. Reload to continue.");
-    const next = normaliseInstallerDraft(applyMaterialReset(app.data as InstData, data.data as InstData));
+    const prevFiles = (app.data as { piisa_files?: Record<string, string> } | null)?.piisa_files;
+    const next = { ...normaliseInstallerDraft(applyMaterialReset(app.data as InstData, data.data as InstData)), piisa_files: prevFiles ?? {} } as InstData;
+    // The "uploaded" tick is never trusted from the browser; it is derived from piisa_files.
+    next.installers = (next.installers ?? []).map(({ piisa_uploaded: _p, ...x }) => x);
     const sec = await import("./onboarding-security.server");
     const contact = app.test_mode ? null : await sec.contactHash(next, "installer");
     if (!(app as { authorisation_id?: string | null }).authorisation_id) await sec.enforceContactCap(db as never, app.id, "installer", contact); // office/test links are staff-cleared
@@ -133,6 +142,34 @@ export const confirmInstallerInsuranceUpload = createServerFn({ method: "POST" }
     if (Date.parse(data.base_updated_at) !== Date.parse(app.updated_at)) throw new Error(sec.UPLOAD_STALE_MESSAGE);
     const done = await sec.verifyAndPromote(db as never, "installer-onboarding", app.id, data.path, data.content_type, app.updated_at);
     return { ok: true, updated_at: done.updated_at };
+  });
+
+// PIISA certificate (per installer): same quarantine + byte checks as insurance; path kept server-side.
+export const installerPiisaUploadUrl = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: tokenSchema, content_type: z.enum(["application/pdf", "image/jpeg", "image/png"]), size: z.number().int().min(1).max(10 * 1024 * 1024), filename: z.string().max(200) }).parse(d))
+  .handler(async ({ data }) => {
+    const { db, app } = await findApp(data.token);
+    if (app.status !== "draft") throw new Error("Already submitted.");
+    const { safeOriginalName } = await import("./onboarding-security.core");
+    if (!safeOriginalName(data.filename)) throw new Error("Please upload a single PDF, PNG or JPEG file.");
+    const sec = await import("./onboarding-security.server");
+    return sec.quarantineSlot(db as never, "installer-onboarding", app.id);
+  });
+
+export const confirmInstallerPiisaUpload = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: tokenSchema, path: z.string().max(300), content_type: z.enum(["application/pdf", "image/jpeg", "image/png"]), email: z.string().trim().toLowerCase().email().max(320), base_updated_at: z.string().max(40).refine(isInstallerRevisionTimestamp) }).parse(d))
+  .handler(async ({ data }) => {
+    const { db, app } = await findApp(data.token);
+    if (app.status !== "draft") throw new Error("Already submitted.");
+    const sec = await import("./onboarding-security.server");
+    if (Date.parse(data.base_updated_at) !== Date.parse(app.updated_at)) throw new Error(sec.UPLOAD_STALE_MESSAGE);
+    const d = app.data as InstData & { piisa_files?: Record<string, string> };
+    if (!(d.installers ?? []).some((x) => (x.email ?? "").trim().toLowerCase() === data.email)) throw new Error("Save this installer's email first, then upload.");
+    const { finalPath } = await sec.verifyAndStoreDoc(db as never, "installer-onboarding", app.id, data.path, data.content_type, "piisa");
+    const next = { ...d, piisa_files: { ...(d.piisa_files ?? {}), [data.email]: finalPath } };
+    const { data: row } = await db.from("rec_onboarding_applications").update({ data: next as never } as never).eq("id", app.id).eq("status", "draft").eq("updated_at", app.updated_at).select("updated_at").maybeSingle();
+    if (!row) { await db.storage.from("partner-files").remove([finalPath]); throw new Error(sec.UPLOAD_STALE_MESSAGE); }
+    return { ok: true, updated_at: String((row as { updated_at: string }).updated_at) };
   });
 
 export const getInstallerAgreement = createServerFn({ method: "POST" })

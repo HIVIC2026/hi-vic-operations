@@ -32,6 +32,6 @@ describe("partner profile", () => {
     const p = buildPartnerProfile({ ...meta, partner_type: "rec" }, { ...inst, travel_radius_km: 9999, rec_registration_number: "23073", licence_number: "A1", assessment_rate: 350 });
     expect(p.coverage.anywhere_in_victoria).toBe(true);
     const f = approvalFlags(p, { r5: [], piesa: [350, 330, 360] }, "2026-10-06");
-    expect(f.some((x) => x.includes("Missing licence expiry"))).toBe(true);
+    expect(f.some((x) => x.includes("Licence expiry missing"))).toBe(true);
   });
 });
