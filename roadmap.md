@@ -4,6 +4,11 @@
 - [x] Identify the exact Jo onboarding email and other onboarding subjects.
 - [x] Reuse its renderer for Group A, Group B and hot leads, preserving approved subject/preview and fresh estimate breakdown.
 - [x] Show onboarding/new email side by side at 390px with web fonts blocked before one Jo-only TEST send; HV-1609, Resend 01a112b7-00e5-7096-9142-49789371b318; no publish.
+- [x] v9 rebuilt on installer invitation template; Jo-only test 01a112bc-d116-77f7-8f73-6bf307f85511.
+
+## Next
+- [ ] Payment rule (Jo, 7 Oct): $349 safety check payment before PIESA, two instalments or pay in full, DRAFT Step B wording — plan awaiting Jo's approval.
+- [ ] Partner applications change (Jo): add jobs-per-week + installers/crews questions for NEW applicants only; existing show "Not asked (onboarded before this question)"; NO "One more question" task, NO message/email/prompt to any onboarded partner (incl. Deep). Original task details (umsg_01m49bt9cremz8ktxk7td21q9a) need re-reading.
 
 1. [x] Owner paperwork gates A–D: no-login signing via secure link + 6-digit SMS/email code (quote acceptance, visit-time picks, all owner signatures)
 1b. [x] Owner paperwork gates A–D for every journey (gate rules, signing card, Paperwork strip, Needs me, settings page, scenario F). Waiting on Jo: final wording, cooling-off rules, landlord consent design, Mitti PIESA mapping.
