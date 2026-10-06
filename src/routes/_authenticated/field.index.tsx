@@ -52,6 +52,15 @@ function MyWork() {
             <span className="min-w-0 flex-1"><span className="block font-bold">{b.what} · {b.surname}</span><span className="block truncate text-sm text-estimate-navy/70">{b.address}</span></span><ChevronRight className="h-5 w-5" />
           </Link>); })}</div> : <p className={`${card} text-sm`}>Nothing booked yet.</p>}
       </section>
+      {data.jobs.length > 0 && (
+        <section data-your-jobs>
+          <h2 className="mb-2 font-display text-lg font-extrabold">Your jobs <span className="text-sm font-semibold text-estimate-navy/60">{data.jobs.length}</span></h2>
+          <div className="space-y-2">{data.jobs.map((j) => (
+            <Link key={j.jobId} to="/field/$jobId" params={{ jobId: j.jobId }} className="flex items-center gap-3 rounded-[22px] bg-card p-3 shadow-sm">
+              <span className="min-w-0 flex-1"><span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span><span className="block truncate text-sm text-estimate-navy/70">{j.address}</span><span className="block text-xs font-semibold text-estimate-blue">{j.status}</span></span><ChevronRight className="h-5 w-5" />
+            </Link>))}</div>
+        </section>
+      )}
       {data.month && <section className="flex items-center justify-between rounded-[22px] bg-estimate-green-soft p-4">
         <span><span className="block text-xs font-bold uppercase tracking-wide">This month</span><span className="font-bold">{data.month.jobs} {installer ? `install${data.month.jobs === 1 ? "" : "s"}` : `job${data.month.jobs === 1 ? "" : "s"}`} done</span></span>
         <span className="font-display text-2xl font-extrabold">{aud(data.month.earned)}</span>
