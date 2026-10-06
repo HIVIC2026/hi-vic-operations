@@ -6,7 +6,7 @@ import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 export function TradeShell({ children, installer, boss = true, test = false }: { children: React.ReactNode; installer: boolean; boss?: boolean; test?: boolean }) {
   const today = new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", timeZone: "Australia/Melbourne" });
   return (
-    <div className="min-h-screen bg-estimate-canvas font-sans text-estimate-navy">
+    <div className="estimate-brand min-h-screen bg-estimate-canvas font-sans text-estimate-navy">
       <header className="mx-auto flex max-w-md items-center justify-between px-4 pb-2 pt-4">
         <img src={logo.url} alt="Home Insulation Victoria" className="h-9 w-auto" />
         <span className="text-xs font-semibold text-estimate-navy/70">{today}</span>
@@ -25,7 +25,7 @@ export function TradeTabBar({ installer, boss }: { installer: boolean; boss: boo
   );
   const work = path === "/field" || path.startsWith("/field/offer") || path.startsWith("/field/day") || /^\/field\/[0-9a-f-]{36}/.test(path);
   return (
-    <nav aria-label="Trade menu" className="fixed inset-x-0 bottom-0 z-40 border-t border-estimate-line bg-card pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgba(34,55,107,0.08)]">
+    <nav aria-label="Trade menu" className="estimate-brand fixed inset-x-0 bottom-0 z-40 border-t border-estimate-line bg-card pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgba(34,55,107,0.08)]">
       <div className="mx-auto flex max-w-md">
         {tab("/field", "Work", Briefcase, work)}
         {installer && boss && tab("/partner/add", "Add job", PlusCircle, path.startsWith("/partner/add"))}
