@@ -33,8 +33,9 @@ export const GATE_DOCS: GateDoc[] = [
     body: `${DRAFT}\n\nThe landlord {landlord_name} has given written consent for the insulation upgrade at {address}. Recorded by office.` },
   { key: "visit_permission", gate: "A", title: "Your installer's earlier visit", version: "draft-1", signer: "owner", tick: "I confirm",
     body: `${DRAFT}\n\nI confirm {installer} visited {address} with my permission.` },
-  { key: "cooling_off_notice", gate: "B", title: "Cooling-off notice", version: "draft-1", signer: "owner", tick: "I have read this",
-    body: `${DRAFT}\n\nCooling-off notice slot. Wording and rules pending legal advice.` },
+  // Jo, 6 Oct 2026 (lawyer sign-off): no cooling-off period applies (owners asked to be contacted). Key kept for history.
+  { key: "cooling_off_notice", gate: "B", title: "Changing your mind", version: "jo-2026-10-06-lawyer", signer: "owner", tick: "I have read this",
+    body: "You can ask us questions or change your mind before your safety check is booked." },
   { key: "payment_terms", gate: "B", title: "Payment option and terms", version: "draft-1", signer: "owner", tick: "I agree",
     body: `${DRAFT}\n\nI agree to pay using: {payment_option}.` },
   { key: "veec_assignment_consent", gate: "B", title: "Your rebate (VEEC assignment)", version: "jo-2026-10-05-lawyer", draftNote: "Draft, awaiting lawyer", signer: "owner", tick: "I assign my VEECs",

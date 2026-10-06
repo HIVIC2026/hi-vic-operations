@@ -83,3 +83,11 @@ export function isSpotSavedStage(stage: string, spot: { spot_saved_at: string | 
 }
 /** Gate A to-do card: "todo" until every Gate A document is done, then "done". */
 export const gateACard = (todo: { gate: string }[]) => (todo.some((t) => t.gate === "A") ? "todo" as const : "done" as const);
+
+/** Stages from which the owner can no longer cancel from My job: the safety check is booked or later. */
+const NO_OWNER_CANCEL = new Set(["piesa_scheduled", "piesa_complete", "electrical_variation_pending", "rectification_required", "awaiting_owner_rectification_approval", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec", "complete", "cancelled", "on_hold"]);
+/** Plain "Cancel my job" (Jo, 6 Oct): offered only until the safety check is booked. No cooling-off period. */
+export function ownerCanCancel(stage: string, bookingKinds: string[]): boolean {
+  if (NO_OWNER_CANCEL.has(stage)) return false;
+  return !bookingKinds.includes("assessment");
+}
