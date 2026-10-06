@@ -1,8 +1,7 @@
 import { RectWindowChoice, useRectWindows } from "./rectification-times";
 import { useRef, useState } from "react";
-import { requiredDepositCents } from "@/lib/payment-gate.core";
+import { balanceSplit, requiredDepositCents } from "@/lib/payment-gate.core";
 import { QUOTE_EXPIRED_OWNER_MESSAGE, quoteExpiresAt, quoteIsExpired } from "@/lib/quote-expiry.core";
-import { depositPctFor } from "@/config/workflow-decisions";
 import { veecDiscountLabel } from "@/lib/estimate.core";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -284,7 +283,7 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
               {q.discount_note && <li className="text-xs text-muted-foreground">{q.discount_note}</li>}
             </ul>
             <div className="mt-2 border-t pt-2 text-lg font-bold">{aud(q.customer_total_inc_gst)} <span className="text-xs font-normal text-muted-foreground">inc GST</span></div>
-            <div className="text-xs text-muted-foreground">{q.kind === "rectification" ? "Scope approval – included in your final installation quote (no payment yet)" : `Minimum upfront deposit ${aud(requiredDepositCents(q.customer_total_inc_gst) / 100)} (${depositPctFor(Number(q.customer_total_inc_gst))}%), paid in full, or an approved 3-instalment plan · balance on installation day`}</div>
+            <div className="text-xs text-muted-foreground">{q.kind === "rectification" ? "Scope approval – included in your final installation quote (no payment yet)" : `Safety check payment ${aud(requiredDepositCents(q.customer_total_inc_gst) / 100)} before PIESA · balance in two halves (install booked / install day) or paid in full`}</div>
             {q.kind === "installation" && q.status === "issued" && q.sent_at && <div className="text-xs text-muted-foreground">Valid until {fmtDate(new Date(quoteExpiresAt(q.sent_at).getTime() - 1).toISOString())}</div>}
             {(q.status === "expired" || (q.status === "issued" && quoteIsExpired(q))) && (
               <p className="mt-3 rounded-md bg-muted p-2 text-sm">{QUOTE_EXPIRED_OWNER_MESSAGE}{q.expired_at && <span className="block text-xs text-muted-foreground">Expired on {fmtDate(q.expired_at)}</span>}</p>
@@ -321,7 +320,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
   const { data: internals } = useQuery({ queryKey: ["invoice-internals", jobId], enabled: isAdmin, queryFn: () => internalsFn({ data: { jobId } }) });
   return (
     <Section title="Xero invoice & payments">
-      {!data?.length && <p className="text-sm text-muted-foreground">No invoice yet – one Xero invoice for the full accepted price is raised when the owner accepts the final installation quote. An approved payment option (minimum upfront deposit, paid in full, or an active 3-instalment plan) is required before the PIESA or any scheduling; the rest is due on installation day.</p>}
+      {!data?.length && <p className="text-sm text-muted-foreground">No invoice yet – one Xero invoice for the full accepted price is raised when the owner accepts the final installation quote. The safety check payment ($349, set in Settings) must be received before the PIESA can be booked. The balance is paid in two halves (install booked, install day) or in full at Step B.</p>}
       <div className="space-y-3">
         {(data ?? []).map((i) => {
           const x = internals?.invoices.find((v) => v.id === i.id);
@@ -335,13 +334,15 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
               </div>
               <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 <div><dt className="text-xs text-muted-foreground">Total accepted price (inc GST)</dt><dd className="font-medium">{aud(i.total_inc_gst)}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">Minimum upfront deposit</dt><dd className="font-medium">{aud(i.deposit_amount)} {i.deposit_paid_at ? <span className="text-xs text-success">paid {fmtDate(i.deposit_paid_at)}</span> : i.deposit_cleared ? <span className="text-xs text-success">cleared</span> : <span className="text-xs text-danger">not yet paid</span>}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Safety check payment</dt><dd className="font-medium" data-testid="safety-check-payment">{aud(i.deposit_amount)} {Number(i.total_paid) >= Number(i.deposit_amount) ? <span className="text-xs text-success">Paid</span> : <span className="text-xs text-danger">Not paid</span>}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Balance (two halves)</dt><dd className="font-medium">{(() => { const b = balanceSplit(i.total_inc_gst, i.deposit_amount); return `${aud(b.firstHalf)} install booked · ${aud(b.secondHalf)} install day`; })()}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Paid to date</dt><dd className="font-medium">{aud(i.total_paid)}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Remaining balance</dt><dd className="font-medium">{aud(remaining)} {i.balance_paid_at && <span className="text-xs text-success">fully paid {fmtDate(i.balance_paid_at)}</span>}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Final due date (installation day)</dt><dd className="font-medium">{i.balance_due_date ? fmtDate(i.balance_due_date) : <span className="text-xs text-muted-foreground">Pending – set when installation is booked</span>}</dd></div>
               </dl>
               {i.xero_online_url && <a href={i.xero_online_url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-semibold text-primary underline">View / pay invoice</a>}
-              {!i.deposit_cleared && <p className="mt-2 flex items-center gap-1 rounded bg-danger-soft px-2 py-1 text-xs font-semibold text-danger"><Lock className="h-3 w-3" /> PIESA, rectification and installation scheduling are locked until an approved payment option is verified.</p>}
+              {!i.deposit_cleared && <p className="mt-2 flex items-center gap-1 rounded bg-danger-soft px-2 py-1 text-xs font-semibold text-danger"><Lock className="h-3 w-3" /> Safety check can't be booked — {aud(i.deposit_amount)} safety check payment not received.</p>}
+              <p className="mt-2 rounded bg-muted px-2 py-1 text-xs">Refunds (office records manually, nothing moves automatically): check never happens → refund everything paid. Check done and job can't go ahead → keep the safety check payment, refund the rest.</p>
               {isAdmin && x && (
                 <>
                   {x.deposit_request_raised_at
@@ -364,7 +365,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
                 <div className="mt-3 flex flex-wrap gap-2">
                   {internals?.xeroAllowed !== false && <Button size="sm" variant="outline" disabled={!!x?.sync_lock_at && Date.now() - Date.parse(x.sync_lock_at) < 120000} onClick={() => sync({ invoiceId: i.id }, "Xero sync finished")}>{x?.xero_invoice_id ? "Sync with Xero" : "Send to Xero (safe retry)"}</Button>}
                   {internals?.xeroAllowed && x?.xero_invoice_id && !x.deposit_request_raised_at && <Button id="target-deposit-request" data-portal-focus="target" size="sm" variant="outline" onClick={() => { if (confirm(`Confirm the native Xero deposit request (${aud(i.deposit_amount)}) has been raised in Xero? This does not unlock scheduling.`)) markRaised({ invoiceId: i.id }, "Deposit request recorded"); }}>Mark deposit request raised</Button>}
-                  {!i.deposit_cleared && <Button size="sm" variant="outline" onClick={() => { const r = prompt("Reason for overriding the deposit gate (required, permanently audited)"); if (r) override({ invoiceId: i.id, reason: r }, "Override recorded"); }}>Override deposit gate</Button>}
+                  {!i.deposit_cleared && <Button size="sm" variant="outline" onClick={() => { const r = prompt("Reason for overriding the deposit gate (required, permanently audited)"); if (r) override({ invoiceId: i.id, reason: r }, "Override recorded"); }}>Override safety check payment block</Button>}
                 </div>
               )}
             </div>

@@ -45,8 +45,9 @@ export const GATE_DOCS: GateDoc[] = [
   // PENDING: two cooling-off variants await Jo's answer. Stays DRAFT and blocks real jobs.
   { key: "cooling_off_notice", gate: "B", title: "Cooling-off", version: "pending-jo-variants", draftNote: "Pending — awaiting Jo's choice of variant", signer: "owner", tick: "I have read this",
     body: `${DRAFT}\n\nCooling-off wording pending Jo's choice between two variants.` },
-  { key: "payment_terms", gate: "B", title: "Payment", ...L, signer: "owner", tick: "I agree",
-    body: "{payment_option_text}" },
+  // 7 Oct payment rule: DRAFT pending lawyer — blocks real jobs until Jo approves it in Settings.
+  { key: "payment_terms", gate: "B", title: "Payment", version: "draft-2026-10-07", draftNote: "Draft, awaiting lawyer", signer: "owner", tick: "I agree",
+    body: "{safety_fee_text}\n\n{payment_option_text}" },
   { key: "piesa_copy_receipt", gate: "C", title: "Your safety check copy", ...L, signer: "owner", tick: "I have received it",
     body: "I have received a copy of the signed electrical safety check (PIESA) for my home. [View my copy]" },
   { key: "life_support_plan", gate: "C", title: "Life support plan", ...L, signer: "owner", tick: "I have uploaded it",
@@ -56,10 +57,10 @@ export const GATE_DOCS: GateDoc[] = [
 ];
 
 /** Approved payment option wording (options offered still depend on Jo's payment rule). */
+export const SAFETY_FEE_TEXT = "I'll pay the {fee} electrical safety check fee now. I understand it is non-refundable once the safety check has been done, even if the check finds the job can't go ahead.";
 export const PAYMENT_OPTION_TEXT = {
-  deposit: "I'll pay a {deposit}% deposit of {amount} now, and the balance on install day.",
-  full: "I'll pay in full now.",
-  instalments: "I'll pay in 3 instalments",
+  two_instalments: "Pay the balance of {balance} in two instalments: {half} when my install is booked and {half2} on install day.",
+  pay_in_full: "Pay the full {total} now.",
 } as const;
 
 /** Lawyer-approved screen copy (version LAWYER_V). Presentation only. */
@@ -85,13 +86,22 @@ export const PAPERWORK_SCREENS = {
 export const gateDoc = (k: GateDocKey) => GATE_DOCS.find((d) => d.key === k)!;
 
 /** Human labels for the owner's answers, merged into the signed text. */
-export function answerVars(a: Record<string, string>): Record<string, string> {
+export type PaymentMoney = { fee: string; balance: string; half: string; half2: string; total: string };
+/** Filled Step B payment choices (amounts always come from the server, never from owner answers). */
+export function paymentChoices(m: PaymentMoney) {
+  return { safetyFee: fillTemplate(SAFETY_FEE_TEXT, m), options: (Object.keys(PAYMENT_OPTION_TEXT) as (keyof typeof PAYMENT_OPTION_TEXT)[]).map((k) => ({ key: k, text: fillTemplate(PAYMENT_OPTION_TEXT[k], m) })) };
+}
+export function answerVars(a: Record<string, string>, money?: PaymentMoney): Record<string, string> {
   const own = Object.fromEntries(PAPERWORK_SCREENS.A.ownership);
   const out: Record<string, string> = { ...a };
   if (a["role"]) out["role"] = own[a["role"]] ?? a["role"];
   if (a["life_support"]) out["life_support"] = a["life_support"] === "yes" ? "Yes" : "No";
   const po = a["payment_option"] as keyof typeof PAYMENT_OPTION_TEXT | undefined;
-  if (po && PAYMENT_OPTION_TEXT[po]) out["payment_option_text"] = PAYMENT_OPTION_TEXT[po];
+  for (const k of ["fee", "balance", "half", "half2", "total"]) delete out[k];
+  if (money) {
+    if (po && PAYMENT_OPTION_TEXT[po]) out["payment_option_text"] = fillTemplate(PAYMENT_OPTION_TEXT[po], money);
+    out["safety_fee_text"] = fillTemplate(SAFETY_FEE_TEXT, money);
+  }
   return out;
 }
 

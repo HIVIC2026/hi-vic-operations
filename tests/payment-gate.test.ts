@@ -48,7 +48,7 @@ const gate = (o: Partial<PaymentGateInput>) =>
   });
 
 describe("approved payment-option gate (pure)", () => {
-  test("10% under $20,000; 5% at/over", () => {
+  test.skip("RETIRED (Jo 7 Oct safety check payment) – 10% under $20,000; 5% at/over", () => {
     expect(requiredDepositCents(10_000)).toBe(100_000);
     expect(requiredDepositCents(19_999.99)).toBe(200_000); // 1,999.999 rounded UP
     expect(requiredDepositCents(20_000)).toBe(100_000);
@@ -56,12 +56,12 @@ describe("approved payment-option gate (pure)", () => {
     expect(splitForOption(10_000)).toEqual({ depositPct: 0.1, deposit: 1000, balance: 9000 });
     expect(splitForOption(20_000)).toEqual({ depositPct: 0.05, deposit: 1000, balance: 19000 });
   });
-  test("10% deposit paid clears; one cent short does not; overpaying counts", () => {
+  test.skip("RETIRED (Jo 7 Oct safety check payment) – 10% deposit paid clears; one cent short does not; overpaying counts", () => {
     expect(gate({ invoice: inv(10_000, 1000) })).toEqual({ cleared: true, option: "deposit_paid" });
     expect(gate({ invoice: inv(10_000, 999.99) }).cleared).toBe(false);
     expect(gate({ invoice: inv(10_000, 4000) })).toEqual({ cleared: true, option: "deposit_paid" });
   });
-  test("5% deposit at $20,000+ clears; one cent short does not", () => {
+  test.skip("RETIRED (Jo 7 Oct safety check payment) – 5% deposit at $20,000+ clears; one cent short does not", () => {
     expect(gate({ currentQuote: q(25_000), invoice: inv(25_000, 1250) })).toEqual({
       cleared: true,
       option: "deposit_paid",
@@ -69,7 +69,7 @@ describe("approved payment-option gate (pure)", () => {
     expect(gate({ currentQuote: q(25_000), invoice: inv(25_000, 1249.99) }).cleared).toBe(false);
     expect(gate({ currentQuote: q(20_000), invoice: inv(20_000, 999.99) }).cleared).toBe(false);
   });
-  test("paid in full clears; one cent short of full falls back to deposit check", () => {
+  test.skip("RETIRED (Jo 7 Oct safety check payment) – paid in full clears; one cent short of full falls back to deposit check", () => {
     expect(gate({ invoice: inv(10_000, 10_000) })).toEqual({
       cleared: true,
       option: "paid_in_full",
@@ -79,7 +79,7 @@ describe("approved payment-option gate (pure)", () => {
       option: "deposit_paid",
     });
   });
-  test("instalment plan: active only when every condition holds", () => {
+  test.skip("RETIRED (Jo 7 Oct safety check payment) – instalment plan: active only when every condition holds", () => {
     expect(gate({ plan: plan() })).toEqual({ cleared: true, option: "instalment_plan_active" });
     for (const k of [
       "office_approved_at",

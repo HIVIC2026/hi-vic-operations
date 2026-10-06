@@ -90,3 +90,10 @@ Xero invoice and all customer/trade/financial-facing references use "Home Insula
 - Customer-facing screens may show the customer price. Office screens may show customer price, electrician rate and the spread.
 - A PIESA/rectification offer is not made to an electrician without a recorded agreed rate, unless office explicitly marks it "rate to be confirmed"; acceptance is blocked when neither applies.
 - Enforced by `offerRateBlocker` / `electricianRateText` (allocation.core.ts), the retired-term scan, and tests/allocation.core.test.ts.
+
+
+## Payment rule (Jo, 7 Oct 2026) — supersedes 10%/5% deposit and the 3-instalment plan
+- Safety check payment (default $349, `workflow_settings.safety_check_payment_inc_gst`) is paid after Step B and before the PIESA can be booked. Kept once the check is done (even if the job can't go ahead); refunded in full if the check never happens.
+- Balance = total after VEU discount − safety check payment. Owner chooses at Step B: two instalments (half when install is booked, half on install day) or pay the full total now. If the job can't go ahead after the check, refund everything except the safety check payment.
+- Step B payment wording is DRAFT (`draft-2026-10-07`) pending lawyer; blocks real jobs until Jo approves it in Settings.
+- Refunds are office-recorded; no money moves automatically. Payment gate, Xero live calls and sending stay OFF until switched on.

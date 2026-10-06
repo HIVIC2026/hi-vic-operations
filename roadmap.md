@@ -7,6 +7,8 @@
 - [x] v9 rebuilt on installer invitation template; Jo-only test 01a112bc-d116-77f7-8f73-6bf307f85511.
 
 ## Next
+- [ ] Move real owner/partner emails from the Base44 delivery bridge to Resend (Lovable sends); keep sending OFF.
+- [ ] Card payments: Jo to choose provider (built-in Stripe recommended; existing Stripe account possible) — set up via Lovable editor chat.
 - [ ] Automation settings (Jo, 7 Oct; after payment rule): partner-pair coverage (approved REC + approved installer by onboarding address+travel distance), auto Ready Check offer, waiting-list auto move-up in save order; $30/m² customer setting, installer paid onboarding rate, blank min/max range + disable its check, Needs me if rate ≥ $30; measurement_variance_tolerance_pct=15 → Needs me, no auto revised quote, standard NOT approved; lead fee $0; quote accuracy audit (TEST + 66 hot leads, mismatch table, pre-send recalculation guard → Needs me, report QUOTES 100% CORRECT); answer Stripe + email-provider questions. No auto-send switched on.
 - [ ] v10: send Jo-approved Save my spot HTML byte-for-byte (only 4 links swapped) to Jo only; then WAIT for her verdict before any renderer change.
 - [ ] Payment rule (Jo, 7 Oct): $349 safety check payment before PIESA, two instalments or pay in full, DRAFT Step B wording — plan awaiting Jo's approval.
