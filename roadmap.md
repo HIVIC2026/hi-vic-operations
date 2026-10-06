@@ -7,6 +7,7 @@
 - [x] v9 rebuilt on installer invitation template; Jo-only test 01a112bc-d116-77f7-8f73-6bf307f85511.
 
 ## Next
+- [ ] Automation settings (Jo, 7 Oct; after payment rule): partner-pair coverage (approved REC + approved installer by onboarding address+travel distance), auto Ready Check offer, waiting-list auto move-up in save order; $30/m² customer setting, installer paid onboarding rate, blank min/max range + disable its check, Needs me if rate ≥ $30; measurement_variance_tolerance_pct=15 → Needs me, no auto revised quote, standard NOT approved; lead fee $0; quote accuracy audit (TEST + 66 hot leads, mismatch table, pre-send recalculation guard → Needs me, report QUOTES 100% CORRECT); answer Stripe + email-provider questions. No auto-send switched on.
 - [ ] v10: send Jo-approved Save my spot HTML byte-for-byte (only 4 links swapped) to Jo only; then WAIT for her verdict before any renderer change.
 - [ ] Payment rule (Jo, 7 Oct): $349 safety check payment before PIESA, two instalments or pay in full, DRAFT Step B wording — plan awaiting Jo's approval.
 - [ ] Partner applications change (Jo): add jobs-per-week + installers/crews questions for NEW applicants only; existing show "Not asked (onboarded before this question)"; NO "One more question" task, NO message/email/prompt to any onboarded partner (incl. Deep). Original task details (umsg_01m49bt9cremz8ktxk7td21q9a) need re-reading.
