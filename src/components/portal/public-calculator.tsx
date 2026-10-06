@@ -379,6 +379,9 @@ export function PublicCalculator({ settings, initialValues, heading, resultActio
               <a href={ENQUIRY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-estimate-blue underline decoration-estimate-green/60 underline-offset-2 hover:text-estimate-green">
                 homeinsulationvictoria.com.au
               </a>
+              <a href="/privacy" className="font-bold text-estimate-blue underline decoration-estimate-green/60 underline-offset-2 hover:text-estimate-green">
+                Privacy policy
+              </a>
             </p>
           </div>
         </footer>}

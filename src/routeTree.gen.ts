@@ -16,6 +16,7 @@ import { Route as CalculatorRouteImport } from './routes/calculator'
 import { Route as CampaignPreviewRouteImport } from './routes/campaign-preview'
 import { Route as ElectricianOnboardingRouteImport } from './routes/electrician-onboarding'
 import { Route as InstallerOnboardingRouteImport } from './routes/installer-onboarding'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as QaAccessRouteImport } from './routes/qa-access'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
@@ -119,6 +120,11 @@ const ElectricianOnboardingRoute = ElectricianOnboardingRouteImport.update({
 const InstallerOnboardingRoute = InstallerOnboardingRouteImport.update({
   id: '/installer-onboarding',
   path: '/installer-onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QaAccessRoute = QaAccessRouteImport.update({
@@ -513,6 +519,7 @@ export interface FileRoutesByFullPath {
   '/campaign-preview': typeof CampaignPreviewRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
+  '/privacy': typeof PrivacyRoute
   '/qa-access': typeof QaAccessRoute
   '/reset-password': typeof ResetPasswordRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
@@ -591,6 +598,7 @@ export interface FileRoutesByTo {
   '/campaign-preview': typeof CampaignPreviewRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
+  '/privacy': typeof PrivacyRoute
   '/qa-access': typeof QaAccessRoute
   '/reset-password': typeof ResetPasswordRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
@@ -667,6 +675,7 @@ export interface FileRoutesById {
   '/campaign-preview': typeof CampaignPreviewRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
+  '/privacy': typeof PrivacyRoute
   '/qa-access': typeof QaAccessRoute
   '/reset-password': typeof ResetPasswordRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
@@ -747,6 +756,7 @@ export interface FileRouteTypes {
     | '/campaign-preview'
     | '/electrician-onboarding'
     | '/installer-onboarding'
+    | '/privacy'
     | '/qa-access'
     | '/reset-password'
     | '/step3-email-preview'
@@ -825,6 +835,7 @@ export interface FileRouteTypes {
     | '/campaign-preview'
     | '/electrician-onboarding'
     | '/installer-onboarding'
+    | '/privacy'
     | '/qa-access'
     | '/reset-password'
     | '/step3-email-preview'
@@ -900,6 +911,7 @@ export interface FileRouteTypes {
     | '/campaign-preview'
     | '/electrician-onboarding'
     | '/installer-onboarding'
+    | '/privacy'
     | '/qa-access'
     | '/reset-password'
     | '/step3-email-preview'
@@ -980,6 +992,7 @@ export interface RootRouteChildren {
   CampaignPreviewRoute: typeof CampaignPreviewRoute
   ElectricianOnboardingRoute: typeof ElectricianOnboardingRoute
   InstallerOnboardingRoute: typeof InstallerOnboardingRoute
+  PrivacyRoute: typeof PrivacyRoute
   QaAccessRoute: typeof QaAccessRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
@@ -1054,6 +1067,13 @@ declare module '@tanstack/react-router' {
       path: '/installer-onboarding'
       fullPath: '/installer-onboarding'
       preLoaderRoute: typeof InstallerOnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/qa-access': {
@@ -1698,6 +1718,7 @@ const rootRouteChildren: RootRouteChildren = {
   CampaignPreviewRoute: CampaignPreviewRoute,
   ElectricianOnboardingRoute: ElectricianOnboardingRoute,
   InstallerOnboardingRoute: InstallerOnboardingRoute,
+  PrivacyRoute: PrivacyRoute,
   QaAccessRoute: QaAccessRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
