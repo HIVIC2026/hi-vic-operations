@@ -64,7 +64,7 @@ function OfferPage() {
           <div className="rounded-[22px] border bg-card p-6 text-center shadow-sm"><div className="font-display text-xl font-extrabold">Too slow this time</div><p className="mt-2 text-sm text-muted-foreground">Someone else grabbed it. Keep your alerts on — the next one's yours.</p><Button asChild size="field" className="mt-4 w-full"><Link to="/field">Back to My work</Link></Button></div>
         ) : (
           <div className="overflow-hidden rounded-[22px] border bg-card shadow-sm">
-            <div className="bg-[hsl(var(--navy,224_52%_28%))] bg-primary p-5 text-primary-foreground">
+            <div className="bg-primary p-5 text-primary-foreground">
               <div className="flex items-center justify-between text-xs font-semibold opacity-90"><span>Fresh job</span>{data.expiresAt && <span>{timeLeft(data.expiresAt)}</span>}</div>
               <div className="mt-1 font-display text-2xl font-extrabold">{s.suburb} {s.postcode}</div>
               <div className="mt-1 text-lg font-bold">${s.electrician_rate_inc_gst ?? "—"} in your pocket</div>

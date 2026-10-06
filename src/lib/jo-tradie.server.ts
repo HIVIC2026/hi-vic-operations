@@ -66,7 +66,7 @@ async function both(ctx: { jobId: string | null; jobSource: string | null; label
 
 export async function sendJoWelcome(actorId: string) {
   const { businessId } = await setupJoPartner(actorId);
-  const { data, error } = await admin.auth.admin.generateLink({ type: "recovery", email: JO_EMAIL, options: { redirectTo: `${TEST_APP_BASE}/reset-password` } });
+  const { data, error } = await admin.auth.admin.generateLink({ type: "recovery", email: JO_EMAIL, options: { redirectTo: `${TEST_APP_BASE}/reset-password?next=/field/setup` } });
   if (error || !data.properties?.action_link) throw new WorkflowError(`Could not make Jo's set-up link: ${error?.message}`);
   const link = data.properties.action_link;
   await admin.from("businesses").update({ approval_message_status: "sent_test", approval_message_queued_at: new Date().toISOString() } as never).eq("id", businessId);
