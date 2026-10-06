@@ -379,7 +379,7 @@ export type LaunchCampaignEmailInput = {
   /** Office draft wording (preview only). Blank/missing = approved default. "{name}" = first name. */
   copy?: Partial<Record<LaunchCopyField, string>> | null;
 };
-export const CAMPAIGN_H1_MAX_CHARS = 46;
+export const CAMPAIGN_H1_MAX_CHARS = 54;
 export type LaunchCopyField = "subject" | "previewText" | "headline" | "intro" | "video" | "nextTitle" | "urgency" | "button";
 
 /** Draft-only launch email. Jo-approved opening (6 Oct 2026): logo-green caps line, navy headline with green rebate, plain on white, big green button in the opening. */
@@ -414,7 +414,7 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
   const headlinePlain = `${name ? `${name}, take` : "Take"} ${rebate} off your ceiling insulation`;
   const green = `<span style="color:${LOGO_GREEN};">${escape(rebate)}</span>`;
   const headline = `${name ? `${escape(name)}, take` : "Take"} ${green} off your ceiling insulation`;
-  // Fits two lines at 390px on the likely-eligible h1 step (28px phone) up to ~46 characters (measured, both groups); longer names/amounts drop to the likely-eligible h2 step (23px).
+  // Fits two lines at 390px on the likely-eligible h1 step (28px phone) up to ~54 characters (measured); longer names/amounts drop to the likely-eligible h2 step (23px).
   const longHeadline = headlinePlain.length > CAMPAIGN_H1_MAX_CHARS;
   const h1Style = longHeadline ? "font-size:23px;line-height:1.2;" : "font-size:34px;line-height:39px;mso-line-height-rule:exactly;";
   const bodyPlain = `Your ${suburb ? `${suburb} ` : ""}home ${onsite ? "could be eligible" : "looks eligible"} for the Victorian Energy Upgrades rebate. That means you pay about ${customer} instead of ${gross}, and enjoy lower power bills for years to come.`;
