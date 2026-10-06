@@ -13,7 +13,7 @@ describe("service-area customer update", () => {
   });
 
   test("adds the mandatory unsubscribe footer", () => {
-    const mail = withUnsubscribe(renderCoverageUnavailableEmail({ missing: ["REC / electrician", "installer"] }), "https://quote.homeinsulationvictoria.com.au/api/public/unsubscribe?t=abcdefghijklmnopqrstuvwx");
+    const mail = withUnsubscribe(renderCoverageUnavailableEmail({ missing: ["REC / electrician", "installer"] }), "https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=abcdefghijklmnopqrstuvwx");
     expect(mail.html).toContain("Unsubscribe");
     expect(mail.plainText).toContain("/api/public/unsubscribe");
   });

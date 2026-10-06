@@ -2,7 +2,7 @@
 // Opens are a WEAK signal (mailbox privacy features prefetch pixels); click/view/calculator/booking are strong.
 import { newToken, isWellFormedToken } from "./estimatelink.core";
 
-export const CUSTOMER_BASE = "https://quote.homeinsulationvictoria.com.au";
+export const CUSTOMER_BASE = "https://estimate.homeinsulationvictoria.com.au";
 export const TRACKING_TTL_DAYS = 60;
 export const PREFETCH_WINDOW_MS = 2 * 60_000; // opens this soon after send are treated as likely privacy prefetch
 export const FOLLOWUP_3D_MS = 3 * 86_400_000;

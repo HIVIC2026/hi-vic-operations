@@ -16,8 +16,8 @@ const settings: RetailSettings = {
   max_discount_metro_inc_gst: Infinity, max_discount_regional_inc_gst: Infinity,
   spec_version: "25.0", spec_source_url: "https://www.energy.vic.gov.au/",
 };
-const campaignUrl = `https://quote.homeinsulationvictoria.com.au/estimate/${"A".repeat(43)}/campaign`;
-const unsubscribeUrl = `https://quote.homeinsulationvictoria.com.au/email/unsubscribe?t=${"U".repeat(43)}`;
+const campaignUrl = `https://estimate.homeinsulationvictoria.com.au/estimate/${"A".repeat(43)}/campaign`;
+const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${"U".repeat(43)}`;
 
 export const Route = createFileRoute("/campaign-preview")({
   headers: () => ({ "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" }),

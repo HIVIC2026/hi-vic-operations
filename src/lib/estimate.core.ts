@@ -119,9 +119,17 @@ export function computeEstimate(area: AreaCandidate, loc: LocationVariables, ins
   };
 }
 
+/** Bumped whenever the pricing maths changes (not just settings), so every old estimate is recalculated. */
+export const ESTIMATE_CALC_VERSION = "whole-veec-2026-10-05";
+/** True when a discount is a whole number of VEECs at the given value, or was reduced only to keep the $200 minimum. */
+export function discountIsWholeVeecs(discount: number, total: number, veecValue: number, minimum = MIN_CUSTOMER_CONTRIBUTION_INC_GST): boolean {
+  if (!(veecValue > 0) || !Number.isFinite(discount)) return false;
+  const veecs = discount / veecValue;
+  return Math.abs(veecs - Math.round(veecs)) < 1e-9 || Math.abs(total - minimum) < 0.005;
+}
 /** Material inputs only. Same signature => no new estimate row. */
 export function estimateSignature(i: { mode: DisplayMode; area: AreaCandidate; postcode: string; insulation: InsulationDeclared; settingsId: string; settingsVersion: number; veecValue: number; veecSource: string; specVersion: string }): string {
-  return JSON.stringify([i.mode, i.area.source, i.area.id, Number(i.area.m2), i.postcode, i.insulation, i.settingsId, i.settingsVersion, Number(i.veecValue), i.veecSource, i.specVersion]);
+  return JSON.stringify([ESTIMATE_CALC_VERSION, i.mode, i.area.source, i.area.id, Number(i.area.m2), i.postcode, i.insulation, i.settingsId, i.settingsVersion, Number(i.veecValue), i.veecSource, i.specVersion]);
 }
 
 export const dollars = (n: number) => `$${Math.round(n).toLocaleString("en-AU")}`;

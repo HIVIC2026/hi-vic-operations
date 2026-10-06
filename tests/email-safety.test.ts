@@ -63,7 +63,7 @@ describe("duplicate prevention", () => {
 describe("unsubscribe", () => {
   const url = unsubscribeUrl(TOK);
   test("every customer email gets a working link", () => {
-    for (const m of [renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: `https://quote.homeinsulationvictoria.com.au/estimate/${TOK}` }), renderIneligibleEmail({ referralUrl: `https://homeinsulationvictoria.com.au/homeowner?ref=${TOK}` })]) {
+    for (const m of [renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: `https://estimate.homeinsulationvictoria.com.au/estimate/${TOK}` }), renderIneligibleEmail({ referralUrl: `https://homeinsulationvictoria.com.au/homeowner?ref=${TOK}` })]) {
       const w = withUnsubscribe(m, url);
       expect(w.html).toContain(`href="${url}"`); expect(w.plainText).toContain(`Unsubscribe: ${url}`);
       expect(w.html.indexOf("Unsubscribe")).toBeLessThan(w.html.indexOf("</body>"));

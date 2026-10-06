@@ -23,7 +23,7 @@ export type IneligibleOutcomeEmailInput = {
 };
 export type EstimateEmail = { subject: string; previewText: string; html: string; plainText: string };
 
-const BASE = "https://quote.homeinsulationvictoria.com.au";
+const BASE = "https://estimate.homeinsulationvictoria.com.au";
 /** Verified live brand logo (HTTP 200 image/png) used in every customer email. */
 const LOGO_URL = CUSTOMER_BRAND.logoUrl;
 const SITE = "https://homeinsulationvictoria.com.au";

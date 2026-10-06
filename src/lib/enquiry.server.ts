@@ -94,9 +94,18 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     }
   }
 
-  const existingJob = input.external_enquiry_id
+  const byExternal = input.external_enquiry_id
     ? (await admin.from("jobs").select("id, property_id, stage, job_number").eq("external_enquiry_id", input.external_enquiry_id).maybeSingle()).data
     : null;
+  // Jo (6 Oct 2026): the same owner (email or mobile) + same address filling in the public calculator again
+  // attaches to their existing OPEN job — never a second job.
+  let existingJob = byExternal;
+  let repeatOf: string | null = null;
+  let repeatArea: number | null = null;
+  if (!existingJob && (source === "base44" || source === "qa_test")) {
+    const repeat = await findOpenRepeatJob(source, email, input.phone ?? null, properAddress(input.address_line), input.suburb ? properAddress(input.suburb) : null, input.postcode ?? null);
+    if (repeat) { existingJob = repeat; repeatOf = input.external_enquiry_id ?? "unknown"; repeatArea = repeat.area; }
+  }
 
   const propFields = { owner_id: owner!.id, address_line: properAddress(input.address_line), suburb: input.suburb ? properAddress(input.suburb) : null, postcode: input.postcode ?? null, occupancy: input.occupancy ?? null, ...(normaliseState(input.state) ? { state: normaliseState(input.state)! } : {}) };
   const jobFields = {
@@ -115,6 +124,12 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     const update = { ...jobFields, ...(plan?.patch ?? {}) } as TablesUpdate<"jobs">; // never changes stage
     const { error: ue } = await admin.from("jobs").update(update).eq("id", existingJob.id);
     if (ue) throw new Error(ue.message);
+    if (repeatOf) {
+      const before = repeatArea;
+      const after = jobFields.estimated_area_m2 == null ? null : Number(jobFields.estimated_area_m2);
+      const sizeNote = before !== after && after != null ? ` Ceiling size changed from ${before ?? "unknown"} to ${after} m².` : "";
+      await logEvent(existingJob.id, actorId, "repeat_enquiry_attached", `Same owner filled in the calculator again; attached to this job instead of creating a new one.${sizeNote}`, { repeat_external_enquiry_id: repeatOf, previous_area_m2: before, area_m2: after });
+    }
     await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, plan?.details ?? {});
     if (source === "base44") await completeIntake(existingJob.id, owner!.id, input);
     if (source === "qa_test") return { job_id: existingJob.id, job_number: existingJob.job_number, created: false, post_intake: "none" as const };
@@ -169,4 +184,19 @@ async function completeIntake(jobId: string, ownerId: string, input: EnquiryInpu
   await recordContactConsent(jobId, ownerId, input);
   try { await importBase44Media(jobId, input.media ?? []); }
   catch (e) { console.error("base44 media import failed", (e as Error).message); }
+}
+
+/** Open job for the same owner (email or AU mobile) at the same address. Pure match rules live in enquiry-repeat.core.ts. */
+async function findOpenRepeatJob(source: string, email: string, phone: string | null, address: string | null, suburb: string | null, postcode: string | null) {
+  const { repeatKey, sameOwner } = await import("./enquiry-repeat.core");
+  const key = repeatKey(address, suburb, postcode);
+  if (!key) return null;
+  const { data } = await admin.from("jobs").select("id, property_id, stage, job_number, created_at, estimated_area_m2, owners(email, phone), properties!inner(address_line, suburb, postcode)")
+    .eq("channel", "hivic_sourced").eq("source", source).not("stage", "in", "(cancelled,complete)").eq("properties.postcode", postcode ?? "").order("created_at", { ascending: false }).limit(200);
+  const hit = (data ?? []).find((j) => {
+    const o = j.owners as { email: string | null; phone: string | null } | null;
+    const p = j.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
+    return !!p && repeatKey(p.address_line, p.suburb, p.postcode) === key && sameOwner({ email, phone }, o);
+  });
+  return hit ? { id: hit.id, property_id: hit.property_id, stage: hit.stage, job_number: hit.job_number, area: hit.estimated_area_m2 == null ? null : Number(hit.estimated_area_m2) } : null;
 }

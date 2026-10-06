@@ -12,9 +12,9 @@ import type { ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
 import { MeasuredQuoteSample, type PiesaPreviewCase } from "@/components/portal/readycheck";
 
 
-const estimateUrl = "https://quote.homeinsulationvictoria.com.au/estimate/sample-secure-link";
+const estimateUrl = "https://estimate.homeinsulationvictoria.com.au/estimate/sample-secure-link";
 const referralUrl = `https://homeinsulationvictoria.com.au/homeowner?ref=${"R".repeat(43)}`;
-const unsubscribeUrl = `https://quote.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"U".repeat(43)}`;
+const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"U".repeat(43)}`;
 // PREVIEW SAMPLE ONLY. The Ready Check is free; PIESA and AP fees remain dynamic quote inputs.
 // Illustrative example only — real Step 3 calculation for postcode 3336, 150 m², standard access, no removal, current settings v2.
 const SAMPLE_INSTALL = 4500, SAMPLE_DISCOUNT = 1481.76, PIESA_FEE = 349, AP_FEE = 349;

@@ -176,7 +176,7 @@ export async function recordDeskCheck(responseId: string, outcome: DeskCheckOutc
   return { ok: true as const };
 }
 
-const OWNER_BASE = "https://quote.homeinsulationvictoria.com.au";
+const OWNER_BASE = "https://estimate.homeinsulationvictoria.com.au";
 /**
  * Jo-approved "Spot saved" text + email. Queued ONCE per job (never on a second tap, a second device,
  * a calculator save or a video upload after saving). Sending is off, so both are recorded as queued only;
