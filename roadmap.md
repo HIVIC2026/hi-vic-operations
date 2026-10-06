@@ -14,6 +14,8 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 
 - [x] Trade view for partner approval (Jo, 6 Oct) — plan in .lovable/plan.md awaiting approval.
 
+- [x] Connect GitHub REST connector (Jo, 6 Oct): "Joannah's GitHub API" linked to project (gateway-backed, `GITHUB_API_KEY`, scopes read:user + repo). App calls go through https://connector-gateway.lovable.dev/github/... from server code only.
+- [x] HV-1554 (Jo approved, 6 Oct): end TEST Alpha job assignment — active=false, end_reason "Test business removed from real job (Jo, 6 Oct)", log in job history. Nothing else on the job. (Already inactive since 5 Oct TEST audit cleanup; reason updated + workflow_events row added.)
 - [x] Gate B box 4 (Jo, 6 Oct): NO cooling-off. Approve "doesn't apply" line "You can ask us questions or change your mind before your safety check is booked." (approver "Jo Lowe — lawyer sign-off 6 Oct 2026"). Plain "Cancel my job" on My job only until safety check booked. Preview only.
 - [x] Group A email EXACT per Jo 5:17pm (v4 approved); send one "[TEST v4 – APPROVED]" to Jo only; Group B same structure, not sent.
 - [x] Email font stacks (Jo 6 Oct): campaign A/B + spot-saved use Outfit/Figtree fallback stacks inline everywhere; one "[TEST v5 – FONTS]" Group A to Jo only.
