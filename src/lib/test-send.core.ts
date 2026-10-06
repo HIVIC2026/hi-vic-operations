@@ -4,7 +4,7 @@
 
 export const TEST_ALLOWLIST = {
   sms: ["+61477511901"] as const,
-  email: ["sweet_sunshine231@hotmail.com"] as const,
+  email: ["jolowexo@hotmail.com"] as const,
 };
 
 /** 04xx / 614xx / +614xx -> +614xxxxxxxx. Anything else returns null. */
