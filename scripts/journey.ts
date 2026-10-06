@@ -8,7 +8,7 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { runServerJourney, cleanupJourney, storeJourneyRun, personaSession, JOURNEY_ACTOR_EMAIL, TEST_INSTALLER_EMAIL, TEST_ELECTRICIAN_EMAIL, TEST_WORKER_EMAIL } from "../src/lib/journey.server";
-import { summarise, publishVerdict, type StepResult } from "../src/lib/journey.core";
+import { summarise, publishVerdict, type StepResult } from "../src/lib/journey-test.core";
 
 const keep = process.argv.includes("--keep");
 const noBrowser = process.argv.includes("--no-browser");

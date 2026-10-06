@@ -2,7 +2,7 @@
 // source='qa_test', every person is on the TEST domain, and each step re-checks that before acting.
 // Shared by the daily endpoint and the browser runner (which adds screenshots on top of the same steps).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { JOURNEY_STEPS, expectedEstimate, recipientsOutsideAllowlist, summarise, type JourneyResult, type JourneyStepKey, type StepResult } from "./journey.core";
+import { JOURNEY_STEPS, expectedEstimate, recipientsOutsideAllowlist, summarise, type JourneyResult, type JourneyStepKey, type StepResult } from "./journey-test.core";
 
 export const JOURNEY_ACTOR_EMAIL = "admin@hivic.test";
 export const TEST_INSTALLER_EMAIL = "qa.installer.alpha@hivic-test.example";
@@ -44,7 +44,7 @@ export async function personaSession(email: string) {
   sessions.delete(email);
   return (await sb.auth.getSession()).data.session;
 }
-function check(r: StepResult, name: string, ok: boolean, detail?: string) { r.checks.push({ name, ok, detail }); if (!ok) throw new StepFail(`${name}${detail ? `: ${detail}` : ""}`); }
+function check(r: StepResult, name: string, ok: boolean, detail?: string) { r.checks.push(detail === undefined ? { name, ok } : { name, ok, detail }); if (!ok) throw new StepFail(`${name}${detail ? `: ${detail}` : ""}`); }
 
 async function profileByEmail(email: string) {
   const { data } = await admin.from("profiles").select("id, business_id").eq("email", email).maybeSingle();
@@ -319,13 +319,18 @@ async function visibility(ctx: JourneyCtx, r: StepResult) {
 async function allowlist(ctx: JourneyCtx, r: StepResult) {
   const since = ctx.startedAt;
   const [{ data: emails }, { data: comms }] = await Promise.all([
-    admin.from("customer_email_sends").select("recipient_email, status").gte("created_at", since),
-    admin.from("job_communications").select("recipient, status").gte("created_at", since),
+    admin.from("customer_email_sends").select("job_id, status, sent_at").gte("created_at", since),
+    admin.from("job_communications").select("recipients, delivery_status, direction, sent_at").eq("direction", "outbound").gte("created_at", since),
   ]);
-  const delivered = [
-    ...((emails ?? []) as { recipient_email: string | null; status: string }[]).filter((e) => e.status === "sent").map((e) => e.recipient_email ?? ""),
-    ...((comms ?? []) as { recipient: string | null; status: string }[]).filter((c) => c.status === "sent").map((c) => c.recipient ?? ""),
-  ];
+  // Any customer email actually delivered since the run started must belong to a qa_test job.
+  const sentJobs = [...new Set((emails ?? []).filter((e) => e.sent_at || e.status === "sent").map((e) => e.job_id))];
+  if (sentJobs.length) {
+    const { data: js } = await admin.from("jobs").select("id, source").in("id", sentJobs);
+    const nonTest = (js ?? []).filter((j) => j.source !== "qa_test").length;
+    check(r, "no customer email delivered for a non-TEST job", nonTest === 0, `${nonTest} non-TEST`);
+  }
+  const addr = (v: unknown): string[] => Array.isArray(v) ? v.flatMap((x) => typeof x === "string" ? [x] : x && typeof x === "object" ? Object.values(x as Record<string, unknown>).filter((y): y is string => typeof y === "string" && /@|^\+?\d{8,}$/.test(y)) : []) : [];
+  const delivered = (comms ?? []).filter((c) => c.sent_at || c.delivery_status === "sent" || c.delivery_status === "delivered").flatMap((c) => addr(c.recipients));
   const outside = recipientsOutsideAllowlist(delivered);
   check(r, "every delivered message went to the allowlist", outside.length === 0, outside.length ? `${outside.length} outside` : `${delivered.length} delivered, all allowlisted`);
 }
