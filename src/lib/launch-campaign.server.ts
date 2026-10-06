@@ -169,3 +169,43 @@ export async function recordDeskCheck(responseId: string, outcome: DeskCheckOutc
   await logEvent(data.job_id, actorId, "desktop_insulation_check", summary, { outcome, reason: reason.trim() }, { internal: true });
   return { ok: true as const };
 }
+
+const OWNER_BASE = "https://quote.homeinsulationvictoria.com.au";
+/**
+ * Jo-approved "Spot saved" text + email. Queued ONCE per job (never on a second tap, a second device,
+ * a calculator save or a video upload after saving). Sending is off, so both are recorded as queued only;
+ * the TEST allowlist still decides who could ever receive them.
+ */
+export async function queueSpotSavedConfirmations(jobId: string, token: string) {
+  const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "spot_saved_confirmation_queued").limit(1).maybeSingle();
+  if (done) return { queued: false as const };
+  const [{ data: job }, { data: r }] = await Promise.all([
+    admin.from("jobs").select("source, owners(full_name, phone, email), properties(address_line, suburb)").eq("id", jobId).maybeSingle(),
+    admin.from("lead_campaign_responses").select("saved_veu_discount").eq("job_id", jobId).maybeSingle(),
+  ]);
+  if (!job) return { queued: false as const };
+  const { renderSpotSavedEmail, renderSpotSavedSms, addressBits } = await import("./spot-saved-messages.core");
+  const { testSendBlocker } = await import("./test-send.core");
+  const { unsubscribeUrlForJob } = await import("./emailsafety.server");
+  const owner = job.owners as { full_name: string | null; phone: string | null; email: string | null } | null;
+  const prop = job.properties as { address_line: string | null; suburb: string | null } | null;
+  const bits = addressBits(prop?.address_line ?? null, prop?.suburb ?? null);
+  const input = { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, rebate: Number(r?.saved_veu_discount ?? 0), suburb: bits.suburb, shortAddress: bits.short, myJobUrl: `${OWNER_BASE}/my-job/${token}`, optOutUrl: await unsubscribeUrlForJob(jobId) };
+  const sms = renderSpotSavedSms(input);
+  const email = renderSpotSavedEmail(input);
+  const now = new Date().toISOString();
+  const rows = [
+    { channel: "sms", to: owner?.phone ?? null, subject: null, body: sms },
+    { channel: "email", to: owner?.email ?? null, subject: email.subject, body: email.text },
+  ] as const;
+  for (const m of rows) {
+    const allow = testSendBlocker({ channel: m.channel, to: m.to, jobSource: job.source, partnerIsTest: false });
+    await admin.from("job_communications").insert({
+      job_id: jobId, direction: "outbound", channel: m.channel, recipients: m.to ? [m.to] : [], subject: m.subject, body: m.body, provider: "queued",
+      sent_at: null, delivery_status: "blocked_prelaunch", visibility: "office", source_event: `spot_saved:${m.channel}`,
+      source_reference: allow ? `Queued (sending off). Allowlist: ${allow}` : "Queued (sending off). On TEST allowlist", created_at: now,
+    } as never);
+  }
+  await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved text and email queued (sending is off)", { sms: !!owner?.phone, email: !!owner?.email }, { internal: true });
+  return { queued: true as const };
+}
