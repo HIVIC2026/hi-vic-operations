@@ -52,7 +52,7 @@ const asUser = async <T,>(user: string, sql: string) => {
   try { return (await db.query<T>(sql)).rows; } finally { await db.exec("RESET ROLE;"); }
 };
 
-beforeEach(async () => { db = new PGlite(); await db.exec(BASE); await db.exec(SQL); });
+beforeEach(async () => { db = new PGlite(); await db.exec(BASE); await db.exec(SQL); }, 30000);
 
 describe("0086 PIESA allocation (practice database)", () => {
   test("additive: existing offers default to installer; settings default 2h / batch 3", async () => {

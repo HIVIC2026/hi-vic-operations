@@ -164,7 +164,8 @@ export const confirmInstallerPiisaUpload = createServerFn({ method: "POST" })
     const sec = await import("./onboarding-security.server");
     if (Date.parse(data.base_updated_at) !== Date.parse(app.updated_at)) throw new Error(sec.UPLOAD_STALE_MESSAGE);
     const d = app.data as InstData & { piisa_files?: Record<string, string> };
-    if (!(d.installers ?? []).some((x) => (x.email ?? "").trim().toLowerCase() === data.email)) throw new Error("Save this installer's email first, then upload.");
+    // Keyed by the installer's email (validated above) within this token's own draft, so it can be uploaded before the page is saved;
+    // page validation only accepts it once a saved installer row carries that same email.
     const { finalPath } = await sec.verifyAndStoreDoc(db as never, "installer-onboarding", app.id, data.path, data.content_type, "piisa");
     const next = { ...d, piisa_files: { ...(d.piisa_files ?? {}), [data.email]: finalPath } };
     const { data: row } = await db.from("rec_onboarding_applications").update({ data: next as never } as never).eq("id", app.id).eq("status", "draft").eq("updated_at", app.updated_at).select("updated_at").maybeSingle();

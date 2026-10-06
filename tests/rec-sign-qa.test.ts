@@ -386,7 +386,7 @@ describe("QA-EXT2 reviewer matrix (121,920 valid combos, 53 negatives)", () => {
     expect(stepErrors("availability", { ...full, typical_days: ["Bad"] }).length).toBeGreaterThan(0);
     expect(stepErrors("availability", { ...full, typical_days: ["Mon", "Mon"] }).length).toBeGreaterThan(0);
     expect(stepErrors("about", { ...full, business_email: "example@example.com" })).toEqual([]); // policy: not blocked (optional, not specified)
-  });
+  }, 180000); // 121,920 combinations: slow by design
 });
 
 function scheduleOf(p: Partial<RecData>) { return agreementText({ ...full, ...p }); }

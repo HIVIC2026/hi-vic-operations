@@ -70,6 +70,7 @@ export function partnerIssues(r: {
   estimated_piesa_fee_inc_gst?: number | null;
   estimated_return_visit_fee_inc_gst?: number | null;
   cii_certification_status?: string | null;
+  raw_payload?: unknown;
   estimated_r5_install_rate_per_sqm_inc_gst?: number | null;
   free_quotes_for_hivic_leads?: boolean | null;
   free_measureups_for_hivic_quote_leads?: boolean | null;
@@ -85,7 +86,13 @@ export function partnerIssues(r: {
     if (r.estimated_return_visit_fee_inc_gst == null) issues.push("No indicative return visit fee");
   }
   if (r.enquiry_type === "installer") {
-    if (r.cii_certification_status === "not_certified") issues.push("Not CII certified");
+    const people = signedInstallers(r.raw_payload);
+    if (people) {
+      // Signed onboarding: CII is per person, never a business-level claim.
+      const uncertified = people.filter((p) => p.cii_holds !== "held").length;
+      if (people.length === 0) issues.push("No installers listed");
+      else if (uncertified > 0) issues.push(`${uncertified} of ${people.length} installer${people.length === 1 ? "" : "s"} not CII certified yet`);
+    } else if (r.cii_certification_status === "not_certified") issues.push("Not CII certified");
     else if (!r.cii_certification_status) issues.push("CII certification status not supplied");
     if (r.estimated_r5_install_rate_per_sqm_inc_gst == null) issues.push("No indicative R5.0 install rate");
     if (r.free_quotes_for_hivic_leads === false) issues.push("Charges for quotes on pre-qualified Home Insulation Victoria leads");
@@ -109,4 +116,20 @@ export async function handlePartnerEnquiry(raw: string, headers: { get(n: string
   if (!parsed.success) return { status: 400, body: { error: "Validation failed", issues: parsed.error.flatten() } };
   const r = await deps.upsert(partnerRow(parsed.data, json));
   return { status: 200, body: { ok: true, id: r.id, created: r.created } };
+}
+
+/** Per-person installers from a signed onboarding snapshot; null when the row didn't come from signed onboarding. */
+export function signedInstallers(raw: unknown): { name: string | null; cii_holds: string | null }[] | null {
+  const list = (raw as { installers?: unknown } | null | undefined)?.installers;
+  if (!Array.isArray(list)) return null;
+  return list.map((x) => ({ name: (x as { name?: string | null })?.name ?? null, cii_holds: (x as { cii_holds?: string | null })?.cii_holds ?? null }));
+}
+
+/** Short plain-words CII line for office lists. */
+export function ciiSummary(r: { cii_certification_status?: string | null; raw_payload?: unknown }): string {
+  const people = signedInstallers(r.raw_payload);
+  if (!people) return r.cii_certification_status ?? "—";
+  if (people.length === 0) return "No installers listed";
+  const held = people.filter((p) => p.cii_holds === "held").length;
+  return `${held} of ${people.length} installer${people.length === 1 ? "" : "s"} certified`;
 }
