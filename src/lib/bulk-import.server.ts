@@ -362,12 +362,12 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
   const { data: rows } = await admin.from("bulk_import_rows").select("*").eq("batch_id", batchId).eq("status", "pending").order("row_index");
   const permission = (batch.summary as { permission?: { confirmed_by: string; confirmed_at: string; wording: string } } | null)?.permission;
   if (!permission?.confirmed_by || !permission.confirmed_at) throw new BulkImportError("The contact permission tick is missing for this upload — please upload again and tick the box.");
-  let created = 0, skipped = 0, failed = 0;
+  let created = 0, skipped = 0, failed = 0, alreadyTaken = 0;
   const ownerLinks: { jobNumber: string; owner: string; path: string }[] = [];
   for (const row of rows ?? []) {
     if (skipRowIds.includes(row.id) || row.duplicate_note) {
-      await admin.from("bulk_import_rows").update({ status: "skipped" }).eq("id", row.id);
-      skipped++;
+      const { data: sk } = await admin.from("bulk_import_rows").update({ status: "skipped" }).eq("id", row.id).eq("status", "pending").select("id").maybeSingle();
+      if (sk) skipped++;
       continue;
     }
     const e = row.extracted as unknown as BulkExtracted;
@@ -376,9 +376,19 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1} has no address yet — add it in the review table, then confirm again`, { batch_id: batchId, row_id: row.id });
       continue;
     }
+    if (row.sort_result === "office_review") {
+      failed++;
+      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1} needs office review first — clear it, then confirm again`, { batch_id: batchId, row_id: row.id });
+      continue;
+    }
+    // Atomic claim: only one click/tab can move this row out of "pending"; the other skips it.
+    const { data: claimed } = await admin.from("bulk_import_rows").update({ status: "confirmed" }).eq("id", row.id).eq("status", "pending").select("id").maybeSingle();
+    if (!claimed) { alreadyTaken++; continue; }
     try {
-      if (row.sort_result === "office_review") throw new BulkImportError("Office review must be cleared before this customer can be added.");
       const importStage = row.import_stage as ImportStage;
+      // Backstop: a job already made for this row (unique bulk:<row>) is reused, never duplicated.
+      const { data: prior } = await admin.from("jobs").select("id, job_number").eq("external_enquiry_id", `bulk:${row.id}`).maybeSingle();
+      if (prior) { await admin.from("bulk_import_rows").update({ job_id: prior.id }).eq("id", row.id); alreadyTaken++; continue; }
       const job = await createBulkJob(e, batch, actorId, row.id, importStage);
       const quoted = importStage === "quoted" ? await draftQuoteFromImport(job.id, e, actorId, batch.business_id).catch(() => false) : false;
       const plan = ((row.electrician_plan ?? batch.electrician_plan ?? { mode: "hivic" }) as ElectricianPlan);
@@ -392,7 +402,7 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
           await admin.from("jobs").update({ electrician_choice: "nominated", next_action: `Waiting for ${nomination?.contact_name ?? "nominated electrician"} to sign up and be approved` }).eq("id", job.id);
         }
       } else await admin.from("jobs").update({ electrician_choice: "hivic_organise" }).eq("id", job.id);
-      await admin.from("bulk_import_rows").update({ status: "confirmed", job_id: job.id }).eq("id", row.id);
+      await admin.from("bulk_import_rows").update({ job_id: job.id }).eq("id", row.id);
       const ownerToken = newToken();
       await admin.from("owner_eligibility_links").insert({ job_id: job.id, business_id: batch.business_id, token_hash: await hashToken(ownerToken), created_by: actorId, expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() });
       ownerLinks.push({ jobNumber: job.job_number, owner: e.full_name ?? "Customer", path: `/eligibility/${ownerToken}` });
@@ -407,11 +417,17 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       created++;
     } catch (err) {
       failed++;
+      // Release the claim only if no job was made, so the row can be fixed and confirmed again.
+      const { data: made } = await admin.from("jobs").select("id").eq("external_enquiry_id", `bulk:${row.id}`).maybeSingle();
+      if (made) await admin.from("bulk_import_rows").update({ job_id: made.id }).eq("id", row.id);
+      else await admin.from("bulk_import_rows").update({ status: "pending", job_id: null }).eq("id", row.id);
       await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1} could not be imported: ${(err as Error).message}`, { batch_id: batchId, row_id: row.id });
     }
   }
-  await admin.from("bulk_import_batches").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", batchId);
-  return { created, skipped, failed, ownerLinks };
+  // The batch is only closed once nothing is left to fix; otherwise it stays open for another confirm.
+  const { count: left } = await admin.from("bulk_import_rows").select("id", { count: "exact", head: true }).eq("batch_id", batchId).eq("status", "pending");
+  if (!left) await admin.from("bulk_import_batches").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", batchId).eq("status", "analysed");
+  return { created, skipped, failed, alreadyTaken, remaining: left ?? 0, ownerLinks };
 }
 
 /** Office/installer adds the missing address to a review row; the row is re-sorted (never auto-confirmed). */
