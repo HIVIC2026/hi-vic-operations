@@ -368,7 +368,7 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
   const campaign = new URL(input.campaignUrl);
   if (campaign.origin !== BASE || !/^\/estimate\/[A-Za-z0-9_-]{43,128}\/campaign$/.test(campaign.pathname) || campaign.search || campaign.hash) throw new Error("A secure Home Insulation Victoria campaign link is required.");
   const unsubscribe = new URL(input.unsubscribeUrl);
-  if (unsubscribe.origin !== BASE || unsubscribe.pathname !== "/email/unsubscribe" || !isWellFormedToken(unsubscribe.searchParams.get("t"))) throw new Error("A secure unsubscribe link is required.");
+  if (unsubscribe.origin !== BASE || !["/email/unsubscribe", "/api/public/unsubscribe"].includes(unsubscribe.pathname) || !isWellFormedToken(unsubscribe.searchParams.get("t"))) throw new Error("A secure unsubscribe link is required.");
   const amounts = [input.estimatedTotal, input.veuDiscount, input.grossTotal, input.areaM2];
   if (!amounts.every((value) => Number.isFinite(value) && value > 0) || Math.abs(input.estimatedTotal + input.veuDiscount - input.grossTotal) > 0.01) throw new Error("Campaign email estimate values must be positive and reconcile.");
   const onsite = input.group === "onsite";
