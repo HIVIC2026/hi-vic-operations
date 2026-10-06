@@ -38,7 +38,7 @@ function ResetPassword() {
     setBusy(false);
     if (error) { toast.error("We couldn't save that password. Try a different one."); return; }
     toast.success("Password set — you're signed in.");
-    navigate({ to: (new URLSearchParams(window.location.search).get("next") === "/field/setup" ? "/field/setup" : "/home") as never, replace: true });
+    navigate({ to: (((n) => n === "/field/setup" || n === "/partner" ? n : "/home")(new URLSearchParams(window.location.search).get("next"))) as never, replace: true });
   };
   return (
     <main className="portal-theme grid min-h-screen place-items-center bg-background px-4 py-12">

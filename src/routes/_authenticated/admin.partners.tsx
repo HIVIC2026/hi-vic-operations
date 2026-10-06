@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import type { Tables } from "@/integrations/supabase/types";
 import { useServerFn } from "@tanstack/react-start";
 import { getAdminPartnerEnquiries } from "@/lib/admin-records.functions";
-import { activatePartnerApplication, listCertificationLevels, listWorkerCertifications, recordCertificationLevel, recordWorkerCertification } from "@/lib/partner-activation.functions";
+import { activatePartnerApplication, createPartnerLogin, listCertificationLevels, listWorkerCertifications, recordCertificationLevel, recordWorkerCertification } from "@/lib/partner-activation.functions";
 import type { InstData } from "@/lib/installer-onboarding.core";
 import { OnboardingDrafts } from "@/components/portal/onboarding-drafts";
 import { openFileViewer } from "@/components/portal/file-viewer";
@@ -192,7 +192,7 @@ function SignedRecAgreement({ id }: { id: string }) {
           <div className="break-all text-xs text-muted-foreground">SHA-256 {r.agreement_sha256} · IP {r.signed_ip ?? "—"}</div>
           {r.certificateUrl && <button type="button" className="text-primary underline" onClick={() => openFileViewer(r.certificateUrl, "Certificate of Currency")}>Open Certificate of Currency</button>}
           {((r.data as InstData | null)?.installers ?? []).length > 0 && <WorkerCertifications applicationId={id} installers={(r.data as InstData).installers ?? []} />}
-          {r.activation ? <p className="rounded bg-success-soft p-2 font-semibold text-success">Activated as an approved partner business on {new Date(r.activation.activated_at).toLocaleDateString("en-AU")}.</p> : <div className="space-y-2"><p className="text-xs text-muted-foreground">Approval accepts the proposed supplier rates shown in the signed agreement and creates the partner file. It does not create worker logins.</p><Button onClick={async () => { await activate({ applicationId: id }, "Partner activated"); await q.refetch(); }}>Accept rates and activate partner</Button></div>}
+          {r.activation ? <><p className="rounded bg-success-soft p-2 font-semibold text-success">Activated as an approved partner business on {new Date(r.activation.activated_at).toLocaleDateString("en-AU")}.</p><PartnerLogin applicationId={id} defaultEmail={(r.data as { business_email?: string } | null)?.business_email ?? ""} /></> : <div className="space-y-2"><p className="text-xs text-muted-foreground">Approval accepts the proposed supplier rates shown in the signed agreement and creates the partner file. It does not create worker logins.</p><Button onClick={async () => { await activate({ applicationId: id }, "Partner activated"); await q.refetch(); }}>Accept rates and activate partner</Button></div>}
           <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded bg-muted p-3 text-xs">{r.agreement_text}</pre>
         </div>
       ))}
@@ -254,6 +254,25 @@ function WorkerCertifications({ applicationId, installers }: { applicationId: st
           </div>
         );
       })}
+    </div>
+  );
+}
+
+
+/** Office makes the partner boss's sign-in. Nothing is emailed or texted: the office copies the link and passes it on. */
+function PartnerLogin({ applicationId, defaultEmail }: { applicationId: string; defaultEmail: string }) {
+  const make = useAction(createPartnerLogin);
+  const [email, setEmail] = useState(defaultEmail);
+  const [link, setLink] = useState<string | null>(null);
+  return (
+    <div className="rounded border p-2" data-testid="partner-login">
+      <div className="font-semibold">Partner login</div>
+      <p className="text-xs text-muted-foreground">Makes the business boss's sign-in and links it to this business. Sends no email or text. Copy the link and pass it on yourself. It works once.</p>
+      <div className="mt-2 flex gap-2">
+        <input aria-label="Login email" className="h-9 flex-1 rounded border px-2" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Button size="sm" onClick={async () => { const r = await make({ applicationId, email }, "Login ready – nothing was sent"); if (r) setLink(r.link); }}>Create login for this partner</Button>
+      </div>
+      {link && <div className="mt-2 space-y-1"><p className="text-xs font-medium">Set-password link (copy and pass on):</p><textarea readOnly aria-label="Set-password link" className="w-full break-all rounded border p-2 text-xs" rows={3} value={link} onFocus={(e) => e.currentTarget.select()} /></div>}
     </div>
   );
 }
