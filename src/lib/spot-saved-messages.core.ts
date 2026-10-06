@@ -1,7 +1,7 @@
 // Jo-approved "Spot saved" confirmation (text + email), sent once when an owner first saves their spot.
 // PURE: no I/O. No phone number or "call us" anywhere.
 import { CUSTOMER_BRAND } from "./customer-quote-system";
-import { PRIVACY_URL, V2_THEME } from "./estimate-email";
+import { applyCampaignFonts, PRIVACY_URL, V2_THEME } from "./estimate-email";
 import { dedupeAddress, shortAddress } from "./address";
 
 const LOGO_GREEN = "#00BF63";
@@ -61,5 +61,5 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   const html = T.shell(`${row(T.header("Free estimate · no obligation", true), "22px 36px 18px")}${row(hero, "8px 36px 24px")}${est ? row(savings, "0 28px 22px") : ""}${T.footerRow(footer)}`, subject, null);
   void LOGO_GREEN; void CUSTOMER_BRAND;
   const text = [subject, "", "YOU'RE ON THE LIST", `Spot saved${name ? `, ${name}` : ""}. Your ${rebate} rebate is waiting.`, `Nice work. You're in line for a free Ready Check${where}.`, "", "Heads up: the waiting list is huge.", SPOT_SAVED_WAIT_TEXT, "", "Your spot is held. The moment an installer is free near you, we'll text you to pick a time. Nothing to do until then.", "", `See my job: ${i.myJobUrl}`, "No payment · no obligation", ...(est ? ["", `Price before discount: $${est.gross.toLocaleString("en-AU")}`, `VEU discount (${veecs} VEECs × $70): −${rebate}`, `You pay about: $${est.customer.toLocaleString("en-AU")}`, `Try a different size: ${est.calculatorUrl}`] : []), "", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.", `Privacy: ${PRIVACY_URL}`, `Remove my enquiry: ${i.optOutUrl}`].join("\n");
-  return { subject, html, text };
+  return { subject, html: applyCampaignFonts(html), text };
 }
