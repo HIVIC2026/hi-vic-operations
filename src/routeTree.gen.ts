@@ -85,12 +85,12 @@ import { Route as TOFileRouteImport } from './routes/t.o.$file'
 import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authenticated/admin.jobs.$jobId'
 import { Route as AuthenticatedFieldDayJobIdRouteImport } from './routes/_authenticated/field.day.$jobId'
 import { Route as AuthenticatedFieldOfferOfferIdRouteImport } from './routes/_authenticated/field.offer.$offerId'
-import { Route as ApiPublicEmailHeroFileRouteImport } from './routes/api/public/email-hero.$file'
 import { Route as ApiPublicHooksAllocationTickRouteImport } from './routes/api/public/hooks/allocation-tick'
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
 import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/public/hooks/post-intake'
 import { Route as ApiPublicReferralsRecordSubmissionRouteImport } from './routes/api/public/referrals/record-submission'
 import { Route as ApiPublicReferralsTrackClickRouteImport } from './routes/api/public/referrals/track-click'
+import { Route as ApiPublicEmailArtTokenFileRouteImport } from './routes/api/public/email-art.$token.$file'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -502,11 +502,6 @@ const AuthenticatedFieldOfferOfferIdRoute =
     path: '/offer/$offerId',
     getParentRoute: () => AuthenticatedFieldRoute,
   } as any)
-const ApiPublicEmailHeroFileRoute = ApiPublicEmailHeroFileRouteImport.update({
-  id: '/api/public/email-hero/$file',
-  path: '/api/public/email-hero/$file',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicHooksAllocationTickRoute =
   ApiPublicHooksAllocationTickRouteImport.update({
     id: '/api/public/hooks/allocation-tick',
@@ -535,6 +530,12 @@ const ApiPublicReferralsTrackClickRoute =
   ApiPublicReferralsTrackClickRouteImport.update({
     id: '/api/public/referrals/track-click',
     path: '/api/public/referrals/track-click',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicEmailArtTokenFileRoute =
+  ApiPublicEmailArtTokenFileRouteImport.update({
+    id: '/api/public/email-art/$token/$file',
+    path: '/api/public/email-art/$token/$file',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -614,12 +615,12 @@ export interface FileRoutesByFullPath {
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
-  '/api/public/email-hero/$file': typeof ApiPublicEmailHeroFileRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
+  '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -693,12 +694,12 @@ export interface FileRoutesByTo {
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
-  '/api/public/email-hero/$file': typeof ApiPublicEmailHeroFileRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
+  '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -778,12 +779,12 @@ export interface FileRoutesById {
   '/_authenticated/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
   '/_authenticated/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/_authenticated/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
-  '/api/public/email-hero/$file': typeof ApiPublicEmailHeroFileRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
+  '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -863,12 +864,12 @@ export interface FileRouteTypes {
     | '/admin/jobs/$jobId'
     | '/field/day/$jobId'
     | '/field/offer/$offerId'
-    | '/api/public/email-hero/$file'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
+    | '/api/public/email-art/$token/$file'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -942,12 +943,12 @@ export interface FileRouteTypes {
     | '/admin/jobs/$jobId'
     | '/field/day/$jobId'
     | '/field/offer/$offerId'
-    | '/api/public/email-hero/$file'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
+    | '/api/public/email-art/$token/$file'
   id:
     | '__root__'
     | '/'
@@ -1026,12 +1027,12 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/jobs/$jobId'
     | '/_authenticated/field/day/$jobId'
     | '/_authenticated/field/offer/$offerId'
-    | '/api/public/email-hero/$file'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
+    | '/api/public/email-art/$token/$file'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1061,12 +1062,12 @@ export interface RootRouteChildren {
   EstimateTokenVideoRoute: typeof EstimateTokenVideoRoute
   TETokenRoute: typeof TETokenRoute
   TOFileRoute: typeof TOFileRoute
-  ApiPublicEmailHeroFileRoute: typeof ApiPublicEmailHeroFileRoute
   ApiPublicHooksAllocationTickRoute: typeof ApiPublicHooksAllocationTickRoute
   ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
   ApiPublicHooksPostIntakeRoute: typeof ApiPublicHooksPostIntakeRoute
   ApiPublicReferralsRecordSubmissionRoute: typeof ApiPublicReferralsRecordSubmissionRoute
   ApiPublicReferralsTrackClickRoute: typeof ApiPublicReferralsTrackClickRoute
+  ApiPublicEmailArtTokenFileRoute: typeof ApiPublicEmailArtTokenFileRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1603,13 +1604,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFieldOfferOfferIdRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
-    '/api/public/email-hero/$file': {
-      id: '/api/public/email-hero/$file'
-      path: '/api/public/email-hero/$file'
-      fullPath: '/api/public/email-hero/$file'
-      preLoaderRoute: typeof ApiPublicEmailHeroFileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/hooks/allocation-tick': {
       id: '/api/public/hooks/allocation-tick'
       path: '/api/public/hooks/allocation-tick'
@@ -1643,6 +1637,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/referrals/track-click'
       fullPath: '/api/public/referrals/track-click'
       preLoaderRoute: typeof ApiPublicReferralsTrackClickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/email-art/$token/$file': {
+      id: '/api/public/email-art/$token/$file'
+      path: '/api/public/email-art/$token/$file'
+      fullPath: '/api/public/email-art/$token/$file'
+      preLoaderRoute: typeof ApiPublicEmailArtTokenFileRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -1822,13 +1823,13 @@ const rootRouteChildren: RootRouteChildren = {
   EstimateTokenVideoRoute: EstimateTokenVideoRoute,
   TETokenRoute: TETokenRoute,
   TOFileRoute: TOFileRoute,
-  ApiPublicEmailHeroFileRoute: ApiPublicEmailHeroFileRoute,
   ApiPublicHooksAllocationTickRoute: ApiPublicHooksAllocationTickRoute,
   ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,
   ApiPublicHooksPostIntakeRoute: ApiPublicHooksPostIntakeRoute,
   ApiPublicReferralsRecordSubmissionRoute:
     ApiPublicReferralsRecordSubmissionRoute,
   ApiPublicReferralsTrackClickRoute: ApiPublicReferralsTrackClickRoute,
+  ApiPublicEmailArtTokenFileRoute: ApiPublicEmailArtTokenFileRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
