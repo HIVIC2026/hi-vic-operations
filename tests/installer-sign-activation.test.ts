@@ -335,7 +335,7 @@ describe("certification consistency (pending 0084, PGlite)", () => {
   });
   test("forged plan status is ignored: workers get the DB's latest decision", async () => {
     const t = await installerDb();
-    const team = { ...complete, installers: [complete.installers![0]!, { full_legal_name: "C D", email: "c@samplebiz.com.au", mobile: "0412345670", cii_holds: "in_training" as const }] } as InstData;
+    const team = { ...complete, installers: [complete.installers![0]!, { piisa_done: "no", full_legal_name: "C D", email: "c@samplebiz.com.au", mobile: "0412345670", cii_holds: "in_training" as const }] } as InstData;
     const { id, signed } = await signed2(t, team);
     await t.recordCert(id, "a@samplebiz.com.au", "verified");
     const plan = planActivation("installer", signed as never, signed.data as InstData, latestCertifications([vcert("a@samplebiz.com.au"), vcert("c@samplebiz.com.au")]), []);
