@@ -20,6 +20,22 @@ export type JourneyCtx = {
 };
 
 class StepFail extends Error {}
+
+/** A real signed-in client for a TEST-run persona (RLS applies). Uses a one-time magic link, no password, no email sent. */
+const sessions = new Map<string, unknown>();
+export async function personaClient(email: string) {
+  if (!email.endsWith(TEST_DOMAIN) && email !== JOURNEY_ACTOR_EMAIL) throw new Error("SAFETY STOP: journey sign-ins are TEST accounts only.");
+  if (sessions.has(email)) return sessions.get(email) as import("@supabase/supabase-js").SupabaseClient;
+  const { createClient } = await import("@supabase/supabase-js");
+  const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
+  const sb = createClient(process.env["SUPABASE_URL"]!, key, { auth: { persistSession: false, autoRefreshToken: false, storage: undefined }, global: { fetch: (input, init) => { const h = new Headers(init?.headers); if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization"); h.set("apikey", key); return fetch(input, { ...init, headers: h }); } } });
+  const { data: link, error } = await admin.auth.admin.generateLink({ type: "magiclink", email });
+  if (error || !link.properties?.hashed_token) throw new Error(`TEST sign-in for ${email}: ${error?.message ?? "no token"}`);
+  const v = await sb.auth.verifyOtp({ token_hash: link.properties.hashed_token, type: "magiclink" });
+  if (v.error) throw new Error(`TEST sign-in for ${email}: ${v.error.message}`);
+  sessions.set(email, sb);
+  return sb;
+}
 function check(r: StepResult, name: string, ok: boolean, detail?: string) { r.checks.push({ name, ok, detail }); if (!ok) throw new StepFail(`${name}${detail ? `: ${detail}` : ""}`); }
 
 async function profileByEmail(email: string) {
@@ -227,7 +243,7 @@ const s4: StepFn = async (ctx, r) => {
   const { recordPriorActivityCheck } = await import("./verified-eligibility.server");
   await recordPriorActivityCheck(ctx.jobId!, ctx.actorId, "none_known" as never, null);
   const { recordVerification } = await import("./verified-eligibility.server");
-  await recordVerification(admin as never, ctx.jobId!, "eligible", null, "TEST journey: office verified from the Ready Check");
+  await recordVerification(await personaClient(JOURNEY_ACTOR_EMAIL) as never, ctx.jobId!, "eligible", null, "TEST journey: office verified from the Ready Check");
   const { transition } = await import("./workflow.server");
   await transition(ctx.jobId!, "ready_check_complete", ctx.actorId, "TEST journey: Ready Check done");
   const { generateInstallerQuotes } = await import("./quotes.server");
