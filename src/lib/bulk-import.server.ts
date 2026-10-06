@@ -92,7 +92,7 @@ roof_type (short text, e.g. "tiled"/"tin", or "unknown"), hazards (short text or
 building_age (short text, e.g. "built 1978", or "unknown"), notes (anything else useful, short),
 price_inc_gst (number, the installer's quoted total price including GST if present),
 unsure (boolean), source_files (array of the uploaded file names/paths this lead was read from).
-Never invent values. If a column is ambiguous, put it in notes. Return [] only if there is truly no customer, contact, address or property detail anywhere.`;
+If the same customer appears more than once in the list, return it once and add "Listed N times in the upload" to notes. Never invent values. If a column is ambiguous, put it in notes. Return [] only if there is truly no customer, contact, address or property detail anywhere.`;
 
 export type BulkDocument = { name: string; text: string };
 export type BulkFileRef = { name: string; folder?: string | null; geo_address?: string | null };
