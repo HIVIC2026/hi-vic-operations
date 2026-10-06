@@ -7,7 +7,7 @@ import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, deskCheckReas
 import { logEvent } from "./workflow.server";
 import { whatIfEstimate } from "./estimate.core";
 
-async function campaignLink(token: unknown) {
+export async function campaignLink(token: unknown) {
   if (!isWellFormedToken(token)) return null;
   const { data: link } = await admin.from("customer_estimate_links").select("id, job_id, status, expires_at").eq("token", token).eq("purpose", LINK_PURPOSE).maybeSingle();
   if (!link || !linkUsable(link)) return null;
