@@ -58,7 +58,8 @@ export function workerOfferBlocker(w: WorkerCompliance, today: string): string |
     if (s === "expired") return "Electrical licence has expired.";
     if (s === "missing") return null; // existing partners: shown as "missing" with an Add it prompt; not yet a block
   }
-  if (w.trade_role === "installer" && piisaState(w) !== "verified") return "PIISA training not uploaded and verified.";
+  // Existing partners who were never asked show "missing" (Add it prompt) and are not blocked yet.
+  if (w.trade_role === "installer" && w.piisa_status && piisaState(w) !== "verified") return "PIISA training not uploaded and verified.";
   return null;
 }
 
