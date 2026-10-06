@@ -27,7 +27,7 @@ export function addressBits(addressLine: string | null, suburb: string | null) {
 
 export function renderSpotSavedSms(i: SpotSavedInput) {
   const name = i.firstName?.trim() ? `, ${i.firstName.trim()}` : "";
-  return `Spot saved${name}! Your ${wholeDollars(i.rebate)} rebate is waiting.
+  return `Spot saved${name}! 🎉 Your ${wholeDollars(i.rebate)} rebate is waiting.
 
 Heads up: the waiting list is huge and we book in order, so it may be a while. We're teaming up with more installers and electricians across Victoria to speed it up. Your spot is held. We'll text you the moment an installer's free in ${i.suburb ?? "your area"}.
 
