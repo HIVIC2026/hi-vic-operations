@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { CONTACT_PERMISSION_WORDING, LEAD_STAGE_LABEL, type FileResult, type LeadStage } from "@/lib/bulk-import.core";
+import { CONTACT_PERMISSION_WORDING, gridToRecords, LEAD_STAGE_LABEL, type FileResult, type LeadStage } from "@/lib/bulk-import.core";
 import { AppShell } from "@/components/portal/AppShell";
 import { TradeTabs } from "@/components/portal/trade-work";
 import { AlertCircle, CheckCircle2, ChevronDown, FileArchive, UploadCloud, Zap } from "lucide-react";
