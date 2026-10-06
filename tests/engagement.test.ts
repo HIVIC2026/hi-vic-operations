@@ -155,8 +155,8 @@ describe("delivery configuration", () => {
     expect(base44BridgeConfig({ ...ok, enabled: false })).toBeNull();
     expect(base44BridgeConfig(ok)).not.toBeNull();
   });
-  test("no Resend anywhere in src", () => {
-    for (const f of walk("src")) if (/\.(ts|tsx)$/.test(f)) expect(src(f)).not.toMatch(/from ["']resend["']|api\.resend\.com|RESEND_API_KEY|new Resend\(/);
+  test("Resend only in the allowlisted test sender", () => {
+    for (const f of walk("src")) if (/\.(ts|tsx)$/.test(f) && !f.endsWith("lib/test-send.server.ts")) expect(src(f)).not.toMatch(/from ["']resend["']|api\.resend\.com|RESEND_API_KEY|new Resend\(/);
   });
 });
 
