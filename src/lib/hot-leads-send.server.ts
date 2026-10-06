@@ -44,7 +44,7 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
     admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", jobId).maybeSingle(),
     admin.from("lead_campaign_responses").select("opted_out_at, spot_saved_at").eq("job_id", jobId).maybeSingle(),
     admin.from("customer_estimate_links").select("id, token").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle(),
-    admin.from("indicative_estimates").select("id, area_m2, insulation_declared, scenarios").eq("job_id", jobId).eq("status", "current").maybeSingle(),
+    admin.from("indicative_estimates").select("id, area_m2, insulation_declared, scenarios, snapshot").eq("job_id", jobId).eq("status", "current").maybeSingle(),
   ]);
   if (opt?.opted_out_at || resp?.opted_out_at) return r("skipped", "Owner opted out.");
   if (resp?.spot_saved_at) return r("skipped", "Spot already saved.");
@@ -78,10 +78,17 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
   const base = CUSTOMER_BASE; // one setting: customer links always use the live domain, never the login-walled preview
   const unsubscribeUrl = (await unsubscribeUrlForJob(jobId)).replace(CUSTOMER_BASE, base);
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
+  const snapshot = est?.snapshot as { settings?: { piesa_assessment_inc_gst?: number; ap_management_inc_gst?: number }; scenarios?: { by_access?: { standard?: { installation?: number } } }[] } | null;
+  const installation = snapshot?.scenarios?.[0]?.by_access?.standard?.installation;
+  const assessmentFee = snapshot?.settings?.piesa_assessment_inc_gst;
+  const apFee = snapshot?.settings?.ap_management_inc_gst;
   const mail = withUnsubscribe(renderLaunchCampaignEmail({
     group: sendGroup, campaignUrl: `${base}/estimate/${link.token}/campaign`, unsubscribeUrl, myJobUrl: `${base}/my-job/${link.token}`, insulation: price.insulation ?? est?.insulation_declared ?? null,
     firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
     address: (await import("./address")).fullAddress(prop?.address_line, prop?.suburb, prop?.postcode), reference: job.job_number,
+    ...(installation === undefined ? {} : { installation }),
+    ...(assessmentFee === undefined ? {} : { assessmentFee }),
+    ...(apFee === undefined ? {} : { apFee }),
   }), unsubscribeUrl);
   const finish = async (status: string, provider: string, error: string | null) => {
     await admin.from("customer_email_sends").update({ status, provider, error, sent_at: status === "sent" ? new Date().toISOString() : null }).eq("id", sendId!);
