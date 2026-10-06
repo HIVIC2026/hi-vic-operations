@@ -5376,6 +5376,45 @@ export type Database = {
           },
         ]
       }
+      journey_runs: {
+        Row: {
+          created_at: string
+          failing_reason: string | null
+          failing_step: string | null
+          finished_at: string | null
+          id: string
+          mode: string
+          passed: boolean | null
+          started_at: string
+          steps: Json
+          test_job_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          failing_reason?: string | null
+          failing_step?: string | null
+          finished_at?: string | null
+          id?: string
+          mode: string
+          passed?: boolean | null
+          started_at?: string
+          steps?: Json
+          test_job_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          failing_reason?: string | null
+          failing_step?: string | null
+          finished_at?: string | null
+          id?: string
+          mode?: string
+          passed?: boolean | null
+          started_at?: string
+          steps?: Json
+          test_job_id?: string | null
+        }
+        Relationships: []
+      }
       lead_campaign_responses: {
         Row: {
           campaign: string

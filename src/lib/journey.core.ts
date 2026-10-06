@@ -1,72 +1,49 @@
-// Job journey: the ordered gates and steps every job passes through, derived ONLY from the stage
-// (plus the shared nextStep rule). No stored state, so it can never disagree with the pipeline.
-import { DEFAULT_NEXT_ACTION, STAGE_LABEL, waitingOn, type Stage, type WaitingOn } from "./workflow";
-import { nextStep, type NextStepInput } from "./nextstep.core";
+// Full-journey test: the step list, the expected maths and the result shape. Pure, shared by the
+// browser runner (e2e/journey) and the server runner (journey.server.ts). TEST data only.
 
-export type GateKey = "enquiry" | "ready_check" | "quote" | "deposit" | "piesa" | "rectification" | "install" | "evidence" | "veec";
-export type StepStatus = "done" | "current" | "upcoming" | "skipped";
-export type GateStatus = StepStatus | "blocked";
-export type JourneyStep = { stage: Stage; label: string; action: string; actor: WaitingOn; status: StepStatus; legacy: boolean };
-export type JourneyGate = { key: GateKey; number: number; title: string; status: GateStatus; note: string | null; steps: JourneyStep[] };
-export type Journey = {
-  gates: JourneyGate[]; current: JourneyGate | null; upNext: JourneyStep[];
-  headline: string; next: string; exception: "on_hold" | "cancelled" | null; mismatches: string[];
-};
+export const JOURNEY_STEPS = [
+  { key: "s1_calculator", label: "1. Public calculator: register and whole-VEEC price" },
+  { key: "s2_owner_links", label: "2. Owner email links: Save my spot (double tap), owner calculator, My job" },
+  { key: "s3_office_offer", label: "3. Office: Spot saved / Hot leads, offered to TEST installer" },
+  { key: "s4_ready_check", label: "4. TEST installer: Ready Check and quote maths" },
+  { key: "s5_owner_accept", label: "5. Owner: accepts quote and paperwork" },
+  { key: "s6_electrician", label: "6. TEST electrician: safety check (all clear, and with fixes), certificate" },
+  { key: "s7_install", label: "7. Installer: install booking (deadline rules), install day, evidence" },
+  { key: "s8_ap_payout", label: "8. Office: AP sign-off, payout Coming in 7 days" },
+  { key: "s9_visibility", label: "9. Who sees what (prices, owner details, Money)" },
+  { key: "s10_allowlist", label: "10. Nothing sent outside the allowlist" },
+] as const;
+export type JourneyStepKey = (typeof JOURNEY_STEPS)[number]["key"];
 
-type GateDef = { key: GateKey; title: string; steps: Stage[]; legacy?: Stage[] };
-// Order follows the live workflow. Legacy stages are only shown when a job is actually sitting in one.
-export const GATES: GateDef[] = [
-  { key: "enquiry", title: "Enquiry & eligibility", steps: ["new_enquiry", "eligibility_review"] },
-  { key: "ready_check", title: "Ready Check / measure-up", steps: ["preliminary_estimate_ready", "ready_check_awaiting_acceptance", "ready_check_ready_to_schedule", "ready_check_scheduled", "ready_check_complete"], legacy: ["ready_check_awaiting_payment"] },
-  { key: "quote", title: "Quote & acceptance", steps: ["measured_estimate_ready", "measured_quote_accepted"], legacy: ["ready_for_installer_quotes", "awaiting_quote_acceptance"] },
-  { key: "deposit", title: "Payment", steps: ["awaiting_deposit_payment"] },
-  { key: "piesa", title: "PIESA (electrical safety)", steps: ["piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete"], legacy: ["awaiting_electrician", "assessment_booking", "assessment_booked", "assessment_complete"] },
-  { key: "rectification", title: "Rectification (only if needed)", steps: ["electrical_variation_pending", "rectification_required", "awaiting_owner_rectification_approval", "rectification_scheduling", "rectification_booked"] },
-  { key: "install", title: "Installation", steps: ["installation_scheduling", "installation_booked"] },
-  { key: "evidence", title: "Evidence & AP review", steps: ["evidence_outstanding", "ap_review"] },
-  { key: "veec", title: "VEEC", steps: ["ready_for_veec", "complete"] },
-];
+export type StepResult = { key: JourneyStepKey; label: string; passed: boolean; checks: { name: string; ok: boolean; detail?: string }[]; error?: string; simulated?: string[]; screenshots?: string[] };
+export type JourneyResult = { passed: boolean; failingStep: string | null; failingReason: string | null; steps: StepResult[] };
 
-export type JourneyInput = NextStepInput & {
-  /** false = PIESA found nothing to fix; null/undefined = not known yet. */
-  rectificationNeeded?: boolean | null;
-  mismatches?: string[];
-};
+/** Whole-VEEC customer maths (v2): install $/m² + PIESA + AP fee − whole VEECs × value, never below the minimum. */
+export function expectedEstimate(areaM2: number, veecs: number, s = { perM2: 30, piesa: 349, ap: 349, veecValue: 70, minimum: 200 }) {
+  const install = Math.round(areaM2 * s.perM2 * 100) / 100;
+  const gross = install + s.piesa + s.ap;
+  const wholeVeecs = Math.floor(veecs);
+  const discount = Math.min(wholeVeecs * s.veecValue, Math.max(0, gross - s.minimum));
+  return { install, gross, discount, pay: gross - discount, wholeVeecs };
+}
 
-export function buildJourney(j: JourneyInput): Journey {
-  const stage = (j.stage ?? "new_enquiry") as Stage;
-  const ns = nextStep(j);
-  const exception = stage === "on_hold" || stage === "cancelled" ? stage : null;
-  const gi = GATES.findIndex((g) => g.steps.includes(stage) || g.legacy?.includes(stage));
-  const blocked = ns.tone === "bad" || (j.mismatches?.length ?? 0) > 0;
+/** Money-looking text a trade (electrician) screen must never contain beyond their own rate. */
+export function customerPriceLeaks(text: string, allowed: number[] = []): string[] {
+  const found = [...text.matchAll(/\$\s?([\d,]+(?:\.\d{2})?)/g)].map((m) => Number(m[1]!.replace(/,/g, "")));
+  return found.filter((n) => !allowed.includes(n)).map((n) => `$${n}`);
+}
 
-  const gates: JourneyGate[] = GATES.map((g, i) => {
-    const stages = [...g.steps, ...(g.legacy ?? []).filter((s) => s === stage)];
-    const order = [...g.steps, ...(g.legacy ?? [])];
-    const cur = order.indexOf(stage);
-    const skippedGate = g.key === "rectification" && j.rectificationNeeded === false;
-    const steps: JourneyStep[] = stages.map((s) => ({
-      stage: s, label: STAGE_LABEL[s], action: DEFAULT_NEXT_ACTION[s], actor: waitingOn(s, DEFAULT_NEXT_ACTION[s]), legacy: !g.steps.includes(s),
-      status: skippedGate ? "skipped" : gi < 0 ? "upcoming" : i < gi ? "done" : i > gi ? "upcoming"
-        : s === stage ? "current" : cur >= 0 && order.indexOf(s) < cur && g.steps.includes(s) && !(g.legacy ?? []).includes(stage) ? "done" : "upcoming",
-    }));
-    // Legacy current stage: earlier live steps in the same gate count as done only if the stage is live.
-    let status: GateStatus = skippedGate ? "skipped" : gi < 0 ? "upcoming" : i < gi ? "done" : i > gi ? "upcoming" : "current";
-    if (status === "current" && blocked) status = "blocked";
-    let note: string | null = null;
-    if (skippedGate) note = "Not needed – PIESA found nothing to fix";
-    else if (g.key === "rectification" && status === "done" && j.rectificationNeeded == null) note = "Completed or not needed";
-    else if (g.key === "ready_check" && status === "done") note = "Done, or skipped because the installer's measure-up was approved";
-    else if (g.key === "rectification" && status === "upcoming") note = "Only if the PIESA finds electrical work";
-    if (status === "current" || status === "blocked") note = ns.next;
-    return { key: g.key, number: i + 1, title: g.title, status, note, steps };
-  });
-  if (stage === "complete") for (const g of gates) { if (g.status !== "skipped") g.status = "done"; for (const s of g.steps) if (s.status !== "skipped") s.status = "done"; }
+/** Every recipient a run produced must be on the allowlist or on the TEST domain (which never delivers). */
+export function recipientsOutsideAllowlist(recipients: string[], allow: string[] = ["jolowexo@hotmail.com", "+61477511901"]) {
+  return recipients.filter((r) => { const v = r.trim().toLowerCase(); return v && !allow.includes(v) && !v.endsWith("@hivic-test.example"); });
+}
 
-  const current = exception || stage === "complete" ? null : gates[gi] ?? null;
-  const flat = gates.flatMap((g) => g.steps.filter((s) => !s.legacy && s.status !== "skipped"));
-  const at = flat.findIndex((s) => s.stage === stage);
-  const upNext = exception || stage === "complete" ? [] : flat.slice((at < 0 ? flat.findIndex((s) => s.status === "upcoming") - 1 : at) + 1).filter((s) => s.status === "upcoming").slice(0, 3);
-  const headline = exception ? (exception === "on_hold" ? "On hold" : "Cancelled") : stage === "complete" ? "Complete" : current ? `Gate ${current.number} – ${current.title}` : ns.label;
-  return { gates, current, upNext, headline, next: ns.next, exception, mismatches: j.mismatches ?? [] };
+export function summarise(steps: StepResult[]): JourneyResult {
+  const bad = steps.find((s) => !s.passed) ?? null;
+  const reason = bad ? (bad.error ?? bad.checks.filter((c) => !c.ok).map((c) => `${c.name}${c.detail ? `: ${c.detail}` : ""}`).join("; ")) : null;
+  return { passed: steps.length === JOURNEY_STEPS.length && !bad, failingStep: bad?.label ?? (steps.length < JOURNEY_STEPS.length ? "incomplete run" : null), failingReason: reason, steps };
+}
+
+export function publishVerdict(r: JourneyResult): string {
+  return r.passed ? "OK TO PUBLISH (journey passed)" : `DON'T PUBLISH — ${r.failingStep}: ${r.failingReason ?? "failed"}`;
 }
