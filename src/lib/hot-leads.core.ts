@@ -3,7 +3,7 @@ import { regionForPostcode, regionsForDeclaredAreas, type RegionId } from "./cov
 
 export const HOT_LEAD_BLOCKED = true;
 export const HOT_SUBJECT = "Your ceiling insulation quote — save your spot";
-export const HOT_EXCLUDE = /\b(?:test|qa|jo lowe|delete me|sam taylor|alex spark)\b/i;
+export const HOT_EXCLUDE = /\b(?:test|qa|jo lowe|delete me|sam taylor|alex spark|dc construction)\b/i;
 export type Trade = { id: string; name: string; kind: "installer" | "rec"; areas?: string[] | null; origin?: { latitude?: number | null; longitude?: number | null; postcode?: string | null } | null; radius?: number | null };
 
 const coord = (postcode: string | null) => (postcode && centroids[postcode as keyof typeof centroids]) || null;

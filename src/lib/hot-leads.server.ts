@@ -71,9 +71,37 @@ export async function loadHotLeads(group: HotList = "likely") {
     const addressSuburb = property.address_line?.match(/,\s*([^,]+?)\s+VIC\s+\d{4}\s*$/i)?.[1]?.trim() ?? null;
     return { id: j.id, jobNumber: j.job_number, source: j.source, eligibility: j.eligibility_outcome, name: owner.full_name, email: owner.email, address: property.address_line, suburb: property.suburb || addressSuburb, postcode: property.postcode, area: Number(estimate.area_m2), region: hotRegion(property.postcode), ...coverage, price: value?.primary.by_access.standard.estimated_customer_total ?? null, discount: value?.applied_discount ?? null, installation: value?.primary.by_access.standard.installation ?? null, veecs: value ? Math.floor(value.ghg.ghgReduction) : null };
   });
+  const ids = rows.map((r) => r.id);
+  const [sendsR, respR, optR, linkR] = ids.length ? await Promise.all([
+    admin.from("customer_email_sends").select("job_id,status,sent_at,created_at").eq("purpose", LAUNCH_CAMPAIGN).in("job_id", ids),
+    admin.from("lead_campaign_responses").select("job_id,spot_saved_at,opted_out_at").in("job_id", ids),
+    admin.from("customer_email_optouts").select("job_id,opted_out_at").in("job_id", ids),
+    admin.from("customer_estimate_links").select("job_id,status").eq("purpose", "step3_estimate").eq("status", "active").in("job_id", ids),
+  ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }];
+  const sent = new Map((sendsR.data ?? []).filter((x) => ["sent", "delivered_unrecorded", "sending"].includes(x.status)).map((x) => [x.job_id, x.sent_at ?? x.created_at]));
+  const resp = new Map((respR.data ?? []).map((x) => [x.job_id, x]));
+  const opt = new Map((optR.data ?? []).filter((x) => x.opted_out_at).map((x) => [x.job_id, x.opted_out_at as string]));
+  const linked = new Set((linkR.data ?? []).map((x) => x.job_id));
+  const shared = sharedEmailFlags(rows);
+  const list = rows.map((r) => {
+    const flags: string[] = [];
+    const typo = emailTypo(r.email);
+    if (typo) flags.push(typo);
+    const others = shared.get(r.jobNumber ?? "");
+    if (others?.length) flags.push(`Same email as ${others.join(", ")}. Pick one home to send to.`);
+    if (!linked.has(r.id)) flags.push("No secure estimate link yet, so this home can't be sent the email.");
+    if (r.price === null) flags.push("No preliminary price for this postcode yet.");
+    const hold = group !== "test" && HOT_HOLD_REGIONS.has(r.region);
+    const sentAt = sent.get(r.id) ?? null;
+    const status = hotStatus({ sentAt, spotSavedAt: resp.get(r.id)?.spot_saved_at ?? null, optedOutAt: resp.get(r.id)?.opted_out_at ?? opt.get(r.id) ?? null });
+    const send = hold ? "hold" as const : "ready" as const;
+    return { ...r, send, flags, status, sentAt, defaultTicked: group === "likely" && send === "ready" && !flags.length && status === "not_sent" };
+  });
+  const regionOrder = ["Melbourne metro", "Geelong", "Mornington Peninsula", "Ballarat / Macedon", "Goulburn & Hume", "Western Victoria", "Gippsland", "Bendigo / Loddon", "Far East Gippsland", "Other Victoria"];
+  list.sort((a, b) => regionOrder.indexOf(a.region) - regionOrder.indexOf(b.region) || (a.jobNumber ?? "").localeCompare(b.jobNumber ?? ""));
   const covered = rows.filter((r) => r.installers.length && r.electricians.length && r.price !== null);
   const noElectrician = rows.filter((r) => r.installers.length && !r.electricians.length);
   const check = rows.filter((r) => r.checkCoverage);
   const groupCount = (items: typeof rows) => [...items.reduce((map, row) => map.set(row.region, (map.get(row.region) ?? 0) + 1), new Map<string, number>())].map(([region, count]) => ({ region, count })).sort((a, b) => b.count - a.count);
-  return { covered, noElectrician, check, otherGaps: rows.filter((r) => !covered.includes(r) && !noElectrician.includes(r)), counts: groupCount(covered), gapCounts: groupCount(noElectrician), totalCandidates: candidates.length, duplicates: candidates.length - unique.size, settings: { installationRate: Number(settings.r5_install_inc_gst_per_m2), ap: Number(settings.ap_management_inc_gst), piesa: Number(settings.piesa_assessment_inc_gst), veec: Number(settings.indicative_veec_value) }, sendingLocked: true };
+  return { list, covered, noElectrician, check, otherGaps: rows.filter((r) => !covered.includes(r) && !noElectrician.includes(r)), counts: groupCount(covered), gapCounts: groupCount(noElectrician), totalCandidates: candidates.length, duplicates: candidates.length - unique.size, settings: { installationRate: Number(settings.r5_install_inc_gst_per_m2), ap: Number(settings.ap_management_inc_gst), piesa: Number(settings.piesa_assessment_inc_gst), veec: Number(settings.indicative_veec_value) }, sendingLocked: true };
 }
