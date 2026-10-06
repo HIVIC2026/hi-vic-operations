@@ -13,7 +13,7 @@ export type GateDocKey =
   | "cooling_off_notice" | "payment_terms" | "veec_assignment_consent"
   | "life_support_plan" | "piesa_owner_declaration";
 
-export type GateDoc = { key: GateDocKey; gate: Gate; title: string; version: string; body: string; signer: "owner" | "office"; tick: string };
+export type GateDoc = { key: GateDocKey; gate: Gate; title: string; version: string; body: string; signer: "owner" | "office"; tick: string; draftNote?: string };
 
 const DRAFT = "DRAFT — wording pending Jo's approval. Not for use on real jobs.";
 
@@ -37,7 +37,7 @@ export const GATE_DOCS: GateDoc[] = [
     body: `${DRAFT}\n\nCooling-off notice slot. Wording and rules pending legal advice.` },
   { key: "payment_terms", gate: "B", title: "Payment option and terms", version: "draft-1", signer: "owner", tick: "I agree",
     body: `${DRAFT}\n\nI agree to pay using: {payment_option}.` },
-  { key: "veec_assignment_consent", gate: "B", title: "Your rebate (VEEC assignment)", version: "jo-2026-10-05", signer: "owner", tick: "I assign my VEECs",
+  { key: "veec_assignment_consent", gate: "B", title: "Your rebate (VEEC assignment)", version: "jo-2026-10-05-lawyer", draftNote: "Draft, awaiting lawyer", signer: "owner", tick: "I assign my VEECs",
     body: "I assign to DC Construction Solutions Pty Ltd trading as Home Insulation Victoria the right to create all Victorian energy efficiency certificates (VEECs) for this Activity 48 ceiling insulation upgrade at {address}. I understand this assignment takes effect only once the work has been done. If the installer, product, installed area, VEU discount, scope or price changes, I'll be asked to reconfirm. I'll receive a copy of the completed form after install." },
   { key: "life_support_plan", gate: "C", title: "Life support plan", version: "draft-1", signer: "owner", tick: "I agree",
     body: `${DRAFT}\n\nI agree to the plan for keeping life support equipment powered during electrical work at {address}.` },

@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
 import { Button } from "@/components/ui/button";
-import { approvePaperworkFn, paperworkCatalogueFn } from "@/lib/owner-gates.functions";
+import { approvePaperworkFn, getResignSwitchFn, paperworkCatalogueFn, setResignSwitchFn } from "@/lib/owner-gates.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/owner-paperwork")({
   head: () => ({ meta: [
@@ -33,6 +33,7 @@ function Page() {
       <h1 className="font-display text-2xl font-extrabold">Owner paperwork</h1>
       <p className="mt-1 text-sm text-muted-foreground">Every document owners sign, by gate. DRAFT wording works on TEST jobs only; real jobs are blocked until it's approved.</p>
       {err && <p role="alert" className="mt-2 text-sm text-destructive">{err}</p>}
+      <ResignSwitch />
       <table className="mt-4 w-full text-sm">
         <thead><tr className="text-left text-muted-foreground"><th className="py-2">Gate</th><th>Document</th><th>Version</th><th>Status</th><th>Approved by</th><th /></tr></thead>
         <tbody>{docs.map((d) => (
@@ -52,5 +53,30 @@ function Page() {
           </tr>))}</tbody>
       </table>
     </AppShell>
+  );
+}
+
+function ResignSwitch() {
+  const get = useServerFn(getResignSwitchFn);
+  const set = useServerFn(setResignSwitchFn);
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["resign-switch"], queryFn: () => get() });
+  const [err, setErr] = useState("");
+  if (!data) return null;
+  return (
+    <section className="mt-4 rounded-[22px] border bg-card p-4">
+      <h2 className="font-display text-lg font-bold">Owner signs again after install</h2>
+      <p className="mt-1 text-sm text-muted-foreground">Off (normal): the owner's signature at quote acceptance is used on the official form, unless something material changed. On: every owner signs the official form again after install.</p>
+      <div className="mt-3 flex items-center gap-3">
+        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${data.on ? "bg-success/15 text-success" : "bg-muted"}`}>{data.on ? "On" : "Off"}</span>
+        <Button size="sm" variant="outline" onClick={async () => {
+          setErr("");
+          const reason = window.prompt(`Turn ${data.on ? "OFF" : "ON"}? Give a short reason for the record.`);
+          if (!reason || reason.trim().length < 5) return;
+          try { await set({ data: { on: !data.on, reason } }); await qc.invalidateQueries({ queryKey: ["resign-switch"] }); } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); }
+        }}>Turn {data.on ? "off" : "on"}</Button>
+      </div>
+      {err && <p role="alert" className="mt-2 text-sm text-destructive">{err}</p>}
+    </section>
   );
 }

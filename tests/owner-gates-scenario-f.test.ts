@@ -62,3 +62,10 @@ describe("Scenario F — owner paperwork gates", () => {
     for (const s of ["ready_check_scheduled", "assessment_booked", "piesa_scheduled", "rectification_booked", "installation_booked", "evidence_outstanding"]) expect(gatesForStage(s)).toContain("A");
   });
 });
+
+import { GATE_DOCS as __DOCS } from "../src/lib/owner-gates.core";
+test("rebate (VEEC assignment) wording is draft awaiting lawyer and blocks real jobs", () => {
+  const d = __DOCS.find((x) => x.key === "veec_assignment_consent")!;
+  expect(d.draftNote).toBe("Draft, awaiting lawyer");
+  expect(d.version).not.toBe("jo-2026-10-05");
+});

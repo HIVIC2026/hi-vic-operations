@@ -87,7 +87,9 @@ export async function ownerPaperworkToSign(jobId: string) {
   const { facts, gates } = await ownerGates(jobId);
   const { vars } = await jobVars(jobId);
   const todo = ownerToSign(gates).filter((t) => t.gate === "A" || (t.gate === "B" && facts.hasQuote) || (t.gate === "C" && facts.agreementSigned));
+  const { data: pv } = await admin.from("assignment_variations").select("id, reasons").eq("job_id", jobId).eq("status", "pending").order("raised_at", { ascending: false }).limit(1).maybeSingle();
   return {
+    pendingVariation: pv ? { id: pv.id, reasons: (Array.isArray(pv.reasons) ? pv.reasons : []).map(String) } : null,
     gates: gates.map((g) => ({ gate: g.gate, label: g.label, complete: g.complete, items: g.items })),
     todo: todo.map((t) => { const d = gateDoc(t.key); return { gate: t.gate, key: t.key, title: d.title, tick: d.tick, version: d.version, draft: !facts.approved[t.key], text: fillTemplate(d.body, vars) }; }),
     isTest: facts.isTest,
@@ -192,7 +194,7 @@ export async function paperworkCatalogue() {
   });
   const own = GATE_DOCS.map((d) => {
     const a = (appr ?? []).find((x) => x.doc_key === d.key && x.doc_version === d.version);
-    return { key: d.key, gate: d.gate, title: d.title, version: d.version, status: approved[d.key] ? "Approved" : "Draft", approvedBy: who(a?.approved_by ?? null), approvedAt: a?.approved_at ?? null, managedIn: "Here" };
+    return { key: d.key, gate: d.gate, title: d.title, version: d.version, status: approved[d.key] ? "Approved" : (d.draftNote ?? "Draft"), approvedBy: who(a?.approved_by ?? null), approvedAt: a?.approved_at ?? null, managedIn: "Here" };
   });
   return [...own, ...fromTemplates].sort((x, y) => x.gate.localeCompare(y.gate));
 }

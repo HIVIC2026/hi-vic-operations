@@ -92,3 +92,24 @@ export const ownerReconfirmVariationFn = createServerFn({ method: "POST" }).midd
     await evaluateAndApply(s.jobId, s.userId);
     return { ok: true };
   });
+
+/** Office: the "owner re-signs after install" switch (default OFF). */
+export const getResignSwitchFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await (await import("./workflow.server")).requireAdmin(context.supabase as never);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data } = await admin.from("workflow_settings").select("owner_resign_after_install").limit(1).maybeSingle();
+    return { on: !!data?.owner_resign_after_install };
+  });
+
+export const setResignSwitchFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ on: z.boolean(), reason: z.string().trim().min(5).max(500) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await (await import("./workflow.server")).requireAdmin(context.supabase as never);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: ws } = await admin.from("workflow_settings").select("id").limit(1).single();
+    const { error } = await admin.from("workflow_settings").update({ owner_resign_after_install: data.on }).eq("id", ws!.id);
+    if (error) throw new Error(error.message);
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "owner_resign_after_install", summary: `Owner re-sign after install turned ${data.on ? "ON" : "OFF"}`, details: { on: data.on, reason: data.reason } });
+    return { on: data.on };
+  });
