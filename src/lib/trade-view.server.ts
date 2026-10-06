@@ -1,0 +1,276 @@
+// Trade view reads + the few trade actions (Jo-approved designs, 6 Oct 2026). Every read is scoped to the signed-in
+// person's own business. Trades never see customer prices, margins, the office's electrician list or other partners.
+import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { WorkflowError, logEvent } from "./workflow.server";
+import { fullAddress } from "./address";
+import { isTestPartner } from "./test-send.core";
+import { COULDNT_GET_IN, payState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey } from "./trade-view.core";
+
+type Biz = { id: string; name: string; business_type: string | null; capabilities: string[] | null; base_suburb: string | null; coverage_radius_km: number | null; covers_all_victoria: boolean | null; accepting_new_jobs: boolean | null; onboarding_notes: string | null };
+
+export async function tradeContext(userId: string) {
+  const [{ data: mem }, { data: roles }, { data: prof }] = await Promise.all([
+    admin.from("business_members").select("business_id, member_role").eq("user_id", userId).eq("active", true),
+    admin.from("user_roles").select("role").eq("user_id", userId),
+    admin.from("profiles").select("full_name, phone, email").eq("id", userId).maybeSingle(),
+  ]);
+  const m = (mem ?? [])[0];
+  if (!m) return null;
+  const { data: b } = await admin.from("businesses").select("id, name, business_type, capabilities, base_suburb, coverage_radius_km, covers_all_victoria, accepting_new_jobs, onboarding_notes").eq("id", m.business_id).single();
+  if (!b) return null;
+  const r = new Set((roles ?? []).map((x) => x.role as string));
+  const kind: TradeKind = r.has("installer") && !r.has("electrician") ? "installer" : b.business_type === "eec_installer" && !r.has("electrician") ? "installer" : "electrician";
+  return { biz: b as Biz, kind, boss: m.member_role === "business_admin", firstName: prof?.full_name?.trim().split(/\s+/)[0] ?? null, profile: prof, isTest: isTestPartner(b) };
+}
+
+async function ctxOrThrow(userId: string) {
+  const c = await tradeContext(userId);
+  if (!c) throw new WorkflowError("Your sign-in isn't linked to an approved business yet.");
+  return c;
+}
+
+const VISIT: Record<string, string> = { assessment: "Safety check", rectification: "Fixes", ready_check: "Ready Check", installation: "Install" };
+
+/** My work: open offers, things that need this trade, booked visits, and this month. */
+export async function tradeHome(userId: string) {
+  const c = await ctxOrThrow(userId);
+  const now = new Date();
+  const [{ data: offers }, { data: asg }] = await Promise.all([
+    admin.from("partner_offers").select("id, kind, summary, expires_at").eq("business_id", c.biz.id).eq("status", "pending").order("offered_at", { ascending: false }),
+    admin.from("job_assignments").select("job_id").eq("business_id", c.biz.id).eq("active", true),
+  ]);
+  const jobIds = [...new Set((asg ?? []).map((a) => a.job_id))];
+  const none = ["00000000-0000-0000-0000-000000000000"];
+  const [{ data: jobs }, { data: books }, { data: missing }] = await Promise.all([
+    admin.from("jobs").select("id, job_number, stage, source, qa_archived_at, owners(full_name), properties(address_line, suburb, postcode)").in("id", jobIds.length ? jobIds : none),
+    admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", jobIds.length ? jobIds : none).in("status", ["confirmed", "completed"]).order("scheduled_start"),
+    admin.from("evidence_requirements").select("job_id").in("job_id", jobIds.length ? jobIds : none).eq("required", true).in("status", ["outstanding", "rejected"]),
+  ]);
+  const mine = c.kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
+  const live = (jobs ?? []).filter((j) => !j.qa_archived_at && !["cancelled"].includes(j.stage) && (!c.isTest || j.source === "qa_test"));
+  const byId = new Map(live.map((j) => [j.id, j]));
+  const miss = new Map<string, number>(); for (const r of missing ?? []) miss.set(r.job_id, (miss.get(r.job_id) ?? 0) + 1);
+  const label = (j: (typeof live)[number]) => { const o = j.owners as { full_name: string | null } | null; const p = j.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null; return { owner: o?.full_name ?? null, surname: surname(o?.full_name), suburb: p?.suburb ?? null, address: fullAddress(p?.address_line, p?.suburb, p?.postcode) }; };
+  const coming = (books ?? []).filter((b) => b.status === "confirmed" && mine.includes(b.kind) && byId.has(b.job_id) && new Date(b.scheduled_end ?? b.scheduled_start).getTime() > now.getTime() - 12 * 3_600_000)
+    .map((b) => ({ jobId: b.job_id, kind: b.kind, what: VISIT[b.kind] ?? "Visit", start: b.scheduled_start, end: b.scheduled_end, ...label(byId.get(b.job_id)!) }));
+  const yourMove: { jobId: string; title: string; detail: string }[] = [];
+  for (const j of live) {
+    const l = label(j);
+    if (c.kind === "electrician" && j.stage === "rectification_scheduling") yourMove.push({ jobId: j.id, title: "Fixes approved. Pick a time", detail: `${l.owner ?? "Owner"}, ${l.suburb ?? ""}` });
+    if (c.kind === "installer" && j.stage === "installation_scheduling") yourMove.push({ jobId: j.id, title: "Quote approved. Pick install day", detail: `${l.owner ?? "Owner"}, ${l.suburb ?? ""}` });
+    if (c.kind === "installer" && j.stage === "evidence_outstanding" && (miss.get(j.id) ?? 0) > 0) yourMove.push({ jobId: j.id, title: `${miss.get(j.id)} photo${miss.get(j.id) === 1 ? "" : "s"} missing`, detail: `${l.owner ?? "Owner"}, ${l.suburb ?? ""}` });
+  }
+  const wk0 = new Date(now); wk0.setDate(now.getDate() - ((now.getDay() + 6) % 7)); wk0.setHours(0, 0, 0, 0);
+  const wk1 = new Date(wk0.getTime() + 7 * 86_400_000);
+  const week = (books ?? []).filter((b) => mine.includes(b.kind) && byId.has(b.job_id) && new Date(b.scheduled_start) >= wk0 && new Date(b.scheduled_start) < wk1).length;
+  const money = await tradeMoneyRows(c.biz.id, c.kind, c.isTest);
+  const m0 = new Date(now.getFullYear(), now.getMonth(), 1);
+  const month = money.filter((r) => r.doneAt && new Date(r.doneAt) >= m0);
+  const offerList = (offers ?? []).filter((o) => (c.kind === "installer" ? o.kind === "ready_check" || o.kind === "installation" : o.kind === "piesa" || o.kind === "rectification"))
+    .map((o) => ({ id: o.id, kind: o.kind, suburb: (o.summary as { suburb?: string | null })?.suburb ?? null, expiresAt: o.expires_at }));
+  return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, month: { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0) } };
+}
+
+/** One offer, trade-side. Owner and address only once this business has taken it. */
+export async function tradeOffer(offerId: string, userId: string) {
+  const c = await ctxOrThrow(userId);
+  const { data: o } = await admin.from("partner_offers").select("id, job_id, business_id, kind, status, summary, expires_at").eq("id", offerId).maybeSingle();
+  if (!o || o.business_id !== c.biz.id) throw new WorkflowError("This offer isn't for your business.");
+  const s = (o.summary ?? {}) as { suburb?: string; postcode?: string; distance_km?: number; electrician_rate_inc_gst?: number | null; approx_area_m2?: number; area_source?: AreaSource; insulation_now?: InsulationNow; installer_rate_per_m2?: number | null };
+  const { data: winRows } = o.kind === "ready_check"
+    ? await admin.from("ready_check_windows").select("id, starts_at, ends_at, status").eq("job_id", o.job_id).order("starts_at")
+    : await admin.from("appointment_proposals").select("id, starts_at, ends_at, status").eq("job_id", o.job_id).not("piesa_window_round", "is", null).order("starts_at");
+  const windows = (winRows ?? []).filter((w) => w.status === "open" || w.status === "proposed").map((w) => ({ id: w.id, start: w.starts_at, end: w.ends_at }));
+  let locked: null | { owner: string | null; phone: string | null; address: string; start: string; end: string | null } = null;
+  if (o.status === "accepted") {
+    const bk = o.kind === "ready_check" ? "ready_check" : o.kind === "piesa" ? "assessment" : o.kind;
+    const [{ data: b }, { data: j }] = await Promise.all([
+      admin.from("bookings").select("scheduled_start, scheduled_end").eq("job_id", o.job_id).eq("kind", bk as never).neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      admin.from("jobs").select("owners(full_name, phone), properties(address_line, suburb, postcode)").eq("id", o.job_id).single(),
+    ]);
+    const ow = j?.owners as { full_name: string | null; phone: string | null } | null;
+    const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
+    if (b) locked = { owner: ow?.full_name ?? null, phone: ow?.phone ?? null, address: fullAddress(p?.address_line, p?.suburb, p?.postcode), start: b.scheduled_start, end: b.scheduled_end };
+  }
+  return {
+    id: o.id, jobId: o.job_id, kind: o.kind, status: o.status, expiresAt: o.expires_at, windows, locked,
+    suburb: s.suburb ?? null, distanceKm: s.distance_km ?? null, pay: s.electrician_rate_inc_gst ?? null,
+    area: s.approx_area_m2 ?? null, areaSource: (s.area_source ?? "owner_estimate") as AreaSource, insulation: (s.insulation_now ?? "unknown") as InsulationNow, ratePerM2: s.installer_rate_per_m2 ?? null,
+  };
+}
+
+/** Take a time. Staged TEST offers use one atomic conditional update; real offers go through the existing atomic paths. */
+export async function tradeTakeTime(offerId: string, windowId: string, userId: string) {
+  const c = await ctxOrThrow(userId);
+  const { data: o } = await admin.from("partner_offers").select("id, job_id, business_id, kind, status, summary").eq("id", offerId).maybeSingle();
+  if (!o || o.business_id !== c.biz.id) throw new WorkflowError("This offer isn't for your business.");
+  const { data: job } = await admin.from("jobs").select("source").eq("id", o.job_id).single();
+  const staged = job?.source === "qa_test" && (o.summary as { test_staged?: boolean })?.test_staged;
+  if (!staged) {
+    if (o.kind === "ready_check") {
+      const { respondToReadyCheckOffer } = await import("./readycheck-booking.server");
+      try { await respondToReadyCheckOffer(offerId, userId, true, null, windowId); return { tooSlow: false }; } catch (e) { if (/just been taken|no longer/.test((e as Error).message)) return { tooSlow: true }; throw e; }
+    }
+    const { takeJoOffer } = await import("./jo-tradie.server");
+    return { tooSlow: (await takeJoOffer(offerId, windowId, userId)).tooSlow };
+  }
+  const now = new Date().toISOString();
+  const { data: won } = await admin.from("partner_offers").update({ status: "accepted", responded_by: userId, responded_at: now }).eq("id", offerId).eq("status", "pending").select("id").maybeSingle();
+  if (!won) return { tooSlow: true };
+  await admin.from("partner_offers").update({ status: "withdrawn", superseded_at: now }).eq("job_id", o.job_id).eq("kind", o.kind).eq("status", "pending");
+  const isRc = o.kind === "ready_check";
+  const { data: w } = isRc ? await admin.from("ready_check_windows").select("starts_at, ends_at").eq("id", windowId).single() : await admin.from("appointment_proposals").select("starts_at, ends_at").eq("id", windowId).single();
+  if (!w) throw new WorkflowError("That time is no longer available.");
+  const role = isRc ? "installer" : "electrician";
+  await admin.from("job_assignments").insert({ job_id: o.job_id, user_id: userId, business_id: c.biz.id, role, assigned_by: userId, booking_confirmed_at: now } as never);
+  await admin.from("bookings").insert({ job_id: o.job_id, kind: isRc ? "ready_check" : "assessment", scheduled_start: w.starts_at, scheduled_end: w.ends_at, status: "confirmed", booked_by: userId, contractor_id: userId, business_id: c.biz.id, notes: "TEST booking (trade view)" } as never);
+  await admin.from("jobs").update({ stage: isRc ? "ready_check_scheduled" : "piesa_scheduled" } as never).eq("id", o.job_id);
+  await logEvent(o.job_id, userId, "booking_confirmed", `TEST: ${isRc ? "Ready Check" : "safety check"} taken from the trade view`, { window_id: windowId }, { internal: true });
+  return { tooSlow: false };
+}
+
+/** "Not for me" (decline) or "Can't make these" (tell the office, keep the offer open for others). */
+export async function tradeOfferReply(offerId: string, userId: string, reply: "not_for_me" | "cant_make", note: string | null) {
+  const c = await ctxOrThrow(userId);
+  const { data: o } = await admin.from("partner_offers").select("id, job_id, business_id, kind, status").eq("id", offerId).maybeSingle();
+  if (!o || o.business_id !== c.biz.id) throw new WorkflowError("This offer isn't for your business.");
+  if (o.status !== "pending") throw new WorkflowError("This offer is no longer open.");
+  if (reply === "not_for_me") {
+    if (o.kind === "ready_check") { const { respondToReadyCheckOffer } = await import("./readycheck-booking.server"); await respondToReadyCheckOffer(offerId, userId, false, note, null); return { ok: true }; }
+    await admin.from("partner_offers").update({ status: "declined", responded_by: userId, responded_at: new Date().toISOString(), decline_reason: note }).eq("id", offerId).eq("status", "pending");
+    await logEvent(o.job_id, userId, "partner_offer_declined", `${c.biz.name} passed on this job`, { reason: note, business_id: c.biz.id }, { internal: true });
+    return { ok: true };
+  }
+  await logEvent(o.job_id, userId, "trade_cant_make_times", `Needs me: ${c.biz.name} can't make the owner's times${note ? ` — suggests: ${note}` : ""}`, { business_id: c.biz.id, note, needs_office: true }, { internal: true });
+  return { ok: true };
+}
+
+/** Day page for any of the three visit kinds. */
+export async function tradeDay(jobId: string, userId: string) {
+  const c = await ctxOrThrow(userId);
+  const { data: asg } = await admin.from("job_assignments").select("business_id, role").eq("job_id", jobId).eq("business_id", c.biz.id).eq("active", true).limit(1).maybeSingle();
+  if (!asg) throw new WorkflowError("This job isn't assigned to you.");
+  const kinds = c.kind === "installer" ? ["installation", "ready_check"] : ["assessment", "rectification"];
+  const [{ data: bks }, { data: j }, { data: a }, { data: rc }, { data: q }, { data: miss }, { data: ws }, { data: fixes }] = await Promise.all([
+    admin.from("bookings").select("kind, scheduled_start, scheduled_end, status").eq("job_id", jobId).in("kind", kinds as never).neq("status", "cancelled").order("scheduled_start", { ascending: false }),
+    admin.from("jobs").select("job_number, stage, eligibility_outcome, owners(full_name, phone), properties(address_line, suburb, postcode)").eq("id", jobId).single(),
+    admin.from("assessments").select("status, piesa_outcome, external_mitti_id").eq("job_id", jobId).maybeSingle(),
+    admin.from("ready_checks").select("status, submitted_at, external_mitti_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").limit(1).maybeSingle(),
+    admin.from("evidence_requirements").select("label").eq("job_id", jobId).eq("required", true).in("status", ["outstanding", "rejected"]),
+    admin.from("workflow_settings").select("mitti_piesa_template_id").eq("id", 1).maybeSingle(),
+    admin.from("rectification_items").select("description").eq("job_id", jobId).neq("status", "cancelled"),
+  ]);
+  const b = (bks ?? [])[0] ?? null;
+  const dayKind = b?.kind === "installation" ? "install" : b?.kind === "ready_check" ? "ready_check" : "safety_check";
+  const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
+  const ow = j?.owners as { full_name: string | null; phone: string | null } | null;
+  const { data: cgi } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "trade_couldnt_get_in").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  let outcome: null | { kind: "all_clear" } | { kind: "fixes"; items: string[] } | { kind: "quoted" } | { kind: "not_eligible"; reason: string | null } | { kind: "wrap" } | { kind: "missing"; items: string[] } | { kind: "couldnt_get_in"; reason: string } = null;
+  if (cgi && dayKind === "ready_check" && j?.stage === "ready_check_ready_to_schedule") outcome = { kind: "couldnt_get_in", reason: String((cgi.details as { reason?: string })?.reason ?? "") };
+  else if (dayKind === "safety_check" && a?.status === "complete") outcome = a.piesa_outcome === "pass" ? { kind: "all_clear" } : { kind: "fixes", items: (fixes ?? []).map((f) => f.description) };
+  else if (dayKind === "ready_check" && (rc?.status === "submitted" || j?.stage === "ready_check_complete" || j?.stage === "measured_estimate_ready" || j?.stage === "measured_quote_accepted")) outcome = j?.eligibility_outcome === "does_not_appear_eligible" ? { kind: "not_eligible", reason: "Existing insulation doesn't qualify for this rebate." } : q ? { kind: "quoted" } : { kind: "quoted" };
+  else if (dayKind === "install" && ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(j?.stage ?? "")) outcome = (miss ?? []).length ? { kind: "missing", items: (miss ?? []).map((m) => m.label) } : { kind: "wrap" };
+  return {
+    kind: dayKind as "safety_check" | "ready_check" | "install", jobNumber: j?.job_number ?? null, owner: ow?.full_name ?? null, surname: surname(ow?.full_name), phone: ow?.phone ?? null,
+    address: fullAddress(p?.address_line, p?.suburb, p?.postcode), start: b?.scheduled_start ?? null, end: b?.scheduled_end ?? null, outcome,
+    mittiReady: dayKind === "safety_check" ? !!ws?.mitti_piesa_template_id : false, mittiId: (dayKind === "ready_check" ? rc?.external_mitti_id : a?.external_mitti_id) ?? null,
+  };
+}
+
+/** Ready Check "Couldn't get in?": office Needs me item; the re-offer goes back to this installer first. */
+export async function tradeCouldntGetIn(jobId: string, reason: string, userId: string) {
+  const c = await ctxOrThrow(userId);
+  if (!(COULDNT_GET_IN as readonly string[]).includes(reason)) throw new WorkflowError("Pick one of the reasons.");
+  const { data: asg } = await admin.from("job_assignments").select("id").eq("job_id", jobId).eq("business_id", c.biz.id).eq("role", "installer").eq("active", true).maybeSingle();
+  if (!asg) throw new WorkflowError("This job isn't assigned to you.");
+  await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed");
+  await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: `Couldn't get in: ${reason}` } as never).eq("id", asg.id);
+  await admin.from("jobs").update({ stage: "ready_check_ready_to_schedule", next_action: `Needs me: rebook the Ready Check (${reason}). Offer back to ${c.biz.name} first.` } as never).eq("id", jobId);
+  await logEvent(jobId, userId, "trade_couldnt_get_in", `Needs me: installer couldn't get in (${reason}). Rebook with the owner; offer back to ${c.biz.name} first.`, { reason, business_id: c.biz.id, reoffer_first_to: c.biz.id, needs_office: true }, { internal: true });
+  return { ok: true };
+}
+
+/** Money rows: own pay only. Paid = office marked paid; Coming = 7 days after AP approval; else Being checked. */
+async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean) {
+  const mine = kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
+  const { data: books } = await admin.from("bookings").select("job_id, kind, scheduled_start, status, jobs!inner(job_number, source, stage, owners(full_name), properties(suburb))").eq("business_id", bizId).eq("status", "completed").in("kind", mine as never).order("scheduled_start", { ascending: false });
+  const rows = (books ?? []).filter((b) => b.kind !== "ready_check" && (!testOnly || (b.jobs as { source: string }).source === "qa_test"));
+  const ids = [...new Set(rows.map((r) => r.job_id))];
+  const none = ["00000000-0000-0000-0000-000000000000"];
+  const [{ data: paid }, { data: ap }, { data: offers }] = await Promise.all([
+    admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "payout_marked_paid").in("job_id", ids.length ? ids : none),
+    admin.from("workflow_events").select("job_id, created_at").eq("event_type", "stage_changed").eq("to_stage", "ready_for_veec").in("job_id", ids.length ? ids : none),
+    admin.from("partner_offers").select("job_id, kind, summary").eq("business_id", bizId).eq("status", "accepted").in("job_id", ids.length ? ids : none),
+  ]);
+  return rows.map((b) => {
+    const j = b.jobs as { job_number: string; owners: { full_name: string | null } | null; properties: { suburb: string | null } | null };
+    const pe = (paid ?? []).find((p) => p.job_id === b.job_id && ((p.details as { kind?: string })?.kind ?? b.kind) === b.kind);
+    const of = (offers ?? []).find((o) => o.job_id === b.job_id && (o.kind === "piesa" ? "assessment" : o.kind) === b.kind);
+    const sum = (of?.summary ?? {}) as { electrician_rate_inc_gst?: number; installer_pay_inc_gst?: number; fixes_pay_inc_gst?: number };
+    const amount = Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst : b.kind === "rectification" ? sum.fixes_pay_inc_gst : sum.installer_pay_inc_gst) ?? 0) || null;
+    const state = payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null });
+    return { jobId: b.job_id, jobNumber: j.job_number, surname: surname(j.owners?.full_name), suburb: j.properties?.suburb ?? null, what: VISIT[b.kind] ?? "Job", amount, state, doneAt: b.scheduled_start };
+  });
+}
+
+export async function tradeMoney(userId: string) {
+  const c = await ctxOrThrow(userId);
+  const rows = await tradeMoneyRows(c.biz.id, c.kind, c.isTest);
+  const now = new Date(), m0 = new Date(now.getFullYear(), now.getMonth(), 1);
+  const coming = rows.filter((r) => r.state.kind === "coming");
+  const next = coming.map((r) => (r.state as { on: string }).on).sort()[0] ?? null;
+  const nextRows = next ? coming.filter((r) => (r.state as { on: string }).on.slice(0, 10) === next.slice(0, 10)) : [];
+  const sum = (xs: typeof rows) => xs.reduce((t, r) => t + (r.amount ?? 0), 0);
+  return { kind: c.kind, boss: c.boss, next: next ? { on: next, total: sum(nextRows), jobs: nextRows.length } : null, month: sum(rows.filter((r) => r.doneAt && new Date(r.doneAt) >= m0)), allTime: sum(rows), rows };
+}
+
+export async function tradeBusiness(userId: string) {
+  const c = await ctxOrThrow(userId);
+  const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [{ data: creds }, { data: workers }, { data: rate }, { data: agr }, { data: bank }] = await Promise.all([
+    admin.from("business_credentials").select("kind, label, expires_at, verification").eq("business_id", c.biz.id),
+    admin.from("partner_workers").select("full_legal_name, trade_role, approval_status, licence_expires_on, profile_id").eq("business_id", c.biz.id).is("removed_at", null),
+    c.kind === "electrician" ? r.from("electrician_rates").select("rate_inc_gst").eq("business_id", c.biz.id).eq("service_type", "piesa").eq("status", "active").maybeSingle() : Promise.resolve({ data: null }),
+    admin.from("partner_agreements").select("signed_at").eq("business_id", c.biz.id).order("signed_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("business_bank_details").select("id").eq("business_id", c.biz.id).limit(1).maybeSingle(),
+  ]);
+  const { data: boss } = await admin.from("business_members").select("user_id, member_role, profiles!business_members_user_id_fkey(full_name)").eq("business_id", c.biz.id).eq("active", true);
+  const licence = c.kind === "electrician" ? (workers ?? []).map((w) => w.licence_expires_on).filter(Boolean).sort()[0] ?? null : null;
+  const liability = (creds ?? []).find((x) => /liab/i.test(x.kind) || /liab/i.test(x.label))?.expires_at ?? null;
+  return {
+    kind: c.kind, boss: c.boss, name: c.biz.name, taking: c.biz.accepting_new_jobs !== false,
+    area: c.biz.covers_all_victoria ? "Anywhere in Victoria" : `Up to ${c.biz.coverage_radius_km ?? "?"} km from ${c.biz.base_suburb ?? "your base"}`,
+    licenceExpires: licence, liabilityExpires: liability, rate: rate ? Number((rate as { rate_inc_gst: number }).rate_inc_gst) : null,
+    agreementSigned: !!agr?.signed_at, bankSaved: !!bank,
+    team: [
+      ...(boss ?? []).filter((m) => m.member_role === "business_admin").map((m) => ({ name: (m.profiles as { full_name: string | null } | null)?.full_name ?? "Boss", role: "Boss" })),
+      ...(workers ?? []).filter((w) => !(boss ?? []).some((m) => m.user_id === w.profile_id && m.member_role === "business_admin")).map((w) => ({ name: w.full_legal_name, role: w.trade_role === "installer" ? "Installer" : "Electrician" })),
+    ],
+  };
+}
+
+export async function tradeSetTaking(userId: string, taking: boolean) {
+  const c = await ctxOrThrow(userId);
+  if (!c.boss) throw new WorkflowError("Only the business boss can change this.");
+  await admin.from("businesses").update({ accepting_new_jobs: taking }).eq("id", c.biz.id);
+  await admin.from("admin_config_events").insert({ actor_id: userId, event_type: "trade_taking_new_jobs", summary: `${c.biz.name}: ${taking ? "taking new jobs" : "paused new offers"}`, details: { business_id: c.biz.id, taking } });
+  return { taking };
+}
+
+/** Quick setup: each tick is stored (append-only) so it follows the person across phones. */
+export async function tradeSetup(userId: string) {
+  const c = await ctxOrThrow(userId);
+  const { data: ev } = await admin.from("admin_config_events").select("details, created_at").eq("event_type", "trade_setup_step").eq("actor_id", userId).order("created_at");
+  const done: Partial<Record<SetupKey, boolean>> = {};
+  for (const e of ev ?? []) { const d = e.details as { key?: SetupKey; done?: boolean }; if (d.key) done[d.key] = !!d.done; }
+  const biz = await tradeBusiness(userId);
+  if (biz.bankSaved) done.bank = done.bank ?? false;
+  return { kind: c.kind, business: c.biz.name, firstName: c.firstName, mobile: c.profile?.phone ?? null, email: c.profile?.email ?? null, area: biz.area, rate: biz.rate, bankSaved: biz.bankSaved, done, steps: SETUP_STEPS.map((s) => s.key) };
+}
+
+export async function tradeSetupMark(userId: string, key: SetupKey, done: boolean) {
+  const c = await ctxOrThrow(userId);
+  await admin.from("admin_config_events").insert({ actor_id: userId, event_type: "trade_setup_step", summary: `${c.biz.name}: setup ${key} ${done ? "done" : "undone"}`, details: { key, done, business_id: c.biz.id } });
+  return { ok: true };
+}
