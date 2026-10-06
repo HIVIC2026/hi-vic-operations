@@ -862,6 +862,13 @@
       "when": 1791239359304,
       "tag": "0122_owner_resign_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1791244764794,
+      "tag": "0123_partner_profile",
+      "breakpoints": true
     }
   ]
 }

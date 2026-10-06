@@ -118,3 +118,9 @@ This is the only current implementation register. `docs/HIV_WORKFLOW_SOURCE_OF_T
 
 ## Walkthrough
 - Page-by-page role walkthrough: Partly built — see docs/WALKTHROUGH.md (route and menu access fixed; end-to-end actions pending).
+
+## Partner onboarding profile
+- Tidy partner profile on approval (one business per ABN, normalised ABN/mobile/email, licences, insurance, rates, map point + radius, capacity): Built — Partners › Applications › open application › Partner profile.
+- Approval review flags (CII, licence expiry, unusual rates, insurance <60 days): Built, information only.
+- Test applications list and Started, not finished list: Built.
+- Approval message: queued only, not built/sent (wording with Jo).
