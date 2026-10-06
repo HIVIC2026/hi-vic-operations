@@ -9,6 +9,7 @@ export function activationWorkers(type: PartnerType, application: RecData | Inst
     business_id: businessId, trade_role: "electrician" as const,
     full_legal_name: worker.full_legal_name?.trim() ?? "", email: worker.email?.trim().toLowerCase() ?? "",
     mobile: worker.mobile?.trim() || null, licence_number: worker.licence_number?.trim() || null,
+    licence_expires_on: worker.licence_expiry ?? null,
     qualification: null, source_application_id: applicationId,
   }));
   return ((application as InstData).installers ?? []).map((worker) => {
@@ -23,6 +24,9 @@ export function activationWorkers(type: PartnerType, application: RecData | Inst
       source_application_id: applicationId,
       // Only an office verification counts; the applicant's own answer is kept as "declared".
       certification_status: v?.status ?? "unverified",
+      piisa_status: worker.piisa_done === "yes" ? "done" as const : worker.piisa_done === "no" ? "not_done" as const : null,
+      piisa_completed_on: worker.piisa_done === "yes" ? worker.piisa_date ?? null : null,
+      piisa_certificate_path: ((application as InstData & { piisa_files?: Record<string, string> }).piisa_files ?? {})[email] ?? null,
       certification: { declared: { holds: worker.cii_holds ?? null, certificate_number: worker.cii_certificate_number ?? null, issuer: worker.cii_issuer ?? null, issue_date: worker.cii_issue_date ?? null }, verification_id: v?.id ?? null },
     };
   });
