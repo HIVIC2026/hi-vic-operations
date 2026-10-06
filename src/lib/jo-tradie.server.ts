@@ -38,7 +38,15 @@ export async function setupJoPartner(actorId: string) {
   // Jo's sign-in (her own email). Marked qa_test so she is never treated as a real trade.
   let uid: string;
   const { data: prof } = await admin.from("profiles").select("id").eq("email", JO_EMAIL).maybeSingle();
-  if (prof) uid = prof.id;
+  if (prof) {
+    uid = prof.id;
+    // Keep the auth user's email in sync with the allowlist (Jo corrected her test email once already).
+    const { data: au } = await admin.auth.admin.getUserById(uid);
+    if (au.user && au.user.email !== JO_EMAIL) {
+      const { error: ue } = await admin.auth.admin.updateUserById(uid, { email: JO_EMAIL, email_confirm: true });
+      if (ue) throw new WorkflowError(`Could not update Jo's sign-in email: ${ue.message}`);
+    }
+  }
   else {
     const { data, error } = await admin.auth.admin.createUser({ email: JO_EMAIL, email_confirm: true, password: crypto.randomUUID() + "Aa1!", user_metadata: { full_name: "Jo", qa_test: true, jo_tradie: true } });
     if (error || !data.user) throw new WorkflowError(`Could not create Jo's sign-in: ${error?.message}`);
