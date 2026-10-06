@@ -115,22 +115,19 @@ function roundRect(x: number, y: number, w: number, h: number, r: number): Pt[] 
   return p;
 }
 
-export function heroHeadline(firstName: string | null, rebate: string) {
-  return `Great news${firstName ? `, ${firstName}` : ""}! You could take ${rebate} off your ceiling insulation`;
-}
+export type HeroSeg = { t: string; green?: boolean };
+export type HeroSpec = { caps: string; capsColor: string; capsSize: number; emoji: boolean; segs: HeroSeg[]; size: number; lineHeight: number };
+const hex = (h: string): RGB => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+export const plainHeadline = (segs: HeroSeg[]) => segs.map((x) => x.t).join("");
 
-/** Renders the Group A header (logo + pill, caps line with emoji, headline). Returns PNG bytes. */
-export function renderEmailHeroPng(firstName: string | null, rebate: string): Uint8Array {
+/** Email header art: logo + pill, caps line (optional colour emoji), headline with green amount. Returns PNG bytes. */
+export function renderHeaderArt(spec: HeroSpec): Uint8Array {
   const { outfit, figtree } = font();
-  const name = firstName?.trim().replace(/\s+/g, " ").slice(0, 40) || null;
-  // Layout in 1x email pixels, matching the live HTML: 22px top, 142x61 logo, 26px gap, 11px caps, 8px gap, 32/37 headline, 568px text width.
+  // Layout in 1x email pixels, matching the HTML preview: 22px top, 142x61 logo, 26px gap, caps line, 8px gap, headline, 568px text width.
   const PAD = 16, TEXT_W = HERO_WIDTH - PAD * 2;
-  const H1 = 32 * S, LH = 37 * S;
+  const H1 = spec.size * S, LH = spec.lineHeight * S;
   const words: { t: string; c: RGB }[] = [];
-  const pre = `Great news${name ? `, ${name}` : ""}! You could take`;
-  for (const t of pre.split(" ")) words.push({ t, c: NAVY });
-  words.push({ t: rebate, c: GREEN });
-  for (const t of "off your ceiling insulation".split(" ")) words.push({ t, c: NAVY });
+  for (const seg of spec.segs) for (const t of seg.t.split(" ")) if (t) words.push({ t, c: seg.green ? GREEN : NAVY });
   const space = outfit.getAdvanceWidth(" ", H1);
   const lines: { t: string; c: RGB }[][] = [[]]; let lw = 0;
   for (const w of words) {
@@ -138,26 +135,25 @@ export function renderEmailHeroPng(firstName: string | null, rebate: string): Ui
     if (lines[lines.length - 1].length && lw + space + ww > TEXT_W * S) { lines.push([]); lw = 0; }
     lw += (lines[lines.length - 1].length ? space : 0) + ww; lines[lines.length - 1].push(w);
   }
-  const top = 22 * S, logoH = 61 * S, capsTop = top + logoH + 26 * S, capsSize = 11 * S;
-  const h1Top = capsTop + Math.round(14.3 * S) + 8 * S;
+  const top = 22 * S, logoH = 61 * S, capsTop = top + logoH + 26 * S, capsSize = spec.capsSize * S;
+  const capsLH = Math.round(spec.capsSize * 1.3 * S);
+  const h1Top = capsTop + capsLH + 8 * S;
   const height = h1Top + lines.length * LH + 14 * S;
   const cv = new Canvas(W, height);
   const { logo, party } = images();
   cv.image(logo, PAD * S, top, 142 * S, logoH);
-  // Pill: 10px Figtree 800, .7px tracking, 7x11 padding, right-aligned, vertically centred on the logo.
+  // Pill: 10px Figtree 800, .7px tracking, 7x11 padding, right-aligned, one line, centred on the logo.
   const pSize = 10 * S, pTrack = 0.7 * S, label = "FREE ESTIMATE · NO OBLIGATION";
   const tw = spaced(null, figtree, label, 0, 0, pSize, pTrack, NAVY);
   const pw = tw + 22 * S, ph = Math.round(pSize * 1.2) + 14 * S;
   const px = W - PAD * S - pw, py = top + (logoH - ph) / 2;
   cv.fill([roundRect(px, py, pw, ph, ph / 2)], BLUSH);
-  const capH = (figtree.tables.os2?.sCapHeight ?? 700) / figtree.unitsPerEm * pSize;
-  spaced(cv, figtree, label, px + 11 * S, py + ph / 2 + capH / 2, pSize, pTrack, NAVY);
-  // Caps line with colour emoji.
-  const emo = Math.round(13 * S), capsCap = (figtree.tables.os2?.sCapHeight ?? 700) / figtree.unitsPerEm * capsSize;
-  const capsBase = capsTop + Math.round(7 * S) + capsCap / 2;
-  cv.image(party, PAD * S, Math.round(capsBase - capsCap / 2 - emo / 2), emo, emo);
-  spaced(cv, figtree, "YOUR REBATE IS WAITING", PAD * S + emo + 5 * S, capsBase, capsSize, 1.4 * S, GREEN);
-  // Headline.
+  const capRatio = (figtree.tables.os2?.sCapHeight ?? 700) / figtree.unitsPerEm;
+  spaced(cv, figtree, label, px + 11 * S, py + ph / 2 + (capRatio * pSize) / 2, pSize, pTrack, NAVY);
+  const capsCap = capRatio * capsSize, capsBase = capsTop + capsLH / 2 + capsCap / 2;
+  let cx = PAD * S;
+  if (spec.emoji) { const emo = Math.round(13 * S); cv.image(party, cx, Math.round(capsBase - capsCap / 2 - emo / 2), emo, emo); cx += emo + 5 * S; }
+  spaced(cv, figtree, spec.caps.toUpperCase(), cx, capsBase, capsSize, 1.4 * S, hex(spec.capsColor));
   const asc = outfit.ascender / outfit.unitsPerEm * H1, desc = -outfit.descender / outfit.unitsPerEm * H1;
   lines.forEach((ln, i) => {
     const base = h1Top + i * LH + (LH - (asc + desc)) / 2 + asc;
@@ -165,4 +161,34 @@ export function renderEmailHeroPng(firstName: string | null, rebate: string): Ui
     for (const w of ln) { cv.fill(flatten(outfit.getPath(w.t, pen, base, H1)), w.c); pen += outfit.getAdvanceWidth(w.t, H1) + space; }
   });
   return cv.png();
+}
+
+/** "You pay about" amount in Outfit 800 navy, 34/38px, on the estimate card's mist background. Width = text width. */
+export const AMOUNT_SIZE = 34, AMOUNT_LH = 38;
+export function amountArtWidth(text: string) { return Math.ceil(font().outfit.getAdvanceWidth(text, AMOUNT_SIZE)) + 2; }
+export function renderAmountArt(text: string, bg = "#F3F6FF"): Uint8Array {
+  const { outfit } = font();
+  const w = amountArtWidth(text) * S, h = AMOUNT_LH * S, size = AMOUNT_SIZE * S;
+  const cv = new Canvas(w, h); const b = hex(bg);
+  for (let i = 0; i < cv.data.length; i += 4) { cv.data[i] = b[0]; cv.data[i + 1] = b[1]; cv.data[i + 2] = b[2]; }
+  const asc = outfit.ascender / outfit.unitsPerEm * size, desc = -outfit.descender / outfit.unitsPerEm * size;
+  cv.fill(flatten(outfit.getPath(text, S, (h - (asc + desc)) / 2 + asc, size)), NAVY);
+  return cv.png();
+}
+
+/** Back-compat: Group A header. */
+export function renderEmailHeroPng(firstName: string | null, rebate: string): Uint8Array {
+  return renderHeaderArt(campaignHeroSpec("likely", firstName, rebate));
+}
+
+/** Header art copy for each campaign email; the HTML renderers use the same specs for alt text. */
+export function campaignHeroSpec(kind: "likely" | "onsite" | "spot", firstName: string | null, rebate: string): HeroSpec {
+  const name = firstName?.trim().replace(/\s+/g, " ").slice(0, 40) || null;
+  if (kind === "likely") return { caps: "Your rebate is waiting", capsColor: "#00BF63", capsSize: 11, emoji: true, size: 32, lineHeight: 37, segs: [{ t: `Great news${name ? `, ${name}` : ""}! You could take ` }, { t: rebate, green: true }, { t: " off your ceiling insulation" }] };
+  if (kind === "onsite") {
+    const segs = [{ t: `${name ? `${name}, take` : "Take"} ` }, { t: rebate, green: true }, { t: " off your ceiling insulation" }];
+    const long = plainHeadline(segs).length > 54;
+    return { caps: "Jump the queue", capsColor: "#067A45", capsSize: 10, emoji: false, size: long ? 23 : 34, lineHeight: long ? 28 : 39, segs };
+  }
+  return { caps: "You're on the list", capsColor: "#067A45", capsSize: 10, emoji: false, size: 34, lineHeight: 39, segs: [{ t: `Spot saved${name ? `, ${name}` : ""}. Your ` }, { t: rebate, green: true }, { t: " rebate is waiting." }] };
 }
