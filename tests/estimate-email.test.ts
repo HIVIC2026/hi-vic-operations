@@ -204,7 +204,7 @@ describe("launch campaign email drafts", () => {
     const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", insulation: "none", myJobUrl: `https://estimate.homeinsulationvictoria.com.au/my-job/${token}` });
     expect(email.subject).toBe("Great news, Sarah! $1,470 off your ceiling insulation 🎉");
     // v6: header, caps line and headline are one per-owner image; alt text carries the headline.
-    expect(email.html).toContain(`<img src="https://estimate.homeinsulationvictoria.com.au/api/public/email-art/${token}/headline.png" width="600" alt="Great news, Sarah! You could take $1,470 off your ceiling insulation"`);
+    expect(email.html).toContain(`<img src="https://estimate.homeinsulationvictoria.com.au/api/public/email-art/${token}/headline.png" width="354" alt="Great news, Sarah! You could take $1,470 off your ceiling insulation"`);
     expect(email.html).not.toContain("Your rebate is waiting</p>");
     expect(email.html).not.toContain("<h1");
     expect(email.html).not.toContain("FREE ESTIMATE");
