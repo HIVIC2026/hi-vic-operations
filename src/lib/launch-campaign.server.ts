@@ -198,7 +198,7 @@ export async function queueSpotSavedConfirmations(jobId: string, token: string) 
   const owner = job.owners as { full_name: string | null; phone: string | null; email: string | null } | null;
   const prop = job.properties as { address_line: string | null; suburb: string | null } | null;
   const bits = addressBits(prop?.address_line ?? null, prop?.suburb ?? null);
-  const input = { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, rebate: Number(r?.saved_veu_discount ?? 0), suburb: bits.suburb, shortAddress: bits.short, myJobUrl: `${job.source === "qa_test" ? TEST_PREVIEW_BASE : OWNER_BASE}/my-job/${token}`, optOutUrl: await unsubscribeUrlForJob(jobId) };
+  const input = { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, rebate: Number(r?.saved_veu_discount ?? 0), suburb: bits.suburb, shortAddress: bits.short, myJobUrl: `${job.source === "qa_test" ? TEST_PREVIEW_BASE : OWNER_BASE}/my-job/${token}`, optOutUrl: await unsubscribeUrlForJob(jobId).then((u) => job.source === "qa_test" ? u.replace(/^https:\/\/[^/]+/, TEST_PREVIEW_BASE) : u) };
   const sms = renderSpotSavedSms(input);
   const email = renderSpotSavedEmail(input);
   const now = new Date().toISOString();
