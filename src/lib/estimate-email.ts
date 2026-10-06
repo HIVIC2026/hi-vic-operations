@@ -389,8 +389,8 @@ export const CAMPAIGN_LINK_ORIGINS = [BASE] as const;
 
 /** Jo-approved final Save my spot email (6 Oct 2026). Group A and B share one structure. */
 export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): EstimateEmail {
-  // Same greens as the locked likely-eligible email: GREEN for amounts/buttons, TEXT_GREEN for small caps text.
-  const LOGO_GREEN = GREEN;
+  // Jo-approved 6 Oct (v4): logo green #00BF63 for the caps line, headline amount and rebate row. Buttons keep the V2 theme green.
+  const LOGO_GREEN = "#00BF63";
   const origins: readonly string[] = CAMPAIGN_LINK_ORIGINS;
   const campaign = new URL(input.campaignUrl);
   if (!origins.includes(campaign.origin) || !/^\/estimate\/[A-Za-z0-9_-]{43,128}\/campaign$/.test(campaign.pathname) || campaign.search || campaign.hash) throw new Error("A secure Home Insulation Victoria campaign link is required.");
