@@ -387,6 +387,23 @@ export type LaunchCopyField = "subject" | "previewText" | "headline" | "intro" |
 /** Origins campaign links may use: the live customer domain, plus the preview host for allowlisted TEST sends only. */
 export const CAMPAIGN_LINK_ORIGINS = [BASE] as const;
 
+/** Campaign + spot-saved only (Jo, 6 Oct): web fonts are blocked in Outlook/Gmail, so every element carries an inline
+ * fallback stack close to Outfit/Figtree. The locked likely-eligible/needs-onsite emails are NOT passed through this. */
+export const CAMPAIGN_HEADING_STACK = "'Outfit','Avenir Next','Avenir','Century Gothic','Segoe UI',Helvetica,Arial,sans-serif";
+export const CAMPAIGN_BODY_STACK = "'Figtree','Avenir Next','Avenir','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif";
+export function applyCampaignFonts(html: string): string {
+  let out = html.split(OUTFIT).join(CAMPAIGN_HEADING_STACK).split(FIGTREE).join(CAMPAIGN_BODY_STACK);
+  // Outlook desktop conditional block: same stacks instead of forcing Arial.
+  out = out.replace("<!--[if mso]><style type=\"text/css\">body,table,td,p,a,span{font-family:Arial,Helvetica,sans-serif!important}h1,h2,h3{font-family:Arial,Helvetica,sans-serif!important;font-weight:bold!important}</style><![endif]-->",
+    `<!--[if mso]><style type="text/css">body,table,td,p,a,span{font-family:${CAMPAIGN_BODY_STACK}!important}h1,h2,h3{font-family:${CAMPAIGN_HEADING_STACK}!important;font-weight:bold!important}</style><![endif]-->`);
+  // Buttons use the heading stack.
+  out = out.replace(/(<a class="lx-button"[^>]*style="[^"]*?)font-family:[^;"]*;/g, `$1font-family:${CAMPAIGN_HEADING_STACK};`);
+  // Every text element gets an inline stack (Outlook strips <style>).
+  out = out.replace(/<(p|td|a|span|strong|h1|h2|div|li)(\s[^>]*?)?\sstyle="(?![^"]*font-family)([^"]*)"/g, (_m, tag: string, attrs = "", st: string) => `<${tag}${attrs} style="font-family:${/^h\d$/.test(tag) ? CAMPAIGN_HEADING_STACK : CAMPAIGN_BODY_STACK};${st}"`);
+  out = out.replace(/<(strong|h1|h2)>/g, (_m, tag: string) => `<${tag} style="font-family:${tag === "strong" ? CAMPAIGN_BODY_STACK : CAMPAIGN_HEADING_STACK};">`);
+  return out;
+}
+
 /** Jo-approved final Save my spot email (6 Oct 2026). Group A and B share one structure. */
 export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): EstimateEmail {
   // Jo-approved 6 Oct (v4): logo green #00BF63 for the caps line, headline amount and rebate row. Buttons keep the V2 theme green.
@@ -453,7 +470,7 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
   const html = V2_THEME.shell(`${row(V2_THEME.header("Free estimate · no obligation", true), "22px 36px 18px")}${row(hero, "8px 36px 24px")}${row(estimateCard, "0 28px 22px")}${row(nextStep, "0 28px 18px")}${row(changeRow, "0 36px 24px")}${V2_THEME.footerRow(footer)}`, previewText, null);
   const action = buttonText.replace(/\s*→\s*$/, "");
   const plainText = [subject, "", capsLine.toUpperCase(), headlinePlain, bodyPlain, boldLine, `${action}: ${actionUrl}`, onsite ? `No video? Just save my spot: ${campaign}` : "Free · no payment · no obligation", "", "YOUR ESTIMATE", `Normal price: ${gross}`, `Your rebate: −${rebate}`, `You pay about: ${customer}`, basedOn, `Try a different size: ${calculatorUrl}`, "", "WHAT YOU GET", ...gets.flatMap(([t, d]) => [`✓ ${t}`, d]), "", nextTitle, ...(onsite ? [videoLine, "Only if you can do it safely. Please don’t climb into or walk through the roof space."] : [lowerText!]), `${action}: ${actionUrl}`, ...(onsite ? ["No payment, no obligation."] : []), "", changeNote, "", "Home Insulation Victoria", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.", footerReason, `Privacy: ${PRIVACY_URL}`, ...(myJob && onsite ? [`See my job: ${myJob}`] : []), `Remove my enquiry: ${unsubscribe}`, ...(input.reference?.trim() ? [`Reference: ${input.reference.trim()}`] : [])].join("\n");
-  return { subject, previewText, html, plainText };
+  return { subject, previewText, html: applyCampaignFonts(html), plainText };
 }
 
 // ---------------------------------------------------------------------------
