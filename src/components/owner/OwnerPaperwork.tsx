@@ -2,7 +2,7 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ownerPaperworkFn, ownerSignPaperworkFn } from "@/lib/owner-gates.functions";
+import { ownerPaperworkFn, ownerReconfirmVariationFn, ownerSignPaperworkFn } from "@/lib/owner-gates.functions";
 import { OwnerCodeGate, Tick, signBtn } from "./OwnerSign";
 
 type Todo = { gate: string; key: string; title: string; tick: string; version: string; draft: boolean; text: string };
@@ -19,7 +19,31 @@ export function OwnerPaperwork({ token }: { token: string }) {
   const [ans, setAns] = useState<Record<string, string>>({});
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const reconfirm = useServerFn(ownerReconfirmVariationFn);
   const todo = (data?.todo ?? []) as Todo[];
+  const pv = (data?.pendingVariation ?? null) as { id: string; reasons: string[] } | null;
+  if (data && pv) return (
+    <section data-testid="owner-reconfirm" className="space-y-3">
+      <div className="rounded-[22px] bg-card p-5 shadow-sm">
+        <p className="text-xs font-bold uppercase tracking-wide text-estimate-blue">Please check and reconfirm</p>
+        <h3 className="mt-1 font-display text-lg font-extrabold">Something changed after you agreed</h3>
+        <ul className="mt-3 list-disc space-y-1 rounded-2xl bg-estimate-mist p-3 pl-7 text-sm">{pv.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
+        <p className="mt-3 text-sm">Your rebate assignment only takes effect once you reconfirm with these changes.</p>
+      </div>
+      {!session ? <OwnerCodeGate token={token} onVerified={setSession} /> : (
+        <div className="rounded-[22px] bg-card p-5 shadow-sm">
+          <label className="block text-sm font-semibold">Type your full name to reconfirm<input className={`${input} mt-1 font-display italic`} value={name} onChange={(e) => setName(e.target.value)} /></label>
+          <button className={`${signBtn} mt-3`} disabled={busy || name.trim().length < 2} onClick={async () => {
+            setErr(""); setBusy(true);
+            try { await reconfirm({ data: { token, session, variationId: pv.id, signatureName: name } }); await qc.invalidateQueries(); }
+            catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); } finally { setBusy(false); }
+          }}>Reconfirm</button>
+          <p className="mt-2 text-xs">We'll email you a copy.</p>
+          {err && <p role="alert" className="mt-2 text-sm font-semibold text-destructive">{err}</p>}
+        </div>
+      )}
+    </section>
+  );
   if (!data || !todo.length) return null;
   const d = todo[0]!;
   const choice = (k: string, opts: [string, string][]) => (
