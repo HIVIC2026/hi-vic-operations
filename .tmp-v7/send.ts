@@ -1,0 +1,30 @@
+import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { renderLaunchCampaignEmail } from "@/lib/estimate-email";
+import { savedPriceFromEstimate } from "@/lib/launch-campaign.core";
+import * as art from "@/lib/email-hero.core";
+import { sendTestEmail } from "@/lib/test-send.server";
+import { fullAddress } from "@/lib/address";
+const BASE = "https://estimate.homeinsulationvictoria.com.au";
+const { data: job } = await admin.from("jobs").select("id, job_number, source, owners(full_name,email), properties(address_line,suburb,postcode)").eq("job_number","HV-1609").single();
+if (job!.source !== "qa_test") throw new Error("not qa_test");
+const { data: link } = await admin.from("customer_estimate_links").select("token").eq("job_id", job!.id).eq("purpose","step3_estimate").eq("status","active").maybeSingle();
+const { data: est } = await admin.from("indicative_estimates").select("id, area_m2, insulation_declared, scenarios").eq("job_id", job!.id).eq("status","current").maybeSingle();
+const price = savedPriceFromEstimate(est)!; const owner = job!.owners as any; const prop = job!.properties as any;
+const first = owner?.full_name?.trim().split(/\s+/)[0] ?? null;
+const aud = (n: number) => new Intl.NumberFormat("en-AU",{style:"currency",currency:"AUD",maximumFractionDigits:0}).format(Math.floor(n));
+const unsub = `${BASE}/email/unsubscribe?t=${link!.token}`;
+const mail = renderLaunchCampaignEmail({ group:"likely", campaignUrl:`${BASE}/estimate/${link!.token}/campaign`, unsubscribeUrl: unsub, myJobUrl:`${BASE}/my-job/${link!.token}`, insulation: price.insulation ?? est?.insulation_declared ?? null, firstName:first, estimatedTotal:price.total, veuDiscount:price.discount, grossTotal:price.gross, areaM2:price.areaM2, address: fullAddress(prop?.address_line, prop?.suburb, prop?.postcode), reference: job!.job_number } as any);
+const imgs: Record<string, Uint8Array> = { headline: art.renderHeaderArt(art.campaignHeroSpec("likely", first, aud(price.discount))), pay: art.renderAmountArt(aud(price.total)), next: art.renderHeadingArt("Hold your place in line","h2","#FDF2F6"), "cap-estimate": art.renderHeadingArt("Your estimate","caps","#F3F6FF"), "cap-gets": art.renderHeadingArt("What you get","caps","#F3F6FF") };
+let html = mail.html;
+const { data: buckets } = await admin.storage.listBuckets(); const bucket = (buckets ?? []).find((b) => !b.public)!.name;
+for (const [k, png] of Object.entries(imgs)) {
+  const path = `email-art-test/v7/${job!.job_number}-${k}-${Date.now()}.png`;
+  const up = await admin.storage.from(bucket).upload(path, png, { contentType: "image/png" }); if (up.error) throw up.error;
+  const { data: s } = await admin.storage.from(bucket).createSignedUrl(path, 7*86400);
+  html = html.split(`${BASE}/api/public/email-art/${link!.token}/${k}.png`).join(s!.signedUrl.replace(/&/g,"&amp;"));
+  await Bun.write(`/tmp/ap/sent-${k}.png`, png);
+}
+if (html.includes("/api/public/email-art/")) throw new Error("unreplaced art url");
+await Bun.write("/tmp/ap/sent.html", html);
+const r = await sendTestEmail({ jobId: job!.id, jobSource: job!.source, partnerIsTest: true, label: "save_my_spot_v7", actorId: null }, "jolowexo@hotmail.com", `[TEST v7] ${mail.subject}`, html, mail.plainText);
+console.log(JSON.stringify({ status: r.status, detail: r.detail, to: r.to, subject: `[TEST v7] ${mail.subject}`, first, discount: price.discount, total: price.total }));
