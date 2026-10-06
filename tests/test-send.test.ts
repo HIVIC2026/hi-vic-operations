@@ -6,7 +6,7 @@ const jo = { partnerIsTest: true, jobSource: "qa_test" };
 describe("test sending allowlist", () => {
   test("Jo's mobile and email are allowed on TEST jobs", () => {
     for (const to of ["0477 511 901", "+61477511901", "61477511901"]) expect(testSendBlocker({ channel: "sms", to, ...jo })).toBeNull();
-    expect(testSendBlocker({ channel: "email", to: " Sweet_Sunshine231@hotmail.com ", ...jo })).toBeNull();
+    expect(testSendBlocker({ channel: "email", to: " Jolowexo@hotmail.com ", ...jo })).toBeNull();
     expect(testSendBlocker({ channel: "email", to: "jolowexo@hotmail.com", partnerIsTest: true, jobSource: null })).toBeNull();
   });
   test("a real owner or trade can never receive anything", () => {
