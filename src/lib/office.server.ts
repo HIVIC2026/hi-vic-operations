@@ -1,3 +1,4 @@
+import { melbourneToday } from "./melbourne-time.core";
 // Gathers facts for the office rulebook in bulk (paged, admin client) and applies the pure rules.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -62,7 +63,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     all("emails", (a, b) => scope(admin.from("customer_email_sends").select("job_id, status, error")).in("status", ["failed", "bounced"]).range(a, b)),
     all("snoozes", (a, b) => admin.from("office_snoozes").select("job_id, rule_key, snoozed_until, snooze_count").range(a, b)),
     opts.onlyIds ? Promise.resolve([]) : all("applications", (a, b) => admin.from("partner_enquiries").select("id, name, enquiry_type, source, status, created_at").in("status", ["new", "submitted"]).neq("enquiry_type", "property_manager").range(a, b)),
-    opts.onlyIds ? Promise.resolve([]) : all("certificates", (a, b) => admin.from("business_credentials").select("id, label, kind, expires_at, businesses(name)").not("expires_at", "is", null).lte("expires_at", new Date(now + lim["credential_warning_days"]! * 86_400_000).toISOString().slice(0, 10)).range(a, b)),
+    opts.onlyIds ? Promise.resolve([]) : all("certificates", (a, b) => admin.from("business_credentials").select("id, label, kind, expires_at, businesses(name)").not("expires_at", "is", null).lte("expires_at", melbourneToday(new Date(now + lim["credential_warning_days"]! * 86_400_000))).range(a, b)),
   ]);
   const picks = await all("office picks", (a, b) => scope(admin.from("partner_offers").select("job_id, kind, status, offered_at, summary, businesses(name)").contains("summary", { office_choice: true })).range(a, b));
   const pickJobs = [...new Set(picks.map((p) => String(p["job_id"])))];

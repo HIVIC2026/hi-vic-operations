@@ -1,3 +1,4 @@
+import { melbourneToday } from "./melbourne-time.core";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -136,7 +137,7 @@ export const getMoneyOverview = createServerFn({ method: "GET" }).middleware([re
     for (const r of [inv, veec, jobs, paidEv]) if (r.error) throw new Error(`Could not load money figures: ${r.error.message}`);
     const owed = (inv.data ?? []).reduce((a, v) => a + Math.max(0, Number(v.total_inc_gst ?? 0) - Number(v.total_paid ?? 0)), 0);
     const margin = internals.error ? null : (internals.data ?? []).reduce((a, q) => a + (Number(q.ap_margin_ex_gst ?? 0) + Number(q.ap_fee_ex_gst ?? 0)) * 1.1, 0);
-    const lodged = (veec.data ?? []).filter((v) => v.submitted_date && v.submitted_date >= start.toISOString().slice(0, 10)).reduce((a, v) => a + Number(v.quantity ?? 0), 0);
+    const lodged = (veec.data ?? []).filter((v) => v.submitted_date && v.submitted_date >= melbourneToday(start)).reduce((a, v) => a + Number(v.quantity ?? 0), 0);
     const paid = new Map((paidEv.data ?? []).map((e) => [e.job_id, e]));
     const { data: ap } = await admin.from("workflow_events").select("job_id, created_at").eq("event_type", "stage_changed").eq("to_stage", "ready_for_veec");
     const apAt = new Map((ap ?? []).map((e) => [e.job_id, e.created_at]));

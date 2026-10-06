@@ -1,3 +1,4 @@
+import { melbourneToday } from "./melbourne-time.core";
 // Pure Home Insulation Victoria profit + VEEC spot-price rules. Admin-only; never shown to owners or trades.
 export const OWNER_VEEC_RATE = 70; // $ per VEEC passed to the owner as the VEU discount
 
@@ -8,7 +9,7 @@ export function sellSignal(history: SpotPoint[], today: Date): SellSignal {
   const sorted = [...history].sort((a, b) => b.priced_on.localeCompare(a.priced_on));
   const latest = sorted[0]?.price ?? null;
   if (latest == null) return { latest: null, avg90: null, change: null, good: false, reason: "No spot price recorded yet." };
-  const cutoff = new Date(today.getTime() - 90 * 86_400_000).toISOString().slice(0, 10);
+  const cutoff = melbourneToday(new Date(today.getTime() - 90 * 86_400_000));
   const window = sorted.filter((p) => p.priced_on >= cutoff);
   const avg90 = window.length ? window.reduce((t, p) => t + p.price, 0) / window.length : null;
   const change = sorted[1] ? latest - sorted[1].price : null;
