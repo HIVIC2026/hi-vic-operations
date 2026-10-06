@@ -42,7 +42,7 @@ export function veecQueryOverdue(queryReceivedAt: string | null | undefined, rep
 
 /** Today's date (YYYY-MM-DD) in Melbourne. */
 export function melbourneToday(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  return melbourneTodayCore(now);
 }
 
 /** Why a lodged record is not a real lodgement (empty = sufficient). */

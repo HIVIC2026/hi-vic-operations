@@ -281,7 +281,7 @@ export const shouldForgetResumeToken = (error: unknown) => error instanceof Erro
 
 /** Today in Melbourne as YYYY-MM-DD. */
 export function melbourneToday(now = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(now);
+  return melbourneTodayCore(now);
 }
 
 export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[] {
