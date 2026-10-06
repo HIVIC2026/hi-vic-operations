@@ -165,11 +165,16 @@ const s3: StepFn = async (ctx, r) => {
     const p = { date: melbourneDate(d), slot: "10-12" as const };
     if (!piesaWindowBlockers([...picks, p, p, p].slice(0, Math.max(3, picks.length + 1)) as never, new Date()).some((b) => /business day/i.test(b))) picks.push(p);
   }
-  await submitReadyCheckWindows(ctx.jobId!, picks);
-  await startReadyCheckOffers(ctx.jobId!, ctx.actorId, ctx.installer.business_id);
+  check(r, "owner picked 3 Ready Check times on 3 business days", picks.length === 3, `${picks.length} valid days`);
+  await submitReadyCheckWindows(ctx.jobId!, picks); // this starts offers to approved TEST installers itself
+  const { count: pending } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "ready_check").eq("status", "pending").eq("business_id", ctx.installer.business_id);
+  if (!pending) await startReadyCheckOffers(ctx.jobId!, ctx.actorId, ctx.installer.business_id);
   const { data: offers } = await admin.from("partner_offers").select("id, business_id, status").eq("job_id", ctx.jobId!).eq("kind", "ready_check");
-  check(r, "offer went to the TEST installer only", (offers ?? []).length > 0 && (offers ?? []).every((o) => o.business_id === ctx.installer.business_id), `${(offers ?? []).length} offers`);
-  ctx.notes["rc_offer_id"] = offers![0]!.id;
+  const { data: bizNames } = await admin.from("businesses").select("id, name").in("id", (offers ?? []).map((o) => o.business_id));
+  check(r, "offers went only to TEST businesses", (offers ?? []).length > 0 && (bizNames ?? []).every((b) => b.name.startsWith("TEST ") || b.name.startsWith("Jo Test")), (bizNames ?? []).map((b) => b.name).join(", "));
+  const mine = (offers ?? []).find((o) => o.business_id === ctx.installer.business_id && o.status === "pending");
+  check(r, "TEST Alpha has an open offer", !!mine);
+  ctx.notes["rc_offer_id"] = mine!.id;
   ctx.screens.push({ step: "s3_office_offer", persona: "office", path: "/admin/today" });
 };
 
@@ -230,11 +235,36 @@ export async function cleanupJourney(ctx: JourneyCtx) {
   if (ctx.calculatorInterestId) await admin.from("calculator_interests").delete().eq("id", ctx.calculatorInterestId).eq("email", ctx.ownerEmail);
 }
 
+/** TEST trade setup the journey depends on (TEST Alpha's field worker holds a Full, current EEC certification).
+ *  Only ever touches TEST-domain workers in businesses named "TEST …". Append-only, idempotent. */
+async function ensureTestTrades(actorId: string, installerBiz: string) {
+  const { data: biz } = await admin.from("businesses").select("name").eq("id", installerBiz).single();
+  if (!biz?.name?.startsWith("TEST ")) throw new Error("SAFETY STOP: the journey installer is not a TEST business.");
+  const { data: workers } = await admin.from("partner_workers").select("id, email").eq("business_id", installerBiz).eq("trade_role", "installer").eq("approval_status", "approved").is("removed_at", null);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date());
+  for (const w of (workers ?? []).filter((x) => x.email.endsWith(TEST_DOMAIN))) {
+    const { data: c } = await admin.from("partner_worker_certifications").select("id, status").or(`worker_id.eq.${w.id},worker_email.eq.${w.email}`).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
+    let certId = c?.status === "verified" ? c.id : null;
+    if (!certId) {
+      const { data: ins, error } = await admin.from("partner_worker_certifications").insert({ worker_id: w.id, worker_email: w.email, status: "verified", evidence_source: "certificate_sighted", evidence_note: "TEST journey: fake certificate for a TEST worker", certificate_number: "TEST-EEC-0001", issuer: "TEST", recorded_by: actorId }).select("id").single();
+      if (error) throw new Error(`TEST certification setup: ${error.message}`);
+      certId = ins.id;
+    }
+    const { data: lv } = await admin.from("worker_certification_levels").select("level, expires_on").eq("certification_id", certId).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
+    if (!(lv?.level === "full" && lv.expires_on >= today)) {
+      const exp = new Date(Date.now() + 730 * 86_400_000).toISOString().slice(0, 10);
+      const { error } = await admin.from("worker_certification_levels").insert({ certification_id: certId, worker_email: w.email, level: "full", expires_on: exp, recorded_by: actorId });
+      if (error) throw new Error(`TEST certification level setup: ${error.message}`);
+    }
+  }
+}
+
 export async function newJourneyCtx(): Promise<JourneyCtx> {
   const runId = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
   const { data: actor } = await admin.from("profiles").select("id").eq("email", JOURNEY_ACTOR_EMAIL).single();
   const [installer, electrician] = await Promise.all([profileByEmail(TEST_INSTALLER_EMAIL), profileByEmail(TEST_ELECTRICIAN_EMAIL)]);
   const worker = await profileByEmail(TEST_WORKER_EMAIL).catch(() => null);
+  await ensureTestTrades(actor!.id, installer.business_id);
   return { runId, startedAt: new Date().toISOString(), actorId: actor!.id, jobId: null, jobNumber: null, token: null, ownerEmail: `qa.journey.${runId}${TEST_DOMAIN}`, installer, electrician, worker, calculatorInterestId: null, quoteId: null, notes: {}, screens: [] };
 }
 
