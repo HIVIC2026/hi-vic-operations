@@ -10697,6 +10697,7 @@ export type Database = {
           mitti_piisa_template_id: string | null
           mitti_ready_check_priced_template_id: string | null
           mitti_ready_check_template_id: string | null
+          offer_suggest_time_after_hours: number
           office_time_limits: Json
           owner_resign_after_install: boolean
           partner_lead_fee_inc_gst: number
@@ -10738,6 +10739,7 @@ export type Database = {
           mitti_piisa_template_id?: string | null
           mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
+          offer_suggest_time_after_hours?: number
           office_time_limits?: Json
           owner_resign_after_install?: boolean
           partner_lead_fee_inc_gst?: number
@@ -10779,6 +10781,7 @@ export type Database = {
           mitti_piisa_template_id?: string | null
           mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
+          offer_suggest_time_after_hours?: number
           office_time_limits?: Json
           owner_resign_after_install?: boolean
           partner_lead_fee_inc_gst?: number
