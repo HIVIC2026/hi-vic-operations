@@ -99,6 +99,7 @@ export const officePiisaFileUrl = createServerFn({ method: "POST" }).middleware(
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data: w } = await admin.from("partner_workers").select("piisa_certificate_path").eq("id", data.workerId).maybeSingle();
     if (!w?.piisa_certificate_path) throw new Error("No certificate uploaded.");
-    const { data: s } = await admin.storage.from("partner-files").createSignedUrl(w.piisa_certificate_path, 300);
+    const { signFile } = await import("./file-links.server");
+    const { data: s } = await signFile("partner-files", w.piisa_certificate_path, 300);
     return { url: s?.signedUrl ?? null };
   });
