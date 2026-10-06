@@ -56,8 +56,9 @@ async function parseList(buf: ArrayBuffer, name: string): Promise<Record<string,
   for (const sn of wb.SheetNames) {
     const sheet = wb.Sheets[sn];
     if (!sheet) continue;
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: false });
-    out.push(...rows.map((r) => ({ _source_file: name, ...Object.fromEntries(Object.entries(r).map(([k, v]) => [String(k).trim(), String(v ?? "").trim()])) })));
+    // Header row may be lower down; blank rows and extra columns are tolerated (see gridToRecords).
+    const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", raw: false, blankrows: false });
+    out.push(...gridToRecords(grid).map((r) => ({ _source_file: wb.SheetNames.length > 1 ? `${name} (${sn})` : name, ...r })));
   }
   return out.filter((r) => Object.entries(r).some(([k, v]) => k !== "_source_file" && v));
 }
