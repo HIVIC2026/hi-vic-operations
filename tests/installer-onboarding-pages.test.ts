@@ -83,7 +83,7 @@ describe("installer visible pages", () => {
     expect(route).not.toContain(note);
     const agreement = agreementText(complete);
     expect(agreement).toContain("AP accreditation number: A003654");
-    expect(agreement).toContain("Accredited Person fee ($349 including GST)");
+    expect(agreement).toContain("Accredited Person fee recorded for the Installer in Home Insulation Victoria (standard $349 including GST");
     expect(agreement).not.toContain("job-specific amount before quote acceptance");
     expect(agreement).not.toContain("authorised staff member");
   });

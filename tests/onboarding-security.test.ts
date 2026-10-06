@@ -81,9 +81,11 @@ describe("test mode trust", () => {
     }
   });
   test("test applications are excluded from staff queues and approval", () => {
-    for (const f of ["src/lib/coverage.functions.ts", "src/lib/todo.functions.ts", "src/lib/admin-records.functions.ts"]) {
+    for (const f of ["src/lib/coverage.functions.ts", "src/lib/todo.functions.ts"]) {
       expect(readFileSync(f, "utf8")).toContain("portal_rec_onboarding_test,portal_installer_onboarding_test");
     }
+    // Admin records keep test applications but flag them (shown in the separate test list).
+    expect(readFileSync("src/lib/admin-records.functions.ts", "utf8")).toMatch(/is_test: testEnquiries\.has\(r\.id\) \|\| \(r\.source \?\? ""\)\.endsWith\("_test"\)/);
     // Signed applications reach the to-do list as partner enquiries; test sources are excluded above.
     expect(readFileSync("src/lib/rec-sign.core.ts", "utf8")).toContain('app.test_mode ? "portal_rec_onboarding_test"');
     expect(readFileSync("src/lib/partner-activation.functions.ts", "utf8")).toContain("Test applications can never be approved");
