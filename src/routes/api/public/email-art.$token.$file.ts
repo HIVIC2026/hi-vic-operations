@@ -25,7 +25,7 @@ export const Route = createFileRoute("/api/public/email-art/$token/$file")({
           if (kind === "next" || kind === "cap-estimate" || kind === "cap-gets") {
             const { HEADING_ART, nextTitleFor } = await import("@/lib/email-art.core");
             const text = kind === "next" ? nextTitleFor(c.group === "onsite" ? "onsite" : "likely") : kind === "cap-estimate" ? "Your estimate" : "What you get";
-            const a = HEADING_ART[text];
+            const a = HEADING_ART[text]; if (!a) return notFound();
             png = art.renderHeadingArt(a.text, a.style, a.bg);
             return new Response(png as unknown as BodyInit, { status: 200, headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400", "X-Robots-Tag": "noindex", "Referrer-Policy": "no-referrer" } });
           }
