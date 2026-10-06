@@ -60,7 +60,7 @@ export async function sendTestEmail(ctx: Ctx, to: string, subject: string, html:
       const res = await fetch("https://connector-gateway.lovable.dev/resend/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${gw()}`, "X-Connection-Api-Key": resend, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: FROM_EMAIL, to: [norm], subject: `[TEST] ${subject}`, html, text }),
+        body: JSON.stringify({ from: FROM_EMAIL, to: [norm], subject: subject.startsWith("[TEST") ? subject : `[TEST] ${subject}`, html, text }),
       });
       const t = await res.text();
       r = res.ok ? { channel: "email", to: norm, status: "sent", detail: `Resend accepted${(() => { try { const id = (JSON.parse(t) as { id?: string }).id; return id ? ` (id ${id})` : ""; } catch { return ""; } })()}` } : { channel: "email", to: norm, status: "failed", detail: `Resend ${res.status}: ${t.slice(0, 300)}` };

@@ -206,13 +206,15 @@ describe("launch campaign email drafts", () => {
     expect(email.html).toContain(">🎉 Your rebate is waiting</p>");
     expect(email.html).toContain("Your price can change");
     expect(email.html.split("Estimate only.").length - 1).toBe(1);
-    expect(email.html).toContain('<h1 class="lx-h1 hiv-hero-title"');
-    expect(email.html).toContain('Sarah, take <span style="color:#07BF61;">$1,470</span> off your ceiling insulation');
+    expect(email.html).toContain('<h1 class="hiv-hero-title"');
+    expect(email.html).toContain("font-size:32px;line-height:37px");
+    expect(email.html).toContain('Great news, Sarah! You could take <span style="color:#00BF63;">$1,470</span> off your ceiling insulation');
     expect(email.html).toContain("That means you pay about <strong>$3,379</strong> instead of $4,849, and enjoy lower power bills for years to come.");
     expect(email.html).toContain("Hundreds of homes have enquired since 1 October. Spots go in order.");
     expect(email.html).toContain("Free · no payment · no obligation");
     expect(email.html).toContain("Hold your place in line");
-    for (const t of ["Your estimate", "Normal price", "$4,849", "Your rebate", "−$1,470", "You pay about", "$3,379", "What you get", "Free Ready Check</strong> — We measure your roof space and confirm the job.", "R5.0 ceiling insulation</strong> — Supplied and fitted by a certified installer.", "Electrical safety check</strong> — By a licensed electrician, as the rules require.", "Rebate paperwork, done for you</strong> — We handle the forms and the claim.", "Try a different size →", "See my job", "Remove my enquiry", "Privacy"]) expect(email.html).toContain(t);
+    for (const t of ["Your estimate", "Normal price", "$4,849", "Your rebate", "−$1,470", "You pay about", "$3,379", "What you get", "Free Ready Check</strong><br><span style=\"color:#5A6785;\">We measure your roof space and confirm the job.</span>", "R5.0 ceiling insulation</strong><br><span style=\"color:#5A6785;\">Supplied and fitted by a certified installer.</span>", "Electrical safety check</strong><br><span style=\"color:#5A6785;\">By a licensed electrician, as the rules require.</span>", "Rebate paperwork, done for you</strong><br><span style=\"color:#5A6785;\">We handle the forms and the claim.</span>", "Try a different size →", "Remove my enquiry", "Privacy", "Doesn&#39;t include removing old insulation (you told us there isn&#39;t any)."]) expect(email.html).toContain(t);
+    expect(email.html).not.toContain("See my job");
     for (const t of CAMPAIGN_BANNED) { expect(email.html).not.toContain(t); expect(email.plainText).not.toContain(t); }
     expect(email.html).toContain("Based on 14 Example Street, Ballarat VIC 3350 and a 150 m² ceiling.");
     expect(email.html).toContain("We never add work or cost without showing you first and getting your OK.");
