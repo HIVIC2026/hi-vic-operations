@@ -26,21 +26,22 @@ function RateOfferPage() {
   const { token } = Route.useParams();
   const q = useQuery({ queryKey: ["rate-offer", token], queryFn: () => loadRateOffer({ data: { token } }), retry: false });
   const [mode, setMode] = useState<"view" | "accept" | "decline">("view");
-  const [name, setName] = useState(""); const [position, setPosition] = useState(""); const [tick, setTick] = useState(false);
+  const [name, setName] = useState(""); const [code, setCode] = useState(""); const [position, setPosition] = useState(""); const [tick, setTick] = useState(false);
   const [proposed, setProposed] = useState<Record<string, string>>({}); const [message, setMessage] = useState("");
   const [err, setErr] = useState<string | null>(null); const [busy, setBusy] = useState(false);
   const o = q.data;
   const act = async (fn: () => Promise<unknown>) => { setBusy(true); setErr(null); try { await fn(); await q.refetch(); setMode("view"); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
   return (
-    <main className="mx-auto max-w-xl space-y-5 bg-background px-4 py-8">
+    <div className="estimate-brand min-h-screen bg-estimate-canvas text-estimate-navy"><main className="mx-auto max-w-xl space-y-5 px-4 py-8">
       <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-10 w-auto" />
       <h1 className="font-display text-3xl font-extrabold text-foreground">Review our rate offer</h1>
       {q.isLoading && <p className="text-muted-foreground">Loading…</p>}
       {q.error && <p className="text-destructive">{(q.error as Error).message}</p>}
       {o && <>
         <p className="text-foreground">Thanks for your application, {o.partner}. Here are your rates next to ours. All figures include GST.</p>
+        {o.status === "sent" && o.expires_at && <p className="text-xs text-muted-foreground">This link works until {new Date(o.expires_at).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "long", year: "numeric" })}.</p>}
         {o.note && <div className="rounded-2xl bg-secondary p-4 text-sm"><b>Note from our office:</b> {o.note}</div>}
-        <div className="rounded-2xl border bg-card p-4">
+        <div className="rounded-[22px] border bg-white p-4">
           <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-2 text-sm">
             <span className="text-xs text-muted-foreground">Rate</span><span className="text-xs text-muted-foreground">Yours</span><span className="text-xs text-muted-foreground">Our offer</span>
             {o.items.map((i) => (
@@ -62,19 +63,22 @@ function RateOfferPage() {
           </div>
         )}
         {o.status === "sent" && mode === "accept" && (
-          <div className="space-y-3 rounded-2xl border bg-card p-4">
+          <div className="space-y-3 rounded-[22px] border bg-white p-4">
             <h2 className="font-display text-xl font-extrabold">Sign to accept</h2>
             <pre className="max-h-60 overflow-y-auto whitespace-pre-wrap rounded bg-muted p-3 text-xs">{o.text}</pre>
             <label className="flex items-start gap-2 text-sm"><Checkbox checked={tick} onCheckedChange={(v) => setTick(v === true)} aria-label="I agree to these rates" /> <span>I agree that these rates replace the rates in our signed partner agreement, and all other terms stay the same.</span></label>
             <Input className="h-12" placeholder="Your full name" aria-label="Your full name" value={name} onChange={(e) => setName(e.target.value)} />
             <Input className="h-12" placeholder="Your position (e.g. Director)" aria-label="Your position" value={position} onChange={(e) => setPosition(e.target.value)} />
-            <Button className="h-12 w-full" disabled={busy || !tick || name.trim().length < 2 || position.trim().length < 2}
-              onClick={() => act(() => acceptRateOffer({ data: { token, signer_name: name.trim(), signer_position: position.trim(), agreed: true, terms_sha256: o.sha256 } }))}>Sign and accept</Button>
+            <label className="block text-sm font-semibold" htmlFor="ro-code">6-digit signing code</label>
+            <p className="text-xs text-muted-foreground">Ask our office for your code. It lasts 15 minutes.</p>
+            <Input id="ro-code" className="h-12 text-center font-mono text-lg tracking-widest" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
+            <Button className="h-12 w-full" disabled={busy || code.length !== 6 || !tick || name.trim().length < 2 || position.trim().length < 2}
+              onClick={() => act(() => acceptRateOffer({ data: { token, code, signer_name: name.trim(), signer_position: position.trim(), agreed: true, terms_sha256: o.sha256 } }))}>Sign and accept</Button>
             <Button variant="ghost" className="w-full" onClick={() => setMode("view")}>Back</Button>
           </div>
         )}
         {o.status === "sent" && mode === "decline" && (
-          <div className="space-y-3 rounded-2xl border bg-card p-4">
+          <div className="space-y-3 rounded-[22px] border bg-white p-4">
             <h2 className="font-display text-xl font-extrabold">Propose new rates</h2>
             <p className="text-sm text-muted-foreground">Leave a rate blank to keep your original figure. Our office will review and reply.</p>
             {o.items.map((i) => (
@@ -88,6 +92,6 @@ function RateOfferPage() {
         )}
         {err && <p className="text-destructive">{err}</p>}
       </>}
-    </main>
+    </main></div>
   );
 }

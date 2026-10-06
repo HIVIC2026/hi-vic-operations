@@ -1,3 +1,4 @@
+import { melbourneToday } from "./melbourne-time.core";
 // CENTRAL OWNER AUTHORITY RULES. Every state change writes a workflow_event and links it to the record.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { AP_LEGAL_ENTITY, AUTHORITY_SCOPE, AUTHORITY_WORDING_VERSION, authorityWording } from "./authority";
@@ -111,9 +112,9 @@ export async function acceptAuthority(input: {
     ip_address: input.ip, user_agent: input.userAgent, document_path: up.error ? null : path, document_sha256: hash,
   }).eq("id", a.id);
   if (!up.error) await admin.from("documents").insert({ job_id: a.job_id, kind: "owner_authority", title: `Owner Authority v${a.version} (accepted)`, storage_path: path, mime_type: "text/plain", uploaded_by: input.actorId });
-  await logEvent(a.job_id, input.actorId, "authority_accepted", `Owner Authority v${a.version} accepted – valid until ${expires.toISOString().slice(0, 10)}`, { authority_id: a.id, sha256: hash, assistance: input.assistance });
+  await logEvent(a.job_id, input.actorId, "authority_accepted", `Owner Authority v${a.version} accepted – valid until ${melbourneToday(expires)}`, { authority_id: a.id, sha256: hash, assistance: input.assistance });
   await linkEvent(a.id, a.job_id);
-  await admin.from("compliance_checks").update({ status: "pass", checked_at: now.toISOString(), notes: `v${a.version} accepted ${now.toISOString().slice(0, 10)}` }).eq("job_id", a.job_id).eq("check_key", "owner_authority");
+  await admin.from("compliance_checks").update({ status: "pass", checked_at: now.toISOString(), notes: `v${a.version} accepted ${melbourneToday(now)}` }).eq("job_id", a.job_id).eq("check_key", "owner_authority");
 }
 
 export async function declineAuthority(authorityId: string, actorId: string, reason: string) {

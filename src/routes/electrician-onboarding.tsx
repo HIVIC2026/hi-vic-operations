@@ -38,7 +38,7 @@ export const Route = createFileRoute("/electrician-onboarding")({
 });
 
 const input: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid #D7DCE8", fontSize: 15, fontFamily: "inherit", color: NAVY, background: "#fff", boxSizing: "border-box", minHeight: 48 };
-const card: React.CSSProperties = { background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E9ECF3", boxShadow: "0 6px 20px -18px rgba(34,55,107,.32)" };
+const card: React.CSSProperties = { background: "#fff", borderRadius: 22, padding: 24, border: "1px solid #E4E9F5", boxShadow: "0 18px 40px -26px rgba(34,55,107,.28), 0 2px 6px -4px rgba(34,55,107,.08)" };
 const DISPLAY = "'Outfit', 'Figtree', system-ui, sans-serif";
 const infoCard: React.CSSProperties = { background: "#EAF8F0", border: `1px solid ${GREEN}55`, borderRadius: 14, padding: "12px 14px", fontSize: 14, color: NAVY, lineHeight: 1.5, marginBottom: 18 };
 
@@ -254,9 +254,9 @@ function RecOnboarding() {
   }
 
   const shell = (children: React.ReactNode, footer?: React.ReactNode) => (
-    <div style={{ minHeight: "100vh", background: "radial-gradient(circle at top, #fff 0%, #f5f8f5 45%, #eef2f0 100%)", fontFamily: "'Figtree', system-ui, sans-serif", color: NAVY }}>
+    <div style={{ minHeight: "100vh", background: "#FBFCFA", fontFamily: "'Figtree', system-ui, sans-serif", color: NAVY, overflowX: "hidden" }}>
       <style>{`h1,h2,h3{font-family:${DISPLAY}}`}</style>
-      <header style={{ position: "sticky", top: 0, zIndex: 10, background: "rgba(255,255,255,.92)", backdropFilter: "blur(8px)", borderBottom: `1px solid ${BLUE}14` }}>
+      <header style={{ position: "sticky", top: 0, zIndex: 10, background: "rgba(251,252,250,.96)", borderBottom: "1px solid #E4E9F5" }}>
         <div style={{ maxWidth: 672, margin: "0 auto", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <img src={logo.url} alt="Home Insulation Victoria" style={{ height: 40 }} />
           {started && status === "draft" && <span style={{ fontSize: 13, fontWeight: 700, color: MUTED }}>{idx + 1} of {steps.length}</span>}

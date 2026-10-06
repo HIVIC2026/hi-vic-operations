@@ -1,3 +1,4 @@
+import { melbourneToday } from "./melbourne-time.core";
 // Pure rules (no I/O) for the Activity 48 signing sequence. Four SEPARATE events:
 //   1. Quote stage: Customer Agreement / Quote Acceptance (commercial) – unlocks invoice/deposit.
 //   2. Owner ESC consent (after an exact installation date exists) – see consent.core.ts.
@@ -207,7 +208,7 @@ export const ASSIGNMENT_VEEC_BLOCKER = "Final Activity 48 VEEC assignment not ye
 
 export function retainUntil(from: Date): string {
   const d = new Date(from); d.setFullYear(d.getFullYear() + RETENTION_YEARS + 1);
-  return d.toISOString().slice(0, 10);
+  return melbourneToday(d);
 }
 
 export async function sha256Hex(text: string) {

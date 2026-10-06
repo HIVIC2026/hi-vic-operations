@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerCodeGate, SignerFields, Tick, signBtn } from "@/components/owner/OwnerSign";
 import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerChooseInstallDaysFn, ownerChoosePiesaFn, ownerSignConsentFn } from "@/lib/owner-link.functions";
+import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 export const Route = createFileRoute("/my-job/$token")({
@@ -164,7 +165,7 @@ function AcceptQuote({ token, quote }: { token: string; quote: { id: string; ver
 }
 
 const SLOTS = [["8-10", "8–10am"], ["10-12", "10am–12"], ["12-14", "12–2pm"], ["14-16", "2–4pm"]] as const;
-function nextDays(n: number, from = 1) { const out: string[] = []; const d = new Date(); d.setDate(d.getDate() + from); while (out.length < n) { if (d.getDay() !== 0) out.push(d.toISOString().slice(0, 10)); d.setDate(d.getDate() + 1); } return out; }
+function nextDays(n: number, from = 1) { const out: string[] = []; let ymd = addYmd(melbourneToday(), from); while (out.length < n) { if (new Date(`${ymd}T12:00:00Z`).getUTCDay() !== 0) out.push(ymd); ymd = addYmd(ymd, 1); } return out; }
 
 function BookPickers({ token }: { token: string }) {
   const load = useServerFn(ownerBookingStateFn);
@@ -301,7 +302,7 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
 }
 
 function BookScreen({ v, token }: { v: View; token: string }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = melbourneToday();
   return <>
     <Back token={token} />
     <Hero v={v} level={HOUSE_LEVEL.book_visits} size="sm" headline={ownerHeadline("booking_visits", v.numbers.rebate)} />

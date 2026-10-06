@@ -48,6 +48,12 @@ export async function sendTestSms(ctx: Ctx, to: string, body: string): Promise<S
   return r;
 }
 
+/** Same recipient+subject+body => same key, so Resend drops an accidental repeat for 24h. */
+async function idemKey(to: string, subject: string, html: string) {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${to}\n${subject}\n${html}`));
+  return `hiv-test-${Array.from(new Uint8Array(b)).slice(0, 16).map((x) => x.toString(16).padStart(2, "0")).join("")}`;
+}
+
 export async function sendTestEmail(ctx: Ctx, to: string, subject: string, html: string, text: string): Promise<SendResult> {
   const norm = normaliseEmail(to);
   const blocked = testSendBlocker({ channel: "email", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
@@ -59,12 +65,12 @@ export async function sendTestEmail(ctx: Ctx, to: string, subject: string, html:
       if (!resend) throw new Error("Email is not connected");
       const res = await fetch("https://connector-gateway.lovable.dev/resend/emails", {
         method: "POST",
-        headers: { Authorization: `Bearer ${gw()}`, "X-Connection-Api-Key": resend, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${gw()}`, "X-Connection-Api-Key": resend, "Content-Type": "application/json", "Idempotency-Key": await idemKey(norm, subject, html) },
         body: JSON.stringify({ from: FROM_EMAIL, to: [norm], subject: subject.startsWith("[TEST") ? subject : `[TEST] ${subject}`, html, text }),
       });
       const t = await res.text();
       r = res.ok ? { channel: "email", to: norm, status: "sent", detail: `Resend accepted${(() => { try { const id = (JSON.parse(t) as { id?: string }).id; return id ? ` (id ${id})` : ""; } catch { return ""; } })()}` } : { channel: "email", to: norm, status: "failed", detail: `Resend ${res.status}: ${t.slice(0, 300)}` };
-    } catch (e) { r = { channel: "email", to: norm, status: "failed", detail: (e as Error).message }; }
+    } catch (e) { r = { channel: "email", to: norm, status: "failed", detail: `sent_unknown (no clear answer from Resend; do not retry by hand within 24h — Resend drops an identical repeat): ${(e as Error).message}` }; }
   }
   await record(ctx, r, subject, text);
   return r;

@@ -17,7 +17,7 @@ export const Route = createFileRoute("/eligibility/$token")({
 });
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return <main className="mx-auto min-h-screen max-w-lg bg-background px-4 py-6"><img src={logo.url} alt="Home Insulation Victoria" className="mb-6 h-10" />{children}</main>;
+  return <main className="estimate-brand mx-auto min-h-screen max-w-lg bg-estimate-canvas px-4 py-6 text-estimate-navy"><img src={logo.url} alt="Home Insulation Victoria" className="mb-6 h-10" />{children}</main>;
 }
 
 function OwnerEligibility() {

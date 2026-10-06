@@ -65,6 +65,7 @@ import { InstallerLedInvoicePanel } from "@/components/portal/installer-invoice"
 import { InstallerQuoteDraftPanel } from "@/components/portal/installer-quote";
 import { AdminVisitHistory } from "@/components/portal/visit-changes";
 import { OfficeJobProfitCard } from "@/components/portal/job-profit";
+import { melbourneToday } from "@/lib/melbourne-time.core";
 
 export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Portal" }, { name: "description", content: "Job detail and workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Portal" }, { property: "og:description", content: "Job detail and workflow." }] }),
@@ -468,14 +469,14 @@ function Veec({ jobId }: { jobId: string }) {
           <div><Label>Quantity</Label><Input name="quantity" type="number" step="0.01" min="0" defaultValue={data.quantity ?? ""} /></div>
           <div><Label>Status</Label><select name="status" value={shownStatus} onChange={(e) => setPickedStatus(e.target.value)} className="h-9 w-full rounded-md border bg-background px-2 text-sm">{["not_submitted", "submitted", "query", "approved", "rejected"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select></div>
           <div><Label>ESC submission ref</Label><Input name="ref" defaultValue={data.submission_reference ?? ""} /></div>
-          <div><Label>Submitted date</Label><Input name="date" type="date" max={new Date().toISOString().slice(0, 10)} defaultValue={data.submitted_date ?? ""} /></div>
+          <div><Label>Submitted date</Label><Input name="date" type="date" max={melbourneToday()} defaultValue={data.submitted_date ?? ""} /></div>
         </div>
         <Textarea name="notes" placeholder="Notes (required if rejected)" defaultValue={data.notes ?? ""} />
         {shownStatus === "query" && (
           <div className="space-y-2 rounded-md border p-2">
             <div className="grid grid-cols-2 gap-2">
               <div className="col-span-2"><Label>What the Registry asked</Label><Textarea name="query_text" defaultValue={data.query_text ?? ""} /></div>
-              <div><Label>Query received</Label><Input name="query_received_at" type="date" max={new Date().toISOString().slice(0, 10)} defaultValue={data.query_received_at ?? ""} /></div>
+              <div><Label>Query received</Label><Input name="query_received_at" type="date" max={melbourneToday()} defaultValue={data.query_received_at ?? ""} /></div>
             </div>
           </div>
         )}
@@ -501,7 +502,7 @@ function VeecQueryReply({ jobId, draft, sentAt }: { jobId: string; draft: string
           <Button type="button" variant="outline" disabled={busy} onClick={async () => { setBusy(true); try { const r = await gen({ jobId }, "Draft ready"); if (r?.draft) setText(r.draft); } finally { setBusy(false); } }}>{busy ? "Drafting…" : "Draft reply (AI)"}</Button>
           <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Draft reply" rows={6} />
           <form className="flex items-end gap-2" onSubmit={async (e) => { e.preventDefault(); const f = new FormData(e.currentTarget); setBusy(true); try { await mark({ jobId, replyDraft: text, sentDate: f.get("sent") as string }, "Reply recorded"); void qc.invalidateQueries({ queryKey: ["veec", jobId] }); } finally { setBusy(false); } }}>
-            <div><Label>Date sent</Label><Input name="sent" type="date" required max={new Date().toISOString().slice(0, 10)} /></div>
+            <div><Label>Date sent</Label><Input name="sent" type="date" required max={melbourneToday()} /></div>
             <Button type="submit" disabled={busy || text.trim().length < 5}>Mark reply sent</Button>
           </form>
         </>
@@ -515,7 +516,7 @@ function ComplianceRecords({ jobId }: { jobId: string }) {
   const record = useAction(recordComplianceItem);
   const { data = [] } = useQuery({ queryKey: ["compliance-records", jobId], queryFn: () => list({ data: { jobId } }) });
   const [open, setOpen] = useState<RecordKey | null>(null);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = melbourneToday();
   return (
     <Section title="Activity 48 records">
       <p className="mb-2 text-xs text-muted-foreground">Permanent once saved. Missing items block the stage shown: life support plan (PIESA booking), pre-install documents (install start), safety assessment, completion documents and $200 co-payment (AP review — co-payment also clears when Xero shows ≥ $200 paid), assignment copy (Ready for VEEC).</p>

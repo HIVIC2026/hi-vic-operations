@@ -1,3 +1,4 @@
+import { melbourneToday } from "./melbourne-time.core";
 // Pure Job File rules (no I/O): document index, correspondence, timeline, role visibility, retention, job pack plan.
 // Files are INDEXED IN PLACE from existing records/private storage – never copied into folders.
 
@@ -234,7 +235,7 @@ export const RETENTION_MIN_YEARS = 6;
 export function retentionFor(p: { assignmentRetainUntil: string | null; jobCreatedAt: string; completedAt: string | null }) {
   const from = new Date(p.completedAt ?? p.jobCreatedAt);
   const d = new Date(from); d.setFullYear(d.getFullYear() + RETENTION_MIN_YEARS + 1); // 6-year minimum + 1-year margin (matches assignment retainUntil)
-  const computed = d.toISOString().slice(0, 10);
+  const computed = melbourneToday(d);
   const until = p.assignmentRetainUntil && p.assignmentRetainUntil > computed ? p.assignmentRetainUntil : computed;
   return { retainUntil: until, rule: `Minimum ${RETENTION_MIN_YEARS} years + 1-year margin; signed/terminal records are never deleted or overwritten – superseded versions are kept.` };
 }

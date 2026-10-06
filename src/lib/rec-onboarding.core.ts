@@ -1,3 +1,4 @@
+import { melbourneToday as melbourneTodayCore } from "./melbourne-time.core";
 // Pure rules for the portal REC (electrician) onboarding + partner agreement signing.
 // No I/O. Used by the public form (live validation) and the server (authoritative checks).
 import { REC_AGREEMENT_SECTIONS } from "./rec-agreement.text";
@@ -280,7 +281,7 @@ export const shouldForgetResumeToken = (error: unknown) => error instanceof Erro
 
 /** Today in Melbourne as YYYY-MM-DD. */
 export function melbourneToday(now = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(now);
+  return melbourneTodayCore(now);
 }
 
 export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[] {

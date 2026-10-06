@@ -26,3 +26,7 @@ export function addMelbourneBusinessDays(startIso: string, n: number): string {
 export function melbourneMonthStart(now = new Date()): string {
   return new Date(melbourneMidnight(`${melbourneYmd(now).slice(0, 7)}-01`)).toISOString();
 }
+/** THE "today" helper: Melbourne calendar date (YYYY-MM-DD). Never use toISOString().slice(0,10) for "today". */
+export function melbourneToday(now: Date = new Date()): string {
+  return melbourneYmd(now);
+}

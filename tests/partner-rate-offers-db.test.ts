@@ -39,3 +39,18 @@ describe("0132 partner rate offers", () => {
     expect((await d.query(`SELECT to_regclass('public.partner_rate_offers') r`)).rows[0]).toEqual({ r: null });
   });
 });
+
+describe("0134 rate-offer expiry + code", () => {
+  test("new link while open, expired offer cannot be accepted, undo works", async () => {
+    const d = await db();
+    await d.exec(read("0134_rate_offer_expiry_code.sql"));
+    await d.exec(ins(1, "h1"));
+    await d.exec(`UPDATE public.partner_rate_offers SET token_hash='h1b', expires_at=now()+interval '14 days', link_reissued_at=now()`);
+    await d.exec(`UPDATE public.partner_rate_offers SET expires_at=now()-interval '1 day'`);
+    await expect(d.exec(`UPDATE public.partner_rate_offers SET status='accepted'`)).rejects.toThrow(/expired/);
+    await d.exec(`UPDATE public.partner_rate_offers SET expires_at=now()+interval '1 day'`);
+    await d.exec(`UPDATE public.partner_rate_offers SET status='accepted'`);
+    await d.exec(read("0134_rate_offer_expiry_code.undo.sql"));
+    expect((await d.query(`SELECT count(*)::int n FROM information_schema.columns WHERE table_name='partner_rate_offers' AND column_name='expires_at'`)).rows[0]).toEqual({ n: 0 });
+  });
+});

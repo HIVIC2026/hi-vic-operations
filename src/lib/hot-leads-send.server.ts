@@ -110,7 +110,8 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
       await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: adapter.provider, providerMessageId: d.providerMessageId, visibility: "customer", sourceEvent: LAUNCH_CAMPAIGN, sourceReference: key, createdBy: actorId } as never);
     }
   } catch (e) {
-    await finish("failed", isTest ? "resend_test" : "bridge", (e as Error).message.slice(0, 300));
+    const { statusAfterDeliveryError } = await import("./delivery.core");
+    await finish(isTest ? "failed" : statusAfterDeliveryError(e), isTest ? "resend_test" : "bridge", (e as Error).message.slice(0, 300));
     return r("failed", (e as Error).message);
   }
   await logEvent(jobId, actorId, "save_my_spot_email_sent", `Save my spot email sent from Hot leads${isTest ? " (TEST, allowlist only)" : ""}`, { campaign: LAUNCH_CAMPAIGN, to_test: isTest }, { internal: true }).catch(() => null);

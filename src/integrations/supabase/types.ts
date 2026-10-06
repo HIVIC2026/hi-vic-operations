@@ -7330,11 +7330,16 @@ export type Database = {
       partner_rate_offers: {
         Row: {
           application_id: string
+          code_attempts: number
+          code_expires_at: string | null
+          code_hash: string | null
           created_at: string
           created_by: string
+          expires_at: string | null
           gst_registered: boolean
           id: string
           items: Json
+          link_reissued_at: string | null
           note: string | null
           responded_at: string | null
           response: Json | null
@@ -7344,11 +7349,16 @@ export type Database = {
         }
         Insert: {
           application_id: string
+          code_attempts?: number
+          code_expires_at?: string | null
+          code_hash?: string | null
           created_at?: string
           created_by: string
+          expires_at?: string | null
           gst_registered: boolean
           id?: string
           items: Json
+          link_reissued_at?: string | null
           note?: string | null
           responded_at?: string | null
           response?: Json | null
@@ -7358,11 +7368,16 @@ export type Database = {
         }
         Update: {
           application_id?: string
+          code_attempts?: number
+          code_expires_at?: string | null
+          code_hash?: string | null
           created_at?: string
           created_by?: string
+          expires_at?: string | null
           gst_registered?: boolean
           id?: string
           items?: Json
+          link_reissued_at?: string | null
           note?: string | null
           responded_at?: string | null
           response?: Json | null

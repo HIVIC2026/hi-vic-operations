@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, WorkflowError } from "./workflow.server";
+import { melbourneToday } from "@/lib/melbourne-time.core";
 
 const SERVICES = ["piesa", "rectification_visit", "section_c_signoff", "installation_attendance"] as const;
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -64,7 +65,7 @@ export const expireElectricianRate = createServerFn({ method: "POST" }).middlewa
     await requireAdmin(context.supabase);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as Loose;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = melbourneToday();
     const { data: row, error } = await db.from("electrician_rates").update({ status: "expired", effective_to: today }).eq("id", data.id).eq("status", "active").select("id").maybeSingle();
     if (error) throw new WorkflowError(error.message);
     if (!row) throw new WorkflowError("Only an active rate can be expired.");

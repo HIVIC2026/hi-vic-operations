@@ -2,12 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
+import { melbourneToday } from "@/lib/melbourne-time.core";
 
 export const getProfitRegister = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
   const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
   // Daily online refresh: if no price recorded today, pull it from the online source (best-effort, never blocks the page).
-  const today = new Date().toISOString().slice(0, 10);
+  const today = melbourneToday();
   const { data: todays } = await admin.from("veec_spot_prices").select("id").eq("priced_on", today).limit(1);
   if (!todays?.length) {
     try {
@@ -107,7 +108,7 @@ export const fetchOnlineSpotPrice = createServerFn({ method: "POST" }).middlewar
   const { parseVeecSpotFromHtml } = await import("./profit.core");
   const price = parseVeecSpotFromHtml(await res.text());
   if (price == null) throw new Error("The online price could not be read — the source page wording may have changed. Enter the price by hand instead.");
-  const pricedOn = new Date().toISOString().slice(0, 10);
+  const pricedOn = melbourneToday();
   const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
   const { data: existing, error: readError } = await admin.from("veec_spot_prices").select("id").eq("priced_on", pricedOn).eq("price", price).limit(1);
   if (readError) throw new Error(`Spot price history could not be checked: ${readError.message}`);

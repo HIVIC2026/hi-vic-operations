@@ -12,6 +12,7 @@ import { useAction } from "@/hooks/use-me";
 import { fetchOnlineSpotPrice, getProfitRegister, recordSpotPrice } from "@/lib/profit.functions";
 import { getVeecRegister, type VeecRow } from "@/lib/veec-register.functions";
 import { OWNER_VEEC_RATE, jobMargin, sellSignal } from "@/lib/profit.core";
+import { melbourneToday } from "@/lib/melbourne-time.core";
 
 export const Route = createFileRoute("/_authenticated/admin/veec")({
   head: () => ({ meta: [{ title: "VEECs – Home Insulation Victoria Portal" }, { name: "description", content: "VEECs bought at $70, spot price, and sale value per accepted job." }, { property: "og:title", content: "VEECs – Home Insulation Victoria Portal" }, { property: "og:description", content: "VEECs bought at $70, spot price, and sale value per accepted job." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -38,13 +39,13 @@ function VeecPage() {
   const autoFetch = useServerFn(fetchOnlineSpotPrice);
   const [bucket, setBucket] = useState<VeecRow["bucket"]>("outstanding");
   const [paid, setPaid] = useState<"all" | VeecRow["paid"]>("all");
-  const [price, setPrice] = useState(""); const [on, setOn] = useState(new Date().toISOString().slice(0, 10)); const [source, setSource] = useState("");
+  const [price, setPrice] = useState(""); const [on, setOn] = useState(melbourneToday()); const [source, setSource] = useState("");
   const spots = profit?.spots ?? [];
   const [autoTried, setAutoTried] = useState(false);
   useEffect(() => {
     if (!profit || autoTried) return;
     setAutoTried(true);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = melbourneToday();
     const hasToday = spots.some((s: { priced_on?: string; created_at?: string }) => (s.created_at ?? s.priced_on ?? "").slice(0, 10) === today);
     if (!hasToday) autoFetch().then(() => refetchProfit()).catch(() => {});
   }, [profit, autoTried, autoFetch, refetchProfit, spots]);

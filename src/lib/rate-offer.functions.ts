@@ -88,12 +88,47 @@ export const sendRateOfferEmail = createServerFn({ method: "POST" }).middleware(
     throw new WorkflowError("Partner rate-offer email is not set up yet. Nothing was sent.");
   });
 
+const CODE_MAX_ATTEMPTS = 5;
+async function openOffer(db: Db, applicationId: string) {
+  const { data } = await db_(db).from("partner_rate_offers").select("id, status").eq("application_id", applicationId).eq("status", "sent").maybeSingle();
+  if (!data) throw new WorkflowError("There is no counter-offer waiting for this partner.");
+  return data as { id: string };
+}
+
+/** Office: replace the partner link with a fresh one valid for 14 days. The old link stops working. Sends nothing. */
+export const reissueRateOfferLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ applicationId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const db = await admin();
+    const o = await openOffer(db, data.applicationId);
+    const token = newToken();
+    const { error } = await db_(db).from("partner_rate_offers").update({ token_hash: await sha256(token), expires_at: new Date(Date.now() + 14 * 86_400_000).toISOString(), link_reissued_at: new Date().toISOString(), code_hash: null, code_expires_at: null, code_attempts: 0 }).eq("id", o.id).eq("status", "sent");
+    if (error) throw new WorkflowError(`Could not make a new link. (${error.message})`);
+    return { path: `/rate-offer/${token}` };
+  });
+
+/** Office: make a 6-digit signing code (15 minutes) to read to the partner. Partner sending is off, so nothing is sent. */
+export const issueRateOfferCode = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ applicationId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const db = await admin();
+    const o = await openOffer(db, data.applicationId);
+    const n = crypto.getRandomValues(new Uint32Array(1))[0]! % 1_000_000;
+    const code = String(n).padStart(6, "0");
+    const { error } = await db_(db).from("partner_rate_offers").update({ code_hash: await sha256(`${o.id}:${code}`), code_expires_at: new Date(Date.now() + 15 * 60_000).toISOString(), code_attempts: 0 }).eq("id", o.id).eq("status", "sent");
+    if (error) throw new WorkflowError(`Could not make a code. (${error.message})`);
+    return { code };
+  });
+
 // ---------- Partner side (token link) ----------
 async function findOffer(token: string) {
   const db = await admin();
-  const { data, error } = await db_(db).from("partner_rate_offers").select("id, application_id, round, status, items, note, gst_registered, created_at, responded_at, response").eq("token_hash", await sha256(token)).maybeSingle();
+  const { data, error } = await db_(db).from("partner_rate_offers").select("id, application_id, round, status, items, note, gst_registered, created_at, responded_at, response, expires_at, code_hash, code_expires_at, code_attempts").eq("token_hash", await sha256(token)).maybeSingle();
   if (error) throw new Error("Could not load this rate offer.");
-  if (!data) throw new Error("This rate offer link is not valid.");
+  if (!data) throw new Error("This rate offer link is not valid. Ask our office for a new link.");
+  if (data.status === "sent" && (!data.expires_at || new Date(data.expires_at).getTime() < Date.now())) throw new Error("This rate offer link has expired. Ask our office to send you a new link.");
   const app = await loadApp(db, (data as { application_id: string }).application_id);
   return { db, offer: data as OfferRow & { application_id: string }, app };
 }
@@ -107,17 +142,24 @@ export const loadRateOffer = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { offer, app } = await findOffer(data.token);
     const p = publicOffer(offer, app);
-    return { ...p, sha256: await sha256(p.text) };
+    return { ...p, sha256: await sha256(p.text), expires_at: (offer as { expires_at?: string }).expires_at ?? null };
   });
 
 export const acceptRateOffer = createServerFn({ method: "POST" }).middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token: tokenSchema, signer_name: z.string().trim().min(2).max(200), signer_position: z.string().trim().min(2).max(100), agreed: z.literal(true), terms_sha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict().parse(d))
+  .inputValidator((d) => z.object({ token: tokenSchema, code: z.string().regex(/^\d{6}$/), signer_name: z.string().trim().min(2).max(200), signer_position: z.string().trim().min(2).max(100), agreed: z.literal(true), terms_sha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict().parse(d))
   .handler(async ({ data, context }) => {
     const { db, offer, app } = await findOffer(data.token);
     if (offer.status !== "sent") throw new Error("This rate offer has already been answered.");
+    // Same 6-digit code + tick + typed name signing as the owner forms. Code: hash only, 15 minutes, 5 tries, atomic.
+    const c = offer as unknown as { code_hash: string | null; code_expires_at: string | null; code_attempts: number };
+    if (!c.code_hash || !c.code_expires_at || new Date(c.code_expires_at).getTime() < Date.now()) throw new Error("Ask our office for a new 6-digit signing code.");
+    if (c.code_attempts >= CODE_MAX_ATTEMPTS) throw new Error("Too many wrong codes. Ask our office for a new 6-digit signing code.");
+    const { data: took } = await db_(db).from("partner_rate_offers").update({ code_attempts: c.code_attempts + 1 }).eq("id", offer.id).eq("code_attempts", c.code_attempts).eq("status", "sent").select("id").maybeSingle();
+    if (!took) throw new Error("Please try again.");
+    if ((await sha256(`${offer.id}:${data.code}`)) !== c.code_hash) throw new Error("That code is not right. Check it and try again.");
     const text = publicOffer(offer, app).text;
     if ((await sha256(text)) !== data.terms_sha256) throw new Error("This offer changed. Reload the page.");
-    const response = { kind: "accepted", signer_name: data.signer_name, signer_position: data.signer_position, terms_version: RATE_OFFER_TERMS_VERSION, terms_sha256: data.terms_sha256, terms_text: text, agreement_version: app.agreement_version, ip: context.ip, user_agent: context.userAgent, signed_at: new Date().toISOString() };
+    const response = { kind: "accepted", signer_name: data.signer_name, signer_position: data.signer_position, verified_by: "6-digit code issued by office", terms_version: RATE_OFFER_TERMS_VERSION, terms_sha256: data.terms_sha256, terms_text: text, agreement_version: app.agreement_version, ip: context.ip, user_agent: context.userAgent, signed_at: new Date().toISOString() };
     const { data: row, error } = await db_(db).from("partner_rate_offers").update({ status: "accepted", responded_at: response.signed_at, response }).eq("id", offer.id).eq("status", "sent").select("id").maybeSingle();
     if (error || !row) throw new Error("This rate offer has already been answered.");
     return { ok: true };

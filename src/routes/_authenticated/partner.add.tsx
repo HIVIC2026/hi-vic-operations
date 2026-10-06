@@ -12,6 +12,7 @@ import { addCustomerProblems, areaTotal, type A1Area } from "@/lib/add-customer.
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { melbourneToday } from "@/lib/melbourne-time.core";
 
 export const Route = createFileRoute("/_authenticated/partner/add")({
   head: () => ({ meta: [{ title: "Add your own customer – Home Insulation Victoria" }, { name: "description", content: "Add a customer you found, at whatever stage you're up to." }, { property: "og:title", content: "Add your own customer – Home Insulation Victoria" }, { property: "og:description", content: "Add a customer you found, at whatever stage you're up to." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -70,7 +71,7 @@ function AddCustomer() {
       const area = progress === "not_visited" ? Number(o.rough) : total;
       const anyRemoval = areas.some((a) => a.action === "remove");
       const facts = { full_name: o.full_name, email: o.email, phone: o.phone || null, address_line: o.address_line, suburb: o.suburb || null, postcode: o.postcode || null, measured_area_m2: area,
-        ...(progress !== "not_visited" ? { removal_required: anyRemoval, removal_m2: anyRemoval ? areaTotal(areas.filter((a) => a.action === "remove")) : 0, measurement_method: how, measured_on: new Date().toISOString().slice(0, 10), measurement_purpose: "onsite" } : {}) };
+        ...(progress !== "not_visited" ? { removal_required: anyRemoval, removal_m2: anyRemoval ? areaTotal(areas.filter((a) => a.action === "remove")) : 0, measurement_method: how, measured_on: melbourneToday(), measurement_purpose: "onsite" } : {}) };
       const details = progress === "not_visited" ? undefined : { areas, how, roof_built_or_replaced_last_5_years: roof5, files: fileList, price_lines: priced.map((l) => ({ code: l.code, description: l.r?.description, qty: Number(l.qty), unit_price_inc_gst: l.r?.price_inc_gst, amount_inc_gst: l.amount })), total_inc_gst: progress === "quoted" ? sum : null, owner_agreed: progress === "quoted" ? agreed : null };
       const r = await confirm({ data: { importId: draft.id, facts, progress, occupancy: o.occupancy, ...(details ? { details } : {}) } });
       toast.success(progress === "not_visited" ? "Saved — book the Ready Check from My work." : "Sent to Home Insulation Victoria.");

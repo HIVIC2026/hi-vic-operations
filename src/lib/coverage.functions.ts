@@ -123,7 +123,9 @@ export const sendNoCoverageEmail = createServerFn({ method: "POST" }).middleware
       return { sent: true };
     } catch (error) {
       const message = (error as Error).message.slice(0, 300);
-      await admin.from("customer_email_sends").update({ status: delivered ? "delivered_unrecorded" : "failed", error: message, ...(delivered ? { sent_at: new Date().toISOString() } : {}) }).eq("id", sendRow.id);
-      throw new Error(delivered ? "Email delivery was accepted but its history record failed. It will not be resent automatically." : `Email was not sent: ${message}`);
+      const { statusAfterDeliveryError } = await import("./delivery.core");
+      const st = statusAfterDeliveryError(error, delivered); delivered = st !== "failed";
+      await admin.from("customer_email_sends").update({ status: st, error: message, ...(delivered ? { sent_at: new Date().toISOString() } : {}) }).eq("id", sendRow.id);
+      throw new Error(delivered ? "The email may have been sent (the provider did not answer clearly). It will not be resent automatically." : `Email was not sent: ${message}`);
     }
   });

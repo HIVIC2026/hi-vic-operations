@@ -2,6 +2,14 @@
 export type DeliveryMessage = { to: string; subject: string; html: string; text: string; idempotencyKey: string; purpose: string };
 export interface DeliveryAdapter { provider: string; deliver(msg: DeliveryMessage): Promise<{ providerMessageId: string | null }>; }
 
+/** The provider definitely refused the message (it answered with an error). Only this kind of failure may be retried. */
+export class DeliveryRejectedError extends Error { constructor(m: string) { super(m); this.name = "DeliveryRejectedError"; } }
+/** Status after a failed delivery attempt. A timeout/network error means the provider MAY have accepted it:
+ *  record "delivered_unrecorded" (sent-unknown) so nothing ever retries it automatically. */
+export function statusAfterDeliveryError(e: unknown, delivered = false): "failed" | "delivered_unrecorded" {
+  return !delivered && e instanceof DeliveryRejectedError ? "failed" : "delivered_unrecorded";
+}
+
 export type Base44BridgeConfig = { url: string; secret: string };
 export type DeliverySettingsRow = { provider?: string | null; endpoint_url: string | null; hmac_secret: string | null; enabled: boolean | null };
 
@@ -34,7 +42,7 @@ export function bridgeAdapter(cfg: Base44BridgeConfig, fetchImpl: typeof fetch =
     async deliver(msg: DeliveryMessage) {
       const body = bridgeBody(msg);
       const res = await fetchImpl(cfg.url, { method: "POST", headers: { "Content-Type": "application/json", "x-hivic-signature": await hmacHex(cfg.secret, body), "Idempotency-Key": msg.idempotencyKey }, body, signal: AbortSignal.timeout(20_000) });
-      if (!res.ok) throw new Error(`Base44 delivery bridge returned ${res.status}`);
+      if (!res.ok) throw new DeliveryRejectedError(`Base44 delivery bridge returned ${res.status}`);
       const j = (await res.json().catch(() => ({}))) as { message_id?: string };
       return { providerMessageId: j.message_id ?? null };
     },

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAction, useMe } from "@/hooks/use-me";
 import { activateElectricianRate, createElectricianRate, discardElectricianRate, expireElectricianRate, listElectricianRates } from "@/lib/electrician-rates.functions";
 import { ELECTRICIAN_RATE_SERVICES, officeSpread, type ElectricianRateService } from "@/lib/allocation.core";
+import { melbourneToday } from "@/lib/melbourne-time.core";
 
 const TITLE = "Electrician Rates – Home Insulation Victoria Portal";
 const DESC = "Office-only agreed electrician rates used for PIESA and rectification offers.";
@@ -34,7 +35,7 @@ function RatesOffice() {
   const expire = useAction(expireElectricianRate);
   const discard = useAction(discardElectricianRate);
   const [showDiscarded, setShowDiscarded] = useState(false);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = melbourneToday();
   const [f, setF] = useState({ businessId: "", serviceType: "piesa" as ElectricianRateService, rate: "", from: today, to: "", note: "" });
   const d = q.data;
   const allRates = (d?.rates ?? []) as Rate[];

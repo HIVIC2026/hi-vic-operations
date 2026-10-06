@@ -1,3 +1,4 @@
+import { melbourneToday } from "./melbourne-time.core";
 // PURE Mitti membership rules. No network, no database.
 // Mitti can only hand a form to someone who is already a member of the Home Insulation
 // Victoria Mitti organisation, so the portal records who was verified and when.
@@ -55,5 +56,5 @@ export function mittiCheckedLabel(row: MittiMemberRow): string {
   if (!row.mitti_checked_at) return "never checked";
   const at = new Date(row.mitti_checked_at);
   if (Number.isNaN(at.getTime())) return "checked at an unreadable time";
-  return `checked ${at.toISOString().slice(0, 10)}`;
+  return `checked ${melbourneToday(at)}`;
 }
