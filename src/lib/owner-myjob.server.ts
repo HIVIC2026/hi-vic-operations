@@ -1,3 +1,4 @@
+import { shortAddress } from "./address-format.core";
 // No-login owner "My job" view. The secure estimate link token is the only credential. Read-only.
 import { isSpotSavedStage } from "./owner-myjob.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -65,7 +66,7 @@ export async function resolveOwnerJob(token: unknown) {
     spotSaved: isSpotSavedStage(stage, spot ?? null, !!upcoming || (bookings ?? []).some((b) => b.kind === "ready_check")) ? {
       rebate: spot?.saved_veu_discount != null ? n(spot.saved_veu_discount) : rebate,
       cost: spot?.saved_total != null ? n(spot.saved_total) : null,
-      shortAddress: [(j.properties as { address_line: string | null } | null)?.address_line, (j.properties as { suburb: string | null } | null)?.suburb].filter(Boolean).join(", ") || null,
+      shortAddress: shortAddress((j.properties as { address_line: string | null } | null)?.address_line, (j.properties as { suburb: string | null } | null)?.suburb),
       videoInvite: !!spot?.video_requested && !spot.media_received_at,
       optOutUrl: await (await import("./emailsafety.server")).unsubscribeUrlForJob(jobId),
     } : null,
