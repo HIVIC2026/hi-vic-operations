@@ -4,6 +4,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { fullAddress } from "./address";
 import { isTestPartner } from "./test-send.core";
+import { offerTiming, suggestAfterHours } from "./offer-timing.core";
 import { COULDNT_GET_IN, payState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey } from "./trade-view.core";
 
 type Biz = { id: string; name: string; business_type: string | null; capabilities: string[] | null; base_suburb: string | null; coverage_radius_km: number | null; covers_all_victoria: boolean | null; accepting_new_jobs: boolean | null; onboarding_notes: string | null };
@@ -82,8 +83,9 @@ export async function tradeHome(userId: string) {
 /** One offer, trade-side. Owner and address only once this business has taken it. */
 export async function tradeOffer(offerId: string, userId: string) {
   const c = await ctxOrThrow(userId);
-  const { data: o } = await admin.from("partner_offers").select("id, job_id, business_id, kind, status, summary, expires_at").eq("id", offerId).maybeSingle();
+  const { data: o } = await admin.from("partner_offers").select("id, job_id, business_id, kind, status, summary, expires_at, offered_at, superseded_at").eq("id", offerId).maybeSingle();
   if (!o || o.business_id !== c.biz.id) throw new WorkflowError("This offer isn't for your business.");
+  const timing = offerTiming(o.offered_at, await offerSuggestHours());
   const s = (o.summary ?? {}) as { suburb?: string; postcode?: string; distance_km?: number; electrician_rate_inc_gst?: number | null; approx_area_m2?: number; area_source?: AreaSource; insulation_now?: InsulationNow; installer_rate_per_m2?: number | null };
   const { data: winRows } = o.kind === "ready_check"
     ? await admin.from("ready_check_windows").select("id, starts_at, ends_at, status").eq("job_id", o.job_id).order("starts_at")
@@ -104,6 +106,7 @@ export async function tradeOffer(offerId: string, userId: string) {
   }
   return {
     id: o.id, jobId: o.job_id, kind: o.kind, status: o.status, expiresAt: o.expires_at, windows, locked,
+    canSuggest: o.status === "pending" && timing.canSuggest, suggestUnlockLabel: timing.unlockLabel, takenByOther: o.status === "withdrawn" || o.status === "superseded",
     suburb: s.suburb ?? null, distanceKm: s.distance_km ?? null, pay: s.electrician_rate_inc_gst ?? null,
     area: s.approx_area_m2 ?? null, areaSource: (s.area_source ?? "owner_estimate") as AreaSource, insulation: (s.insulation_now ?? "unknown") as InsulationNow, ratePerM2: s.installer_rate_per_m2 ?? null,
   };
@@ -139,12 +142,22 @@ export async function tradeTakeTime(offerId: string, windowId: string, userId: s
   return { tooSlow: false };
 }
 
+/** Hours before "Suggest another time" unlocks (workflow_settings, default 24). */
+export async function offerSuggestHours() {
+  const { data } = await admin.from("workflow_settings").select("offer_suggest_time_after_hours").eq("id", 1).maybeSingle();
+  return suggestAfterHours((data as { offer_suggest_time_after_hours?: number } | null)?.offer_suggest_time_after_hours);
+}
+
 /** "Not for me" (decline) or "Can't make these" (tell the office, keep the offer open for others). */
 export async function tradeOfferReply(offerId: string, userId: string, reply: "not_for_me" | "cant_make", note: string | null) {
   const c = await ctxOrThrow(userId);
-  const { data: o } = await admin.from("partner_offers").select("id, job_id, business_id, kind, status").eq("id", offerId).maybeSingle();
+  const { data: o } = await admin.from("partner_offers").select("id, job_id, business_id, kind, status, offered_at").eq("id", offerId).maybeSingle();
   if (!o || o.business_id !== c.biz.id) throw new WorkflowError("This offer isn't for your business.");
-  if (o.status !== "pending") throw new WorkflowError("This offer is no longer open.");
+  if (o.status !== "pending") throw new WorkflowError(o.status === "withdrawn" ? "This job has been taken." : "This offer is no longer open.");
+  if (reply === "cant_make") {
+    const hours = await offerSuggestHours();
+    if (!offerTiming(o.offered_at, hours).canSuggest) throw new WorkflowError(`You can suggest another time once the job has been out for ${hours} hours with no taker. For now, pick one of the owner's times or say "Not for me".`);
+  }
   if (reply === "not_for_me") {
     if (o.kind === "ready_check") { const { respondToReadyCheckOffer } = await import("./readycheck-booking.server"); await respondToReadyCheckOffer(offerId, userId, false, note, null); return { ok: true }; }
     await admin.from("partner_offers").update({ status: "declined", responded_by: userId, responded_at: new Date().toISOString(), decline_reason: note }).eq("id", offerId).eq("status", "pending");
