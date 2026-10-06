@@ -35,7 +35,7 @@ export function RateOfferPanel({ applicationId, onActivate }: { applicationId: s
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   };
   const offer = st.kind === "none" ? null : st.offer;
-  const proposed = (offer?.response?.["proposed"] ?? {}) as Record<string, number>;
+  const proposed = (offer?.response?.["proposed"] ?? {}) as unknown as Record<string, number>;
   return (
     <div className="space-y-3" data-rate-offer-panel>
       {st.kind !== "none" && <p className="rounded bg-muted p-2 text-sm font-semibold" data-offer-state={st.kind}>{OFFER_STATE_LABEL[st.kind]} (round {offer!.round})</p>}

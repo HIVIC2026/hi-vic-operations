@@ -3,10 +3,11 @@
 import { approvedRateItems, type PartnerType } from "./partner-activation.core";
 import type { RecData } from "./rec-onboarding.core";
 import type { InstData } from "./installer-onboarding.core";
+import type { Json } from "@/integrations/supabase/types";
 
 export type OfferItem = { code: string; description: string; unit: string; display_unit?: string; partner_inc_gst: number; offer_inc_gst: number };
 export type OfferStatus = "sent" | "accepted" | "declined" | "superseded";
-export type OfferRow = { id: string; round: number; status: OfferStatus; items: OfferItem[]; note: string | null; gst_registered: boolean; created_at: string; responded_at: string | null; response: Record<string, unknown> | null };
+export type OfferRow = { id: string; round: number; status: OfferStatus; items: OfferItem[]; note: string | null; gst_registered: boolean; created_at: string; responded_at: string | null; response: { [k: string]: Json | undefined } | null };
 
 export const RATE_OFFER_TERMS_VERSION = "rate-offer-v1";
 const cents = (n: number) => Math.round(n * 100) / 100;
@@ -24,7 +25,7 @@ export function proposedRates(type: PartnerType, data: RecData | InstData): Offe
 export function baselineForNewRound(type: PartnerType, data: RecData | InstData, offers: OfferRow[]): OfferItem[] {
   const base = proposedRates(type, data);
   const last = latestOffer(offers);
-  const counter = last?.status === "declined" ? (last.response?.["proposed"] as Record<string, number> | undefined) : undefined;
+  const counter = last?.status === "declined" ? (last.response?.["proposed"] as unknown as Record<string, number> | undefined) : undefined;
   if (!last) return base;
   return last.items.map((i) => {
     const p = counter?.[i.code];
