@@ -67,3 +67,19 @@ export function installDeadline(piesaDate: string): string { return earliestInst
 
 export const TWO_HOUR_WINDOWS = ["8–10am", "10am–12", "12–2pm", "2–4pm"] as const;
 export const MIN_SPOT_PICKS = 3;
+
+/** Stages where a saved spot is still waiting for an installer (before any Ready Check is booked). */
+export const SPOT_SAVED_STAGES = ["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance", "ready_check_awaiting_payment", "ready_check_ready_to_schedule"] as const;
+export const SPOT_SAVED_PROGRESS = [
+  { label: "Spot saved", sub: "You're on the list" },
+  { label: "Free Ready Check", sub: "We measure your roof space" },
+  { label: "Your price", sub: "Exact quote, rebate taken off" },
+  { label: "Safety check", sub: "A licensed electrician checks it's safe" },
+  { label: "Install", sub: "About 4 hours" },
+  { label: "Done", sub: "Lower bills for years" },
+] as const;
+export function isSpotSavedStage(stage: string, spot: { spot_saved_at: string | null; opted_out_at: string | null } | null, readyCheckBooked: boolean) {
+  return !!spot?.spot_saved_at && !spot.opted_out_at && !readyCheckBooked && (SPOT_SAVED_STAGES as readonly string[]).includes(stage);
+}
+/** Gate A to-do card: "todo" until every Gate A document is done, then "done". */
+export const gateACard = (todo: { gate: string }[]) => (todo.some((t) => t.gate === "A") ? "todo" as const : "done" as const);
