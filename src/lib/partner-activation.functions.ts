@@ -110,3 +110,42 @@ export const listCertificationLevels = createServerFn({ method: "POST" }).middle
     const { data: rows } = await context.supabase.from("worker_certification_levels").select("certification_id, level, expires_on, recorded_at").in("certification_id", ids).order("recorded_at", { ascending: false });
     return rows ?? [];
   });
+
+/** Office creates the business boss's sign-in for an ACTIVATED partner. Sends nothing: returns a set-password link for the office to pass on. */
+export const createPartnerLogin = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ applicationId: uuid, email: z.string().trim().toLowerCase().email().max(320) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: act } = await admin.from("partner_activations").select("business_id").eq("application_id", data.applicationId).maybeSingle();
+    if (!act) throw new WorkflowError("Activate the partner first.");
+    const { data: app } = await admin.from("rec_onboarding_applications").select("partner_type, test_mode, data").eq("id", data.applicationId).single();
+    if (!app || app.test_mode) throw new WorkflowError("Not available for test applications.");
+    const d = app.data as { business_email?: string; installers?: { email?: string; full_legal_name?: string }[]; primary_contact_name?: string };
+    const allowed = [d.business_email, ...(d.installers ?? []).map((w) => w.email)].filter(Boolean).map((e) => e!.trim().toLowerCase());
+    if (!allowed.includes(data.email)) throw new WorkflowError("Use the business email or a nominated worker's email from the signed application.");
+    const role = app.partner_type === "installer" ? "installer" : "electrician";
+    const name = (d.installers ?? []).find((w) => w.email?.trim().toLowerCase() === data.email)?.full_legal_name ?? d.primary_contact_name ?? null;
+    const { data: existing } = await admin.from("profiles").select("id, business_id").eq("email", data.email).maybeSingle();
+    if (existing?.business_id && existing.business_id !== act.business_id) throw new WorkflowError("That email already belongs to another business. Nothing was changed.");
+    let uid = existing?.id;
+    if (!uid) {
+      // email_confirm avoids the confirmation email; createUser itself sends nothing.
+      const { data: cu, error } = await admin.auth.admin.createUser({ email: data.email, email_confirm: true, password: crypto.randomUUID() + "Aa1!", user_metadata: { full_name: name } });
+      if (error || !cu.user) throw new WorkflowError(`Could not create the login: ${error?.message}`);
+      uid = cu.user.id;
+    }
+    const steps = [
+      await admin.from("profiles").upsert({ id: uid, email: data.email, full_name: name, business_id: act.business_id }),
+      await admin.from("user_roles").upsert({ user_id: uid, role }, { onConflict: "user_id,role" }),
+      await admin.from("business_members").upsert({ business_id: act.business_id, user_id: uid, member_role: "business_admin", active: true, added_by: context.userId }, { onConflict: "business_id,user_id" }),
+      await admin.from("partner_workers").update({ profile_id: uid, account_status: "linked", linked_by: context.userId, linked_at: new Date().toISOString() }).eq("business_id", act.business_id).ilike("email", data.email).is("profile_id", null),
+    ];
+    const bad = steps.find((s) => s.error);
+    if (bad?.error) throw new WorkflowError(`Login made but linking failed: ${bad.error.message}`);
+    // generateLink returns the link only; it never emails it.
+    const { data: link, error: le } = await admin.auth.admin.generateLink({ type: "recovery", email: data.email, options: { redirectTo: "https://estimate.homeinsulationvictoria.com.au/reset-password?next=/partner" } });
+    if (le || !link.properties?.action_link) throw new WorkflowError(`Login linked, but the set-password link failed: ${le?.message}`);
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "partner_login_created", summary: `Office created partner login ${data.email} (nothing sent)`, details: { business_id: act.business_id, user_id: uid, application_id: data.applicationId } });
+    return { email: data.email, link: link.properties.action_link };
+  });
