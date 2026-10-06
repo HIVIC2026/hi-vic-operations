@@ -75,7 +75,7 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
   }
 
   const { unsubscribeUrlForJob } = await import("./emailsafety.server");
-  const base = isTest && testOpts.linkBase ? testOpts.linkBase : CUSTOMER_BASE;
+  const base = CUSTOMER_BASE; // one setting: customer links always use the live domain, never the login-walled preview
   const unsubscribeUrl = (await unsubscribeUrlForJob(jobId)).replace(CUSTOMER_BASE, base);
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const mail = withUnsubscribe(renderLaunchCampaignEmail({
