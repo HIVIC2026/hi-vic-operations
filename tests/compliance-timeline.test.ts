@@ -16,14 +16,14 @@ describe("compliance timeline", () => {
   });
   test("PIESA 30-day window deadline and expiry", () => {
     const f = { ...base, piesaCompletedAt: "2026-10-01T00:00:00Z", piesaOutcome: "pass" as const };
-    expect(g(f, "install_within_piesa_window").dueAt).toBe("2026-10-31T00:00:00.000Z");
+    expect(g(f, "install_within_piesa_window").dueAt).toBe("2026-10-31T12:59:59.999Z");
     expect(g({ ...f, now: "2026-11-01T00:00:00Z" }, "install_within_piesa_window").status).toBe("overdue");
     expect(g({ ...f, installStart: "2026-11-05T00:00:00Z" }, "install_within_piesa_window").status).toBe("blocked");
     expect(g({ ...f, installCompletedAt: "2026-10-20T00:00:00Z" }, "install_within_piesa_window").status).toBe("done");
   });
   test("window length is configurable", () => {
     const f = { ...base, piesaWindowDays: 10, piesaCompletedAt: "2026-10-01T00:00:00Z", piesaOutcome: "pass" as const };
-    expect(g(f, "install_within_piesa_window").dueAt).toBe("2026-10-11T00:00:00.000Z");
+    expect(g(f, "install_within_piesa_window").dueAt).toBe("2026-10-11T12:59:59.999Z");
   });
   test("24h pre-install gates", () => {
     const f = { ...base, installStart: "2026-10-12T00:00:00Z" };
@@ -49,7 +49,7 @@ describe("compliance timeline", () => {
 describe("official ESC additions", () => {
   test("assignment copy due 10 business days after signing", () => {
     const f = { ...base, assignmentSignedAt: "2026-10-09T00:00:00Z" }; // Friday
-    expect(buildComplianceTimeline(f).find((x) => x.key === "assignment_copy_to_consumer")!.dueAt).toBe("2026-10-23T00:00:00.000Z");
+    expect(buildComplianceTimeline(f).find((x) => x.key === "assignment_copy_to_consumer")!.dueAt).toBe("2026-10-23T12:59:59.999Z");
   });
   test("life support gate only when flagged", () => {
     expect(buildComplianceTimeline(base).some((x) => x.key === "life_support_plan")).toBe(false);

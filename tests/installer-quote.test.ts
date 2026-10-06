@@ -6,11 +6,11 @@ const e = (inc: string, total: string | null) => [
   { label: "Total quoted price (inc GST)", value: total },
   { label: "What else is included?", value: null },
 ];
-const base = { measuredM2: 100, ghgReduction: 20, veecValue: 70, piesaIncGst: 349, apFeeIncGst: 349, caps: { metropolitan: true, maxMetro: 1500, maxRegional: 2100, minCopay: 200 } };
+const base = { measuredM2: 100, wholeVeec: { veecs: Math.floor(20), raw: Math.floor(20) * 70 }, piesaIncGst: 349, apFeeIncGst: 349, caps: { metropolitan: true, minCopay: 200 } };
 
 describe("automatic installer quote", () => {
   test("whole VEECs: 20.9 rounds down to 20", () => {
-    const d = buildInstallerQuoteDraft({ ...base, ghgReduction: 20.9, price: quotedPriceFromEntries(e("R5.0 supply and install", "2400"), false) });
+    const d = buildInstallerQuoteDraft({ ...base, wholeVeec: { veecs: Math.floor(20.9), raw: Math.floor(20.9) * 70 }, price: quotedPriceFromEntries(e("R5.0 supply and install", "2400"), false) });
     expect(d.discount).toBe(1400);
   });
   test("installer price + 349 PIESA + 349 AP − discount from m²", () => {
@@ -29,7 +29,7 @@ describe("automatic installer quote", () => {
     expect(buildInstallerQuoteDraft({ ...base, measuredM2: null, price: quotedPriceFromEntries(e("R5.0 supply and install", "2400"), false) }).ready).toBe(false);
   });
   test("discount reduced so the owner still pays the $200 minimum", () => {
-    const d = buildInstallerQuoteDraft({ ...base, ghgReduction: 60, price: quotedPriceFromEntries(e("R5.0 supply and install", "1000"), false) });
+    const d = buildInstallerQuoteDraft({ ...base, wholeVeec: { veecs: Math.floor(60), raw: Math.floor(60) * 70 }, price: quotedPriceFromEntries(e("R5.0 supply and install", "1000"), false) });
     expect(d.ready).toBe(true);
     expect(d.afterDiscount).toBe(200);
   });

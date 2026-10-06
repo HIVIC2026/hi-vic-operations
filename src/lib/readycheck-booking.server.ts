@@ -1,3 +1,4 @@
+import { partnerAllowedForJob } from "./test-send.core";
 // Ready Check booking persistence: owner windows, installer matching/offers, one-tap booking, rounds, timer.
 // Rules: readycheck-booking.core.ts. Atomic acceptance in SQL: accept_ready_check_offer (migration 0099).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -76,9 +77,10 @@ export async function ownerReadyCheckWindowState(jobId: string) {
 
 /** Approved installer businesses judged for this Ready Check. Price is never loaded. */
 export async function installerCandidatesFor(jobId: string) {
-  const { data: job } = await admin.from("jobs").select("id, properties(postcode)").eq("id", jobId).single();
+  const { data: job } = await admin.from("jobs").select("id, source, properties(postcode)").eq("id", jobId).single();
   const postcode = (job?.properties as { postcode: string | null } | null)?.postcode ?? null;
-  const { data: bizs } = await admin.from("businesses").select("*").or("business_type.eq.eec_installer,capabilities.cs.{installer}");
+  const { data: allBizs } = await admin.from("businesses").select("*").or("business_type.eq.eec_installer,capabilities.cs.{installer}");
+  const bizs = (allBizs ?? []).filter((b) => partnerAllowedForJob(b, job?.source));
   const ids = (bizs ?? []).map((b) => b.id);
   const inIds = ids.length ? ids : NONE;
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();

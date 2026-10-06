@@ -140,7 +140,7 @@ function VeecPage() {
           <tr><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Charged</th><th className="p-3 text-right">Markup</th><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Charged</th><th className="p-3 text-right">Markup</th><th className="p-3 text-right">Charged (ex GST)</th><th className="p-3 text-right">REC paid</th></tr>
         </thead>
           <tbody>{profit.rows.map((r) => {
-            const m = jobMargin({ installerCostExGst: r.installerCost, installerMarginExGst: r.installerMargin, apFeeExGst: r.apFee, electricalCostExGst: r.electricalCost, electricalChargeExGst: r.electricalChargeEx, installerSourced: r.installerSourced, installerLed: r.installerLed, veecDiscountIncGst: r.discount, piesaRecCostExGst: r.piesaCostEx, veecLodgementFeeExGst: r.lodgementFeeExGst }, spot);
+            const m = jobMargin({ installerCostExGst: r.installerCost, installerMarginExGst: r.installerMargin, apFeeExGst: r.apFee, electricalCostExGst: r.electricalCost, electricalChargeExGst: r.electricalChargeEx, installerSourced: r.installerSourced, installerLed: r.installerLed, veecDiscountIncGst: r.discount, veecCount: r.veecCount, piesaRecCostExGst: r.piesaCostEx, veecLodgementFeeExGst: r.lodgementFeeExGst }, spot);
             return <tr key={r.jobId} className="border-t">
               <td className="p-3 font-bold"><Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="text-primary underline">{r.jobNumber ?? "—"}</Link><div className="text-xs font-normal text-muted-foreground">{r.owner ?? ""}</div></td>
               <td className="p-3 text-right">{r.costMissing ? "—" : money(r.installerCost)}</td>
@@ -157,7 +157,7 @@ function VeecPage() {
           })}</tbody>
           {(() => {
             const tot = profit.rows.reduce((t, r) => {
-              const m = jobMargin({ installerCostExGst: r.installerCost, installerMarginExGst: r.installerMargin, apFeeExGst: r.apFee, electricalCostExGst: r.electricalCost, electricalChargeExGst: r.electricalChargeEx, installerSourced: r.installerSourced, installerLed: r.installerLed, veecDiscountIncGst: r.discount, piesaRecCostExGst: r.piesaCostEx, veecLodgementFeeExGst: r.lodgementFeeExGst }, spot);
+              const m = jobMargin({ installerCostExGst: r.installerCost, installerMarginExGst: r.installerMargin, apFeeExGst: r.apFee, electricalCostExGst: r.electricalCost, electricalChargeExGst: r.electricalChargeEx, installerSourced: r.installerSourced, installerLed: r.installerLed, veecDiscountIncGst: r.discount, veecCount: r.veecCount, piesaRecCostExGst: r.piesaCostEx, veecLodgementFeeExGst: r.lodgementFeeExGst }, spot);
               return { installerMarkup: t.installerMarkup + m.installerMarkup, piesaCharge: t.piesaCharge + m.piesaChargeEx, piesaRecPaid: t.piesaRecPaid + (m.piesaRecPaidEx ?? 0), lodgement: t.lodgement + (m.lodgementFeeEx ?? 0), veec: t.veec + (m.veecMargin ?? 0), profit: m.profit != null ? t.profit + m.profit : t.profit, anyNull: t.anyNull || m.profit == null };
             }, { installerMarkup: 0, piesaCharge: 0, piesaRecPaid: 0, lodgement: 0, veec: 0, profit: 0, anyNull: false });
             return <tfoot><tr className="border-t-2 bg-muted font-bold">

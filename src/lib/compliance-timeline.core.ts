@@ -1,3 +1,4 @@
+import { addMelbourneBusinessDays, addMelbourneCalendarDays } from "./melbourne-time.core";
 // Activity 48 AP compliance timeline – PURE (no I/O).
 // One ordered list of timed/sequenced gates per job, each with status and due time.
 // Timing constants reuse the existing central rules (esc.core) — never duplicated here.
@@ -44,12 +45,9 @@ export type TimelineFacts = {
   completionDocsGivenAt?: string | null;
 };
 
-/** Adds n Mon–Fri business days (public holidays not modelled — conservative only if office confirms). */
+/** Adds n Melbourne business days (Mon–Fri, excluding Victorian public holidays); due at the end of that Melbourne day. */
 export function addBusinessDays(startIso: string, n: number): string {
-  const d = new Date(startIso);
-  let left = n;
-  while (left > 0) { d.setUTCDate(d.getUTCDate() + 1); const w = d.getUTCDay(); if (w !== 0 && w !== 6) left--; }
-  return d.toISOString();
+  return addMelbourneBusinessDays(startIso, n);
 }
 
 const t = (s: string) => new Date(s).getTime();
@@ -69,7 +67,8 @@ export function buildComplianceTimeline(f: TimelineFacts): Gate[] {
   const windowDays = f.piesaWindowDays && f.piesaWindowDays > 0 ? f.piesaWindowDays : DEFAULT_PIESA_WINDOW_DAYS;
   const pre24 = f.installStart ? iso(t(f.installStart) - LEAD_MS) : null;
   const escEarliest = f.installStart ? iso(t(f.installStart) - EARLIEST_MS) : null;
-  const piesaDeadline = f.piesaCompletedAt ? iso(t(f.piesaCompletedAt) + windowDays * DAY_MS) : null;
+  // Melbourne calendar days: due at the end of the Melbourne day windowDays after the PIESA date (not windowDays × 24h).
+  const piesaDeadline = f.piesaCompletedAt ? addMelbourneCalendarDays(f.piesaCompletedAt, windowDays) : null;
   const signed = !!f.acceptanceSignedAt;
   const gates: Gate[] = [];
   const push = (g: Gate) => gates.push(g);

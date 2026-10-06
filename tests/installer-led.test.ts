@@ -5,9 +5,10 @@ import { jobMargin } from "../src/lib/profit.core";
 
 describe("installer-led pricing", () => {
   it("the owner is charged the standard $349 assessment fee for either approved electrician source", () => {
-    expect(piesaChargeIncGst("hivic_matched", null)).toBe(349);
-    expect(piesaChargeIncGst("installer_own", 280)).toBe(349);
-    expect(piesaChargeIncGst("installer_own", null)).toBe(349);
+    expect(piesaChargeIncGst("hivic_matched", 349)).toBe(349);
+    expect(piesaChargeIncGst("hivic_matched", null)).toBeNull(); // no settings price = no charge (office quotes)
+    expect(piesaChargeIncGst("installer_own", 299)).toBe(299);
+    
     expect(piesaChargeIncGst(null, 280)).toBeNull();
   });
   it("owner price = quote + PIESA + rectification + AP fee − discount, no referral, min $200", () => {

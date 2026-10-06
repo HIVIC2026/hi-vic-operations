@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createSupabaseClient } from "@/integrations/supabase/client";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
-const searchSchema = z.object({ token_hash: z.string().min(20).optional(), type: z.literal("magiclink").optional(), next: z.string().startsWith("/").default("/home") });
+const searchSchema = z.object({ token_hash: z.string().min(20).optional(), type: z.literal("magiclink").optional(), next: z.string().regex(/^\/(?![\/\\])/, "same-site path only").catch("/home").default("/home") });
 
 export const Route = createFileRoute("/qa-access")({
   validateSearch: (search) => searchSchema.parse(search),

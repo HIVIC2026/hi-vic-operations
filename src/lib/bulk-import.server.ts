@@ -2,12 +2,12 @@
 // files, uses AI only to map messy spreadsheet columns onto known fields, matches files to rows,
 // sorts each job, and — only after explicit confirmation — creates installer-sourced jobs.
 // Nothing customer-facing is ever sent from here. Old/non-geotagged photos inform sorting only.
+import { exactLike } from "./email-match";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { logEvent } from "./workflow.server";
 import { logPartner } from "./pilot.server";
 import { type LocationVariables } from "./activity48.core";
-import { HIVIC_PIESA_INC_GST } from "./installer-led.core";
 import { confirmedQuoteDecision } from "./quote-release.core";
 import { hashToken, newToken } from "./worker-links.core";
 import { linkFiles, type LeadStage } from "./bulk-import.core";
@@ -191,14 +191,21 @@ export async function reverseGeocode(points: { lat: number; lng: number }[]): Pr
 
 /** Keys already in the portal (normalised address+postcode, emails) for duplicate detection. */
 async function existingPortalKeys(): Promise<Set<string>> {
+  // Page through every row (the Data API caps a single read at 1000 rows).
   const keys = new Set<string>();
-  const { data: props } = await admin.from("properties").select("address_line, postcode").limit(5000);
-  for (const p of props ?? []) {
-    const a = normaliseAddress(p.address_line);
-    if (a && p.postcode) keys.add(`addr:${a}|${p.postcode}`);
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await admin.from("properties").select("address_line, postcode").order("id").range(from, from + PAGE - 1);
+    if (error) throw new Error(`Couldn't check existing addresses: ${error.message}`);
+    for (const p of data ?? []) { const a = normaliseAddress(p.address_line); if (a && p.postcode) keys.add(`addr:${a}|${p.postcode}`); }
+    if ((data?.length ?? 0) < PAGE) break;
   }
-  const { data: owners } = await admin.from("owners").select("email").not("email", "is", null).limit(5000);
-  for (const o of owners ?? []) if (o.email) keys.add(`email:${o.email.toLowerCase()}`);
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await admin.from("owners").select("email").not("email", "is", null).order("id").range(from, from + PAGE - 1);
+    if (error) throw new Error(`Couldn't check existing owners: ${error.message}`);
+    for (const o of data ?? []) if (o.email) keys.add(`email:${o.email.toLowerCase()}`);
+    if ((data?.length ?? 0) < PAGE) break;
+  }
   return keys;
 }
 
@@ -264,29 +271,25 @@ export async function analyseBatch(batchId: string, actorId: string) {
 type ImportStage = "not_visited" | "visited" | "quoted" | "installed";
 type ElectricianPlan = { mode?: "mine" | "hivic"; nomination_id?: string | null; business_id?: string | null };
 
-const stagePlacement: Record<ImportStage, { stage: "ready_check_ready_to_schedule" | "ready_check_complete" | "awaiting_quote_acceptance" | "complete"; next: string }> = {
+// Security review (Jo, 6 Oct): no upload ever lands at a quote-acceptance or complete stage.
+// "Quoted" rows start at the normal entry for visited work; the supplied price stays a DRAFT quote for office review.
+// "Installed" rows are history only — on hold, never complete, never claimable, never in payouts.
+export const INSTALLED_HISTORY_NOTE = "History: already installed before Home Insulation Victoria — not claimable. Office review only.";
+export const stagePlacement: Record<ImportStage, { stage: "ready_check_ready_to_schedule" | "ready_check_complete" | "on_hold"; next: string }> = {
   not_visited: { stage: "ready_check_ready_to_schedule", next: "Owner chooses Ready Check times" },
   visited: { stage: "ready_check_complete", next: "Office reviews the supplied measure-up and evidence" },
-  quoted: { stage: "awaiting_quote_acceptance", next: "Owner confirmation link is queued — nothing has been sent" },
-  installed: { stage: "complete", next: "Imported as completed history — office checks missing official evidence" },
+  quoted: { stage: "ready_check_complete", next: "Office reviews the supplied measure-up and draft quote — it only goes to the owner through the usual gates" },
+  installed: { stage: "on_hold", next: INSTALLED_HISTORY_NOTE },
 };
 
 async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id: string }, actorId: string, rowId: string, importStage: ImportStage) {
-  const email = e.email?.toLowerCase() ?? null;
-  let ownerId: string;
-  if (email) {
-    const { data: existing } = await admin.from("owners").select("id").ilike("email", email).maybeSingle();
-    if (existing) ownerId = existing.id;
-    else {
-      const { data, error } = await admin.from("owners").insert({ full_name: e.full_name ?? "Unknown", email, phone: e.phone ?? null }).select("id").single();
-      if (error || !data) throw new BulkImportError(error?.message ?? "Owner could not be created.");
-      ownerId = data.id;
-    }
-  } else {
-    const { data, error } = await admin.from("owners").insert({ full_name: e.full_name ?? "Unknown", email: null, phone: e.phone ?? null }).select("id").single();
-    if (error || !data) throw new BulkImportError(error?.message ?? "Owner could not be created.");
-    ownerId = data.id;
-  }
+  // Security review (Jo, 6 Oct): an installer upload NEVER reuses an existing owner. A new owner is always created;
+  // an exact (case-insensitive) email match is only flagged for the office under Possible duplicates.
+  const email = e.email?.trim().toLowerCase() || null;
+  const { data: created, error: oe } = await admin.from("owners").insert({ full_name: e.full_name ?? "Unknown", email, phone: e.phone ?? null }).select("id").single();
+  if (oe || !created) throw new BulkImportError(oe?.message ?? "Owner could not be created.");
+  const ownerId = created.id;
+  const sameEmail = email ? (await admin.from("owners").select("id").ilike("email", exactLike(email)).neq("id", ownerId).limit(5)).data ?? [] : [];
   const { data: prop, error: pe } = await admin.from("properties").insert({
     owner_id: ownerId, address_line: e.address_line!, suburb: e.suburb ?? null, postcode: e.postcode ?? null, state: "VIC",
   }).select("id").single();
@@ -299,9 +302,9 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
     channel: "installer_sourced", originating_installer_business_id: batch.business_id, originating_installer_user_id: actorId,
     external_enquiry_id: `bulk:${rowId}`,
     next_action: placement.next,
-    ...(importStage === "installed" ? { installation_completed_at: new Date().toISOString() } : {}),
   }).select("id, job_number").single();
   if (je || !job) throw new BulkImportError(je?.message ?? "Job could not be created.");
+  if (sameEmail.length) await admin.from("workflow_events").insert({ job_id: job.id, actor_id: actorId, event_type: "possible_duplicate_owner", summary: "Possible duplicate owner (same email) — office to check", details: { note: "Bulk upload: this owner's email matches an existing owner. A new owner was created; office to check under Possible duplicates.", existing_owner_ids: sameEmail.map((o) => o.id), source: "bulk_import" } as unknown as Json });
   await admin.from("job_assignments").insert({ job_id: job.id, user_id: actorId, role: "installer", business_id: batch.business_id, assigned_by: actorId });
   if (importStage !== "not_visited" && e.area_m2 && e.area_m2 > 0) {
     await admin.from("ceiling_measurements").insert({
@@ -321,18 +324,19 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
   const postcode = String((job?.properties as { postcode: string | null } | null)?.postcode ?? "").trim();
   const [{ data: loc }, { data: rs }] = await Promise.all([
     admin.from("veu_location_variables").select("*").eq("postcode", postcode).maybeSingle(),
-    admin.from("retail_estimator_settings").select("ap_management_inc_gst, indicative_veec_value, minimum_customer_copayment_inc_gst, max_discount_metro_inc_gst, max_discount_regional_inc_gst").eq("is_current", true).maybeSingle(),
+    admin.from("retail_estimator_settings").select("ap_management_inc_gst, piesa_assessment_inc_gst, indicative_veec_value, minimum_customer_copayment_inc_gst").eq("is_current", true).maybeSingle(),
   ]);
   const veecValue = rs ? Number(rs.indicative_veec_value) : null;
   const apFee = job?.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
-  if (!loc || veecValue == null || apFee == null) return false; // office quotes manually
+  const piesa = rs ? Number(rs.piesa_assessment_inc_gst) : null;
+  if (!loc || veecValue == null || apFee == null || !(piesa && piesa > 0)) return false; // office quotes manually
   const rawDiscount = wholeVeecDiscount(e.area_m2, loc as unknown as LocationVariables, veecValue).raw;
   const lines = [
     { code: "INSTALLER_PRICE", description: "Insulation works by your installer", quantity: 1, unit: "flat", unit_price_inc_gst: e.price_inc_gst, line_total_inc_gst: e.price_inc_gst, is_other: false, explanation: null, sort: 0 },
-    { code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: HIVIC_PIESA_INC_GST, line_total_inc_gst: HIVIC_PIESA_INC_GST, is_other: false, explanation: null, sort: 1 },
+    { code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: piesa, line_total_inc_gst: piesa, is_other: false, explanation: null, sort: 1 },
     { code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: apFee, line_total_inc_gst: apFee, is_other: false, explanation: null, sort: 2 },
   ];
-  const subtotal = Math.round((e.price_inc_gst + HIVIC_PIESA_INC_GST + apFee) * 100) / 100;
+  const subtotal = Math.round((e.price_inc_gst + piesa + apFee) * 100) / 100;
   // Same guardrail as every other quote: the $200 minimum contribution (no maximum discount exists).
   const rules = applyDiscountRules(rawDiscount, subtotal, loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null, {
     minimum_customer_copayment_inc_gst: rs ? Number(rs.minimum_customer_copayment_inc_gst) : 200,
@@ -376,7 +380,7 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       if (row.sort_result === "office_review") throw new BulkImportError("Office review must be cleared before this customer can be added.");
       const importStage = row.import_stage as ImportStage;
       const job = await createBulkJob(e, batch, actorId, row.id, importStage);
-      const quoted = importStage === "quoted" || importStage === "installed" ? await draftQuoteFromImport(job.id, e, actorId, batch.business_id).catch(() => false) : false;
+      const quoted = importStage === "quoted" ? await draftQuoteFromImport(job.id, e, actorId, batch.business_id).catch(() => false) : false;
       const plan = ((row.electrician_plan ?? batch.electrician_plan ?? { mode: "hivic" }) as ElectricianPlan);
       if (plan.mode === "mine") {
         if (plan.business_id) {

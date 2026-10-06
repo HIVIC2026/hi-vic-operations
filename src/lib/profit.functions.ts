@@ -21,7 +21,7 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
   }
   const [spots, quotes, jobs, channels, pricing] = await Promise.all([
     admin.from("veec_spot_prices").select("id,price,priced_on,source,note,created_at").order("priced_on", { ascending: false }).limit(500),
-    admin.from("quotes").select("id,job_id,kind,customer_total_inc_gst,subtotal_inc_gst,veec_discount_inc_gst,accepted_at").eq("status", "accepted"),
+    admin.from("quotes").select("id,job_id,kind,customer_total_inc_gst,subtotal_inc_gst,veec_discount_inc_gst,veec_count,accepted_at").eq("status", "accepted"),
     admin.from("job_overview").select("id,job_number,property_address,owner_name,stage,source"),
     admin.from("jobs").select("id,channel"),
     admin.from("pricing_settings").select("piesa_rec_cost_ex_gst,veec_lodgement_fee_ex_gst").eq("is_active", true).maybeSingle(),
@@ -37,7 +37,7 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
   if (internals.error) throw new Error(`Trade costs could not be loaded: ${internals.error.message}`);
   if (items.error) throw new Error(`Quote lines could not be loaded: ${items.error.message}`);
   const byJob = new Map<string, {
-    customer: number; discount: number; acceptedAt: string | null;
+    customer: number; discount: number; veecCount: number | null; acceptedAt: string | null;
     installerCost: number; installerMargin: number; apFee: number;
     electricalCost: number; electricalChargeEx: number;
     piesaCostEx: number | null; piesaCostMissing: boolean;
@@ -46,7 +46,7 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
   }>();
   const gst = 1.1;
   const ensure = (jobId: string) => byJob.get(jobId) ?? {
-    customer: 0, discount: 0, acceptedAt: null,
+    customer: 0, discount: 0, veecCount: null, acceptedAt: null,
     installerCost: 0, installerMargin: 0, apFee: 0,
     electricalCost: 0, electricalChargeEx: 0,
     piesaCostEx: piesaRecCost, piesaCostMissing: piesaRecCost == null,
@@ -59,6 +59,7 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
     if (internal?.cost_ex_gst == null) cur.costMissing = true;
     cur.customer += Number(q.customer_total_inc_gst ?? 0);
     cur.discount += Number(q.veec_discount_inc_gst ?? 0);
+    if (q.kind !== "rectification" && q.veec_count != null) cur.veecCount = (cur.veecCount ?? 0) + Number(q.veec_count);
     cur.acceptedAt = q.accepted_at ?? cur.acceptedAt;
     if (q.kind === "rectification") {
       // Rectification is charged to the customer and paid to the electrician from the electrical rate card.

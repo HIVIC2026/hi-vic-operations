@@ -26,7 +26,7 @@ async function canUseBulkImport(userId: string, businessId: string, onBehalf: bo
   if (onBehalf) {
     if (!isAdmin) throw new WorkflowError("Only the office can upload on behalf of an installer.");
   } else {
-    await requireMember(userId, businessId);
+    await requireMember(userId, businessId, true); // boss only (matches route-guards INSTALLER_BOSS_ONLY)
   }
   await requireApprovedPartner(businessId);
   return !!isAdmin;
@@ -67,7 +67,7 @@ export const bulkBatchReview = createServerFn({ method: "GET" }).middleware([req
     const { data: batch } = await admin.from("bulk_import_batches").select("*").eq("id", data.batchId).single();
     if (!batch) throw new WorkflowError("Upload not found.");
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
-    if (!isAdmin) await requireMember(context.userId, batch.business_id);
+    if (!isAdmin) await requireMember(context.userId, batch.business_id, true);
     const { data: rows } = await admin.from("bulk_import_rows").select("*").eq("batch_id", data.batchId).order("row_index");
     const { data: biz } = await admin.from("businesses").select("name").eq("id", batch.business_id).single();
     return { batch, rows: rows ?? [], businessName: biz?.name ?? "" };
@@ -81,7 +81,7 @@ export const confirmBulkBatch = createServerFn({ method: "POST" }).middleware([r
     const { data: batch } = await admin.from("bulk_import_batches").select("*").eq("id", data.batchId).single();
     if (!batch) throw new WorkflowError("Upload not found.");
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
-    if (!isAdmin) await requireMember(context.userId, batch.business_id);
+    if (!isAdmin) await requireMember(context.userId, batch.business_id, true);
     const { confirmBatch } = await import("./bulk-import.server");
     return confirmBatch(data.batchId, context.userId, data.skipRowIds);
   });
@@ -93,7 +93,7 @@ export const setBulkReviewPlan = createServerFn({ method: "POST" }).middleware([
     const { data: batch } = await admin.from("bulk_import_batches").select("business_id,status").eq("id", data.batchId).single();
     if (!batch || batch.status !== "analysed") throw new WorkflowError("This upload can no longer be changed.");
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
-    if (!isAdmin) await requireMember(context.userId, batch.business_id);
+    if (!isAdmin) await requireMember(context.userId, batch.business_id, true);
     await admin.from("bulk_import_batches").update({ electrician_plan: data.batchPlan as unknown as Json }).eq("id", data.batchId);
     for (const row of data.rows) await admin.from("bulk_import_rows").update({ import_stage: row.stage, electrician_plan: row.plan as unknown as Json }).eq("id", row.rowId).eq("batch_id", data.batchId);
     return { ok: true };
@@ -103,7 +103,7 @@ export const bulkElectricianChoices = createServerFn({ method: "GET" }).middlewa
   .inputValidator((d) => z.object({ businessId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
-    if (!isAdmin) await requireMember(context.userId, data.businessId);
+    if (!isAdmin) await requireMember(context.userId, data.businessId, true);
     const [{ data: rels }, { data: nominations }] = await Promise.all([
       admin.from("partner_relationships").select("electrician_business_id,is_primary,businesses!partner_relationships_electrician_business_id_fkey(name,trading_name,onboarding_status)").eq("installer_business_id", data.businessId).eq("active", true),
       admin.from("electrician_nominations").select("id,contact_name,business_name,status,business_id").eq("nominating_business_id", data.businessId).is("job_id", null).is("ended_at", null).order("created_at", { ascending: false }),
@@ -114,7 +114,7 @@ export const bulkElectricianChoices = createServerFn({ method: "GET" }).middlewa
 export const addBulkElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ businessId: uuid, name: z.string().trim().min(2).max(200), mobile: z.string().trim().min(8).max(40), email: z.string().trim().email().max(320).nullable().optional(), business: z.string().trim().max(200).nullable().optional() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireMember(context.userId, data.businessId);
+    await requireMember(context.userId, data.businessId, true);
     const mobile = data.mobile.replace(/\D/g, "");
     let ownQuery = admin.from("electrician_nominations").select("id,contact_name,business_id,status").eq("nominating_business_id", data.businessId).is("job_id", null).is("ended_at", null);
     ownQuery = data.email ? ownQuery.or(`phone.eq.${mobile},email.ilike.${data.email.replace(/[%_,]/g, "")}`) : ownQuery.eq("phone", mobile);
@@ -147,7 +147,7 @@ export const setBulkRowAddress = createServerFn({ method: "POST" }).middleware([
     const { data: batch } = await admin.from("bulk_import_batches").select("business_id").eq("id", row.batch_id).single();
     if (!batch) throw new WorkflowError("Upload not found.");
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
-    if (!isAdmin) await requireMember(context.userId, batch.business_id);
+    if (!isAdmin) await requireMember(context.userId, batch.business_id, true);
     const { setRowAddress } = await import("./bulk-import.server");
     return setRowAddress(data.rowId, { address_line: data.address_line, suburb: data.suburb || null, postcode: data.postcode });
   });
@@ -157,7 +157,7 @@ export const listBulkBatches = createServerFn({ method: "GET" }).middleware([req
   .handler(async ({ data, context }) => {
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
     if (data.businessId) {
-      if (!isAdmin) await requireMember(context.userId, data.businessId);
+      if (!isAdmin) await requireMember(context.userId, data.businessId, true);
       const { data: rows } = await admin.from("bulk_import_batches").select("id, status, list_filename, summary, created_at, on_behalf").eq("business_id", data.businessId).order("created_at", { ascending: false }).limit(50);
       return { batches: rows ?? [], isAdmin: !!isAdmin };
     }

@@ -15,7 +15,7 @@ test("150 m² Metropolitan/Mild (3000): 21 VEECs × $70 = $1,470 on all four pat
   const calc = computeEstimate(pickArea({ owner: 150 }), loc, "none", S).applied_discount;
   const office = wholeVeecDiscount(150, loc, 70);
   const installer = buildInstallerQuoteDraft({ price: { price: { totalIncGst: 4500, included: ["R5.0 supply & install"], otherDescription: null }, issues: [] } as never,
-    measuredM2: 150, ghgReduction: ghgEquivalentReduction(150, loc).ghgReduction, veecValue: 70, piesaIncGst: 349, apFeeIncGst: 349, caps: { metropolitan: true, minCopay: 200 } as never }).discount;
+    measuredM2: 150, wholeVeec: { veecs: Math.floor(ghgEquivalentReduction(150, loc).ghgReduction), raw: Math.floor(ghgEquivalentReduction(150, loc).ghgReduction) * 70 }, piesaIncGst: 349, apFeeIncGst: 349, caps: { metropolitan: true, minCopay: 200 } as never }).discount;
   const bulk = wholeVeecDiscount(150, loc, 70).raw; // bulk-import calls this same helper (checked below)
   expect(office.veecs).toBe(21);
   for (const d of [calc, office.raw, installer, bulk]) expect(d).toBe(1470);

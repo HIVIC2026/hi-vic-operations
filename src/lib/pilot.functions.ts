@@ -1,3 +1,4 @@
+import { exactLike } from "./email-match";
 // ReInsulate pilot server functions: partner onboarding, team, import, electrician choice,
 // appointment coordination, partner offers, partner pricing, partner dashboard.
 import { createServerFn } from "@tanstack/react-start";
@@ -194,13 +195,13 @@ export const addTeamMember = createServerFn({ method: "POST" }).middleware([requ
   .handler(async ({ data, context }) => {
     const adminUser = await isAdmin(context.supabase);
     if (!adminUser) await requireMember(context.userId, data.businessId, true);
-    const { data: p } = await admin.from("profiles").select("id, business_id").ilike("email", data.email).maybeSingle();
+    const { data: p } = await admin.from("profiles").select("id, business_id").ilike("email", exactLike(data.email)).maybeSingle();
     if (!p) throw new WorkflowError("No portal account uses that email yet. Ask them to sign up first, then add them.");
     if (p.business_id && p.business_id !== data.businessId && !adminUser) throw new WorkflowError("That person already belongs to another business.");
     const normalizedEmail = data.email.trim().toLowerCase();
     const { data: worker } = data.tradeRole === "none"
       ? { data: null }
-      : await admin.from("partner_workers").select("id, full_legal_name, licence_number, trade_role, account_status").eq("business_id", data.businessId).ilike("email", normalizedEmail).eq("trade_role", data.tradeRole).maybeSingle();
+      : await admin.from("partner_workers").select("id, full_legal_name, licence_number, trade_role, account_status").eq("business_id", data.businessId).ilike("email", exactLike(normalizedEmail)).eq("trade_role", data.tradeRole).maybeSingle();
     if (data.tradeRole !== "none" && !worker) throw new WorkflowError("That worker is not listed in this business's approved onboarding. Home Insulation Victoria must review additions first.");
     await admin.from("business_members").upsert({ business_id: data.businessId, user_id: p.id, member_role: data.memberRole, active: true, added_by: context.userId }, { onConflict: "business_id,user_id" });
     if (!p.business_id) await admin.from("profiles").update({ business_id: data.businessId, ...(worker?.full_legal_name ? { full_name: worker.full_legal_name } : {}), ...(worker?.licence_number ? { licence_number: worker.licence_number } : {}) }).eq("id", p.id);

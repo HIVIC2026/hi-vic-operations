@@ -17,3 +17,14 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Gate B box 4 (Jo, 6 Oct): NO cooling-off. Approve "doesn't apply" line "You can ask us questions or change your mind before your safety check is booked." (approver "Jo Lowe — lawyer sign-off 6 Oct 2026"). Plain "Cancel my job" on My job only until safety check booked. Preview only.
 - [x] Group A email EXACT per Jo 5:17pm (v4 approved); send one "[TEST v4 – APPROVED]" to Jo only; Group B same structure, not sent.
 - [x] Email font stacks (Jo 6 Oct): campaign A/B + spot-saved use Outfit/Figtree fallback stacks inline everywhere; one "[TEST v5 – FONTS]" Group A to Jo only.
+
+## Security/correctness review (Jo approved, 6 Oct) — one at a time, tests after each
+- [x] 1 Test account passwords random; TEST businesses marked test; report TEST Alpha non-test job
+- [x] 2 Bulk import never reuses owners; exact email match
+- [x] 3 Bulk import installed/quoted rows start safe
+- [x] 4 Bulk import boss/office check on server
+- [x] 5 PIESA/AP fee from settings
+- [x] 6 One discount calculation; no legacy per-m² credit; no cap
+- [x] 7 Melbourne-time deadlines + holidays
+- [x] 8 Atomic owner code attempts
+- [ ] Tidy done: staged-migrations archived, /qa-access same-site, existingPortalKeys paged, quote AP-fee override. Open: separate file-signing secret (needs new secret), calculator-interest rate limit + video upload limits (DB change), allocation-tick review, retired Owner Authority/simulateReadyCheckPayment removal, b64 copies, split portal.functions.ts, docs/pending-migrations archive

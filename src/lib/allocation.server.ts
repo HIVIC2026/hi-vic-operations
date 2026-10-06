@@ -1,3 +1,4 @@
+import { partnerAllowedForJob } from "./test-send.core";
 // Contractor allocation + direct coordination persistence. Pure rules: allocation.core.ts.
 // Never moves stages itself; acceptance is atomic in SQL (accept_partner_offer, migration 0086).
 import { workerOfferBlocker } from "./worker-compliance.core";
@@ -20,10 +21,11 @@ async function settings() {
 
 /** Facts used to judge each REC for a job. Price is loaded for display only. */
 export async function recCandidatesFor(jobId: string): Promise<{ postcode: string | null; installerSourced: boolean; candidates: (RecCandidate & { blocker: string | null })[] }> {
-  const { data: job } = await admin.from("jobs").select("id, channel, properties(postcode)").eq("id", jobId).single();
+  const { data: job } = await admin.from("jobs").select("id, source, channel, properties(postcode)").eq("id", jobId).single();
   const postcode = (job?.properties as { postcode: string | null } | null)?.postcode ?? null;
   const installerSourced = job?.channel === "installer_sourced";
-  const { data: bizs } = await admin.from("businesses").select("*").or("business_type.eq.rec,capabilities.cs.{electrician}");
+  const { data: allBizs } = await admin.from("businesses").select("*").or("business_type.eq.rec,capabilities.cs.{electrician}");
+  const bizs = (allBizs ?? []).filter((b) => partnerAllowedForJob(b, job?.source));
   const ids = (bizs ?? []).map((b) => b.id);
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
   // Owner's current PIESA windows (if any): availability, daily limit and "nearby that day" are judged on these.

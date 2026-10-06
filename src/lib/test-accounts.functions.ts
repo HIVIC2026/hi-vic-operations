@@ -1,3 +1,4 @@
+import { TEST_PARTNER_MARK } from "./test-send.core";
 // Test Centre: create clearly-marked fake trade accounts (3 installers + 3 electricians) with
 // different agreed rate cards, so staff can run example jobs end to end. Admin-only; every record
 // is prefixed "TEST" and uses a non-routable test email domain. Idempotent: re-running skips
@@ -14,7 +15,8 @@ const QA_DOMAIN = "@hivic-test.example";
 const QA_INSTALLER_EMAIL = "qa.installer.alpha@hivic-test.example";
 const QA_ELECTRICIAN_EMAIL = "qa.rec.delta@hivic-test.example";
 const QA_WORKER_EMAIL = "qa.worker.alpha@hivic-test.example";
-const QA_PASSWORD = "Hivic-Test-Only-2026!";
+/** TEST accounts sign in by magic link only; each create/reset sets a fresh random password that is never stored or shown. */
+const randomPassword = () => `${crypto.randomUUID()}${crypto.randomUUID().slice(0, 20)}Aa1!`;
 
 type RateItem = { code: string; description: string; category: string; unit: string; display_unit?: string; r_value?: number | null; sort: number; unit_price_ex_gst: number };
 
@@ -119,7 +121,7 @@ export const createTestTradeAccounts = createServerFn({ method: "POST" })
       if (existingProfile) {
         uid = existingProfile.id; // recover a half-created account from an earlier run
         const { error: resetError } = await admin.auth.admin.updateUserById(uid, {
-          password: QA_PASSWORD,
+          password: randomPassword(),
           email_confirm: true,
           user_metadata: { full_name: spec.name, qa_test: true },
         });
@@ -127,7 +129,7 @@ export const createTestTradeAccounts = createServerFn({ method: "POST" })
       } else {
         const { data: user, error: userError } = await admin.auth.admin.createUser({
           email: spec.email,
-          password: QA_PASSWORD,
+          password: randomPassword(),
           email_confirm: true,
           user_metadata: { full_name: spec.name, qa_test: true },
         });
@@ -144,7 +146,7 @@ export const createTestTradeAccounts = createServerFn({ method: "POST" })
           name: spec.name, legal_name: spec.name, trading_name: spec.name, business_type: spec.businessType,
           email: spec.email, phone: spec.phone, commercial_route: "hivic_full_invoice", default_comms_owner: "hivic",
           onboarding_status: "approved", is_active: true, approved_by: context.userId, approved_at: now,
-          gst_registered: true, onboarding_notes: "Test account created from the Test Centre. Not a real partner.",
+          gst_registered: true, onboarding_notes: `${TEST_PARTNER_MARK} Test account created from the Test Centre. Not a real partner.`,
         }).select("id").single();
         if (bizError || !business) throw new WorkflowError(`Could not create business for ${spec.name}: ${bizError?.message}`);
         businessId = business.id;
@@ -183,11 +185,11 @@ async function ensureQaUser(admin: SupabaseClient<Database>, email: string, name
   if (!safeEmail.endsWith(QA_DOMAIN)) throw new WorkflowError("TEST role accounts must use the safe test email domain.");
   const { data: existing } = await admin.from("profiles").select("id").eq("email", safeEmail).maybeSingle();
   if (existing) {
-    const { error } = await admin.auth.admin.updateUserById(existing.id, { password: QA_PASSWORD, email_confirm: true, user_metadata: { full_name: name, qa_test: true } });
+    const { error } = await admin.auth.admin.updateUserById(existing.id, { password: randomPassword(), email_confirm: true, user_metadata: { full_name: name, qa_test: true } });
     if (error) throw new WorkflowError(`Could not reset ${name}: ${error.message}`);
     return existing.id;
   }
-  const { data, error } = await admin.auth.admin.createUser({ email: safeEmail, password: QA_PASSWORD, email_confirm: true, user_metadata: { full_name: name, qa_test: true } });
+  const { data, error } = await admin.auth.admin.createUser({ email: safeEmail, password: randomPassword(), email_confirm: true, user_metadata: { full_name: name, qa_test: true } });
   if (error || !data.user) throw new WorkflowError(`Could not create ${name}: ${error?.message ?? "unknown error"}`);
   return data.user.id;
 }

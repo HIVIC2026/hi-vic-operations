@@ -117,7 +117,7 @@ describe("the real Mitti templates", () => {
         { label: "Total quoted price (inc GST)", value: "$2,400" },
         { label: "What else is included?", value: null },
       ], false),
-      measuredM2: 100, ghgReduction: 20, veecValue: 70, piesaIncGst: 349, apFeeIncGst: 349, caps: { metropolitan: true, maxMetro: 1500, maxRegional: 2100, minCopay: 200 },
+      measuredM2: 100, wholeVeec: { veecs: Math.floor(20), raw: Math.floor(20) * 70 }, piesaIncGst: 349, apFeeIncGst: 349, caps: { metropolitan: true, minCopay: 200 },
     });
     expect(d.ready).toBe(true);
     expect(d.lines[0]?.unit_price_inc_gst).toBe(2400);
