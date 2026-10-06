@@ -35,8 +35,8 @@ describe("one invoice per accepted quote", () => {
     expect(r.created).toBe(true);
     expect(m.rows.length).toBe(1);
     expect(r.row.total_inc_gst).toBe(3330);
-    expect(r.row.deposit_amount).toBe(333); // 10% minimum under $20,000
-    expect(r.row.deposit_pct).toBe(0.1);
+    expect(r.row.deposit_amount).toBe(349); // safety check payment (Jo 7 Oct)
+    expect(r.row.deposit_pct).toBe(0.1048);
     expect(r.row.balance_due_date).toBeNull(); // final due date pending until installation booked
   });
   test("retry / concurrent acceptance never creates a second invoice record", async () => {
@@ -84,7 +84,7 @@ describe("deposit gate on the one invoice", () => {
     const r = await inv();
     apply(r, depositRequestPatch(r, "admin1", "2026-09-28T00:00:00Z"));
     expect(r.deposit_request_raised_at).toBe("2026-09-28T00:00:00Z");
-    expect(r.deposit_request_amount).toBe(333);
+    expect(r.deposit_request_amount).toBe(349);
     expect(r.deposit_request_pct).toBe(10);
     expect(r.deposit_request_raised_by).toBe("admin1");
     expect(depositGateCleared(r, 0)).toBe(false);

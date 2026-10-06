@@ -287,9 +287,9 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
       <section className="rounded-[22px] bg-card p-5 shadow-sm">
         <h3 className="font-display text-lg font-extrabold">How you can pay</h3>
         <ul className="mt-2 space-y-1 text-sm">
-          {q.split && <li>Deposit of {aud(q.split.deposit)} now, the rest on install day</li>}
-          <li>Pay it all now</li>
-          <li>3 instalments</li>
+          {q.split && <li>{aud(q.split.deposit)} safety check payment first</li>}
+          {q.split && <li>Then {aud(q.split.firstHalf)} when your install is booked and {aud(q.split.secondHalf)} on install day</li>}
+          <li>Or pay the full {aud(q.total)} now</li>
         </ul>
         <p className="mt-2 text-xs text-estimate-navy/70">{PAYMENT_OPTION_SUMMARY}</p>
         {q.status === "issued"

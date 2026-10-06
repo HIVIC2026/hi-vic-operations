@@ -1,11 +1,11 @@
 // Approved payment-option gate (owner decision 2026-10-03). Pure rules, no database.
-// Replaces the retired half-deposit gate. The database mirrors this in
+// 7 Oct: safety check payment gates PIESA; balance in two halves or paid in full. Replaces deposit tiers and the 3-instalment plan. The database mirrors this in
 // docs/pending-migrations/0080_payment_option_gate.sql (required_deposit_amount / invoice_deposit_cleared).
 import { WORKFLOW_DECISIONS, depositPctFor } from "@/config/workflow-decisions";
 
 export type PaymentRoute = "hiv_lead" | "installer_supplied" | "unknown";
 export type PaymentOption =
-  "deposit_paid" | "paid_in_full" | "instalment_plan_active" | "office_override" | "qa_test_simulated";
+  "safety_check_paid" | "deposit_paid" | "paid_in_full" | "instalment_plan_active" | "office_override" | "qa_test_simulated";
 
 export const PAYMENT_RULE_PENDING =
   "Payment rule pending activation – PIESA and scheduling are locked until the approved payment-option gate is switched on.";
@@ -21,20 +21,49 @@ export function paymentRouteFor(channel: string | null | undefined): PaymentRout
   return "unknown";
 }
 
-/** Minimum upfront payment in cents: 10% under $20,000, 5% at/over (pending legal confirmation). Rounded UP so it is never under-collected. */
-export function requiredDepositCents(totalIncGst: number | string): number {
-  const t = cents(totalIncGst);
-  const pct = depositPctFor(t / 100);
-  return Math.ceil((t * pct) / 100);
+/** Safety check (PIESA) payment, Jo 7 Oct. The live amount comes from workflow_settings.safety_check_payment_inc_gst. */
+export const SAFETY_CHECK_FEE_DEFAULT = 349;
+const feeCents = (fee?: number | string | null) => cents(fee ?? SAFETY_CHECK_FEE_DEFAULT);
+
+/** Upfront amount in cents = the safety check payment (never more than the total). */
+export function requiredDepositCents(totalIncGst: number | string, safetyFee?: number | string | null): number {
+  return Math.min(feeCents(safetyFee), cents(totalIncGst));
 }
 
-/** Deposit/balance split for a new invoice: deposit = configured minimum, balance = the rest. */
-export function splitForOption(totalIncGst: number | string) {
+/** Balance after the safety check payment, split into two halves. First half rounds DOWN to the cent; second takes the remainder. */
+export function balanceSplit(totalIncGst: number | string, safetyFee?: number | string | null) {
   const t = cents(totalIncGst);
-  const d = requiredDepositCents(totalIncGst);
-  return { depositPct: depositPctFor(t / 100) / 100, deposit: d / 100, balance: (t - d) / 100 };
+  const fee = requiredDepositCents(totalIncGst, safetyFee);
+  const bal = t - fee;
+  const first = Math.floor(bal / 2);
+  return { total: t / 100, fee: fee / 100, balance: bal / 100, firstHalf: first / 100, secondHalf: (bal - first) / 100 };
 }
 
+/** Invoice split kept under its old name: deposit = safety check payment, balance = the rest. */
+export function splitForOption(totalIncGst: number | string, safetyFee?: number | string | null) {
+  const b = balanceSplit(totalIncGst, safetyFee);
+  return { depositPct: b.total > 0 ? Math.round((b.fee / b.total) * 10000) / 10000 : 0, deposit: b.fee, balance: b.balance, firstHalf: b.firstHalf, secondHalf: b.secondHalf };
+}
+
+export type RefundOutcome = "none" | "refund_all" | "refund_except_safety_fee" | "keep_safety_fee";
+/** Office guidance only; no money moves automatically. */
+export function refundOutcome(f: { paidCents: number; safetyFeeCents: number; checkDone: boolean; checkNeverHappening: boolean; canProceed: boolean }): { outcome: RefundOutcome; refundCents: number } {
+  if (f.paidCents <= 0) return { outcome: "none", refundCents: 0 };
+  if (!f.checkDone && f.checkNeverHappening) return { outcome: "refund_all", refundCents: f.paidCents };
+  if (f.checkDone && !f.canProceed) {
+    const r = Math.max(0, f.paidCents - f.safetyFeeCents);
+    return { outcome: r > 0 ? "refund_except_safety_fee" : "keep_safety_fee", refundCents: r };
+  }
+  return { outcome: "none", refundCents: 0 };
+}
+export const REFUND_LABELS: Record<RefundOutcome, string> = {
+  none: "No refund due",
+  refund_all: "Refund everything paid (safety check never happened)",
+  refund_except_safety_fee: "Refund everything except the safety check payment (check done, job can't go ahead)",
+  keep_safety_fee: "Keep the safety check payment (check done, job can't go ahead)",
+};
+
+/** Retired 3-instalment plan (kept read-only for history). */
 export type InstalmentPlan = {
   quote_id: string;
   status: string; // proposed | active | cancelled | failed | overdue | superseded
@@ -71,6 +100,8 @@ export type PaymentGateInput = {
   overrideCount: number; // audited office overrides for this invoice
   /** TEST journeys only: an audited simulated payment for the current quote. Never true for a real job. */
   qaSimulated?: { jobSource: string | null; quoteId: string | null } | null;
+  /** workflow_settings.safety_check_payment_inc_gst; defaults to SAFETY_CHECK_FEE_DEFAULT. */
+  safetyFeeIncGst?: number | string | null;
 };
 export type PaymentGateResult =
   { cleared: true; option: PaymentOption } | { cleared: false; blocker: string };
@@ -90,17 +121,14 @@ export function evaluatePaymentGate(i: PaymentGateInput): PaymentGateResult {
   const total = cents(i.invoice.total_inc_gst);
   const paid = cents(i.invoice.total_paid);
   if (paid >= total) return { cleared: true, option: "paid_in_full" };
-  const required = requiredDepositCents(i.invoice.total_inc_gst);
-  if (paid >= required) return { cleared: true, option: "deposit_paid" };
-  if (instalmentPlanActive(i.plan, i.currentQuote.id))
-    return { cleared: true, option: "instalment_plan_active" };
+  const required = requiredDepositCents(i.invoice.total_inc_gst, i.safetyFeeIncGst);
+  if (paid >= required) return { cleared: true, option: "safety_check_paid" };
   if (i.overrideCount > 0) return { cleared: true, option: "office_override" };
-  const pct = depositPctFor(total / 100);
-  return {
-    cleared: false,
-    blocker: `Payment option not verified – minimum upfront payment ${aud(required)} (${pct}%) not yet paid in Xero, not paid in full, and no active 3-instalment plan.`,
-  };
+  return { cleared: false, blocker: safetyCheckBlocker(i.safetyFeeIncGst) };
 }
+
+export const safetyCheckBlocker = (fee?: number | string | null) =>
+  `Safety check can't be booked — ${aud(feeCents(fee))} safety check payment not received.`;
 
 export type PiesaRequestFacts = {
   readyCheckComplete: boolean;
@@ -122,5 +150,5 @@ export function piesaRequestBlockers(f: PiesaRequestFacts): string[] {
 
 /** Customer/trade wording for the payment requirement (no percentages that the gate does not use). */
 export const PAYMENT_OPTION_SUMMARY =
-  "Approved payment option required: minimum upfront deposit, paid in full, or an active 3-instalment plan.";
+  "The $349 safety check payment is needed before the electrician's safety check is booked. Then pay the balance in two halves (install booked, install day) or in full now.";
 export const PAYMENT_DECISION_STATUS = WORKFLOW_DECISIONS.payment.deposit.status;

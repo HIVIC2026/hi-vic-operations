@@ -1,7 +1,8 @@
 // Owner paperwork gates — persistence. Facts in, pure evaluator (owner-gates.core) out. Server-only.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { GATE_DOCS, answerVars, evaluateOwnerGates, fillTemplate, gateDoc, ownerGateBlockers, ownerToSign, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
+import { SAFETY_CHECK_FEE_DEFAULT, balanceSplit } from "./payment-gate.core";
+import { GATE_DOCS, paymentChoices, type PaymentMoney, answerVars, evaluateOwnerGates, fillTemplate, gateDoc, ownerGateBlockers, ownerToSign, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
 import { agreementSigned, assignmentStatus, logEvent, WorkflowError } from "./workflow.server";
 
 async function sha256(s: string) {
@@ -75,23 +76,38 @@ async function jobVars(jobId: string) {
   const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const o = j?.owners as { id: string; full_name: string | null; email: string | null; phone: string | null } | null;
   const { data: inst } = await admin.from("job_assignments").select("businesses(name)").eq("job_id", jobId).eq("role", "installer").eq("active", true).limit(1).maybeSingle();
-  return { jobNumber: j?.job_number ?? "", ownerId: o?.id ?? null, vars: {
+  const money = await paymentMoney(jobId);
+  return { jobNumber: j?.job_number ?? "", ownerId: o?.id ?? null, money, vars: {
     owner: o?.full_name, email: o?.email, phone: o?.phone,
     address: [p?.address_line, p?.suburb, p?.postcode].filter(Boolean).join(", "),
     installer: (inst?.businesses as { name: string } | null)?.name ?? "your installer",
+    total: money?.total, quote_version: money?.version,
   } as Record<string, string | null | undefined> };
+}
+
+const audS = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** Step B money from the current installation quote and the safety check payment setting. */
+async function paymentMoney(jobId: string): Promise<(PaymentMoney & { version: string }) | undefined> {
+  const [{ data: q }, { data: ws }] = await Promise.all([
+    admin.from("quotes").select("customer_total_inc_gst, version").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("workflow_settings").select("safety_check_payment_inc_gst" as never).eq("id", 1).maybeSingle(),
+  ]);
+  if (!q) return undefined;
+  const fee = Number((ws as { safety_check_payment_inc_gst?: number } | null)?.safety_check_payment_inc_gst ?? SAFETY_CHECK_FEE_DEFAULT);
+  const b = balanceSplit(q.customer_total_inc_gst, fee);
+  return { fee: audS(b.fee), balance: audS(b.balance), half: audS(b.firstHalf), half2: audS(b.secondHalf), total: audS(b.total), version: String(q.version ?? "") };
 }
 
 /** What the owner still needs to sign now, with the exact text they would sign. */
 export async function ownerPaperworkToSign(jobId: string) {
   const { facts, gates } = await ownerGates(jobId);
-  const { vars } = await jobVars(jobId);
+  const { vars, money } = await jobVars(jobId);
   const todo = ownerToSign(gates).filter((t) => t.gate === "A" || (t.gate === "B" && facts.hasQuote) || (t.gate === "C" && facts.agreementSigned));
   const { data: pv } = await admin.from("assignment_variations").select("id, reasons").eq("job_id", jobId).eq("status", "pending").order("raised_at", { ascending: false }).limit(1).maybeSingle();
   return {
     pendingVariation: pv ? { id: pv.id, reasons: (Array.isArray(pv.reasons) ? pv.reasons : []).map(String) } : null,
     gates: gates.map((g) => ({ gate: g.gate, label: g.label, complete: g.complete, items: g.items })),
-    todo: todo.map((t) => { const d = gateDoc(t.key); return { gate: t.gate, key: t.key, title: d.title, tick: d.tick, version: d.version, draft: !facts.approved[t.key], text: fillTemplate(d.body, vars) }; }),
+    todo: todo.map((t) => { const d = gateDoc(t.key); return { gate: t.gate, key: t.key, title: d.title, tick: d.tick, version: d.version, draft: !facts.approved[t.key], text: t.key === "payment_terms" && money ? paymentChoices(money).safetyFee : fillTemplate(d.body, vars), paymentOptions: t.key === "payment_terms" && money ? paymentChoices(money).options : undefined }; }),
     isTest: facts.isTest,
   };
 }
@@ -119,8 +135,9 @@ export async function signGateDoc(i: SignInput) {
   const { facts } = await ownerGates(i.jobId);
   const draft = facts.approved[i.key] !== d.version;
   if (draft && !facts.isTest) throw new WorkflowError(`"${d.title}" is still DRAFT wording. It can be signed on real jobs once Jo approves it.`);
-  const { vars, jobNumber, ownerId } = await jobVars(i.jobId);
-  const text = fillTemplate(d.body, { ...vars, ...answerVars(i.answers) });
+  const { vars, jobNumber, ownerId, money } = await jobVars(i.jobId);
+  if (i.key === "payment_terms" && (!money || !["two_instalments", "pay_in_full"].includes(i.answers["payment_option"] ?? ""))) throw new WorkflowError("Choose how you'd like to pay the balance.");
+  const text = fillTemplate(d.body, { ...vars, ...answerVars(i.answers, money) });
   const signedText = `${d.title} (version ${d.version}${draft ? ", DRAFT" : ""})\n\n${text}\n\n[x] ${d.tick}\nSigned: ${i.signatoryName.trim()}`;
   const { data: row, error } = await admin.from("owner_gate_signatures").insert({
     job_id: i.jobId, gate: d.gate, doc_key: d.key, doc_version: d.version, doc_draft: draft, signed_text: signedText, signed_text_sha256: await sha256(signedText),

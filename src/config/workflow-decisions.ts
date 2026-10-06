@@ -29,7 +29,7 @@ export const WORKFLOW_DECISIONS = {
     "Mitti directly moves job state without portal validation",
   ],
   payment: {
-    retired: ["50% deposit gate", "AmountPaid >= 50% as the PIESA unlock rule", "total / 2", "deposit_pct: 0.5"],
+    retired: ["10%/5% minimum deposit", "3-instalment plan", "50% deposit gate", "AmountPaid >= 50% as the PIESA unlock rule", "total / 2", "deposit_pct: 0.5"],
     gateFlag: "payment_option_gate_enabled", // default OFF: PIESA + scheduling blocked "payment rule pending activation"; never falls back to 50%
     minimumNotExact: true, // paying more than 10%/5% counts; one cent short does not
     instalmentActiveRequires: ["office_approved_current_quote_plan", "owner_accepted_terms", "first_instalment_verified_in_xero", "payment_method_or_collection_recorded", "not_cancelled_failed_overdue_or_superseded"],
@@ -39,7 +39,8 @@ export const WORKFLOW_DECISIONS = {
       "current_confirmed_quote_approved",
       "approved_payment_option_verified",
     ],
-    options: ["deposit_paid", "paid_in_full", "instalment_plan_active"] as const,
+    options: ["safety_check_paid", "paid_in_full"] as const,
+    safetyCheck: { settingColumn: "safety_check_payment_inc_gst", defaultIncGst: 349, decided: "2026-10-07", balance: ["two_instalments", "pay_in_full"] },
     deposit: {
       thresholdIncGst: 20_000,
       belowThresholdPct: 10,
