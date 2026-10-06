@@ -41,7 +41,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   const want = (r: Row) => !opts.onlyIds || opts.onlyIds.includes(String(r["job_id"]));
   const [stageEv, camp, links, wins, offers, books, props, quotes, inv, piesa, rcs, ev, veec, payoutEv, deadlines, invErr, esc, outbox, comms, emails, snoozes, apps, creds] = await Promise.all([
     all("stage changes", (a, b) => scope(admin.from("workflow_events").select("job_id, to_stage, created_at").eq("event_type", "stage_changed")).order("created_at").range(a, b)),
-    all("campaign replies", (a, b) => scope(admin.from("lead_campaign_responses").select("job_id, spot_saved_at, opted_out_at, video_requested, media_received_at, desk_check_status, created_at")).range(a, b)),
+    all("campaign replies", (a, b) => scope(admin.from("lead_campaign_responses").select("job_id, spot_saved_at, opted_out_at, video_requested, media_received_at, desk_check_status, queue_priority, created_at")).range(a, b)),
     all("estimate links", (a, b) => scope(admin.from("customer_estimate_links").select("job_id, created_at").is("revoked_at", null)).range(a, b)),
     all("owner times", (a, b) => scope(admin.from("ready_check_windows").select("job_id, status, created_at")).range(a, b)),
     all("offers", (a, b) => scope(admin.from("partner_offers").select("job_id, kind, status, offered_at").eq("status", "pending")).range(a, b)),
@@ -144,7 +144,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     const facts: JobFacts = {
       id, stage, createdAt: String(j["created_at"]), lastActivityAt: s(j["last_activity_at"]), enteredStageAt: entered.get(`${id}:${stage}`) ?? null,
       holdRevisitAt: s(j["hold_revisit_at"]), cancelledReason: s(j["cancelled_reason"]),
-      campaign: c ? { spotSavedAt: s(c["spot_saved_at"]), optedOutAt: s(c["opted_out_at"]), videoRequested: !!c["video_requested"], mediaReceivedAt: s(c["media_received_at"]), deskCheckStatus: s(c["desk_check_status"]), createdAt: String(c["created_at"]) } : null,
+      campaign: c ? { spotSavedAt: s(c["spot_saved_at"]), optedOutAt: s(c["opted_out_at"]), videoRequested: !!c["video_requested"], mediaReceivedAt: s(c["media_received_at"]), deskCheckStatus: s(c["desk_check_status"]), createdAt: String(c["created_at"]), queuePriority: s(c["queue_priority"]) } : null,
       estimateSentAt: estLink.get(id) ?? null, ownerContactedAt: contacted.get(id) ?? null, rcWindowsOpen: winOpen.get(id)?.length ?? 0, rcAccepted: accepted.has(id), rcOfferAt: offerAt.get(`${id}:rc`) ?? null, rcBookingAt: bookAt.get(`${id}:ready_check`) ?? null, rcSubmittedAt: rcSub.get(id) ?? null,
       proposalPending: proposal.get(id) ?? null,
       quote: q ? { releaseState: s(q["release_state"]), holdReason: s(q["release_hold_reason"]), sentAt: s(q["sent_at"]), status: String(q["status"]), acceptedAt: s(q["accepted_at"]) } : null,

@@ -2,7 +2,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { declaredExtras } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
-import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, deskCheckReasonError, launchGroup, type DeskCheckOutcome } from "./launch-campaign.core";
+import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, deskCheckReasonError, launchGroup, savedPriceFromEstimate, savedPriceLabel, type DeskCheckOutcome } from "./launch-campaign.core";
 import { logEvent } from "./workflow.server";
 
 async function campaignLink(token: unknown) {
@@ -47,15 +47,33 @@ export async function saveCampaignSpot(token: unknown) {
   const c = await campaignLink(token);
   if (!c) throw new Error("This link is no longer available.");
   const now = new Date().toISOString();
-  const { data: existing } = await admin.from("lead_campaign_responses").select("opted_out_at, spot_saved_at").eq("job_id", c.job.id).maybeSingle();
-  if (existing?.opted_out_at) throw new Error("This enquiry has already been taken off the list.");
-  if (existing?.spot_saved_at) return { ok: true as const };
-  const { error } = existing
-    ? await admin.from("lead_campaign_responses").update({ spot_saved_at: now, updated_at: now }).eq("job_id", c.job.id).is("opted_out_at", null).is("spot_saved_at", null)
-    : await admin.from("lead_campaign_responses").insert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, spot_saved_at: now, video_requested: c.group === "onsite", desk_check_status: c.group === "onsite" ? "pending" : "not_needed", updated_at: now });
-  if (error) throw new Error("We couldn't save your place. Please try again.");
-  await logEvent(c.job.id, null, "campaign_spot_saved", "Owner saved a place for a free Ready Check", { campaign: LAUNCH_CAMPAIGN }, { internal: true });
+  const { data: est } = await admin.from("indicative_estimates").select("id, area_m2, insulation_declared, scenarios").eq("job_id", c.job.id).eq("status", "current").maybeSingle();
+  const price = savedPriceFromEstimate(est ?? null);
+  const snapshot = { saved_estimate_id: price?.estimateId ?? null, saved_total: price?.total ?? null, saved_veu_discount: price?.discount ?? null, saved_gross_total: price?.gross ?? null, saved_area_m2: price?.areaM2 ?? null, saved_insulation: price?.insulation ?? null, saved_estimate_url: `/estimate/${String(token)}/campaign` };
+  // Idempotent: ON CONFLICT (job_id) DO NOTHING, then fill an existing unsaved row. Double taps / two devices both succeed.
+  const ins = await admin.from("lead_campaign_responses").upsert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, spot_saved_at: now, video_requested: c.group === "onsite", desk_check_status: c.group === "onsite" ? "pending" : "not_needed", updated_at: now, ...snapshot }, { onConflict: "job_id", ignoreDuplicates: true }).select("id");
+  let firstSave = !ins.error && (ins.data?.length ?? 0) > 0;
+  if (!firstSave) {
+    const upd = await admin.from("lead_campaign_responses").update({ spot_saved_at: now, updated_at: now, ...snapshot }).eq("job_id", c.job.id).is("opted_out_at", null).is("spot_saved_at", null).select("id");
+    firstSave = !upd.error && (upd.data?.length ?? 0) > 0;
+  }
+  const { data: row } = await admin.from("lead_campaign_responses").select("opted_out_at, spot_saved_at").eq("job_id", c.job.id).maybeSingle();
+  if (row?.opted_out_at) throw new Error("This enquiry has already been taken off the list.");
+  if (!row?.spot_saved_at) throw new Error("We couldn't save your place. Please try again.");
+  if (firstSave) await logEvent(c.job.id, null, "campaign_spot_saved", price ? `Owner saved a place for a free Ready Check at $${Math.floor(price.total)} (rebate $${Math.floor(price.discount)})` : "Owner saved a place for a free Ready Check", { campaign: LAUNCH_CAMPAIGN, ...snapshot }, { internal: true });
   return { ok: true as const };
+}
+
+/** Saved price for the office job page, compared with the current estimate. */
+export async function savedSpotForJob(jobId: string) {
+  const [{ data: r }, { data: cur }] = await Promise.all([
+    admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, queue_priority, saved_estimate_id, saved_total, saved_veu_discount, saved_gross_total, saved_area_m2, saved_insulation").eq("job_id", jobId).maybeSingle(),
+    admin.from("indicative_estimates").select("id, area_m2, insulation_declared, scenarios").eq("job_id", jobId).eq("status", "current").maybeSingle(),
+  ]);
+  if (!r?.spot_saved_at || r.opted_out_at) return null;
+  const now = savedPriceFromEstimate(cur ?? null);
+  const label = savedPriceLabel({ total: r.saved_total == null ? null : Number(r.saved_total), discount: r.saved_veu_discount == null ? null : Number(r.saved_veu_discount), savedAt: r.spot_saved_at, estimateId: r.saved_estimate_id }, now);
+  return { savedAt: r.spot_saved_at, video: r.queue_priority === "video", label: label?.text ?? null, changeNote: label?.changeNote ?? null, areaM2: r.saved_area_m2 == null ? null : Number(r.saved_area_m2), insulation: r.saved_insulation, gross: r.saved_gross_total == null ? null : Number(r.saved_gross_total) };
 }
 
 export async function optOutCampaign(token: unknown) {
@@ -96,7 +114,7 @@ export async function markCampaignMediaReceived(jobId: string, linkId: string) {
 
 export async function launchCampaignOffice() {
   const [{ data: rows, error }, { data: sends }, { data: events }] = await Promise.all([
-    admin.from("lead_campaign_responses").select("id, job_id, spot_saved_at, opted_out_at, media_received_at, desk_check_status, desk_check_reason, queue_priority, created_at, jobs(job_number, owners(full_name), properties(address_line, suburb, postcode))").order("queue_priority", { ascending: false }).order("spot_saved_at", { ascending: true, nullsFirst: false }),
+    admin.from("lead_campaign_responses").select("id, job_id, spot_saved_at, opted_out_at, media_received_at, desk_check_status, desk_check_reason, queue_priority, queue_rank, saved_total, saved_veu_discount, saved_estimate_id, created_at, jobs(job_number, owners(full_name), properties(address_line, suburb, postcode), indicative_estimates(id, status, area_m2, insulation_declared, scenarios))").order("queue_rank", { ascending: false }).order("spot_saved_at", { ascending: true, nullsFirst: false }),
     admin.from("customer_email_sends").select("status").eq("purpose", LAUNCH_CAMPAIGN),
     admin.from("customer_engagement_events").select("event_type").eq("source", "launch_campaign"),
   ]);
@@ -114,8 +132,10 @@ export async function launchCampaignOffice() {
       needsOnsite: (rows ?? []).filter((r) => r.desk_check_status === "needs_onsite_check").length,
     },
     rows: (rows ?? []).map((r) => {
-      const job = r.jobs as { job_number: string | null; owners: { full_name: string | null } | null; properties: { address_line: string | null; suburb: string | null; postcode: string | null } | null } | null;
-      return { id: r.id, jobId: r.job_id, jobNumber: job?.job_number ?? null, owner: job?.owners?.full_name ?? null, property: [job?.properties?.address_line, job?.properties?.suburb, job?.properties?.postcode].filter(Boolean).join(", "), spotSavedAt: r.spot_saved_at, optedOutAt: r.opted_out_at, mediaReceivedAt: r.media_received_at, queuePriority: r.queue_priority, deskCheckStatus: r.desk_check_status, deskCheckReason: r.desk_check_reason };
+      const job = r.jobs as { job_number: string | null; owners: { full_name: string | null } | null; properties: { address_line: string | null; suburb: string | null; postcode: string | null } | null; indicative_estimates?: { id: string; status: string; area_m2: number | null; insulation_declared: string | null; scenarios: unknown }[] | null } | null;
+      const cur = savedPriceFromEstimate((job?.indicative_estimates ?? []).find((e) => e.status === "current") ?? null);
+      const price = savedPriceLabel({ total: r.saved_total == null ? null : Number(r.saved_total), discount: r.saved_veu_discount == null ? null : Number(r.saved_veu_discount), savedAt: r.spot_saved_at, estimateId: r.saved_estimate_id }, cur);
+      return { id: r.id, jobId: r.job_id, jobNumber: job?.job_number ?? null, owner: job?.owners?.full_name ?? null, property: [job?.properties?.address_line, job?.properties?.suburb, job?.properties?.postcode].filter(Boolean).join(", "), spotSavedAt: r.spot_saved_at, optedOutAt: r.opted_out_at, mediaReceivedAt: r.media_received_at, queuePriority: r.queue_priority, savedPrice: price?.text ?? null, priceChanged: price?.changeNote ?? null, deskCheckStatus: r.desk_check_status, deskCheckReason: r.desk_check_reason };
     }),
   };
 }
