@@ -228,7 +228,7 @@ export async function approveHeldQuote(quoteId: string, actorId: string) {
 }
 
 /** Admin manual adjustment with mandatory reason; before/after snapshot kept for audit. */
-export async function adjustQuote(quoteId: string, actorId: string, reason: string, changes: { id: string; quantity: number; unit_price_inc_gst: number }[], veecDiscount?: number) {
+export async function adjustQuote(quoteId: string, actorId: string, reason: string, changes: { id: string; quantity: number; unit_price_inc_gst: number }[], veecDiscount?: number, discountOverride = false) {
   const { data: before } = await admin.from("quotes").select("*, quote_items(*)").eq("id", quoteId).single();
   if (!before) throw new WorkflowError("Quote not found");
   if (!["issued", "draft"].includes(before.status)) throw new WorkflowError("Only open quotes can be adjusted.");
@@ -236,13 +236,18 @@ export async function adjustQuote(quoteId: string, actorId: string, reason: stri
     await admin.from("quote_items").update({ quantity: c.quantity, unit_price_inc_gst: r2(c.unit_price_inc_gst), line_total_inc_gst: r2(c.quantity * c.unit_price_inc_gst) }).eq("id", c.id).eq("quote_id", quoteId);
   const { data: items } = await admin.from("quote_items").select("line_total_inc_gst").eq("quote_id", quoteId);
   const subtotal = r2((items ?? []).reduce((a, i) => a + Number(i.line_total_inc_gst), 0));
-  const veec = r2(Math.min(subtotal, veecDiscount ?? Number(before.veec_discount_inc_gst)));
+  const { data: rs } = await admin.from("retail_estimator_settings").select("indicative_veec_value, minimum_customer_copayment_inc_gst").eq("is_current", true).maybeSingle();
+  const { quoteAdjustmentDiscount } = await import("./estimate.core");
+  const dr = quoteAdjustmentDiscount(veecDiscount ?? Number(before.veec_discount_inc_gst), subtotal, Number(rs?.indicative_veec_value), Number(rs?.minimum_customer_copayment_inc_gst ?? 200), discountOverride);
+  if (!dr.ok) throw new WorkflowError(dr.error);
+  const veec = dr.discount;
   const { data: s } = await admin.from("pricing_settings").select("gst_rate").eq("id", before.pricing_settings_id!).maybeSingle();
   const gst = 1 + Number(s?.gst_rate ?? 0.1);
-  const after = { subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: veec, customer_total_inc_gst: r2(subtotal - veec), manually_adjusted: true, ...(veec !== Number(before.veec_discount_inc_gst) ? { veec_count: null, veec_unit_value_inc_gst: null } : {}) };
+  const after = { subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: veec, customer_total_inc_gst: r2(subtotal - veec), manually_adjusted: true, ...(veec !== Number(before.veec_discount_inc_gst) ? { veec_count: dr.veecs, veec_unit_value_inc_gst: dr.veecs != null ? Number(rs?.indicative_veec_value) : null } : {}) };
   await admin.from("quotes").update({ ...after, version: before.version + 1 }).eq("id", quoteId);
   if (before.status === "draft") await admin.from("quotes").update({ release_state: "held", release_hold_reason: "Quote held: manually priced or adjusted" }).eq("id", quoteId);
   const { data: afterFull } = await admin.from("quotes").select("*, quote_items(*)").eq("id", quoteId).single();
   await admin.from("quote_adjustments").insert({ quote_id: quoteId, adjusted_by: actorId, reason, before_snapshot: before, after_snapshot: afterFull ?? {} });
+  if (discountOverride && dr.veecs == null) await logEvent(before.job_id, actorId, "quote_discount_override", `Office discount override: ${reason}`, { quote_id: quoteId, requested: veecDiscount ?? null, applied: veec, reduced_for_minimum: dr.reducedForMin }, { internal: true });
   await logEvent(before.job_id, actorId, "quote_adjusted", `Quote manually adjusted: ${reason}`, { quote_id: quoteId, before_total: before.customer_total_inc_gst, after_total: after.customer_total_inc_gst }, { internal: true });
 }

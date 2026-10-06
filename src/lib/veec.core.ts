@@ -31,9 +31,17 @@ export const VEEC_QUERY_ESCALATE_DAYS = 3;
 /** True when a Registry query has had no reply recorded for the escalation window. */
 export function veecQueryOverdue(queryReceivedAt: string | null | undefined, replySentAt: string | null | undefined, now: Date): boolean {
   if (!queryReceivedAt || replySentAt) return false;
-  const received = new Date(`${queryReceivedAt}T00:00:00Z`).getTime();
-  if (!Number.isFinite(received)) return false;
-  return now.getTime() - received >= VEEC_QUERY_ESCALATE_DAYS * 24 * 60 * 60 * 1000;
+  // Review G: whole Melbourne calendar days (not UTC midnight, not fixed hours).
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(queryReceivedAt)) return false;
+  const [y, m, d] = melbourneToday(now).split("-").map(Number);
+  const [ry, rm, rd] = queryReceivedAt.split("-").map(Number);
+  const days = Math.round((Date.UTC(y!, m! - 1, d!) - Date.UTC(ry!, rm! - 1, rd!)) / 86_400_000);
+  return days >= VEEC_QUERY_ESCALATE_DAYS;
+}
+
+/** Today's date (YYYY-MM-DD) in Melbourne. */
+export function melbourneToday(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
 /** Why a lodged record is not a real lodgement (empty = sufficient). */

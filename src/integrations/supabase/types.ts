@@ -11292,6 +11292,17 @@ export type Database = {
         Returns: boolean
       }
       is_job_owner: { Args: { _job: string; _user: string }; Returns: boolean }
+      issue_owner_link_code: {
+        Args: {
+          _channel: string
+          _expires: string
+          _hash: string
+          _job: string
+          _masked: string
+          _max: number
+        }
+        Returns: string
+      }
       job_assignment_role: {
         Args: { _job: string; _user: string }
         Returns: Database["public"]["Enums"]["assignment_role"]
@@ -11410,6 +11421,16 @@ export type Database = {
           outcome: string
           partner_enquiry_id: string
           signed_at: string
+        }[]
+      }
+      trade_quote_scope: {
+        Args: { _job: string }
+        Returns: {
+          description: string
+          quantity: number
+          quote_kind: Database["public"]["Enums"]["quote_kind"]
+          quote_status: Database["public"]["Enums"]["quote_status"]
+          sort: number
         }[]
       }
       visit_is_current: {
