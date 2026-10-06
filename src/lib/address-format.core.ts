@@ -35,7 +35,7 @@ export function dedupeAddress(address: string | null | undefined): string | null
   const out: string[] = [];
   for (const p of parts) {
     const n = norm(p);
-    if (out.some((o) => norm(o) === n || norm(o).endsWith(` ${n}`) || norm(o).includes(n) && n.length > 3 && /\d{4}/.test(n))) continue;
+    if (out.some((o) => norm(o) === n || norm(o).endsWith(` ${n}`))) continue;
     out.push(p);
   }
   return out.join(", ") || null;

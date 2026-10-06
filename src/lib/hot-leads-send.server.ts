@@ -81,7 +81,7 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
   const mail = withUnsubscribe(renderLaunchCampaignEmail({
     group: sendGroup, campaignUrl: `${base}/estimate/${link.token}/campaign`, unsubscribeUrl, myJobUrl: `${base}/my-job/${link.token}`, insulation: price.insulation ?? est?.insulation_declared ?? null,
     firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
-    address: [prop?.address_line, [prop?.suburb, prop?.postcode ? `VIC ${prop.postcode}` : null].filter(Boolean).join(" ")].filter(Boolean).join(", "), reference: job.job_number,
+    address: (await import("./address-format.core")).fullAddress(prop?.address_line, prop?.suburb, prop?.postcode), reference: job.job_number,
   }), unsubscribeUrl);
   const finish = async (status: string, provider: string, error: string | null) => {
     await admin.from("customer_email_sends").update({ status, provider, error, sent_at: status === "sent" ? new Date().toISOString() : null }).eq("id", sendId!);
