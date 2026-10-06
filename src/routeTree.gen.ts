@@ -58,6 +58,7 @@ import { Route as AuthenticatedAdminVeecRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAdminWorkersRouteImport } from './routes/_authenticated/admin.workers'
 import { Route as AuthenticatedFieldIndexRouteImport } from './routes/_authenticated/field.index'
 import { Route as AuthenticatedFieldJobIdRouteImport } from './routes/_authenticated/field.$jobId'
+import { Route as AuthenticatedFieldSetupRouteImport } from './routes/_authenticated/field.setup'
 import { Route as AuthenticatedOwnerIndexRouteImport } from './routes/_authenticated/owner.index'
 import { Route as AuthenticatedOwnerJobIdRouteImport } from './routes/_authenticated/owner.$jobId'
 import { Route as AuthenticatedPartnerIndexRouteImport } from './routes/_authenticated/partner.index'
@@ -77,6 +78,8 @@ import { Route as EstimateTokenVideoRouteImport } from './routes/estimate_.$toke
 import { Route as TETokenRouteImport } from './routes/t.e.$token'
 import { Route as TOFileRouteImport } from './routes/t.o.$file'
 import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authenticated/admin.jobs.$jobId'
+import { Route as AuthenticatedFieldDayJobIdRouteImport } from './routes/_authenticated/field.day.$jobId'
+import { Route as AuthenticatedFieldOfferOfferIdRouteImport } from './routes/_authenticated/field.offer.$offerId'
 import { Route as ApiPublicHooksAllocationTickRouteImport } from './routes/api/public/hooks/allocation-tick'
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
 import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/public/hooks/post-intake'
@@ -347,6 +350,11 @@ const AuthenticatedFieldJobIdRoute = AuthenticatedFieldJobIdRouteImport.update({
   path: '/$jobId',
   getParentRoute: () => AuthenticatedFieldRoute,
 } as any)
+const AuthenticatedFieldSetupRoute = AuthenticatedFieldSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => AuthenticatedFieldRoute,
+} as any)
 const AuthenticatedOwnerIndexRoute = AuthenticatedOwnerIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -449,6 +457,18 @@ const AuthenticatedAdminJobsJobIdRoute =
     path: '/jobs/$jobId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedFieldDayJobIdRoute =
+  AuthenticatedFieldDayJobIdRouteImport.update({
+    id: '/day/$jobId',
+    path: '/day/$jobId',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
+const AuthenticatedFieldOfferOfferIdRoute =
+  AuthenticatedFieldOfferOfferIdRouteImport.update({
+    id: '/offer/$offerId',
+    path: '/offer/$offerId',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
 const ApiPublicHooksAllocationTickRoute =
   ApiPublicHooksAllocationTickRouteImport.update({
     id: '/api/public/hooks/allocation-tick',
@@ -527,6 +547,7 @@ export interface FileRoutesByFullPath {
   '/admin/veec': typeof AuthenticatedAdminVeecRoute
   '/admin/workers': typeof AuthenticatedAdminWorkersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
+  '/field/setup': typeof AuthenticatedFieldSetupRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/partner/add': typeof AuthenticatedPartnerAddRoute
   '/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
@@ -548,6 +569,8 @@ export interface FileRoutesByFullPath {
   '/owner/': typeof AuthenticatedOwnerIndexRoute
   '/partner/': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
+  '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
+  '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
@@ -597,6 +620,7 @@ export interface FileRoutesByTo {
   '/admin/veec': typeof AuthenticatedAdminVeecRoute
   '/admin/workers': typeof AuthenticatedAdminWorkersRoute
   '/field/$jobId': typeof AuthenticatedFieldJobIdRoute
+  '/field/setup': typeof AuthenticatedFieldSetupRoute
   '/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/partner/add': typeof AuthenticatedPartnerAddRoute
   '/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
@@ -618,6 +642,8 @@ export interface FileRoutesByTo {
   '/owner': typeof AuthenticatedOwnerIndexRoute
   '/partner': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
+  '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
+  '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
@@ -673,6 +699,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/veec': typeof AuthenticatedAdminVeecRoute
   '/_authenticated/admin/workers': typeof AuthenticatedAdminWorkersRoute
   '/_authenticated/field/$jobId': typeof AuthenticatedFieldJobIdRoute
+  '/_authenticated/field/setup': typeof AuthenticatedFieldSetupRoute
   '/_authenticated/owner/$jobId': typeof AuthenticatedOwnerJobIdRoute
   '/_authenticated/partner/add': typeof AuthenticatedPartnerAddRoute
   '/_authenticated/partner/bulk-import': typeof AuthenticatedPartnerBulkImportRoute
@@ -694,6 +721,8 @@ export interface FileRoutesById {
   '/_authenticated/owner/': typeof AuthenticatedOwnerIndexRoute
   '/_authenticated/partner/': typeof AuthenticatedPartnerIndexRoute
   '/_authenticated/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
+  '/_authenticated/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
+  '/_authenticated/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
@@ -749,6 +778,7 @@ export interface FileRouteTypes {
     | '/admin/veec'
     | '/admin/workers'
     | '/field/$jobId'
+    | '/field/setup'
     | '/owner/$jobId'
     | '/partner/add'
     | '/partner/bulk-import'
@@ -770,6 +800,8 @@ export interface FileRouteTypes {
     | '/owner/'
     | '/partner/'
     | '/admin/jobs/$jobId'
+    | '/field/day/$jobId'
+    | '/field/offer/$offerId'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
@@ -819,6 +851,7 @@ export interface FileRouteTypes {
     | '/admin/veec'
     | '/admin/workers'
     | '/field/$jobId'
+    | '/field/setup'
     | '/owner/$jobId'
     | '/partner/add'
     | '/partner/bulk-import'
@@ -840,6 +873,8 @@ export interface FileRouteTypes {
     | '/owner'
     | '/partner'
     | '/admin/jobs/$jobId'
+    | '/field/day/$jobId'
+    | '/field/offer/$offerId'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
@@ -894,6 +929,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/veec'
     | '/_authenticated/admin/workers'
     | '/_authenticated/field/$jobId'
+    | '/_authenticated/field/setup'
     | '/_authenticated/owner/$jobId'
     | '/_authenticated/partner/add'
     | '/_authenticated/partner/bulk-import'
@@ -915,6 +951,8 @@ export interface FileRouteTypes {
     | '/_authenticated/owner/'
     | '/_authenticated/partner/'
     | '/_authenticated/admin/jobs/$jobId'
+    | '/_authenticated/field/day/$jobId'
+    | '/_authenticated/field/offer/$offerId'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/post-intake'
@@ -1299,6 +1337,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFieldJobIdRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
+    '/_authenticated/field/setup': {
+      id: '/_authenticated/field/setup'
+      path: '/setup'
+      fullPath: '/field/setup'
+      preLoaderRoute: typeof AuthenticatedFieldSetupRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
     '/_authenticated/owner/': {
       id: '/_authenticated/owner/'
       path: '/'
@@ -1432,6 +1477,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminJobsJobIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/field/day/$jobId': {
+      id: '/_authenticated/field/day/$jobId'
+      path: '/day/$jobId'
+      fullPath: '/field/day/$jobId'
+      preLoaderRoute: typeof AuthenticatedFieldDayJobIdRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
+    '/_authenticated/field/offer/$offerId': {
+      id: '/_authenticated/field/offer/$offerId'
+      path: '/offer/$offerId'
+      fullPath: '/field/offer/$offerId'
+      preLoaderRoute: typeof AuthenticatedFieldOfferOfferIdRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
     '/api/public/hooks/allocation-tick': {
       id: '/api/public/hooks/allocation-tick'
       path: '/api/public/hooks/allocation-tick'
@@ -1539,12 +1598,18 @@ const AuthenticatedAdminRouteWithChildren =
 
 interface AuthenticatedFieldRouteChildren {
   AuthenticatedFieldJobIdRoute: typeof AuthenticatedFieldJobIdRoute
+  AuthenticatedFieldSetupRoute: typeof AuthenticatedFieldSetupRoute
   AuthenticatedFieldIndexRoute: typeof AuthenticatedFieldIndexRoute
+  AuthenticatedFieldDayJobIdRoute: typeof AuthenticatedFieldDayJobIdRoute
+  AuthenticatedFieldOfferOfferIdRoute: typeof AuthenticatedFieldOfferOfferIdRoute
 }
 
 const AuthenticatedFieldRouteChildren: AuthenticatedFieldRouteChildren = {
   AuthenticatedFieldJobIdRoute: AuthenticatedFieldJobIdRoute,
+  AuthenticatedFieldSetupRoute: AuthenticatedFieldSetupRoute,
   AuthenticatedFieldIndexRoute: AuthenticatedFieldIndexRoute,
+  AuthenticatedFieldDayJobIdRoute: AuthenticatedFieldDayJobIdRoute,
+  AuthenticatedFieldOfferOfferIdRoute: AuthenticatedFieldOfferOfferIdRoute,
 }
 
 const AuthenticatedFieldRouteWithChildren =
