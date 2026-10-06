@@ -34,11 +34,11 @@ This is the only current implementation register. `docs/HIV_WORKFLOW_SOURCE_OF_T
 | Bulk job upload engine | Partly built | `/partner/bulk-import`; mobile upload/review/done, complete placement and TEST run built; Scenario E pending |
 | Bulk Past uploads | Built | `/partner/bulk-import` |
 | Bulk electrician choice and private picker | Partly built | Batch/per-job choice, private saved choices and pending invite built; reasoned switch and full Scenario E proof pending |
-| Electrician first-tap offer, My work and On the day | Not built | Approved preview designs |
-| Installer Ready Check offer/day and Install day | Not built | Approved preview designs |
-| Shared trade before-you-start checklist | Not built | Three trade day pages |
-| Installer My work redesign | Not built | `/field` installer variant |
-| Trade Money and My business | Not built | Approved trade tabs |
+| Electrician first-tap offer, My work and On the day | Built (preview, TEST logins 6 Oct) | Approved preview designs |
+| Installer Ready Check offer/day and Install day | Built (preview, TEST logins 6 Oct) | Approved preview designs |
+| Shared trade before-you-start checklist | Built (preview, TEST logins 6 Oct) | Three trade day pages |
+| Installer My work redesign | Built (preview, TEST logins 6 Oct) | `/field` installer variant |
+| Trade Money and My business | Built (preview, TEST logins 6 Oct) | Approved trade tabs |
 
 ## Office operations
 

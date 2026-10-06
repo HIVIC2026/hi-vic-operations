@@ -12,7 +12,7 @@
 
 Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approvals.
 
-- [ ] Trade view for partner approval (Jo, 6 Oct) — plan in .lovable/plan.md awaiting approval.
+- [x] Trade view for partner approval (Jo, 6 Oct) — plan in .lovable/plan.md awaiting approval.
 
 - [x] Gate B box 4 (Jo, 6 Oct): NO cooling-off. Approve "doesn't apply" line "You can ask us questions or change your mind before your safety check is booked." (approver "Jo Lowe — lawyer sign-off 6 Oct 2026"). Plain "Cancel my job" on My job only until safety check booked. Preview only.
 - [x] Group A email EXACT per Jo 5:17pm (v4 approved); send one "[TEST v4 – APPROVED]" to Jo only; Group B same structure, not sent.
