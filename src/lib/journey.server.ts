@@ -179,6 +179,43 @@ const s3: StepFn = async (ctx, r) => {
   ctx.screens.push({ step: "s3_office_offer", persona: "office", path: "/admin/today" });
 };
 
+
+// ---------- Step 4: TEST installer takes the Ready Check, does it (Mitti simulated), quote maths ----------
+const s4: StepFn = async (ctx, r) => {
+  await assertOwnTestJob(ctx);
+  const tv = await import("./trade-view.server");
+  const offerId = ctx.notes["rc_offer_id"] as string;
+  const before = JSON.stringify(await tv.tradeOffer(offerId, ctx.installer.id));
+  check(r, "offer hides owner contact before it's taken", !before.includes(ctx.ownerEmail) && !/Journey Test Street/.test(before));
+  const { data: w } = await admin.from("ready_check_windows").select("id").eq("job_id", ctx.jobId!).eq("status", "open").order("starts_at").limit(1).single();
+  const took = await tv.tradeTakeTime(offerId, w!.id, ctx.installer.id);
+  check(r, "installer took the first time", !took.tooSlow);
+  const { data: j1 } = await admin.from("jobs").select("stage").eq("id", ctx.jobId!).single();
+  check(r, "job is Ready Check scheduled", j1?.stage === "ready_check_scheduled", j1?.stage);
+  const after = JSON.stringify(await tv.tradeOffer(offerId, ctx.installer.id));
+  check(r, "after taking, installer sees the address", /Journey Test Street/.test(after));
+  // Mitti Ready Check form: SIMULATED (no Mitti template/token in TEST). Same row the Mitti sync writes.
+  r.simulated = ["Mitti Ready Check form (measure-up written as the Mitti sync would)"];
+  await admin.from("ceiling_measurements").update({ is_current: false }).eq("job_id", ctx.jobId!).eq("is_current", true);
+  const { error: me } = await admin.from("ceiling_measurements").insert({ job_id: ctx.jobId!, status: "complete", is_current: true, source_role: "installer", created_by: ctx.installer.id, measured_area_m2: 120, removal_required: false, external_source: "journey_sim", external_id: `sim-${ctx.runId}` } as never);
+  check(r, "measure-up recorded", !me, me?.message);
+  const { recordVerification } = await import("./verified-eligibility.server");
+  await recordVerification(admin as never, ctx.jobId!, "eligible", null, "TEST journey: office verified from the Ready Check");
+  const { transition } = await import("./workflow.server");
+  await transition(ctx.jobId!, "ready_check_complete", ctx.actorId, "TEST journey: Ready Check done");
+  const { generateInstallerQuotes } = await import("./quotes.server");
+  await generateInstallerQuotes(ctx.jobId!, ctx.actorId);
+  const { data: q } = await admin.from("quotes").select("id, status, subtotal_inc_gst, veec_discount_inc_gst, total_inc_gst").eq("job_id", ctx.jobId!).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  check(r, "quote created", !!q);
+  const st = await settings();
+  const sub = Number(q!.subtotal_inc_gst), disc = Number(q!.veec_discount_inc_gst), tot = Number((q as { total_inc_gst?: number }).total_inc_gst ?? sub - disc);
+  check(r, "quote discount is whole VEECs × settings value", Number.isInteger(Math.round(disc * 100) / 100 / st.veecValue), `$${disc} / $${st.veecValue}`);
+  check(r, "quote total = subtotal − discount, at least the minimum", Math.abs(tot - (sub - disc)) < 0.01 && tot >= st.minimum, `${sub} − ${disc} = ${tot}`);
+  ctx.quoteId = q!.id;
+  ctx.screens.push({ step: "s4_ready_check", persona: "installer", path: `/field/offer/${offerId}` });
+  ctx.screens.push({ step: "s4_ready_check", persona: "installer", path: `/field/day/${ctx.jobId}` });
+};
+
 function melbourneDate(daysAhead: number) {
   const d = new Date(Date.now() + daysAhead * 86_400_000);
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
@@ -188,7 +225,7 @@ const notBuilt = (what: string): StepFn => async (_ctx, r) => { check(r, what, f
 
 const STEP_FNS: Record<JourneyStepKey, StepFn> = {
   s1_calculator: s1, s2_owner_links: s2, s3_office_offer: s3,
-  s4_ready_check: notBuilt("Ready Check and quote"), s5_owner_accept: notBuilt("owner acceptance"), s6_electrician: notBuilt("electrician safety check"),
+  s4_ready_check: s4, s5_owner_accept: notBuilt("owner acceptance"), s6_electrician: notBuilt("electrician safety check"),
   s7_install: notBuilt("install booking/day/evidence"), s8_ap_payout: notBuilt("AP sign-off and payout"),
   s9_visibility: async (ctx, r) => visibility(ctx, r), s10_allowlist: async (ctx, r) => allowlist(ctx, r),
 };
