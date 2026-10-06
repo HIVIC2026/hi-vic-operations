@@ -23,7 +23,7 @@ export const setDispatchMode = createServerFn({ method: "POST" }).middleware([re
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { error } = await admin.from("workflow_settings").update({ offer_dispatch_mode: data.mode }).eq("id", 1);
     if (error) throw new Error(error.message);
-    await admin.from("admin_config_events").insert({ actor_id: context.userId, setting: "offer_dispatch_mode", new_value: data.mode } as never).then(() => null, () => null);
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "offer_dispatch_mode", summary: `How job offers go out: ${data.mode === "automatic" ? "Automatic" : "Office picks first"}`, details: { mode: data.mode } } as never).then(() => null, () => null);
     return { ok: true };
   });
 
