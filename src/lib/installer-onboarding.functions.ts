@@ -108,7 +108,9 @@ export const saveInstallerOnboarding = createServerFn({ method: "POST" })
     // Compare-and-swap: a save from a tab holding an older revision never overwrites newer answers.
     if (Date.parse(data.base_updated_at) !== Date.parse(app.updated_at)) throw new Error("Your application changed in another tab. Reload to continue.");
     const prevFiles = (app.data as { piisa_files?: Record<string, string> } | null)?.piisa_files;
-    const next = { ...normaliseInstallerDraft(applyMaterialReset(app.data as InstData, data.data as InstData)), ...(prevFiles ? { piisa_files: prevFiles } : {}) } as InstData;
+    const next = { ...normaliseInstallerDraft(applyMaterialReset(app.data as InstData, data.data as InstData)), piisa_files: prevFiles ?? {} } as InstData;
+    // The "uploaded" tick is never trusted from the browser; it is derived from piisa_files.
+    next.installers = (next.installers ?? []).map(({ piisa_uploaded: _p, ...x }) => x);
     const sec = await import("./onboarding-security.server");
     const contact = app.test_mode ? null : await sec.contactHash(next, "installer");
     if (!(app as { authorisation_id?: string | null }).authorisation_id) await sec.enforceContactCap(db as never, app.id, "installer", contact); // office/test links are staff-cleared

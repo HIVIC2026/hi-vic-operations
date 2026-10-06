@@ -194,7 +194,9 @@ export function stepFieldErrors(step: StepKey, d: InstData, now = new Date()): F
         if (x.piisa_done === "yes") {
           if (!validCalendarDate(x.piisa_date)) add(`installer-${i}-piisa-date`, say(i, "Enter the date they finished PIISA training."));
           else if ((x.piisa_date as string) > today) add(`installer-${i}-piisa-date`, say(i, "The PIISA date can't be in the future."));
-          if (x.piisa_uploaded !== true) add(`installer-${i}-piisa-upload`, say(i, "Upload the PIISA certificate."));
+          const files = (d as { piisa_files?: Record<string, string> }).piisa_files;
+          const uploaded = files ? !!files[(x.email ?? "").trim().toLowerCase()] : x.piisa_uploaded === true;
+          if (!uploaded) add(`installer-${i}-piisa-upload`, say(i, "Upload the PIISA certificate."));
         }
       });
       const emails = list.map((x) => (x.email ?? "").trim().toLowerCase()).filter(Boolean);
