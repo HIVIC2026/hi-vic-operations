@@ -11,11 +11,14 @@ export const listOnboardingDrafts = createServerFn({ method: "POST" }).middlewar
       .select("id,partner_type,step_key,data,test_mode,created_at,updated_at,insurance_certificate_path")
       .eq("status", "draft").order("updated_at", { ascending: false }).limit(500);
     if (error) throw new Error("Unfinished sign-ups could not be loaded.");
+    const { data: marks, error: mErr } = await supabaseAdmin.from("onboarding_test_marks").select("application_id");
+    if (mErr) throw new Error("Unfinished sign-ups could not be loaded.");
+    const marked = new Set((marks ?? []).map((m) => m.application_id));
     return (data ?? []).map((r) => {
       const d = (r.data ?? {}) as Record<string, unknown>;
       const s = (k: string) => (typeof d[k] === "string" && (d[k] as string).trim() ? (d[k] as string).trim() : null);
       return {
-        id: r.id, partner_type: r.partner_type, step_key: r.step_key, test_mode: !!r.test_mode,
+        id: r.id, partner_type: r.partner_type, step_key: r.step_key, test_mode: !!r.test_mode || marked.has(r.id),
         created_at: r.created_at, updated_at: r.updated_at,
         business: s("trading_name") ?? s("legal_entity_name"), contact: s("primary_contact_name"),
         phone: s("business_phone"), email: s("business_email"), abn: s("abn"),
