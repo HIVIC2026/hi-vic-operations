@@ -79,13 +79,16 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
   const unsubscribeUrl = (await unsubscribeUrlForJob(jobId)).replace(CUSTOMER_BASE, base);
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const snapshot = est?.snapshot as { settings?: { piesa_assessment_inc_gst?: number; ap_management_inc_gst?: number }; scenarios?: { by_access?: { standard?: { installation?: number } } }[] } | null;
+  const installation = snapshot?.scenarios?.[0]?.by_access?.standard?.installation;
+  const assessmentFee = snapshot?.settings?.piesa_assessment_inc_gst;
+  const apFee = snapshot?.settings?.ap_management_inc_gst;
   const mail = withUnsubscribe(renderLaunchCampaignEmail({
     group: sendGroup, campaignUrl: `${base}/estimate/${link.token}/campaign`, unsubscribeUrl, myJobUrl: `${base}/my-job/${link.token}`, insulation: price.insulation ?? est?.insulation_declared ?? null,
     firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
     address: (await import("./address")).fullAddress(prop?.address_line, prop?.suburb, prop?.postcode), reference: job.job_number,
-    installation: snapshot?.scenarios?.[0]?.by_access?.standard?.installation,
-    assessmentFee: snapshot?.settings?.piesa_assessment_inc_gst,
-    apFee: snapshot?.settings?.ap_management_inc_gst,
+    ...(installation === undefined ? {} : { installation }),
+    ...(assessmentFee === undefined ? {} : { assessmentFee }),
+    ...(apFee === undefined ? {} : { apFee }),
   }), unsubscribeUrl);
   const finish = async (status: string, provider: string, error: string | null) => {
     await admin.from("customer_email_sends").update({ status, provider, error, sent_at: status === "sent" ? new Date().toISOString() : null }).eq("id", sendId!);
