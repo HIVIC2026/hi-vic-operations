@@ -426,7 +426,7 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
   const origins: readonly string[] = CAMPAIGN_LINK_ORIGINS;
   const campaign = new URL(input.campaignUrl);
   if (!origins.includes(campaign.origin) || !/^\/estimate\/[A-Za-z0-9_-]{43,128}\/campaign$/.test(campaign.pathname) || campaign.search || campaign.hash) throw new Error("A secure Home Insulation Victoria campaign link is required.");
-  const heroToken = campaign.pathname.split("/")[2];
+  const heroToken = campaign.pathname.split("/")[2] ?? "";
   const unsubscribe = new URL(input.unsubscribeUrl);
   if (!origins.includes(unsubscribe.origin) || !["/email/unsubscribe", "/api/public/unsubscribe"].includes(unsubscribe.pathname) || !isWellFormedToken(unsubscribe.searchParams.get("t"))) throw new Error("A secure unsubscribe link is required.");
   const myJob = input.myJobUrl ? new URL(input.myJobUrl) : null;
