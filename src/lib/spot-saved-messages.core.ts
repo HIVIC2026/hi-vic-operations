@@ -2,6 +2,7 @@
 // PURE: no I/O. No phone number or "call us" anywhere.
 import { CUSTOMER_BRAND } from "./customer-quote-system";
 import { PRIVACY_URL, V2_THEME } from "./estimate-email";
+import { dedupeAddress, shortAddress } from "./address";
 
 const LOGO_GREEN = "#00BF63";
 const BLUE = "#3C51C4";
@@ -22,7 +23,7 @@ export const SPOT_SAVED_WAIT_TEXT = "Hundreds of homes have signed up since 1 Oc
 export function addressBits(addressLine: string | null, suburb: string | null) {
   const sub = suburb?.trim() || null;
   const line = addressLine?.trim() || null;
-  return { suburb: sub, short: [line, sub].filter(Boolean).join(", ") || null };
+  return { suburb: sub, short: shortAddress(line, sub) };
 }
 
 export function renderSpotSavedSms(i: SpotSavedInput) {
@@ -46,7 +47,7 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   const est = i.estimate && i.estimate.gross > 0 ? i.estimate : null;
   const assessment = 349, apFee = 349, veecValue = 70;
   const veecs = Math.round(i.rebate / veecValue);
-  const savings = est ? T.savings({ address: est.address, area: est.areaM2, discount: i.rebate, customer: est.customer, gross: est.gross, rebateLabel: "Your estimated VEU rebate", costLabel: "Your estimated cost after rebate", qualifier: "Estimate only. Eligibility, measurements and final pricing confirmed after assessment.", hasBreakdown: true, installation: est.gross - assessment - apFee, assessment, apFee, calculatorUrl: est.calculatorUrl, ...(Math.abs(veecs * veecValue - i.rebate) < 0.01 ? { totals: { veecs, veecValue } } : {}) }).html : "";
+  const savings = est ? T.savings({ address: dedupeAddress(est.address), area: est.areaM2, discount: i.rebate, customer: est.customer, gross: est.gross, rebateLabel: "Your estimated VEU rebate", costLabel: "Your estimated cost after rebate", qualifier: "Estimate only. Eligibility, measurements and final pricing confirmed after assessment.", hasBreakdown: true, installation: est.gross - assessment - apFee, assessment, apFee, calculatorUrl: est.calculatorUrl, ...(Math.abs(veecs * veecValue - i.rebate) < 0.01 ? { totals: { veecs, veecValue } } : {}) }).html : "";
   const hero = `<p style="margin:0 0 8px;${T.F}color:${TEXT_GREEN};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">You're on the list</p>`
     + `<h1 class="lx-h1 hiv-hero-title" style="margin:0 0 14px;${T.FH}color:${NAVY};font-size:34px;line-height:39px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:0;">Spot saved${name ? `, ${esc(name)}` : ""}. Your <span style="color:${GREEN};">${esc(rebate)}</span> rebate is waiting.</h1>`
     + p(`Nice work. You're in line for a free Ready Check${esc(where)}.`)

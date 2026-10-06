@@ -1,3 +1,4 @@
+import { fullAddress } from "./address";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { declaredExtras } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
@@ -39,7 +40,7 @@ export async function campaignPage(token: unknown, testMode = false) {
   const property = c.job.properties as { address_line: string | null; suburb: string | null; state: string | null; postcode: string | null; enrichment: Record<string, unknown> | null } | null;
   const base44 = (property?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
   const insulation = normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation);
-  const address = [property?.address_line, property?.suburb, property?.state, property?.postcode].filter(Boolean).join(", ");
+  const address = fullAddress(property?.address_line, property?.suburb, property?.postcode);
   const { data: availability } = await admin.from("customer_delivery_settings").select("ready_check_available_postcodes").eq("id", 1).maybeSingle();
   return estimate ? JSON.stringify({ group: c.group, estimate, response: response ?? null, bookingAvailable: !!property?.postcode && (availability?.ready_check_available_postcodes ?? []).includes(property.postcode), owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, home: { suburb: property?.suburb ?? null, short: [property?.address_line, property?.suburb].filter(Boolean).join(", ") || null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
 }
@@ -160,7 +161,7 @@ export async function launchCampaignOffice() {
       const job = r.jobs as { job_number: string | null; owners: { full_name: string | null } | null; properties: { address_line: string | null; suburb: string | null; postcode: string | null } | null; indicative_estimates?: { id: string; status: string; area_m2: number | null; insulation_declared: string | null; scenarios: unknown }[] | null } | null;
       const cur = savedPriceFromEstimate((job?.indicative_estimates ?? []).find((e) => e.status === "current") ?? null);
       const price = savedPriceLabel({ total: r.saved_total == null ? null : Number(r.saved_total), discount: r.saved_veu_discount == null ? null : Number(r.saved_veu_discount), savedAt: r.spot_saved_at, estimateId: r.saved_estimate_id }, cur);
-      return { id: r.id, jobId: r.job_id, jobNumber: job?.job_number ?? null, owner: job?.owners?.full_name ?? null, property: [job?.properties?.address_line, job?.properties?.suburb, job?.properties?.postcode].filter(Boolean).join(", "), spotSavedAt: r.spot_saved_at, optedOutAt: r.opted_out_at, mediaReceivedAt: r.media_received_at, queuePriority: r.queue_priority, savedPrice: price?.text ?? null, priceChanged: price?.changeNote ?? null, deskCheckStatus: r.desk_check_status, deskCheckReason: r.desk_check_reason };
+      return { id: r.id, jobId: r.job_id, jobNumber: job?.job_number ?? null, owner: job?.owners?.full_name ?? null, property: fullAddress(job?.properties?.address_line, job?.properties?.suburb, job?.properties?.postcode), spotSavedAt: r.spot_saved_at, optedOutAt: r.opted_out_at, mediaReceivedAt: r.media_received_at, queuePriority: r.queue_priority, savedPrice: price?.text ?? null, priceChanged: price?.changeNote ?? null, deskCheckStatus: r.desk_check_status, deskCheckReason: r.desk_check_reason };
     }),
   };
 }
