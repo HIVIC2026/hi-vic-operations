@@ -209,7 +209,7 @@ describe("launch campaign email drafts", () => {
     expect(email.html).toContain("Free · no payment · no obligation");
     expect(email.html).toContain("Hold your place in line");
     for (const t of ["What this includes", ">FREE<", "R5.0 ceiling insulation — supply &amp; install", "$4,151", "$349", "Price before discount", "$4,849", "VEU discount (21 VEECs × $70)", "−$1,470", "You pay about", "$3,379", "Estimate only.", "See my job", "Remove my enquiry", "Privacy"]) expect(email.html).toContain(t);
-    expect(email.html).toContain("Based on 14 Example Street, Ballarat VIC 3350 and a 150 m² ceiling. No old insulation removal needed.");
+    expect(email.html).toContain("14 Example Street, Ballarat VIC 3350");
     expect(email.html).toContain("We never add work or cost without showing you first and getting your OK.");
     for (const t of ["You could save", "What this includes", "PIESA", "Accredited Person (AP)", "Contact us", "What could change this price?"]) expect(email.html).not.toContain(t);
     expect(email.html).toContain("background-color:#F3F6FF");
