@@ -63,7 +63,7 @@ export async function sendTestEmail(ctx: Ctx, to: string, subject: string, html:
         body: JSON.stringify({ from: FROM_EMAIL, to: [norm], subject: `[TEST] ${subject}`, html, text }),
       });
       const t = await res.text();
-      r = res.ok ? { channel: "email", to: norm, status: "sent", detail: "Resend accepted" } : { channel: "email", to: norm, status: "failed", detail: `Resend ${res.status}: ${t.slice(0, 300)}` };
+      r = res.ok ? { channel: "email", to: norm, status: "sent", detail: `Resend accepted${(() => { try { const id = (JSON.parse(t) as { id?: string }).id; return id ? ` (id ${id})` : ""; } catch { return ""; } })()}` } : { channel: "email", to: norm, status: "failed", detail: `Resend ${res.status}: ${t.slice(0, 300)}` };
     } catch (e) { r = { channel: "email", to: norm, status: "failed", detail: (e as Error).message }; }
   }
   await record(ctx, r, subject, text);

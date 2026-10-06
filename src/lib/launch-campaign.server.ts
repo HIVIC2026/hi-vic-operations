@@ -182,6 +182,8 @@ const OWNER_BASE = "https://estimate.homeinsulationvictoria.com.au";
  * a calculator save or a video upload after saving). Sending is off, so both are recorded as queued only;
  * the TEST allowlist still decides who could ever receive them.
  */
+/** Preview host used for links in TEST-only (qa_test) messages. */
+const TEST_PREVIEW_BASE = "https://id-preview--fb35adfe-10bf-4d4c-987d-28567ca1ddeb.lovable.app";
 export async function queueSpotSavedConfirmations(jobId: string, token: string) {
   const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "spot_saved_confirmation_queued").limit(1).maybeSingle();
   if (done) return { queued: false as const };
@@ -196,7 +198,7 @@ export async function queueSpotSavedConfirmations(jobId: string, token: string) 
   const owner = job.owners as { full_name: string | null; phone: string | null; email: string | null } | null;
   const prop = job.properties as { address_line: string | null; suburb: string | null } | null;
   const bits = addressBits(prop?.address_line ?? null, prop?.suburb ?? null);
-  const input = { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, rebate: Number(r?.saved_veu_discount ?? 0), suburb: bits.suburb, shortAddress: bits.short, myJobUrl: `${OWNER_BASE}/my-job/${token}`, optOutUrl: await unsubscribeUrlForJob(jobId) };
+  const input = { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, rebate: Number(r?.saved_veu_discount ?? 0), suburb: bits.suburb, shortAddress: bits.short, myJobUrl: `${job.source === "qa_test" ? TEST_PREVIEW_BASE : OWNER_BASE}/my-job/${token}`, optOutUrl: await unsubscribeUrlForJob(jobId).then((u) => job.source === "qa_test" ? u.replace(/^https:\/\/[^/]+/, TEST_PREVIEW_BASE) : u) };
   const sms = renderSpotSavedSms(input);
   const email = renderSpotSavedEmail(input);
   const now = new Date().toISOString();
@@ -211,6 +213,13 @@ export async function queueSpotSavedConfirmations(jobId: string, token: string) 
       sent_at: null, delivery_status: "queued", visibility: "customer", source_event: `spot_saved:${m.channel}`,
       source_reference: allow ? `Queued (sending off). Allowlist: ${allow}` : "Queued (sending off). On TEST allowlist", created_at: now,
     } as never);
+  }
+  // TEST homes only: deliver the confirmation email to Jo's allowlisted inbox via the test sender.
+  if (job.source === "qa_test" && owner?.email) {
+    const { sendTestEmail } = await import("./test-send.server");
+    const html = (email as { html?: string }).html ?? `<pre>${email.text.replace(/[<&]/g, (c) => (c === "<" ? "&lt;" : "&amp;"))}</pre>`;
+    const t = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: "spot_saved_confirmation", actorId: null } as never, owner.email, email.subject, html, email.text).catch((e) => ({ status: "failed", detail: (e as Error).message }));
+    await logEvent(jobId, null, "spot_saved_test_email", `Spot saved confirmation (TEST) ${t.status}: ${t.detail}`, {}, { internal: true }).catch(() => null);
   }
   await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved text and email queued (sending is off)", { sms: !!owner?.phone, email: !!owner?.email }, { internal: true });
   return { queued: true as const };
