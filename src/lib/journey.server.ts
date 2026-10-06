@@ -284,6 +284,24 @@ async function visibility(ctx: JourneyCtx, r: StepResult) {
     let blocked = false; try { await tv.tradeMoney(ctx.worker.id); } catch { blocked = true; }
     check(r, "worker can't open Money", blocked);
   }
+  // A trade with no active assignment on the job (worker never assigned / reassigned away) can't see owner details.
+  const offerId = ctx.notes["rc_offer_id"] as string | undefined;
+  if (offerId && ctx.worker) {
+    let txt = ""; try { txt = JSON.stringify(await tv.tradeOffer(offerId, ctx.worker.id)); } catch { txt = ""; }
+    check(r, "unassigned worker sees no owner details", !txt.includes(ctx.ownerEmail) && !/Journey Test Street/.test(txt) && !/Test Journey/.test(txt));
+  }
+  if (ctx.jobId) {
+    let txt = ""; try { txt = JSON.stringify(await tv.tradeDay(ctx.jobId, ctx.electrician.id)); } catch { txt = ""; }
+    check(r, "electrician not on the job can't open its day page", !/Journey Test Street/.test(txt) && !txt.includes(ctx.ownerEmail));
+    // Reassigned trade: end the installer's assignment, confirm owner details disappear, then restore it.
+    const { data: asg } = await admin.from("job_assignments").select("id").eq("job_id", ctx.jobId).eq("role", "installer").eq("active", true).maybeSingle();
+    if (asg && offerId) {
+      await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: "TEST journey: reassignment check" }).eq("id", asg.id);
+      let after = ""; try { after = JSON.stringify(await tv.tradeOffer(offerId, ctx.installer.id)); } catch { after = ""; }
+      await admin.from("job_assignments").update({ active: true, ended_at: null, end_reason: null }).eq("id", asg.id);
+      check(r, "reassigned installer loses owner details", !/Journey Test Street/.test(after) && !after.includes(ctx.ownerEmail));
+    }
+  }
   // Electrician home/day never contains customer prices.
   const home = JSON.stringify(await tv.tradeHome(ctx.electrician.id));
   check(r, "electrician view has no customer price fields", !/total_inc_gst|customer_total|veu_discount|margin|gross/i.test(home));
