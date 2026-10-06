@@ -107,7 +107,7 @@ async function offerFacts(jobId: string) {
 /** Each electrician's own agreed rate for this visit, from their active (non-test) approved rate card. Missing = null. */
 /** Current ACTIVE office-approved rate per business for this offer kind (electrician_rates, migration 0089).
  *  Fails closed: if the rate table is missing or unreadable every electrician counts as "rate missing". */
-async function agreedElectricianRates(businessIds: string[], kind: "piesa" | "rectification") {
+export async function agreedElectricianRates(businessIds: string[], kind: "piesa" | "rectification") {
   const out = new Map<string, { id: string; rate: number }>();
   if (!businessIds.length) return out;
   const { OFFER_RATE_SERVICE, selectAgreedRate } = await import("./allocation.core");
