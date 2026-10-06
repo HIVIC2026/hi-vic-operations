@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "bun ./scripts/test-isolated.ts 8"
+    "test": "bun ./scripts/test-isolated.ts 8",
+    "journey": "bun scripts/journey.ts"
   },
   "overrides": {
     "rolldown": "1.2.1"
