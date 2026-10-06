@@ -1,4 +1,5 @@
 // No-login owner "My job" view. The secure estimate link token is the only credential. Read-only.
+import { isSpotSavedStage } from "./owner-myjob.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
 import { formatPropertyAddress } from "./address";
@@ -22,6 +23,7 @@ export async function resolveOwnerJob(token: unknown) {
     admin.from("workflow_settings").select("office_time_limits, piesa_install_window_days").eq("id", 1).maybeSingle(),
   ]);
   if (!j) return null;
+  const { data: spot } = await admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, video_requested, saved_veu_discount, saved_total").eq("job_id", jobId).maybeSingle();
   const { data: consent } = await admin.from("owner_esc_consents").select("status, scheduled_start").eq("job_id", jobId).eq("status", "awaiting_owner").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const stage = j.stage as string;
   const quote = (quotes ?? []).find((q) => q.status === "accepted") ?? (quotes ?? [])[0] ?? null;
@@ -60,6 +62,13 @@ export async function resolveOwnerJob(token: unknown) {
     numbers: { rebate, cost: total, paid },
     quote: quote ? { id: quote.id, status: quote.status, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: i.description, amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total) : null } : null,
     consent: consent ? { scheduledStart: consent.scheduled_start } : null,
+    spotSaved: isSpotSavedStage(stage, spot ?? null, !!upcoming || (bookings ?? []).some((b) => b.kind === "ready_check")) ? {
+      rebate: spot?.saved_veu_discount != null ? n(spot.saved_veu_discount) : rebate,
+      cost: spot?.saved_total != null ? n(spot.saved_total) : null,
+      shortAddress: [(j.properties as { address_line: string | null } | null)?.address_line, (j.properties as { suburb: string | null } | null)?.suburb].filter(Boolean).join(", ") || null,
+      videoInvite: !!spot?.video_requested && !spot.media_received_at,
+      optOutUrl: await (await import("./emailsafety.server")).unsubscribeUrlForJob(jobId),
+    } : null,
     piesaInstallGapDays: n(limits["piesa_install_gap_days"] ?? DEFAULT_PIESA_INSTALL_GAP_DAYS),
   };
 }

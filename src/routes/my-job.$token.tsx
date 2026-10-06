@@ -8,6 +8,8 @@ import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
 import { HOUSE_LEVEL } from "@/lib/owner-house.core";
 import { ownerHeadline, quoteKicker } from "@/lib/owner-headlines.core";
+import { gateACard, SPOT_SAVED_PROGRESS } from "@/lib/owner-myjob.core";
+import { ownerPaperworkFn } from "@/lib/owner-gates.functions";
 import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
 import { PAYMENT_OPTION_SUMMARY } from "@/lib/payment-gate.core";
 import { useState } from "react";
@@ -48,7 +50,7 @@ function MyJobPage() {
     <div className="estimate-brand min-h-screen bg-estimate-canvas pb-10 text-estimate-navy">
       <header className="mx-auto flex max-w-[480px] items-center justify-between px-5 py-4">
         <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-10 w-auto max-w-[130px] object-contain" />
-        {data?.jobNumber && <span className="rounded-full bg-estimate-blush px-3 py-1 text-xs font-bold">{data.jobNumber}</span>}
+        {data?.jobNumber && <span className="rounded-full bg-estimate-blush px-3 py-1 text-xs font-bold">{data.spotSaved ? `Job ${data.jobNumber}` : data.jobNumber}</span>}
       </header>
       <main className="mx-auto max-w-[480px] space-y-4 px-4">
         {isLoading ? <div className="h-48 animate-pulse rounded-[26px] bg-estimate-mist" />
@@ -57,6 +59,7 @@ function MyJobPage() {
           : screen === "book" ? <BookScreen v={data} token={token} />
           : screen === "done" || data.stage === "complete" ? <DoneScreen v={data} token={token} />
           : screen === "spot" ? <SpotScreen v={data} token={token} />
+          : data.spotSaved ? <SpotSavedHome v={data} token={token} />
           : <Home v={data} token={token} />}
       </main>
     </div>
@@ -301,5 +304,55 @@ function DoneScreen({ v, token }: { v: View; token: string }) {
     <Hero v={v} level={HOUSE_LEVEL.all_done} headline={ownerHeadline("all_done", v.numbers.rebate)} />
     <Numbers v={v} />
     <BottomList />
+  </>;
+}
+
+/** Jo-approved My job at the SPOT SAVED stage (before any Ready Check is booked). */
+function SpotSavedHome({ v, token }: { v: View; token: string }) {
+  const sp = v.spotSaved as { rebate: number; cost: number | null; shortAddress: string | null; videoInvite: boolean; optOutUrl: string };
+  const loadPw = useServerFn(ownerPaperworkFn);
+  const { data: pw } = useQuery({ queryKey: ["owner-paperwork", token], queryFn: () => loadPw({ data: { token } }) });
+  const [open, setOpen] = useState(false);
+  const card = pw ? gateACard((pw.todo ?? []) as { gate: string }[]) : null;
+  const optOut = (() => { try { const u = new URL(sp.optOutUrl); return u.pathname + u.search; } catch { return sp.optOutUrl; } })();
+  return <>
+    <section data-testid="spot-saved-hero" className="flex items-start gap-3 rounded-[26px] border border-estimate-line bg-card p-5">
+      <OwnerHouse level={1} size="sm" />
+      <div className="min-w-0">
+        {v.firstName && <p className="text-sm font-semibold">Hi {v.firstName}</p>}
+        <h1 className="mt-1 font-display text-2xl font-extrabold leading-tight">Spot saved. Your <span className="text-estimate-logo-green">{aud(sp.rebate)}</span> rebate is waiting.</h1>
+        <p className="mt-2 text-sm text-estimate-navy/80">{sp.shortAddress ? `${sp.shortAddress} · ` : ""}Step 1 of 6</p>
+      </div>
+    </section>
+    <p className="rounded-[18px] bg-estimate-heads-up p-4 text-sm"><strong>The waiting list is huge.</strong> We book in order and we're teaming up with more installers and electricians across Victoria to speed it up. We'll text you when it's your turn.</p>
+    {card === "todo" && <section data-testid="gate-a-todo" className="rounded-[22px] border-2 border-estimate-green bg-card p-5">
+      <p className="text-xs font-bold uppercase tracking-wide text-estimate-green">While you wait · 2 minutes</p>
+      <h2 className="mt-1 font-display text-xl font-extrabold">Get your paperwork out of the way</h2>
+      <p className="mt-1 text-sm">A few quick questions and your OK to share your details with the trades. Do it now and you can book the moment it's your turn.</p>
+      {!open ? <button type="button" onClick={() => setOpen(true)} className="mt-4 flex h-12 w-full items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">Do it now</button> : <div className="mt-4"><OwnerPaperwork token={token} /></div>}
+    </section>}
+    {card === "done" && <section data-testid="gate-a-done" className="flex items-start gap-3 rounded-[22px] bg-estimate-mint p-5">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-estimate-green text-estimate-canvas"><Check className="h-5 w-5" /></span>
+      <div><p className="font-display text-lg font-extrabold">Paperwork done. You're ready to go.</p><p className="text-sm">Nothing else to do until we text you.</p></div>
+    </section>}
+    {sp.videoInvite && <section className="rounded-[22px] bg-estimate-mint p-5">
+      <h2 className="font-display text-lg font-extrabold">Jump the queue: send a quick video</h2>
+      <Link to="/estimate/$token/video" params={{ token }} className="mt-3 flex h-12 w-full items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">Send a quick video</Link>
+    </section>}
+    <section className="rounded-[22px] bg-card p-5 shadow-sm">
+      <p className="font-display text-lg font-extrabold">Your progress</p>
+      <ol className="mt-3 space-y-3">{SPOT_SAVED_PROGRESS.map((p, i) => (
+        <li key={p.label} className="flex items-start gap-3 text-sm">
+          {i === 0 ? <Check className="mt-0.5 h-4 w-4 text-estimate-green" /> : <span className={`mt-1.5 h-2.5 w-2.5 rounded-full ${i === 1 ? "bg-estimate-blue" : "bg-estimate-line"}`} />}
+          <span><span className={`block font-semibold ${i === 0 ? "text-estimate-green" : i === 1 ? "text-estimate-blue" : ""}`}>{p.label}</span><span className="text-estimate-navy/70">{p.sub}</span></span>
+        </li>))}</ol>
+    </section>
+    <section className="rounded-[22px] bg-card p-5 shadow-sm">
+      <p className="font-display text-lg font-extrabold">Your numbers</p>
+      <div className="mt-3 flex justify-between text-sm"><span>Your rebate</span><span className="font-bold text-estimate-logo-green">{aud(sp.rebate)}</span></div>
+      <div className="mt-2 flex justify-between text-sm"><span>You pay about</span><span className="font-bold">{sp.cost == null ? "—" : aud(sp.cost)}</span></div>
+      <p className="mt-3 text-xs text-estimate-navy/70">Estimate only. Your exact price comes after the free Ready Check.</p>
+    </section>
+    <p className="pt-2 text-center"><a href={optOut} className="text-xs text-estimate-navy/70 underline">Remove my enquiry</a></p>
   </>;
 }
