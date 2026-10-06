@@ -27,6 +27,12 @@ function CampaignPage() {
   }, retry: false, refetchOnWindowFocus: false });
   const [busy, setBusy] = useState<"save" | "optout" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const act = async (kind: "save" | "optout") => {
+    setBusy(kind); setError(null);
+    try { await (kind === "save" ? save({ data: { token } }) : optOut({ data: { token } })); await refetch(); }
+    catch (e) { setError(e instanceof Error ? e.message : "That didn't work. Please try again."); }
+    finally { setBusy(null); }
+  };
   return <div className="estimate-brand min-h-screen bg-estimate-canvas">
     <main className="pb-14">
       {isLoading ? <p role="status" className="py-16 text-center text-sm text-muted-foreground">Loading your estimate…</p>
