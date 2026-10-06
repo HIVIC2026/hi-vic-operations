@@ -82,13 +82,14 @@ export const reviewRectificationQuote = createServerFn({ method: "POST" }).middl
 
 /** ONE office exception queue. Admin only; every source read fails loudly. Also runs the offer/reminder sweeps. */
 export const getNeedsHivic = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((d: { includePractice?: boolean } | undefined) => ({ includePractice: !!d?.includePractice }))
+  .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { sweepRecOffers, sweepCoordination } = await import("./allocation.server");
     await sweepRecOffers().catch((e) => console.error("rec offer sweep failed", (e as Error).message));
     await sweepCoordination().catch((e) => console.error("coordination sweep failed", (e as Error).message));
     const { loadNeedsHivic } = await import("./needs.server");
-    return loadNeedsHivic();
+    return loadNeedsHivic({ includePractice: data.includePractice });
   });
 
 /** Office: send an office-reviewed rectification quote to the owner (status draft -> issued). */

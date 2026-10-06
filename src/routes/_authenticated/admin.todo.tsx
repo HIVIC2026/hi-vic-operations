@@ -38,7 +38,9 @@ export function useTodos() {
 
 function NeedsQueue({ overdue }: { overdue: TodoItem[] }) {
   const load = useServerFn(getNeedsHivic);
-  const q = useQuery({ queryKey: ["needs-hivic"], queryFn: () => load(), refetchInterval: 60_000, retry: 3 });
+  const [practice, setPractice] = useState(false);
+  const q = useQuery({ queryKey: ["needs-hivic", practice], queryFn: () => load({ data: { includePractice: practice } }), refetchInterval: 60_000, retry: 3 });
+  const toggle = <label className="mb-3 flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={practice} onChange={(e) => setPractice(e.target.checked)} />Include practice (TEST) jobs</label>;
   if (q.error) return <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-4 text-sm text-destructive"><p className="font-semibold">The exception queue could not be checked — do not assume nothing is waiting.</p><p>{(q.error as Error).message}</p></div>;
   if (q.isPending) return <p className="text-sm text-muted-foreground">Checking for exceptions…</p>;
   type Row = { key: string; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency?: string; stage?: string | null; suburb?: string | null };
@@ -47,8 +49,9 @@ function NeedsQueue({ overdue }: { overdue: TodoItem[] }) {
     ...overdue.map((t) => ({ key: `overdue:${t.key}`, jobId: t.jobId, jobNumber: t.jobNumber, why: `Overdue office task: ${t.title}.`, next: t.action, tab: t.tab ?? "overview", since: t.since, urgency: "soon" })),
   ];
   const urgencyLabel: Record<string, string> = { urgent: "Urgent", today: "Act today", soon: "This week" };
-  if (!rows.length) return <div className="flex items-center gap-3 rounded-xl border bg-card p-6"><CheckCircle2 className="h-6 w-6 text-primary" /><p className="font-semibold">No exceptions. Routine waiting is handled automatically.</p></div>;
+  if (!rows.length) return <div>{toggle}<div className="flex items-center gap-3 rounded-xl border bg-card p-6"><CheckCircle2 className="h-6 w-6 text-primary" /><p className="font-semibold">No exceptions. Routine waiting is handled automatically.</p></div></div>;
   return (
+    <div>{toggle}
     <ul className="space-y-3">
       {rows.map((r) => (
         <li key={r.key} className="rounded-xl border border-destructive/40 bg-card p-4 text-sm">
@@ -65,6 +68,7 @@ function NeedsQueue({ overdue }: { overdue: TodoItem[] }) {
         </li>
       ))}
     </ul>
+    </div>
   );
 }
 

@@ -1,7 +1,7 @@
 // Office needs-attention list (read-only). Shared by the office queue and the daily brief.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 
-export async function loadNeedsHivic() {
+export async function loadNeedsHivic(opts: { includePractice?: boolean } = {}) {
   const ok = <T,>(r: { data: T | null; error: { message: string } | null }, what: string): T => {
     if (r.error) throw new Error(`Could not load ${what}: ${r.error.message}`);
     return (r.data ?? []) as T;
@@ -67,7 +67,7 @@ export async function loadNeedsHivic() {
   });
   const { data: rcInst } = await admin.from("job_assignments").select("job_id").eq("role", "installer").eq("active", true);
   const withInst = new Set((rcInst ?? []).map((a) => a.job_id));
-  const jobRows = ok(jobs, "jobs").filter((j) => j.source !== "qa_test");
+  const jobRows = ok(jobs, "jobs").filter((j) => opts.includePractice || j.source !== "qa_test");
   const withElec = new Set(ok(elec, "assignments").map((a) => a.job_id));
   const seen = new Set<string>();
   const coverage = ok(exh, "allocation events").filter((e) => !withElec.has(e.job_id) && !seen.has(e.job_id) && seen.add(e.job_id))
