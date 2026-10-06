@@ -133,7 +133,7 @@ export async function offerView(offerId: string, userId: string) {
     const p = j?.properties as { address_line: string; suburb: string | null; state: string | null; postcode: string | null } | null;
     if (b) locked = { owner: ow?.full_name ?? null, phone: ow?.phone ?? null, address: [p?.address_line, p?.suburb, p?.state, p?.postcode].filter(Boolean).join(" "), start: b.scheduled_start, end: b.scheduled_end };
   }
-  return { id: o.id, jobId: o.job_id, status: o.status, summary: o.summary as Record<string, unknown>, expiresAt: o.expires_at, windows: (windows ?? []).filter((w) => w.status === "proposed" || w.status === "accepted"), locked };
+  return { id: o.id, jobId: o.job_id, status: o.status, summary: o.summary as { suburb?: string; postcode?: string; approx_area_m2?: number; access_summary?: string; electrician_rate_inc_gst?: number; distance_km?: number }, expiresAt: o.expires_at, windows: (windows ?? []).filter((w) => w.status === "proposed" || w.status === "accepted"), locked };
 }
 
 export async function takeJoOffer(offerId: string, proposalId: string, userId: string) {

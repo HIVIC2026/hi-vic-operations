@@ -56,7 +56,7 @@ function DayPage() {
           <>
             <section className="rounded-[22px] border bg-card p-5 shadow-sm">
               <h2 className="font-display text-lg font-extrabold">Phone check</h2>
-              <div className="mt-3 space-y-3">{CHECKS.map((c, i) => <label key={c} className="flex min-h-12 items-center gap-3 rounded-2xl bg-secondary px-3 text-sm font-medium"><Checkbox className="h-6 w-6" checked={ticks[i]} onCheckedChange={(v) => tick(i, v === true)} />{c}</label>)}</div>
+              <div className="mt-3 space-y-3">{CHECKS.map((c, i) => <label key={c} className="flex min-h-12 items-center gap-3 rounded-2xl bg-secondary px-3 text-sm font-medium"><Checkbox className="h-6 w-6" checked={!!ticks[i]} onCheckedChange={(v) => tick(i, v === true)} />{c}</label>)}</div>
             </section>
             <section className="rounded-[22px] border bg-secondary p-5">
               <h2 className="font-display text-lg font-extrabold">Sharp photos, first time</h2>
