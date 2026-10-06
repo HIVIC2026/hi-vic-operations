@@ -81,20 +81,21 @@ async function jobVars(jobId: string) {
     owner: o?.full_name, email: o?.email, phone: o?.phone,
     address: [p?.address_line, p?.suburb, p?.postcode].filter(Boolean).join(", "),
     installer: (inst?.businesses as { name: string } | null)?.name ?? "your installer",
+    total: money?.total, quote_version: money?.version,
   } as Record<string, string | null | undefined> };
 }
 
 const audS = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 /** Step B money from the current installation quote and the safety check payment setting. */
-async function paymentMoney(jobId: string): Promise<PaymentMoney | undefined> {
+async function paymentMoney(jobId: string): Promise<(PaymentMoney & { version: string }) | undefined> {
   const [{ data: q }, { data: ws }] = await Promise.all([
-    admin.from("quotes").select("customer_total_inc_gst").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("quotes").select("customer_total_inc_gst, version").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_settings").select("safety_check_payment_inc_gst" as never).eq("id", 1).maybeSingle(),
   ]);
   if (!q) return undefined;
   const fee = Number((ws as { safety_check_payment_inc_gst?: number } | null)?.safety_check_payment_inc_gst ?? SAFETY_CHECK_FEE_DEFAULT);
   const b = balanceSplit(q.customer_total_inc_gst, fee);
-  return { fee: audS(b.fee), balance: audS(b.balance), half: audS(b.firstHalf), half2: audS(b.secondHalf), total: audS(b.total) };
+  return { fee: audS(b.fee), balance: audS(b.balance), half: audS(b.firstHalf), half2: audS(b.secondHalf), total: audS(b.total), version: String(q.version ?? "") };
 }
 
 /** What the owner still needs to sign now, with the exact text they would sign. */
