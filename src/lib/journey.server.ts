@@ -180,6 +180,29 @@ const s3: StepFn = async (ctx, r) => {
 };
 
 
+
+// 1×1 white JPEG — a real image file, so upload signature checks see a genuine JPEG.
+const TINY_JPEG = Uint8Array.from(atob("/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/yQALCAABAAEBAREA/8wABgAQEAX/2gAIAQEAAD8A0s8g/9k="), (c) => c.charCodeAt(0));
+const FRANKSTON = { lat: -38.1446, lng: 145.1257 };
+
+/** Upload one TEST evidence photo (geotagged at the TEST address) into the job's private files, as a phone upload would. */
+async function uploadEvidence(ctx: JourneyCtx, category: string, by: string, gate = "ready_check") {
+  await assertOwnTestJob(ctx);
+  let { data: req } = await admin.from("evidence_requirements").select("id").eq("job_id", ctx.jobId!).eq("category", category as never).limit(1).maybeSingle();
+  if (!req) {
+    const ins = await admin.from("evidence_requirements").insert({ job_id: ctx.jobId!, category: category as never, label: `TEST ${category}`, gate, required: false, status: "outstanding", sort: 900 } as never).select("id").single();
+    if (ins.error) throw new Error(`evidence requirement: ${ins.error.message}`);
+    req = ins.data;
+  }
+  const path = `${ctx.jobId}/journey/${category}-${Date.now()}.jpg`;
+  const up = await admin.storage.from("job-files").upload(path, TINY_JPEG, { contentType: "image/jpeg", upsert: false });
+  if (up.error) throw new Error(`evidence upload: ${up.error.message}`);
+  (ctx.notes["uploaded"] as string[] | undefined ?? (ctx.notes["uploaded"] = [] as string[]) as string[]).push(path);
+  const { error } = await admin.from("evidence_files").insert({ requirement_id: req!.id, job_id: ctx.jobId!, storage_path: path, file_name: `${category}.jpg`, mime_type: "image/jpeg", size_bytes: TINY_JPEG.length, uploaded_by: by, lat: FRANKSTON.lat, lng: FRANKSTON.lng, location_accuracy_m: 10, captured_at: new Date().toISOString(), distance_m: 5, location_source: "device" });
+  if (error) throw new Error(`evidence record: ${error.message}`);
+  await admin.from("evidence_requirements").update({ status: "uploaded" }).eq("id", req!.id).eq("status", "outstanding");
+}
+
 // ---------- Step 4: TEST installer takes the Ready Check, does it (Mitti simulated), quote maths ----------
 const s4: StepFn = async (ctx, r) => {
   await assertOwnTestJob(ctx);
@@ -197,8 +220,12 @@ const s4: StepFn = async (ctx, r) => {
   // Mitti Ready Check form: SIMULATED (no Mitti template/token in TEST). Same row the Mitti sync writes.
   r.simulated = ["Mitti Ready Check form (measure-up written as the Mitti sync would)"];
   await admin.from("ceiling_measurements").update({ is_current: false }).eq("job_id", ctx.jobId!).eq("is_current", true);
-  const { error: me } = await admin.from("ceiling_measurements").insert({ job_id: ctx.jobId!, status: "complete", is_current: true, source_role: "installer", created_by: ctx.installer.id, measured_area_m2: 120, removal_required: false, external_source: "journey_sim", external_id: `sim-${ctx.runId}` } as never);
+  const { error: me } = await admin.from("ceiling_measurements").insert({ job_id: ctx.jobId!, status: "complete", is_current: true, source_role: "installer", created_by: ctx.installer.id, measured_area_m2: 120, removal_required: false, insulation_present: false, access_difficulty: "easy", measurement_method: "laser",
+    completed_by: ctx.installer.id, completed_at: new Date().toISOString(), measured_on: melbourneDate(0), external_source: "journey_sim", external_id: `sim-${ctx.runId}`, raw_snapshot: { downlight_count: 6, downlight_type: "LED sealed" } } as never);
   check(r, "measure-up recorded", !me, me?.message);
+  for (const c of ["before_ceiling_space", "access_manhole", "existing_insulation_r_value", "identity_front_of_property"]) await uploadEvidence(ctx, c, ctx.installer.id);
+  const { recordPriorActivityCheck } = await import("./verified-eligibility.server");
+  await recordPriorActivityCheck(ctx.jobId!, ctx.actorId, "none_known" as never, null);
   const { recordVerification } = await import("./verified-eligibility.server");
   await recordVerification(admin as never, ctx.jobId!, "eligible", null, "TEST journey: office verified from the Ready Check");
   const { transition } = await import("./workflow.server");
@@ -270,6 +297,8 @@ export async function cleanupJourney(ctx: JourneyCtx) {
       await admin.from("jobs").update({ qa_archived_at: now, stage: "cancelled", cancelled_reason: "TEST journey archived", next_action: "Archived TEST journey" }).eq("id", ctx.jobId).eq("source", "qa_test");
     }
   }
+  const files = (ctx.notes["uploaded"] as string[] | undefined) ?? [];
+  if (files.length && ctx.jobId) await admin.storage.from("job-files").remove(files.filter((f) => f.startsWith(`${ctx.jobId}/journey/`)));
   if (ctx.calculatorInterestId) await admin.from("calculator_interests").delete().eq("id", ctx.calculatorInterestId).eq("email", ctx.ownerEmail);
 }
 
