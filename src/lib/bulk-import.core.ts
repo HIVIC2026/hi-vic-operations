@@ -51,12 +51,12 @@ export const LEAD_STAGE_LABEL: Record<LeadStage, string> = {
 };
 
 /** Work out the lead's stage from what was uploaded. A price means visited and quoted;
- * any measurement, site detail or matched file means visited; otherwise not visited. */
+ * a measurement (area) or a matched file/photo means visited; text alone (sentences
+ * about insulation, access, roof or hazards) never does — otherwise not visited.
+ * The installer can still change the stage on the review screen before Confirm. */
 export function leadStage(e: BulkExtracted, matchedFileCount: number): LeadStage {
   if (e.price_inc_gst && e.price_inc_gst > 0) return "quoted";
-  const siteInfo = (e.area_m2 && e.area_m2 > 0)
-    || ["existing_insulation", "access", "roof_type", "hazards"].some((k) => KNOWN(e[k as keyof BulkExtracted] as string | null));
-  if (siteInfo || matchedFileCount > 0) return "visited";
+  if ((e.area_m2 && e.area_m2 > 0) || matchedFileCount > 0) return "visited";
   return "not_visited";
 }
 
