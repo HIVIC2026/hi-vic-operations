@@ -156,7 +156,7 @@ export const getPartnersOverview = createServerFn({ method: "GET" }).middleware(
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const [biz, asg, offers, rates, apps] = await Promise.all([
-      admin.from("businesses").select("id, name, business_type, onboarding_status, is_active").neq("business_type", "property_manager"),
+      admin.from("businesses").select("id, name, business_type, onboarding_status, is_active").neq("business_type", "property_manager").neq("onboarding_status", "suspended"),
       admin.from("job_assignments").select("business_id, job_id, assigned_at, first_response_at, active, jobs!inner(stage, source)").eq("active", true),
       admin.from("partner_offers").select("business_id, offered_at, responded_at, status"),
       admin.from("electrician_rates").select("business_id, status"),
