@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, ChevronRight, FileText, MessageSquare, Phone, AlertCircle } from "lucide-react";
 import { z } from "zod";
-import { getOwnerMyJob } from "@/lib/owner-myjob.functions";
+import { cancelMyJob, getOwnerMyJob } from "@/lib/owner-myjob.functions";
 import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
 import { HOUSE_LEVEL } from "@/lib/owner-house.core";
@@ -124,6 +124,7 @@ function Home({ v, token }: { v: View; token: string }) {
     {v.consent && <ConsentCard token={token} startsAt={v.consent.scheduledStart} />}
     <Numbers v={v} />
     <BottomList />
+    {v.canCancel && <CancelMyJob token={token} />}
   </>;
 }
 
@@ -233,6 +234,22 @@ function Numbers({ v }: { v: View }) {
 function BottomList() {
   const row = (Icon: typeof FileText, label: string) => <li className="flex h-12 items-center justify-between px-4 text-sm font-semibold"><span className="flex items-center gap-2"><Icon className="h-4 w-4" />{label}</span><ChevronRight className="h-4 w-4" /></li>;
   return <ul className="divide-y divide-estimate-line overflow-hidden rounded-[22px] bg-card shadow-sm">{row(FileText, "Documents")}{row(MessageSquare, "Got a question? Message us")}{row(AlertCircle, "Something wrong? Tell us")}</ul>;
+}
+
+function CancelMyJob({ token }: { token: string }) {
+  const cancel = useServerFn(cancelMyJob);
+  const qc = useQueryClient();
+  const [step, setStep] = useState<"idle" | "confirm" | "busy" | "done">("idle");
+  const [err, setErr] = useState<string | null>(null);
+  if (step === "done") return <section className="rounded-[22px] bg-card p-5 text-center text-sm shadow-sm"><p className="font-bold">Your job is cancelled.</p><p className="mt-1">No charge. Thanks for letting us know.</p></section>;
+  if (step === "idle") return <p className="pt-2 text-center"><button type="button" onClick={() => setStep("confirm")} className="text-xs text-estimate-navy/70 underline">Cancel my job</button></p>;
+  return <section className="rounded-[22px] bg-card p-5 shadow-sm">
+    <p className="font-display text-lg font-extrabold">Cancel your job?</p>
+    <p className="mt-1 text-sm">No charge. You can ask us questions or change your mind before your safety check is booked.</p>
+    {err && <p role="alert" className="mt-2 text-sm text-danger">{err}</p>}
+    <button type="button" disabled={step === "busy"} onClick={async () => { setStep("busy"); setErr(null); const r = await cancel({ data: { token } }); if (r.ok) { setStep("done"); qc.invalidateQueries(); } else { setErr(r.reason ?? "Something went wrong."); setStep("confirm"); } }} className="mt-4 flex h-12 w-full items-center justify-center rounded-full bg-estimate-navy font-bold text-estimate-canvas">{step === "busy" ? "Cancelling…" : "Yes, cancel my job"}</button>
+    <button type="button" onClick={() => setStep("idle")} className="mt-2 flex h-12 w-full items-center justify-center rounded-full font-bold text-estimate-blue">Keep my job</button>
+  </section>;
 }
 
 function Back({ token }: { token: string }) {
@@ -354,5 +371,6 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
       <p className="mt-3 text-xs text-estimate-navy/70">Estimate only. Your exact price comes after the free Ready Check.</p>
     </section>
     <p className="pt-2 text-center"><a href={optOut} className="text-xs text-estimate-navy/70 underline">Remove my enquiry</a></p>
+    {v.canCancel && <CancelMyJob token={token} />}
   </>;
 }
