@@ -212,7 +212,7 @@ describe("launch campaign email drafts", () => {
     for (const m of email.html.matchAll(/<(p|td|a|span|strong|h1|h2|div|li)\b[^>]*>/g)) if (/style="/.test(m[0]) || /^<(strong|h1|h2)/.test(m[0])) expect(m[0]).toContain("font-family:");
     expect(email.html).toContain("'Outfit','Avenir Next','Avenir','Century Gothic','Segoe UI',Helvetica,Arial,sans-serif");
     expect(email.html).not.toContain("font-family:Arial,Helvetica,sans-serif!important");
-    expect(email.html).toContain("That means you pay about <strong>$3,379</strong> instead of $4,849, and enjoy lower power bills for years to come.");
+    expect(email.html.replace(/<strong[^>]*>/g, "<strong>")).toContain("That means you pay about <strong>$3,379</strong> instead of $4,849, and enjoy lower power bills for years to come.");
     expect(email.html).toContain("Hundreds of homes have enquired since 1 October. Spots go in order.");
     expect(email.html).toContain("Free · no payment · no obligation");
     expect(email.html).toContain("Hold your place in line");
