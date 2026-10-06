@@ -12,7 +12,7 @@ async function adminClient() {
 export const getAdminPartnerEnquiries = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
   const admin = await adminClient();
-  const { data, error } = await admin.from("partner_enquiries").select("*").neq("enquiry_type", "property_manager").or("source.is.null,source.not.in.(portal_rec_onboarding_test,portal_installer_onboarding_test)").order("created_at", { ascending: false });
+  const { data, error } = await admin.from("partner_enquiries").select("*").neq("enquiry_type", "property_manager").order("created_at", { ascending: false });
   if (error) throw new Error(`Partner enquiries could not be loaded: ${error.message}`);
   // Office test marks (Jo / Chris practice runs) and QA applications are flagged so they never count as real.
   const { data: marks, error: mErr } = await admin.from("onboarding_test_marks").select("application_id");
@@ -21,7 +21,7 @@ export const getAdminPartnerEnquiries = createServerFn({ method: "POST" }).middl
   if (aErr) throw new Error(`Partner enquiries could not be loaded: ${aErr.message}`);
   const marked = new Set((marks ?? []).map((m) => m.application_id));
   const testEnquiries = new Set((apps ?? []).filter((a) => a.test_mode || marked.has(a.id)).map((a) => a.partner_enquiry_id));
-  return (data ?? []).map((r) => ({ ...r, is_test: testEnquiries.has(r.id) }));
+  return (data ?? []).map((r) => ({ ...r, is_test: testEnquiries.has(r.id) || (r.source ?? "").endsWith("_test") }));
 });
 
 export const getJobOverview = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
