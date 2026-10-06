@@ -119,7 +119,7 @@ describe("Needs me safety net (rule → practice job → flagged)", () => {
 import { officeStatus as _os, OFFICE_STATUSES as _S, STATUS_KEYS as _K } from "../src/lib/office-status.core";
 import { buildNeedsMe as _nm } from "../src/lib/needs-me.core";
 import { test as _t, expect as _e } from "bun:test";
-_t("no send record → waiting list, never 'sent'/'waiting for owner', never late or in Needs me", () => {
+_t("no send record → waiting list, never 'sent'/'waiting for owner', never late, counted in Needs me as one grouped row (Jo, 6 Oct)", () => {
   const now = Date.parse("2026-10-05T00:00:00Z");
   const base = { id: "j", stage: "ready_check_ready_to_schedule", createdAt: "2026-01-01T00:00:00Z", lastActivityAt: "2026-01-01T00:00:00Z", enteredStageAt: "2026-01-01T00:00:00Z" };
   const a = _os({ ...base, estimateSentAt: "2026-01-02T00:00:00Z" }, now)!;
@@ -130,5 +130,5 @@ _t("no send record → waiting list, never 'sent'/'waiting for owner', never lat
   _e(_os({ ...base, estimateSentAt: "2026-01-02T00:00:00Z", ownerContactedAt: "2026-10-01T00:00:00Z" }, now)!.key).toBe("enquiry.estimate_sent");
   for (const k of _K) if (/sent|waiting for owner/i.test(_S[k].label) && _S[k].stage === "enquiry") _e(k).not.toContain("waiting_list");
   const n = _nm({ now, jobs: [{ id: "j", jobNumber: "HV-1", suburb: null, owner: null, stage: base.stage, status: a, statusCount: 1, lastActivityAt: base.lastActivityAt, nextAction: null, installDeadline: null, installStarted: false, holdRevisitAt: null, failures: [], parked: true }], partners: [], snoozes: [], lim: {} });
-  _e(n.items.length).toBe(0);
+  _e(n.items.length).toBe(1); _e(n.items[0]!.jobId).toBe(null); _e(n.items[0]!.count).toBe(1); _e(n.items[0]!.href).toBe("/admin/hot-leads");
 });
