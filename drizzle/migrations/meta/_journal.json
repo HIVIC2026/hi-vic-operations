@@ -918,6 +918,13 @@
       "when": 1791320235961,
       "tag": "0130_safety_check_payment",
       "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1791326379271,
+      "tag": "0131_partner_rate_offers",
+      "breakpoints": true
     }
   ]
 }
