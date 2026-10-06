@@ -77,7 +77,7 @@ export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () 
   const section = sectionFor(loc.pathname, loc.search);
   const load = useServerFn(getNeedsMe);
   const { data } = useQuery({ queryKey: ["needs-me", false], queryFn: () => load({ data: {} }), refetchInterval: 120_000, staleTime: 60_000 });
-  const count = data?.items.length;
+  const count = data ? needsMeTotal(data.items) : undefined;
   const tabs = SECTION_TABS[section];
   return (
     <header className="sticky top-0 z-40 border-b bg-card/95 backdrop-blur">
