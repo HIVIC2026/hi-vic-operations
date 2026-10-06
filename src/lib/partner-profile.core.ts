@@ -87,6 +87,7 @@ export function buildPartnerProfile(app: AppMeta, data: Data, cii: Map<string, C
   };
 }
 
+export const TYPICAL_R5 = [25, 30] as const;
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); if (!s.length) return null; const m = Math.floor(s.length / 2); return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2; };
 const daysUntil = (iso: string, today: string) => Math.round((Date.parse(iso) - Date.parse(today)) / 86_400_000);
 
@@ -109,7 +110,9 @@ export function approvalFlags(p: PartnerProfile, peers: { r5: number[]; piesa: n
     const m = median(xs.filter((x) => x > 0)); if (v == null || m == null || xs.length < 3) return;
     if (v < m * 0.75 || v > m * 1.35) out.push(`${label} $${v} looks unusual (other partners: around $${Math.round(m)}).`);
   };
-  unusual("R5 rate per m²", p.rates.r5_per_m2, peers.r5);
+  // Too few real installers to compare yet, so fall back to Jo's stated typical R5 range ($25–30/m²).
+  if (peers.r5.length >= 3) unusual("R5 rate per m²", p.rates.r5_per_m2, peers.r5);
+  else if (p.rates.r5_per_m2 != null && (p.rates.r5_per_m2 < TYPICAL_R5[0] * 0.85 || p.rates.r5_per_m2 > TYPICAL_R5[1] * 1.2)) out.push(`R5 rate per m² $${p.rates.r5_per_m2} looks unusual (typical: $${TYPICAL_R5[0]}–${TYPICAL_R5[1]}).`);
   unusual("PIESA rate", p.rates.piesa, peers.piesa);
   if (!p.insurance.expires_at) out.push("Missing public liability expiry date.");
   else { const d = daysUntil(p.insurance.expires_at, today); if (d < 0) out.push("Public liability insurance has expired."); else if (d <= 60) out.push(`Public liability insurance expires in ${d} days.`); }
