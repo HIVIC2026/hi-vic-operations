@@ -113,7 +113,7 @@ const s1: StepFn = async (ctx, r) => {
   const { data: l } = await admin.from("customer_estimate_links").select("token").eq("job_id", ctx.jobId).eq("status", "active").order("created_at", { ascending: false }).limit(1).maybeSingle();
   ctx.token = (l as { token: string } | null)?.token ?? null;
   check(r, "owner token available", !!ctx.token);
-  ctx.screens.push({ step: "s1_calculator", persona: "public", path: "/", mustSee: ["Save my spot", "ceiling"] });
+  ctx.screens.push({ step: "s1_calculator", persona: "public", path: "/", mustSee: ["How much could you save", "Register my interest"] });
 };
 
 // ---------- Step 2: owner email links ----------
@@ -136,7 +136,7 @@ const s2: StepFn = async (ctx, r) => {
   check(r, "repeat calculator enquiry attaches to the same job", again.job_id === ctx.jobId, `got ${again.job_number}`);
   ctx.screens.push({ step: "s2_owner_links", persona: "owner_token", path: `/estimate/${ctx.token}/campaign`, mustSee: ["spot"] });
   ctx.screens.push({ step: "s2_owner_links", persona: "owner_token", path: `/estimate/${ctx.token}/calculator` });
-  ctx.screens.push({ step: "s2_owner_links", persona: "owner_token", path: `/my-job/${ctx.token}`, mustSee: ["saved"] });
+  ctx.screens.push({ step: "s2_owner_links", persona: "owner_token", path: `/my-job/${ctx.token}`, mustSee: ["Your progress"], mustNotSee: ["version —"] });
 };
 
 
