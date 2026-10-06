@@ -12,5 +12,6 @@
 
 Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approvals.
 
-- [ ] Cooling-off (Jo, 6 Oct): applies to ALL jobs. Approve Gate B box 4 "applies" wording (approver "Jo Lowe — lawyer sign-off 6 Oct 2026"). 10 Victorian business days after Step B signing (skip weekends + Vic public holidays); end date on My job, signed PDF, confirmation email; "Cancel my agreement" (code + typed name → cancelled, no charge, refund flagged, trades notified, logged); no PIESA/install booked before end unless owner e-signs "I'd like to start sooner" (exact wording, logged, PDF); office job page shows end date; Needs me flags bookings inside cooling-off; tests for business days/cancel/start-sooner. Customer Agreement doc stays pending lawyer text. Preview only.
 - [ ] Trade view for partner approval (Jo, 6 Oct) — plan in .lovable/plan.md awaiting approval.
+
+- [ ] Gate B box 4 (Jo, 6 Oct): NO cooling-off. Approve "doesn't apply" line "You can ask us questions or change your mind before your safety check is booked." (approver "Jo Lowe — lawyer sign-off 6 Oct 2026"). Plain "Cancel my job" on My job only until safety check booked. Preview only.
