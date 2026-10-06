@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
 
-// DRAFT — wording approved by Jo for structure only; the privacy contact email and
-// "Last updated" date are placeholders until Jo supplies them. Do not remove the
-// DRAFT mark or publish without her OK.
+// DRAFT — wording approved by Jo for structure only; the "Last updated" date is still a
+// placeholder until Jo approves the page. Do not remove the DRAFT mark or publish
+// without her OK.
 const PRIVACY_DRAFT = true;
-const PRIVACY_CONTACT_EMAIL = "[privacy contact email]";
+const PRIVACY_CONTACT_EMAIL = "info@homeinsulationvictoria.com.au";
 const LAST_UPDATED = "[date of approval]";
 
 const title = "Privacy policy — Home Insulation Victoria";
@@ -92,7 +92,14 @@ function PrivacyPage() {
           </Section>
 
           <Section heading="Complaints">
-            Contact us first at {PRIVACY_CONTACT_EMAIL}. If you're not satisfied with our response, you can contact the Office of the Australian Information Commissioner (oaic.gov.au).
+            Contact us first at{" "}
+            <a
+              href={`mailto:${PRIVACY_CONTACT_EMAIL}`}
+              className="font-bold text-estimate-blue underline decoration-estimate-green/60 underline-offset-2 hover:text-estimate-green"
+            >
+              {PRIVACY_CONTACT_EMAIL}
+            </a>
+            . If you're not satisfied with our response, you can contact the Office of the Australian Information Commissioner (oaic.gov.au).
           </Section>
 
           <p className="mt-6 border-t border-estimate-line pt-4 text-[0.8rem] text-estimate-navy/70">Last updated: {LAST_UPDATED}</p>
