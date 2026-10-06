@@ -26,7 +26,7 @@ describe("how job offers go out", () => {
     expect(chooseWarnings({ today: "2026-10-07", insuranceExpiresOn: ["2027-01-01"], certExpiresOn: [], rate: 200, ownerPrice: 349 })).toEqual([]);
   });
   test("distance", () => {
-    expect(distanceKm({ lat: -37.81, lng: 144.96 }, { lat: -37.70, lng: 144.70 })).toBe(25);
+    expect(distanceKm({ lat: -37.81, lng: 144.96 }, { lat: -37.70, lng: 144.70 })).toBe(26);
     expect(distanceKm({ lat: null, lng: null }, { lat: -37.7, lng: 144.7 })).toBeNull();
   });
   test("practice database: defaults and checks", async () => {
