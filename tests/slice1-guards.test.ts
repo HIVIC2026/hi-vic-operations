@@ -39,6 +39,7 @@ const REVIEWED: Record<string, string> = {
   listMyWorkers: "scoped to caller's own business via myBusinesses()",
   createBatchOwnerEligibilityLinks: "authorise(): office, or member of every job's originating installer company",
   jobOwnerEligibility: "reads through RLS (context.supabase); elevated text is the following token-hash resolve() helper",
+  myTeamCompliance: "scoped to caller's own business memberships (read through RLS) or their own worker row",
 };
 describe("server-side role guards", () => {
   test("every server function using the elevated client checks the caller's role (or is a reviewed exception)", () => {
