@@ -36,6 +36,14 @@ export async function personaClient(email: string) {
   sessions.set(email, sb);
   return sb;
 }
+
+/** A fresh session (for the browser runner's localStorage). TEST accounts only. */
+export async function personaSession(email: string) {
+  sessions.delete(email);
+  const sb = await personaClient(email);
+  sessions.delete(email);
+  return (await sb.auth.getSession()).data.session;
+}
 function check(r: StepResult, name: string, ok: boolean, detail?: string) { r.checks.push({ name, ok, detail }); if (!ok) throw new StepFail(`${name}${detail ? `: ${detail}` : ""}`); }
 
 async function profileByEmail(email: string) {
