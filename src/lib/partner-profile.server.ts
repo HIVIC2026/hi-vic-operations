@@ -65,7 +65,7 @@ export async function applyPartnerProfile(admin: AdminDb, businessId: string, p:
   // Workers: lower-case emails and +61 mobiles.
   const { data: workers } = await admin.from("partner_workers").select("id, email, mobile").eq("business_id", businessId);
   for (const w of workers ?? []) {
-    const email = normaliseEmail(w.email); const mobile = normaliseMobile(w.mobile);
+    const email = normaliseEmail(w.email) ?? w.email; const mobile = normaliseMobile(w.mobile);
     if (email !== w.email || mobile !== w.mobile) await admin.from("partner_workers").update({ email, mobile }).eq("id", w.id);
   }
   // Licences: one row per kind + number (+ holder); never duplicated on re-approval. Office verification stays separate.
