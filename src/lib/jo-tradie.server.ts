@@ -246,7 +246,7 @@ export async function tradeSetup(userId: string) {
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const [{ data: rate }, { count: bank }, { data: prof }] = await Promise.all([
     r.from("electrician_rates").select("rate_inc_gst").eq("business_id", b.id).eq("service_type", "piesa").eq("status", "active").maybeSingle(),
-    admin.from("business_bank_details").select("id", { count: "exact", head: true }).eq("business_id", b.id),
+    admin.from("business_bank_details").select("business_id", { count: "exact", head: true }).eq("business_id", b.id),
     admin.from("profiles").select("full_name, phone, email").eq("id", userId).maybeSingle(),
   ]);
   return { business: b.name, name: prof?.full_name ?? null, mobile: prof?.phone ?? null, email: prof?.email ?? null, area: b.covers_all_victoria ? "Anywhere in Victoria" : `${b.base_suburb ?? "—"}, ${b.coverage_radius_km ?? "?"} km`, rate: rate ? Number(rate.rate_inc_gst) : null, bankDone: !!bank };
