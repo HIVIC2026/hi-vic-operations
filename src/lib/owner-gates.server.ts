@@ -1,7 +1,7 @@
 // Owner paperwork gates — persistence. Facts in, pure evaluator (owner-gates.core) out. Server-only.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { GATE_DOCS, evaluateOwnerGates, fillTemplate, gateDoc, ownerGateBlockers, ownerToSign, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
+import { GATE_DOCS, answerVars, evaluateOwnerGates, fillTemplate, gateDoc, ownerGateBlockers, ownerToSign, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
 import { agreementSigned, assignmentStatus, logEvent, WorkflowError } from "./workflow.server";
 
 async function sha256(s: string) {
@@ -97,9 +97,10 @@ export async function ownerPaperworkToSign(jobId: string) {
 }
 
 const ANSWERS: Partial<Record<GateDocKey, (a: Record<string, string>) => string | null>> = {
-  details_confirmation: (a) => (["owner", "tenant"].includes(a["role"] ?? "") ? null : "Tell us if you're the owner or a tenant."),
+  details_confirmation: (a) => (["owner", "tenant", "buying", "other"].includes(a["role"] ?? "") ? null : "Tell us who owns the home."),
+  payment_terms: (a) => (["deposit", "full", "instalments"].includes(a["payment_option"] ?? "") ? null : "Choose how you'd like to pay."),
   life_support_answer: (a) => (["yes", "no"].includes(a["life_support"] ?? "") ? null : "Please answer the life support question."),
-  tenancy_details: (a) => ((a["landlord_name"] ?? "").trim().length >= 2 && (a["landlord_contact"] ?? "").trim().length >= 5 ? null : "Add your landlord's name and phone or email."),
+  tenancy_details: (a) => ((a["landlord_name"] ?? "").trim().length >= 2 && ((a["landlord_phone"] ?? "").trim().length >= 6 || /@/.test(a["landlord_email"] ?? "")) ? null : "Add your landlord or agent's name and phone or email."),
 };
 
 export type SignInput = { jobId: string; key: GateDocKey; signatoryName: string; ticked: boolean; answers: Record<string, string>;
@@ -119,7 +120,7 @@ export async function signGateDoc(i: SignInput) {
   const draft = facts.approved[i.key] !== d.version;
   if (draft && !facts.isTest) throw new WorkflowError(`"${d.title}" is still DRAFT wording. It can be signed on real jobs once Jo approves it.`);
   const { vars, jobNumber, ownerId } = await jobVars(i.jobId);
-  const text = fillTemplate(d.body, { ...vars, ...i.answers });
+  const text = fillTemplate(d.body, { ...vars, ...answerVars(i.answers) });
   const signedText = `${d.title} (version ${d.version}${draft ? ", DRAFT" : ""})\n\n${text}\n\n[x] ${d.tick}\nSigned: ${i.signatoryName.trim()}`;
   const { data: row, error } = await admin.from("owner_gate_signatures").insert({
     job_id: i.jobId, gate: d.gate, doc_key: d.key, doc_version: d.version, doc_draft: draft, signed_text: signedText, signed_text_sha256: await sha256(signedText),
@@ -131,6 +132,7 @@ export async function signGateDoc(i: SignInput) {
 
   // Facts the signature establishes (fail closed: only ever switch life support ON).
   if (i.key === "life_support_answer" && i.answers["life_support"] === "yes") await admin.from("jobs").update({ life_support: true }).eq("id", i.jobId);
+  if (i.key === "details_confirmation" && ["buying", "other"].includes(i.answers["role"] ?? "")) await logEvent(i.jobId, i.signedBy, "owner_paperwork_office_review", `Owner says "${i.answers["role"] === "buying" ? "I'm buying it" : "Other"}" for who owns the home — office review needed.`, { signature_id: row.id });
   if (i.key === "contact_privacy" && ownerId) {
     await admin.from("owner_contact_consents").upsert({ job_id: i.jobId, owner_id: ownerId, source: "owner_paperwork", consent_key: `gateA:${row.id}`, consent_status: "granted", contact_consent: true, consent_version: d.version, consented_at: row.signed_at, snapshot: { signature_id: row.id, text: signedText }, sha256: await sha256(signedText) }, { onConflict: "job_id,source,consent_key", ignoreDuplicates: true });
   }
@@ -194,7 +196,7 @@ export async function paperworkCatalogue() {
   });
   const own = GATE_DOCS.map((d) => {
     const a = (appr ?? []).find((x) => x.doc_key === d.key && x.doc_version === d.version);
-    return { key: d.key, gate: d.gate, title: d.title, version: d.version, status: approved[d.key] ? "Approved" : (d.draftNote ?? "Draft"), approvedBy: who(a?.approved_by ?? null), approvedAt: a?.approved_at ?? null, managedIn: "Here" };
+    return { key: d.key, gate: d.gate, title: d.title, version: d.version, status: approved[d.key] ? "Approved" : (d.draftNote ?? "Draft"), approvedBy: approved[d.key] && d.approvalNote ? d.approvalNote : who(a?.approved_by ?? null), approvedAt: a?.approved_at ?? null, managedIn: "Here" };
   });
   return [...own, ...fromTemplates].sort((x, y) => x.gate.localeCompare(y.gate));
 }

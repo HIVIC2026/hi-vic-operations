@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { withRequestMeta } from "./request-meta";
 
-const DOC_KEYS = ["contact_privacy", "trade_contact_share", "details_confirmation", "life_support_answer", "tenancy_details", "landlord_consent", "visit_permission", "cooling_off_notice", "payment_terms", "veec_assignment_consent", "life_support_plan", "piesa_owner_declaration"] as const;
+const DOC_KEYS = ["contact_privacy", "trade_contact_share", "details_confirmation", "life_support_answer", "tenancy_details", "landlord_consent", "visit_permission", "cooling_off_notice", "payment_terms", "veec_assignment_consent", "quote_acceptance", "piesa_copy_receipt", "life_support_plan", "piesa_owner_declaration"] as const;
 const signBody = { key: z.enum(DOC_KEYS), signatoryName: z.string().trim().min(2).max(200), ticked: z.boolean(), answers: z.record(z.string(), z.string().max(300)).default({}) };
 
 /** Link: what the owner still needs to sign (no session needed to read). */

@@ -12,27 +12,28 @@ export function OwnerCodeGate({ token, onVerified }: { token: string; onVerified
   const ask = useServerFn(requestOwnerCodeFn);
   const check = useServerFn(verifyOwnerCodeFn);
   const { data } = useQuery({ queryKey: ["owner-code-opts", token], queryFn: () => opts({ data: { token } }) });
-  const [sent, setSent] = useState<{ masked: string; testCode: string | null } | null>(null);
+  const [sent, setSent] = useState<{ masked: string; testCode: string | null; channel: "sms" | "email" } | null>(null);
   const [code, setCode] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const run = async (f: () => Promise<void>) => { setErr(""); setBusy(true); try { await f(); } catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); } finally { setBusy(false); } };
   return (
     <section className="rounded-[22px] bg-card p-5 shadow-sm">
-      <h3 className="font-display text-lg font-extrabold">Quick check it's you</h3>
+      <h3 className="font-display text-lg font-extrabold">Let's check it's you</h3>
       {!sent ? <>
         <p className="mt-1 text-sm">We'll send you a 6-digit code. No password needed.</p>
         <div className="mt-3 space-y-2">
-          {data?.sms && <button className={btn} disabled={busy} onClick={() => run(async () => setSent(await ask({ data: { token, channel: "sms" } })))}>Text me a code ({data.sms})</button>}
-          {data?.email && <button className={`${btn} bg-estimate-blue`} disabled={busy} onClick={() => run(async () => setSent(await ask({ data: { token, channel: "email" } })))}>Email me a code ({data.email})</button>}
+          {data?.sms && <button className={btn} disabled={busy} onClick={() => run(async () => setSent({ ...(await ask({ data: { token, channel: "sms" } })), channel: "sms" }))}>Text me a code ({data.sms})</button>}
+          {data?.email && <button className={`${btn} bg-estimate-blue`} disabled={busy} onClick={() => run(async () => setSent({ ...(await ask({ data: { token, channel: "email" } })), channel: "email" }))}>Email me a code ({data.email})</button>}
           {data && !data.sms && !data.email && <p className="text-sm">We don't have a mobile or email for you yet. Please use "Got a question? Message us".</p>}
         </div>
       </> : <>
-        <p className="mt-1 text-sm">We sent a code to {sent.masked}. It works for 10 minutes.</p>
+        <p className="mt-1 text-sm">{sent.channel === "email" ? `We've emailed a 6-digit code to ${sent.masked}.` : `We've texted a 6-digit code to ${sent.masked}.`}</p>
         {sent.testCode && <p className="mt-2 rounded-2xl bg-estimate-blush p-3 text-sm font-bold">TEST job, nothing is sent. Your code: {sent.testCode}</p>}
-        <input className={`${input} mt-3 text-center font-display text-2xl tracking-[0.4em]`} inputMode="numeric" autoComplete="one-time-code" maxLength={6} aria-label="6-digit code" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
+        <input className={`${input} mt-3 text-center font-display text-2xl tracking-[0.4em]`} inputMode="numeric" autoComplete="one-time-code" maxLength={6} aria-label="Enter code" placeholder="Enter code" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
         <button className={`${btn} mt-3`} disabled={busy || code.length !== 6} onClick={() => run(async () => onVerified((await check({ data: { token, code } })).session))}>Check my code</button>
-        <button className="mt-2 h-12 w-full text-sm font-bold text-estimate-blue" onClick={() => { setSent(null); setCode(""); }}>Send a new code</button>
+        {sent.channel !== "email" && data?.email ? <button className="mt-2 h-12 w-full text-sm font-bold text-estimate-blue" disabled={busy} onClick={() => run(async () => { setCode(""); setSent({ ...(await ask({ data: { token, channel: "email" } })), channel: "email" }); })}>Didn't get it? Send to my email instead</button>
+          : <button className="mt-2 h-12 w-full text-sm font-bold text-estimate-blue" onClick={() => { setSent(null); setCode(""); }}>Send a new code</button>}
       </>}
       {err && <p role="alert" className="mt-2 text-sm font-semibold text-destructive">{err}</p>}
     </section>

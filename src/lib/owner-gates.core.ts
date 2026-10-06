@@ -10,42 +10,90 @@ export const GATE_LABEL: Record<Gate, string> = {
 export type GateDocKey =
   | "contact_privacy" | "trade_contact_share" | "details_confirmation" | "life_support_answer"
   | "tenancy_details" | "landlord_consent" | "visit_permission"
-  | "cooling_off_notice" | "payment_terms" | "veec_assignment_consent"
-  | "life_support_plan" | "piesa_owner_declaration";
+  | "cooling_off_notice" | "payment_terms" | "veec_assignment_consent" | "quote_acceptance"
+  | "life_support_plan" | "piesa_copy_receipt" | "piesa_owner_declaration";
 
-export type GateDoc = { key: GateDocKey; gate: Gate; title: string; version: string; body: string; signer: "owner" | "office"; tick: string; draftNote?: string };
+export type GateDoc = { key: GateDocKey; gate: Gate; title: string; version: string; body: string; signer: "owner" | "office"; tick: string; draftNote?: string; approvalNote?: string };
 
 const DRAFT = "DRAFT — wording pending Jo's approval. Not for use on real jobs.";
 
 /** Placeholder bodies are deliberately marked DRAFT; never present them as approved wording. {placeholders} are filled at signing. */
+export const LAWYER_V = "lawyer-2026-10-06-v1";
+export const LAWYER_APPROVAL_NOTE = "Jo Lowe — lawyer sign-off 6 Oct 2026";
+const L = { version: LAWYER_V, approvalNote: LAWYER_APPROVAL_NOTE } as const;
+
+/** Lawyer-approved wording is loaded verbatim (Jo, 6 Oct 2026). {placeholders} are filled at signing; [brackets] are links. */
 export const GATE_DOCS: GateDoc[] = [
-  { key: "contact_privacy", gate: "A", title: "Contact and privacy consent", version: "draft-1", signer: "owner", tick: "I agree",
-    body: `${DRAFT}\n\nI, {owner}, agree that Home Insulation Victoria may contact me about the insulation upgrade at {address} by phone, text and email, and may collect, store and use my personal information for this job.` },
-  { key: "trade_contact_share", gate: "A", title: "Sharing your details with your trades", version: "draft-1", signer: "owner", tick: "I agree",
-    body: `${DRAFT}\n\nI agree that Home Insulation Victoria may share my name, address and phone number with the installer and electrician assigned to my job, only so they can arrange and carry out visits.` },
-  { key: "details_confirmation", gate: "A", title: "Confirm your details", version: "draft-1", signer: "owner", tick: "These details are correct",
-    body: `${DRAFT}\n\nName: {owner}\nAddress: {address}\nMobile: {phone}\nEmail: {email}\nI am the: {role}` },
-  { key: "life_support_answer", gate: "A", title: "Life support", version: "draft-1", signer: "owner", tick: "This answer is correct",
-    body: `${DRAFT}\n\nDoes anyone at {address} rely on life support equipment that uses electricity? Answer: {life_support}` },
-  { key: "tenancy_details", gate: "A", title: "Your landlord", version: "draft-1", signer: "owner", tick: "These details are correct",
-    body: `${DRAFT}\n\nI rent {address}. My landlord is {landlord_name}, contact {landlord_contact}.` },
-  { key: "landlord_consent", gate: "A", title: "Landlord consent", version: "draft-1", signer: "office", tick: "Landlord consent received",
-    body: `${DRAFT}\n\nThe landlord {landlord_name} has given written consent for the insulation upgrade at {address}. Recorded by office.` },
-  { key: "visit_permission", gate: "A", title: "Your installer's earlier visit", version: "draft-1", signer: "owner", tick: "I confirm",
-    body: `${DRAFT}\n\nI confirm {installer} visited {address} with my permission.` },
-  // Jo, 6 Oct 2026 (lawyer sign-off): no cooling-off period applies (owners asked to be contacted). Key kept for history.
-  { key: "cooling_off_notice", gate: "B", title: "Changing your mind", version: "jo-2026-10-06-lawyer", signer: "owner", tick: "I have read this",
-    body: "You can ask us questions or change your mind before your safety check is booked." },
-  { key: "payment_terms", gate: "B", title: "Payment option and terms", version: "draft-1", signer: "owner", tick: "I agree",
-    body: `${DRAFT}\n\nI agree to pay using: {payment_option}.` },
-  { key: "veec_assignment_consent", gate: "B", title: "Your rebate (VEEC assignment)", version: "jo-2026-10-05-lawyer", draftNote: "Draft, awaiting lawyer", signer: "owner", tick: "I assign my VEECs",
+  { key: "contact_privacy", gate: "A", title: "Contact and privacy", ...L, signer: "owner", tick: "I agree",
+    body: "I agree to Home Insulation Victoria (DC Construction Solutions Pty Ltd) contacting me by phone, text and email about my ceiling insulation upgrade. I have read the [Privacy Notice] and the [VEU Scheme Participant Privacy Collection Notice]." },
+  { key: "trade_contact_share", gate: "A", title: "Sharing with your tradies", ...L, signer: "owner", tick: "I agree",
+    body: "I agree to Home Insulation Victoria sharing my name, address, phone and email with the installer and licensed electrician assigned to my job, for this job only." },
+  { key: "details_confirmation", gate: "A", title: "Who owns the home", ...L, signer: "owner", tick: "That's right",
+    body: "Who owns the home?\nI own it / I'm a tenant / I'm buying it / Other\nAnswer: {role}" },
+  { key: "life_support_answer", gate: "A", title: "Life support", ...L, signer: "owner", tick: "That's right",
+    body: "Does anyone at the property rely on life support equipment that needs electricity? Yes / No\nAnswer: {life_support}" },
+  { key: "tenancy_details", gate: "A", title: "Your landlord or agent", ...L, signer: "owner", tick: "That's right",
+    body: "Landlord or agent's name: {landlord_name}\nPhone: {landlord_phone}\nEmail: {landlord_email}\nWe'll ask your landlord to agree before any work is booked." },
+  { key: "landlord_consent", gate: "A", title: "Landlord consent", ...L, signer: "office", tick: "Landlord consent received",
+    body: "I am the owner (or authorised agent) of {address}. I agree to ceiling insulation being installed under the Victorian Energy Upgrades program, arranged by Home Insulation Victoria, and to the electrical safety check and installation visits needed." },
+  { key: "visit_permission", gate: "A", title: "Earlier visit", ...L, signer: "owner", tick: "I confirm",
+    body: "I confirm {installer} visited my home on or around {visit_date} with my permission, and I'm happy for Home Insulation Victoria to use what they measured." },
+  { key: "quote_acceptance", gate: "B", title: "The agreement", ...L, signer: "owner", tick: "I accept",
+    body: "I accept this quote (version {quote_version}, {total} inc GST after the VEU discount) and the [Customer Agreement] with DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.\n\nI am the owner of the property, or I have the owner's authority to sign. I am 18 or older." },
+  { key: "veec_assignment_consent", gate: "B", title: "Your rebate (VEEC assignment)", ...L, signer: "owner", tick: "I assign my VEECs",
     body: "I assign to DC Construction Solutions Pty Ltd trading as Home Insulation Victoria the right to create all Victorian energy efficiency certificates (VEECs) for this Activity 48 ceiling insulation upgrade at {address}. I understand this assignment takes effect only once the work has been done. If the installer, product, installed area, VEU discount, scope or price changes, I'll be asked to reconfirm. I'll receive a copy of the completed form after install." },
-  { key: "life_support_plan", gate: "C", title: "Life support plan", version: "draft-1", signer: "owner", tick: "I agree",
-    body: `${DRAFT}\n\nI agree to the plan for keeping life support equipment powered during electrical work at {address}.` },
+  // PENDING: two cooling-off variants await Jo's answer. Stays DRAFT and blocks real jobs.
+  { key: "cooling_off_notice", gate: "B", title: "Cooling-off", version: "pending-jo-variants", draftNote: "Pending — awaiting Jo's choice of variant", signer: "owner", tick: "I have read this",
+    body: `${DRAFT}\n\nCooling-off wording pending Jo's choice between two variants.` },
+  { key: "payment_terms", gate: "B", title: "Payment", ...L, signer: "owner", tick: "I agree",
+    body: "{payment_option_text}" },
+  { key: "piesa_copy_receipt", gate: "C", title: "Your safety check copy", ...L, signer: "owner", tick: "I have received it",
+    body: "I have received a copy of the signed electrical safety check (PIESA) for my home. [View my copy]" },
+  { key: "life_support_plan", gate: "C", title: "Life support plan", ...L, signer: "owner", tick: "I have uploaded it",
+    body: "I have uploaded my medical or life support plan, or written consent for the power to be switched off during work. [Upload]" },
   { key: "piesa_owner_declaration", gate: "C", title: "Safety check owner declaration (Mitti)", version: "draft-1", signer: "owner", tick: "I declare",
     body: `${DRAFT}\n\nCompleted in the Mitti PIESA form once the form mapping is approved.` },
 ];
+
+/** Approved payment option wording (options offered still depend on Jo's payment rule). */
+export const PAYMENT_OPTION_TEXT = {
+  deposit: "I'll pay a {deposit}% deposit of {amount} now, and the balance on install day.",
+  full: "I'll pay in full now.",
+  instalments: "I'll pay in 3 instalments",
+} as const;
+
+/** Lawyer-approved screen copy (version LAWYER_V). Presentation only. */
+export const PAPERWORK_SCREENS = {
+  A: { heading: "Before we book anyone in", button: "Confirm and continue",
+    tenantNote: "We'll ask your landlord to agree before any work is booked.",
+    lifeSupportYes: "We'll need to plan around power being switched off during the safety check. We'll contact you before booking.",
+    ownership: [["owner", "I own it"], ["tenant", "I'm a tenant"], ["buying", "I'm buying it"], ["other", "Other"]] as [string, string][] },
+  B: { heading: "Ready to go ahead?", button: "Sign and accept",
+    rights: "I have read the [ESC Consumer Statement of Rights for the Victorian Energy Upgrades program]. I understand I can take time to read this agreement and ask questions, and I have not been pressured to sign.",
+    next: ["We'll book a licensed electrician for the safety check. If they find anything that must be fixed, we'll show you the price and wait for your OK. Nothing extra happens without your approval.",
+      "Before your install day we'll ask you to sign a short consent to share details with the Essential Services Commission. After your install, we'll send you a copy of your completed rebate form."] },
+  C: { heading: "One last thing before install day", button: "Sign",
+    esc: ["I give written consent to DC Construction Solutions Pty Ltd trading as Home Insulation Victoria, as the Accredited Person for my ceiling insulation upgrade, to send the Essential Services Commission my install day(s) ({dates}), my property address, my contact details and any other details the Commission requires.",
+      "I also consent to the Commission sharing that information with WorkSafe Victoria and Energy Safe Victoria for safety and compliance checks."],
+    remember: ["Please don't go into the roof space before install day. It can affect the safety check.", "Make sure we can get to your manhole."] },
+  D: { done: "All done! Here's a copy of your completed rebate form. Keep it with your home records.",
+    changed: "Something changed after you agreed: {list}. Please check and reconfirm.", button: "Reconfirm" },
+  sign: { heading: "Let's check it's you", sent: "We've texted a 6-digit code to {masked}.", codeLabel: "Enter code",
+    email: "Didn't get it? Send to my email instead", name: "Type your full name to sign", signed: "Signed. We've emailed you a copy." },
+} as const;
+
 export const gateDoc = (k: GateDocKey) => GATE_DOCS.find((d) => d.key === k)!;
+
+/** Human labels for the owner's answers, merged into the signed text. */
+export function answerVars(a: Record<string, string>): Record<string, string> {
+  const own = Object.fromEntries(PAPERWORK_SCREENS.A.ownership);
+  const out: Record<string, string> = { ...a };
+  if (a["role"]) out["role"] = own[a["role"]] ?? a["role"];
+  if (a["life_support"]) out["life_support"] = a["life_support"] === "yes" ? "Yes" : "No";
+  const po = a["payment_option"] as keyof typeof PAYMENT_OPTION_TEXT | undefined;
+  if (po && PAYMENT_OPTION_TEXT[po]) out["payment_option_text"] = PAYMENT_OPTION_TEXT[po];
+  return out;
+}
 
 export function fillTemplate(body: string, vars: Record<string, string | null | undefined>): string {
   return body.replace(/\{(\w+)\}/g, (_, k: string) => (vars[k] ?? "").toString().trim() || "—");
@@ -87,11 +135,12 @@ export function evaluateOwnerGates(f: GateFacts): GateResult[] {
 
   const B: GateItem[] = [
     { key: "customer_agreement", label: "Customer agreement + consumer rights", done: f.agreementSigned, draft: !f.agreementWordingApproved },
-    docItem(f, "veec_assignment_consent"), docItem(f, "cooling_off_notice"), docItem(f, "payment_terms"),
+    docItem(f, "quote_acceptance"), docItem(f, "veec_assignment_consent"), docItem(f, "cooling_off_notice"), docItem(f, "payment_terms"),
   ];
   const C: GateItem[] = [
     { key: "esc_consent", label: "ESC information-sharing consent (Reg 23A)", done: f.escConsentSigned, draft: false },
     { key: "piesa_copy", label: "Safety check (PIESA) copy delivered", done: f.piesaCopyDelivered, draft: false },
+    docItem(f, "piesa_copy_receipt"),
   ];
   if (f.lifeSupport) C.push(docItem(f, "life_support_plan"));
   if (f.piesaDeclarationMappingApproved) C.push(docItem(f, "piesa_owner_declaration"));
