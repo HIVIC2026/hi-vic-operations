@@ -39,6 +39,9 @@ const REVIEWED: Record<string, string> = {
   listMyWorkers: "scoped to caller's own business via myBusinesses()",
   createBatchOwnerEligibilityLinks: "authorise(): office, or member of every job's originating installer company",
   jobOwnerEligibility: "reads through RLS (context.supabase); elevated text is the following token-hash resolve() helper",
+  ownerPaperworkFn: "secure owner link token, usable link only, own job",
+  ownerReconfirmVariationFn: "verified owner code session; variation must belong to the session job",
+  ownerSignConsentFn: "verified owner code session scoped to its own job",
   myTeamCompliance: "scoped to caller's own business memberships (read through RLS) or their own worker row",
 };
 describe("server-side role guards", () => {
