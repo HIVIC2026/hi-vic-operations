@@ -87,7 +87,7 @@ export async function installerCandidatesFor(jobId: string) {
   const windowDays = new Set(windows.map((x) => x.day));
   const [{ data: creds }, { data: workers }, { data: offers }, { data: bks }] = await Promise.all([
     admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification").in("business_id", inIds),
-    admin.from("partner_workers").select("id, business_id, email").eq("trade_role", "installer").eq("approval_status", "approved").is("removed_at", null).in("business_id", inIds),
+    admin.from("partner_workers").select("id, business_id, email, trade_role, piisa_status, piisa_certificate_path, piisa_verified_at").eq("trade_role", "installer").eq("approval_status", "approved").is("removed_at", null).in("business_id", inIds),
     admin.from("partner_offers").select("business_id, status, offered_at, responded_at").eq("kind", "ready_check").gte("offered_at", since).in("business_id", inIds),
     windows.length
       ? admin.from("bookings").select("business_id, scheduled_start, scheduled_end, jobs(properties(postcode))").eq("status", "confirmed").in("business_id", inIds)
@@ -96,7 +96,9 @@ export async function installerCandidatesFor(jobId: string) {
       : Promise.resolve({ data: [] as { business_id: string | null; scheduled_start: string; scheduled_end: string | null; jobs: unknown }[] }),
   ]);
   // Certification: latest record per worker (by id or email) + latest office-recorded level.
-  const wk = workers ?? [];
+  // PIISA: installers who said No (or uploaded but not yet verified) can't be offered jobs.
+  const { workerOfferBlocker } = await import("./worker-compliance.core");
+  const wk = (workers ?? []).filter((x) => !workerOfferBlocker(x as never, melbourneYmd(new Date())));
   const emails = wk.map((x) => x.email.trim().toLowerCase());
   const { data: certs } = wk.length
     ? await admin.from("partner_worker_certifications").select("id, worker_id, worker_email, status, recorded_at").or(`worker_id.in.(${wk.map((x) => x.id).join(",")}),worker_email.in.(${emails.map((e) => `"${e}"`).join(",")})`).order("recorded_at", { ascending: false })

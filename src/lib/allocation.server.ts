@@ -1,5 +1,6 @@
 // Contractor allocation + direct coordination persistence. Pure rules: allocation.core.ts.
 // Never moves stages itself; acceptance is atomic in SQL (accept_partner_offer, migration 0086).
+import { workerOfferBlocker } from "./worker-compliance.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { WorkflowError, logEvent, piesaRequestFacts } from "./workflow.server";
@@ -34,7 +35,7 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
   const windowDays = new Set(windows.map((w) => w.day));
   const [{ data: creds }, { data: workers }, { data: asg }, { data: offers }, { data: prefs }, { data: bks }] = await Promise.all([
     admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification").in("business_id", ids.length ? ids : NONE),
-    admin.from("partner_workers").select("business_id").eq("trade_role", "electrician").eq("approval_status", "approved").in("business_id", ids.length ? ids : NONE),
+    admin.from("partner_workers").select("business_id, trade_role, licence_expires_on").eq("trade_role", "electrician").eq("approval_status", "approved").is("removed_at", null).in("business_id", ids.length ? ids : NONE),
     admin.from("job_assignments").select("business_id").eq("role", "electrician").eq("active", true).in("business_id", ids.length ? ids : NONE),
     admin.from("partner_offers").select("business_id, status, offered_at, responded_at").in("kind", ["piesa", "rectification"]).gte("offered_at", since).in("business_id", ids.length ? ids : NONE),
     admin.from("partner_relationships").select("electrician_business_id, installer_business_id").eq("active", true),
@@ -67,7 +68,8 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
       coverage_verified: !!b.coverage_verified_at, covers_postcode: verifiedServiceAreaMatch(b, postcode),
       exact_postcode: !!postcode && !!b.service_postcodes?.includes(postcode),
       has_valid_licence: !!(b.licence_number || b.rec_number) && !partnerWorkBlocker(b as unknown as BusinessLike, bc),
-      approved_workers: (workers ?? []).filter((w) => w.business_id === b.id).length,
+      // Expired electrical licence: that electrician can't receive new offers.
+      approved_workers: (workers ?? []).filter((w) => w.business_id === b.id && !workerOfferBlocker(w as never, melbourneYmd(new Date()))).length,
       weekly_capacity: b.weekly_capacity ?? null, open_jobs: (asg ?? []).filter((a) => a.business_id === b.id).length,
       recent_offers_30d: mine.length, acceptance_rate: acceptanceWithCancellations(answered.filter((o) => o.status === "accepted").length, answered.length, rel.get(b.id)?.trade_cancellations ?? 0),
       preferred: preferred.has(b.id),
