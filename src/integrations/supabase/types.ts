@@ -7327,6 +7327,59 @@ export type Database = {
           },
         ]
       }
+      partner_rate_offers: {
+        Row: {
+          application_id: string
+          created_at: string
+          created_by: string
+          gst_registered: boolean
+          id: string
+          items: Json
+          note: string | null
+          responded_at: string | null
+          response: Json | null
+          round: number
+          status: string
+          token_hash: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          created_by: string
+          gst_registered: boolean
+          id?: string
+          items: Json
+          note?: string | null
+          responded_at?: string | null
+          response?: Json | null
+          round: number
+          status?: string
+          token_hash: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          created_by?: string
+          gst_registered?: boolean
+          id?: string
+          items?: Json
+          note?: string | null
+          responded_at?: string | null
+          response?: Json | null
+          round?: number
+          status?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_rate_offers_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "rec_onboarding_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       partner_relationships: {
         Row: {
           active: boolean

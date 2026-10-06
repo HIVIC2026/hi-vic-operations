@@ -20,6 +20,7 @@ import type { InstData } from "@/lib/installer-onboarding.core";
 import { OnboardingDrafts } from "@/components/portal/onboarding-drafts";
 import { openFileViewer } from "@/components/portal/file-viewer";
 import { PartnerProfileCard } from "@/components/portal/partner-profile-card";
+import { RateOfferPanel } from "@/components/portal/rate-offer-panel";
 
 type Row = Tables<"partner_enquiries">;
 
@@ -192,7 +193,7 @@ function SignedRecAgreement({ id }: { id: string }) {
           <div className="break-all text-xs text-muted-foreground">SHA-256 {r.agreement_sha256} · IP {r.signed_ip ?? "—"}</div>
           {r.certificateUrl && <button type="button" className="text-primary underline" onClick={() => openFileViewer(r.certificateUrl, "Certificate of Currency")}>Open Certificate of Currency</button>}
           {((r.data as InstData | null)?.installers ?? []).length > 0 && <WorkerCertifications applicationId={id} installers={(r.data as InstData).installers ?? []} />}
-          {r.activation ? <><p className="rounded bg-success-soft p-2 font-semibold text-success">Activated as an approved partner business on {new Date(r.activation.activated_at).toLocaleDateString("en-AU")}.</p><PartnerLogin applicationId={id} defaultEmail={(r.data as { business_email?: string } | null)?.business_email ?? ""} /></> : <div className="space-y-2"><p className="text-xs text-muted-foreground">Approval accepts the proposed supplier rates shown in the signed agreement and creates the partner file. It does not create worker logins.</p><Button onClick={async () => { await activate({ applicationId: id }, "Partner activated"); await q.refetch(); }}>Accept rates and activate partner</Button></div>}
+          {r.activation ? <><p className="rounded bg-success-soft p-2 font-semibold text-success">Activated as an approved partner business on {new Date(r.activation.activated_at).toLocaleDateString("en-AU")}.</p><PartnerLogin applicationId={id} defaultEmail={(r.data as { business_email?: string } | null)?.business_email ?? ""} /></> : <div className="space-y-2"><p className="text-xs text-muted-foreground">Approval accepts the proposed supplier rates shown in the signed agreement and creates the partner file. It does not create worker logins.</p><RateOfferPanel applicationId={id} onActivate={async () => { await activate({ applicationId: id }, "Partner activated"); await q.refetch(); }} /></div>}
           <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded bg-muted p-3 text-xs">{r.agreement_text}</pre>
         </div>
       ))}
