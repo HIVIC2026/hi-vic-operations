@@ -1,9 +1,8 @@
-import { shortAddress } from "./address";
 // No-login owner "My job" view. The secure estimate link token is the only credential. Read-only.
 import { isSpotSavedStage } from "./owner-myjob.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
-import { formatPropertyAddress } from "./address";
+import { formatPropertyAddress, shortAddress } from "./address";
 import { DEFAULT_PIESA_INSTALL_GAP_DAYS, OWNER_STEPS, ownerAction, ownerHero } from "./owner-myjob.core";
 import { splitForOption } from "./payment-gate.core";
 
