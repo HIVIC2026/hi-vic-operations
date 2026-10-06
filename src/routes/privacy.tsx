@@ -1,12 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
 
-// DRAFT — wording approved by Jo for structure only; the "Last updated" date is still a
-// placeholder until Jo approves the page. Do not remove the DRAFT mark or publish
-// without her OK.
-const PRIVACY_DRAFT = true;
+// APPROVED — wording approved exactly as written by Jo Lowe on 6 Oct 2026,
+// with info@homeinsulationvictoria.com.au as the contact. Do not change the
+// wording without Jo's approval.
 const PRIVACY_CONTACT_EMAIL = "info@homeinsulationvictoria.com.au";
-const LAST_UPDATED = "[date of approval]";
+const LAST_UPDATED = "6 October 2026";
 
 const title = "Privacy policy — Home Insulation Victoria";
 const description = "How Home Insulation Victoria (DC Construction Solutions Pty Ltd) collects, uses, shares and protects your personal information.";
@@ -47,11 +46,6 @@ function PrivacyPage() {
           </a>
         </header>
 
-        {PRIVACY_DRAFT && (
-          <p className="mb-4 rounded-xl border border-estimate-line bg-estimate-blush px-4 py-2.5 text-center text-[0.72rem] font-extrabold uppercase tracking-wide text-estimate-navy">
-            Draft — awaiting Jo's approval of the wording
-          </p>
-        )}
 
         <div className="rounded-[22px] bg-estimate-white p-5 shadow-sm sm:p-8">
           <h1 className="text-[1.6rem] font-extrabold leading-tight tracking-tight text-estimate-navy sm:text-[2rem]">Privacy policy</h1>
