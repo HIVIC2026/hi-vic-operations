@@ -1,4 +1,4 @@
-import { shortAddress } from "./address-format.core";
+import { shortAddress } from "./address";
 // No-login owner "My job" view. The secure estimate link token is the only credential. Read-only.
 import { isSpotSavedStage } from "./owner-myjob.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";

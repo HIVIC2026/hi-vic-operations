@@ -1,4 +1,4 @@
-import { fullAddress } from "./address-format.core";
+import { fullAddress } from "./address";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { declaredExtras } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";

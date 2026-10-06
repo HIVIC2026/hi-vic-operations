@@ -2,7 +2,7 @@
 // PURE: no I/O. No phone number or "call us" anywhere.
 import { CUSTOMER_BRAND } from "./customer-quote-system";
 import { PRIVACY_URL, V2_THEME } from "./estimate-email";
-import { dedupeAddress, shortAddress } from "./address-format.core";
+import { dedupeAddress, shortAddress } from "./address";
 
 const LOGO_GREEN = "#00BF63";
 const BLUE = "#3C51C4";
