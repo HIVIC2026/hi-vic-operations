@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { CONTACT_PERMISSION_WORDING, LEAD_STAGE_LABEL, type FileResult, type LeadStage } from "@/lib/bulk-import.core";
+import { CONTACT_PERMISSION_WORDING, gridToRecords, LEAD_STAGE_LABEL, type FileResult, type LeadStage } from "@/lib/bulk-import.core";
 import { AppShell } from "@/components/portal/AppShell";
 import { TradeTabs } from "@/components/portal/trade-work";
 import { AlertCircle, CheckCircle2, ChevronDown, FileArchive, UploadCloud, Zap } from "lucide-react";
@@ -56,8 +56,9 @@ async function parseList(buf: ArrayBuffer, name: string): Promise<Record<string,
   for (const sn of wb.SheetNames) {
     const sheet = wb.Sheets[sn];
     if (!sheet) continue;
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: false });
-    out.push(...rows.map((r) => ({ _source_file: name, ...Object.fromEntries(Object.entries(r).map(([k, v]) => [String(k).trim(), String(v ?? "").trim()])) })));
+    // Header row may be lower down; blank rows and extra columns are tolerated (see gridToRecords).
+    const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", raw: false, blankrows: false });
+    out.push(...gridToRecords(grid).map((r) => ({ _source_file: wb.SheetNames.length > 1 ? `${name} (${sn})` : name, ...r })));
   }
   return out.filter((r) => Object.entries(r).some(([k, v]) => k !== "_source_file" && v));
 }
@@ -322,6 +323,13 @@ function BulkImportPage() {
         <p className="mb-2 text-sm font-bold text-primary">Add job</p>
         <h1 className="font-display text-3xl font-extrabold text-foreground sm:text-4xl">Bulk job upload</h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">Add a spreadsheet, quotes, emails, notes or photos. We read everything together, then you check each customer before anything is added.</p>
+        <details className="mt-3 max-w-2xl rounded-[22px] border bg-card p-4 text-sm" data-list-guide>
+          <summary className="cursor-pointer font-bold">How to set out your customer list</summary>
+          <p className="mt-2">One row per customer. Column names can be your own (e.g. "Customer" or "Owner name", "Mobile" or "Phone"), and the address can be one column or split into street, suburb and postcode.</p>
+          <p className="mt-2"><strong>Needed:</strong> customer name; mobile (or email); full address with suburb and postcode (include unit numbers, e.g. 3/12 Smith St).</p>
+          <p className="mt-1"><strong>Helpful:</strong> email; ceiling size in m²; existing insulation; roof type; ceiling access; quoted price inc GST; notes.</p>
+          <a href="/templates/customer-list-template.csv" download className="mt-3 inline-flex h-12 items-center rounded-full bg-estimate-green px-5 font-bold text-white">Download template (CSV)</a>
+        </details>
       </div>
 
       {!batchId && (

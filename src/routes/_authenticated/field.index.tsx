@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronRight, Zap } from "lucide-react";
+import { ChevronRight, PlusCircle, UploadCloud, Zap } from "lucide-react";
 import { TradeShell, aud, card } from "@/components/trade/TradeShell";
 import { getTradeHome } from "@/lib/trade-view.functions";
 import { dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
@@ -23,6 +23,12 @@ function MyWork() {
   return (
     <TradeShell installer={installer} boss={data.boss} test={data.isTest}>
       <div><h1 className="font-display text-3xl font-extrabold">{g.title}</h1><p className="text-sm">{g.sub}</p></div>
+      {installer && data.boss && (
+        <div className="grid grid-cols-2 gap-2" data-upload-actions>
+          <Link to="/partner/bulk-import" className="flex h-14 items-center justify-center gap-2 rounded-[22px] bg-estimate-green px-3 font-bold text-white"><UploadCloud className="h-5 w-5" />Upload jobs</Link>
+          <Link to="/partner/import" className="flex h-14 items-center justify-center gap-2 rounded-[22px] border-2 border-estimate-blue bg-card px-3 font-bold text-estimate-blue"><PlusCircle className="h-5 w-5" />Add one job</Link>
+        </div>
+      )}
       {first && (
         <Link to="/field/offer/$offerId" params={{ offerId: first.id }} className="flex items-center gap-3 rounded-[22px] bg-estimate-navy p-4 text-estimate-canvas shadow-sm">
           <Zap className="h-6 w-6 shrink-0 text-owner-house-pink" />

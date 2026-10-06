@@ -243,3 +243,64 @@ export function fileResults(read: FileResult[], leads: BulkExtracted[], matches:
     return { name: r.name, status: used ? r.status : "warn", message: used ? parts.join(" — ") : `${r.message} — not linked to any customer` };
   });
 }
+
+// ---------- deterministic clean-up of spreadsheet reads (never guesses; flags instead) ----------
+const HEADER_WORDS = /\b(name|customer|owner|client|address|street|suburb|town|postcode|post code|phone|mobile|mob|email|e-mail|area|m2|m²|sqm|size|price|quote)\b/i;
+
+/** First row (within the top 20) that looks like a header: 2+ cells naming known fields. Falls back to the first non-blank row. */
+export function findHeaderRow(rows: string[][]): number {
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    const hits = (rows[i] ?? []).filter((c) => c && c.length <= 40 && HEADER_WORDS.test(c)).length;
+    if (hits >= 2) return i;
+  }
+  return Math.max(0, rows.findIndex((r) => r.some((c) => c.trim())));
+}
+
+/** Grid → records keyed by the detected header row; blank rows dropped; extra/unnamed columns kept as "Column N". */
+export function gridToRecords(grid: unknown[][]): Record<string, string>[] {
+  const rows = grid.map((r) => (r ?? []).map((c) => String(c ?? "").trim()));
+  const h = findHeaderRow(rows);
+  const header = (rows[h] ?? []).map((c, i) => c || `Column ${i + 1}`);
+  const seen = new Map<string, number>();
+  const keys = header.map((k) => { const n = (seen.get(k) ?? 0) + 1; seen.set(k, n); return n > 1 ? `${k} (${n})` : k; });
+  const out: Record<string, string>[] = [];
+  for (const r of rows.slice(h + 1)) {
+    if (!r.some((c) => c)) continue;
+    const rec: Record<string, string> = {};
+    const width = Math.max(keys.length, r.length);
+    for (let i = 0; i < width; i++) { const v = r[i] ?? ""; if (v) rec[keys[i] ?? `Column ${i + 1}`] = v; }
+    out.push(rec);
+  }
+  return out;
+}
+
+/** Australian phone → "0412 345 678" / "03 9123 4567". Unknown shapes are kept as written and reported. */
+export function normaliseAuPhone(raw: string | null | undefined): { phone: string | null; ok: boolean } {
+  if (!raw || !raw.trim()) return { phone: null, ok: true };
+  let d = raw.replace(/[^\d+]/g, "");
+  if (d.startsWith("+61")) d = "0" + d.slice(3);
+  else if (d.startsWith("61") && d.length === 11) d = "0" + d.slice(2);
+  d = d.replace(/\D/g, "");
+  if (d.length === 9 && /^[2-478]/.test(d)) d = "0" + d;
+  if (/^04\d{8}$/.test(d)) return { phone: `${d.slice(0, 4)} ${d.slice(4, 7)} ${d.slice(7)}`, ok: true };
+  if (/^0[2378]\d{8}$/.test(d)) return { phone: `${d.slice(0, 2)} ${d.slice(2, 6)} ${d.slice(6)}`, ok: true };
+  return { phone: raw.trim(), ok: false };
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/** Tidies phone/email/postcode/area on an AI-mapped lead and lists anything the office must check. */
+export function cleanLead<T extends BulkExtracted>(e: T): { lead: T; issues: string[] } {
+  const issues: string[] = [];
+  const p = normaliseAuPhone(e.phone);
+  if (!p.ok) issues.push(`Phone "${e.phone}" doesn't look like an Australian number — please check`);
+  const email = e.email?.trim().toLowerCase() || null;
+  if (email && !EMAIL_RE.test(email)) issues.push(`Email "${e.email}" doesn't look right — please check`);
+  const pc = e.postcode?.replace(/\D/g, "") || null;
+  if (e.postcode && (!pc || pc.length !== 4)) issues.push(`Postcode "${e.postcode}" isn't 4 digits — please check`);
+  else if (pc && !/^3\d{3}$/.test(pc) && !/^8\d{3}$/.test(pc)) issues.push(`Postcode ${pc} is outside Victoria — please check`);
+  if (e.area_m2 != null && (e.area_m2 < 10 || e.area_m2 > 1000)) issues.push(`Ceiling size ${e.area_m2} m² looks unusual — please check`);
+  if (!e.full_name) issues.push("No customer name found");
+  if (!p.phone && !email) issues.push("No phone or email found");
+  return { lead: { ...e, phone: p.phone, email: email && EMAIL_RE.test(email) ? email : e.email ?? null, postcode: pc && pc.length === 4 ? pc : e.postcode ?? null }, issues };
+}

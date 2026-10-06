@@ -28,7 +28,7 @@ export function TradeTabBar({ installer, boss }: { installer: boolean; boss: boo
     <nav aria-label="Trade menu" className="estimate-brand fixed inset-x-0 bottom-0 z-40 border-t border-estimate-line bg-card pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgba(34,55,107,0.08)]">
       <div className="mx-auto flex max-w-md">
         {tab("/field", "Work", Briefcase, work)}
-        {installer && boss && tab("/partner/add", "Add job", PlusCircle, path.startsWith("/partner/add"))}
+        {installer && boss && tab("/partner/bulk-import", "Upload jobs", PlusCircle, path.startsWith("/partner/add") || path.startsWith("/partner/bulk") || path.startsWith("/partner/import"))}
         {boss && tab("/field/money", "Money", Wallet, path.startsWith("/field/money"))}
         {boss && tab("/field/business", "My business", Building2, path.startsWith("/field/business"))}
       </div>
