@@ -5,6 +5,7 @@ import { Clock3, ExternalLink, FlaskConical, Plus, Trash2, Users } from "lucide-
 import { useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/portal/AppShell";
+import { JoTradiePanel } from "@/components/portal/jo-tradie-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -50,6 +51,7 @@ function TestCentre() {
         <div><p className="text-xs font-bold uppercase text-primary">Launch testing</p><h1 className="mt-1 font-display text-3xl font-bold">Test Centre</h1><p className="mt-1 text-sm text-muted-foreground">Dummy journeys stay marked as test records and do not enter live intake automation.</p></div>
         <CreateTestJob onDone={() => void refetch()} />
       </div>
+      <JoTradiePanel />
       <XeroConnectionCard />
       <div className="mb-5 rounded-md border border-workspace-sun-strong/40 bg-workspace-sun p-4 text-sm"><b>Safe testing is active.</b> Customer messages and external writes remain locked. Use separate role accounts for final permission testing.</div>
       {error ? <div role="alert" className="rounded-md border border-danger bg-danger-soft p-4 text-sm text-danger">Test records could not be loaded. Nothing has been deleted. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>
