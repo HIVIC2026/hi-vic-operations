@@ -27,6 +27,8 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
     if (existing) return { ...existing, alreadyActivated: true as const };
     if (app.status !== "submitted" || !app.partner_enquiry_id) throw new WorkflowError("A complete signed application is required.");
     if (app.test_mode) throw new WorkflowError("Test applications can never be approved as real partners.");
+    const { data: testMark } = await admin.from("onboarding_test_marks").select("application_id").eq("application_id", app.id).maybeSingle();
+    if (testMark) throw new WorkflowError("This application is marked as a test and can never be approved as a real partner.");
     const type = app.partner_type as PartnerType;
     const application = app.data as RecData | InstData;
     const certs = await loadCertifications(admin, app.id);
@@ -43,6 +45,12 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
     if (rpcError?.message.includes("activate:no_verified_installer")) throw new WorkflowError("No installer on this application has a current office-verified CII certification (a later check may have rejected it). Nothing was approved.");
     if (rpcError) throw new WorkflowError(`Activation did not complete; nothing was approved. (${rpcError.message})`);
     const r = (rows as unknown as { outcome: string; business_id: string; rate_card_id: string }[])[0]!;
+    // One tidy profile on the same business row; the approval message is queued, never sent here.
+    const { loadProfileInputs, applyPartnerProfile, queueApprovalMessage } = await import("./partner-profile.server");
+    const { buildPartnerProfile } = await import("./partner-profile.core");
+    const inputs = await loadProfileInputs(admin, app.id);
+    await applyPartnerProfile(admin, r.business_id, buildPartnerProfile(inputs.meta, inputs.data, inputs.cii, inputs.existingCapabilities), context.userId);
+    await queueApprovalMessage(admin, r.business_id);
     return { business_id: r.business_id, rate_card_id: r.rate_card_id, alreadyActivated: r.outcome === "already_activated" };
   });
 

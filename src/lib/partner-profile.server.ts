@@ -11,16 +11,18 @@ export async function loadProfileInputs(admin: AdminDb, applicationId: string) {
   const data = (app.data ?? {}) as Record<string, unknown>;
   const [{ data: certs }, { data: levels }, { data: mark }, { data: act }, { data: peers }] = await Promise.all([
     admin.from("partner_worker_certifications").select("id, worker_email, status, recorded_at").eq("application_id", applicationId).order("recorded_at", { ascending: false }),
-    admin.from("worker_certification_levels").select("certification_id, expires_on").eq("application_id", applicationId),
+    Promise.resolve({ data: [] as { certification_id: string; expires_on: string | null }[] }),
     admin.from("onboarding_test_marks").select("application_id").eq("application_id", applicationId).maybeSingle(),
     admin.from("partner_activations").select("business_id").eq("application_id", applicationId).maybeSingle(),
     admin.from("rec_onboarding_applications").select("id, partner_type, data").eq("status", "submitted").eq("test_mode", false),
   ]);
+  const certIds = (certs ?? []).map((c) => c.id);
+  const { data: levelRows } = certIds.length ? await admin.from("worker_certification_levels").select("certification_id, expires_on").in("certification_id", certIds) : { data: levels };
   const cii = new Map<string, CiiCheck>();
   for (const c of certs ?? []) {
     const email = (c.worker_email ?? "").toLowerCase();
     if (cii.has(email)) continue;
-    cii.set(email, { status: c.status, expires_on: (levels ?? []).find((l) => l.certification_id === c.id)?.expires_on ?? null });
+    cii.set(email, { status: c.status, expires_on: (levelRows ?? []).find((l) => l.certification_id === c.id)?.expires_on ?? null });
   }
   const { data: marks } = await admin.from("onboarding_test_marks").select("application_id");
   const tests = new Set((marks ?? []).map((m) => m.application_id));
@@ -69,8 +71,9 @@ export async function applyPartnerProfile(admin: AdminDb, businessId: string, p:
   // Licences: one row per kind + number (+ holder); never duplicated on re-approval. Office verification stays separate.
   const { data: existing } = await admin.from("business_credentials").select("kind, number, label").eq("business_id", businessId);
   const have = new Set((existing ?? []).map((c) => `${c.kind}|${c.number ?? ""}|${c.label}`));
-  const rows = p.licences.filter((l) => l.number).map((l) => ({
-    business_id: businessId, kind: l.kind, label: l.holder ? `${l.label} — ${l.holder}` : l.label, number: l.number, issuer: l.issuer,
+  const KIND: Record<string, string> = { cii_certification: "installer_certification", esv_licence: "electrical_licence", rec_registration: "rec_registration" };
+  const rows = p.licences.filter((l) => l.number && KIND[l.kind]).map((l) => ({
+    business_id: businessId, kind: KIND[l.kind]!, label: l.holder ? `${l.label} — ${l.holder}` : l.label, number: l.number, issuer: l.issuer,
     expires_at: l.expires_at, critical: true, verification: l.verified ? "verified" : "pending", verified_by: l.verified ? actor : null, verified_at: l.verified ? new Date().toISOString() : null, created_by: actor,
   })).filter((r) => !have.has(`${r.kind}|${r.number ?? ""}|${r.label}`));
   if (rows.length) {

@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, WorkflowError } from "./workflow.server";
-import { approvalFlags, buildPartnerProfile, type CiiCheck } from "./partner-profile.core";
+import { approvalFlags, buildPartnerProfile } from "./partner-profile.core";
 
 const uuid = z.string().uuid();
 
