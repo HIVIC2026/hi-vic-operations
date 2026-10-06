@@ -111,7 +111,7 @@ function WorkerJob() {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="estimate-brand min-h-screen bg-estimate-canvas text-estimate-navy">
       <header className="border-b bg-card px-4 py-3"><img src={logo.url} alt="Home Insulation Victoria" className="h-9" /></header>
       <main className="mx-auto max-w-xl p-4">{children}</main>
     </div>
