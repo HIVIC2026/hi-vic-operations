@@ -182,8 +182,6 @@ const OWNER_BASE = "https://estimate.homeinsulationvictoria.com.au";
  * a calculator save or a video upload after saving). Sending is off, so both are recorded as queued only;
  * the TEST allowlist still decides who could ever receive them.
  */
-/** Preview host used for links in TEST-only (qa_test) messages. */
-const TEST_PREVIEW_BASE = "https://id-preview--fb35adfe-10bf-4d4c-987d-28567ca1ddeb.lovable.app";
 export async function queueSpotSavedConfirmations(jobId: string, token: string) {
   const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "spot_saved_confirmation_queued").limit(1).maybeSingle();
   if (done) return { queued: false as const };
@@ -198,7 +196,7 @@ export async function queueSpotSavedConfirmations(jobId: string, token: string) 
   const owner = job.owners as { full_name: string | null; phone: string | null; email: string | null } | null;
   const prop = job.properties as { address_line: string | null; suburb: string | null } | null;
   const bits = addressBits(prop?.address_line ?? null, prop?.suburb ?? null);
-  const input = { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, rebate: Number(r?.saved_veu_discount ?? 0), suburb: bits.suburb, shortAddress: bits.short, myJobUrl: `${job.source === "qa_test" ? TEST_PREVIEW_BASE : OWNER_BASE}/my-job/${token}`, optOutUrl: await unsubscribeUrlForJob(jobId).then((u) => job.source === "qa_test" ? u.replace(/^https:\/\/[^/]+/, TEST_PREVIEW_BASE) : u) };
+  const input = { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, rebate: Number(r?.saved_veu_discount ?? 0), suburb: bits.suburb, shortAddress: bits.short, myJobUrl: `${OWNER_BASE}/my-job/${token}`, optOutUrl: await unsubscribeUrlForJob(jobId) };
   const sms = renderSpotSavedSms(input);
   const email = renderSpotSavedEmail(input);
   const now = new Date().toISOString();

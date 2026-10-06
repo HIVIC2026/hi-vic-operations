@@ -368,7 +368,58 @@ export type LaunchCopyField = "subject" | "previewText" | "headline" | "intro" |
 
 /** Draft-only launch email. Jo-approved opening (6 Oct 2026): logo-green caps line, navy headline with green rebate, plain on white, big green button in the opening. */
 /** Origins campaign links may use: the live customer domain, plus the preview host for allowlisted TEST sends only. */
-export const CAMPAIGN_LINK_ORIGINS = [BASE, "https://id-preview--fb35adfe-10bf-4d4c-987d-28567ca1ddeb.lovable.app"] as const;
+export const CAMPAIGN_LINK_ORIGINS = [BASE] as const;
+
+type CampaignHtmlParts = {
+  previewText: string; capsLine: string; headline: string; bodyLine: string; boldLine: string; buttonText: string; actionUrl: string; underButton: string;
+  rebate: string; customer: string; gross: string; basedOn: string; calculatorUrl: string; gets: [string, string][]; nextTitle: string; nextBody: string;
+  onsiteSafety: boolean; campaignUrl: string; changeNote: string; footerReason: string; footerLinks: string; reference: string | null;
+};
+/** Calculator-brand campaign layout: logo, one white card on #FBFCFA, big numbers, full-width green button. Tables + inline styles; works with images blocked. */
+function campaignEmailHtml(p: CampaignHtmlParts) {
+  const CANVAS = "#FBFCFA", NAVY = "#22376B", G = "#07BF61", MUTED = "#4A5878";
+  const body = "font-family:'Figtree',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;";
+  const head = "font-family:'Outfit','Figtree',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;";
+  const btn = (href: string, text: string) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;"><tr><td align="center" bgcolor="${G}" style="background-color:${G};border-radius:14px;">
+<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${escape(href)}" style="height:60px;v-text-anchor:middle;width:520px;" arcsize="22%" stroke="f" fillcolor="${G}"><center style="color:#FFFFFF;font-family:Arial,sans-serif;font-size:20px;font-weight:bold;">${escape(text)}</center></v:roundrect><![endif]-->
+<!--[if !mso]><!--><a href="${escape(href)}" style="display:block;width:100%;box-sizing:border-box;padding:19px 16px;${head}font-size:20px;line-height:22px;font-weight:800;color:#FFFFFF;text-decoration:none;text-align:center;border-radius:14px;background-color:${G};">${escape(text)}</a><!--<![endif]--></td></tr></table>`;
+  const gap = (h: number) => `<tr><td style="height:${h}px;line-height:${h}px;font-size:0;">&nbsp;</td></tr>`;
+  const r = (inner: string) => `<tr><td class="cx-pad" style="padding:0 32px;${body}">${inner}</td></tr>`;
+  const numbers = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;"><tr>
+<td class="cx-col" width="50%" valign="top" bgcolor="#EDFAF2" style="width:50%;background-color:#EDFAF2;border-radius:16px;padding:18px 16px;${body}"><p style="margin:0 0 6px;font-size:14px;line-height:18px;color:${NAVY};font-weight:700;">Your rebate</p><p class="cx-big" style="margin:0;${head}font-size:36px;line-height:40px;font-weight:800;color:#067A45;">−${escape(p.rebate)}</p></td>
+<td class="cx-sp" width="12" style="width:12px;font-size:0;">&nbsp;</td>
+<td class="cx-col" width="50%" valign="top" bgcolor="#F3F6FF" style="width:50%;background-color:#F3F6FF;border-radius:16px;padding:18px 16px;${body}"><p style="margin:0 0 6px;font-size:14px;line-height:18px;color:${NAVY};font-weight:700;">You pay about</p><p class="cx-big" style="margin:0;${head}font-size:36px;line-height:40px;font-weight:800;color:${NAVY};">${escape(p.customer)}</p></td>
+</tr></table><p style="margin:12px 0 0;font-size:16px;line-height:24px;color:${NAVY};">Normal price <span style="text-decoration:line-through;">${escape(p.gross)}</span></p>`;
+  const gets = p.gets.map(([t, d]) => `<tr><td width="30" valign="top" style="width:30px;padding:0 0 14px;${head}font-size:20px;line-height:24px;color:${G};font-weight:800;">✓</td><td valign="top" style="padding:0 0 14px;${body}font-size:17px;line-height:24px;color:${NAVY};"><strong>${escape(t)}</strong><br>${escape(d)}</td></tr>`).join("");
+  const card = [
+    gap(28),
+    r(`<p style="margin:0 0 12px;font-size:15px;line-height:20px;font-weight:800;color:#067A45;">${escape(p.capsLine)}</p><h1 class="cx-h1" style="margin:0;${head}font-size:32px;line-height:38px;font-weight:800;color:${NAVY};">${p.headline}</h1>`),
+    gap(18), r(`<p style="margin:0;font-size:18px;line-height:28px;color:${NAVY};">${p.bodyLine}</p>`),
+    gap(26), r(`<h2 style="margin:0 0 14px;${head}font-size:22px;line-height:28px;font-weight:800;color:${NAVY};">Your estimate</h2>${numbers}`),
+    gap(24), r(`<p style="margin:0 0 18px;font-size:17px;line-height:26px;font-weight:700;color:${NAVY};">${escape(p.boldLine)}</p>${btn(p.actionUrl, p.buttonText.replace(/\s*→\s*$/, ""))}<p style="margin:14px 0 0;font-size:16px;line-height:24px;color:${NAVY};text-align:center;">${p.underButton}</p>`),
+    gap(30), r(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #E4E9F5;font-size:0;line-height:0;">&nbsp;</td></tr></table>`),
+    gap(24), r(`<h2 style="margin:0 0 16px;${head}font-size:22px;line-height:28px;font-weight:800;color:${NAVY};">What you get</h2><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${gets}</table>`),
+    gap(6), r(`<p style="margin:0;font-size:16px;line-height:24px;color:${NAVY};">${escape(p.basedOn)}</p><p style="margin:10px 0 0;font-size:17px;line-height:24px;"><a href="${escape(p.calculatorUrl)}" style="color:#3C51C4;font-weight:700;text-decoration:underline;">Try a different size →</a></p>`),
+    gap(28), r(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#FDF2F6" style="width:100%;background-color:#FDF2F6;border-radius:18px;"><tr><td style="padding:24px 20px;${body}"><h2 style="margin:0 0 10px;${head}font-size:24px;line-height:30px;font-weight:800;color:${NAVY};">${escape(p.nextTitle)}</h2><p style="margin:0 0 18px;font-size:17px;line-height:26px;color:${NAVY};">${p.nextBody}</p>${p.onsiteSafety ? `<p style="margin:0 0 18px;font-size:16px;line-height:24px;color:${NAVY};">Only if you can do it safely. Please don’t climb into or walk through the roof space.</p>` : ""}${btn(p.actionUrl, p.buttonText.replace(/\s*→\s*$/, ""))}${p.onsiteSafety ? `<p style="margin:14px 0 0;font-size:16px;line-height:24px;text-align:center;">Can’t do a video? <a href="${escape(p.campaignUrl)}" style="color:#3C51C4;font-weight:700;">Just save my spot</a></p>` : ""}<p style="margin:12px 0 0;font-size:16px;line-height:24px;color:${NAVY};text-align:center;">No payment, no obligation.</p></td></tr></table>`),
+    gap(24), r(`<p style="margin:0;font-size:15px;line-height:23px;color:${MUTED};">${escape(p.changeNote)}</p>`),
+    gap(28),
+  ].join("");
+  const footer = `<p style="margin:0 0 6px;${head}font-size:16px;line-height:22px;font-weight:800;color:${NAVY};">Home Insulation Victoria</p><p style="margin:0 0 6px;font-size:14px;line-height:21px;color:${MUTED};">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.</p><p style="margin:0 0 12px;font-size:14px;line-height:21px;color:${MUTED};">${escape(p.footerReason)}</p><p style="margin:0;font-size:15px;line-height:24px;">${p.footerLinks}</p>${p.reference ? `<p style="margin:8px 0 0;font-size:13px;color:${MUTED};">Reference: ${escape(p.reference)}</p>` : ""}`;
+  return `<!doctype html><html lang="en-AU" dir="ltr" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${escape(p.previewText)}</title>
+<!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><style>body,table,td,p,a,h1,h2{font-family:Arial,sans-serif!important;}</style><![endif]-->
+<!--[if !mso]><!--><link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;700;800&family=Outfit:wght@800&display=swap" rel="stylesheet"><!--<![endif]-->
+<style>body{margin:0;padding:0;-webkit-text-size-adjust:100%;}a{color:#3C51C4;}@media only screen and (max-width:480px){.cx-outer{padding:12px 8px!important}.cx-pad{padding-left:20px!important;padding-right:20px!important}.cx-h1{font-size:28px!important;line-height:34px!important}.cx-big{font-size:30px!important;line-height:34px!important}}</style></head>
+<body style="margin:0;padding:0;background-color:${CANVAS};"><div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${escape(p.previewText)}&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${CANVAS}" style="width:100%;background-color:${CANVAS};"><tr><td class="cx-outer" align="center" style="padding:24px 12px;">
+<!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;margin:0 auto;">
+<tr><td align="center" style="padding:8px 0 20px;"><img src="${LOGO_URL}" alt="Home Insulation Victoria" width="170" style="display:block;width:170px;max-width:100%;height:auto;border:0;${head}font-size:22px;line-height:28px;font-weight:800;color:${NAVY};"></td></tr>
+<tr><td bgcolor="#FFFFFF" style="background-color:#FFFFFF;border:1px solid #E4E9F5;border-radius:22px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${card}</table></td></tr>
+<tr><td class="cx-pad" align="center" style="padding:24px 24px 8px;text-align:center;${body}">${footer}</td></tr>
+</table>
+<!--[if mso]></td></tr></table><![endif]-->
+</td></tr></table></body></html>`;
+}
 /** Jo-approved final Save my spot email (6 Oct 2026). Group A and B share one structure. */
 export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): EstimateEmail {
   const LOGO_GREEN = "#00BF63";
@@ -423,7 +474,8 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
   const link = (href: string, t: string) => `<a href="${escape(href)}" style="color:${BLUE};text-decoration:underline;">${t}</a>`;
   const footerLinks = [link(`${SITE}/privacy`, "Privacy"), ...(myJob ? [link(myJob.toString(), "See my job")] : []), link(unsubscribe.toString(), "Remove my enquiry")].join("&nbsp;·&nbsp;");
   const footer = `<p style="margin:0 0 5px;${F}color:${INK};font-size:14px;line-height:1.4;font-weight:800;text-align:center;">Home Insulation Victoria</p><p style="margin:0;${F}color:#5A6785;font-size:12px;line-height:1.5;text-align:center;">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.</p><p style="margin:5px 0 9px;${F}color:#5A6785;font-size:12px;line-height:1.5;text-align:center;">${escape(footerReason)}</p><p style="margin:0;${F}font-size:12px;line-height:1.5;text-align:center;">${footerLinks}</p>${input.reference?.trim() ? `<p style="margin:6px 0 0;${F}color:#5A6785;font-size:11px;text-align:center;">Reference: ${escape(input.reference.trim())}</p>` : ""}`;
-  const html = V2_THEME.shell(`${row(V2_THEME.header("Free estimate · no obligation"), "22px 36px 18px")}${row(hero, "8px 36px 24px")}${row(estimateCard, "0 28px 22px")}${row(nextStep, "0 28px 18px")}${row(changeRow, "0 36px 24px")}${V2_THEME.footerRow(footer)}`, previewText, null);
+  void hero; void estimateCard; void nextStep; void changeRow; void footer; void row;
+  const html = campaignEmailHtml({ previewText, capsLine, headline, bodyLine, boldLine, buttonText, actionUrl, underButton, rebate, customer, gross, basedOn, calculatorUrl: calculatorUrl.toString(), gets, nextTitle, nextBody: onsite ? `${escape(videoLine)}` : escape(lowerText!), onsiteSafety: onsite, campaignUrl: campaign.toString(), changeNote, footerReason, footerLinks, reference: input.reference?.trim() || null });
   const action = buttonText.replace(/\s*→\s*$/, "");
   const plainText = [subject, "", capsLine.toUpperCase(), headlinePlain, bodyPlain, boldLine, `${action}: ${actionUrl}`, onsite ? `No video? Just save my spot: ${campaign}` : "Free · no payment · no obligation", "", "YOUR ESTIMATE", `Normal price: ${gross}`, `Your rebate: −${rebate}`, `You pay about: ${customer}`, `${basedOn} Try a different size: ${calculatorUrl}`, "", "WHAT YOU GET", ...gets.map(([t, d]) => `✓ ${t} — ${d}`), "", nextTitle, ...(onsite ? [videoLine, "Only if you can do it safely. Please don’t climb into or walk through the roof space."] : [lowerText!]), `${action}: ${actionUrl}`, "No payment, no obligation.", "", changeNote, "", "Home Insulation Victoria", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.", footerReason, `Privacy: ${SITE}/privacy`, ...(myJob ? [`See my job: ${myJob}`] : []), `Remove my enquiry: ${unsubscribe}`, ...(input.reference?.trim() ? [`Reference: ${input.reference.trim()}`] : [])].join("\n");
   return { subject, previewText, html, plainText };
