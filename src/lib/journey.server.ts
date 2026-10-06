@@ -9,6 +9,7 @@ export const TEST_INSTALLER_EMAIL = "qa.installer.alpha@hivic-test.example";
 export const TEST_ELECTRICIAN_EMAIL = "qa.rec.delta@hivic-test.example";
 export const TEST_WORKER_EMAIL = "qa.worker.alpha@hivic-test.example";
 const TEST_DOMAIN = "@hivic-test.example";
+const JOURNEY_POSTCODE = "3199";
 
 export type JourneyCtx = {
   runId: string; startedAt: string; actorId: string; jobId: string | null; jobNumber: string | null; token: string | null;
@@ -237,9 +238,16 @@ export async function cleanupJourney(ctx: JourneyCtx) {
 
 /** TEST trade setup the journey depends on (TEST Alpha's field worker holds a Full, current EEC certification).
  *  Only ever touches TEST-domain workers in businesses named "TEST …". Append-only, idempotent. */
-async function ensureTestTrades(actorId: string, installerBiz: string) {
-  const { data: biz } = await admin.from("businesses").select("name").eq("id", installerBiz).single();
-  if (!biz?.name?.startsWith("TEST ")) throw new Error("SAFETY STOP: the journey installer is not a TEST business.");
+async function ensureTestTrades(actorId: string, installerBiz: string, electricianBiz: string) {
+  for (const id of [installerBiz, electricianBiz]) {
+    const { data: biz } = await admin.from("businesses").select("name, service_postcodes, coverage_verified_at, free_measureups_for_hivic_quote_leads").eq("id", id).single();
+    if (!biz?.name?.startsWith("TEST ")) throw new Error("SAFETY STOP: a journey trade is not a TEST business.");
+    const pcs = biz.service_postcodes ?? [];
+    await admin.from("businesses").update({
+      service_postcodes: pcs.includes(JOURNEY_POSTCODE) ? pcs : [...pcs, JOURNEY_POSTCODE], coverage_verified_at: biz.coverage_verified_at ?? new Date().toISOString(),
+      ...(id === installerBiz ? { free_measureups_for_hivic_quote_leads: true } : {}),
+    }).eq("id", id);
+  }
   const { data: workers } = await admin.from("partner_workers").select("id, email").eq("business_id", installerBiz).eq("trade_role", "installer").eq("approval_status", "approved").is("removed_at", null);
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date());
   for (const w of (workers ?? []).filter((x) => x.email.endsWith(TEST_DOMAIN))) {
@@ -264,7 +272,7 @@ export async function newJourneyCtx(): Promise<JourneyCtx> {
   const { data: actor } = await admin.from("profiles").select("id").eq("email", JOURNEY_ACTOR_EMAIL).single();
   const [installer, electrician] = await Promise.all([profileByEmail(TEST_INSTALLER_EMAIL), profileByEmail(TEST_ELECTRICIAN_EMAIL)]);
   const worker = await profileByEmail(TEST_WORKER_EMAIL).catch(() => null);
-  await ensureTestTrades(actor!.id, installer.business_id);
+  await ensureTestTrades(actor!.id, installer.business_id, electrician.business_id);
   return { runId, startedAt: new Date().toISOString(), actorId: actor!.id, jobId: null, jobNumber: null, token: null, ownerEmail: `qa.journey.${runId}${TEST_DOMAIN}`, installer, electrician, worker, calculatorInterestId: null, quoteId: null, notes: {}, screens: [] };
 }
 
