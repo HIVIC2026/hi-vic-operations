@@ -123,19 +123,19 @@ async function agreedElectricianRates(businessIds: string[], kind: "piesa" | "re
   return out;
 }
 
-export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string } = {}) {
+export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean } = {}) {
   const [facts, { count: elec }, { count: open }] = await Promise.all([
     piesaRequestFacts(jobId),
     admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
     admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", kind).eq("status", "pending"),
   ]);
-  const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec, hasOpenOffers: !!open });
+  const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec, hasOpenOffers: !!open && !opts.adding });
   if (blockers.length) throw new WorkflowError(`${kind === "piesa" ? "PIESA" : "Fix-up"} offers cannot start: ${blockers.join(" ")}`);
   await (await import("./owner-gates.server")).assertGateA(jobId, kind === "piesa" ? "Safety check offers" : "Fix-up offers");
   return offerNextBatch(jobId, actorId, kind, !!opts.rateToConfirm, opts.onlyBusiness);
 }
 
-async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false, onlyBusiness?: string) {
+async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false, onlyBusiness?: string | string[]) {
   const { businessHours, batchSize } = await settings();
   const [{ candidates, installerSourced }, { data: prior }] = await Promise.all([
     recCandidatesFor(jobId),
@@ -149,15 +149,20 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   const row = (id: string, chosen: boolean) => ({ job_id: jobId, business_id: id, kind, batch: batchNo,
     summary: { ...summary, electrician_rate_inc_gst: rates.get(id)?.rate ?? null, electrician_rate_id: rates.get(id)?.id ?? null, electrician_rate_snapshot_at: new Date().toISOString(), rate_to_confirm: !rates.has(id) && rateToConfirm, ...(chosen ? { office_choice: true } : {}) } as unknown as Json, offered_by: actorId, expires_at: expires });
   if (onlyBusiness) {
-    // Office picked ONE electrician: same offer card and window, sent only to them.
-    const c = candidates.find((x) => x.business_id === onlyBusiness);
-    if (!c) throw new WorkflowError("That electrician isn't an approved electrician for this job.");
-    if (c.blocker) throw new WorkflowError(`${c.name} can't take this job: ${c.blocker}`);
-    if (offerRateBlocker(rates.get(c.business_id)?.rate ?? null, rateToConfirm)) throw new WorkflowError(`${c.name} has no agreed electrician rate recorded. Add their rate first, or offer with rate to be confirmed.`);
-    const { error } = await admin.from("partner_offers").insert([row(c.business_id, true)]);
+    // Office picked these electricians: same offer card and owner times, sent only to them.
+    const picks = Array.isArray(onlyBusiness) ? onlyBusiness : [onlyBusiness];
+    const chosen = picks.map((id) => {
+      const c = candidates.find((x) => x.business_id === id);
+      if (!c) throw new WorkflowError("One of those electricians isn't an approved electrician for this job.");
+      if (c.blocker) throw new WorkflowError(`${c.name} can't take this job: ${c.blocker}`);
+      if (offerRateBlocker(rates.get(c.business_id)?.rate ?? null, rateToConfirm)) throw new WorkflowError(`${c.name} has no agreed electrician rate recorded. Add their rate first, or offer with rate to be confirmed.`);
+      return c;
+    });
+    const exp = await (await import("./offer-dispatch.server")).chosenOfferExpiry();
+    const { error } = await admin.from("partner_offers").insert(chosen.map((c) => ({ ...row(c.business_id, true), expires_at: exp })));
     if (error) throw new Error(error.message);
-    await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${c.name} for the ${kind === "piesa" ? "PIESA" : "fix-up"} — offer sent only to them`, { kind, business_id: c.business_id, business_name: c.name, expires_at: expires }, { internal: true });
-    return { offered: 1, exhausted: false };
+    await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${chosen.map((c) => c.name).join(", ")} for the ${kind === "piesa" ? "PIESA" : "fix-up"} — offer sent only to ${chosen.length === 1 ? "them" : `these ${chosen.length}`}`, { kind, business_ids: chosen.map((c) => c.business_id), business_names: chosen.map((c) => c.name), business_id: chosen[0]?.business_id, business_name: chosen[0]?.name, expires_at: exp }, { internal: true });
+    return { offered: chosen.length, exhausted: false };
   }
   // Owner-picked times: a fresh round (owner gave more times) re-offers to every approved electrician.
   const win = kind === "piesa" ? await currentWindowRound(jobId) : null;
@@ -207,6 +212,7 @@ async function autoStartPiesaOffers(actorId: string | null) {
   for (const j of waiting ?? []) {
     const { count: any } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", j.id).eq("kind", "piesa");
     if (any) continue; // already allocated once; refill/exhaustion handles the rest
+    if (await (await import("./offer-dispatch.server")).jobOfficePicks(j.id)) continue; // waits in Needs me: "Choose trades for this job"
     try { await startPiesaAllocation(j.id, actorId); started++; } catch { /* gate not cleared: stay put */ }
   }
   return started;
@@ -236,6 +242,7 @@ async function refillIfNeeded(jobId: string, kind: "piesa" | "rectification", ac
   if (open || elec) return;
   // Office-picked trade said no / ran out: Needs me shows "Pick another" or "Send to all". Never auto-widen.
   if (await officePickUnanswered(jobId, kind)) return;
+  if (await (await import("./offer-dispatch.server")).jobOfficePicks(jobId)) return; // office picks: Needs me shows "add more trades"
   await offerNextBatch(jobId, actorId, kind);
 }
 
