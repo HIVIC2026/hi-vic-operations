@@ -32,7 +32,7 @@ export async function campaignPage(token: unknown, testMode = false) {
   if (!c) return null;
   const { resolvePublicEstimate } = await import("./estimatelink.server");
   const [{ data: response }, estimate] = await Promise.all([
-    admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, desk_check_status, queue_priority").eq("job_id", c.job.id).maybeSingle(),
+    admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, desk_check_status, queue_priority, saved_total, saved_veu_discount").eq("job_id", c.job.id).maybeSingle(),
     resolvePublicEstimate(token, testMode),
   ]);
   const owner = c.job.owners as { full_name: string | null } | null;
@@ -41,7 +41,7 @@ export async function campaignPage(token: unknown, testMode = false) {
   const insulation = normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation);
   const address = [property?.address_line, property?.suburb, property?.state, property?.postcode].filter(Boolean).join(", ");
   const { data: availability } = await admin.from("customer_delivery_settings").select("ready_check_available_postcodes").eq("id", 1).maybeSingle();
-  return estimate ? JSON.stringify({ group: c.group, estimate, response: response ?? null, bookingAvailable: !!property?.postcode && (availability?.ready_check_available_postcodes ?? []).includes(property.postcode), owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
+  return estimate ? JSON.stringify({ group: c.group, estimate, response: response ?? null, bookingAvailable: !!property?.postcode && (availability?.ready_check_available_postcodes ?? []).includes(property.postcode), owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, home: { suburb: property?.suburb ?? null, short: [property?.address_line, property?.suburb].filter(Boolean).join(", ") || null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
 }
 
 export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; insulation: "none" | "present" | "unknown" | null } | null) {
@@ -80,6 +80,7 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
   if (row?.opted_out_at) throw new Error("This enquiry has already been taken off the list.");
   if (!row?.spot_saved_at) throw new Error("We couldn't save your place. Please try again.");
   if (firstSave) await logEvent(c.job.id, null, "campaign_spot_saved", price ? `Owner saved a place for a free Ready Check at $${Math.floor(price.total)} (rebate $${Math.floor(price.discount)})` : "Owner saved a place for a free Ready Check", { campaign: LAUNCH_CAMPAIGN, ...snapshot }, { internal: true });
+  if (firstSave) await queueSpotSavedConfirmations(c.job.id, String(token));
   return { ok: true as const };
 }
 
@@ -129,6 +130,11 @@ export async function markCampaignMediaReceived(jobId: string, linkId: string) {
   const patch = { media_received_at: existing?.media_received_at ?? now, spot_saved_at: existing?.spot_saved_at ?? now, queue_priority: "video", updated_at: now, ...(existing && !["not_needed", "pending"].includes(existing.desk_check_status) ? {} : { desk_check_status: "pending" }) };
   if (existing) await admin.from("lead_campaign_responses").update(patch).eq("job_id", jobId);
   else await admin.from("lead_campaign_responses").insert({ job_id: jobId, estimate_link_id: linkId, campaign: LAUNCH_CAMPAIGN, video_requested: true, ...patch });
+  // A video that is the FIRST save sends the confirmation once; a video after saving never re-sends.
+  if (!existing?.spot_saved_at) {
+    const { data: l } = await admin.from("customer_estimate_links").select("token").eq("id", linkId).maybeSingle();
+    if (l?.token) await queueSpotSavedConfirmations(jobId, l.token);
+  }
 }
 
 export async function launchCampaignOffice() {
@@ -202,7 +208,7 @@ export async function queueSpotSavedConfirmations(jobId: string, token: string) 
     const allow = testSendBlocker({ channel: m.channel, to: m.to, jobSource: job.source, partnerIsTest: false });
     await admin.from("job_communications").insert({
       job_id: jobId, direction: "outbound", channel: m.channel, recipients: m.to ? [m.to] : [], subject: m.subject, body: m.body, provider: "queued",
-      sent_at: null, delivery_status: "blocked_prelaunch", visibility: "office", source_event: `spot_saved:${m.channel}`,
+      sent_at: null, delivery_status: "queued", visibility: "customer", source_event: `spot_saved:${m.channel}`,
       source_reference: allow ? `Queued (sending off). Allowlist: ${allow}` : "Queued (sending off). On TEST allowlist", created_at: now,
     } as never);
   }
