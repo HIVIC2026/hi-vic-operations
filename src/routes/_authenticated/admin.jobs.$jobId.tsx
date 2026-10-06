@@ -28,6 +28,19 @@ import { Gate1EvidencePanel } from "@/components/portal/gate1";
 import { IntakeSummary } from "@/components/portal/intake";
 import { JobJourney } from "@/components/portal/journey";
 import { ClearTimeline } from "@/components/portal/waiting";
+import { getSavedSpot } from "@/lib/launch-campaign.functions";
+
+function SavedSpotNote({ jobId }: { jobId: string }) {
+  const { data } = useQuery({ queryKey: ["saved-spot", jobId], queryFn: () => getSavedSpot({ data: { jobId } }) });
+  if (!data) return null;
+  return (
+    <div className="mb-4 rounded-2xl border bg-card p-4 text-sm">
+      <p className="font-semibold">{data.video ? "Spot saved · video sent" : "Spot saved, needs an installer"}</p>
+      {data.label && <p className="mt-1">{data.label}</p>}
+      {data.changeNote && <p className="mt-1 font-semibold text-destructive">{data.changeNote}</p>}
+    </div>
+  );
+}
 import { EligibilityGlance, JobIdentity, NextActionBand, PhaseStrip, RecordDisclosure, SubHeading, usePortalTargetNavigation, type RecordGroup } from "@/components/portal/job-workspace";
 import { AllDocuments, Correspondence, ExportJobPack, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
 import type { PortalTarget } from "@/lib/portal-presentation.core";
@@ -82,6 +95,7 @@ function JobDetail() {
       <Link to="/admin/needs-me" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Needs me</Link>
       <JobIdentity jobId={jobId} job={job} onOpen={openTarget} />
       <PaperworkStrip jobId={jobId} />
+      <SavedSpotNote jobId={jobId} />
       <JobRightNow jobId={jobId} people={{ owner: job.owner_name ?? null, ownerPhone: job.owner_phone ?? null, ownerEmail: job.owner_email ?? null, installer: job.installer_name ?? null, electrician: job.electrician_name ?? null }} />
       <ChooseTradePanel jobId={jobId} />
       <section className="mb-4 rounded-[22px] border bg-card p-5 shadow-sm" aria-label="Done when">

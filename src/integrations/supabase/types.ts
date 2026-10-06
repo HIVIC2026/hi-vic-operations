@@ -5390,6 +5390,14 @@ export type Database = {
           media_received_at: string | null
           opted_out_at: string | null
           queue_priority: string
+          queue_rank: number | null
+          saved_area_m2: number | null
+          saved_estimate_id: string | null
+          saved_estimate_url: string | null
+          saved_gross_total: number | null
+          saved_insulation: string | null
+          saved_total: number | null
+          saved_veu_discount: number | null
           spot_saved_at: string | null
           updated_at: string
           video_requested: boolean
@@ -5407,6 +5415,14 @@ export type Database = {
           media_received_at?: string | null
           opted_out_at?: string | null
           queue_priority?: string
+          queue_rank?: number | null
+          saved_area_m2?: number | null
+          saved_estimate_id?: string | null
+          saved_estimate_url?: string | null
+          saved_gross_total?: number | null
+          saved_insulation?: string | null
+          saved_total?: number | null
+          saved_veu_discount?: number | null
           spot_saved_at?: string | null
           updated_at?: string
           video_requested?: boolean
@@ -5424,6 +5440,14 @@ export type Database = {
           media_received_at?: string | null
           opted_out_at?: string | null
           queue_priority?: string
+          queue_rank?: number | null
+          saved_area_m2?: number | null
+          saved_estimate_id?: string | null
+          saved_estimate_url?: string | null
+          saved_gross_total?: number | null
+          saved_insulation?: string | null
+          saved_total?: number | null
+          saved_veu_discount?: number | null
           spot_saved_at?: string | null
           updated_at?: string
           video_requested?: boolean

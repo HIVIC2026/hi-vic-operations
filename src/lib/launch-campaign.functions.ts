@@ -31,3 +31,11 @@ export const saveDesktopInsulationCheck = createServerFn({ method: "POST" }).mid
     await requireAdmin(context.supabase);
     return (await import("./launch-campaign.server")).recordDeskCheck(data.responseId, data.outcome, data.reason, context.userId);
   });
+
+export const getSavedSpot = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    return (await import("./launch-campaign.server")).savedSpotForJob(data.jobId);
+  });

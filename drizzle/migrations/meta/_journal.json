@@ -869,6 +869,13 @@
       "when": 1791244764794,
       "tag": "0123_partner_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1791246638071,
+      "tag": "0124_spot_price_snapshot",
+      "breakpoints": true
     }
   ]
 }

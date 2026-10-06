@@ -1,7 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 
-const SQL = readFileSync(new URL("../../docs/pending-migrations/0112_launch_campaign_responses.sql", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../../docs/pending-migrations/0119_campaign_video_priority.sql", import.meta.url), "utf8");
+const SQL = readFileSync(new URL("../../docs/pending-migrations/0112_launch_campaign_responses.sql", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../../docs/pending-migrations/0119_campaign_video_priority.sql", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../../docs/pending-migrations/0124_spot_price_snapshot.sql", import.meta.url), "utf8");
 
 export const LAUNCH_ID = {
   admin: "00000000-0000-4000-8000-0000000000a1",

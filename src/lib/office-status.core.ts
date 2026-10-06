@@ -27,6 +27,7 @@ export const OFFICE_STATUSES = {
   "enquiry.video_asked": { stage: "enquiry", label: "Video asked for", waiting: "Owner", limit: { d: 3 }, limitKey: "video_reminder_days", action: "Remind owner" },
   "enquiry.video_in": { stage: "enquiry", label: "Video in, desk check", waiting: "Us", limit: { d: 1 }, limitKey: "video_check_days", action: "Check the video" },
   "enquiry.spot_saved": { stage: "enquiry", label: "Spot saved, needs an installer", waiting: "Us", limit: { d: 2 }, limitKey: "spot_saved_days", action: "Offer to installers" },
+  "enquiry.spot_saved_video": { stage: "enquiry", label: "Spot saved · video sent", waiting: "Us", limit: { d: 2 }, limitKey: "spot_saved_days", action: "Offer to installers" },
   "ready_check.pick_times": { stage: "ready_check", label: "Waiting for owner to pick 3–5 times", waiting: "Owner", limit: { d: 3 }, limitKey: "owner_times_days", action: "Remind owner" },
   "ready_check.offered": { stage: "ready_check", label: "Offered to installers, first to tap books", waiting: "Installer", limit: { bh: 4 }, limitKey: "offer_business_hours", action: "Offer to more installers" },
   "ready_check.booked": { stage: "ready_check", label: "Booked", waiting: "Installer", limit: null },
@@ -96,7 +97,7 @@ export function addBusinessHours(startMs: number, hours: number): number {
 export type JobFacts = {
   id: string; stage: string; createdAt: string; lastActivityAt: string | null; enteredStageAt: string | null;
   holdRevisitAt?: string | null; cancelledReason?: string | null;
-  campaign?: { spotSavedAt: string | null; optedOutAt: string | null; videoRequested: boolean; mediaReceivedAt: string | null; deskCheckStatus: string | null; createdAt: string } | null;
+  campaign?: { spotSavedAt: string | null; optedOutAt: string | null; videoRequested: boolean; mediaReceivedAt: string | null; deskCheckStatus: string | null; createdAt: string; queuePriority?: string | null } | null;
   /** Estimate link created (NOT proof of sending). */
   estimateSentAt?: string | null;
   /** Earliest real send record to the owner (customer_email_sends / outbound job_communications with sent_at). Only this may make a status say "sent" or "waiting for owner". */
@@ -142,21 +143,29 @@ export function officeStatus(f: JobFacts, now: number, lim: Record<string, numbe
     return { key, stage: d.stage, label: d.label, waitingOn: d.waiting, since: s, dueAt: due == null ? null : new Date(due).toISOString(), late: due != null && now > due, detail: opts.detail ?? null, action: d.action ?? null };
   };
   const c = f.campaign;
+  // A saved spot outranks "estimate sent"/waiting-list at every pre-Ready-Check stage: it is waiting on us.
+  const saved = (): OfficeStatus | null => {
+    if (!c || c.optedOutAt) return null;
+    if (c.mediaReceivedAt && !c.deskCheckStatus) return pick("enquiry.video_in", c.mediaReceivedAt);
+    if (!c.spotSavedAt) return null;
+    return pick(c.mediaReceivedAt || c.queuePriority === "video" ? "enquiry.spot_saved_video" : "enquiry.spot_saved", c.spotSavedAt);
+  };
   switch (f.stage) {
     case "complete": return pick("ended.complete", f.lastActivityAt);
     case "cancelled": return pick("ended.cancelled", f.lastActivityAt, { detail: f.cancelledReason ?? null });
     case "on_hold": return pick("ended.on_hold", f.lastActivityAt, { due: f.holdRevisitAt ?? null, detail: f.holdRevisitAt ? `Revisit ${f.holdRevisitAt}` : null });
     case "new_enquiry": case "eligibility_review": return pick("enquiry.checking", f.enteredStageAt ?? f.createdAt);
-    case "preliminary_estimate_ready": case "ready_check_awaiting_acceptance": case "ready_check_awaiting_payment":
+    case "preliminary_estimate_ready": case "ready_check_awaiting_acceptance": case "ready_check_awaiting_payment": {
+      const s = saved(); if (s) return s;
       if (!f.ownerContactedAt) return pick(f.estimateSentAt ? "waiting_list.ready_to_send" : "waiting_list.needs_estimate", f.enteredStageAt);
       return pick("enquiry.estimate_sent", f.ownerContactedAt);
+    }
     case "ready_check_ready_to_schedule": {
       if (f.proposalPending && f.proposalPending.kind === "ready_check") return pick("ready_check.arranging", f.proposalPending.since);
       if (f.rcOfferAt) return pick("ready_check.offered", f.rcOfferAt);
       if ((f.rcWindowsOpen ?? 0) > 0) return pick("enquiry.spot_saved", c?.spotSavedAt ?? f.enteredStageAt, { detail: "Owner picked times — offer it to installers" });
-      if (c?.mediaReceivedAt && !c.deskCheckStatus) return pick("enquiry.video_in", c.mediaReceivedAt);
+      { const s = saved(); if (s) return s; }
       if (c?.videoRequested && !c.mediaReceivedAt && !c.spotSavedAt) return pick("enquiry.video_asked", c.createdAt);
-      if (c?.spotSavedAt) return pick("enquiry.spot_saved", c.spotSavedAt);
       // Rule: "sent" / "waiting for owner" only with a real send record. Otherwise the lead is on the waiting list.
       if (!f.ownerContactedAt) return pick(f.estimateSentAt ? "waiting_list.ready_to_send" : "waiting_list.needs_estimate", f.enteredStageAt);
       if (!f.rcAccepted) return pick("enquiry.estimate_sent", f.ownerContactedAt);
