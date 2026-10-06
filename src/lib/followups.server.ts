@@ -78,6 +78,11 @@ async function deliverTracked(x: { jobId: string; linkId: string; linkToken: str
       await admin.from("customer_email_sends").update({ status: statusAfterDelivery(false), sent_at: new Date().toISOString(), provider: x.adapter.provider, error: `record_failed: ${msg}` }).eq("id", sendId);
       return { sent: false as const, reason: "delivered_unrecorded" };
     }
+    const { statusAfterDeliveryError } = await import("./delivery.core");
+    if (statusAfterDeliveryError(e) !== "failed") {
+      await admin.from("customer_email_sends").update({ status: "delivered_unrecorded", error: `sent_unknown: ${msg}` }).eq("id", sendId);
+      return { sent: false as const, reason: "delivered_unrecorded" };
+    }
     await admin.from("customer_email_sends").update({ status: "failed", error: msg }).eq("id", sendId);
     await recordEngagement({ jobId: x.jobId, linkId: x.linkId, type: "email_failed", source: x.adapter.provider, metadata: { purpose: x.purpose } });
     return { sent: false as const, reason: "delivery_failed" };
@@ -259,7 +264,9 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
       await admin.from("customer_email_sends").update({ status: statusAfterDelivery(false), sent_at: new Date().toISOString(), provider: adapter.provider, error: `record_failed: ${(e as Error).message.slice(0, 280)}` }).eq("id", sendId!);
       return { sent: false as const, reason: "delivered_unrecorded" };
     }
-    await admin.from("customer_email_sends").update({ status: "failed", error: (e as Error).message.slice(0, 300) }).eq("id", sendId!);
-    return { sent: false as const, reason: "delivery_failed" };
+    const { statusAfterDeliveryError } = await import("./delivery.core");
+    const st = statusAfterDeliveryError(e);
+    await admin.from("customer_email_sends").update({ status: st, error: `${st === "failed" ? "" : "sent_unknown: "}${(e as Error).message.slice(0, 280)}` }).eq("id", sendId!);
+    return { sent: false as const, reason: st === "failed" ? "delivery_failed" : "delivered_unrecorded" };
   }
 }

@@ -89,3 +89,11 @@ describe("unsubscribe", () => {
     expect(s).toContain('suppression_reason: "unsubscribed"');
   });
 });
+
+import { DeliveryRejectedError, statusAfterDeliveryError } from "../src/lib/delivery.core";
+test("timeout after provider may have accepted -> sent-unknown, never auto-retried", () => {
+  expect(statusAfterDeliveryError(new DOMException("timeout", "TimeoutError"))).toBe("delivered_unrecorded");
+  expect(statusAfterDeliveryError(new TypeError("fetch failed"))).toBe("delivered_unrecorded");
+  expect(statusAfterDeliveryError(new DeliveryRejectedError("bridge returned 500"))).toBe("failed");
+  expect(statusAfterDeliveryError(new DeliveryRejectedError("x"), true)).toBe("delivered_unrecorded");
+});
