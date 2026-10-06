@@ -53,7 +53,7 @@ export const RADII = [{ v: 25, l: "25 km" }, { v: 50, l: "50 km" }, { v: 75, l: 
 /** Legacy values retained only so old drafts and signed snapshots can still be read. */
 export const CAPACITY_BANDS = [{ v: "1-5", n: 5 }, { v: "6-10", n: 10 }, { v: "11-20", n: 20 }, { v: "20+", n: 25 }] as const;
 
-export type Electrician = { full_legal_name?: string; licence_number?: string; mobile?: string; email?: string };
+export type Electrician = { full_legal_name?: string; licence_number?: string; licence_expiry?: string; mobile?: string; email?: string };
 export type ResolvedAddress = {
   label: string; street?: string | null; suburb?: string | null; postcode?: string | null;
   state?: string | null; country: "AU"; provider: "google_places_au"; latitude?: number | null; longitude?: number | null;
@@ -68,6 +68,7 @@ export type RecData = {
   contact_is_licensed_electrician?: boolean | null;
   /** The applicant's own Victorian electrician licence (always required). */
   licence_number?: string;
+  licence_expiry?: string;
   insurer?: string; insurance_policy_number?: string; public_liability_cover_amount?: number | null; public_liability_expiry?: string; insurance_uploaded?: boolean;
   electricians?: Electrician[];
   /** Legacy per-service flags — ignored. All three services are mandatory for every REC. */
@@ -101,6 +102,7 @@ export function effectiveElectricians(d: RecData): Electrician[] {
   return [{
     full_legal_name: (d.primary_contact_name ?? "").trim(),
     licence_number: (d.licence_number ?? "").trim().toUpperCase(),
+    ...(d.licence_expiry ? { licence_expiry: d.licence_expiry } : {}),
     mobile: (d.business_phone ?? "").trim(),
     email: (d.business_email ?? "").trim().toLowerCase(),
   }];
@@ -292,6 +294,8 @@ export function stepErrors(step: StepKey, d: RecData, now = new Date()): string[
       // Only licensed electricians may register; old drafts with false/null must be explicitly confirmed again.
       if (d.contact_is_licensed_electrician !== true) e.push("Confirm you are a licensed electrician to continue.");
       if (!txt(d.licence_number)) e.push("Enter your Victorian electrician licence number.");
+      if (!validCalendarDate(d.licence_expiry)) e.push("Enter your licence expiry date.");
+      else if ((d.licence_expiry as string) < melbourneToday(now)) e.push("Your licence has expired. Enter the new expiry date.");
       if (!validPhone(d.business_phone)) e.push("Enter a valid Australian mobile.");
       if (!validBusinessEmail(d.business_email)) e.push("Enter a real email address.");
       break;
@@ -376,7 +380,7 @@ export function firstIncompleteStep(d: RecData, now = new Date()): StepKey | nul
 }
 
 export const MATERIAL_FIELDS = [
-  "legal_entity_name", "trading_name", "abn", "rec_registration_number", "business_address", "primary_contact_name", "business_phone", "business_email", "licence_number", "service_origin", "travel_radius_km",
+  "legal_entity_name", "trading_name", "abn", "rec_registration_number", "business_address", "primary_contact_name", "business_phone", "business_email", "licence_number", "licence_expiry", "service_origin", "travel_radius_km",
   "excluded_areas", "typical_days", "normal_attendance_speed", "services_all_confirmed",
   "assessment_rate", "installation_attendance_rate", "rectification_rates", "custom_rectification_rates", "coes_fee_choice", "coes_fee", "gst_registered", "electricians",
   "works_under_rec", "host_rec_name", "host_rec_number",

@@ -42,7 +42,7 @@ const dataSchema = z.object({
   legal_entity_name: s(200), trading_name: s(200), abn: s(20), rec_registration_number: s(50),
   business_address: s(300), business_address_details: address.nullable().optional(), primary_contact_name: s(200), business_phone: s(30), business_email: s(320), authorised_to_register: z.boolean().optional(),
   insurer: s(200), insurance_policy_number: s(100), public_liability_cover_amount: n, public_liability_expiry: s(10),
-  electricians: z.array(z.object({ full_legal_name: s(200), licence_number: s(50), mobile: s(30), email: s(320) })).max(30).optional(),
+  electricians: z.array(z.object({ full_legal_name: s(200), licence_number: s(50), licence_expiry: s(10), mobile: s(30), email: s(320) })).max(30).optional(),
   service_piesa: z.boolean().optional(), service_rectification: z.boolean().optional(), service_installation_isolation: z.boolean().optional(), services_all_confirmed: z.boolean().optional(), contact_is_licensed_electrician: z.boolean().nullable().optional(), licence_number: s(50),
   service_origin: s(300), service_origin_details: address.nullable().optional(), travel_radius_km: n, excluded_areas: s(2000),
   typical_days: z.array(z.string().max(3)).max(7).optional(), normal_attendance_speed: s(50),
