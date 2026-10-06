@@ -27,14 +27,14 @@ describe("Scenario F — owner paperwork gates", () => {
       expect(blocked(base({ ...j.f, signed: aDone }), "ready_check_scheduled")).toEqual([]);
       // Gate B
       const bStage = "awaiting_deposit_payment";
-      expect(blocked(base({ ...j.f, signed: aDone, hasQuote: true }), bStage).length).toBe(4);
-      expect(blocked(base({ ...j.f, signed: [...aDone, ...sign("veec_assignment_consent", "cooling_off_notice", "payment_terms")], hasQuote: true }), bStage)).toEqual(["Owner paperwork B: Customer agreement + consumer rights not signed yet."]);
-      const bDone = { ...j.f, signed: [...aDone, ...sign("veec_assignment_consent", "cooling_off_notice", "payment_terms")], hasQuote: true, agreementSigned: true };
+      expect(blocked(base({ ...j.f, signed: aDone, hasQuote: true }), bStage).length).toBe(5);
+      expect(blocked(base({ ...j.f, signed: [...aDone, ...sign("quote_acceptance", "veec_assignment_consent", "cooling_off_notice", "payment_terms")], hasQuote: true }), bStage)).toEqual(["Owner paperwork B: Customer agreement + consumer rights not signed yet."]);
+      const bDone = { ...j.f, signed: [...aDone, ...sign("quote_acceptance", "veec_assignment_consent", "cooling_off_notice", "payment_terms")], hasQuote: true, agreementSigned: true };
       expect(blocked(base(bDone), bStage)).toEqual([]);
       // Gate C
       const cStage = "evidence_outstanding";
-      expect(blocked(base(bDone), cStage).length).toBe(j.f.lifeSupport ? 3 : 2);
-      const cDone = { ...bDone, escConsentSigned: true, piesaCopyDelivered: true, signed: [...bDone.signed, ...sign("life_support_plan")] };
+      expect(blocked(base(bDone), cStage).length).toBe(j.f.lifeSupport ? 4 : 3);
+      const cDone = { ...bDone, escConsentSigned: true, piesaCopyDelivered: true, signed: [...bDone.signed, ...sign("piesa_copy_receipt", "life_support_plan")] };
       expect(blocked(base(cDone), cStage)).toEqual([]);
       // Gate D
       expect(blocked(base(cDone), "ready_for_veec")).toEqual(["Owner paperwork D: Completed VEEC assignment form (effective after install) not signed yet."]);
@@ -42,7 +42,7 @@ describe("Scenario F — owner paperwork gates", () => {
     });
   }
   test("Gate B requires the owner's VEEC assignment at quote acceptance", () => {
-    const f = base({ signed: [...sign(...A), ...sign("cooling_off_notice", "payment_terms")], hasQuote: true, agreementSigned: true });
+    const f = base({ signed: [...sign(...A), ...sign("quote_acceptance", "cooling_off_notice", "payment_terms")], hasQuote: true, agreementSigned: true });
     expect(blocked(f, "awaiting_deposit_payment")).toEqual(["Owner paperwork B: Your rebate (VEEC assignment) not signed yet."]);
   });
   test("Life support plan only required when life support applies", () => {
@@ -64,8 +64,11 @@ describe("Scenario F — owner paperwork gates", () => {
 });
 
 import { GATE_DOCS as __DOCS } from "../src/lib/owner-gates.core";
-test("rebate (VEEC assignment) wording is draft awaiting lawyer and blocks real jobs", () => {
+test("lawyer-approved wording (6 Oct) is versioned and noted; cooling-off stays pending", () => {
   const d = __DOCS.find((x) => x.key === "veec_assignment_consent")!;
-  expect(d.draftNote).toBe("Draft, awaiting lawyer");
-  expect(d.version).not.toBe("jo-2026-10-05");
+  expect(d.version).toBe("lawyer-2026-10-06-v1");
+  expect(d.approvalNote).toBe("Jo Lowe — lawyer sign-off 6 Oct 2026");
+  const c = __DOCS.find((x) => x.key === "cooling_off_notice")!;
+  expect(c.approvalNote).toBeUndefined();
+  expect(c.body).toMatch(/^DRAFT/);
 });
