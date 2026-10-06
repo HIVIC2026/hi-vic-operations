@@ -3,6 +3,7 @@
 import opentype from "opentype.js";
 import { PNG } from "pngjs";
 import { Buffer } from "node:buffer";
+import { AMOUNT_LH, AMOUNT_SIZE, amountArtWidth } from "./email-art.core";
 import { FIGTREE_800_WOFF, LOGO_PNG, OUTFIT_800_WOFF, PARTY_PNG } from "./email-hero-assets";
 
 export const HERO_WIDTH = 600; // shown at 600px; drawn at 2x
@@ -164,8 +165,6 @@ export function renderHeaderArt(spec: HeroSpec): Uint8Array {
 }
 
 /** "You pay about" amount in Outfit 800 navy, 34/38px, on the estimate card's mist background. Width = text width. */
-export const AMOUNT_SIZE = 34, AMOUNT_LH = 38;
-export function amountArtWidth(text: string) { return Math.ceil(font().outfit.getAdvanceWidth(text, AMOUNT_SIZE)) + 2; }
 export function renderAmountArt(text: string, bg = "#F3F6FF"): Uint8Array {
   const { outfit } = font();
   const w = amountArtWidth(text) * S, h = AMOUNT_LH * S, size = AMOUNT_SIZE * S;
