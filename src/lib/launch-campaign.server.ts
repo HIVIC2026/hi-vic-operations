@@ -187,7 +187,7 @@ export async function queueSpotSavedConfirmations(jobId: string, token: string) 
   if (done) return { queued: false as const };
   const [{ data: job }, { data: r }] = await Promise.all([
     admin.from("jobs").select("source, owners(full_name, phone, email), properties(address_line, suburb)").eq("id", jobId).maybeSingle(),
-    admin.from("lead_campaign_responses").select("saved_veu_discount").eq("job_id", jobId).maybeSingle(),
+    admin.from("lead_campaign_responses").select("saved_veu_discount, saved_gross_total, saved_total, saved_area_m2").eq("job_id", jobId).maybeSingle(),
   ]);
   if (!job) return { queued: false as const };
   const { renderSpotSavedEmail, renderSpotSavedSms, addressBits } = await import("./spot-saved-messages.core");
@@ -196,7 +196,7 @@ export async function queueSpotSavedConfirmations(jobId: string, token: string) 
   const owner = job.owners as { full_name: string | null; phone: string | null; email: string | null } | null;
   const prop = job.properties as { address_line: string | null; suburb: string | null } | null;
   const bits = addressBits(prop?.address_line ?? null, prop?.suburb ?? null);
-  const input = { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, rebate: Number(r?.saved_veu_discount ?? 0), suburb: bits.suburb, shortAddress: bits.short, myJobUrl: `${OWNER_BASE}/my-job/${token}`, optOutUrl: await unsubscribeUrlForJob(jobId) };
+  const input = { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, rebate: Number(r?.saved_veu_discount ?? 0), suburb: bits.suburb, shortAddress: bits.short, myJobUrl: `${OWNER_BASE}/my-job/${token}`, optOutUrl: await unsubscribeUrlForJob(jobId), estimate: r?.saved_gross_total ? { gross: Number(r.saved_gross_total), customer: Number(r.saved_total), areaM2: Number(r.saved_area_m2), address: bits.short ? `${bits.short} VIC` : null, calculatorUrl: `${OWNER_BASE}/estimate/${token}/calculator` } : null };
   const sms = renderSpotSavedSms(input);
   const email = renderSpotSavedEmail(input);
   const now = new Date().toISOString();
