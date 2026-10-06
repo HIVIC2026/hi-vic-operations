@@ -116,9 +116,9 @@ const s2: StepFn = async (ctx, r) => {
 const s3: StepFn = async (ctx, r) => {
   await assertOwnTestJob(ctx);
   const { launchCampaignOffice } = await import("./launch-campaign.server");
-  const office = await launchCampaignOffice() as { rows?: { job_id: string }[] } & Record<string, unknown>;
-  const rows = (office.rows ?? (office["responses"] as { job_id: string }[] | undefined) ?? []);
-  check(r, "job shows in office Spot saved list", rows.some((x) => x.job_id === ctx.jobId), `${rows.length} rows`);
+  const office = await launchCampaignOffice();
+  const row = office.rows.find((x) => x.jobId === ctx.jobId);
+  check(r, "job shows in office Spot saved list", !!row?.spotSavedAt, row ? "row without saved time" : `${office.rows.length} rows, not this job`);
   // Owner picks Ready Check times (3 windows on 3 days), then the office offers to the TEST installer only.
   const { submitReadyCheckWindows, startReadyCheckOffers } = await import("./readycheck-booking.server");
   const { data: j } = await admin.from("jobs").select("stage").eq("id", ctx.jobId!).single();
