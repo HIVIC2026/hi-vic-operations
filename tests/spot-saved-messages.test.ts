@@ -24,3 +24,13 @@ describe("spot saved confirmations", () => {
     expect(src).toContain('delivery_status: "queued"');
   });
 });
+
+import { addressBits as ab } from "../src/lib/spot-saved-messages.core";
+import { fullAddress } from "../src/lib/address";
+describe("address never repeats", () => {
+  test("street line that already holds suburb/postcode", () => {
+    expect(ab("20 Banksia Street, Frankston VIC 3199", "Frankston").short).toBe("20 Banksia Street, Frankston");
+    expect(fullAddress("20 Banksia Street, Frankston VIC 3199", "Frankston", "3199")).toBe("20 Banksia Street, Frankston VIC 3199");
+    expect(fullAddress("20 Banksia Street", "Frankston", "3199")).toBe("20 Banksia Street, Frankston VIC 3199");
+  });
+});

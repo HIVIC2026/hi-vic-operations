@@ -195,6 +195,7 @@ d2("copy normalisation", () => {
   });
 });
 
+const CAMPAIGN_BANNED = ["VEU rebate", "You could save", "PIESA", "REC", "CII", "Accredited Person (AP)", "VEECs ×", "Open the calculator", "incl. GST · before rebate", "What this includes"];
 describe("launch campaign email drafts", () => {
   const campaignUrl = `https://estimate.homeinsulationvictoria.com.au/estimate/${token}/campaign`;
   const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${token}`;
@@ -203,7 +204,7 @@ describe("launch campaign email drafts", () => {
     const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", insulation: "none", myJobUrl: `https://estimate.homeinsulationvictoria.com.au/my-job/${token}` });
     expect(email.subject).toBe("Great news, Sarah! $1,470 off your ceiling insulation 🎉");
     expect(email.html).toContain(">🎉 Your rebate is waiting</p>");
-    expect(email.html).not.toContain("Your price can change");
+    expect(email.html).toContain("Your price can change");
     expect(email.html.split("Estimate only.").length - 1).toBe(1);
     expect(email.html).toContain('<h1 class="lx-h1 hiv-hero-title"');
     expect(email.html).toContain('Sarah, take <span style="color:#07BF61;">$1,470</span> off your ceiling insulation');
@@ -211,9 +212,10 @@ describe("launch campaign email drafts", () => {
     expect(email.html).toContain("Hundreds of homes have enquired since 1 October. Spots go in order.");
     expect(email.html).toContain("Free · no payment · no obligation");
     expect(email.html).toContain("Hold your place in line");
-    for (const t of ["What this includes", ">FREE<", "R5.0 ceiling insulation — supply &amp; install", "$4,151", "$349", "Price before discount", "$4,849", "VEU discount (21 VEECs × $70)", "−$1,470", "You pay about", "$3,379", "Estimate only.", "See my job", "Remove my enquiry", "Privacy"]) expect(email.html).toContain(t);
-    expect(email.html).toContain("14 Example Street, Ballarat VIC 3350");
-    expect(email.html).not.toContain("We never add work or cost without showing you first and getting your OK.");
+    for (const t of ["Your estimate", "Normal price", "$4,849", "Your rebate", "−$1,470", "You pay about", "$3,379", "What you get", "Free Ready Check</strong> — We measure your roof space and confirm the job.", "R5.0 ceiling insulation</strong> — Supplied and fitted by a certified installer.", "Electrical safety check</strong> — By a licensed electrician, as the rules require.", "Rebate paperwork, done for you</strong> — We handle the forms and the claim.", "Try a different size →", "See my job", "Remove my enquiry", "Privacy"]) expect(email.html).toContain(t);
+    for (const t of CAMPAIGN_BANNED) { expect(email.html).not.toContain(t); expect(email.plainText).not.toContain(t); }
+    expect(email.html).toContain("Based on 14 Example Street, Ballarat VIC 3350 and a 150 m² ceiling.");
+    expect(email.html).toContain("We never add work or cost without showing you first and getting your OK.");
     for (const t of ["Contact us", "What could change this price?"]) expect(email.html).not.toContain(t);
     expect(email.html).toContain("background-color:#F3F6FF");
     expect(email.plainText).toContain(`Remove my enquiry: ${unsubscribeUrl}`);
@@ -226,7 +228,9 @@ describe("launch campaign email drafts", () => {
     expect(email.html).toContain("Your Bendigo home could be eligible for the Victorian Energy Upgrades rebate");
     expect(email.html).toContain("Want to jump the queue?");
     expect(email.html).toContain("Your estimate");
-    expect(email.html).toContain("What this includes");
+    for (const t of CAMPAIGN_BANNED) expect(email.html).not.toContain(t);
+    const dup = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Jo", estimatedTotal: 3178, veuDiscount: 1120, grossTotal: 4298, areaM2: 120, address: "20 Banksia Street, Frankston VIC 3199, Frankston VIC 3199" });
+    expect(dup.html).toContain("Based on 20 Banksia Street, Frankston VIC 3199 and a");
     expect(email.html).not.toContain("Contact us");
   });
 
