@@ -69,6 +69,8 @@ const s1: StepFn = async (ctx, r) => {
   await recordContactConsent(ctx.jobId, jo!.owner_id!, { contact_consent: true, contact_consent_version: "journey-test", contact_consented_at: new Date().toISOString(), external_enquiry_id: `qa-journey-${ctx.runId}` } as never);
   const { autoDecideEligibility } = await import("./eligibility.server");
   await autoDecideEligibility(ctx.jobId);
+  const { autoAdvanceJob } = await import("./autoadvance.server");
+  await autoAdvanceJob(ctx.jobId, ctx.actorId, "journey test intake");
   const { syncStep3 } = await import("./estimatelink.server");
   const link = await syncStep3(ctx.jobId, ctx.actorId);
   check(r, "secure owner estimate link prepared", link.status === "issued" || link.status === "reused", `link ${link.status} (mode ${link.mode})`);
