@@ -40,10 +40,10 @@ describe("$200 minimum contribution", () => {
   });
   test("installer draft quote: big discount not capped; cheap job reduced to $200", () => {
     const price = (t: number) => ({ price: { totalIncGst: t, included: ["Supply and install insulation"], otherDescription: null }, issues: [] }) as never;
-    const caps = { metropolitan: true, maxMetro: 1500, maxRegional: 2100, minCopay: 200 };
-    const big = buildInstallerQuoteDraft({ price: price(9000), measuredM2: 600, ghgReduction: 60, veecValue: 70, piesaIncGst: 349, apFeeIncGst: 349, caps });
+    const caps = { metropolitan: true, minCopay: 200 };
+    const big = buildInstallerQuoteDraft({ price: price(9000), measuredM2: 600, wholeVeec: { veecs: Math.floor(60), raw: Math.floor(60) * 70 }, piesaIncGst: 349, apFeeIncGst: 349, caps });
     expect(big.discount).toBe(4200);
-    const cheap = buildInstallerQuoteDraft({ price: price(400), measuredM2: 100, ghgReduction: 15, veecValue: 70, piesaIncGst: 349, apFeeIncGst: 349, caps });
+    const cheap = buildInstallerQuoteDraft({ price: price(400), measuredM2: 100, wholeVeec: { veecs: Math.floor(15), raw: Math.floor(15) * 70 }, piesaIncGst: 349, apFeeIncGst: 349, caps });
     expect(cheap.discount).toBe(898); expect(cheap.afterDiscount).toBeCloseTo(200, 2);
     expect(cheap.discountNote).toContain("minimum $200 customer contribution");
   });

@@ -1,3 +1,4 @@
+import { exactLike } from "./email-match";
 import { enqueueInitialGate1, processPostIntakeWork } from "./postintake.server";
 import { eligibilityFactsVersion } from "./postintake.core";
 import { runAfterResponse } from "./background.server";
@@ -79,7 +80,7 @@ export type JobOrigin = { channel: "hivic_sourced" } | { channel: "installer_sou
 export async function upsertEnquiry(input: EnquiryInput, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }) {
   const email = input.email.toLowerCase();
   const fullName = properName(input.full_name);
-  let { data: owner } = await admin.from("owners").select("id").ilike("email", email).maybeSingle();
+  let { data: owner } = await admin.from("owners").select("id").ilike("email", exactLike(email)).maybeSingle();
   if (owner) {
     await admin.from("owners").update({ full_name: fullName, phone: input.phone ?? null }).eq("id", owner.id);
   } else {
@@ -87,7 +88,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
     if (error) throw new Error(error.message);
     owner = data;
     // link to an existing portal account if one exists
-    const { data: prof } = await admin.from("profiles").select("id").ilike("email", email).maybeSingle();
+    const { data: prof } = await admin.from("profiles").select("id").ilike("email", exactLike(email)).maybeSingle();
     if (prof) {
       await admin.from("owners").update({ user_id: prof.id }).eq("id", owner.id);
       await admin.from("user_roles").upsert({ user_id: prof.id, role: "owner" }, { onConflict: "user_id,role" });

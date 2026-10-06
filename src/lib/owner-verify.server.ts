@@ -1,4 +1,5 @@
 // No-login owner verification: secure link + 6-digit code -> short signing session. Server-only.
+import { CODE_MAX_ATTEMPTS } from "./owner-verify.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
 import { hashToken, newToken } from "./worker-links.core";
@@ -56,11 +57,14 @@ export async function verifyOwnerCode(token: unknown, code: string) {
   const { data: r } = await admin.from("owner_link_codes").select("id, channel, attempts, expires_at, verified_at, code_hash").eq("job_id", jobId).is("verified_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const b = codeBlocker(r);
   if (b) throw new WorkflowError(b);
-  await admin.from("owner_link_codes").update({ attempts: r!.attempts + 1 }).eq("id", r!.id);
+  // Atomic check-and-increment (security review 6 Oct): compare-and-swap on the attempt count, so two parallel
+  // guesses can never both use the same try, and nothing is counted once the limit, expiry or use is reached.
+  const { data: took } = await admin.from("owner_link_codes").update({ attempts: r!.attempts + 1 }).eq("id", r!.id).eq("attempts", r!.attempts).lt("attempts", CODE_MAX_ATTEMPTS).is("verified_at", null).gt("expires_at", new Date().toISOString()).select("id");
+  if (!took?.length) throw new WorkflowError("Please try again in a moment, or ask for a new code.");
   if ((await codeHash(jobId, code)) !== r!.code_hash) throw new WorkflowError("That code doesn't match. Check it and try again.");
   const userId = await ensureOwnerUser(jobId, r!.channel as "sms" | "email");
   const session = newToken();
-  await admin.from("owner_link_codes").update({ verified_at: new Date().toISOString(), session_hash: await hashToken(session), session_expires_at: new Date(Date.now() + SESSION_TTL_MIN * 60_000).toISOString(), owner_user_id: userId }).eq("id", r!.id);
+  await admin.from("owner_link_codes").update({ verified_at: new Date().toISOString(), session_hash: await hashToken(session), session_expires_at: new Date(Date.now() + SESSION_TTL_MIN * 60_000).toISOString(), owner_user_id: userId }).eq("id", r!.id).is("verified_at", null);
   await logEvent(jobId, userId, "owner_code_verified", `Owner verified by ${r!.channel === "sms" ? "text" : "email"} code on the secure link`, { code_id: r!.id }, { internal: true });
   return { session };
 }

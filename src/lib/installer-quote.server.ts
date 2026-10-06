@@ -2,8 +2,9 @@
 // Never sends anything: the office reviews the co-branded preview and sends it (installer-quote.functions.ts).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
-import { ghgEquivalentReduction, type LocationVariables } from "./activity48.core";
-import { HIVIC_PIESA_INC_GST, buildInstallerQuoteDraft, quotedPriceFromEntries } from "./installer-led.core";
+import { type LocationVariables } from "./activity48.core";
+import { wholeVeecDiscount } from "./estimate.core";
+import { buildInstallerQuoteDraft, quotedPriceFromEntries } from "./installer-led.core";
 import { installerPriceRangeReason } from "./quote-release.core";
 
 export const INSTALLER_QUOTE_CODE = "INSTALLER_A1";
@@ -19,17 +20,16 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const postcode = String((job.properties as { postcode: string | null } | null)?.postcode ?? "").trim();
   const [{ data: loc }, { data: rs }, { data: workflow }] = await Promise.all([
     admin.from("veu_location_variables").select("*").eq("postcode", postcode).maybeSingle(),
-    admin.from("retail_estimator_settings").select("ap_management_inc_gst, indicative_veec_value, minimum_customer_copayment_inc_gst, max_discount_metro_inc_gst, max_discount_regional_inc_gst").eq("is_current", true).maybeSingle(),
+    admin.from("retail_estimator_settings").select("ap_management_inc_gst, piesa_assessment_inc_gst, indicative_veec_value, minimum_customer_copayment_inc_gst").eq("is_current", true).maybeSingle(),
     admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled, installer_quote_min_inc_gst_per_m2, installer_quote_max_inc_gst_per_m2").eq("id", 1).maybeSingle(),
   ]);
-  const ghg = loc && m2 ? ghgEquivalentReduction(m2, loc as unknown as LocationVariables).ghgReduction : null;
+  const wholeVeec = loc && m2 && rs ? wholeVeecDiscount(m2, loc as unknown as LocationVariables, Number(rs.indicative_veec_value)) : null;
   const apFee = job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
   const draft = buildInstallerQuoteDraft({
-    price: quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, ghgReduction: ghg,
-    veecValue: rs ? Number(rs.indicative_veec_value) : null, piesaIncGst: HIVIC_PIESA_INC_GST, apFeeIncGst: apFee,
+    price: quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
+    piesaIncGst: rs ? Number(rs.piesa_assessment_inc_gst) : null, apFeeIncGst: apFee,
     caps: {
       metropolitan: loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null,
-      maxMetro: rs ? Number(rs.max_discount_metro_inc_gst) : 1500, maxRegional: rs ? Number(rs.max_discount_regional_inc_gst) : 2100,
       minCopay: rs ? Number(rs.minimum_customer_copayment_inc_gst) : 200,
     },
   });

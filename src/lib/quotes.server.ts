@@ -40,52 +40,8 @@ async function activeRateCard(kind: "installer" | "electrical", businessId?: str
 
 type Line = { code: string | null; description: string; quantity: number; unit: string; exGst: number; is_other?: boolean; explanation?: string | null };
 
-export function priceInstallerOption(input: {
-  areaM2: number;
-  removalM2: number;
-  access: "easy" | "moderate" | "difficult";
-  product: { code: string; description: string; unit_price_ex_gst: number };
-  removal?: { unit_price_ex_gst: number } | null;
-  travel?: { unit_price_ex_gst: number } | null;
-  settings: { gst_rate: number; ap_margin_pct: number; ap_fee_ex_gst: number; veec_credit_per_m2_inc_gst: number; access_loadings: Record<string, number> };
-}) {
-  const s = input.settings;
-  const loading = Number(s.access_loadings[input.access] ?? 1);
-  const lines: Line[] = [
-    {
-      code: input.product.code,
-      description: input.product.description,
-      quantity: input.areaM2,
-      unit: "m2",
-      exGst: Number(input.product.unit_price_ex_gst) * loading,
-    },
-  ];
-  if (input.removalM2 > 0 && input.removal)
-    lines.push({ code: "REMOVAL", description: "Removal & disposal of existing insulation", quantity: input.removalM2, unit: "m2", exGst: Number(input.removal.unit_price_ex_gst) });
-  if (input.travel) lines.push({ code: "TRAVEL", description: "Travel / site establishment", quantity: 1, unit: "flat", exGst: Number(input.travel.unit_price_ex_gst) });
-
-  const cost = lines.reduce((a, l) => a + l.exGst * l.quantity, 0);
-  const margin = cost * Number(s.ap_margin_pct);
-  const fee = Number(s.ap_fee_ex_gst);
-  const uplift = cost > 0 ? (cost + margin + fee) / cost : 1; // distributed so customers only see final prices
-  const gst = 1 + Number(s.gst_rate);
-  const items = lines.map((l, i) => {
-    const unitInc = r2(l.exGst * uplift * gst);
-    return { code: l.code, description: l.description, quantity: l.quantity, unit: l.unit, unit_price_inc_gst: unitInc, line_total_inc_gst: r2(unitInc * l.quantity), sort: i };
-  });
-  const subtotal = r2(items.reduce((a, i) => a + i.line_total_inc_gst, 0));
-  // LEGACY: flat per-m² VEEC credit (pricing_settings.veec_credit_per_m2_inc_gst). Final quotes only; Step 3 must NOT use this –
-  // it uses the official Activity 48 Eq 48.1 calculator in activity48.core.ts.
-  const veec = r2(Math.min(subtotal, input.areaM2 * Number(s.veec_credit_per_m2_inc_gst)));
-  return {
-    items,
-    subtotal_inc_gst: subtotal,
-    gst_amount: r2(subtotal - subtotal / gst),
-    veec_discount_inc_gst: veec,
-    customer_total_inc_gst: r2(subtotal - veec),
-    internals: { cost_ex_gst: r2(cost), ap_margin_ex_gst: r2(margin), ap_fee_ex_gst: r2(fee), loading },
-  };
-}
+// REMOVED (security review 6 Oct): legacy priceInstallerOption and its flat per-m² VEEC credit
+// (pricing_settings.veec_credit_per_m2_inc_gst). Every discount uses wholeVeecDiscount + applyDiscountRules.
 
 export async function generateInstallerQuotes(jobId: string, actorId: string) {
   // Installer-supplied jobs (installer's own customer and price) never use this builder: no installer markup there.
@@ -169,7 +125,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
     ...rectLines.map((l, i) => ({ ...l, quote_id: q.id, sort: 100 + i })),
   ]);
   await admin.from("quote_internals").insert({
-    quote_id: q.id, cost_ex_gst: calc.installerCostEx, ap_margin_ex_gst: calc.installerMarkup.markupEx, ap_fee_ex_gst: r2(Number(rs.ap_management_inc_gst) / gstMul),
+    quote_id: q.id, cost_ex_gst: calc.installerCostEx, ap_margin_ex_gst: calc.installerMarkup.markupEx, ap_fee_ex_gst: r2((jobRow.ap_fee_override_inc_gst != null ? Number(jobRow.ap_fee_override_inc_gst) : Number(rs.ap_management_inc_gst)) / gstMul), // job AP fee override wins
     calc_snapshot: { pricing_rule: HIV_PRICING_RULE, installer_markup: calc.installerMarkup, measurement_id: qi.measurementId, area_m2: qi.areaM2, removal_m2: qi.removalM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access, discount_notes: discountNotes(rules), discount_cap_applied: rules.cappedAtMax, discount_reduced_for_minimum: rules.reducedForMin },
   });
   const summary = release.state === "held" ? (release.reason ?? "Quote held for office review") : release.state === "queued" ? "Installation quote ready to send — queued behind the launch switches" : "Installation quote automatically released to the owner";

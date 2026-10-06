@@ -3,12 +3,12 @@
 import { FORMS, validateQuotedPrice, type QuotedPrice } from "./mitti-forms.core";
 import { MIN_CUSTOMER_CONTRIBUTION_INC_GST, applyDiscountRules, discountNotes } from "./estimate.core";
 
-export const HIVIC_PIESA_INC_GST = 349;
 export type ElectricianChoice = "installer_own" | "hivic_matched" | "installer_own_hivic_books";
 
-/** Owner charge is the standard $349 for every approved electrician choice; an own REC's agreed rate is an internal supplier cost only. */
-export function piesaChargeIncGst(choice: ElectricianChoice | null, _ownRecPiesaIncGst: number | null): number | null {
-  if (choice === "hivic_matched" || choice === "installer_own" || choice === "installer_own_hivic_books") return HIVIC_PIESA_INC_GST;
+/** Owner charge is the standard PIESA price from settings (retail_estimator_settings.piesa_assessment_inc_gst) for every approved electrician choice; an own REC's agreed rate is an internal supplier cost only. */
+export function piesaChargeIncGst(choice: ElectricianChoice | null, standardPiesaIncGst: number | null): number | null {
+  if (!(standardPiesaIncGst != null && standardPiesaIncGst > 0)) return null;
+  if (choice === "hivic_matched" || choice === "installer_own" || choice === "installer_own_hivic_books") return standardPiesaIncGst;
   return null;
 }
 
@@ -185,22 +185,23 @@ export type InstallerQuoteLine = { code: string; description: string; quantity: 
 export type InstallerQuoteDraft = { ready: boolean; blockers: string[]; lines: InstallerQuoteLine[]; subtotal: number; discount: number; afterDiscount: number; discountNote: string | null };
 
 /** Region's program maximum + $200 minimum for the discount. metropolitan null/unknown uses the lower metro cap. */
-export type DiscountCaps = { metropolitan: boolean | null; maxMetro: number; maxRegional: number; minCopay: number };
+/** No maximum discount exists (Jo, 5 Oct 2026); only the minimum customer contribution applies. */
+export type DiscountCaps = { metropolitan: boolean | null; minCopay: number };
 
 /**
- * Owner quote for an installer-brought job: installer price (with ticked inclusions) + $349 PIESA + AP fee − VEU discount.
- * Discount = Eq 48.1 reduction for the measured m² × the VEEC value setting (same as the calculator), capped at the
- * region's program maximum, then reduced if needed so the owner pays at least the $200 minimum. No lead fee, no margin.
+ * Owner quote for an installer-brought job: installer price (with ticked inclusions) + PIESA (settings) + AP fee − VEU discount.
+ * Discount = `wholeVeecDiscount` (whole VEECs × VEEC value setting, computed by the caller) through `applyDiscountRules`
+ * (the $200 minimum only — no maximum). No lead fee, no margin.
  */
 export function buildInstallerQuoteDraft(i: {
-  price: ReturnType<typeof quotedPriceFromEntries>; measuredM2: number | null; ghgReduction: number | null; veecValue: number | null;
+  price: ReturnType<typeof quotedPriceFromEntries>; measuredM2: number | null; wholeVeec: { veecs: number; raw: number } | null;
   piesaIncGst: number | null; apFeeIncGst: number | null; caps: DiscountCaps;
 }): InstallerQuoteDraft {
   const blockers = [...i.price.issues];
   if (!(i.measuredM2 && i.measuredM2 > 0)) blockers.push("Measured ceiling area is missing.");
-  if (i.ghgReduction == null || i.veecValue == null) blockers.push("VEU discount can't be worked out (postcode or VEEC value missing).");
+  if (i.wholeVeec == null) blockers.push("VEU discount can't be worked out (postcode or VEEC value missing).");
   const p = i.price.price;
-  const rawDiscount = i.ghgReduction != null && i.veecValue != null ? Math.round(Math.floor(i.ghgReduction) * i.veecValue * 100) / 100 : 0;
+  const rawDiscount = i.wholeVeec?.raw ?? 0;
   const preTotal = Math.round(((p?.totalIncGst ?? 0) + (i.piesaIncGst ?? 0) + (i.apFeeIncGst ?? 0)) * 100) / 100;
   const rules = applyDiscountRules(rawDiscount, preTotal, i.caps.metropolitan, {
     minimum_customer_copayment_inc_gst: i.caps.minCopay,

@@ -17,13 +17,14 @@ export function sellSignal(history: SpotPoint[], today: Date): SellSignal {
   return { latest, avg90, change, good: false, reason: window.length < 3 ? "Record at least 3 prices in 90 days to judge the trend." : "Spot price is near its 90-day average." };
 }
 
-export type ProfitInput = { customerTotalIncGst: number; veecDiscountIncGst: number; tradeCostExGst: number };
+/** veecCount is the stored quotes.veec_count — never derived from discount ÷ $70. null = unknown (VEEC figures shown as not available). */
+export type ProfitInput = { customerTotalIncGst: number; veecDiscountIncGst: number; veecCount: number | null; tradeCostExGst: number };
 export function jobProfit(i: ProfitInput, spot: number | null) {
   const customerExGst = i.customerTotalIncGst / 1.1;
-  const veecs = i.veecDiscountIncGst / OWNER_VEEC_RATE;
-  const veecRevenue = spot != null ? veecs * spot : null;
-  // Home Insulation Victoria keeps spot − $70 per VEEC; the owner's $70 is already given as their discount.
-  const veecMargin = spot != null ? veecs * (spot - OWNER_VEEC_RATE) : null;
+  const veecs = i.veecCount;
+  const veecRevenue = spot != null && veecs != null ? veecs * spot : null;
+  // Home Insulation Victoria keeps spot per VEEC minus the owner's discount actually given.
+  const veecMargin = spot != null && veecs != null ? veecs * spot - i.veecDiscountIncGst : null;
   const profit = veecMargin != null ? customerExGst + veecMargin - i.tradeCostExGst : null;
   return { customerExGst, veecs, veecRevenue, veecMargin, profit };
 }
@@ -38,7 +39,8 @@ export type MarginInput = {
   electricalChargeExGst: number; // what the customer is charged for electrical work (pass-through → markup 0)
   installerSourced: boolean; // legacy name: true means Home Insulation Victoria supplied the customer
   installerLed?: boolean; // installer brought their own customer
-  veecDiscountIncGst: number; // owner's discount → VEEC count at $70 each
+  veecDiscountIncGst: number; // owner's discount actually given (inc GST)
+  veecCount: number | null; // stored quotes.veec_count; null = unknown
   piesaRecCostExGst: number | null; // negotiated lower set rate paid to the REC for the PIESA; null = not agreed/recorded yet
   veecLodgementFeeExGst: number | null; // ESC fee per VEEC created/registered; null = not set
 };
@@ -52,9 +54,9 @@ export function jobMargin(i: MarginInput, spot: number | null) {
   const piesaRecPaidEx = i.piesaRecCostExGst == null ? null : r2(i.piesaRecCostExGst);
   const piesaMarginEx = piesaRecPaidEx == null ? null : r2(i.apFeeExGst - i.piesaRecCostExGst!);
   const electricalMarkup = r2(i.electricalChargeExGst - i.electricalCostExGst); // upgrades pass through at the agreed rate card
-  const veecs = i.veecDiscountIncGst / OWNER_VEEC_RATE;
-  const veecMargin = spot != null ? r2(veecs * (spot - OWNER_VEEC_RATE)) : null;
-  const lodgementFeeEx = i.veecLodgementFeeExGst == null ? null : r2(veecs * i.veecLodgementFeeExGst);
+  const veecs = i.veecCount;
+  const veecMargin = spot != null && veecs != null ? r2(veecs * spot - i.veecDiscountIncGst) : null;
+  const lodgementFeeEx = i.veecLodgementFeeExGst == null || veecs == null ? null : r2(veecs * i.veecLodgementFeeExGst);
   // When the negotiated REC PIESA rate is not recorded yet the PIESA charge is kept whole (optimistic)
   // and the row is flagged in the UI; the ESC lodgement fee comes off per VEEC once set.
   const tradeMargin = r2(installerMarkup + (piesaMarginEx ?? i.apFeeExGst) + electricalMarkup - (lodgementFeeEx ?? 0));

@@ -4,14 +4,14 @@ import { jobMargin, jobProfit, parseVeecSpotFromHtml, sellSignal } from "../src/
 const today = new Date("2026-09-30T00:00:00Z");
 describe("profit", () => {
   test("job profit keeps spot minus the owner's $70 per VEEC", () => {
-    const p = jobProfit({ customerTotalIncGst: 1100, veecDiscountIncGst: 1400, tradeCostExGst: 2000 }, 90);
+    const p = jobProfit({ customerTotalIncGst: 1100, veecDiscountIncGst: 1400, veecCount: 20, tradeCostExGst: 2000 }, 90);
     expect(p.veecs).toBe(20); expect(p.veecRevenue).toBe(1800); expect(p.veecMargin).toBe(400); expect(p.profit).toBeCloseTo(-600);
   });
   test("profit is positive when customer price covers trades", () => {
-    const p = jobProfit({ customerTotalIncGst: 3300, veecDiscountIncGst: 1400, tradeCostExGst: 2000 }, 90);
+    const p = jobProfit({ customerTotalIncGst: 3300, veecDiscountIncGst: 1400, veecCount: 20, tradeCostExGst: 2000 }, 90);
     expect(p.profit).toBeCloseTo(3000 + 400 - 2000);
   });
-  test("no spot = no profit guess", () => expect(jobProfit({ customerTotalIncGst: 1, veecDiscountIncGst: 70, tradeCostExGst: 0 }, null).profit).toBeNull());
+  test("no spot = no profit guess", () => expect(jobProfit({ customerTotalIncGst: 1, veecDiscountIncGst: 70, veecCount: 1, tradeCostExGst: 0 }, null).profit).toBeNull());
   test("good to sell", () => expect(sellSignal([{ price: 80, priced_on: "2026-08-01" }, { price: 80, priced_on: "2026-09-01" }, { price: 95, priced_on: "2026-09-29" }], today).good).toBe(true));
   test("too little history", () => expect(sellSignal([{ price: 95, priced_on: "2026-09-29" }], today).good).toBe(false));
 });
@@ -28,7 +28,7 @@ describe("online spot price parser", () => {
 });
 
 describe("job markup breakdown", () => {
-  const base = { installerCostExGst: 2500, installerMarginExGst: 300, apFeeExGst: 317, electricalCostExGst: 250, electricalChargeExGst: 349, installerSourced: true, veecDiscountIncGst: 1400, piesaRecCostExGst: null as number | null, veecLodgementFeeExGst: null as number | null };
+  const base = { installerCostExGst: 2500, installerMarginExGst: 300, apFeeExGst: 317, electricalCostExGst: 250, electricalChargeExGst: 349, installerSourced: true, veecDiscountIncGst: 1400, veecCount: 20, piesaRecCostExGst: null as number | null, veecLodgementFeeExGst: null as number | null };
   test("installer charged = cost + markup + PIESA fee", () => {
     const m = jobMargin(base, 90);
     expect(m.installerChargedEx).toBe(3117);
@@ -71,5 +71,14 @@ describe("job markup breakdown", () => {
   test("zero electrical work shows no sparky line", () => {
     const m = jobMargin({ ...base, electricalCostExGst: 0, electricalChargeExGst: 0 }, 90);
     expect(m.electricalMarkup).toBe(0);
+  });
+});
+
+describe("stored VEEC count (security review 6 Oct)", () => {
+  test("uses quotes.veec_count, never discount ÷ 70", () => {
+    const p = jobProfit({ customerTotalIncGst: 1100, veecDiscountIncGst: 1000, veecCount: 20, tradeCostExGst: 0 }, 90);
+    expect(p.veecs).toBe(20);
+    expect(p.veecMargin).toBe(800);
+    expect(jobProfit({ customerTotalIncGst: 1100, veecDiscountIncGst: 1000, veecCount: null, tradeCostExGst: 0 }, 90).profit).toBeNull();
   });
 });

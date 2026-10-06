@@ -17,7 +17,7 @@ describe("partner worker access", () => {
 
   test("trade access must match the approved onboarding email and role", () => {
     expect(access).toContain('admin.from("partner_workers")');
-    expect(access).toContain('.ilike("email", normalizedEmail)');
+    expect(access).toContain('.ilike("email", exactLike(normalizedEmail))'); // exact, wildcard-escaped
     expect(access).toContain('.eq("trade_role", data.tradeRole)');
     expect(access).toContain('account_status: "linked"');
   });

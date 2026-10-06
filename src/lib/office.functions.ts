@@ -125,7 +125,7 @@ export const getMoneyOverview = createServerFn({ method: "GET" }).middleware([re
   .handler(async ({ context }) => {
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const start = new Date(); start.setDate(1); start.setHours(0, 0, 0, 0);
+    const start = new Date((await import("./melbourne-time.core")).melbourneMonthStart()); // Melbourne month, not server time
     const [inv, veec, internals, jobs, paidEv] = await Promise.all([
       admin.from("invoice_status").select("job_id, total_inc_gst, total_paid, effective_status"),
       admin.from("veec_lodgements").select("job_id, quantity, status, submitted_date"),

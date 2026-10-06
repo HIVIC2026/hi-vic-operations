@@ -38,3 +38,6 @@ export function testSendBlocker(x: TestSendInput): string | null {
 
 export const TEST_PARTNER_MARK = "[TEST PARTNER]";
 export const isTestPartner = (b: { onboarding_notes?: string | null } | null | undefined) => !!b?.onboarding_notes?.includes(TEST_PARTNER_MARK);
+
+/** Real jobs never go to TEST partners; TEST (qa_test) jobs only go to TEST partners. */
+export const partnerAllowedForJob = (b: { onboarding_notes?: string | null } | null | undefined, jobSource: string | null | undefined) => (jobSource === "qa_test") === isTestPartner(b);

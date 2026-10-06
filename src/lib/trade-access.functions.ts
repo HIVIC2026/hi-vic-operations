@@ -1,3 +1,4 @@
+import { exactLike } from "./email-match";
 // Office: give an approved trade worker their own sign-in, linked to the existing business, role and worker record.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -31,7 +32,7 @@ export const prepareTradeLogin = createServerFn({ method: "POST" }).middleware([
     const redirectTo = new URL("/reset-password", data.redirectTo).toString();
 
     // Existing account? keep it exactly as is, just link it.
-    const { data: prof } = await admin.from("profiles").select("id, business_id").ilike("email", email).maybeSingle();
+    const { data: prof } = await admin.from("profiles").select("id, business_id").ilike("email", exactLike(email)).maybeSingle();
     if (prof?.business_id && prof.business_id !== w.business_id) throw new WorkflowError("This email already belongs to another business. Ask the person for a different email.");
     let link: string | null = null;
     let userId = prof?.id ?? null;
