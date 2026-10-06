@@ -19,7 +19,6 @@ import { activatePartnerApplication, listCertificationLevels, listWorkerCertific
 import type { InstData } from "@/lib/installer-onboarding.core";
 import { OnboardingDrafts } from "@/components/portal/onboarding-drafts";
 import { openFileViewer } from "@/components/portal/file-viewer";
-import { listTestMarkedEnquiries } from "@/lib/partner-profile.functions";
 import { PartnerProfileCard } from "@/components/portal/partner-profile-card";
 
 type Row = Tables<"partner_enquiries">;
@@ -47,9 +46,7 @@ function Partners() {
     queryKey: ["partner_enquiries"],
     queryFn: () => load(), retry: 3, staleTime: 30_000,
   });
-  const loadTests = useServerFn(listTestMarkedEnquiries);
-  const { data: testIds = [] } = useQuery({ queryKey: ["partner_test_marks"], queryFn: () => loadTests(), staleTime: 30_000 });
-  const testSet = new Set(testIds);
+  const testSet = new Set(rows.filter((r) => (r as Row & { is_test?: boolean }).is_test).map((r) => r.id));
   const real = rows.filter((row) => !testSet.has(row.id));
   const visible = (queue === "tests" ? rows.filter((row) => testSet.has(row.id)) : real).filter((row) => queue === "tests" || (queue === "approval" ? ["new", "contacted", "onboarding"].includes(row.status) && isOnboarding(row) : queue === "enquiries" ? ["new", "contacted", "onboarding"].includes(row.status) && !isOnboarding(row) : queue === "approved" ? row.status === "approved" : ["declined", "closed"].includes(row.status)));
   const of = (t: PartnerType) => visible.filter((r) => r.enquiry_type === t);

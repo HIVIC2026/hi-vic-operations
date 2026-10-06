@@ -57,7 +57,7 @@ export function PartnerProfileCard({ applicationId }: { applicationId: string })
       {!isTest && !activatedBusinessId && (
         <div className="flex flex-wrap items-center gap-2 border-t pt-2">
           <input aria-label="Why is this a test?" className="h-9 flex-1 rounded border px-2 text-sm" placeholder="Why is this a test? (e.g. Jo practice run)" value={reason} onChange={(e) => setReason(e.target.value)} />
-          <Button size="sm" variant="outline" disabled={reason.trim().length < 3} onClick={async () => { await mark({ applicationId, reason }, "Marked as test"); await Promise.all([q.refetch(), qc.invalidateQueries({ queryKey: ["partner_test_marks"] })]); }}>Mark as test</Button>
+          <Button size="sm" variant="outline" disabled={reason.trim().length < 3} onClick={async () => { await mark({ applicationId, reason }, "Marked as test"); await Promise.all([q.refetch(), qc.invalidateQueries({ queryKey: ["partner_enquiries"] })]); }}>Mark as test</Button>
         </div>
       )}
     </section>
