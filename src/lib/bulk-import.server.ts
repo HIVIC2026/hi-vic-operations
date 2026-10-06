@@ -13,7 +13,7 @@ import { hashToken, newToken } from "./worker-links.core";
 import { linkFiles, type LeadStage } from "./bulk-import.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
-  dedupeKey, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
+  cleanLead, gridToRecords, dedupeKey, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
   type BulkExtracted, type BulkFile,
 } from "./bulk-import.core";
 
@@ -29,8 +29,9 @@ export async function parseListFile(name: string, buf: ArrayBuffer): Promise<Rec
   if (!firstSheet) return [];
   const sheet = wb.Sheets[firstSheet];
   if (!sheet) return [];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: false });
-  return rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [String(k).trim(), String(v ?? "").trim()])));
+  // Header may not be on row 1, blank rows and extra columns are common: detect the header row ourselves.
+  const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", raw: false, blankrows: false });
+  return gridToRecords(grid);
 }
 
 /** Unzip an archive (or accept loose files) into a manifest with EXIF GPS/date for photos. */
@@ -84,7 +85,7 @@ leads that come only from names, photo text or GPS. Documents are often free-tex
 (e.g. "Spoke to Mary Smith on 0412 345 678, about 120 m2, old batts, quoted $3,200") — read every sentence and pull out
 names, addresses, phones, emails, measurements, insulation details and prices. A person or property described with NO address
 is still a lead: return it with address_line/suburb/postcode null and unsure=true so the office can add the address. Return ONLY a JSON array, one object per lead, with these keys (null when absent):
-full_name, email, phone, address_line (street number + street only), suburb, postcode (4 digits),
+full_name, email, phone (exactly as written), address_line (unit/flat number if any, street number and street — e.g. "Unit 3/12 Smith St" or "3/12 Smith St"; when the address is in one column, split off the suburb and postcode), suburb, postcode (4 digits),
 area_m2 (number, ceiling/roof area in m2), existing_insulation (short text or "unknown"),
 access (short text about ceiling access/manhole or "unknown"),
 roof_type (short text, e.g. "tiled"/"tin", or "unknown"), hazards (short text or "unknown"),
@@ -220,7 +221,8 @@ export async function analyseBatch(batchId: string, actorId: string) {
   const rawRows = stored.raw_rows ?? [];
   const documents = stored.documents ?? [];
   // Never a dead end: with no list, leads still come from file/folder names, photo/PDF text and photo GPS.
-  const extracted = await aiExtractRows(rawRows, documents, manifest.map((f) => ({ name: f.path, folder: f.folder ?? null, geo_address: f.geo_address ?? null })));
+  const cleaned = (await aiExtractRows(rawRows, documents, manifest.map((f) => ({ name: f.path, folder: f.folder ?? null, geo_address: f.geo_address ?? null })))).map(cleanLead);
+  const extracted = cleaned.map((c) => c.lead);
   const existing = await existingPortalKeys();
   const dupNotes = findDuplicates(extracted, existing);
 
@@ -234,6 +236,7 @@ export async function analyseBatch(batchId: string, actorId: string) {
     const { result, reasons } = sortJob(e, { matchConfidence: confidence, duplicate });
     const stage = leadStage(e, matched.length);
     reasons.unshift(`Stage: ${LEAD_STAGE_LABEL[stage]}`);
+    reasons.push(...cleaned[i]!.issues);
     if (matched.some((m) => m.how === "only_lead")) reasons.push("Photos attached because this is the only customer in the upload — please check");
     else if (matched.length > 0 && confidence === "low") reasons.push("Files matched by filename only — please check");
     return {
