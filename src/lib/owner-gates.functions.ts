@@ -88,7 +88,7 @@ export const ownerReconfirmVariationFn = createServerFn({ method: "POST" }).midd
     const { data: v } = await admin.from("assignment_variations").select("job_id").eq("id", data.variationId).maybeSingle();
     if (!v || v.job_id !== s.jobId) throw new Error("Not on your job.");
     const { reconfirmVariation, evaluateAndApply } = await import("./assignment.server");
-    await reconfirmVariation({ variationId: data.variationId, actorId: s.userId, signatureName: data.signatureName, ip: context.ip, userAgent: context.userAgent });
+    await reconfirmVariation({ variationId: data.variationId, actorId: s.userId, signatureName: data.signatureName, ip: context.ip, userAgent: context.userAgent, verified: { channel: s.channel, destination: s.destination } });
     await evaluateAndApply(s.jobId, s.userId);
     return { ok: true };
   });

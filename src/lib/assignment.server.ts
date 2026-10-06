@@ -86,9 +86,11 @@ function snapOf(pkg: AcceptancePackage): Snapshot {
 }
 
 async function storeCopy(jobId: string, path: string, text: string, title: string, kind: string, actorId: string | null) {
-  const up = await admin.storage.from("job-files").upload(path, new Blob([text], { type: "text/plain" }), { contentType: "text/plain", upsert: false });
+  path = path.replace(/\.txt$/, ".pdf");
+  const { textToPdf } = await import("./signed-pdf.server");
+  const up = await admin.storage.from("job-files").upload(path, new Blob([await textToPdf(`Home Insulation Victoria — ${title}`, text) as BlobPart], { type: "application/pdf" }), { contentType: "application/pdf", upsert: false });
   if (up.error) return null;
-  await admin.from("documents").insert({ job_id: jobId, kind, title, storage_path: path, mime_type: "text/plain", uploaded_by: actorId });
+  await admin.from("documents").insert({ job_id: jobId, kind, title, storage_path: path, mime_type: "application/pdf", uploaded_by: actorId });
   return path;
 }
 
@@ -301,7 +303,7 @@ export async function raiseVariation(jobId: string, actorId: string | null, reas
   return v.id;
 }
 
-export async function reconfirmVariation(p: { variationId: string; actorId: string; signatureName: string; ip: string | null; userAgent: string | null }) {
+export async function reconfirmVariation(p: { variationId: string; actorId: string; signatureName: string; ip: string | null; userAgent: string | null; verified?: { channel: string; destination: string } | undefined }) {
   const { data: v } = await admin.from("assignment_variations").select("*").eq("id", p.variationId).single();
   if (!v || v.status !== "pending") throw new WorkflowError("This variation is no longer open.");
   if (p.signatureName.trim().length < 2) throw new WorkflowError("Type your full name to sign.");
@@ -309,6 +311,8 @@ export async function reconfirmVariation(p: { variationId: string; actorId: stri
   const hash = await sha256Hex(stableJson({ proposed: v.proposed_snapshot, reasons: v.reasons, signature: p.signatureName, at: now, ip: p.ip }));
   await admin.from("assignment_variations").update({ status: "reconfirmed", reconfirmed_by: p.actorId, reconfirmed_at: now, signature_name: p.signatureName, ip_address: p.ip, user_agent: p.userAgent, snapshot_sha256: hash }).eq("id", v.id);
   await admin.from("customer_assignments").update({ status: v.resume_status }).eq("id", v.assignment_id);
+  const copyText = [`Reconfirmed after a change (variation ${v.id})`, "", "What changed:", ...(v.reasons as string[]).map((r) => `- ${r}`), "", "[x] I reconfirm my VEEC assignment with these changes", `Signed: ${p.signatureName.trim()}`, `Signed at: ${now}`, `Code verified: ${p.verified ? `${p.verified.channel} ${p.verified.destination}` : "signed in"}`, `IP: ${p.ip ?? "—"}`, `sha256 ${hash}`].join("\n");
+  await storeCopy(v.job_id, `${v.job_id}/assignment/reconfirm-${v.id}.txt`, copyText, "VEEC assignment reconfirmation (signed copy)", "veec_assignment_reconfirm", p.actorId);
   await logEvent(v.job_id, p.actorId, "ASSIGNMENT_VARIATION_RECONFIRMED", "Customer reconfirmed the variation", { variation_id: v.id, sha256: hash });
   await evaluateAndApply(v.job_id, p.actorId);
 }
