@@ -8,6 +8,8 @@ import { reservationAllowed, withUnsubscribe } from "./emailsafety.core";
 import { logEvent } from "./workflow.server";
 
 export const HOT_SEND_BATCH = 10;
+/** Last TEST send detail per job (Resend id), for reporting. */
+export const testSendIds = new Map<string, string>();
 export type HotSendResult = { jobId: string; jobNumber: string | null; outcome: "sent" | "skipped" | "blocked" | "failed"; detail: string };
 
 /** Real customers: only when Jo has approved the copy AND the customer sending switch is on. */
@@ -17,15 +19,18 @@ export async function realSendingOn() {
   return customerCommsEnabled();
 }
 
-export async function sendSaveMySpot(jobIds: string[], actorId: string): Promise<HotSendResult[]> {
+/** TEST-only overrides (qa_test jobs): link host and group. Ignored for real jobs. */
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite" };
+
+export async function sendSaveMySpot(jobIds: string[], actorId: string, testOpts: TestSendOptions = {}): Promise<HotSendResult[]> {
   if (jobIds.length > HOT_SEND_BATCH) throw new Error(`Send at most ${HOT_SEND_BATCH} at a time.`);
   const realOn = await realSendingOn();
   const out: HotSendResult[] = [];
-  for (const jobId of jobIds) out.push(await sendOne(jobId, actorId, realOn).catch((e) => ({ jobId, jobNumber: null, outcome: "failed" as const, detail: (e as Error).message })));
+  for (const jobId of jobIds) out.push(await sendOne(jobId, actorId, realOn, testOpts).catch((e) => ({ jobId, jobNumber: null, outcome: "failed" as const, detail: (e as Error).message })));
   return out;
 }
 
-async function sendOne(jobId: string, actorId: string, realOn: boolean): Promise<HotSendResult> {
+async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts: TestSendOptions): Promise<HotSendResult> {
   const { data: job } = await admin.from("jobs").select("id, job_number, source, stage, eligibility_outcome, owners(full_name, email), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle();
   if (!job) return { jobId, jobNumber: null, outcome: "failed", detail: "Job not found" };
   const r = (outcome: HotSendResult["outcome"], detail: string): HotSendResult => ({ jobId, jobNumber: job.job_number, outcome, detail });
@@ -57,7 +62,8 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean): Promise
   if (group !== "likely" && !isTest) return r("blocked", "Only the approved Group A email can be sent from this list.");
 
   // Once per home, ever: the idempotency key is the job, not the batch.
-  const key = `${LAUNCH_CAMPAIGN}:save_my_spot:${jobId}`;
+  const sendGroup = isTest ? (testOpts.group ?? group) : "likely";
+  const key = `${LAUNCH_CAMPAIGN}:save_my_spot:${jobId}${isTest && sendGroup === "onsite" ? ":b" : ""}`;
   const { data: ex } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
   if (ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
   let sendId = ex?.id ?? null;
@@ -69,10 +75,11 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean): Promise
   }
 
   const { unsubscribeUrlForJob } = await import("./emailsafety.server");
-  const unsubscribeUrl = await unsubscribeUrlForJob(jobId);
+  const base = isTest && testOpts.linkBase ? testOpts.linkBase : CUSTOMER_BASE;
+  const unsubscribeUrl = (await unsubscribeUrlForJob(jobId)).replace(CUSTOMER_BASE, base);
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const mail = withUnsubscribe(renderLaunchCampaignEmail({
-    group: "likely", campaignUrl: `${CUSTOMER_BASE}/estimate/${link.token}/campaign`, unsubscribeUrl,
+    group: sendGroup, campaignUrl: `${base}/estimate/${link.token}/campaign`, unsubscribeUrl, myJobUrl: `${base}/my-job/${link.token}`, insulation: price.insulation ?? est?.insulation_declared ?? null,
     firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
     address: [prop?.address_line, prop?.suburb].filter(Boolean).join(", "), reference: job.job_number,
   }), unsubscribeUrl);
@@ -85,6 +92,7 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean): Promise
       const t = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: "hot_leads_save_my_spot", actorId }, to, mail.subject, mail.html, mail.plainText);
       if (t.status !== "sent") { await finish("failed", "resend_test", t.detail); return r(t.status === "blocked" ? "blocked" : "failed", t.detail); }
       await finish("sent", "resend_test", null);
+      if (t.detail) testSendIds.set(jobId, t.detail);
     } else {
       const { configuredDeliveryAdapter } = await import("./delivery.server");
       const adapter = await configuredDeliveryAdapter();
