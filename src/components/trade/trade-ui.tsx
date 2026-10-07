@@ -19,10 +19,10 @@ export function CardContent({ className, ...p }: React.HTMLAttributes<HTMLDivEle
 }
 
 /** Trade section card: bold heading, then content. */
-export function Section({ title, children, right }: { title: React.ReactNode; children: React.ReactNode; right?: React.ReactNode }) {
+export function Section({ title, children, right, action }: { title: React.ReactNode; children: React.ReactNode; right?: React.ReactNode; action?: React.ReactNode }) {
   return (
     <section className="rounded-[22px] bg-card p-5 text-estimate-navy shadow-sm">
-      <div className="mb-3 flex items-center justify-between gap-2"><h2 className="font-display text-lg font-extrabold">{title}</h2>{right}</div>
+      <div className="mb-3 flex items-center justify-between gap-2"><h2 className="font-display text-lg font-extrabold">{title}</h2>{right ?? action}</div>
       {children}
     </section>
   );
