@@ -11,17 +11,23 @@ import { logEvent } from "./workflow.server";
 export const HOT_SEND_BATCH = 10;
 /** Last TEST send detail per job (Resend id), for reporting. */
 export const testSendIds = new Map<string, string>();
-export type HotSendResult = { jobId: string; jobNumber: string | null; outcome: "sent" | "skipped" | "blocked" | "failed"; detail: string };
+export type HotSendResult = { jobId: string; jobNumber: string | null; outcome: "sent" | "skipped" | "blocked" | "failed"; detail: string; preview?: { to: string; subject: string; html: string } };
 
-/** Real customers: only when Jo has approved the copy AND the customer sending switch is on. */
+/** Real customers: ONLY this Save my spot campaign, approved by Jo (8 Oct 2026). The global customer
+ *  comms switch stays off, so every other customer email remains blocked. Contact consent is still checked per lead. */
 export async function realSendingOn() {
-  if (!LAUNCH_COPY_APPROVED) return false;
-  const { customerCommsEnabled } = await import("./comms.server");
-  return customerCommsEnabled();
+  const { SAVE_SPOT_REAL_SEND_APPROVED } = await import("./hot-leads.core");
+  return SAVE_SPOT_REAL_SEND_APPROVED;
 }
+void LAUNCH_COPY_APPROVED;
 
-/** TEST-only overrides (qa_test jobs): link host and group. Ignored for real jobs. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate" };
+/** TEST-only overrides (qa_test jobs): link host and group. Ignored for real jobs.
+ *  mode "preview" renders without sending; "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "test_to_jo" };
+/** Jo's own inbox for "send me a test of this lead". */
+export const JO_TEST_INBOX = "jolowexo@hotmail.com";
+/** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
+export const JO_TEST_LINK_JOB = "HV-1609";
 
 export async function sendSaveMySpot(jobIds: string[], actorId: string, testOpts: TestSendOptions = {}): Promise<HotSendResult[]> {
   if (jobIds.length > HOT_SEND_BATCH) throw new Error(`Send at most ${HOT_SEND_BATCH} at a time.`);
@@ -32,11 +38,12 @@ export async function sendSaveMySpot(jobIds: string[], actorId: string, testOpts
 }
 
 async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts: TestSendOptions): Promise<HotSendResult> {
+  const mode = testOpts.mode ?? "send";
   const { data: job } = await admin.from("jobs").select("id, job_number, source, stage, eligibility_outcome, owners(full_name, email), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle();
   if (!job) return { jobId, jobNumber: null, outcome: "failed", detail: "Job not found" };
   const r = (outcome: HotSendResult["outcome"], detail: string): HotSendResult => ({ jobId, jobNumber: job.job_number, outcome, detail });
   const isTest = job.source === "qa_test";
-  if (!isTest && !realOn) return r("blocked", "Sending is switched off.");
+  if (mode === "send" && !isTest && !realOn) return r("blocked", "Sending is switched off.");
   if (["cancelled", "complete"].includes(job.stage)) return r("skipped", "Job is closed.");
   const owner = job.owners as { full_name: string | null; email: string | null } | null;
   const to = owner?.email?.trim().toLowerCase();
