@@ -45,7 +45,7 @@ export async function collectDay(date: string): Promise<Group[]> {
     }
     let g = groups.get(biz);
     if (!g) {
-      const { data: bz } = await db.from("businesses").select("id, name, is_active, approved_at, mitti_account_invited, signer_mobile, phone").eq("id", biz).maybeSingle();
+      const { data: bz } = await db.from("businesses").select("id, name, is_active, approved_at, mitti_account_invited, signer_mobile, phone, onboarding_notes").eq("id", biz).maybeSingle();
       g = { trade: { businessId: biz, name: bz?.name ?? "Trade", approved: !!bz?.approved_at && bz?.is_active !== false, linked: true, mittiInvited: bz?.mitti_account_invited === true,
         phone: normaliseAuMobile(bz?.signer_mobile ?? "") ?? normaliseAuMobile(bz?.phone ?? ""), isTest: isTestPartner(bz ?? {}) }, jobs: [], qaOnly: true };
       groups.set(biz, g);
