@@ -1,3 +1,4 @@
+import { JOB_LIST_COLUMNS } from "./job-list-columns";
 // All state-changing operations. Each verifies the caller (via RLS-backed RPC) then
 // delegates to the central workflow/quote modules which write with the service role.
 import { createServerFn } from "@tanstack/react-start";
@@ -1195,7 +1196,7 @@ export const autoAdvancePipeline = createServerFn({ method: "POST" }).middleware
 /** Admin-only pipeline read. Verify the caller with their RLS-scoped client, then load the complete board. */
 export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
-  const { data, error } = await admin.from("job_overview").select("*").order("last_activity_at", { ascending: false });
+  const { data, error } = await admin.from("job_overview").select(JOB_LIST_COLUMNS).order("last_activity_at", { ascending: false });
   if (error) throw new Error(`Pipeline could not be loaded: ${error.message}`);
   const [{ data: inv }, { data: rc }, { data: bk }] = await Promise.all([
     admin.from("invoices").select("job_id,last_sync_error").not("last_sync_error", "is", null),
