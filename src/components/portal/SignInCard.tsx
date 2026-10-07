@@ -5,7 +5,7 @@ import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LINK_SENT_SAFE, linkErrorMessage, normaliseLoginEmail, safeNextPath, signInErrorMessage } from "@/lib/login.core";
+import { LINK_SENT_SAFE, badLinkMessage, linkErrorMessage, normaliseLoginEmail, safeNextPath, signInErrorMessage } from "@/lib/login.core";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 
@@ -21,6 +21,15 @@ export function SignInCard() {
   const goOn = () => { const n = next(); navigate({ to: "/portal", search: (n ? { next: n } : {}) as never, replace: true }); };
 
   useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const th = q.get("token_hash");
+    if (th && q.get("type") === "magiclink") {
+      void supabase.auth.verifyOtp({ token_hash: th, type: "magiclink" }).then(({ error }) => {
+        q.delete("token_hash"); q.delete("type");
+        window.history.replaceState(null, "", `${window.location.pathname}${q.toString() ? `?${q}` : ""}`);
+        if (error) setErr(`${badLinkMessage(error)} Type your email and tap "Email me a sign-in link" for a new one.`);
+      });
+    }
     supabase.auth.getSession().then(({ data }) => { if (data.session) goOn(); });
     const { data } = supabase.auth.onAuthStateChange((e, s) => { if (s && e === "SIGNED_IN") goOn(); });
     return () => data.subscription.unsubscribe();
