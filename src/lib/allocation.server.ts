@@ -134,7 +134,13 @@ export async function startPiesaAllocation(jobId: string, actorId: string | null
   const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec, hasOpenOffers: !!open && !opts.adding });
   if (blockers.length) throw new WorkflowError(`${kind === "piesa" ? "PIESA" : "Fix-up"} offers cannot start: ${blockers.join(" ")}`);
   await (await import("./owner-gates.server")).assertGateA(jobId, kind === "piesa" ? "Safety check offers" : "Fix-up offers");
-  return offerNextBatch(jobId, actorId, kind, !!opts.rateToConfirm, opts.onlyBusiness);
+  const res = await offerNextBatch(jobId, actorId, kind, !!opts.rateToConfirm, opts.onlyBusiness);
+  // Offers started: move the accepted-quote job to the PIESA stage so electricians can accept a time.
+  if (kind === "piesa" && res.offered > 0) {
+    const { data: j } = await admin.from("jobs").select("stage").eq("id", jobId).single();
+    if (j?.stage === "measured_quote_accepted") await (await import("./workflow.server")).transition(jobId, "piesa_and_install_window_pending", actorId, "PIESA offers sent to electricians", { kind });
+  }
+  return res;
 }
 
 async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false, onlyBusiness?: string | string[]) {

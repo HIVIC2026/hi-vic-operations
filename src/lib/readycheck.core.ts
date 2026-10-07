@@ -331,7 +331,8 @@ export function checkPiesaWindow(w: WindowInput): WindowCheck {
     else if (gap < 0) hardWarning = "Planned PIESA must be before the planned installation.";
     else if (gap < PIESA_BUFFER.minDays || gap > PIESA_BUFFER.maxDays) bufferWarning = `Target PIESA ${PIESA_BUFFER.minDays}–${PIESA_BUFFER.maxDays} days before installation (currently ${gap}).`;
   }
-  const readyForPiesa = !!w.planned_install_date && !!w.planned_piesa_date && !hardWarning;
+  // PIESA no longer needs a paired install date (Jo 7 Oct); only a conflicting planned date blocks.
+  const readyForPiesa = !hardWarning;
   return { install_deadline: deadline, hardWarning, bufferWarning, readyForPiesa, newPiesaRequired };
 }
 

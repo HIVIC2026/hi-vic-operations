@@ -351,6 +351,11 @@ const s6: StepFn = async (ctx, r) => {
   const fields = { status: "complete", piesa_outcome: "pass", completed_at: now, assessed_on: melbourneDate(0), no_rectification_confirmed: true, notes: "TEST journey: simulated Mitti PIESA (pass)" };
   const ae = a ? await admin.from("assessments").update(fields as never).eq("id", a.id) : await admin.from("assessments").insert({ job_id: ctx.jobId!, ...fields } as never);
   check(r, "PIESA result recorded", !ae.error, ae.error?.message);
+  // Same signed PIESA record the real completion writes (portal completeAssessment), which install booking checks.
+  const { data: a2 } = await admin.from("assessments").select("id").eq("job_id", ctx.jobId!).maybeSingle();
+  const { count: pr } = await admin.from("piesa_records").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("is_current", true).eq("outcome", "pass");
+  check(r, "current PIESA records before sign-off", true, String(pr));
+  if (!pr) { const pe = await admin.from("piesa_records").insert({ job_id: ctx.jobId!, assessment_id: a2?.id ?? null, kind: "initial", outcome: "pass", completed_date: melbourneDate(0), signed_off_by: ctx.electrician.id, notes: "TEST journey: simulated Mitti PIESA sign-off" } as never); check(r, "PIESA sign-off recorded", !pe.error, pe.error?.message); }
   for (const c of ["switchboard_cables", "piesa_signoff"]) await uploadEvidence(ctx, c, ctx.electrician.id, "electrical");
   await admin.from("bookings").update({ status: "completed" }).eq("job_id", ctx.jobId!).eq("kind", "assessment").eq("status", "confirmed");
   const { transition } = await import("./workflow.server");
@@ -373,6 +378,7 @@ const s7: StepFn = async (ctx, r) => {
   check(r, "job is installation booked", (await stageOf(ctx)) === "installation_booked", await stageOf(ctx) ?? "");
   for (const c of ["product_evidence", "installation_progress", "completed_installation", "post_install_video", "final_zone_plan"]) await uploadEvidence(ctx, c, ctx.installer.id, "installation");
   await admin.from("bookings").update({ status: "completed" }).eq("job_id", ctx.jobId!).eq("kind", "installation").eq("status", "confirmed");
+  await ownerSignGates(ctx, r, ["C"]); // owner signs ESC information-sharing consent before install completes (real secure-link path)
   await act(r, "install done → evidence outstanding", () => transition(ctx.jobId!, "evidence_outstanding", ctx.actorId, "TEST journey: install done"));
   // Installer declaration comes back inside the Mitti PIISA (simulated; TEST job only).
   {

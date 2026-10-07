@@ -111,3 +111,9 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Same email office+trade role switch; plus-addresses
 - [x] Clear messages; sessions persist; sign-out
 - [~] Automated login test x3 (signed-out half done; signed-in half blocked) + screenshots Files login-test, LOGIN READY/NOT READY
+
+## PIESA unpaired (Jo 7 Oct 17:50)
+- [x] Confirm TEST payment override/tests, stage move (restored), privacy fix
+- [x] Remove paired install slot from PIESA booking + test
+- [ ] Journey step 7: install done blocked by paperwork C / Activity 48 record / install booking read — needs investigation
+- [ ] Journey step 9: unassigned electrician can open another job's day page — access leak to fix
