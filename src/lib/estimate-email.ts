@@ -31,6 +31,9 @@ const BASE = "https://estimate.homeinsulationvictoria.com.au";
 /** The locked likely-email pink-box paragraph; the Save your spot version swaps it for Jo's exact wording (7 Oct). */
 const LIKELY_NEXT_STEP_INSTRUCTION = "Your installer measures the ceiling, assesses any existing insulation, confirms eligibility and prepares the job scope so we can confirm your quote.";
 const SAVE_SPOT_INSTRUCTION = "We have been inundated with requests from homeowners all over Victoria. As one of only two Accredited Persons for this activity, and with limited capacity of suitably qualified installers, we need to take on approvals in batches. Save your spot to join the line and we will be in touch as soon as the next installer is available in your area.";
+/** The locked small line under the likely-email button; the Save your spot version swaps it for Jo's exact wording (7 Oct). */
+const LIKELY_SMALL_PRINT = "Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.";
+const SAVE_SPOT_SMALL_PRINT = "We will be in touch to book your free Ready Check as soon as we can.";
 /** Verified live brand logo (HTTP 200 image/png) used in every customer email. */
 const LOGO_URL = CUSTOMER_BRAND.logoUrl;
 const SITE = "https://homeinsulationvictoria.com.au";
@@ -525,9 +528,11 @@ export function renderSaveSpotFromLikelyEmail(input: EstimateEmailInput & { camp
   card = must(card, LIKELY_NEXT_STEP_INSTRUCTION, SAVE_SPOT_INSTRUCTION);
   card = must(card, "Arrange my free measure-up &amp; eligibility check →", "Save my spot →");
   card = must(card, /href="[^"]*"/, `href="${escape(input.campaignUrl)}"`);
+  card = must(card, LIKELY_SMALL_PRINT, SAVE_SPOT_SMALL_PRINT);
   const html = base.html.replace(card0, () => card);
   let text = must(base.plainText, /FREE INSULATION MEASURE-UP & ELIGIBILITY CHECK\n/, "SAVE YOUR SPOT\n");
   text = must(text, LIKELY_NEXT_STEP_INSTRUCTION, SAVE_SPOT_INSTRUCTION);
   text = must(text, /Arrange my free measure-up & eligibility check: .*/, `Save my spot: ${input.campaignUrl}`);
+  text = must(text, LIKELY_SMALL_PRINT, SAVE_SPOT_SMALL_PRINT);
   return { subject: base.subject, previewText: base.previewText, html, plainText: text };
 }
