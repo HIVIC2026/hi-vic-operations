@@ -263,7 +263,7 @@ export async function tradeBusiness(userId: string) {
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const [{ data: creds }, { data: workers }, { data: rate }, { data: agr }, { data: bank }] = await Promise.all([
     admin.from("business_credentials").select("kind, label, expires_at, verification").eq("business_id", c.biz.id),
-    admin.from("partner_workers").select("full_legal_name, trade_role, approval_status, licence_expires_on, profile_id").eq("business_id", c.biz.id).is("removed_at", null),
+    admin.from("partner_workers").select("id, full_legal_name, trade_role, approval_status, licence_expires_on, profile_id").eq("business_id", c.biz.id).is("removed_at", null),
     c.kind === "electrician" ? r.from("electrician_rates").select("rate_inc_gst").eq("business_id", c.biz.id).eq("service_type", "piesa").eq("status", "active").maybeSingle() : Promise.resolve({ data: null }),
     admin.from("partner_agreements").select("signed_at").eq("business_id", c.biz.id).order("signed_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("business_bank_details").select("business_id").eq("business_id", c.biz.id).limit(1).maybeSingle(),
@@ -277,8 +277,8 @@ export async function tradeBusiness(userId: string) {
     licenceExpires: licence, liabilityExpires: liability, rate: rate ? Number((rate as { rate_inc_gst: number }).rate_inc_gst) : null,
     agreementSigned: !!agr?.signed_at, bankSaved: !!bank,
     team: [
-      ...(boss ?? []).filter((m) => m.member_role === "business_admin").map((m) => ({ name: (m.profiles as { full_name: string | null } | null)?.full_name ?? "Boss", role: "Boss" })),
-      ...(workers ?? []).filter((w) => !(boss ?? []).some((m) => m.user_id === w.profile_id && m.member_role === "business_admin")).map((w) => ({ name: w.full_legal_name, role: w.trade_role === "installer" ? "Installer" : "Electrician" })),
+      ...(boss ?? []).filter((m) => m.member_role === "business_admin").map((m) => ({ id: null as string | null, name: (m.profiles as { full_name: string | null } | null)?.full_name ?? "Boss", role: "Boss", hasLogin: true })),
+      ...(workers ?? []).filter((w) => !(boss ?? []).some((m) => m.user_id === w.profile_id && m.member_role === "business_admin")).map((w) => ({ id: w.id as string | null, name: w.full_legal_name, role: w.trade_role === "installer" ? "Installer" : "Electrician", hasLogin: !!w.profile_id })),
     ],
   };
 }
@@ -374,4 +374,14 @@ export async function tradeTestSetPasswordLink(userId: string, base: string) {
   const { issueSetPasswordLink } = await import("./set-password-link.server");
   await admin.from("admin_config_events").insert({ actor_id: userId, event_type: "test_partner_set_password_link", summary: `TEST partner set-password link issued (nothing sent)`, details: { business_id: c.biz.id } });
   return { link: await issueSetPasswordLink(email, base) };
+}
+
+/** Boss taps "Send login invite" for a team member already listed at onboarding. Office sends it (sending stays office-controlled); nothing is sent here. */
+export async function tradeRequestLoginInvite(userId: string, workerId: string) {
+  const c = await ctxOrThrow(userId);
+  if (!c.boss) throw new WorkflowError("Only the business boss can invite the team.");
+  const { data: w } = await admin.from("partner_workers").select("id, full_legal_name, business_id, profile_id").eq("id", workerId).is("removed_at", null).maybeSingle();
+  if (!w || w.business_id !== c.biz.id) throw new WorkflowError("Team member not found.");
+  if (w.profile_id) return { ok: true, already: true };
+  return { ...(await tradeChangeRequest(userId, "other", `Please send a login invite to ${w.full_legal_name} (team member ${w.id}).`)), already: false };
 }
