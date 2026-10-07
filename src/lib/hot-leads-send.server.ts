@@ -73,31 +73,42 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
   const sendGroup = isTest ? (testOpts.group ?? group) : "likely";
   const key = `${LAUNCH_CAMPAIGN}:save_my_spot:${jobId}${isTest && sendGroup === "onsite" ? ":b" : ""}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
   const { data: ex } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
-  if (ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
+  if (mode === "send" && ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
   let sendId = ex?.id ?? null;
-  if (ex) await admin.from("customer_email_sends").update({ status: "sending", error: null, created_at: new Date().toISOString() }).eq("id", ex.id);
-  else {
-    const { data, error } = await admin.from("customer_email_sends").insert({ job_id: jobId, estimate_link_id: link.id, purpose: LAUNCH_CAMPAIGN, idempotency_key: key }).select("id").single();
-    if (error || !data) return r("skipped", "Already being sent.");
-    sendId = data.id;
+  if (mode === "send") {
+    if (ex) await admin.from("customer_email_sends").update({ status: "sending", error: null, created_at: new Date().toISOString() }).eq("id", ex.id);
+    else {
+      const { data, error } = await admin.from("customer_email_sends").insert({ job_id: jobId, estimate_link_id: link.id, purpose: LAUNCH_CAMPAIGN, idempotency_key: key }).select("id").single();
+      if (error || !data) return r("skipped", "Already being sent.");
+      sendId = data.id;
+    }
   }
 
+  // Jo's test copy of a real lead: real wording/facts, but every link points at a TEST job.
+  let linkJobId = jobId, linkToken = link.token;
+  if (mode === "test_to_jo") {
+    const { data: tj } = await admin.from("jobs").select("id, source").eq("job_number", JO_TEST_LINK_JOB).maybeSingle();
+    const { data: tl } = tj?.source === "qa_test" ? await admin.from("customer_estimate_links").select("token").eq("job_id", tj.id).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle() : { data: null };
+    if (!tj || !tl?.token) return r("failed", "TEST job links unavailable for the test copy.");
+    linkJobId = tj.id; linkToken = tl.token;
+  }
   const { unsubscribeUrlForJob } = await import("./emailsafety.server");
   const base = CUSTOMER_BASE; // one setting: customer links always use the live domain, never the login-walled preview
-  const unsubscribeUrl = (await unsubscribeUrlForJob(jobId)).replace(CUSTOMER_BASE, base);
+  // Creates the lead's unsubscribe token if it doesn't have one yet.
+  const unsubscribeUrl = (await unsubscribeUrlForJob(linkJobId)).replace(CUSTOMER_BASE, base);
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const snapshot = est?.snapshot as { settings?: { piesa_assessment_inc_gst?: number; ap_management_inc_gst?: number }; scenarios?: { by_access?: { standard?: { installation?: number } } }[] } | null;
   const installation = snapshot?.scenarios?.[0]?.by_access?.standard?.installation;
   const assessmentFee = snapshot?.settings?.piesa_assessment_inc_gst;
   const apFee = snapshot?.settings?.ap_management_inc_gst;
-  const campaignUrl = `${base}/estimate/${link.token}/campaign`;
+  const campaignUrl = `${base}/estimate/${linkToken}/campaign`;
   const fullAddress = (await import("./address")).fullAddress(prop?.address_line, prop?.suburb, prop?.postcode);
   const firstName = owner?.full_name?.trim().split(/\s+/)[0] ?? null;
   // Likely-eligible owners get the Jo-APPROVED "Save your spot (likely eligible)" email (7 Oct 2026, FINAL).
-  const referralUrl = sendGroup === "likely" ? await (await import("./referral.server")).referralUrlForJob(jobId).catch(() => null) : null;
+  const referralUrl = sendGroup === "likely" ? await (await import("./referral.server")).referralUrlForJob(linkJobId).catch(() => null) : null;
   const mail = sendGroup === "likely"
     ? (() => { const m = (isTest && testOpts.variant === "likely_estimate" ? renderStep3Likely : renderStep3SaveSpot)({
-        estimateUrl: `${base}/estimate/${link.token}`, campaignUrl, unsubscribeUrl, referralUrl,
+        estimateUrl: `${base}/estimate/${linkToken}`, campaignUrl, unsubscribeUrl, referralUrl,
         estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
         firstName, address: fullAddress, reference: job.job_number, existingInsulationPresent: (price.insulation ?? est?.insulation_declared) === "present",
         ...(installation === undefined ? {} : { installation }),
