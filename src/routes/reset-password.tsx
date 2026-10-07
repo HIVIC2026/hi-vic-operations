@@ -32,7 +32,7 @@ function ResetPassword() {
     const th = q.get("token_hash");
     const h = new URLSearchParams(window.location.hash.slice(1));
     if (h.get("error") || q.get("error")) { setFailed(badLinkMessage({ code: h.get("error_code") ?? q.get("error_code") ?? "", message: h.get("error_description") ?? q.get("error_description") ?? "" })); return; }
-    const t = window.setTimeout(() => { void supabase.auth.getSession().then(({ data: d }) => { if (!d.session) setFailed((f) => f ?? "This link has expired or was already used."); }); }, 4000);
+    const t = window.setTimeout(() => { void supabase.auth.getSession().then(({ data: d }) => { if (!d.session) setFailed((f) => f ?? "This link has expired or was already used."); }); }, q.get("link") ? 15000 : 4000);
     const kind = q.get("type");
     const partnerLink = q.get("link");
     const verify = (hash: string, type: "recovery" | "invite") => supabase.auth.verifyOtp({ token_hash: hash, type }).then(({ data: v, error }) => {
