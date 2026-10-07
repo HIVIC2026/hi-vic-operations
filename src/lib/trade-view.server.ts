@@ -307,3 +307,53 @@ export async function tradeSetupMark(userId: string, key: SetupKey, done: boolea
   await admin.from("admin_config_events").insert({ actor_id: userId, event_type: "trade_setup_step", summary: `${c.biz.name}: setup ${key} ${done ? "done" : "undone"}`, details: { key, done, business_id: c.biz.id } });
   return { ok: true };
 }
+
+/** My business sections (Jo, 7 Oct): read-only facts for the trade-style pages. Partners never edit details or rates here. */
+export async function tradeBusinessFile(userId: string) {
+  const c = await ctxOrThrow(userId);
+  const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [{ data: b }, { data: creds }, { data: agr }, { data: cards }, { data: erates }, { data: open }] = await Promise.all([
+    admin.from("businesses").select("id, name, legal_name, trading_name, abn, phone, email, address, base_suburb, coverage_radius_km, covers_all_victoria, typical_days, lead_time, public_liability_cover_amount, onboarding_status").eq("id", c.biz.id).single(),
+    admin.from("business_credentials").select("id, kind, label, number, issuer, expires_at, verification, document_path").eq("business_id", c.biz.id).order("created_at", { ascending: false }),
+    admin.from("partner_agreements").select("version, signer_name, signed_at").eq("business_id", c.biz.id).order("signed_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("rate_cards").select("name, version, effective_from, rate_card_items(description, unit, display_unit, unit_price_ex_gst, sort)").eq("business_id", c.biz.id).eq("is_active", true),
+    c.kind === "electrician" ? r.from("electrician_rates").select("service_type, rate_inc_gst").eq("business_id", c.biz.id).eq("status", "active") : Promise.resolve({ data: [] }),
+    r.from("partner_change_requests").select("kind, message, created_at").eq("business_id", c.biz.id).eq("status", "open").order("created_at", { ascending: false }),
+  ]);
+  if (!b) throw new WorkflowError("Business not found.");
+  const cents = (n: number) => Math.floor(n * 100) / 100;
+  const rates = [
+    ...((cards ?? []) as { rate_card_items: { description: string; unit: string; display_unit: string | null; unit_price_ex_gst: number; sort: number | null }[] }[])
+      .flatMap((cd) => [...cd.rate_card_items].sort((a, z) => (a.sort ?? 0) - (z.sort ?? 0)).map((i) => ({ label: i.description, unit: i.display_unit ?? i.unit, inc_gst: cents(Number(i.unit_price_ex_gst) * 1.1) }))),
+    ...((erates ?? []) as { service_type: string; rate_inc_gst: number }[]).map((e) => ({ label: e.service_type === "piesa" ? "Safety check (PIESA)" : e.service_type.replace(/_/g, " "), unit: "each", inc_gst: Number(e.rate_inc_gst) })),
+  ];
+  return {
+    businessId: b.id, kind: c.kind, boss: c.boss,
+    details: { name: b.trading_name ?? b.name, legal: b.legal_name, abn: b.abn, phone: b.phone, email: b.email, address: b.address,
+      area: b.covers_all_victoria ? "Anywhere in Victoria" : `Up to ${b.coverage_radius_km ?? "?"} km from ${b.base_suburb ?? "your base"}`,
+      days: (b.typical_days ?? []).join(", ") || null, leadTime: b.lead_time, liabilityCover: b.public_liability_cover_amount },
+    credentials: (creds ?? []).map((x) => ({ id: x.id, label: x.label, expires: x.expires_at, verified: x.verification === "verified", hasFile: !!x.document_path, path: x.document_path })),
+    agreement: agr ? { version: agr.version, signer: agr.signer_name, signedAt: agr.signed_at } : null,
+    rates, openRequests: (open ?? []) as { kind: string; message: string; created_at: string }[],
+  };
+}
+
+export async function tradeAgreementPdf(userId: string) {
+  const c = await ctxOrThrow(userId);
+  const { data: a } = await admin.from("partner_agreements").select("version, body, signer_name, signed_at").eq("business_id", c.biz.id).order("signed_at", { ascending: false }).limit(1).maybeSingle();
+  if (!a) throw new WorkflowError("There's no signed agreement on file yet.");
+  const { textToPdf } = await import("./signed-pdf.server");
+  const signed = new Date(a.signed_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
+  const bytes = await textToPdf(`Home Insulation Victoria partner agreement v${a.version} - ${c.biz.name}`, `${a.body}\n\nSigned by ${a.signer_name} on ${signed} (Melbourne time).`);
+  return { fileName: `agreement-v${a.version}.pdf`, base64: Buffer.from(bytes).toString("base64") };
+}
+
+export async function tradeChangeRequest(userId: string, kind: "details" | "rates" | "area" | "other", message: string) {
+  const c = await ctxOrThrow(userId);
+  if (!c.boss) throw new WorkflowError("Only the business boss can ask for changes.");
+  const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const { error } = await r.from("partner_change_requests").insert({ business_id: c.biz.id, kind, message: message.trim(), requested_by: userId });
+  if (error) throw new WorkflowError(`Couldn't send your request: ${error.message}`);
+  await admin.from("admin_config_events").insert({ actor_id: userId, event_type: "partner_change_requested", summary: `${c.biz.name} asked to change ${kind}`, details: { business_id: c.biz.id, kind } });
+  return { ok: true };
+}

@@ -44,3 +44,13 @@ export const getTradeSetupView = createServerFn({ method: "POST" }).middleware([
 export const markTradeSetup = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ key: z.enum(["details", "rates", "bank", "alerts", "mitti", "team"]), done: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetupMark(context.userId, data.key, data.done));
+
+export const getTradeBusinessFile = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => plain(await (await import("./trade-view.server")).tradeBusinessFile(context.userId)));
+
+export const getTradeAgreementPdf = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => (await import("./trade-view.server")).tradeAgreementPdf(context.userId));
+
+export const sendTradeChangeRequest = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ kind: z.enum(["details", "rates", "area", "other"]), message: z.string().trim().min(3).max(2000) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeChangeRequest(context.userId, data.kind, data.message));
