@@ -87,9 +87,10 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
   const fullAddress = (await import("./address")).fullAddress(prop?.address_line, prop?.suburb, prop?.postcode);
   const firstName = owner?.full_name?.trim().split(/\s+/)[0] ?? null;
   // Likely-eligible owners get the Jo-APPROVED "Save your spot (likely eligible)" email (7 Oct 2026, FINAL).
+  const referralUrl = sendGroup === "likely" ? await (await import("./referral.server")).referralUrlForJob(jobId).catch(() => null) : null;
   const mail = sendGroup === "likely"
     ? (() => { const m = renderStep3SaveSpot({
-        estimateUrl: `${base}/estimate/${link.token}`, campaignUrl, unsubscribeUrl,
+        estimateUrl: `${base}/estimate/${link.token}`, campaignUrl, unsubscribeUrl, referralUrl,
         estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
         firstName, address: fullAddress, reference: job.job_number, existingInsulationPresent: (price.insulation ?? est?.insulation_declared) === "present",
         ...(installation === undefined ? {} : { installation }),

@@ -539,8 +539,8 @@ export function renderInsulationVideoEmail(input: InsulationVideoEmailInput): Es
 }
 
 /** Save your spot (likely eligible). APPROVED by Jo Lowe, 7 Oct 2026 (12:52) — FINAL; replaces v9–v14. Do not change without Jo's approval.
- *  The locked likely email with ONLY four pink-box text swaps (heading, paragraph, button -> campaign link, small line), the hero closing
- *  sentence swapped for Jo's wording (7 Oct, 03:24 UTC), plus the footer's "Remove my enquiry" link filled with the owner's opt-out link.
+ *  The Step 3 likely email with ONLY four pink-box swaps (heading, paragraph, button -> campaign link, small line) — Jo, 7 Oct 17:27 UTC.
+ *  Same hero, price rows and footer (Refer a friend + Unsubscribe, filled by withUnsubscribe in step3-emails.ts).
  *  Used by the hot-leads campaign for likely-eligible owners. */
 export function renderSaveSpotFromLikelyEmail(input: EstimateEmailInput & { campaignUrl: string; campaignOptOutUrl?: string }): EstimateEmail {
   const base = renderV2QuoteEmail(input, "likely");
@@ -553,13 +553,9 @@ export function renderSaveSpotFromLikelyEmail(input: EstimateEmailInput & { camp
   card = must(card, /href="[^"]*"/, `href="${escape(input.campaignUrl)}"`);
   card = must(card, LIKELY_SMALL_PRINT, SAVE_SPOT_SMALL_PRINT);
   let html = base.html.replace(card0, () => card);
-  html = must(html, LIKELY_HERO_SENTENCE, SAVE_SPOT_HERO_SENTENCE);
-  if (input.campaignOptOutUrl) html = must(html, "<!--HIV_SECURE_UNSUBSCRIBE_LINK-->", `<a href="${escape(input.campaignOptOutUrl)}" style="color:#3C51C4;text-decoration:underline;">Remove my enquiry</a>`);
   let text = must(base.plainText, /FREE INSULATION MEASURE-UP & ELIGIBILITY CHECK\n/, "SAVE YOUR SPOT\n");
-  text = must(text, LIKELY_HERO_SENTENCE, SAVE_SPOT_HERO_SENTENCE);
   text = must(text, LIKELY_NEXT_STEP_INSTRUCTION, SAVE_SPOT_INSTRUCTION);
   text = must(text, /Arrange my free measure-up & eligibility check: .*/, `Save my spot: ${input.campaignUrl}`);
   text = must(text, LIKELY_SMALL_PRINT, SAVE_SPOT_SMALL_PRINT);
-  if (input.campaignOptOutUrl) text = `${text}\nRemove my enquiry: ${input.campaignOptOutUrl}`;
   return { subject: base.subject, previewText: base.previewText, html, plainText: text };
 }
