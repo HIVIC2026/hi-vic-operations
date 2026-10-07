@@ -603,7 +603,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("screen always says what happens next", ["open", "preparing", "office", "owner_paperwork", "retry"].includes(r.state.kind) && ("message" in r.state ? r.state.message.length > 20 : true), `${r.state.kind}`);
     c("Ready Check booked now, or held until the owner signs paperwork A (existing rule)", r.state.kind === "owner_paperwork" ? j?.stage === "ready_check_ready_to_schedule" : j?.stage === "ready_check_scheduled", `${j?.stage} / ${r.state.kind}`);
     const bad = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: "X Y", address_line: "1 A St", suburb: "Canberra", postcode: "2604", phone: "0412000000", email: "a@b.co", contact_permission: false }, { mode: "hivic" }, offline).then(() => "made", (e) => (e as Error).message);
-    c("no consent / ACT postcode refused", /Victorian/.test(bad) && /permission/.test(bad), bad);
+    c("no consent / ACT postcode refused", /Victorian/.test(bad) && /consent/.test(bad), bad);
     c("nothing sent to the owner", (await outboundFor([r.jobId])) === 0);
     await jobsOk(c, [r.jobId]);
   });
