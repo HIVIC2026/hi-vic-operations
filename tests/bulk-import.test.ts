@@ -83,9 +83,13 @@ describe("bulk import core rules", () => {
 import { leadStage, CONTACT_PERMISSION_WORDING } from "../src/lib/bulk-import.core";
 describe("lead stage", () => {
   test("contact details only → not visited", () => expect(leadStage({ full_name: "A", phone: "1" }, 0)).toBe("not_visited"));
-  test("measurements or photos → visited", () => {
-    expect(leadStage({ area_m2: 120 }, 0)).toBe("visited");
-    expect(leadStage({ full_name: "A" }, 2)).toBe("visited");
+  test("measurements or photos alone don't mean visited (site check unclear → asked)", () => {
+    expect(leadStage({ area_m2: 120 }, 0)).toBe("not_visited");
+    expect(leadStage({ full_name: "A" }, 2)).toBe("not_visited");
+  });
+  test("site check Yes → visited, No → not visited", () => {
+    expect(leadStage({ area_m2: 120, site_check: "yes" })).toBe("visited");
+    expect(leadStage({ site_check: "no" })).toBe("not_visited");
   });
   test("sentences only (insulation/access/roof/hazards text, no photos or measurements) → not visited", () => {
     expect(leadStage({ full_name: "A", existing_insulation: "old batts, patchy" }, 0)).toBe("not_visited");
