@@ -69,11 +69,10 @@ function iso(y: number, mo: number, d: number): string | null {
   return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
-/** The site-check answer from the file only: an explicit answer or date, or a quoted price (a quote means he visited). Never guessed from area or photos. */
+/** The site-check answer from the file only: an explicit answer or a date only. Never guessed from a quoted price, area or photos (Jo, 7 Oct: blank = ask). */
 export function siteCheckFromFile(e: BulkExtracted): { check: SiteCheck | null; date: string | null } {
   if (e.site_check === "yes" || e.site_check === "no") return { check: e.site_check, date: e.site_check === "yes" ? e.site_check_date ?? null : null };
   if (e.site_check_date) return { check: "yes", date: e.site_check_date };
-  if (e.price_inc_gst && e.price_inc_gst > 0) return { check: "yes", date: null };
   return { check: null, date: null };
 }
 
@@ -367,4 +366,16 @@ export function cleanLead<T extends BulkExtracted>(e: T): { lead: T; issues: str
   if (!e.full_name) issues.push("No customer name found");
   if (!p.phone && !email) issues.push("No phone or email found");
   return { lead: { ...e, phone: p.phone, email: email && EMAIL_RE.test(email) ? email : e.email ?? null, postcode: pc && pc.length === 4 ? pc : e.postcode ?? null }, issues };
+}
+
+/** Review-screen tag + notes for one row (presentation only, Jo 7 Oct): the tag follows the site-check answer,
+ * and only notes that need the installer's attention are shown (no Ready Check gaps when site check = Yes). */
+export function reviewRowNotes(sort: SortResult | null, reasons: string[], check: SiteCheck | null, installed = false): { tag: string; tone: "ok" | "info" | "alert"; notes: string[] } {
+  const noise = (r: string) => /^Stage: /.test(r) || /^Site check/.test(r) || r === QUOTE_NEEDED_LABEL || /^Missing: /.test(r) || /^Measurements, existing insulation/.test(r) || /^Small items for the install-day list/.test(r);
+  const notes = reasons.filter((r) => !noise(r));
+  if (sort === "office_review") return { tag: "Held for the office to check", tone: "alert", notes };
+  if (installed) return { tag: "Already installed — history only", tone: "info", notes };
+  if (check === "yes") return { tag: "Site check done — no Ready Check needed", tone: "ok", notes };
+  if (check === "no") return { tag: "Ready Check to be booked with the owner", tone: "info", notes };
+  return { tag: "Please answer: site check done?", tone: "alert", notes };
 }

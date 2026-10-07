@@ -193,7 +193,7 @@ export async function simulateJoAllClear(jobId: string, actorId: string) {
   await admin.from("bookings").update({ status: "completed" }).eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed");
   await admin.from("jobs").update({ stage: "piesa_complete", next_action: "TEST: all clear — office sign-off, then payout" } as never).eq("id", jobId);
   await logEvent(jobId, actorId, "qa_simulated_result", "TEST: simulated Mitti PIESA result — all clear", {}, { internal: true });
-  const link = `${TEST_APP_BASE}/partner/payments`;
+  const link = `${TEST_APP_BASE}/field/money`;
   return both({ jobId, jobSource: "qa_test", label: "all_clear", actorId },
     `HIV: All clear ✅ Nice work. $200 is on its way once the office signs it off. ${link}`,
     "All clear — $200 on its way",
