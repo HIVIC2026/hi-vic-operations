@@ -20,7 +20,8 @@ describe("approving Jo's own TEST application (7 Oct)", () => {
   test("welcome goes only to Jo's allowlisted inbox; the login is a plus-alias", () => {
     expect(testLoginEmail("0eabd42b-702f-4c28")).toBe("jolowexo+app0eabd42b@hotmail.com");
     expect(testSendBlocker({ channel: "email", to: "jolowexo@hotmail.com", jobSource: null, partnerIsTest: true })).toBeNull();
-    expect(testSendBlocker({ channel: "email", to: "jo@actpropertyinspections.com.au", jobSource: null, partnerIsTest: true })).not.toBeNull();
+    expect(testSendBlocker({ channel: "email", to: "jo@actpropertyinspections.com.au", jobSource: null, partnerIsTest: true })).toBeNull();
+    expect(testSendBlocker({ channel: "email", to: "info@reinsulate.com.au", jobSource: null, partnerIsTest: true })).not.toBeNull();
     expect(testSendBlocker({ channel: "email", to: "jolowexo@hotmail.com", jobSource: null, partnerIsTest: false })).not.toBeNull();
     const c = testWelcomeCopy({ firstName: "Jo", businessName: "[TEST PARTNER] J", link: "https://x/reset-password?t=1", loginEmail: "jolowexo+app1@hotmail.com" });
     expect(c.button.url).toContain("/reset-password");
