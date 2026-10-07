@@ -231,6 +231,11 @@ export async function queueSpotSavedConfirmations(jobId: string, token: string) 
     const t = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: "spot_saved_confirmation", actorId: null } as never, owner.email, email.subject, html, email.text).catch((e) => ({ status: "failed", detail: (e as Error).message }));
     await logEvent(jobId, null, "spot_saved_test_email", `Spot saved confirmation (TEST) ${t.status}: ${t.detail}`, {}, { internal: true }).catch(() => null);
   }
+  // Real homes: the ONE real sender. Stays blocked (and logged) until every switch, consent and the AU number are in place.
+  if (job.source !== "qa_test" && owner?.phone) {
+    const { sendRealSms } = await import("./sms.server");
+    await sendRealSms({ type: "spot_saved", idempotencyKey: `spot-saved:${jobId}`, to: owner.phone, body: sms, jobId }).catch(() => null);
+  }
   await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved text and email queued (sending is off)", { sms: !!owner?.phone, email: !!owner?.email }, { internal: true });
   return { queued: true as const };
 }

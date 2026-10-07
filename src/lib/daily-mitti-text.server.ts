@@ -61,24 +61,16 @@ export async function collectDay(date: string): Promise<Group[]> {
   return [...groups.values()];
 }
 
-async function sendSms(g: Group, to: string, body: string): Promise<{ status: "sent" | "failed" | "blocked"; detail: string; sid: string | null }> {
+async function sendSms(g: Group, to: string, body: string, kind: "daily" | "update" = "daily", key = ""): Promise<{ status: "sent" | "failed" | "blocked"; detail: string; sid: string | null }> {
   if (g.qaOnly || g.trade.isTest) {
     const { sendTestSms } = await import("./test-send.server");
     const r = await sendTestSms({ jobId: g.jobs[0]?.jobId ?? null, jobSource: g.qaOnly ? "qa_test" : null, partnerIsTest: g.trade.isTest, label: "daily_mitti_text", actorId: null }, to, body);
     return { status: r.status, detail: r.detail, sid: null };
   }
-  try {
-    const res = await fetch("https://connector-gateway.lovable.dev/twilio/Messages.json", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env["LOVABLE_API_KEY"]}`, "X-Connection-Api-Key": process.env["TWILIO_API_KEY"] ?? "", "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ To: to, From: process.env["TWILIO_FROM_NUMBER"] || "HIV", Body: body }),
-    });
-    const t = await res.text();
-    if (!res.ok) return { status: "failed", detail: `Twilio ${res.status}: ${t.slice(0, 300)}`, sid: null };
-    return { status: "sent", detail: "Twilio accepted", sid: (JSON.parse(t) as { sid?: string }).sid ?? null };
-  } catch (e) {
-    return { status: "failed", detail: `sent_unknown – not retried: ${(e as Error).message}`, sid: null };
-  }
+  // Real trades: the ONE real sender (customer_comms_enabled + this message's switch, STOP list, send-once key).
+  const { sendRealSms } = await import("./sms.server");
+  const r = await sendRealSms({ type: kind === "update" ? "daily_mitti_update" : "daily_mitti", idempotencyKey: `daily-mitti:${key}`, to, body, businessId: g.trade.businessId, jobId: g.jobs[0]?.jobId ?? null });
+  return { status: r.status === "sent" ? "sent" : r.status === "blocked" || r.status === "already" ? "blocked" : "failed", detail: r.detail, sid: r.sid };
 }
 
 /** Claim the send_key first (unique), then send once. A claim that already exists means it was handled. */
@@ -86,7 +78,7 @@ async function sendOnce(g: Group, date: string, kind: "daily" | "update", key: s
   const to = g.trade.phone!;
   const { data: row, error } = await db.from("trade_text_log").insert({ business_id: g.trade.businessId, job_ids: [...new Set(g.jobs.map((j) => j.jobId))], melbourne_date: date, kind, send_key: key, to_number: to, body, status: "sending", snapshot }).select("id").maybeSingle();
   if (error || !row) return "already";
-  const r = await sendSms(g, to, body);
+  const r = await sendSms(g, to, body, kind, key);
   await db.from("trade_text_log").update({ status: r.status, detail: r.detail, provider_sid: r.sid, updated_at: new Date().toISOString() }).eq("id", row.id);
   return r.status;
 }
