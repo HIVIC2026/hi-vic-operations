@@ -7,7 +7,7 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/compo
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { customerDetailsGaps, CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, reviewRowNotes, type FileResult, type LeadStage } from "@/lib/bulk-import.core";
+import { quotedGap, customerDetailsGaps, CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, reviewRowNotes, type FileResult, type LeadStage } from "@/lib/bulk-import.core";
 import { TradeShell } from "@/components/trade/TradeShell";
 import { AlertCircle, CheckCircle2, ChevronDown, FileArchive, UploadCloud, Zap } from "lucide-react";
 
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/_authenticated/partner/bulk-import")({
 type ManifestFile = { path: string; name: string; folder: string | null; type: string; gps_lat: number | null; gps_lng: number | null; taken_at: string | null; geo_address?: string | null };
 type ReviewRow = {
   id: string; row_index: number; status: string; duplicate_note: string | null;
-  extracted: { full_name?: string | null; address_line?: string | null; suburb?: string | null; postcode?: string | null; area_m2?: number | null; price_inc_gst?: number | null; lead_stage?: LeadStage; phone?: string | null; email?: string | null; price_includes?: string | null; site_check?: "yes" | "no" | null; site_check_date?: string | null; site_check_source?: "file" | "asked" | null };
+  extracted: { full_name?: string | null; address_line?: string | null; suburb?: string | null; postcode?: string | null; area_m2?: number | null; price_inc_gst?: number | null; quoted_answer?: "yes" | "no" | null; lead_stage?: LeadStage; phone?: string | null; email?: string | null; price_includes?: string | null; site_check?: "yes" | "no" | null; site_check_date?: string | null; site_check_source?: "file" | "asked" | null };
   matched_files: { name: string; how: string }[]; sort_result: "covers_ready_check" | "needs_visit" | "office_review" | null;
   sort_reasons: string[]; missing_evidence: string[];
   import_stage: LeadStage; electrician_plan: ElectricianPlan | null;
@@ -251,6 +251,10 @@ function BulkImportPage() {
   const [rowStages, setRowStages] = useState<Record<string, LeadStage>>({});
   const [rowPlans, setRowPlans] = useState<Record<string, ElectricianPlan>>({});
   // Site check (Jo, 7 Oct): read from the file when it says so; otherwise the installer answers Yes/No per row.
+  // "Quoted? Yes / No" per customer (Jo, 7 Oct): never preset; a file price prefills Yes but the installer still confirms.
+  const [rowQuoted, setRowQuoted] = useState<Record<string, { answer: "yes" | "no" | null; price: string; confirmed: boolean }>>({});
+  const quotedSend = (id: string) => { const q = rowQuoted[id]; if (!q?.confirmed || !q.answer) return { quoted: null, quotedPrice: null }; const n = Number(q.price.replace(/[$,\s]/g, "")); return q.answer === "yes" ? { quoted: "yes" as const, quotedPrice: Number.isFinite(n) && n > 0 ? n : null } : { quoted: "no" as const, quotedPrice: null }; };
+  const quotedOpen = (id: string) => { const x = quotedSend(id); return quotedGap(x.quoted, x.quotedPrice); };
   const [rowChecks, setRowChecks] = useState<Record<string, { check: "yes" | "no" | null; date: string | null }>>({});
   const [newElectrician, setNewElectrician] = useState({ name: "", mobile: "", email: "", business: "" });
 
@@ -273,6 +277,7 @@ function BulkImportPage() {
     if (!rows.length) return;
     setRowStages((old) => Object.fromEntries(rows.map((r) => [r.id, old[r.id] ?? r.import_stage ?? r.extracted.lead_stage ?? "not_visited"])));
     setRowPlans((old) => Object.fromEntries(rows.map((r) => [r.id, old[r.id] ?? r.electrician_plan ?? { mode: "hivic" }])));
+    setRowQuoted((old) => Object.fromEntries(rows.map((r) => [r.id, old[r.id] ?? (r.extracted.quoted_answer ? { answer: r.extracted.quoted_answer, price: r.extracted.price_inc_gst ? String(r.extracted.price_inc_gst) : "", confirmed: true } : r.extracted.price_inc_gst ? { answer: "yes", price: String(r.extracted.price_inc_gst), confirmed: false } : { answer: null, price: "", confirmed: false })])));
     setRowChecks((old) => Object.fromEntries(rows.map((r) => [r.id, old[r.id] ?? { check: r.extracted.site_check ?? null, date: r.extracted.site_check_date ?? null }])));
   }, [review?.rows]);
 
@@ -303,7 +308,7 @@ function BulkImportPage() {
     confirming.current = true;
     setBusy(true);
     try {
-      await savePlan({ data: { batchId, batchPlan, rows: rows.map((r) => ({ rowId: r.id, stage: rowStages[r.id] ?? "not_visited", siteCheck: rowChecks[r.id]?.check ?? null, siteCheckDate: rowChecks[r.id]?.check === "yes" ? rowChecks[r.id]?.date ?? null : null, plan: batchPlan.mode === "job_by_job" ? (rowPlans[r.id] ?? { mode: "hivic" }) : null })) } });
+      await savePlan({ data: { batchId, batchPlan, rows: rows.map((r) => ({ rowId: r.id, stage: rowStages[r.id] ?? "not_visited", siteCheck: rowChecks[r.id]?.check ?? null, ...quotedSend(r.id), siteCheckDate: rowChecks[r.id]?.check === "yes" ? rowChecks[r.id]?.date ?? null : null, plan: batchPlan.mode === "job_by_job" ? (rowPlans[r.id] ?? { mode: "hivic" }) : null })) } });
       const res = await confirm({ data: { batchId, skipRowIds: [...skip] } });
       setDone(res);
       qc.invalidateQueries({ queryKey: ["bulk-review", batchId] });
@@ -393,6 +398,14 @@ function BulkImportPage() {
                     <div className="text-sm">{customerDetailsGaps(r.extracted).length === 0 ? <>{r.extracted.address_line}, {[r.extracted.suburb, r.extracted.postcode].filter(Boolean).join(" ")}</> : <AddAddress row={r} onSaved={() => qc.invalidateQueries({ queryKey: ["bulk-review", batchId] })} />}</div>
                     <div className="grid grid-cols-3 gap-2 text-center text-sm"><div className="rounded-lg bg-estimate-canvas p-2"><b>{r.extracted.area_m2 ? `${r.extracted.area_m2} m²` : "—"}</b><span className="block text-xs text-estimate-navy/70">Area</span></div><div className={`rounded-lg p-2 ${r.extracted.price_inc_gst ? "bg-estimate-canvas" : "bg-workspace-blush"}`}><b>{r.extracted.price_inc_gst ? `$${r.extracted.price_inc_gst.toLocaleString("en-AU")}` : "—"}</b><span className="block text-xs text-estimate-navy/70">{r.extracted.price_inc_gst ? "Your price inc GST" : QUOTE_NEEDED_LABEL}</span></div><div className="rounded-lg bg-estimate-canvas p-2"><b>{r.matched_files.length}</b><span className="block text-xs text-estimate-navy/70">Files</span></div></div>
                     {r.extracted.price_inc_gst ? <p className="text-sm"><b>Price includes:</b> {r.extracted.price_includes ?? <span className="text-estimate-navy/70">not stated</span>}</p> : null}
+                    {(() => { const q = rowQuoted[r.id] ?? { answer: null, price: "", confirmed: false }; const gap = quotedOpen(r.id); return (
+                      <div className="rounded-lg border border-estimate-line p-3" data-quoted-picker>
+                        <p className="text-sm font-bold">Quoted?{gap && <span className="ml-1 text-destructive">{gap}</span>}</p>
+                        {q.answer === "yes" && !q.confirmed && <p className="text-xs text-estimate-navy/70">We found this price in your file. Check it, then tap Yes to confirm.</p>}
+                        <div className="mt-2 grid grid-cols-2 gap-2">{(["yes", "no"] as const).map((v) => <Button key={v} type="button" size="field" variant={q.confirmed && q.answer === v ? "default" : "outline"} onClick={() => setRowQuoted({ ...rowQuoted, [r.id]: { ...q, answer: v, confirmed: true } })}>{v === "yes" ? "Yes" : "No"}</Button>)}</div>
+                        {q.answer === "yes" && <label className="mt-2 block text-sm">Quoted price inc GST<Input className="mt-1 h-12" inputMode="decimal" value={q.price} onChange={(e) => setRowQuoted({ ...rowQuoted, [r.id]: { ...q, price: e.target.value } })} /></label>}
+                        {q.confirmed && q.answer === "no" && <p className="mt-2 text-xs font-semibold">{QUOTE_NEEDED_LABEL}</p>}
+                      </div>); })()}
                     <SiteCheckPicker value={rowChecks[r.id] ?? { check: null, date: null }} fromFile={r.extracted.site_check_source === "file" && r.extracted.site_check != null} installed={r.import_stage === "installed"}
                       onChange={(v) => { setRowChecks({ ...rowChecks, [r.id]: v }); setRowStages({ ...rowStages, [r.id]: r.import_stage === "installed" ? "installed" : v.check === "yes" ? (r.extracted.price_inc_gst ? "quoted" : "visited") : "not_visited" }); }} />
                     {batchPlan.mode === "job_by_job" && <ElectricianChoice compact value={rowPlans[r.id] ?? { mode: "hivic" }} onChange={(plan) => setRowPlans({ ...rowPlans, [r.id]: plan })} approved={electricianData?.approved ?? []} pending={electricianData?.pending ?? []} />}
@@ -403,7 +416,7 @@ function BulkImportPage() {
             </div>
             <p className="text-sm text-estimate-navy/70">Confirming creates the jobs only — nothing is sent to any customer. If a price was included, a draft quote is prepared for office review using your price exactly as given. Jobs without a price are marked "Quote needed from installer".</p>
             {missingAddr > 0 && <p className="text-sm text-destructive">{missingAddr} customer{missingAddr > 1 ? "s need" : " needs"} details added (name, address, email and phone) — add them in the table above, or tick Skip.</p>}
-            <Button size="field" className="w-full" disabled={busy || summary.rows === 0 || missingAddr > 0 || rows.some((r) => !skip.has(r.id) && !r.duplicate_note && r.import_stage !== "installed" && !rowChecks[r.id]?.check) || rows.some((r) => r.sort_result === "office_review" && !skip.has(r.id))} onClick={confirmAll}>{busy ? "Adding…" : `Add ${rows.filter((r) => !skip.has(r.id) && !r.duplicate_note).length} jobs`}</Button>
+            <Button size="field" className="w-full" disabled={busy || summary.rows === 0 || missingAddr > 0 || rows.some((r) => !skip.has(r.id) && !r.duplicate_note && !!quotedOpen(r.id)) || rows.some((r) => !skip.has(r.id) && !r.duplicate_note && r.import_stage !== "installed" && !rowChecks[r.id]?.check) || rows.some((r) => r.sort_result === "office_review" && !skip.has(r.id))} onClick={confirmAll}>{busy ? "Adding…" : `Add ${rows.filter((r) => !skip.has(r.id) && !r.duplicate_note).length} jobs`}</Button>
           </CardContent>
         </Card>
       )}

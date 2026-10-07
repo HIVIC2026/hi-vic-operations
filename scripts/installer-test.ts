@@ -381,7 +381,11 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     const { data: rows } = await admin.from("bulk_import_rows").select("*").eq("batch_id", batch.id).order("row_index");
     return { batchId: batch.id, rawRows, rows: (rows ?? []) as { id: string; extracted: Record<string, unknown>; import_stage: string; sort_result: string; sort_reasons: string[]; duplicate_note: string | null; status: string; job_id: string | null }[] };
   };
-  const confirm = async (batchId: string) => { const r = await bi.confirmBatch(batchId, ownerId, []); const { data } = await admin.from("bulk_import_rows").select("job_id").eq("batch_id", batchId).not("job_id", "is", null); madeJobs.push(...(data ?? []).map((x) => x.job_id!)); return r; };
+  const confirm = async (batchId: string) => {
+    // The installer answers "Quoted?" on every row (Yes when the file has his price, otherwise No), as the review screen requires.
+    const { data: open } = await admin.from("bulk_import_rows").select("id, extracted").eq("batch_id", batchId).eq("status", "pending");
+    for (const o of open ?? []) { const e = o.extracted as Record<string, unknown>; await admin.from("bulk_import_rows").update({ extracted: { ...e, quoted_answer: Number(e["price_inc_gst"] ?? 0) > 0 ? "yes" : "no" } as never }).eq("id", o.id); }
+    const r = await bi.confirmBatch(batchId, ownerId, []); const { data } = await admin.from("bulk_import_rows").select("job_id").eq("batch_id", batchId).not("job_id", "is", null); madeJobs.push(...(data ?? []).map((x) => x.job_id!)); return r; };
   const jobsOk = async (c: (n: string, ok: boolean, d?: string) => void, ids: string[]) => {
     if (!ids.length) return;
     const { data } = await admin.from("jobs").select("id, source, originating_installer_business_id, installer_quoted_price_inc_gst").in("id", ids);
@@ -468,7 +472,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("draft created", !!imp.id);
     const bad = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: "", phone: "", address_line: "", measured_area_m2: 100 }, installer: { site_check: "yes" } }).then(() => "accepted", (e) => (e as Error).message);
     c("missing address/contact refused with a clear message", bad !== "accepted" && bad.length > 10, bad);
-    const r = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: `qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, phone: "0412999001", address_line: "9 One Job Rd", suburb: "Fraser Rise", postcode: "3336", measured_area_m2: 104 }, installer: { contact_permission: true, site_check: "yes", site_check_date: "2026-10-02", quoted_price_inc_gst: 2987.65, price_includes: "R5 batts 104 m²" } });
+    const r = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: `qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, phone: "0412999001", address_line: "9 One Job Rd", suburb: "Fraser Rise", postcode: "3336", measured_area_m2: 104 }, installer: { quoted: "yes", contact_permission: true, site_check: "yes", site_check_date: "2026-10-02", quoted_price_inc_gst: 2987.65, price_includes: "R5 batts 104 m²" } });
     madeJobs.push(r.jobId);
     const { data: j } = await admin.from("jobs").select("installer_quoted_price_inc_gst, installer_site_check, source").eq("id", r.jobId).single();
     c("quoted price kept exactly ($2987.65)", Number(j?.installer_quoted_price_inc_gst) === 2987.65, String(j?.installer_quoted_price_inc_gst));

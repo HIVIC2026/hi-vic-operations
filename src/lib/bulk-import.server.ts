@@ -13,7 +13,7 @@ import { hashToken, newToken } from "./worker-links.core";
 import { linkFiles, type LeadStage } from "./bulk-import.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
-  customerDetailsReason, effectiveSiteCheck, cleanLead, gridToRecords, dedupeKey, parseSiteCheck, QUOTE_NEEDED_LABEL, quoteNeeded, siteCheckFromFile, siteCheckLabel, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
+  customerDetailsReason, quotedGap, effectiveSiteCheck, cleanLead, gridToRecords, dedupeKey, parseSiteCheck, QUOTE_NEEDED_LABEL, quoteNeeded, siteCheckFromFile, siteCheckLabel, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
   type BulkExtracted, type BulkFile,
 } from "./bulk-import.core";
 
@@ -399,6 +399,12 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
     if (gap) {
       failed++;
       await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: ${gap} in the review table, then confirm again`, { batch_id: batchId, row_id: row.id });
+      continue;
+    }
+    const qg = quotedGap(e.quoted_answer, e.price_inc_gst);
+    if (qg) {
+      failed++;
+      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: ${qg} in the review table, then confirm again`, { batch_id: batchId, row_id: row.id });
       continue;
     }
     if (siteCheckFromFile(e).check == null && row.import_stage !== "installed") {

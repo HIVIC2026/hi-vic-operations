@@ -26,6 +26,8 @@ export type BulkExtracted = {
   site_check_date?: string | null;
   /** Where the answer came from: read from the file, or answered on the review screen. */
   site_check_source?: "file" | "asked" | null;
+  /** Installer's own answer to "Quoted? Yes / No" — never preset; a price in the file only prefills the screen. */
+  quoted_answer?: "yes" | "no" | null;
   /** True when the lead was pieced together only from file/folder names, photo text or photo location. */
   unsure?: boolean | null;
   /** Uploaded file names this lead was read from (for the per-file result list). */
@@ -125,6 +127,14 @@ export function leadStage(e: BulkExtracted, matchedFileCount = 0): LeadStage {
 }
 
 /** Every customer needs name, full address, email and phone (Jo, 7 Oct) plus the installer's contact-permission tick. */
+/** Jo (7 Oct): "Quoted? Yes / No" must be answered by the installer; Yes needs the price inc GST (kept exactly). */
+export function quotedGap(answer: "yes" | "no" | null | undefined, price: number | null | undefined): string | null {
+  if (answer !== "yes" && answer !== "no") return "Answer \"Quoted?\" Yes or No";
+  if (answer === "yes" && !(Number.isFinite(Number(price)) && Number(price) > 0)) return "Enter the quoted price inc GST";
+  return null;
+}
+/** Price to keep: Yes keeps the installer's price exactly (cents), No keeps none ("Quote needed from installer"). */
+export const quotedPrice = (answer: "yes" | "no", price: number | null | undefined) => answer === "yes" ? Math.round(Number(price) * 100) / 100 : null;
 export const CUSTOMER_DETAILS_NEEDED = "Customer details needed";
 export function customerDetailsGaps(e: BulkExtracted): string[] {
   const gaps: string[] = [];
