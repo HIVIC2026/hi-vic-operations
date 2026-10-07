@@ -48,7 +48,7 @@ function OfferPage() {
           <p className="mt-2 text-sm font-bold">{t.day} · {t.window}</p>
         </section>}
         <section className="rounded-[22px] bg-estimate-navy p-5 text-estimate-canvas">
-          <span className="inline-block rounded-full bg-estimate-green px-3 py-1 text-xs font-bold text-white">Locked in</span>
+          <span className="inline-block rounded-full bg-estimate-green px-3 py-1 text-xs font-bold text-white">Booked</span>
           <h1 className="mt-3 font-display text-2xl font-extrabold">{what} · {t.day} · {t.window}</h1>
           <p className="mt-2 font-bold">{data.locked.owner}</p>
           <p className="text-sm text-estimate-canvas/85">{data.locked.address}</p>
@@ -58,7 +58,7 @@ function OfferPage() {
             <a className="flex h-12 flex-col items-center justify-center rounded-2xl bg-estimate-canvas font-bold text-estimate-navy" href={ics(`${what} – Home Insulation Victoria`, data.locked.start, data.locked.end, data.locked.address)} download="job.ics"><CalendarPlus className="h-4 w-4" />Calendar</a>
           </div>
         </section>
-        <p className="text-center text-sm">Nice one. The owner knows you're coming, and we'll ping you the day before.</p>
+        <p className="text-center text-sm">Booking confirmed. The owner has been told the time. The job page has the address and the owner's phone.</p>
         <Link to="/field/day/$jobId" params={{ jobId: data.jobId }} className={ghostBtn}>Open the job page</Link>
       </TradeShell>
     );

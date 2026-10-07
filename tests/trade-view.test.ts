@@ -3,9 +3,9 @@ import { couldntGetInMessage, dayTile, distanceLine, expiryPill, goneIn, payPill
 
 describe("trade view presentation", () => {
   test("greeting and quiet week", () => {
-    expect(tradeGreeting("Jo", 3)).toEqual({ title: "G'day Jo", sub: "3 jobs this week. Let's go." });
-    expect(tradeGreeting("Jo", 1).sub).toBe("1 job this week. Let's go.");
-    expect(tradeGreeting(null, 0)).toEqual({ title: "G'day", sub: "No jobs booked this week. New job offers will appear here." });
+    expect(tradeGreeting("Jo", 3)).toEqual({ title: "Hello Jo", sub: "3 jobs booked this week." });
+    expect(tradeGreeting("Jo", 1).sub).toBe("1 job booked this week.");
+    expect(tradeGreeting(null, 0)).toEqual({ title: "Hello", sub: "No jobs booked this week. New job offers will appear here." });
   });
   test("own-rate rough install value, rounded down, never guaranteed", () => {
     expect(roughInstallValue(27.5, 121)).toBe(3327);

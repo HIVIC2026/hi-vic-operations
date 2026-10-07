@@ -3,11 +3,11 @@
 
 export type TradeKind = "electrician" | "installer";
 
-/** "G'day Jo" + "{N} jobs this week. Let's go." with friendly quiet-week variation. */
+/** "Hello Jo" + "{N} jobs booked this week." with a quiet-week variation. */
 export function tradeGreeting(firstName: string | null, jobsThisWeek: number): { title: string; sub: string } {
-  const title = `G'day${firstName ? ` ${firstName}` : ""}`;
+  const title = `Hello${firstName ? ` ${firstName}` : ""}`;
   if (jobsThisWeek <= 0) return { title, sub: "No jobs booked this week. New job offers will appear here." };
-  return { title, sub: `${jobsThisWeek} job${jobsThisWeek === 1 ? "" : "s"} this week. Let's go.` };
+  return { title, sub: `${jobsThisWeek} job${jobsThisWeek === 1 ? "" : "s"} booked this week.` };
 }
 
 /** Pink countdown pill: "Gone in 3h 20m". */
