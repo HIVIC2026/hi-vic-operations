@@ -10240,6 +10240,68 @@ export type Database = {
         }
         Relationships: []
       }
+      trade_text_log: {
+        Row: {
+          acknowledged_at: string | null
+          body: string | null
+          business_id: string
+          created_at: string
+          detail: string | null
+          id: string
+          job_ids: string[]
+          kind: string
+          melbourne_date: string
+          provider_sid: string | null
+          send_key: string
+          snapshot: Json
+          status: string
+          to_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          body?: string | null
+          business_id: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+          job_ids?: string[]
+          kind: string
+          melbourne_date: string
+          provider_sid?: string | null
+          send_key: string
+          snapshot?: Json
+          status: string
+          to_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          body?: string | null
+          business_id?: string
+          created_at?: string
+          detail?: string | null
+          id?: string
+          job_ids?: string[]
+          kind?: string
+          melbourne_date?: string
+          provider_sid?: string | null
+          send_key?: string
+          snapshot?: Json
+          status?: string
+          to_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_text_log_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -10750,6 +10812,8 @@ export type Database = {
           auto_send_rec: boolean
           current_veec_price: number
           customer_comms_enabled: boolean
+          daily_mitti_text_enabled: boolean
+          daily_mitti_text_time: string
           due_owner_flag_days: number
           due_owner_reminder_days: number
           due_trade_reply_exception_hours: number
@@ -10793,6 +10857,8 @@ export type Database = {
           auto_send_rec?: boolean
           current_veec_price?: number
           customer_comms_enabled?: boolean
+          daily_mitti_text_enabled?: boolean
+          daily_mitti_text_time?: string
           due_owner_flag_days?: number
           due_owner_reminder_days?: number
           due_trade_reply_exception_hours?: number
@@ -10836,6 +10902,8 @@ export type Database = {
           auto_send_rec?: boolean
           current_veec_price?: number
           customer_comms_enabled?: boolean
+          daily_mitti_text_enabled?: boolean
+          daily_mitti_text_time?: string
           due_owner_flag_days?: number
           due_owner_reminder_days?: number
           due_trade_reply_exception_hours?: number
