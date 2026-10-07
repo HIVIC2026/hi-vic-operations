@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { renderFollowupEmail } from "@/lib/followup-email";
 import { renderCoverageUnavailableEmail } from "@/lib/coverage-email";
-import { renderEstimateEmail, renderIneligibleOutcomeEmail, PUBLIC_CALCULATOR_URL } from "@/lib/estimate-email";
+import { renderSaveSpotFromLikelyEmail, renderEstimateEmail, renderIneligibleOutcomeEmail, PUBLIC_CALCULATOR_URL } from "@/lib/estimate-email";
 import { withUnsubscribe } from "@/lib/emailsafety.core";
 import { ConfirmQuote } from "@/components/portal/estimate";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
@@ -54,6 +54,13 @@ const samples = {
     outcome: "likely",
     apCount: 2, // business-owner supplied current figure (1 Oct 2026), not registry-verified
   }), unsubscribeUrl),
+  savespot: withUnsubscribe(renderSaveSpotFromLikelyEmail({
+    ...quote,
+    estimateUrl,
+    outcome: "likely",
+    apCount: 2,
+    campaignUrl: `${estimateUrl}/campaign`,
+  }), unsubscribeUrl),
   onsite: withUnsubscribe(renderEstimateEmail({
     ...quote,
     outcome: "onsite",
@@ -67,7 +74,7 @@ const samples = {
   reminder3: withUnsubscribe(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl, referralUrl }), unsubscribeUrl),
   coverage: withUnsubscribe(renderCoverageUnavailableEmail({ firstName: "Alex", suburb: "Fraser Rise", postcode: "3336", missing: ["installer"], reference: "SAMPLE-1001" }), unsubscribeUrl),
 };
-const OUTCOME_LABELS = { likely: "Likely eligible", onsite: "Needs onsite confirmation", ineligible: "Does not appear eligible", reminder3: "Reminder: 3 days, unopened", coverage: "Service availability update" } as const;
+const OUTCOME_LABELS = { likely: "Likely eligible", savespot: "Save your spot (likely eligible)", onsite: "Needs onsite confirmation", ineligible: "Does not appear eligible", reminder3: "Reminder: 3 days, unopened", coverage: "Service availability update" } as const;
 
 export const Route = createFileRoute("/step3-email-preview")({
   headers: () => ({ "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" }),

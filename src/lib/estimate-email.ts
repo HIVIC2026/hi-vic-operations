@@ -512,23 +512,17 @@ export function renderInsulationVideoEmail(input: InsulationVideoEmailInput): Es
   return { subject, previewText, html, plainText };
 }
 
-/** Save my spot (Group A) built FROM the locked likely email: identical output except subject/preview, the next-step card and the footer opt-out link. Not wired into any send. */
-export function renderSaveSpotFromLikelyEmail(input: EstimateEmailInput & { campaignUrl: string; campaignOptOutUrl: string }): EstimateEmail {
+/** Save your spot (likely eligible), Jo 7 Oct: the locked likely email with ONLY the pink box heading and button changed (button -> campaign link). Same subject, preview and everything else. Not wired into any send. */
+export function renderSaveSpotFromLikelyEmail(input: EstimateEmailInput & { campaignUrl: string; campaignOptOutUrl?: string }): EstimateEmail {
   const base = renderV2QuoteEmail(input, "likely");
-  const name = input.firstName?.trim().replace(/\s+/g, " ").split(" ")[0]?.slice(0, 60) || null;
-  const rebate = money(Number(input.veuDiscount ?? 0));
-  const subject = `Great news${name ? `, ${name}` : ""}! ${rebate} off your ceiling insulation 🎉`;
-  const previewText = "Save your spot in one tap. Installers are booking up fast.";
   const must = (s: string, from: string | RegExp, to: string) => { const out = s.replace(from, () => to); if (out === s) throw new Error(`Save-spot render: anchor missing (${String(from).slice(0, 40)})`); return out; };
-  const P1 = "Hundreds of homes have enquired since 1 October, and we’re teaming up with installers and electricians around the state. Spots go in order.";
-  const S1 = "One tap saves your place. We’ll be in touch to book your free Ready Check as soon as an installer is free near you.";
-  const h2 = `<h2 style="margin:0 0 12px;${FH}color:${INK};font-size:23px;line-height:1.2;font-weight:800;letter-spacing:0;">Save your spot</h2>`;
-  const card = `<table data-likely-next-step="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUSH}" style="width:100%;border-collapse:separate;background-color:${BLUSH};border-radius:20px;"><tr><td style="padding:22px 22px;${F}">${h2}<p class="lx-body" style="margin:0 0 12px;${F}color:${INK};font-size:14px;line-height:1.55;">${escape(P1)}</p><p style="margin:0 0 12px;${F}color:${INK};font-size:14px;line-height:1.45;font-weight:800;">Demand is high. Installer availability is limited.</p>${v2Button(input.campaignUrl, "Save my spot →")}<p style="margin:10px 0 0;${F}color:${INK};font-size:12.5px;line-height:1.5;text-align:center;">${escape(S1)}</p><p style="margin:8px 0 0;${F}color:${INK};font-size:12.5px;line-height:1.5;font-weight:700;text-align:center;">No payment required. No obligation to proceed with installation.</p></td></tr></table>`;
-  let html = must(base.html, /<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/, card);
-  html = must(html, "<!--HIV_SECURE_UNSUBSCRIBE_LINK-->", `<a href="${escape(input.campaignOptOutUrl)}" style="color:${BLUE};text-decoration:underline;">Remove my enquiry</a>`);
-  html = html.split(escape(base.previewText)).join(escape(previewText));
-  let text = base.plainText.replace(base.subject, subject);
-  text = must(text, /FREE INSULATION MEASURE-UP & ELIGIBILITY CHECK\n[\s\S]*?No payment required\. No obligation to proceed with installation\./, ["SAVE YOUR SPOT", P1, "Demand is high. Installer availability is limited.", `Save my spot: ${input.campaignUrl}`, S1, "No payment required. No obligation to proceed with installation."].join("\n"));
-  text = `${text}\nRemove my enquiry: ${input.campaignOptOutUrl}`;
-  return { subject, previewText, html, plainText: text };
+  const card0 = base.html.match(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/)?.[0];
+  if (!card0) throw new Error("Save-spot render: next-step card missing");
+  let card = must(card0, "Free Insulation Measure-Up &amp; Eligibility Check", "Save your spot");
+  card = must(card, "Arrange my free measure-up &amp; eligibility check →", "Save my spot →");
+  card = must(card, /href="[^"]*"/, `href="${escape(input.campaignUrl)}"`);
+  const html = base.html.replace(card0, () => card);
+  let text = must(base.plainText, /FREE INSULATION MEASURE-UP & ELIGIBILITY CHECK\n/, "SAVE YOUR SPOT\n");
+  text = must(text, /Arrange my free measure-up & eligibility check: .*/, `Save my spot: ${input.campaignUrl}`);
+  return { subject: base.subject, previewText: base.previewText, html, plainText: text };
 }
