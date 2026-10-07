@@ -4,7 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { sendSaveSpotPreviewTest } from "@/lib/hot-leads.functions";
 import { renderFollowupEmail } from "@/lib/followup-email";
 import { renderCoverageUnavailableEmail } from "@/lib/coverage-email";
-import { renderSaveSpotFromLikelyEmail, renderEstimateEmail, renderIneligibleOutcomeEmail, PUBLIC_CALCULATOR_URL } from "@/lib/estimate-email";
+import { renderEstimateEmail, renderIneligibleOutcomeEmail, PUBLIC_CALCULATOR_URL } from "@/lib/estimate-email";
+import { renderStep3SaveSpot, type SaveSpotFacts } from "@/lib/step3-emails";
 import { withUnsubscribe } from "@/lib/emailsafety.core";
 import { ConfirmQuote } from "@/components/portal/estimate";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
@@ -49,6 +50,13 @@ const quote = {
   referralUrl,
   reference: "SAMPLE-1001",
 } as const;
+/** Sample facts for the Save my spot preview; tests render the same facts through every send path. */
+export const STEP3_SAVESPOT_SAMPLE: SaveSpotFacts = {
+  estimateUrl, campaignUrl: `${estimateUrl}/campaign`, unsubscribeUrl,
+  estimatedTotal: SAMPLE_CUSTOMER, veuDiscount: SAMPLE_DISCOUNT, grossTotal: SAMPLE_GROSS, areaM2: 150,
+  firstName: "Alex", address: "30 Dash St, Fraser Rise VIC 3336", reference: "SAMPLE-1001", existingInsulationPresent: false,
+  installation: SAMPLE_INSTALL, assessmentFee: PIESA_FEE, apFee: AP_FEE,
+};
 const samples = {
   likely: withUnsubscribe(renderEstimateEmail({
     ...quote,
@@ -57,14 +65,7 @@ const samples = {
     apCount: 2, // business-owner supplied current figure (1 Oct 2026), not registry-verified
   }), unsubscribeUrl),
   // APPROVED by Jo Lowe, 7 Oct 2026 — FINAL Save your spot email.
-  savespot: renderSaveSpotFromLikelyEmail({
-    ...quote,
-    estimateUrl,
-    outcome: "likely",
-    apCount: 2,
-    campaignUrl: `${estimateUrl}/campaign`,
-    campaignOptOutUrl: unsubscribeUrl,
-  }),
+  savespot: renderStep3SaveSpot(STEP3_SAVESPOT_SAMPLE),
   onsite: withUnsubscribe(renderEstimateEmail({
     ...quote,
     outcome: "onsite",
