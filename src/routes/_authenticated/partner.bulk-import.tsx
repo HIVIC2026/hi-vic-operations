@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { quotedGap, CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, fieldProblems, rowStatusLine, jobsFound, attachedFilesNote, outsideVictoria, OUTSIDE_VIC_MESSAGE, type FileResult, type LeadStage, type SecondContact } from "@/lib/bulk-import.core";
 import { TradeShell } from "@/components/trade/TradeShell";
-import { Check, ChevronDown, Paperclip, UploadCloud, Zap } from "lucide-react";
+import { Check, ChevronDown, UploadCloud } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { AttachFiles, ElectricianPicker, inviteResultMessage, useUploadFiles } from "@/components/trade/job-intake";

@@ -4,7 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { Camera, FileText, Paperclip, X, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { partnerFileUrl, partnerUploadUrl } from "@/lib/pilot.functions";
-import { SAFETY_CHECK_NOTE, newElectricianProblems, usualElectrician, type ElectricianPlan } from "@/lib/job-electrician.core";
+import { getJobElectrician, switchJobElectricianToHivic } from "@/lib/job-electrician.functions";
+import { SAFETY_CHECK_NOTE, jobElectricianLabel, newElectricianProblems, usualElectrician, type ElectricianPlan } from "@/lib/job-electrician.core";
 import { cn } from "@/lib/utils";
 
 export type AttachedFile = { path: string; name: string; type?: string | null };
@@ -126,4 +127,26 @@ export function inviteResultMessage(r: { invite?: { status: string; to: string }
   if (r.invite.status === "sent") return `Invite sent to ${r.invite.to}. The job shows "Electrician invited – waiting to onboard".`;
   if (r.invite.status === "dry_run") return `Invite ready for ${r.invite.to} (test run, not sent).`;
   return `The invite didn't send to ${r.invite.to}. Home Insulation Victoria will follow up.`;
+}
+
+/** Job page: who does the electrical, with "Home Insulation Victoria arranges" available until an electrician accepts. */
+export function JobElectricianCard({ jobId }: { jobId: string }) {
+  const get = useServerFn(getJobElectrician);
+  const sw = useServerFn(switchJobElectricianToHivic);
+  const [s, setS] = useState<Awaited<ReturnType<typeof getJobElectrician>> | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { get({ data: { jobId } }).then(setS).catch(() => {}); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [jobId]);
+  if (!s) return null;
+  const label = jobElectricianLabel(s);
+  const canSwitch = !s.assignedName && (s.invitedName || s.chosenName);
+  return (
+    <section className="rounded-[18px] border border-line bg-paper p-4 shadow-card" data-job-electrician>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+        <div className="min-w-0"><p className="text-[11px] font-semibold text-sub">Electrician</p><p className={cn("text-sm font-semibold", s.invitedName ? "text-rose" : "text-ink")}>{label}</p></div>
+        {canSwitch && <button type="button" disabled={busy} onClick={async () => { setBusy(true); setErr(null); try { await sw({ data: { jobId } }); setS(await get({ data: { jobId } })); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } }} className="h-8 rounded-[9px] border border-line bg-paper px-2.5 text-xs font-semibold text-hiv-blue disabled:opacity-50">Let Home Insulation Victoria arrange</button>}
+      </div>
+      {err && <p className="mt-1 text-xs text-danger">{err}</p>}
+    </section>
+  );
 }
