@@ -30,3 +30,23 @@ describe("Step 3 is the only Save my spot email", () => {
     expect(readFileSync("src/routes/_authenticated/admin.campaign-emails.tsx", "utf8")).toContain("Wording locked");
   });
 });
+
+import { renderStep3Likely, saveSpotDifferences } from "../src/lib/step3-emails";
+describe("Save your spot = Step 3 likely email + four swaps only", () => {
+  test("same subject and preview text", () => {
+    expect(renderStep3SaveSpot(S).subject).toBe(renderStep3Likely(S).subject);
+    expect(renderStep3SaveSpot(S).previewText).toBe(renderStep3Likely(S).previewText);
+  });
+  test("HTML differs only in heading, paragraph, button and small line", () => {
+    const a = renderStep3Likely(S).html.replace(/></g, ">\n<").split("\n"), b = renderStep3SaveSpot(S).html.replace(/></g, ">\n<").split("\n");
+    expect(b.length).toBe(a.length);
+    const changed = a.map((l, i) => [l, b[i]!] as const).filter(([x, y]) => x !== y);
+    expect(changed.length).toBe(4);
+    expect(changed.map(([, y]) => y).join(" ")).toContain("Save your spot");
+    expect(changed.map(([, y]) => y).join(" ")).toContain("Save my spot →");
+    expect(changed.map(([, y]) => y).join(" ")).toContain(`href="${S.campaignUrl}"`);
+  });
+  test("plain text differs in exactly those four places", () => {
+    expect(saveSpotDifferences(S).length).toBe(4);
+  });
+});

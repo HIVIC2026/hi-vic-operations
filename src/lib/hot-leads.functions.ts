@@ -36,7 +36,7 @@ export const getPossibleDuplicates = createServerFn({ method: "GET" }).middlewar
 
 /** /step3-email-preview "Send test" for Save your spot (likely eligible): TEST job only, Jo's allowlisted inbox only. */
 export const sendSaveSpotPreviewTest = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ jobNumber: z.string().regex(/^HV-\d+$/).default("HV-1609"), subjectPrefix: z.string().max(80).default("[TEST – SAVE YOUR SPOT APPROVED]") }).parse(d ?? {}))
+  .inputValidator((d: unknown) => z.object({ jobNumber: z.string().regex(/^HV-\d+$/).default("HV-1609"), subjectPrefix: z.string().max(80).optional(), variant: z.enum(["savespot", "likely"]).default("savespot") }).parse(d ?? {}))
   .handler(async ({ context, data }) => {
     const { requireAdmin } = await import("./workflow.server");
     await requireAdmin(context.supabase);
@@ -44,6 +44,7 @@ export const sendSaveSpotPreviewTest = createServerFn({ method: "POST" }).middle
     const { data: job } = await supabaseAdmin.from("jobs").select("id, source").eq("job_number", data.jobNumber).maybeSingle();
     if (!job || job.source !== "qa_test") throw new Error("Test sends use TEST jobs only.");
     const { sendSaveMySpot, testSendIds } = await import("./hot-leads-send.server");
-    const [r] = await sendSaveMySpot([job.id], context.userId, { group: "likely", subjectPrefix: data.subjectPrefix });
+    const likely = data.variant === "likely";
+    const [r] = await sendSaveMySpot([job.id], context.userId, { group: "likely", subjectPrefix: data.subjectPrefix ?? (likely ? "[TEST – STEP 3 LIKELY ELIGIBLE]" : "[TEST – STEP 3 SAVE YOUR SPOT]"), ...(likely ? { variant: "likely_estimate" as const } : {}) });
     return { ...r!, sendId: testSendIds.get(job.id) ?? null };
   });

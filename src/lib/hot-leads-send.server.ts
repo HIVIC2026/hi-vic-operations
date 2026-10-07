@@ -3,7 +3,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, launchGroup, savedPriceFromEstimate } from "./launch-campaign.core";
 import { renderLaunchCampaignEmail } from "./estimate-email";
-import { renderStep3SaveSpot } from "./step3-emails";
+import { renderStep3Likely, renderStep3SaveSpot } from "./step3-emails";
 import { CUSTOMER_BASE } from "./engagement.core";
 import { reservationAllowed, withUnsubscribe } from "./emailsafety.core";
 import { logEvent } from "./workflow.server";
@@ -21,7 +21,7 @@ export async function realSendingOn() {
 }
 
 /** TEST-only overrides (qa_test jobs): link host and group. Ignored for real jobs. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string };
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate" };
 
 export async function sendSaveMySpot(jobIds: string[], actorId: string, testOpts: TestSendOptions = {}): Promise<HotSendResult[]> {
   if (jobIds.length > HOT_SEND_BATCH) throw new Error(`Send at most ${HOT_SEND_BATCH} at a time.`);
@@ -64,7 +64,7 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
 
   // Once per home, ever: the idempotency key is the job, not the batch.
   const sendGroup = isTest ? (testOpts.group ?? group) : "likely";
-  const key = `${LAUNCH_CAMPAIGN}:save_my_spot:${jobId}${isTest && sendGroup === "onsite" ? ":b" : ""}${isTest && testOpts.subjectPrefix ? `:preview-test:${Date.now()}` : ""}`;
+  const key = `${LAUNCH_CAMPAIGN}:save_my_spot:${jobId}${isTest && sendGroup === "onsite" ? ":b" : ""}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
   const { data: ex } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
   if (ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
   let sendId = ex?.id ?? null;
@@ -89,7 +89,7 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
   // Likely-eligible owners get the Jo-APPROVED "Save your spot (likely eligible)" email (7 Oct 2026, FINAL).
   const referralUrl = sendGroup === "likely" ? await (await import("./referral.server")).referralUrlForJob(jobId).catch(() => null) : null;
   const mail = sendGroup === "likely"
-    ? (() => { const m = renderStep3SaveSpot({
+    ? (() => { const m = (isTest && testOpts.variant === "likely_estimate" ? renderStep3Likely : renderStep3SaveSpot)({
         estimateUrl: `${base}/estimate/${link.token}`, campaignUrl, unsubscribeUrl, referralUrl,
         estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
         firstName, address: fullAddress, reference: job.job_number, existingInsulationPresent: (price.insulation ?? est?.insulation_declared) === "present",

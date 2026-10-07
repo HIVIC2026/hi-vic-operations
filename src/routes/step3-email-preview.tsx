@@ -5,7 +5,7 @@ import { sendSaveSpotPreviewTest } from "@/lib/hot-leads.functions";
 import { renderFollowupEmail } from "@/lib/followup-email";
 import { renderCoverageUnavailableEmail } from "@/lib/coverage-email";
 import { renderEstimateEmail, renderIneligibleOutcomeEmail, PUBLIC_CALCULATOR_URL } from "@/lib/estimate-email";
-import { renderStep3SaveSpot, STEP3_SAVESPOT_SAMPLE } from "@/lib/step3-emails";
+import { renderStep3SaveSpot, saveSpotDifferences, STEP3_SAVESPOT_SAMPLE } from "@/lib/step3-emails";
 import { withUnsubscribe } from "@/lib/emailsafety.core";
 import { ConfirmQuote } from "@/components/portal/estimate";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
@@ -72,7 +72,7 @@ const samples = {
   reminder3: withUnsubscribe(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl, referralUrl }), unsubscribeUrl),
   coverage: withUnsubscribe(renderCoverageUnavailableEmail({ firstName: "Alex", suburb: "Fraser Rise", postcode: "3336", missing: ["installer"], reference: "SAMPLE-1001" }), unsubscribeUrl),
 };
-const OUTCOME_LABELS = { likely: "Likely eligible", savespot: "Save your spot (likely eligible) – APPROVED", onsite: "Needs onsite confirmation", ineligible: "Does not appear eligible", reminder3: "Reminder: 3 days, unopened", coverage: "Service availability update" } as const;
+const OUTCOME_LABELS = { likely: "Likely eligible", savespot: "Save your spot", onsite: "Needs onsite confirmation", ineligible: "Does not appear eligible", reminder3: "Reminder: 3 days, unopened", coverage: "Service availability update" } as const;
 
 export const Route = createFileRoute("/step3-email-preview")({
   headers: () => ({ "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" }),
@@ -88,17 +88,28 @@ export const Route = createFileRoute("/step3-email-preview")({
   component: EmailPreview,
 });
 
-function SaveSpotTestSend() {
+function Step3TestSend({ variant }: { variant: "likely" | "savespot" }) {
   const send = useServerFn(sendSaveSpotPreviewTest);
   const [state, setState] = useState<string | null>(null);
   return (
     <div className="mb-4 rounded-xl p-3 text-sm" style={{ background: "#EAF8F0" }}>
-      <p className="font-bold">APPROVED by Jo Lowe, 7 Oct 2026. Hot-leads sending stays off.</p>
+      <p className="font-bold">Test only: uses TEST job HV-1609 and goes only to Jo. Sign in to the portal first. Real sending stays off.</p>
       <button type="button" className="mt-2 rounded-full px-4 py-2 font-bold" style={{ background: CUSTOMER_BRAND.colors.green, color: "#fff" }}
-        onClick={async () => { setState("Sending…"); try { const r = await send({ data: {} }); setState(`${r.outcome}: ${r.detail}${r.sendId ? ` (${r.sendId})` : ""}`); } catch (e) { setState((e as Error).message); } }}>
-        Send test to jolowexo@hotmail.com
+        onClick={async () => { setState("Sending…"); try { const r = await send({ data: { variant } }); setState(r.outcome === "sent" ? `Sent to jolowexo@hotmail.com at ${new Date().toLocaleTimeString("en-AU")}` : r.detail); } catch (e) { setState((e as Error).message); } }}>
+        Send test to me ({variant === "likely" ? "Likely eligible" : "Save your spot"})
       </button>
       {state && <p className="mt-2">{state}</p>}
+    </div>
+  );
+}
+
+function SaveSpotDifferences() {
+  const rows = saveSpotDifferences(STEP3_SAVESPOT_SAMPLE).filter((r) => r.before.trim() || r.after.trim());
+  return (
+    <div className="mb-4 rounded-xl border-2 p-3 text-sm" style={{ borderColor: CUSTOMER_BRAND.colors.blue, background: "#fff" }}>
+      <p className="mb-2 font-bold">Only these lines differ from the Likely eligible email. Everything else (layout, fonts, prices, FREE tag, footer) is identical.</p>
+      <table className="w-full text-left text-xs"><thead><tr><th className="w-1/2 pb-1">Likely eligible</th><th className="pb-1">Save your spot</th></tr></thead>
+        <tbody>{rows.map((r, i) => <tr key={i} className="align-top" style={{ borderTop: "1px solid #DDE3F5" }}><td className="py-1 pr-2">{r.before}</td><td className="py-1">{r.after}</td></tr>)}</tbody></table>
     </div>
   );
 }
@@ -134,7 +145,8 @@ function EmailPreview() {
        <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-1 pb-4 text-sm font-bold" style={{ borderBottom: "2px solid #3C51C4" }} aria-label="Preview sample values">
         <span style={{ color: CUSTOMER_BRAND.colors.blue }}>Sample values only:</span><span>Alex</span><span>150 m²</span><span>{CUSTOMER_QUOTE_LABELS.projectTotal} ${SAMPLE_GROSS.toLocaleString("en-AU")}</span><span style={{ color: CUSTOMER_BRAND.colors.green }}>{CUSTOMER_QUOTE_LABELS.discount} −${SAMPLE_DISCOUNT.toLocaleString("en-AU")}</span><span>{CUSTOMER_QUOTE_LABELS.finalCost} ${SAMPLE_CUSTOMER.toLocaleString("en-AU")}</span>
       </div>
-       {outcome === "savespot" && <SaveSpotTestSend />}
+       {outcome === "savespot" && <><Step3TestSend variant="savespot" /><SaveSpotDifferences /></>}
+       {outcome === "likely" && <Step3TestSend variant="likely" />}
        <div className="mb-4 flex flex-wrap gap-2" aria-label="Email outcome">
           {(Object.keys(OUTCOME_LABELS) as Array<keyof typeof OUTCOME_LABELS>).map((item) => <button key={item} type="button" aria-pressed={outcome === item} className={btn} style={pill(outcome === item)} onClick={() => { setOutcome(item); if (item !== "likely" && item !== "onsite") setPreviewKind("email"); }}>{OUTCOME_LABELS[item]}</button>)}
        </div>

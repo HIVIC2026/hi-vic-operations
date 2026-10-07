@@ -2,7 +2,7 @@
 // the Step 3 email preview, every real send, every "send test to me" button and every other
 // preview call renderStep3SaveSpot with the job's facts. Never call renderSaveSpotFromLikelyEmail
 // anywhere else (guarded by tests/step3-email-parity.test.ts).
-import { renderSaveSpotFromLikelyEmail, type EstimateEmail } from "./estimate-email";
+import { renderEstimateEmail, renderSaveSpotFromLikelyEmail, type EstimateEmail } from "./estimate-email";
 import { withUnsubscribe } from "./emailsafety.core";
 
 export type SaveSpotFacts = {
@@ -23,15 +23,33 @@ export type SaveSpotFacts = {
   apFee?: number;
 };
 
-export function renderStep3SaveSpot(f: SaveSpotFacts): EstimateEmail {
-  return withUnsubscribe(renderSaveSpotFromLikelyEmail({
-    estimateUrl: f.estimateUrl, outcome: "likely", apCount: 2, campaignUrl: f.campaignUrl, referralUrl: f.referralUrl ?? null,
+function likelyInput(f: SaveSpotFacts) {
+  return {
+    estimateUrl: f.estimateUrl, outcome: "likely" as const, apCount: 2, referralUrl: f.referralUrl ?? null,
     estimatedTotal: f.estimatedTotal, veuDiscount: f.veuDiscount, grossProjectTotal: f.grossTotal, areaM2: f.areaM2,
     amountPayableNow: 0, estimatedRemainingBalance: f.estimatedTotal,
     firstName: f.firstName, address: f.address, reference: f.reference, existingInsulationPresent: f.existingInsulationPresent,
     assessmentFee: f.assessmentFee ?? 349, apFee: f.apFee ?? 349,
     installationPrice: f.installation ?? f.grossTotal - (f.assessmentFee ?? 349) - (f.apFee ?? 349),
-  }), f.unsubscribeUrl);
+  };
+}
+
+/** Step 3 "Likely eligible" email for these facts. */
+export function renderStep3Likely(f: SaveSpotFacts): EstimateEmail {
+  return withUnsubscribe(renderEstimateEmail(likelyInput(f)), f.unsubscribeUrl);
+}
+
+/** Save your spot = the Step 3 likely email for the same facts with ONLY the four pink-box swaps. */
+export function renderStep3SaveSpot(f: SaveSpotFacts): EstimateEmail {
+  return withUnsubscribe(renderSaveSpotFromLikelyEmail({ ...likelyInput(f), campaignUrl: f.campaignUrl }), f.unsubscribeUrl);
+}
+
+/** Lines that differ between the two (plain text), old next to new. */
+export function saveSpotDifferences(f: SaveSpotFacts): { before: string; after: string }[] {
+  const a = renderStep3Likely(f).plainText.split("\n"), b = renderStep3SaveSpot(f).plainText.split("\n");
+  const out: { before: string; after: string }[] = [];
+  for (let i = 0; i < Math.max(a.length, b.length); i++) if (a[i] !== b[i]) out.push({ before: a[i] ?? "", after: b[i] ?? "" });
+  return out;
 }
 
 // Step 3 preview sample (postcode 3336, 150 m², standard access, settings v2). Same numbers the page shows.
