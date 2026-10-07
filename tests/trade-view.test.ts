@@ -29,8 +29,11 @@ describe("trade view presentation", () => {
     expect(payPill(payState({ paidAt: "2026-10-02T01:00:00Z", apApprovedAt: "2026-10-01T00:00:00Z" })).label).toBe("Paid Fri 2 Oct");
   });
   test("setup and before-you-start gating", () => {
-    expect(setupComplete({ details: true, rates: true, bank: true, alerts: true, mitti: true })).toBe(true);
-    expect(setupComplete({ details: true, rates: true, bank: true, alerts: true })).toBe(false);
+    expect(setupComplete({ details: true, rates: true, bank: true, alerts: true })).toBe(true);
+    expect(setupComplete({ details: true, rates: true, bank: true })).toBe(false);
+    // Mitti is never shown to partners until the office invites them.
+    expect(SETUP_STEPS.some((s) => s.key === ("mitti" as string))).toBe(false);
+    expect(PRESTART_CHECKS.some((c) => /mitti/i.test(c.title + c.sub))).toBe(false);
     expect(prestartReady([true, true, false])).toBe(false);
     expect(prestartReady([true, true, true])).toBe(true);
   });

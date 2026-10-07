@@ -42,7 +42,7 @@ export const getTradeSetupView = createServerFn({ method: "POST" }).middleware([
   .handler(async ({ context }) => plain(await (await import("./trade-view.server")).tradeSetup(context.userId)));
 
 export const markTradeSetup = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ key: z.enum(["details", "rates", "bank", "alerts", "mitti", "team"]), done: z.boolean() }).parse(d))
+  .inputValidator((d) => z.object({ key: z.enum(["details", "rates", "bank", "alerts", "team"]), done: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetupMark(context.userId, data.key, data.done));
 
 export const getTradeBusinessFile = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
