@@ -51,7 +51,7 @@ function DayPage() {
           {o.kind === "not_eligible" && <Result tone="blush" title="Not eligible this time." body="Thanks for checking. We'll let the owner know, so you don't have to." items={o.reason ? [o.reason] : []} />}
           {o.kind === "wrap" && <Result tone="mint" title="That's a wrap. Done and dusted." body="We'll check the photos and sign it off." />}
           {o.kind === "missing" && <Result tone="blush" title={`Nearly there. ${o.items.length} photo${o.items.length === 1 ? "" : "s"} missing.`} body="Add these in the onsite form and this page updates itself." items={o.items} />}
-          {o.kind === "couldnt_get_in" && <Result tone="blush" title="No worries. We'll sort it." body={couldntGetInMessage(o.reason)} />}
+          {o.kind === "couldnt_get_in" && <Result tone="blush" title="Thanks. The office will rebook it." body={couldntGetInMessage(o.reason)} />}
           {back}
         </>
       ) : started ? (
