@@ -39,7 +39,8 @@ export const createBulkBatch = createServerFn({ method: "POST" }).middleware([re
     listFilename: z.string().min(1).max(300),
     rawRows: z.array(rawRow).max(5000).default([]),
     documents: z.array(z.object({ name: z.string().max(300), text: z.string().max(200_000) })).max(500).default([]),
-    permissionConfirmed: z.literal(true, { errorMap: () => ({ message: "Please tick to confirm these customers are happy for Home Insulation Victoria to contact them." }) }),
+    // Optional since 7 Oct: consent is now ticked per customer on the review card (enforced at confirm).
+    permissionConfirmed: z.boolean().optional(),
     manifest: z.array(manifestFile).max(5000).default([]),
     fileReads: z.array(fileRead).max(5000).default([]),
   }).parse(d))
@@ -50,12 +51,12 @@ export const createBulkBatch = createServerFn({ method: "POST" }).middleware([re
       list_filename: data.listFilename, file_manifest: data.manifest as unknown as Json,
       summary: {
         raw_rows: data.rawRows, documents: data.documents, file_reads: data.fileReads,
-        permission: { confirmed_by: context.userId, confirmed_at: new Date().toISOString(), wording: CONTACT_PERMISSION_WORDING },
+        permission: data.permissionConfirmed ? { confirmed_by: context.userId, confirmed_at: new Date().toISOString(), wording: CONTACT_PERMISSION_WORDING } : null,
       } as unknown as Json,
     }).select("id").single();
     if (error || !batch) throw new WorkflowError(error?.message ?? "Upload could not be saved.");
     const { logPartner } = await import("./pilot.server");
-    await logPartner(null, context.userId, "bulk_import_permission", CONTACT_PERMISSION_WORDING, { batch_id: batch.id, confirmed_by: context.userId });
+    if (data.permissionConfirmed) await logPartner(null, context.userId, "bulk_import_permission", CONTACT_PERMISSION_WORDING, { batch_id: batch.id, confirmed_by: context.userId });
     const { analyseBatch } = await import("./bulk-import.server");
     const summary = await analyseBatch(batch.id, context.userId);
     return { batchId: batch.id, summary };
@@ -90,7 +91,7 @@ const electricianPlan = z.object({ mode: z.enum(["mine", "hivic", "job_by_job"])
 export const setBulkReviewPlan = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ batchId: uuid, batchPlan: electricianPlan, rows: z.array(z.object({ rowId: uuid, stage: z.enum(["not_visited", "visited", "quoted", "installed"]), plan: electricianPlan.nullable(),
     siteCheck: z.enum(["yes", "no"]).nullable().optional(), siteCheckDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-    quoted: z.enum(["yes", "no"]).nullable().optional(), quotedPrice: z.number().positive().max(1_000_000).nullable().optional() })).max(5000) }).parse(d))
+    quoted: z.enum(["yes", "no"]).nullable().optional(), quotedPrice: z.number().positive().max(1_000_000).nullable().optional(), consent: z.boolean().optional() })).max(5000) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: batch } = await admin.from("bulk_import_batches").select("business_id,status").eq("id", data.batchId).single();
     if (!batch || batch.status !== "analysed") throw new WorkflowError("This upload can no longer be changed.");
@@ -117,7 +118,7 @@ export const setBulkReviewPlan = createServerFn({ method: "POST" }).middleware([
       const stage = row.stage === "installed" ? "installed" : stageForSiteCheck(check, priced, cur.import_stage as never);
       await admin.from("bulk_import_rows").update({
         import_stage: stage, electrician_plan: row.plan as unknown as Json,
-        extracted: { ...e, site_check: check, site_check_date: date, site_check_source: answered ? "asked" : e["site_check_source"] ?? null, lead_stage: stage } as unknown as Json,
+        extracted: { ...e, ...(row.consent === undefined ? {} : { owner_consent: row.consent ? { confirmed_by: context.userId, confirmed_at: new Date().toISOString(), wording: CONTACT_PERMISSION_WORDING } : false }), site_check: check, site_check_date: date, site_check_source: answered ? "asked" : e["site_check_source"] ?? null, lead_stage: stage } as unknown as Json,
       }).eq("id", row.rowId).eq("batch_id", data.batchId);
     }
     return { ok: true };
@@ -167,6 +168,7 @@ export const setBulkRowAddress = createServerFn({ method: "POST" }).middleware([
     address_line: z.string().trim().min(3).max(200),
     suburb: z.string().trim().min(2, "Enter the suburb").max(100),
     postcode: z.string().trim().regex(/^3\d{3}$/, "Enter a 4-digit Victorian postcode"),
+    second_contact: z.object({ name: z.string().trim().max(200).nullable(), phone: z.string().trim().max(30).nullable(), email: z.string().trim().max(320).nullable() }).nullable().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: row } = await admin.from("bulk_import_rows").select("batch_id").eq("id", data.rowId).single();
@@ -176,7 +178,7 @@ export const setBulkRowAddress = createServerFn({ method: "POST" }).middleware([
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
     if (!isAdmin) await requireMember(context.userId, batch.business_id, true);
     const { setRowAddress } = await import("./bulk-import.server");
-    return setRowAddress(data.rowId, { full_name: data.full_name, email: data.email, phone: data.phone, address_line: data.address_line, suburb: data.suburb, postcode: data.postcode });
+    return setRowAddress(data.rowId, { full_name: data.full_name, email: data.email, phone: data.phone, address_line: data.address_line, suburb: data.suburb, postcode: data.postcode, second_contact: data.second_contact ?? null });
   });
 
 export const listBulkBatches = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])

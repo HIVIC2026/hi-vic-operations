@@ -32,7 +32,10 @@ export type BulkExtracted = {
   unsure?: boolean | null;
   /** Uploaded file names this lead was read from (for the per-file result list). */
   source_files?: string[] | null;
+  /** Couples (Jo, 7 Oct): the first person is the main contact; an optional second contact. */
+  second_contact?: SecondContact | null;
 };
+export type SecondContact = { name: string | null; phone: string | null; email: string | null };
 
 export type BulkFile = {
   path: string;
@@ -404,7 +407,70 @@ export function emailDomainTypo(email: string | null | undefined): string | null
   const d = (email ?? "").trim().toLowerCase().split("@")[1];
   return d && DOMAIN_TYPOS[d] ? DOMAIN_TYPOS[d]! : null;
 }
-export function cleanLead<T extends BulkExtracted>(e: T): { lead: T; issues: string[] } {
+/** Couples (Jo, 7 Oct): "0403 595 088 M 0423 528 978 G", "a@x.com; b@y.com", "Megan Tomlins & Gray Charlton" → main + second contact. */
+const PHONE_FIND = /(?:\+?61[\s-]?|0)[2-478](?:[\s-]?\d){8}/g;
+export function splitContacts(e: Pick<BulkExtracted, "full_name" | "phone" | "email" | "second_contact">): { full_name: string | null; phone: string | null; email: string | null; second: SecondContact | null } {
+  const phones = (e.phone ?? "").match(PHONE_FIND) ?? [];
+  const emails = (e.email ?? "").split(/[;,/\s]+|\band\b/i).map((x) => x.trim()).filter((x) => x.includes("@"));
+  const names = (e.full_name ?? "").split(/\s*(?:&|\band\b|\/|;|\+)\s*/i).map((x) => x.trim()).filter(Boolean);
+  // "Megan & Gray Charlton" -> second name borrows the surname.
+  if (names.length === 2 && !/\s/.test(names[0]!) && /\s/.test(names[1]!)) names[0] = `${names[0]} ${names[1]!.split(/\s+/).slice(1).join(" ")}`;
+  const prev = e.second_contact ?? null;
+  const second: SecondContact = { name: prev?.name ?? names[1] ?? null, phone: prev?.phone ?? phones[1]?.trim() ?? null, email: prev?.email ?? emails[1] ?? null };
+  return {
+    full_name: names.length > 1 ? names[0]! : e.full_name ?? null,
+    phone: phones.length ? phones[0]!.trim() : e.phone ?? null,
+    email: emails.length ? emails[0]! : e.email ?? null,
+    second: second.name || second.phone || second.email ? second : null,
+  };
+}
+
+/** A valid 4-digit postcode outside Victoria: the job can't be taken at all. */
+export const outsideVictoria = (postcode: string | null | undefined) => { const pc = (postcode ?? "").replace(/\D/g, ""); return pc.length === 4 && !/^3\d{3}$/.test(pc) && !/^8\d{3}$/.test(pc); };
+export const OUTSIDE_VIC_MESSAGE = "We can only take Victorian jobs — this one can't be added.";
+
+/** One problem per field, shown next to that field (Jo, 7 Oct). null = fine. */
+export function fieldProblems(e: BulkExtracted): { name: string | null; phone: string | null; email: string | null; address: string | null } {
+  const p = normaliseAuPhone(e.phone);
+  const em = (e.email ?? "").trim();
+  return {
+    name: e.full_name?.trim() ? null : "Add the customer's name",
+    phone: !e.phone?.trim() ? "Add a phone number" : p.ok ? null : "This doesn't look like an Australian number",
+    email: !em ? "Add an email" : !EMAIL_RE.test(em.toLowerCase()) ? "This doesn't look like an email" : emailDomainTypo(em) ? `Did you mean …@${emailDomainTypo(em)}?` : null,
+    address: outsideVictoria(e.postcode) ? OUTSIDE_VIC_MESSAGE : !e.address_line?.trim() || !e.suburb?.trim() || !/^\d{4}$/.test((e.postcode ?? "").trim()) ? "Add the street, suburb and postcode" : null,
+  };
+}
+
+/** One status line for a review card: "Ready" or "Needs: email, quoted price". */
+export function rowStatusLine(x: { lead: BulkExtracted; consent: boolean; quoted: "yes" | "no" | null; quotedPrice: number | null; siteCheck: "yes" | "no" | null; installed?: boolean; duplicate?: string | null }): { ready: boolean; text: string; excluded: boolean } {
+  if (x.duplicate) return { ready: false, excluded: true, text: `Not added: ${x.duplicate}` };
+  if (outsideVictoria(x.lead.postcode)) return { ready: false, excluded: true, text: OUTSIDE_VIC_MESSAGE };
+  const f = fieldProblems(x.lead);
+  const needs: string[] = [];
+  if (f.name) needs.push("name");
+  if (f.address) needs.push("address");
+  if (f.phone) needs.push("phone");
+  if (f.email) needs.push("email");
+  if (!x.consent) needs.push("owner consent tick");
+  if (x.quoted === "yes" && !(x.quotedPrice && x.quotedPrice > 0)) needs.push("quoted price");
+  if (!x.installed && !x.siteCheck) needs.push("site check answer");
+  return needs.length ? { ready: false, excluded: false, text: `Needs: ${needs.join(", ")}` } : { ready: true, excluded: false, text: "Ready" };
+}
+
+export const jobsFound = (n: number) => `${n} job${n === 1 ? "" : "s"} found`;
+
+/** Plain file note: "We attached Job Sheet.docx to this customer — is that right?" */
+export function attachedFilesNote(files: { name: string; how: string }[]): string | null {
+  const guessed = files.filter((f) => f.how !== "folder");
+  if (!guessed.length) return null;
+  const names = guessed.map((f) => f.name.split("/").pop()!);
+  return `We attached ${names.length > 2 ? `${names.slice(0, 2).join(", ")} and ${names.length - 2} more` : names.join(" and ")} to this customer — is that right?`;
+}
+
+export function cleanLead<T extends BulkExtracted>(e0: T): { lead: T; issues: string[] } {
+  const sc = splitContacts(e0);
+  const e = { ...e0, full_name: sc.full_name, phone: sc.phone, email: sc.email, second_contact: sc.second } as T;
+  if (sc.second && !(e.notes ?? "").includes("Second contact:")) e.notes = [e.notes, `Second contact: ${[sc.second.name, sc.second.phone, sc.second.email].filter(Boolean).join(", ")}`].filter(Boolean).join(" · ");
   const issues: string[] = [];
   const p = normaliseAuPhone(e.phone);
   if (!p.ok) issues.push(`Phone "${e.phone}" doesn't look like an Australian number — please check`);
@@ -413,7 +479,7 @@ export function cleanLead<T extends BulkExtracted>(e: T): { lead: T; issues: str
   else if (email) { const fix = emailDomainTypo(email); if (fix) issues.push(`Email "${e.email}" looks like a typo — did you mean ${fix}? Please check`); }
   const pc = e.postcode?.replace(/\D/g, "") || null;
   if (e.postcode && (!pc || pc.length !== 4)) issues.push(`Postcode "${e.postcode}" isn't 4 digits — please check`);
-  else if (pc && !/^3\d{3}$/.test(pc) && !/^8\d{3}$/.test(pc)) issues.push(`Postcode ${pc} is outside Victoria — please check`);
+  else if (pc && !/^3\d{3}$/.test(pc) && !/^8\d{3}$/.test(pc)) issues.push(OUTSIDE_VIC_MESSAGE);
   if (e.area_m2 != null && (e.area_m2 < 10 || e.area_m2 > 1000)) issues.push(`Ceiling size ${e.area_m2} m² looks unusual — please check`);
   return { lead: { ...e, phone: p.phone, email: email && EMAIL_RE.test(email) ? email : e.email ?? null, postcode: pc && pc.length === 4 ? pc : e.postcode ?? null }, issues };
 }

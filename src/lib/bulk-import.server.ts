@@ -13,7 +13,7 @@ import { hashToken, newToken } from "./worker-links.core";
 import { linkFiles, type LeadStage } from "./bulk-import.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
-  customerDetailsReason, quotedGap, QUOTED_ANSWER_NEEDED, effectiveSiteCheck, cleanLead, gridToRecords, dedupeKey, parseSiteCheck, QUOTE_NEEDED_LABEL, quoteNeeded, siteCheckFromFile, siteCheckLabel, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
+  customerDetailsReason, outsideVictoria, quotedGap, QUOTED_ANSWER_NEEDED, effectiveSiteCheck, cleanLead, gridToRecords, dedupeKey, parseSiteCheck, QUOTE_NEEDED_LABEL, quoteNeeded, siteCheckFromFile, siteCheckLabel, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
   type BulkExtracted, type BulkFile,
 } from "./bulk-import.core";
 
@@ -385,8 +385,9 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
   const { data: batch } = await admin.from("bulk_import_batches").select("*").eq("id", batchId).single();
   if (!batch || batch.status !== "analysed") throw new BulkImportError("This upload is not ready to confirm.");
   const { data: rows } = await admin.from("bulk_import_rows").select("*").eq("batch_id", batchId).eq("status", "pending").order("row_index");
-  const permission = (batch.summary as { permission?: { confirmed_by: string; confirmed_at: string; wording: string } } | null)?.permission;
-  if (!permission?.confirmed_by || !permission.confirmed_at) throw new BulkImportError("The contact permission tick is missing for this upload — please upload again and tick the box.");
+  type Perm = { confirmed_by: string; confirmed_at: string; wording: string };
+  // Owner consent (Jo, 7 Oct): ticked per customer on the review card; older uploads carry one tick for the whole upload.
+  const batchPermission = (batch.summary as { permission?: Perm } | null)?.permission ?? null;
   let created = 0, skipped = 0, failed = 0, alreadyTaken = 0;
   const ownerLinks: { jobNumber: string; owner: string; path: string }[] = [];
   for (const row of rows ?? []) {
@@ -400,6 +401,17 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
     if (gap) {
       failed++;
       await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: ${gap} in the review table, then confirm again`, { batch_id: batchId, row_id: row.id });
+      continue;
+    }
+    const permission = ((e as { owner_consent?: Perm | null }).owner_consent ?? batchPermission) as Perm | null;
+    if (!permission?.confirmed_by || !permission.confirmed_at || (e as { owner_consent?: unknown }).owner_consent === false) {
+      failed++;
+      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: owner consent not ticked — tick it on the card, then confirm again`, { batch_id: batchId, row_id: row.id });
+      continue;
+    }
+    if (outsideVictoria(e.postcode)) {
+      const { data: sk } = await admin.from("bulk_import_rows").update({ status: "skipped" }).eq("id", row.id).eq("status", "pending").select("id").maybeSingle();
+      if (sk) skipped++;
       continue;
     }
     // Quoted? never blocks (Jo, 5:46pm): blank = confirm anyway, job shows "Quoted? – answer needed". Only Yes-without-price stops a row.
@@ -469,7 +481,7 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
 }
 
 /** Office/installer adds the missing address to a review row; the row is re-sorted (never auto-confirmed). */
-export async function setRowAddress(rowId: string, addr: { full_name?: string; email?: string; phone?: string; address_line: string; suburb: string | null; postcode: string | null }) {
+export async function setRowAddress(rowId: string, addr: { full_name?: string; email?: string; phone?: string; address_line: string; suburb: string | null; postcode: string | null; second_contact?: { name: string | null; phone: string | null; email: string | null } | null }) {
   const { data: row } = await admin.from("bulk_import_rows").select("*").eq("id", rowId).single();
   if (!row || row.status !== "pending") throw new BulkImportError("This row can no longer be changed.");
   const { lead: e, issues } = cleanLead({ ...(row.extracted as unknown as BulkExtracted), ...addr });
