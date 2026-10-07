@@ -348,7 +348,7 @@ export function fileResults(read: FileResult[], leads: BulkExtracted[], matches:
     if (fed.length) parts.push(fed.length === 1 ? `customer found: ${label(fed[0]!)}` : `${fed.length} customers found`);
     const g = hit.find((h) => h.x.how === "gps"), o = fed.length ? undefined : hit[0];
     if (g) parts.push(`matched by GPS to ${label(g.e)}`);
-    else if (o) parts.push(o.x.how === "only_lead" ? `attached to ${label(o.e)} (the only customer in this upload)` : `matched by ${({ folder: "folder name", filename: "file name", photo_text: "address written in the file", gps: "GPS", only_lead: "" } as const)[o.x.how]} to ${label(o.e)}`);
+    else if (o) parts.push(o.x.how === "only_lead" ? `attached to ${label(o.e)} (the only customer in this upload)` : `matched by ${({ folder: "folder name", filename: "file name", photo_text: "address written in the file", gps: "GPS", only_lead: "", added: "you" } as const)[o.x.how]} to ${label(o.e)}`);
     const used = fed.length > 0 || hit.length > 0;
     return { name: r.name, status: used ? r.status : "warn", message: used ? parts.join(" — ") : `${r.message} — not linked to any customer` };
   });
@@ -461,7 +461,7 @@ export const jobsFound = (n: number) => `${n} job${n === 1 ? "" : "s"} found`;
 
 /** Plain file note: "We attached Job Sheet.docx to this customer — is that right?" */
 export function attachedFilesNote(files: { name: string; how: string }[]): string | null {
-  const guessed = files.filter((f) => f.how !== "folder");
+  const guessed = files.filter((f) => f.how !== "folder" && f.how !== "added");
   if (!guessed.length) return null;
   const names = guessed.map((f) => f.name.split("/").pop()!);
   return `We attached ${names.length > 2 ? `${names.slice(0, 2).join(", ")} and ${names.length - 2} more` : names.join(" and ")} to this customer — is that right?`;
