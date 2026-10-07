@@ -1,7 +1,6 @@
 // Per-job profit breakdown (office only; never shown to owners or trades). Pure; Jo's rules 4 Oct 2026.
 // AP fee; VEEC spread = VEECs × (sale price − $70); PIESA markup = $349 − electrician's agreed rate;
-// installer markup = (owner price − installer's agreed rate) × m² on EVERY job (Jo 7 Oct: the owner always pays HIV owner
-// prices, never the installer's price); installer payout (est.) = installer's agreed rate card × area. Amounts inc GST
+// installer markup = (owner price − installer's agreed rate) × m², HIV jobs only. Amounts inc GST
 // unless stated; ex GST = inc ÷ 1.1. VEEC spread is shown without GST (certificate sale, not an owner charge).
 import { ghgEquivalentReduction, lookupLocation } from "./activity48.core";
 
@@ -11,7 +10,7 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 export type ProfitSide = {
   areaM2: number | null; areaBasis: "estimate" | "measured" | "none";
   veecs: number | null; veecPrice: number; veecPriceBasis: "current setting" | "actual sale";
-  apFeeInc: number; piesaMarkupInc: number | null; installerMarkupInc: number | null; installerPayoutInc: number | null;
+  apFeeInc: number; piesaMarkupInc: number | null; installerMarkupInc: number | null;
   veecSpread: number | null; totalInc: number | null; totalEx: number | null; notes: string[];
 };
 
@@ -50,20 +49,20 @@ function side(i: ProfitInput, actual: boolean): ProfitSide {
   const veecSpread = veecs == null ? null : r2(veecs * (veecPrice - (i.veecBuyPrice ?? VEEC_BOUGHT_PRICE)));
   const piesaMarkupInc = i.electricianPiesaRateInc == null ? null : r2(i.piesaCustomerInc - i.electricianPiesaRateInc);
   if (piesaMarkupInc == null) notes.push("Electrician PIESA rate to be confirmed.");
-  const payoutKnown = i.installerR5IncPerM2 != null && !!areaM2;
-  const installerPayoutInc = payoutKnown ? r2(i.installerR5IncPerM2! * areaM2! + (i.removalM2 > 0 && i.installerRemovalIncPerM2 != null ? i.installerRemovalIncPerM2 * i.removalM2 : 0)) : null;
-  let installerMarkupInc: number | null;
-  if (i.hivJob && actual && i.acceptedQuoteMarkupInc != null) {
-    installerMarkupInc = i.acceptedQuoteMarkupInc;
-    if (i.acceptedQuoteLegacy) notes.push("Accepted quote used the old pricing (12% markup).");
-  } else if (!payoutKnown) { installerMarkupInc = null; notes.push("Installer agreed rate or area missing – installer payout and markup not worked out."); }
-  else installerMarkupInc = r2((i.ownerR5IncPerM2 * i.accessMultiplier - i.installerR5IncPerM2!) * areaM2! + (i.removalM2 > 0 && i.installerRemovalIncPerM2 != null ? (i.ownerRemovalIncPerM2 - i.installerRemovalIncPerM2) * i.removalM2 : 0));
+  let installerMarkupInc: number | null = 0;
+  if (i.hivJob) {
+    if (actual && i.acceptedQuoteMarkupInc != null) {
+      installerMarkupInc = i.acceptedQuoteMarkupInc;
+      if (i.acceptedQuoteLegacy) notes.push("Accepted quote used the old pricing (12% markup).");
+    } else if (i.installerR5IncPerM2 == null || !areaM2) { installerMarkupInc = null; notes.push("Installer agreed rate or area missing – installer markup not worked out."); }
+    else installerMarkupInc = r2((i.ownerR5IncPerM2 * i.accessMultiplier - i.installerR5IncPerM2) * areaM2 + (i.removalM2 > 0 && i.installerRemovalIncPerM2 != null ? (i.ownerRemovalIncPerM2 - i.installerRemovalIncPerM2) * i.removalM2 : 0));
+  }
   const parts = [i.apFeeInc, piesaMarkupInc, installerMarkupInc];
   const known = parts.every((p) => p != null) && veecSpread != null;
   const feesInc = r2((i.apFeeInc) + (piesaMarkupInc ?? 0) + (installerMarkupInc ?? 0));
   return {
     areaM2, areaBasis, veecs, veecPrice, veecPriceBasis: sold ? "actual sale" : "current setting",
-    apFeeInc: i.apFeeInc, piesaMarkupInc, installerMarkupInc, installerPayoutInc, veecSpread,
+    apFeeInc: i.apFeeInc, piesaMarkupInc, installerMarkupInc, veecSpread,
     totalInc: known ? r2(feesInc + veecSpread!) : null, totalEx: known ? r2(feesInc / 1.1 + veecSpread!) : null, notes,
   };
 }

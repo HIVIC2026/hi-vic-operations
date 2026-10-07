@@ -64,7 +64,7 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
       admin.from("partner_offers").select("business_id").eq("status", "pending").in("business_id", inIds),
       admin.from("partner_offers").select("business_id, status, offered_at").eq("job_id", data.jobId).eq("kind", data.kind),
       admin.from("retail_estimator_settings").select("piesa_assessment_inc_gst, r5_install_inc_gst_per_m2").eq("is_current", true).maybeSingle(),
-      admin.from("jobs").select("job_number, source, offer_dispatch_override, properties(suburb, postcode)").eq("id", data.jobId).single(),
+      admin.from("jobs").select("job_number, source, channel, offer_dispatch_override, properties(suburb, postcode)").eq("id", data.jobId).single(),
     ]);
     // Rate for this job: electricians = agreed PIESA rate (inc GST); installers = active installer rate card R5 line (inc GST per m²).
     let rates = new Map<string, number>();
@@ -76,7 +76,8 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
       const { data: items } = await admin.from("rate_card_items").select("rate_card_id, r_value, unit, unit_price_ex_gst").in("rate_card_id", cardIds.length ? cardIds : NONE);
       for (const [b, cid] of latest) { const it = (items ?? []).find((i) => i.rate_card_id === cid && Number(i.r_value) === 5) ?? (items ?? []).find((i) => i.rate_card_id === cid); if (it) rates.set(b, Math.round(Number(it.unit_price_ex_gst) * 1.1 * 100) / 100); }
     }
-    const ownerPrice = isRc ? (retail?.r5_install_inc_gst_per_m2 != null ? Number(retail.r5_install_inc_gst_per_m2) : null) : (retail?.piesa_assessment_inc_gst != null ? Number(retail.piesa_assessment_inc_gst) : null);
+    // HIV owner prices (and the "rate at or above owner price" warning) apply only to HIV leads (Jo 7 Oct); partner jobs aren't marked up.
+    const ownerPrice = isRc ? (job?.channel === "installer_sourced" ? null : retail?.r5_install_inc_gst_per_m2 != null ? Number(retail.r5_install_inc_gst_per_m2) : null) : (retail?.piesa_assessment_inc_gst != null ? Number(retail.piesa_assessment_inc_gst) : null);
     const count = (rows: { business_id: string | null }[] | null, id: string) => (rows ?? []).filter((x) => x.business_id === id).length;
     const offered = new Map((mine ?? []).map((o) => [o.business_id, o.status]));
     const bz = new Map((biz ?? []).map((b) => [b.id, b]));
