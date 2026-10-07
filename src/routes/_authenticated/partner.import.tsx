@@ -26,9 +26,8 @@ function ImportPage() {
   const businessId = (profile?.business as { id?: string } | undefined)?.id;
   return (
     <TradeShell installer>
-      <Link to="/partner" className="mb-3 inline-block text-sm text-muted-foreground">← Partner dashboard</Link>
-      <h1 className="mb-1 text-2xl font-bold">Import an existing job</h1>
-      <p className="mb-4 text-sm text-muted-foreground">Paste, upload or export what you already have. We'll pull out the details and you just confirm them.</p>
+      <h1 className="font-display text-3xl font-extrabold">Add one job</h1>
+      <p className="text-sm text-estimate-navy/70">Paste, upload or export what you already have. We'll pull out the details and you just confirm them.</p>
       {!businessId ? <p className="text-sm text-muted-foreground">Loading…</p> : draft ? <Review draft={draft} onBack={() => setDraft(null)} /> : <Source businessId={businessId} onDraft={setDraft} />}
     </TradeShell>
   );
