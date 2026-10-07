@@ -25,12 +25,12 @@ export async function tradeContext(userId: string) {
 }
 
 /** Review D: bosses see every active assignment for the business; workers only their own. */
-function assignmentQuery(c: { biz: { id: string }; boss: boolean }, userId: string) {
+export function assignmentQuery(c: { biz: { id: string }; boss: boolean }, userId: string) {
   const q = admin.from("job_assignments").select("job_id, business_id, role").eq("business_id", c.biz.id).eq("active", true);
   return c.boss ? q : q.eq("user_id", userId);
 }
 
-async function ctxOrThrow(userId: string) {
+export async function ctxOrThrow(userId: string) {
   const c = await tradeContext(userId);
   if (!c) throw new WorkflowError("Your sign-in isn't linked to an approved business yet.");
   return c;
@@ -84,7 +84,9 @@ export async function tradeHome(userId: string) {
     .map((o) => ({ id: o.id, kind: o.kind, suburb: (o.summary as { suburb?: string | null })?.suburb ?? null, expiresAt: o.expires_at }));
   const STATUS: Record<string, string> = { ready_check_ready_to_schedule: "Waiting for owner to pick Ready Check times", ready_check_complete: "Office checking your measure-up", on_hold: "On hold (office review)" };
   // Installer-sourced jobs: his own site-check answer and price (labels only; never HIV owner prices or margins).
-  const allJobs = live.map((j) => ({ jobId: j.id, jobNumber: j.job_number, status: STATUS[j.stage] ?? "In progress", ...label(j),
+  const { statusFactsFor, statusView } = await import("./job-status.server");
+  const sf = await statusFactsFor(c, live.map((j) => j.id));
+  const allJobs = live.map((j) => ({ jobId: j.id, jobNumber: j.job_number, status: STATUS[j.stage] ?? "In progress", line: sf.get(j.id) ? statusView(c, sf.get(j.id)!) : null, ...label(j),
     facts: j.installer_site_check || j.installer_quoted_price_inc_gst != null || (j as { channel?: string }).channel === "installer_sourced" ? { quoted: j.installer_quoted as "yes" | "no" | null, site_check: j.installer_site_check as "yes" | "no" | null, site_check_date: j.installer_site_check_date, quoted_price_inc_gst: j.installer_quoted_price_inc_gst == null ? null : Number(j.installer_quoted_price_inc_gst), price_includes: j.installer_price_includes } : null }));
   return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, jobs: allJobs, month: c.boss ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0) } : null };
 }

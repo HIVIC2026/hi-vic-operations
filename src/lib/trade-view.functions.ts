@@ -83,3 +83,11 @@ export const getPartnerMittiInvited = createServerFn({ method: "POST" }).middlew
     if (error) throw new Error(error.message);
     return { invited: b?.mitti_account_invited === true, at: b?.mitti_account_invited_at ?? null };
   });
+
+export const getTradeJobStatus = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./job-status.server")).tradeJobStatus(context.userId, data.jobId)));
+
+export const askTradeReminder = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => (await import("./job-status.server")).tradeAskReminder(context.userId, data.jobId));

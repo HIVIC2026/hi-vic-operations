@@ -33,6 +33,7 @@ function useMittiInvited() {
 import { MeasurementDetails, MeasurementReadOnly, useJobScope, useMeasurements } from "@/components/portal/requirements";
 import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
+import { JobStatusCard } from "@/components/trade/job-status";
 import { InstallerJourney } from "@/components/portal/installer-journey";
 import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment, submitForApReview } from "@/lib/portal.functions";
 import { aud } from "@/lib/workflow";
@@ -73,6 +74,7 @@ function FieldJob() {
           {job.owner_phone && <a href={`sms:${job.owner_phone}`} className={btnClass("secondary")}>Text</a>}
           {maps && job.owner_name && <a href={maps} target="_blank" rel="noreferrer" className={btnClass("secondary")}>Directions</a>}
         </div>} />
+      <JobStatusCard jobId={jobId} />
       {role === "installer" && <PartnerInstallerFactsCard jobId={jobId} />}
       {role === "installer" && <JobElectricianCard jobId={jobId} />}
       <div><BlockersPanel jobId={jobId} quietWhenClear partner /></div>
