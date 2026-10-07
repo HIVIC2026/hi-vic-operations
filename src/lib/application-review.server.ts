@@ -2,7 +2,7 @@
 // a send-back copies the answers into a fresh draft the installer edits and signs again.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError } from "./workflow.server";
-import { APPLICATION_REVIEW_WORDING_APPROVED, changesEmail, declineEmail, reviewInputError, type ReviewDecision } from "./application-review.core";
+import { changesEmail, declineEmail, reviewInputError, type ReviewDecision } from "./application-review.core";
 
 async function sha256(s: string) {
   const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
@@ -57,8 +57,13 @@ export async function decideApplication(actorId: string, applicationId: string, 
   const to = a.test_mode ? (await import("./test-send.core")).TEST_ALLOWLIST.email[0] : (d.business_email ?? "").trim();
   const mail = decision === "changes_requested" ? changesEmail({ contactName: d.primary_contact_name ?? null, message: text ?? "", link: link!, test: !!a.test_mode }) : declineEmail({ contactName: d.primary_contact_name ?? null, reason: text, test: !!a.test_mode });
   let email: { status: string; detail: string };
-  if (!a.test_mode) email = { status: "blocked", detail: APPLICATION_REVIEW_WORDING_APPROVED ? "Real sending is switched off." : "Not sent: the email wording is waiting for Jo's approval." };
-  else if (!to) email = { status: "blocked", detail: "No business email on the application." };
+  if (!to) email = { status: "blocked", detail: "No business email on the application." };
+  else if (!a.test_mode) {
+    // Jo's own typed message (7 Oct): a one-off office email, so it goes to the real address with reply-to the office.
+    const { sendOfficeEmail } = await import("./office-email.server");
+    const r = await sendOfficeEmail({ actorId, recipient: "applicant", to, contactName: d.primary_contact_name ?? null, subject: mail.subject, message: text ?? (decision === "declined" ? "(no reason given)" : ""), label: `application_${decision}`, record: { applicationId: a.id, enquiryId: a.partner_enquiry_id }, html: mail.html, text: mail.text });
+    email = { status: r.status, detail: r.status === "sent" ? `Sent to ${r.to}` : r.detail };
+  }
   else {
     const { sendTestEmail } = await import("./test-send.server");
     const r = await sendTestEmail({ jobId: null, jobSource: null, partnerIsTest: true, label: `application_${decision}`, actorId }, to, mail.subject, mail.html, mail.text);
