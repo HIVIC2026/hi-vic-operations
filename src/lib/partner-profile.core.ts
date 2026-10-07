@@ -20,15 +20,15 @@ export function normaliseMobile(v: unknown): string | null {
   return raw;
 }
 
-export type Credential = { kind: string; label: string; number: string | null; expires_at: string | null; issuer: string | null; has_file: boolean; verified: boolean; holder?: string | null };
+export type Credential = { kind: string; label: string; number: string | null; expires_at: string | null; issuer: string | null; has_file: boolean; verified: boolean; holder?: string | null; issued_at?: string | null; file_url?: string | null };
 export type PartnerProfile = {
   business: { legal_name: string | null; trading_name: string | null; abn: string | null; type: ProfileType; address: string | null; base_suburb: string | null; email: string | null; phone: string | null; gst_registered: boolean | null };
   signer: { name: string | null; position: string | null; mobile: string | null; email: string | null };
   workers: { name: string | null; role: "electrician" | "installer"; mobile: string | null; email: string | null }[];
   licences: Credential[];
-  insurance: { amount: number | null; insurer: string | null; policy: string | null; expires_at: string | null; expiry_source: "typed_by_applicant"; has_file: boolean; verified: boolean };
+  insurance: { amount: number | null; insurer: string | null; policy: string | null; expires_at: string | null; expiry_source: "typed_by_applicant"; has_file: boolean; verified: boolean; file_url?: string | null };
   agreement: { version: string | null; signed_by: string | null; signed_at: string | null; has_copy: boolean };
-  rates: { piesa: number | null; return_visit: number | null; r5_per_m2: number | null; batts_removal_per_m2: number | null; loose_fill_removal_per_m2: number | null; free_quotes: boolean | null; free_measure_ups: boolean | null };
+  rates: { piesa: number | null; return_visit: number | null; r5_per_m2: number | null; r6_per_m2: number | null; r7_per_m2: number | null; topup_r5_per_m2: number | null; vacuum_only_per_m2: number | null; batts_removal_per_m2: number | null; loose_fill_removal_per_m2: number | null; free_quotes: boolean | null; free_measure_ups: boolean | null };
   coverage: { base: string | null; lat: number | null; lng: number | null; radius_km: number | null; anywhere_in_victoria: boolean };
   capacity: { jobs_per_week: string | null };
   bank: { supplied: boolean };
@@ -57,7 +57,7 @@ export function buildPartnerProfile(app: AppMeta, data: Data, cii: Map<string, C
         const email = normaliseEmail(w["email"]) ?? "";
         const check = cii.get(email);
         return { kind: "cii_certification", label: "CII certification", holder: txt(w["full_legal_name"]), number: w["cii_holds"] === "held" ? txt(w["cii_certificate_number"]) : null,
-          issuer: txt(w["cii_issuer"]), expires_at: check?.expires_on ?? txt(w["cii_expiry"]), has_file: false, verified: check?.status === "verified" };
+          issuer: txt(w["cii_issuer"]), expires_at: check?.expires_on ?? txt(w["cii_expiry"]), issued_at: txt(w["cii_issue_date"]), has_file: false, verified: check?.status === "verified" };
       })
     : [
         { kind: "rec_registration", label: "REC number", number: txt(data["rec_registration_number"]) ?? txt(data["host_rec_number"]), issuer: "Energy Safe Victoria", expires_at: null, has_file: false, verified: false },
@@ -84,7 +84,9 @@ export function buildPartnerProfile(app: AppMeta, data: Data, cii: Map<string, C
     agreement: { version: app.agreement_version, signed_by: app.signer_name, signed_at: app.signed_at, has_copy: !!app.agreement_text },
     rates: {
       piesa: installer ? null : num(data["assessment_rate"]), return_visit: installer ? null : num(data["installation_attendance_rate"]),
-      r5_per_m2: installer ? num(data["r5_rate"]) : null, batts_removal_per_m2: installer ? num(data["batts_removal_rate"]) : null, loose_fill_removal_per_m2: installer ? num(data["loose_fill_removal_rate"]) : null,
+      r5_per_m2: installer ? num(data["r5_rate"]) : null, r6_per_m2: installer ? num(data["r6_rate"]) : null, r7_per_m2: installer ? num(data["r7_rate"]) : null,
+      topup_r5_per_m2: installer ? num(data["topup_r5_rate"]) : null, vacuum_only_per_m2: installer ? num(data["vacuum_only_rate"]) : null,
+      batts_removal_per_m2: installer ? num(data["batts_removal_rate"]) : null, loose_fill_removal_per_m2: installer ? num(data["loose_fill_removal_rate"]) : null,
       free_quotes: installer && typeof data["free_quotes_for_hivic_leads"] === "boolean" ? (data["free_quotes_for_hivic_leads"] as boolean) : null,
       free_measure_ups: installer && typeof data["free_measureups_for_hivic_quote_leads"] === "boolean" ? (data["free_measureups_for_hivic_quote_leads"] as boolean) : null,
     },

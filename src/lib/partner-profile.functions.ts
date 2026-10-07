@@ -16,6 +16,20 @@ export const getPartnerProfilePreview = createServerFn({ method: "POST" }).middl
     const { loadProfileInputs } = await import("./partner-profile.server");
     const inputs = await loadProfileInputs(admin, data.applicationId);
     const profile = buildPartnerProfile(inputs.meta, inputs.data, inputs.cii, inputs.existingCapabilities);
+    // Office-only short-lived file links so Jo can open what the applicant uploaded.
+    const { signFile } = await import("./file-links.server");
+    if (profile.insurance.has_file && inputs.meta.insurance_certificate_path) {
+      const s = await signFile("partner-files", inputs.meta.insurance_certificate_path, 3600);
+      profile.insurance.file_url = s.data?.signedUrl ?? null;
+    }
+    const piisaFiles = ((inputs.data["piisa_files"] ?? {}) as Record<string, string>);
+    const people = ((inputs.meta.partner_type === "installer" ? inputs.data["installers"] : []) as { email?: string }[] | undefined) ?? [];
+    let pi = 0;
+    for (const l of profile.licences) {
+      if (l.kind !== "piisa_training") continue;
+      const path = piisaFiles[(people[pi++]?.email ?? "").trim().toLowerCase()];
+      if (path) { const s = await signFile("partner-files", path, 3600); l.file_url = s.data?.signedUrl ?? null; }
+    }
     return { profile, flags: approvalFlags(profile, inputs.peers, melbourneToday()), isTest: inputs.isTest, existingBusinessId: inputs.existingBusinessId, activatedBusinessId: inputs.activatedBusinessId, approvalMessage: inputs.approvalMessage };
   });
 
