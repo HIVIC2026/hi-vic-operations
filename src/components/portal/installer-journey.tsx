@@ -44,10 +44,10 @@ export function InstallerJourney({ jobId }: { jobId: string }) {
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">{coverage.status === "none" ? "Nothing supplied yet — use our sheet below, or send us your existing measure-up." : "Some items are still missing. Here's where each one gets collected."}</p>
           {carryOver.beforeQuote.length > 0 && (
-            <div className="rounded-lg border border-warning/40 bg-warning-soft p-3">
+            <div className="rounded-[13px] border border-rose/25 bg-pink p-3">
               <p className="text-sm font-semibold">Settle these before we can quote</p>
               <ul className="mt-1 space-y-1">{carryOver.beforeQuote.map((m) => <li key={m} className="flex gap-2 text-sm"><X className="mt-0.5 h-4 w-4 shrink-0 text-warning" />{m}</li>)}</ul>
-              <p className="mt-1.5 text-xs text-muted-foreground">These decide eligibility or price, so they can't wait for installation day.</p>
+              
             </div>
           )}
           {carryOver.atPiisa.length > 0 && (

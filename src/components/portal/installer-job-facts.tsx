@@ -15,8 +15,8 @@ export function InstallerFactsLine({ facts }: { facts: InstallerJobFacts | null 
   const l = installerFactLabels(facts);
   return (
     <div className="flex flex-wrap gap-1 text-[11px] font-semibold" data-installer-facts>
-      <span className={`rounded px-1.5 py-0.5 ${facts.site_check === "yes" ? "bg-success-soft text-success" : facts.site_check === "no" ? "bg-muted text-foreground" : "bg-warning-soft text-foreground"}`}>{l.siteCheck}</span>
-      <span className={`rounded px-1.5 py-0.5 ${facts.quoted_price_inc_gst ? "bg-muted text-foreground" : "bg-warning-soft text-foreground"}`}>{l.price}</span>
+      <span className={`rounded-[18px] px-2 py-0.5 ${facts.site_check === "yes" ? "bg-mint text-hiv-green" : facts.site_check === "no" ? "bg-mist text-hiv-blue" : "bg-pink text-rose"}`}>{l.siteCheck}</span>
+      <span className={`rounded-[18px] px-2 py-0.5 ${facts.quoted_price_inc_gst ? "bg-mist text-hiv-blue" : "bg-pink text-rose"}`}>{l.price}</span>
     </div>
   );
 }
@@ -78,7 +78,7 @@ function QuotedQuestion({ jobId, priceOnly = false }: { jobId: string; priceOnly
     catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
   return (
-    <section className="rounded-[18px] border-2 border-warning bg-card p-5 shadow-sm" data-quoted-question>
+    <section className="rounded-[19px] border border-rose/25 bg-pink p-5 md:p-[23px]" data-quoted-question>
       <p className="text-xs font-bold uppercase tracking-wide text-sub">Next for you</p>
       <h2 className="font-display text-lg font-bold">{QUOTED_QUESTION}</h2>
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -111,7 +111,7 @@ function InstallerReadyCheckCard({ jobId }: { jobId: string }) {
   if (s.action === "none") return <QuotedQuestion jobId={jobId} priceOnly />;
   const run = async (fn: () => Promise<unknown>) => { setBusy(true); setErr(""); try { await fn(); await qc.invalidateQueries(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
   return (
-    <section className="rounded-[18px] border-2 border-warning bg-card p-5 shadow-sm" data-installer-ready-check={s.action}>
+    <section className="rounded-[19px] border border-rose/25 bg-pink p-5 md:p-[23px]" data-installer-ready-check={s.action}>
       <p className="text-xs font-bold uppercase tracking-wide text-sub">Next for you</p>
       {s.action === "booked" ? <><h2 className="font-display text-lg font-bold">Ready Check booked</h2>{s.bookedAt && <p className="text-sm">{new Date(s.bookedAt).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</p>}</>
       : s.action === "waiting_for_owner" ? <><h2 className="font-display text-lg font-bold">Waiting for the owner's times</h2><p className="text-sm">We've asked the owner to choose 3 to 5 times. You'll see them here.</p></>
