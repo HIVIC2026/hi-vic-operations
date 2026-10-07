@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useEffect, useRef, useState } from "react";
@@ -291,9 +292,9 @@ function PartnerLogin({ applicationId, defaultEmail }: { applicationId: string; 
       <p className="text-xs text-muted-foreground">Makes the business boss's sign-in and a one-time set-password link. Emailing it to partners is off until Jo approves the welcome wording, so use "Copy link" and text or email it yourself.</p>
       <div className="mt-2 flex gap-2">
         <input aria-label="Login email" className="h-9 flex-1 rounded border px-2" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <Button size="sm" onClick={async () => { const r = await make({ applicationId, email }, "Login link ready"); if (r) setLink(r.link); }}>Send login link</Button>
+        <Button size="sm" onClick={async () => { const r = await make({ applicationId, email }, "Login link ready"); if (r) setLink(r.link); }}>Make login link</Button>
       </div>
-      {link && <div className="mt-2 space-y-1"><p className="text-xs font-medium">Set-password link (copy and pass on):</p><textarea readOnly aria-label="Set-password link" className="w-full break-all rounded border p-2 text-xs" rows={3} value={link} onFocus={(e) => e.currentTarget.select()} /></div>}
+      {link && <div className="mt-2 space-y-2"><p className="text-xs font-medium">One-time set-password link (works once):</p><textarea readOnly aria-label="Set-password link" className="w-full break-all rounded border p-2 text-xs" rows={3} value={link} onFocus={(e) => e.currentTarget.select()} /><div className="flex flex-wrap gap-2"><Button size="sm" onClick={async () => { await navigator.clipboard.writeText(link); toast.success("Link copied"); }}>Copy link</Button><Button size="sm" variant="outline" disabled title="Sending to partners is off until Jo approves the welcome wording">Send login link (off for now)</Button></div></div>}
     </div>
   );
 }
