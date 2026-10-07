@@ -59,7 +59,7 @@ export function firstOfferedElectrician(jobChoiceBusinessId: string | null, rela
 }
 
 /** Photos or a measurement mean the installer has visited. */
-export function visitedFromEvidence(x: { files: { name: string; type?: string | null }[]; measuredArea?: number | string | null }): boolean {
+export function visitedFromEvidence(x: { files: { name: string; type?: string | null }[]; measuredArea?: number | string | null | undefined }): boolean {
   const photo = x.files.some((f) => /^image\//.test(f.type ?? "") || /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name));
   const area = Number(x.measuredArea);
   return photo || (Number.isFinite(area) && area > 0);

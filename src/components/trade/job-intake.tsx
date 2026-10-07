@@ -121,7 +121,7 @@ export function ElectricianPicker({ value, onChange, approved, pending, onAdd, c
 }
 
 /** Message shown after the invite is sent, from the server result. */
-export function inviteResultMessage(r: { invite: { status: string; to: string } | null; status: string }): string {
+export function inviteResultMessage(r: { invite?: { status: string; to: string } | null; status: string }): string {
   if (!r.invite) return r.status;
   if (r.invite.status === "sent") return `Invite sent to ${r.invite.to}. The job shows "Electrician invited – waiting to onboard".`;
   if (r.invite.status === "dry_run") return `Invite ready for ${r.invite.to} (test run, not sent).`;
