@@ -11,10 +11,10 @@ const files = (d: string): string[] => readdirSync(d).flatMap((f) => { const p =
 describe("Step 3 is the only Save my spot email", () => {
   test("campaign/launch preview path renders the same HTML as Step 3", () => {
     const step3 = renderStep3SaveSpot(S);
-    const viaCampaign = renderLaunchGroupEmail({ group: "likely", campaignUrl: S.campaignUrl, unsubscribeUrl: S.unsubscribeUrl, firstName: S.firstName, estimatedTotal: S.estimatedTotal, veuDiscount: S.veuDiscount, grossTotal: S.grossTotal, areaM2: S.areaM2, address: S.address, reference: S.reference, insulation: "none", installation: S.installation, assessmentFee: S.assessmentFee, apFee: S.apFee });
+    const viaCampaign = renderLaunchGroupEmail({ group: "likely", referralUrl: S.referralUrl, campaignUrl: S.campaignUrl, unsubscribeUrl: S.unsubscribeUrl, firstName: S.firstName, estimatedTotal: S.estimatedTotal, veuDiscount: S.veuDiscount, grossTotal: S.grossTotal, areaM2: S.areaM2, address: S.address, reference: S.reference, insulation: "none", installation: S.installation, assessmentFee: S.assessmentFee, apFee: S.apFee });
     expect(viaCampaign.html).toBe(step3.html);
     expect(viaCampaign.subject).toBe(step3.subject);
-    expect(viaCampaign.text).toBe(step3.text);
+    expect(viaCampaign.plainText).toBe(step3.plainText);
   });
   test("nothing else calls the Save my spot renderer directly", () => {
     const offenders = files("src").filter((f) => !/src\/lib\/(estimate-email|step3-emails)\.ts$/.test(f) && /renderSaveSpotFromLikelyEmail\(/.test(readFileSync(f, "utf8")));
@@ -23,10 +23,30 @@ describe("Step 3 is the only Save my spot email", () => {
   test("Step 3 page, real send and test button all use the Step 3 builder", () => {
     expect(readFileSync("src/routes/step3-email-preview.tsx", "utf8")).toContain("renderStep3SaveSpot(STEP3_SAVESPOT_SAMPLE)");
     const send = readFileSync("src/lib/hot-leads-send.server.ts", "utf8");
-    expect(send).toContain("renderStep3SaveSpot({");
+    expect(send).toContain("renderStep3SaveSpot)({");
     expect(readFileSync("src/lib/hot-leads.functions.ts", "utf8")).toContain("sendSaveMySpot([job.id]");
   });
   test("the campaign editor cannot change the locked Save my spot wording", () => {
     expect(readFileSync("src/routes/_authenticated/admin.campaign-emails.tsx", "utf8")).toContain("Wording locked");
+  });
+});
+
+import { renderStep3Likely, saveSpotDifferences } from "../src/lib/step3-emails";
+describe("Save your spot = Step 3 likely email + four swaps only", () => {
+  test("same subject and preview text", () => {
+    expect(renderStep3SaveSpot(S).subject).toBe(renderStep3Likely(S).subject);
+    expect(renderStep3SaveSpot(S).previewText).toBe(renderStep3Likely(S).previewText);
+  });
+  test("HTML differs only in heading, paragraph, button and small line", () => {
+    const a = renderStep3Likely(S).html.replace(/></g, ">\n<").split("\n"), b = renderStep3SaveSpot(S).html.replace(/></g, ">\n<").split("\n");
+    expect(b.length).toBe(a.length);
+    const changed = a.map((l, i) => [l, b[i]!] as const).filter(([x, y]) => x !== y);
+    expect(changed.length).toBe(4);
+    expect(changed.map(([, y]) => y).join(" ")).toContain("Save your spot");
+    expect(changed.map(([, y]) => y).join(" ")).toContain("Save my spot →");
+    expect(changed.map(([, y]) => y).join(" ")).toContain(`href="${S.campaignUrl}"`);
+  });
+  test("plain text differs in exactly those four places", () => {
+    expect(saveSpotDifferences(S).length).toBe(4);
   });
 });
