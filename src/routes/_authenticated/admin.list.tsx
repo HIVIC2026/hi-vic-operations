@@ -21,7 +21,7 @@ function JobList() {
   const { data, error } = useQuery({ queryKey: ["office-list", sp], queryFn: () => load({ data: { status: sp.status, stage: sp.stage, lateOnly: sp.late, includeTest: sp.test } }) });
   return (
     <AppShell wide>
-      <Link to="/admin/pipeline" className="text-sm font-semibold text-muted-foreground">← Pipeline</Link>
+      <Link to="/admin/jobs" className="text-sm font-semibold text-muted-foreground">← Jobs</Link>
       {error ? <div role="alert" className="mt-3 rounded-[22px] border border-danger/40 bg-danger-soft p-4 text-sm text-danger">Couldn't load this list: {(error as Error).message}</div>
         : !data ? <p className="mt-3 text-muted-foreground">Loading…</p>
         : <>

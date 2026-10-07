@@ -74,7 +74,7 @@ function AvatarMenu({ name, onSignOut }: { name: string; onSignOut: () => void }
   );
 }
 
-/** Office top bar: logo · Needs me (count) · Pipeline · Partners · Money · search · avatar. Tabs underneath. */
+/** Office top bar: logo · Needs me (count) · Jobs · Partners · Money · search · avatar. Tabs underneath. */
 export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () => void }) {
   const loc = useRouterState({ select: (s) => ({ pathname: s.location.pathname, search: s.location.search as Record<string, unknown> }) });
   const section = sectionFor(loc.pathname, loc.search);
