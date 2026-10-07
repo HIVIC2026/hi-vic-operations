@@ -10,7 +10,7 @@ import { OFFER_STATE_LABEL, type OfferItem } from "@/lib/rate-offer.core";
 
 const money = (n: number) => `$${n.toFixed(2)}`;
 
-export function RateOfferPanel({ applicationId, onActivate }: { applicationId: string; onActivate: () => Promise<void> }) {
+export function RateOfferPanel({ applicationId, onActivate, showActivate = true }: { applicationId: string; onActivate: () => Promise<void>; showActivate?: boolean }) {
   const q = useQuery({ queryKey: ["rate-offers", applicationId], queryFn: () => getRateOffers({ data: { applicationId } }) });
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<OfferItem[]>([]);
@@ -93,7 +93,7 @@ export function RateOfferPanel({ applicationId, onActivate }: { applicationId: s
         </div>
       ) : (
         <div className="flex flex-wrap gap-2">
-          <Button disabled={!canActivate} onClick={onActivate}>{st.kind === "accepted" ? "Activate partner with agreed rates" : "Accept rates and activate partner"}</Button>
+          {showActivate && <Button disabled={!canActivate} onClick={onActivate}>{st.kind === "accepted" ? "Activate partner with agreed rates" : "Accept rates and activate partner"}</Button>}
           {canOffer && <Button variant="outline" onClick={open}>{st.kind === "declined" ? "Send a new counter-offer" : "Counter-offer rates"}</Button>}
         </div>
       )}
