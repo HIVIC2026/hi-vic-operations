@@ -11,7 +11,7 @@ export type StatusFacts = {
   quoteSentAt: string | null; quoteAcceptedAt: string | null;
   safetyPaidAt: string | null; ownerTimesChosenAt: string | null;
   rectQuoteSentAt: string | null;
-  paidInFullAt: string | null; firstHalfPaidAt?: string | null;
+  paidInFullAt: string | null; firstHalfPaidAt?: string | null; fixesPaidAt?: string | null;
   apApprovedAt: string | null;
   payout: { kind: "coming"; on: string } | { kind: "checking" } | { kind: "paid"; on: string } | null;
   settings?: DueSettings | null;
@@ -113,7 +113,8 @@ export function jobTimeline(f: StatusFacts): TimelineStep[] {
     { key: "safety_paid", label: f.staff ? "Safety check paid" : "$349 paid", done: f.safetyPaidAt, expected: null },
     { key: "safety_check", label: "Safety check", done: piesa?.start ?? null, expected: conf("assessment")?.start ?? null },
     { key: "fixes", label: "Electrical fixes (if any)", done: rect?.start ?? null, expected: conf("rectification")?.start ?? null, skip: !!piesa && !fixesNeeded },
-    { key: "first_half", label: f.staff ? "First payment at install booking" : "50% at install booking", done: f.firstHalfPaidAt ?? f.paidInFullAt, expected: null },
+    { key: "fixes_paid", label: f.staff ? "Fixes paid" : "Fix costs paid", done: f.fixesPaidAt ?? null, expected: null, skip: !fixesNeeded && !f.fixesPaidAt },
+    { key: "first_half", label: f.staff ? "First payment at install booking" : "50% at install booking", done: f.firstHalfPaidAt ?? null, expected: null },
     { key: "install", label: "Install", done: inst?.start ?? null, expected: instBooked?.start ?? null },
     { key: "final_half", label: f.staff ? "Final payment" : "Final 50%", done: f.paidInFullAt, expected: instBooked?.start ?? null },
     { key: "checked", label: "Checked by Home Insulation Victoria", done: f.apApprovedAt, expected: null },
@@ -137,4 +138,20 @@ export function needsChasing(l: StatusLine) { return l.tone !== "ok"; }
 
 export function reminderRequestMessage(x: { jobNumber: string; status: string; by: string | null }) {
   return `Reminder request for ${x.jobNumber}: please send the owner a reminder. Status: ${x.status}.${x.by ? ` Asked by ${x.by}.` : ""}`;
+}
+
+type PayInvoice = { kind?: string | null; status: string | null; deposit_paid_at: string | null; balance_paid_at: string | null; paid_at: string | null };
+const first = (xs: (string | null | undefined)[]) => xs.filter((x): x is string => !!x).sort()[0] ?? null;
+const last = (xs: (string | null | undefined)[]) => xs.filter((x): x is string => !!x).sort().pop() ?? null;
+/** Payment dates from the existing invoice (Xero-mirrored) and $349 payment records. First 50% = deposit paid; final 50% = balance paid on a fully paid install invoice. */
+export function paymentDates(invoices: PayInvoice[], safetyPayments: { paid_at: string | null }[]) {
+  const inst = invoices.filter((x) => (x.kind ?? "installation") === "installation");
+  const rect = invoices.filter((x) => x.kind === "rectification");
+  const fullyPaid = inst.length > 0 && inst.every((x) => x.status === "fully_paid");
+  return {
+    safetyPaidAt: first(safetyPayments.map((p) => p.paid_at)),
+    firstHalfPaidAt: first(inst.map((x) => x.deposit_paid_at ?? (x.status === "fully_paid" ? x.paid_at : null))),
+    finalHalfPaidAt: fullyPaid ? last(inst.map((x) => x.balance_paid_at ?? x.paid_at)) : null,
+    fixesPaidAt: rect.length && rect.every((x) => x.status === "fully_paid") ? last(rect.map((x) => x.paid_at ?? x.balance_paid_at)) : null,
+  };
 }
