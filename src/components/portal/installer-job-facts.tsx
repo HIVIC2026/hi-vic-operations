@@ -81,9 +81,9 @@ function QuotedQuestion({ jobId, priceOnly = false }: { jobId: string; priceOnly
     <section className="rounded-[19px] border border-rose/25 bg-pink p-5 md:p-[23px]" data-quoted-question>
       <p className="text-xs font-bold uppercase tracking-wide text-sub">Next for you</p>
       <h2 className="font-display text-lg font-bold">{QUOTED_QUESTION}</h2>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button size="field" variant={yes ? "default" : "outline"} disabled={busy} onClick={() => setYes(true)}>Yes</Button>
-        {!priceOnly && <Button size="field" variant="outline" disabled={busy} onClick={() => send("no")}>No</Button>}
+      <div className="mt-3 inline-flex gap-1 rounded-[11px] bg-paper p-1">
+        <Button size="sm" className="min-w-16" variant={yes ? "default" : "outline"} disabled={busy} onClick={() => setYes(true)}>Yes</Button>
+        {!priceOnly && <Button size="sm" className="min-w-16" variant="outline" disabled={busy} onClick={() => send("no")}>No</Button>}
       </div>
       {yes && <div className="mt-3 space-y-2">
         <label className="block text-sm font-bold">Your quoted price inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={price} onChange={(e) => setPrice(e.target.value)} /></label>

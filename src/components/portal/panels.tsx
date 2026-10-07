@@ -64,7 +64,7 @@ export function BlockersPanel({ jobId, quietWhenClear = false, partner = false }
   if (partner) return (
     <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <h2 className="font-display text-lg font-extrabold">What happens next</h2>
-      <p className="mt-1 text-sm text-estimate-navy/70">Some of these are for the owner or the office. We'll let you know when anything needs you.</p>
+      <p className="mt-1 text-sm text-estimate-navy/70">We'll tell you when something needs you.</p>
       <ul className="mt-2 list-disc space-y-1 pl-5">{tradeBlockerLines(data.blockers).map((b) => <li key={b}>{b}</li>)}</ul>
     </section>
   );
