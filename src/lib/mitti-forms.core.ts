@@ -23,6 +23,7 @@ export type FormField = {
 };
 import { B1_OPTIONS, B2_OPTIONS, OFFICIAL_ITEMS, type ItemKind } from "./official-forms.core";
 import { SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS } from "./official-short.core";
+import { PIISA_DECLARATION_FIELDS } from "./piisa-declaration.core";
 
 const G = "ESC Guide V1.1";
 const F1 = "DEECA PIESA form";
@@ -136,7 +137,7 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
   // Short onsite forms (approved 3 Oct 2026): clear full-sentence questions. The portal expands the answers
   // into every official Word-form item (official-expand.core.ts) and fills the official document itself.
   piesa: { title: "VEU pre-installation electrical safety assessment form", role: "electrician", fields: [...SHORT_PIESA_FIELDS, ...PIESA_SUPPLEMENTAL] },
-  piisa: { title: "VEU pre-installation installer safety assessment form", role: "installer", fields: [...SHORT_PIISA_FIELDS, ...PIISA_SUPPLEMENTAL] },
+  piisa: { title: "VEU pre-installation installer safety assessment form", role: "installer", fields: [...SHORT_PIISA_FIELDS.slice(0, -3), ...PIISA_DECLARATION_FIELDS, ...SHORT_PIISA_FIELDS.slice(-3), ...PIISA_SUPPLEMENTAL] },
 };
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();

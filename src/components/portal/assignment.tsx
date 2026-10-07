@@ -288,37 +288,8 @@ export function InstallerFinalDeclaration({ jobId }: { jobId: string }) {
     </div>
   );
   if (data.declaration) return <p className="flex items-center gap-2 text-sm text-success"><CheckCircle2 className="h-4 w-4" /> Declaration signed – {data.declaration.installed_product}, {data.declaration.installed_area_m2} m²{a ? ` · assignment: ${ASSIGNMENT_LABEL[a.status as AssignmentStatus] ?? a.status}` : ""}</p>;
-  if (!data.installationCompleted) return <p className="text-sm text-muted-foreground">Your declaration opens once the installation is marked complete.</p>;
-  if (data.installerBlockers.length) return <p className="text-sm text-muted-foreground">Final sign-off isn't open yet – Home Insulation Victoria is finishing setup.</p>;
-  const quotedRow = data.prefill.find((r) => r.label === "Product quoted")?.value;
-  const quoted = quotedRow && quotedRow !== "—" ? quotedRow : null;
-  const quotedArea = data.prefill.find((r) => r.label === "Area quoted (m²)")?.value;
-  const areaVal = area ?? (quotedArea && quotedArea !== "—" ? quotedArea : "");
-  const fields = data.installerFields;
-  const blockers = formFieldBlockers(fields, vals);
-  const ready = ok && sig.trim().length >= 2 && Number(areaVal) > 0 && (asQuoted ? !!quoted : product.trim().length >= 2) && !blockers.length;
-  return (
-    <div className="space-y-4 text-sm">
-      <details className="rounded-lg bg-muted p-3"><summary className="cursor-pointer font-medium">Job details (already on file)</summary>
-        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">{data.prefill.map((r) => <Fragment key={r.label}><dt className="text-muted-foreground">{r.label}</dt><dd>{r.value}</dd></Fragment>)}</dl>
-      </details>
-      <div className="space-y-2">
-        <div className="font-medium">Installed product</div>
-        <div className="grid grid-cols-2 gap-2">
-          <Button size="field" variant={asQuoted ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal" onClick={() => setAsQuoted(true)}>As quoted: {quoted ?? "—"}</Button>
-          <Button size="field" variant={!asQuoted ? "default" : "outline"} onClick={() => setAsQuoted(false)}>Different product</Button>
-        </div>
-        {!asQuoted && <Input className="h-12" placeholder="Installed product (brand, model)" value={product} onChange={(e) => setProduct(e.target.value)} />}
-        <Input className="h-12" placeholder="R-value (e.g. R5.0) – optional if in product name" value={rValue} onChange={(e) => setRValue(e.target.value)} />
-      </div>
-      <div><div className="mb-1 font-medium">Actual installed area (m²)</div><Input className="h-12" inputMode="decimal" value={areaVal} onChange={(e) => setArea(e.target.value)} /></div>
-      {fields.map((f) => <FieldInput key={f.key} f={f} v={vals[f.key] ?? null} set={(v) => setVals({ ...vals, [f.key]: v })} />)}
-      {data.installerDeclaration && <Official title={`Installer declaration (${data.installerDeclaration.version})`} body={data.installerDeclaration.body} />}
-      <Tick v={ok} set={setOk}>I make the declaration above.</Tick>
-      <Input className="h-12" placeholder="Type your full name to sign" value={sig} onChange={(e) => setSig(e.target.value)} autoComplete="name" />
-      <Button size="field" className="w-full" disabled={!ready} onClick={() => sign({ jobId, asQuotedProduct: asQuoted, installedProduct: asQuoted ? null : product, installedRValue: rValue || null, installedArea: Number(areaVal), fieldValues: vals, signatureName: sig }, "Signed – thanks")}>Sign declaration</Button>
-    </div>
-  );
+  // Installer declaration is signed in the Mitti installer safety form (PIISA) onsite — no portal step.
+  return <p className="text-sm text-muted-foreground">Your installer declaration is part of the installer safety form (PIISA) in Mitti. Sign it there on install day — nothing to sign here.</p>;
 }
 
 function FieldInput({ f, v, set }: { f: FormField; v: FieldValue; set: (v: FieldValue) => void }) {

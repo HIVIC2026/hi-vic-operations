@@ -367,6 +367,21 @@ const s7: StepFn = async (ctx, r) => {
   for (const c of ["product_evidence", "installation_progress", "completed_installation", "post_install_video", "final_zone_plan"]) await uploadEvidence(ctx, c, ctx.installer.id, "installation");
   await admin.from("bookings").update({ status: "completed" }).eq("job_id", ctx.jobId!).eq("kind", "installation").eq("status", "confirmed");
   await act(r, "install done → evidence outstanding", () => transition(ctx.jobId!, "evidence_outstanding", ctx.actorId, "TEST journey: install done"));
+  // Installer declaration comes back inside the Mitti PIISA (simulated; TEST job only).
+  {
+    const pd = await import("./piisa-declaration.core");
+    const { syncPiisaDeclaration } = await import("./piisa-declaration.server");
+    const { data: jn } = await admin.from("jobs").select("job_number").eq("id", ctx.jobId!).single();
+    const auditId = `journey-piisa-${ctx.jobId}`; const tpl = "journey-piisa-template";
+    const { logEvent } = await import("./workflow.server");
+    await logEvent(ctx.jobId!, ctx.actorId, "mitti_piisa_audit_created", "TEST journey: simulated PIISA sent in Mitti", { audit_id: auditId });
+    let refused = ""; try { await transition(ctx.jobId!, "ap_review", ctx.actorId, "TEST journey: before declaration"); } catch (e) { refused = e instanceof Error ? e.message : String(e); }
+    check(r, "AP review refused without the PIISA declaration", refused.includes(pd.MISSING_INSTALLER_DECLARATION), refused || "allowed");
+    const unsigned = await syncPiisaDeclaration(ctx.jobId!, ctx.actorId, async () => pd.simulatedPiisaAudit({ auditId, templateId: tpl, jobNumber: jn!.job_number, signed: false }), { testTemplateId: tpl });
+    check(r, "PIISA without signed declaration shows Missing evidence", unsigned.status === "missing", unsigned.message);
+    const signed = await syncPiisaDeclaration(ctx.jobId!, ctx.actorId, async () => pd.simulatedPiisaAudit({ auditId, templateId: tpl, jobNumber: jn!.job_number, signed: true }), { testTemplateId: tpl });
+    check(r, "signed PIISA declaration saved as the job's record", signed.status === "saved", signed.message);
+  }
   await act(r, "evidence complete → AP review", () => transition(ctx.jobId!, "ap_review", ctx.actorId, "TEST journey: evidence uploaded"));
   ctx.screens.push({ step: "s7_install", persona: "installer", path: `/field/day/${ctx.jobId}` });
 };

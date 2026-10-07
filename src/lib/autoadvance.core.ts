@@ -74,7 +74,7 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
       return f.installationCompleted ? t("evidence_outstanding", "Installation completed") : stop("Installer must complete the installation");
     case "evidence_outstanding":
       if (!f.installationCompleted) return stop("Installation not recorded as complete");
-      if (!f.installerDeclarationSigned) return stop("Installer declaration not signed");
+      if (!f.installerDeclarationSigned) return stop("Missing evidence: installer declaration");
       return t("ap_review", "All required evidence uploaded and declarations signed – submitted for AP review");
     case "ap_review":
       // AP judgement is human: final approval happens only in the AP queue (approveApJob), never here.

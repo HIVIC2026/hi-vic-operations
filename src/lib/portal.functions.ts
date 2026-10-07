@@ -1389,9 +1389,9 @@ export const signInstallerDeclaration = createServerFn({ method: "POST" }).middl
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["installer"]);
-    await signInstallerDecl({ ...data, actorId: context.userId, ip: context.ip, userAgent: context.userAgent });
-    await autoAdvanceJob(data.jobId, context.userId, "installer declaration signed");
-    return { ok: true };
+    // Retired 7 Oct 2026: the installer declaration is signed inside the Mitti PIISA form onsite.
+    void signInstallerDecl;
+    throw new WorkflowError("The installer declaration is signed in the Mitti installer safety form (PIISA), not in the portal.");
   });
 
 export const prepareFinalAssignmentFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

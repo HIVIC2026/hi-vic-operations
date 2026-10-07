@@ -136,7 +136,7 @@ export function finalAssignmentAvailability(i: { stage: string; installationComp
   const b: string[] = [];
   if (!i.agreementSigned) b.push("Customer agreement / quote acceptance not signed");
   if (!i.installationCompleted) b.push("Installation not yet completed");
-  if (!i.installerDeclared) b.push("Installer declaration not signed");
+  if (!i.installerDeclared) b.push("Missing evidence: installer declaration");
   if (!["ap_review", "ready_for_veec"].includes(i.stage)) b.push("Final VEEC assignment is prepared during AP review (after evidence is uploaded)");
   for (const e of i.evidenceMissing) b.push(`Evidence missing: ${e}`);
   b.push(...templateBlockers(i.templates, "final"));

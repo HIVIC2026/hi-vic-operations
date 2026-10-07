@@ -290,6 +290,9 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
   if (to === "ap_review" || to === "ready_for_veec") {
     const ib = await installBookingBlocker(jobId);
     if (ib) blockers.push(ib);
+    // Installer declaration is signed inside the Mitti PIISA; no signed record = no AP sign-off.
+    const { data: decl } = await admin.from("installer_declarations").select("id").eq("job_id", jobId).eq("status", "signed").maybeSingle();
+    if (!decl) blockers.push((await import("./piisa-declaration.core")).MISSING_INSTALLER_DECLARATION);
   }
   if (to === "ready_for_veec") {
     const st = await assignmentStatus(jobId);

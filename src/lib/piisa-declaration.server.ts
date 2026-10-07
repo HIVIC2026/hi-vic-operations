@@ -1,0 +1,55 @@
+// Saves the installer declaration signed inside the Mitti PIISA form as the job's record.
+import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import type { Json } from "@/integrations/supabase/types";
+import { mittiApi, parseAudit, type MittiCall } from "./mitti.core";
+import { activeTemplate, sha256Hex, stableJson, templateBlockers } from "./assignment.core";
+import { declarationFromPiisa, MISSING_INSTALLER_DECLARATION } from "./piisa-declaration.core";
+import { logEvent } from "./workflow.server";
+
+export type PiisaDeclSync = { status: "saved" | "already" | "pending" | "missing" | "no_form" | "error"; message: string };
+
+export async function syncPiisaDeclaration(jobId: string, actorId: string | null, call?: MittiCall, opts: { testTemplateId?: string } = {}): Promise<PiisaDeclSync> {
+  const { data: existing } = await admin.from("installer_declarations").select("id").eq("job_id", jobId).eq("status", "signed").maybeSingle();
+  if (existing) return { status: "already", message: "Declaration already saved." };
+  const { data: job } = await admin.from("jobs").select("job_number, source").eq("id", jobId).single();
+  if (!job) return { status: "error", message: "Job not found." };
+  const { data: ev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const auditId = (ev?.details as { audit_id?: string } | null)?.audit_id;
+  if (!auditId) return { status: "no_form", message: "The installer safety form (PIISA) hasn't been sent in Mitti yet." };
+  const { data: ws } = await admin.from("workflow_settings").select("mitti_piisa_template_id").eq("id", 1).maybeSingle();
+  // A test template id is only accepted on TEST jobs (journey simulation).
+  const expectedTpl = (job.source === "qa_test" && opts.testTemplateId) || ws?.mitti_piisa_template_id?.trim() || "";
+  if (!expectedTpl) return { status: "no_form", message: "PIISA Mitti form is not configured." };
+  const realCall = call ?? (await import("./mitti.server")).realMittiCall;
+  const audit = await mittiApi(realCall).getAudit(auditId);
+  const p = parseAudit(audit);
+  if (p.auditId && p.auditId !== auditId) return { status: "error", message: "Mitti returned a different audit." };
+  if (p.templateId !== expectedTpl) return { status: "error", message: "This Mitti audit is not the PIISA form." };
+  if (!p.jobNumber || p.jobNumber.trim().toUpperCase() !== job.job_number.trim().toUpperCase()) return { status: "error", message: `Mitti Job Reference ID (${p.jobNumber ?? "missing"}) does not match ${job.job_number}.` };
+  if (!p.completed) return { status: "pending", message: "PIISA not completed in Mitti yet." };
+  const r = declarationFromPiisa(p.snapshot);
+  if (!r.ok) {
+    await logEvent(jobId, actorId, "installer_declaration_missing", `${MISSING_INSTALLER_DECLARATION} – the completed PIISA has no signed declaration (${r.missing.join(", ")})`, { audit_id: auditId, missing: r.missing });
+    return { status: "missing", message: `${MISSING_INSTALLER_DECLARATION} (${r.missing.join(", ")})` };
+  }
+  const { data: tpls } = await admin.from("compliance_templates").select("template_key, version, body, approved, is_active, required, form_fields, requires_final_consumer_signature").eq("is_active", true);
+  const templates = (tpls ?? []) as never;
+  const tb = templateBlockers(templates, "installer");
+  const tpl = activeTemplate(templates, "installer_declaration");
+  if (tb.length || !tpl) return { status: "error", message: tb.join(" ") || "Installer declaration wording is not approved." };
+  const { data: a } = await admin.from("job_assignments").select("user_id, business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  const { data: b } = a?.business_id ? await admin.from("businesses").select("name, abn, licence_number").eq("id", a.business_id).maybeSingle() : { data: null };
+  const signedAt = (p.modifiedAt as string | null) ?? new Date().toISOString();
+  const d = r.decl;
+  const snap = { source: "mitti_piisa", audit_id: auditId, declaration: { version: tpl.version, body: tpl.body }, installed_product: d.product, installed_r_value: d.rValue, installed_area_m2: d.areaM2, signature: { typed_name: d.signatureName, mitti_signature: d.signature, signed_on: d.signedOn, at: signedAt, user_id: a?.user_id ?? null }, piisa_answers: p.snapshot };
+  const hash = await sha256Hex(stableJson(snap));
+  const { data: row, error } = await admin.from("installer_declarations").insert({
+    job_id: jobId, installer_user_id: a?.user_id ?? null, installer_business_id: a?.business_id ?? null, installer_name: d.signatureName, installer_business_name: b?.name ?? null, installer_abn: b?.abn ?? null, installer_licence: b?.licence_number ?? null,
+    template_version: tpl.version, installed_product: d.product, installed_r_value: d.rValue, installed_area_m2: d.areaM2, field_values: { source: "mitti_piisa", audit_id: auditId } as unknown as Json,
+    snapshot: snap as unknown as Json, snapshot_sha256: hash, signature_name: d.signatureName, signed_at: signedAt, signed_by: a?.user_id ?? null, ip: null, user_agent: "Mitti PIISA",
+  }).select("id").single();
+  if (error || !row) return { status: "error", message: error?.message ?? "Could not save the declaration." };
+  await admin.from("declarations").upsert({ job_id: jobId, kind: "installer_declaration", declared_by: a?.user_id ?? null, statement: `${tpl.version}: ${tpl.body}`, declared_at: signedAt }, { onConflict: "job_id,kind" });
+  await logEvent(jobId, actorId, "INSTALLER_DECLARATION_SIGNED", `Installer declaration signed in the Mitti PIISA (${tpl.version}) – ${d.product}, ${d.areaM2} m²`, { declaration_id: row.id, sha256: hash, audit_id: auditId });
+  return { status: "saved", message: "Declaration saved from the Mitti PIISA." };
+}
