@@ -45,8 +45,16 @@ function CampaignPage() {
   </div>;
 }
 
-function Result({ group, videoPriority, token, rebate, customer, suburb, home }: { group: "likely" | "onsite"; videoPriority: boolean; token: string; rebate: number | null; customer: number | null; suburb: string | null; home: string | null }) {
+function Result({ group, videoPriority, token, rebate, customer, suburb, home, referralUrl }: { group: "likely" | "onsite"; videoPriority: boolean; token: string; rebate: number | null; customer: number | null; suburb: string | null; home: string | null; referralUrl: string | null }) {
   const $ = (n: number | null) => (n == null ? "—" : `$${Math.floor(Number(n)).toLocaleString("en-AU")}`);
+  const [copied, setCopied] = useState(false);
+  const shareChecker = async () => {
+    if (!referralUrl) return;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try { await navigator.share({ title: "Free insulation eligibility checker", text: "Send them our free eligibility checker. It takes a minute.", url: referralUrl }); return; } catch { /* user cancelled or share unsupported — fall through to copy */ }
+    }
+    try { await navigator.clipboard.writeText(referralUrl); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch { /* clipboard unavailable */ }
+  };
   return <section className="estimate-offset rounded-[22px] border border-estimate-blue-soft bg-white p-6 shadow-[0_18px_50px_rgba(34,55,107,0.09)] sm:p-8">
     <OwnerHouse level={1} size="sm" className="mx-auto" />
     <h1 className="mt-4 text-center font-display text-3xl font-extrabold text-estimate-navy">Spot saved. Your <span className="text-estimate-logo-green">{$(rebate)}</span> rebate is waiting.</h1>
@@ -62,6 +70,12 @@ function Result({ group, videoPriority, token, rebate, customer, suburb, home }:
     </dl>
     <p className="mt-2 text-xs text-estimate-navy/70">Estimate only. Your final price is confirmed after the free Ready Check.</p>
     {group === "onsite" && !videoPriority && <div className="mt-5 rounded-xl bg-estimate-mint p-4 text-center"><h2 className="font-display text-lg font-bold text-estimate-navy">Want to jump the queue?</h2><Button asChild className="mt-3 bg-estimate-green text-estimate-white hover:bg-estimate-accent"><Link to="/estimate/$token/video" params={{ token }}>Send a quick video</Link></Button></div>}
+    {referralUrl && <div className="mt-5 rounded-xl bg-estimate-blush p-4 text-center">
+      <h2 className="font-display text-lg font-bold text-estimate-navy">Have a friend who needs a spot saved?</h2>
+      <p className="mt-1 text-sm text-estimate-navy/80">Send them our free eligibility checker. It takes a minute.</p>
+      <Button type="button" onClick={() => void shareChecker()} className="mt-3 bg-estimate-green text-estimate-white hover:bg-estimate-accent">{copied ? "Link copied ✓" : "Share the checker"}</Button>
+      <p className="mt-2 text-xs text-estimate-navy/70">Opens your phone's share sheet — or <button type="button" onClick={() => void shareChecker()} className="font-bold text-estimate-blue underline">copy the link</button>.</p>
+    </div>}
   </section>;
 }
 
