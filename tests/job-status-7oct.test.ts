@@ -51,7 +51,7 @@ describe("trade job status line (Jo 7 Oct)", () => {
       { kind: "ready_check", status: "completed", start: daysAgo(9), end: null, business: null, mine: true },
       { kind: "assessment", status: "completed", start: daysAgo(3), end: null, business: "X", mine: false },
       { kind: "installation", status: "confirmed", start: "2026-10-15T21:00:00Z", end: null, business: null, mine: true }], payout: null }));
-    expect(t.map((s) => s.key)).toEqual(["ready_check", "quote", "safety_paid", "safety_check", "fixes", "first_half", "install", "final_half", "checked", "paid"]);
+    expect(t.map((s) => s.key)).toEqual(["ready_check", "quote", "safety_paid", "safety_check", "fixes", "fixes_paid", "first_half", "install", "final_half", "checked", "paid"]);
     expect(t.find((s) => s.key === "fixes")!.dateLabel).toBe("Not needed");
     expect(t.find((s) => s.key === "safety_check")!.state).toBe("done");
     expect(t.find((s) => s.key === "install")!.dateLabel).toBe("Expected Fri 16 Oct");
