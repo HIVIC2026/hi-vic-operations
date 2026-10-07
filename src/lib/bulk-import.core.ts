@@ -18,6 +18,14 @@ export type BulkExtracted = {
   building_age?: string | null; // e.g. "built 1978", "about 40 years old", "unknown"
   notes?: string | null;
   price_inc_gst?: number | null;
+  /** Free text from the installer's file: what the quoted price includes (R-value/product, area, removal, extras). */
+  price_includes?: string | null;
+  /** Has the installer ALREADY done the site check / measure-up? null = unclear (asked on the review screen). */
+  site_check?: SiteCheck | null;
+  /** YYYY-MM-DD when known. */
+  site_check_date?: string | null;
+  /** Where the answer came from: read from the file, or answered on the review screen. */
+  site_check_source?: "file" | "asked" | null;
   /** True when the lead was pieced together only from file/folder names, photo text or photo location. */
   unsure?: boolean | null;
   /** Uploaded file names this lead was read from (for the per-file result list). */
@@ -36,6 +44,48 @@ export type BulkFile = {
   geo_address?: string | null;
 };
 
+export type SiteCheck = "yes" | "no";
+
+/** Reads a site-check cell/note: "Y", "Yes", "Done", "Visited", "Measured", "Quoted" or a date → yes; "N", "No", "Not yet" → no. Anything else → null (ask). */
+export function parseSiteCheck(raw: unknown): { check: SiteCheck | null; date: string | null } {
+  const s = String(raw ?? "").trim().toLowerCase();
+  if (!s) return { check: null, date: null };
+  const date = parseDateish(s);
+  if (/^(n|no|nope|not yet|not done|not visited|not measured|false|0|-)$/.test(s) || /\b(not (yet )?(visited|measured|done|checked))\b/.test(s)) return { check: "no", date: null };
+  if (/^(y|yes|done|true|1|✓|x)$/.test(s) || /\b(visited|measured|site check(ed)? done|checked|quoted|measure-?up done)\b/.test(s) || date) return { check: "yes", date };
+  return { check: null, date: null };
+}
+
+/** d/m/yyyy, d-m-yy, yyyy-mm-dd → yyyy-mm-dd (Australian day-first). */
+export function parseDateish(s: string): string | null {
+  let m = s.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
+  if (m) return iso(+m[1]!, +m[2]!, +m[3]!);
+  m = s.match(/\b(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})\b/);
+  if (m) return iso(m[3]!.length === 2 ? 2000 + +m[3]! : +m[3]!, +m[2]!, +m[1]!);
+  return null;
+}
+function iso(y: number, mo: number, d: number): string | null {
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || y < 2000 || y > 2100) return null;
+  return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** The site-check answer from the file only: an explicit answer or date, or a quoted price (a quote means he visited). Never guessed from area or photos. */
+export function siteCheckFromFile(e: BulkExtracted): { check: SiteCheck | null; date: string | null } {
+  if (e.site_check === "yes" || e.site_check === "no") return { check: e.site_check, date: e.site_check === "yes" ? e.site_check_date ?? null : null };
+  if (e.site_check_date) return { check: "yes", date: e.site_check_date };
+  if (e.price_inc_gst && e.price_inc_gst > 0) return { check: "yes", date: null };
+  return { check: null, date: null };
+}
+
+/** Jo (7 Oct): an uploaded job's price is ONLY the installer's quoted price; none = "Quote needed from installer". */
+export const QUOTE_NEEDED_LABEL = "Quote needed from installer";
+export const quoteNeeded = (e: BulkExtracted) => !(e.price_inc_gst && e.price_inc_gst > 0);
+export function siteCheckLabel(check: SiteCheck | null | undefined, date?: string | null): string {
+  if (check === "yes") return date ? `Site check done: Yes (${date.split("-").reverse().join("/")})` : "Site check done: Yes";
+  if (check === "no") return "Site check done: No — Ready Check needed";
+  return "Site check: unclear — please answer Yes or No";
+}
+
 export type SortResult = "covers_ready_check" | "needs_visit" | "office_review";
 
 /** Exact wording of the one required tick before upload. */
@@ -50,14 +100,18 @@ export const LEAD_STAGE_LABEL: Record<LeadStage, string> = {
   installed: "Installed",
 };
 
-/** Work out the lead's stage from what was uploaded. A price means visited and quoted;
- * a measurement (area) or a matched file/photo means visited; text alone (sentences
- * about insulation, access, roof or hazards) never does — otherwise not visited.
- * The installer can still change the stage on the review screen before Confirm. */
-export function leadStage(e: BulkExtracted, matchedFileCount: number): LeadStage {
-  if (e.price_inc_gst && e.price_inc_gst > 0) return "quoted";
-  if ((e.area_m2 && e.area_m2 > 0) || matchedFileCount > 0) return "visited";
-  return "not_visited";
+/** The lead's stage follows the site check (Jo, 7 Oct): Yes → visited (quoted when priced) and skips the Ready Check;
+ * No or unclear → not visited (unclear rows must be answered on the review screen before Confirm).
+ * Area or photos alone never mean visited. `matchedFileCount` kept for call-site compatibility. */
+export function leadStage(e: BulkExtracted, _matchedFileCount = 0): LeadStage {
+  if (siteCheckFromFile(e).check !== "yes") return "not_visited";
+  return e.price_inc_gst && e.price_inc_gst > 0 ? "quoted" : "visited";
+}
+/** Stage from a (possibly answered) site check; an explicit "installed" history row stays installed. */
+export function stageForSiteCheck(check: SiteCheck | null, priced: boolean, current?: LeadStage | null): LeadStage {
+  if (current === "installed") return "installed";
+  if (check !== "yes") return "not_visited";
+  return priced ? "quoted" : "visited";
 }
 
 /** Normalise an address for matching: lowercase, strip punctuation, collapse spaces. */
@@ -245,7 +299,7 @@ export function fileResults(read: FileResult[], leads: BulkExtracted[], matches:
 }
 
 // ---------- deterministic clean-up of spreadsheet reads (never guesses; flags instead) ----------
-const HEADER_WORDS = /\b(name|customer|owner|client|address|street|suburb|town|postcode|post code|phone|mobile|mob|email|e-mail|area|m2|m²|sqm|size|price|quote)\b/i;
+const HEADER_WORDS = /\b(name|customer|owner|client|address|street|suburb|town|postcode|post code|phone|mobile|mob|email|e-mail|area|m2|m²|sqm|size|price|quote|visited|measured|site check|includes)\b/i;
 
 /** First row (within the top 20) that looks like a header: 2+ cells naming known fields. Falls back to the first non-blank row. */
 export function findHeaderRow(rows: string[][]): number {
