@@ -8,8 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { WorkerStatus } from "@/components/portal/workers";
 import { OfficeWorkerCompliance } from "@/components/portal/worker-compliance";
-import { decideWorker, listWorkerApprovals, verifyAddedInstallerCert } from "@/lib/worker-links.functions";
-import { nonEecWarning } from "@/lib/cii-issuer.core";
+import { decideWorker, listWorkerApprovals } from "@/lib/worker-links.functions";
 import { prepareTradeLogin } from "@/lib/trade-access.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/workers")({
@@ -35,7 +34,7 @@ function Approvals() {
   );
 }
 
-function Row({ w, onDone }: { w: { id: string; full_legal_name: string; trade_role: string; licence_number: string | null; qualification: string | null; mobile: string | null; email: string | null; approval_status: string; rejection_reason: string | null; businesses: unknown; certification_status?: string | null; certification?: unknown }; onDone: () => void }) {
+function Row({ w, onDone }: { w: { id: string; full_legal_name: string; trade_role: string; licence_number: string | null; qualification: string | null; mobile: string | null; email: string | null; approval_status: string; rejection_reason: string | null; businesses: unknown }; onDone: () => void }) {
   const decide = useServerFn(decideWorker);
   const prepare = useServerFn(prepareTradeLogin);
   const [rejecting, setRejecting] = useState(false);
@@ -65,29 +64,8 @@ function Row({ w, onDone }: { w: { id: string; full_legal_name: string; trade_ro
           {w.approval_status !== "rejected" && !rejecting && <Button size="sm" variant="outline" onClick={() => setRejecting(true)}>Reject</Button>}
         </div>
       </div>
-      {w.trade_role === "installer" && <CertCheck w={w} onDone={onDone} />}
       {rejecting && <div className="mt-2 flex gap-2"><Input placeholder="Reason (shown to the company)" value={reason} onChange={(e) => setReason(e.target.value)} /><Button size="sm" variant="destructive" onClick={() => act(false)}>Confirm reject</Button></div>}
     </li>
   );
 }
 
-function CertCheck({ w, onDone }: { w: { id: string; certification_status?: string | null; certification?: unknown }; onDone: () => void }) {
-  const verify = useServerFn(verifyAddedInstallerCert);
-  const declared = ((w.certification ?? {}) as { declared?: { number?: string; issuer?: string } }).declared ?? {};
-  const [n, setN] = useState(declared.number ?? ""); const [iss, setIss] = useState(declared.issuer ?? ""); const [note, setNote] = useState("");
-  const warn = nonEecWarning(iss);
-  if (w.certification_status === "verified") return <p className="mt-2 text-xs font-semibold text-success">EEC CII certificate verified by office.</p>;
-  const go = async (status: "verified" | "rejected") => { try { await verify({ data: { id: w.id, status, number: n, issuer: iss, note } }); toast.success(status === "verified" ? "Certificate verified" : "Certificate rejected"); onDone(); } catch (e) { toast.error((e as Error).message); } };
-  return (
-    <div className="mt-2 rounded border p-2 text-xs">
-      <div className="font-semibold">EEC CII certificate check {w.certification_status === "rejected" ? "(rejected before)" : "(not verified — Approve stays blocked)"}</div>
-      {warn && <p data-non-eec className="mt-1 font-semibold text-destructive">{warn}</p>}
-      <div className="mt-1 grid gap-2 sm:grid-cols-3">
-        <Input aria-label="Certificate number" placeholder="Certificate number" value={n} onChange={(e) => setN(e.target.value)} />
-        <Input aria-label="Issuer" placeholder="Issuer" value={iss} onChange={(e) => setIss(e.target.value)} />
-        <Input aria-label="What you checked" placeholder="What you checked (10+ characters)" value={note} onChange={(e) => setNote(e.target.value)} />
-      </div>
-      <div className="mt-2 flex gap-2"><Button size="sm" disabled={!!warn || note.trim().length < 10 || !n.trim()} onClick={() => go("verified")}>Verify certificate</Button><Button size="sm" variant="outline" disabled={note.trim().length < 10} onClick={() => go("rejected")}>Reject certificate</Button></div>
-    </div>
-  );
-}

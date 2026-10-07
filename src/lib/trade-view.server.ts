@@ -288,7 +288,7 @@ export async function tradeMoney(userId: string) {
 export async function tradeBusiness(userId: string) {
   const c = await ctxOrThrow(userId);
   // Staff logins get only the business name and job-taking status: no rates, bank, agreement, insurance or team.
-  if (!c.boss) return { kind: c.kind, boss: false, name: c.biz.name, taking: c.biz.accepting_new_jobs !== false, area: null as string | null, licenceExpires: null, liabilityExpires: null, rate: null as number | null, agreementSigned: false, bankSaved: false, team: [] as { id: string | null; name: string; role: string; hasLogin: boolean; pending?: boolean }[] };
+  if (!c.boss) return { kind: c.kind, boss: false, name: c.biz.name, taking: c.biz.accepting_new_jobs !== false, area: null as string | null, licenceExpires: null, liabilityExpires: null, rate: null as number | null, agreementSigned: false, bankSaved: false, team: [] as { id: string | null; name: string; role: string; hasLogin: boolean }[] };
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const [{ data: creds }, { data: workers }, { data: rate }, { data: agr }, { data: bank }] = await Promise.all([
     admin.from("business_credentials").select("kind, label, expires_at, verification").eq("business_id", c.biz.id),
@@ -307,7 +307,7 @@ export async function tradeBusiness(userId: string) {
     agreementSigned: !!agr?.signed_at, bankSaved: !!bank,
     team: [
       ...(boss ?? []).filter((m) => m.member_role === "business_admin").map((m) => ({ id: null as string | null, name: (m.profiles as { full_name: string | null } | null)?.full_name ?? "Business owner", role: "Business owner", hasLogin: true })),
-      ...(workers ?? []).filter((w) => !(boss ?? []).some((m) => m.user_id === w.profile_id && m.member_role === "business_admin")).map((w) => ({ id: w.id as string | null, name: w.full_legal_name, role: w.trade_role === "installer" ? (w.approval_status === "pending" ? "Installer · waiting for office check" : w.approval_status === "rejected" ? "Installer · not accepted" : "Installer") : "Electrician", hasLogin: !!w.profile_id, pending: w.approval_status !== "approved" })),
+      ...(workers ?? []).filter((w) => !(boss ?? []).some((m) => m.user_id === w.profile_id && m.member_role === "business_admin")).map((w) => ({ id: w.id as string | null, name: w.full_legal_name, role: w.trade_role === "installer" ? "Installer" : "Electrician", hasLogin: !!w.profile_id })),
     ],
   };
 }
@@ -429,17 +429,3 @@ export async function setMittiInvited(actorId: string, businessId: string, invit
   return { ok: true };
 }
 
-/** Boss adds an installer later: saved as pending + certificate declared; office verifies before they can be assigned. */
-export async function tradeAddInstaller(userId: string, x: { name: string; email: string; mobile?: string | null | undefined; ciiNumber: string; issuer: string }) {
-  const c = await ctxOrThrow(userId);
-  if (!c.boss) throw new WorkflowError("Only the business owner can add installers.");
-  if (c.kind === "electrician") throw new WorkflowError("Only installer businesses can add installers.");
-  const email = x.email.trim().toLowerCase();
-  const { data: dup } = await admin.from("partner_workers").select("id").eq("business_id", c.biz.id).ilike("email", email).is("removed_at", null).maybeSingle();
-  if (dup) throw new WorkflowError("Someone with this email is already on your team.");
-  const { error } = await admin.from("partner_workers").insert({ business_id: c.biz.id, trade_role: "installer", full_legal_name: x.name.trim(), email, mobile: x.mobile?.trim() || null,
-    qualification: `EEC CII ${x.ciiNumber.trim()} (declared, not verified)`, approval_status: "pending", account_status: "awaiting_account", added_by: userId,
-    certification: { declared: { number: x.ciiNumber.trim(), issuer: x.issuer.trim(), at: new Date().toISOString(), by: userId } } } as never);
-  if (error) throw new WorkflowError("Couldn't add this installer. Try again.");
-  return { ok: true };
-}

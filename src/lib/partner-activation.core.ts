@@ -1,4 +1,3 @@
-import { nonEecWarning } from "./cii-issuer.core";
 import { ACTIVATABLE_INSTALLER_VERSIONS, INSTALLER_AGREEMENT_VERSION, normaliseInstallerDraft, type InstData, EXTRA_ITEMS } from "./installer-onboarding.core";
 import { validCalendarDate } from "./rec-onboarding.core";
 import { ACTIVATABLE_REC_VERSIONS, REC_AGREEMENT_VERSION, type RecData, RECT_ITEMS, customRateCode, effectiveElectricians, melbourneToday } from "./rec-onboarding.core";
@@ -49,7 +48,7 @@ export function installerQualification(worker: { qualification?: string | null; 
   return `EEC CII ${held} (${basis})`;
 }
 
-export type CertVerification = { id: string; worker_email: string; status: "verified" | "rejected"; recorded_at: string; certificate_number?: string | null; issuer?: string | null };
+export type CertVerification = { id: string; worker_email: string; status: "verified" | "rejected"; recorded_at: string; certificate_number?: string | null };
 /** Latest office decision per worker email (append-only history; newest wins). */
 export function latestCertifications(rows: CertVerification[]): Map<string, CertVerification> {
   const m = new Map<string, CertVerification>();
@@ -69,14 +68,9 @@ export function certificationRecordErrors(x: { status: string; evidence_source: 
 /** Blockers an office override reason may NOT bypass (mandatory qualification). */
 export function mandatoryActivationBlockers(type: PartnerType, data: RecData | InstData, certifications?: Map<string, CertVerification>): string[] {
   if (type !== "installer") return [];
-  const workers = (data as InstData).installers ?? [];
-  // Verified AND not from a known non-EEC body (office-recorded issuer wins over the applicant's typed one).
-  const ok = workers.filter((w) => {
-    const v = certifications?.get((w.email ?? "").trim().toLowerCase());
-    if (v?.status !== "verified") return false;
-    return !nonEecWarning(v.issuer?.trim() || w.cii_issuer);
-  });
-  return ok.length ? [] : ["At least one nominated installer needs an office-verified EEC Certified Insulation Installer (CII) certification before activation. Certificates from other bodies are not accepted."];
+  const emails = ((data as InstData).installers ?? []).map((w) => (w.email ?? "").trim().toLowerCase());
+  const verified = emails.filter((e) => certifications?.get(e)?.status === "verified");
+  return verified.length ? [] : ["At least one nominated installer needs an office-verified EEC Certified Insulation Installer (CII) certification before activation."];
 }
 
 export function activationBlockers(type: PartnerType, data: RecData | InstData, agreementVersion: string | null, signedAt: string | null, now = new Date()) {

@@ -14,7 +14,7 @@ const workerInput = z.object({
   licence_number: z.string().trim().max(60).optional().nullable(),
   qualification: z.string().trim().max(200).optional().nullable(),
 });
-const WORKER_COLS = "id, business_id, full_legal_name, email, mobile, trade_role, licence_number, qualification, approval_status, approved_at, rejection_reason, removed_at, created_at, certification_status, certification";
+const WORKER_COLS = "id, business_id, full_legal_name, email, mobile, trade_role, licence_number, qualification, approval_status, approved_at, rejection_reason, removed_at, created_at, certification_status";
 
 async function isAdminCaller(sb: Parameters<typeof requireAdmin>[0]) {
   const { data } = await sb.rpc("is_admin");
@@ -253,20 +253,3 @@ export const postWorkerMessage = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** Office verifies a later-added installer's EEC CII certificate (application-free path). Non-EEC can only be rejected. */
-export const verifyAddedInstallerCert = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ id: uuid, status: z.enum(["verified", "rejected"]), number: z.string().trim().max(60).optional().nullable(), issuer: z.string().trim().max(120), note: z.string().trim().min(10).max(500) }).parse(d))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
-    const { nonEecWarning } = await import("./cii-issuer.core");
-    if (data.status === "verified" && (!data.number || nonEecWarning(data.issuer) || !data.issuer)) throw new Error("Only an EEC certificate with its number can be verified.");
-    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const { data: w } = await admin.from("partner_workers").select("id, trade_role, certification").eq("id", data.id).maybeSingle();
-    if (!w || w.trade_role !== "installer") throw new Error("Installer not found.");
-    const rec = { status: data.status, number: data.number ?? null, issuer: data.issuer, note: data.note, by: context.userId, at: new Date().toISOString() };
-    const prev = (w.certification ?? {}) as Record<string, unknown>;
-    const { error } = await admin.from("partner_workers").update({ certification_status: data.status, certification: { ...prev, office: rec, history: [...((prev["history"] as unknown[]) ?? []), rec] } } as never).eq("id", data.id);
-    if (error) throw new Error(error.message);
-    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "worker_certification_" + data.status, summary: `Installer CII ${data.status}`, details: { worker_id: data.id, ...rec } });
-    return { ok: true };
-  });
