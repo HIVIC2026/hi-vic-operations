@@ -14,7 +14,7 @@ const TONE = { blue: "bg-estimate-mist text-estimate-blue", blush: "bg-estimate-
 
 function Money() {
   const load = useServerFn(getTradeMoneyView);
-  const { data, error } = useQuery({ queryKey: ["trade-money-v2"], queryFn: () => load() });
+  const { data, error } = useQuery({ queryKey: ["trade-money-v2"], queryFn: () => load(), retry: false }); // a refusal (staff) shows at once, not after retries
   if (error) return <TradeShell installer={false}><p role="alert" className={card}>{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading…</p></TradeShell>;
   const day = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", timeZone: "Australia/Melbourne" });

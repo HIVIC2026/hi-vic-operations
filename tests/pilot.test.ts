@@ -63,14 +63,14 @@ describe("import", () => {
     expect(m.email?.confidence).toBe("uncertain"); expect(m.email?.value).toBe("jane@example.com");
   });
   test("confirmation creates an installer-sourced job with locked attribution and relationship owner = installer", () => {
-    const f = src("src/lib/pilot.functions.ts");
+    const f = src("src/lib/partner-import.server.ts");
     expect(f).toContain('channel: "installer_sourced", businessId: imp.business_id, userId: context.userId');
     expect(f).toContain("confirmBlockers(c)");
     expect(relationshipOwnerFor("installer_sourced", "installer")).toBe("installer");
     expect(src("drizzle/migrations/0023_reinsulate_pilot_partner_network.sql")).toContain("status text NOT NULL DEFAULT 'draft'");
   });
   test("private URLs are stored as references only, never fetched", () => {
-    expect(src("src/lib/pilot.functions.ts")).not.toMatch(/fetch\(\s*(data\.sourceUrl|imp\.source_url)/);
+    for (const f of ["src/lib/pilot.functions.ts", "src/lib/partner-import.server.ts"]) expect(src(f)).not.toMatch(/fetch\(\s*(data\.sourceUrl|imp\.source_url)/);
   });
 });
 

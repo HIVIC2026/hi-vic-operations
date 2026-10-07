@@ -79,9 +79,15 @@ describe("trade business pages: staff refused, owner allowed", () => {
 describe("every owner-only server function uses the owner check", () => {
   const pilotSrc = readFileSync(new URL("../src/lib/pilot.functions.ts", import.meta.url), "utf8");
   const block = (src: string, name: string) => src.slice(src.indexOf(`export const ${name} `), src.indexOf("export const", src.indexOf(`export const ${name} `) + 10));
-  for (const fn of ["addCredential", "partnerUploadUrl", "partnerFileUrl", "setBankDetails", "getBankDetails", "addTeamMember", "removeTeamMember", "createImport", "signPartnerAgreement"]) {
+  for (const fn of ["addCredential", "partnerUploadUrl", "partnerFileUrl", "setBankDetails", "getBankDetails", "addTeamMember", "removeTeamMember", "signPartnerAgreement"]) {
     test(`pilot ${fn}`, () => expect(block(pilotSrc, fn)).toMatch(/requireMember\(context\.userId, data\.\w+, true\)/));
   }
+  test("Add one job (createImportFor / confirmImportFor) is owner-only", () => {
+    const imp = readFileSync(new URL("../src/lib/partner-import.server.ts", import.meta.url), "utf8");
+    expect(imp).toContain("requireMember(context.userId, data.businessId, true)");
+    expect(imp).toContain("requireMember(context.userId, imp.business_id, true)");
+    expect(block(pilotSrc, "createImport")).toContain("createImportFor(context.userId, data)");
+  });
   test("pilot getPartnerProfile, listDraftImports, myInstallerRateItems", () => {
     expect(block(pilotSrc, "getPartnerProfile")).toContain('mine.get(id) !== "business_admin"');
     expect(block(pilotSrc, "listDraftImports")).toContain('r === "business_admin"');

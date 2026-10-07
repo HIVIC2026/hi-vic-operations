@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "bun ./scripts/test-isolated.ts 8",
-    "journey": "bun scripts/journey.ts"
+    "journey": "bun scripts/journey.ts",
+    "installer-test": "bun scripts/installer-test.ts"
   },
   "overrides": {
     "rolldown": "1.2.1"

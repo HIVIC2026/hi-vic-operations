@@ -23,7 +23,7 @@ export function BizPage({ title, intro, children }: { title: string; intro?: str
   const { data, error, refetch } = useBizFile();
   const installer = data?.kind !== "electrician";
   return (
-    <TradeShell installer={installer} boss={data?.boss ?? true}>
+    <TradeShell installer={installer} boss={data?.boss}>
       <Link to="/field/business" className="inline-flex items-center gap-1 text-sm font-bold text-estimate-blue"><ChevronLeft className="h-4 w-4" />My business</Link>
       <div><h1 className="font-display text-3xl font-extrabold">{title}</h1>{intro && <p className="mt-1 text-sm text-estimate-navy/70">{intro}</p>}</div>
       {error ? <p role="alert" className={card}>{(error as Error).message}</p> : !data ? <p className="text-sm">Loading…</p> : children(data, () => void refetch())}

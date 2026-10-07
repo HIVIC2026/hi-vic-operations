@@ -76,9 +76,9 @@ export async function logPartner(jobId: string | null, actorId: string, type: st
 export async function intakeSourceFor(userId: string, businessId: string | null, fallback: string): Promise<string> {
   const [{ data: u }, { data: b }] = await Promise.all([
     admin.auth.admin.getUserById(userId),
-    businessId ? admin.from("businesses").select("name").eq("id", businessId).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    businessId ? admin.from("businesses").select("name, onboarding_notes").eq("id", businessId).maybeSingle() : Promise.resolve({ data: null as { name: string; onboarding_notes: string | null } | null }),
   ]);
   const testUser = u?.user?.user_metadata?.["qa_test"] === true || /@hivic-test\.example$/i.test(u?.user?.email ?? "");
-  const testBiz = /^TEST\b/i.test(b?.name ?? "");
+  const testBiz = /^TEST\b/i.test(b?.name ?? "") || (b?.onboarding_notes ?? "").includes("[TEST PARTNER]"); // TEST-partner mark, e.g. "[TEST PARTNER] Reinsulate"
   return testUser || testBiz ? "qa_test" : fallback;
 }

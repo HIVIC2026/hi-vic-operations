@@ -117,7 +117,7 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
     <div className="space-y-4">
       <Section title="We found these details – confirm"><div className="grid gap-2 sm:grid-cols-2">{found.length ? found.map(row) : <p className="text-sm text-estimate-navy/70">Nothing found automatically.</p>}</div></Section>
       <Section title="Check or fill in"><div className="grid gap-2 sm:grid-cols-2">{check.map(row)}</div></Section>
-      <details className="rounded-[22px] bg-card p-5 shadow-sm"><summary className="cursor-pointer text-sm font-medium">Other optional details</summary><div className="mt-3 grid gap-2 sm:grid-cols-2">{rest.map(row)}</div></details>
+      <details className="rounded-[22px] bg-card p-5 shadow-sm"><summary className="cursor-pointer text-sm font-medium">More details (if you have them)</summary><div className="mt-3 grid gap-2 sm:grid-cols-2">{rest.map(row)}</div></details>
       <Section title="Your price and site check">
         <div className="space-y-3" data-installer-facts>
           <div>
