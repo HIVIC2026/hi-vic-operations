@@ -15,6 +15,8 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 export const wholeDollars = (n: number) => `$${Math.floor(n).toLocaleString("en-AU")}`;
 
 export type SpotSavedInput = { firstName: string | null; rebate: number; suburb: string | null; shortAddress: string | null; myJobUrl: string; optOutUrl: string;
+  /** Owner's referral link to the public eligibility checker (Jo, 7 Oct): shown as a "Send to a friend" card. */
+  referralUrl?: string | null;
   /** Saved-spot snapshot: when present the email shows the same itemised breakdown as the likely-eligible email. */
   estimate?: { gross: number; customer: number; areaM2: number; address: string | null; calculatorUrl: string } | null };
 
