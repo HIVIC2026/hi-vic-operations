@@ -116,7 +116,7 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
         ...(apFee === undefined ? {} : { apFee }),
       }); return { ...m, subject: isTest && testOpts.subjectPrefix ? `${testOpts.subjectPrefix} ${m.subject}` : m.subject }; })()
     : withUnsubscribe(renderLaunchCampaignEmail({
-    group: sendGroup, campaignUrl, unsubscribeUrl, myJobUrl: `${base}/my-job/${link.token}`, insulation: price.insulation ?? est?.insulation_declared ?? null,
+    group: sendGroup, campaignUrl, unsubscribeUrl, myJobUrl: `${base}/my-job/${linkToken}`, insulation: price.insulation ?? est?.insulation_declared ?? null,
     firstName, estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
     address: fullAddress, reference: job.job_number,
     ...(installation === undefined ? {} : { installation }),

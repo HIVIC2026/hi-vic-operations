@@ -48,3 +48,23 @@ export const sendSaveSpotPreviewTest = createServerFn({ method: "POST" }).middle
     const [r] = await sendSaveMySpot([job.id], context.userId, { group: "likely", subjectPrefix: data.subjectPrefix ?? (likely ? "[TEST – STEP 3 LIKELY ELIGIBLE]" : "[TEST – STEP 3 SAVE YOUR SPOT]"), ...(likely ? { variant: "likely_estimate" as const } : {}) });
     return { ...r!, sendId: testSendIds.get(job.id) ?? null };
   });
+
+/** Personalised preview of a real lead's Save my spot email. Renders only; never sends. */
+export const previewHotLeadEmail = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ context, data }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const [r] = await (await import("./hot-leads-send.server")).sendSaveMySpot([data.jobId], context.userId, { mode: "preview" });
+    return r!;
+  });
+
+/** Sends one real lead's email to Jo's own inbox only (links point at a TEST job). */
+export const sendHotLeadTestToJo = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ context, data }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const [r] = await (await import("./hot-leads-send.server")).sendSaveMySpot([data.jobId], context.userId, { mode: "test_to_jo" });
+    return r!;
+  });

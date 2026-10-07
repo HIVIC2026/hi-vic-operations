@@ -88,3 +88,8 @@ export function hotCoverage(postcode: string | null, trades: Trade[]) {
   const matches = trades.filter((t) => tradeCovers(t, postcode, region));
   return { installers: [...new Set(matches.filter((t) => t.kind === "installer").map((t) => t.name))], electricians: [...new Set(matches.filter((t) => t.kind === "rec").map((t) => t.name))], checkCoverage: postcode === "3340" || postcode === "3434" };
 }
+/** Jo (8 Oct 2026): the Save my spot campaign — and ONLY this campaign — may send to real customers,
+ *  one press of Send at a time. Every other customer email stays behind the global switch (off). */
+export const SAVE_SPOT_REAL_SEND_APPROVED = true;
+/** Leads Jo may already have emailed by hand: shown with a note so she can untick them. */
+export const HOT_MAYBE_EMAILED_BY_HAND: Record<string, string> = { "HV-1114": "Jo may already have emailed this owner by hand. Untick if so." };
