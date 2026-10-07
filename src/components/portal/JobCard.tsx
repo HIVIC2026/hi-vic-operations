@@ -5,7 +5,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { fmtDateTime } from "@/lib/workflow";
 import { Pill } from "./badges";
 
-export type JobRow = Database["public"]["Views"]["job_overview"]["Row"] & { stuck_reasons?: string[]; comms_status?: { label: string; tone: "good" | "warn" | "bad" | "neutral" } | null; installer_facts?: import("@/lib/bulk-import.core").InstallerJobFacts | null };
+export type JobRow = Omit<Database["public"]["Views"]["job_overview"]["Row"], "authority_status" | "authority_expires_at" | "deposit_cleared"> & Partial<Pick<Database["public"]["Views"]["job_overview"]["Row"], "authority_status" | "authority_expires_at" | "deposit_cleared">> & { stuck_reasons?: string[]; comms_status?: { label: string; tone: "good" | "warn" | "bad" | "neutral" } | null; installer_facts?: import("@/lib/bulk-import.core").InstallerJobFacts | null };
 
 export function JobCard({ job, to, coverage }: { job: JobRow; to: "/admin/jobs/$jobId" | "/field/$jobId" | "/owner/$jobId"; coverage?: "serviceable" | "unserviceable" | "partial" | "not_configured" }) {
   const stuck = job.stuck_reasons ?? [];
