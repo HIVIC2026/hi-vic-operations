@@ -51,7 +51,7 @@ export function PartnerProfileCard({ applicationId }: { applicationId: string })
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-display text-lg font-extrabold">Partner profile</h3>
         <div className="flex gap-1">
-          {isTest && <Badge variant="outline">TEST — never approved</Badge>}
+          {isTest && <Badge variant="outline">TEST — approves as a TEST partner only</Badge>}
           {activatedBusinessId ? <Badge>Approved</Badge> : existingBusinessId ? <Badge variant="outline">Updates existing business (same ABN)</Badge> : <Badge variant="outline">New business on approval</Badge>}
         </div>
       </div>
