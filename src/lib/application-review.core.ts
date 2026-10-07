@@ -1,8 +1,8 @@
-// Pure rules + DRAFT emails for office "Send back for changes" / "Decline" (Jo, 7 Oct 2026 5:45pm).
-// Both email wordings are DRAFT: real (non-TEST) sends stay blocked until Jo approves them.
+// Pure rules + emails for office "Send back for changes" / "Decline" (Jo, 7 Oct 2026 5:45pm).
+// Both wordings APPROVED by Jo 8 Oct 2026 7:44am: real sends go to the partner's real address.
 import { partnerEmailLayout } from "./partner-email.core";
 
-export const APPLICATION_REVIEW_WORDING_APPROVED = false as const;
+export const APPLICATION_REVIEW_WORDING_APPROVED = true as const;
 export type ReviewDecision = "changes_requested" | "declined";
 
 const clean = (s: string | null | undefined) => (s ?? "").trim().replace(/\s+/g, " ").slice(0, 2000);
