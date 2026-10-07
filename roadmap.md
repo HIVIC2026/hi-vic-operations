@@ -97,5 +97,5 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Design v2 zip: identical to the approved design already applied (no changes)
 
 ## Speed (Jo, 7 Oct 17:12 UTC)
-- [ ] Measure phone/4G load times before/after (office, trade, owner, calculator)
-- [ ] Find causes (big lists, waterfalls, indexes, bundles, fonts/images, heavy panels, layout queries) and fix; target <2s
+- [ ] Measure phone/4G load times before/after — public pages done; office/trade/owner pages blocked on a preview sign-in
+- [~] (first fixes: job lists, indexes) Find causes (big lists, waterfalls, indexes, bundles, fonts/images, heavy panels, layout queries) and fix; target <2s
