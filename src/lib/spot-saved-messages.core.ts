@@ -62,6 +62,14 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
     + p("Your spot is held. The moment an installer is free near you, we'll text you to pick a time. Nothing to do until then.")
     + campaignButton(i.myJobUrl, "See my job →")
     + `<p style="margin:10px 0 0;${T.F}font-size:13px;line-height:1.5;text-align:center;color:${NAVY};">No payment · no obligation</p>`;
+  // Referral card (Jo, 7 Oct): near the bottom, only when the owner's tracked referral link exists. Text message stays unchanged.
+  const referral = i.referralUrl
+    ? row(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FFF3E8;border-radius:14px;"><tr><td style="padding:18px 20px;">`
+      + `<p style="margin:0 0 4px;${FH}color:${INK};font-size:17px;line-height:1.3;font-weight:800;">Have a friend who needs a spot saved?</p>`
+      + `<p style="margin:0 0 12px;${F}color:${INK};font-size:14px;line-height:1.5;">Send them our free eligibility checker. It takes a minute.</p>`
+      + campaignButton(i.referralUrl, "Send to a friend →")
+      + `</td></tr></table>`, "0 36px 22px")
+    : "";
   const link = (href: string, t: string) => `<a href="${esc(href)}" style="color:${BLUE};text-decoration:underline;">${t}</a>`;
   const footer = `<p style="margin:0 0 5px;${T.F}color:${NAVY};font-size:14px;line-height:1.4;font-weight:800;text-align:center;">Home Insulation Victoria</p><p style="margin:0 0 9px;${T.F}color:#5A6785;font-size:12px;line-height:1.5;text-align:center;">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.</p><p style="margin:0;${T.F}font-size:12px;line-height:1.5;text-align:center;">${link(`${PRIVACY_URL}`, "Privacy")}&nbsp;·&nbsp;${link(i.myJobUrl, "See my job")}&nbsp;·&nbsp;${link(i.optOutUrl, "Remove my enquiry")}</p>`;
   const html = T.shell(`${art}${row(hero, "0 36px 24px")}${est ? row(savings, "0 28px 22px") : ""}${T.footerRow(footer)}`, subject, null);
