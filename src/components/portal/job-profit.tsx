@@ -19,14 +19,13 @@ export function OfficeJobProfitCard({ jobId }: { jobId: string }) {
   const [sale, setSaleInput] = useState("");
   if (q.error) return <Section title="Profit (office only)"><p className="text-sm text-destructive">{(q.error as Error).message}</p></Section>;
   if (!q.data) return null;
-  const { expected: e, actual: a, hivJob } = q.data;
+  const { expected: e, actual: a } = q.data;
   const rows: [string, number | null, number | null][] = [
     ["Accredited Provider fee", e.apFeeInc, a.apFeeInc],
     [`VEEC spread (VEECs × (sale − buy price))`, e.veecSpread, a.veecSpread],
     ["PIESA markup (owner PIESA price − agreed rate)", e.piesaMarkupInc, a.piesaMarkupInc],
     ["HIV margin on insulation (owner price − installer rate)", e.installerMarkupInc, a.installerMarkupInc],
   ];
-  void hivJob;
   return (
     <Section title="Profit (office only)">
       <p className="mb-2 text-xs text-muted-foreground">Never shown to owners or trades. Area used: {e.areaBasis === "measured" ? "measured" : e.areaBasis === "estimate" ? "estimate (before Ready Check)" : "none yet"}{e.areaM2 ? ` · ${e.areaM2} m²` : ""} · VEECs {e.veecs ?? "—"}{a.veecs !== e.veecs ? ` (lodged ${a.veecs ?? "—"})` : ""}.</p>
