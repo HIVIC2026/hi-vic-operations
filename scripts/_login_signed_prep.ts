@@ -14,9 +14,9 @@ const owner = own![0]!.email as string;
 const { data: offers } = await admin.from("partner_offers").select("id").eq("business_id", "17793408-bf5c-4ddd-9bec-64199f64f9fb").limit(1);
 const magic = async (email: string) => { const { data } = await admin.auth.admin.generateLink({ type: "magiclink", email }); return `${base}/portal?token_hash=${data.properties!.hashed_token}&type=magiclink`; };
 const recovery = async (email: string) => { const { data } = await admin.auth.admin.generateLink({ type: "recovery", email }); return setPasswordLink(data.properties!.hashed_token, "/portal", base); };
-const partner = await issuePartnerLoginLink("deep-test@hivic.test", null, null, base);
 const expired = await issuePartnerLoginLink("deep-test@hivic.test", null, null, base);
-await admin.from("partner_login_links").update({ expires_at: new Date(Date.now() - 60_000).toISOString() }).eq("email", "deep-test@hivic.test").is("used_at", null).order("created_at", { ascending: false }).limit(1);
+await admin.from("partner_login_links").update({ expires_at: new Date(Date.now() - 60_000).toISOString() }).eq("email", "deep-test@hivic.test").is("used_at", null);
+const partner = await issuePartnerLoginLink("deep-test@hivic.test", null, null, base);
 const p = {
   office: { email: "admin@hivic.test", pw: await setPw("admin@hivic.test") },
   boss: { email: "deep-test@hivic.test", pw: await setPw("deep-test@hivic.test") },
