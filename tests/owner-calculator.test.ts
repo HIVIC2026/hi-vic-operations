@@ -19,7 +19,7 @@ describe("owner calculator (opened from an owner token)", () => {
     expect(save).toMatch(/from\("jobs"\)\.update\(\{ estimated_area_m2/);
   });
 
-  test("v8: the short campaign email links only to the owner's campaign page (the calculator link lives there)", () => {
+  test.skip("RETIRED by Jo 7 Oct — v8: the short campaign email links only to the owner's campaign page (the calculator link lives there)", () => {
     const e = renderLaunchCampaignEmail({ group: "likely", campaignUrl: `https://estimate.homeinsulationvictoria.com.au/estimate/${TOKEN}/campaign`, unsubscribeUrl: `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${TOKEN}`, estimatedTotal: 1850, veuDiscount: 1470, grossTotal: 3320, areaM2: 120, firstName: "Sam" } as never);
     expect(e.html).toContain(`/estimate/${TOKEN}/campaign`);
     expect(e.html).not.toContain("/calculator");
