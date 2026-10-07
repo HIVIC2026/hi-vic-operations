@@ -10240,6 +10240,110 @@ export type Database = {
         }
         Relationships: []
       }
+      sms_messages: {
+        Row: {
+          body: string
+          business_id: string | null
+          created_at: string
+          detail: string | null
+          from_sender: string | null
+          id: string
+          idempotency_key: string
+          job_id: string | null
+          message_type: string
+          provider_sid: string | null
+          status: string
+          status_updated_at: string | null
+          to_number: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          business_id?: string | null
+          created_at?: string
+          detail?: string | null
+          from_sender?: string | null
+          id?: string
+          idempotency_key: string
+          job_id?: string | null
+          message_type: string
+          provider_sid?: string | null
+          status: string
+          status_updated_at?: string | null
+          to_number: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          business_id?: string | null
+          created_at?: string
+          detail?: string | null
+          from_sender?: string | null
+          id?: string
+          idempotency_key?: string
+          job_id?: string | null
+          message_type?: string
+          provider_sid?: string | null
+          status?: string
+          status_updated_at?: string | null
+          to_number?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_messages_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_messages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_messages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "sms_messages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_optouts: {
+        Row: {
+          last_message: string | null
+          opted_in_at: string | null
+          opted_out_at: string
+          phone: string
+          source: string
+        }
+        Insert: {
+          last_message?: string | null
+          opted_in_at?: string | null
+          opted_out_at?: string
+          phone: string
+          source?: string
+        }
+        Update: {
+          last_message?: string | null
+          opted_in_at?: string | null
+          opted_out_at?: string
+          phone?: string
+          source?: string
+        }
+        Relationships: []
+      }
       trade_text_log: {
         Row: {
           acknowledged_at: string | null
@@ -10845,6 +10949,7 @@ export type Database = {
           rec_offer_business_hours: number
           rec_offer_expiry_hours: number
           safety_check_payment_inc_gst: number
+          sms_message_switches: Json
           updated_at: string
           urgency_amber_days: number
           urgency_red_days: number
@@ -10890,6 +10995,7 @@ export type Database = {
           rec_offer_business_hours?: number
           rec_offer_expiry_hours?: number
           safety_check_payment_inc_gst?: number
+          sms_message_switches?: Json
           updated_at?: string
           urgency_amber_days?: number
           urgency_red_days?: number
@@ -10935,6 +11041,7 @@ export type Database = {
           rec_offer_business_hours?: number
           rec_offer_expiry_hours?: number
           safety_check_payment_inc_gst?: number
+          sms_message_switches?: Json
           updated_at?: string
           urgency_amber_days?: number
           urgency_red_days?: number
