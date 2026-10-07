@@ -248,7 +248,13 @@ describe("Save your spot (likely eligible) duplicate", () => {
     const base = renderEstimateEmail(input);
     expect(email.subject).toBe(base.subject);
     expect(email.previewText).toBe(base.previewText);
-    expect(email.html.replace(card, "")).toBe(base.html.replace(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/, ""));
+    expect(email.html).toContain(SAVE_SPOT_HERO);
+    expect(email.html).not.toContain(LIKELY_HERO);
+    expect(text).toContain(SAVE_SPOT_HERO);
+    expect(text).not.toContain(LIKELY_HERO);
+    expect(base.html).toContain(LIKELY_HERO);
+    expect(base.plainText).toContain(LIKELY_HERO);
+    expect(email.html.replace(card, "")).toBe(base.html.replace(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/, "").replace(LIKELY_HERO, () => SAVE_SPOT_HERO));
   });
 });
 
