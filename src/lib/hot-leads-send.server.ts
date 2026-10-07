@@ -2,7 +2,7 @@
 // and a once-per-home idempotency key. TEST (qa_test) jobs go only to Jo's allowlist via the test sender.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, launchGroup, savedPriceFromEstimate } from "./launch-campaign.core";
-import { renderLaunchCampaignEmail } from "./estimate-email";
+import { renderLaunchCampaignEmail, renderSaveSpotFromLikelyEmail } from "./estimate-email";
 import { CUSTOMER_BASE } from "./engagement.core";
 import { reservationAllowed, withUnsubscribe } from "./emailsafety.core";
 import { logEvent } from "./workflow.server";
@@ -20,7 +20,7 @@ export async function realSendingOn() {
 }
 
 /** TEST-only overrides (qa_test jobs): link host and group. Ignored for real jobs. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite" };
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string };
 
 export async function sendSaveMySpot(jobIds: string[], actorId: string, testOpts: TestSendOptions = {}): Promise<HotSendResult[]> {
   if (jobIds.length > HOT_SEND_BATCH) throw new Error(`Send at most ${HOT_SEND_BATCH} at a time.`);
@@ -82,10 +82,23 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
   const installation = snapshot?.scenarios?.[0]?.by_access?.standard?.installation;
   const assessmentFee = snapshot?.settings?.piesa_assessment_inc_gst;
   const apFee = snapshot?.settings?.ap_management_inc_gst;
-  const mail = withUnsubscribe(renderLaunchCampaignEmail({
-    group: sendGroup, campaignUrl: `${base}/estimate/${link.token}/campaign`, unsubscribeUrl, myJobUrl: `${base}/my-job/${link.token}`, insulation: price.insulation ?? est?.insulation_declared ?? null,
-    firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
-    address: (await import("./address")).fullAddress(prop?.address_line, prop?.suburb, prop?.postcode), reference: job.job_number,
+  const campaignUrl = `${base}/estimate/${link.token}/campaign`;
+  const fullAddress = (await import("./address")).fullAddress(prop?.address_line, prop?.suburb, prop?.postcode);
+  const firstName = owner?.full_name?.trim().split(/\s+/)[0] ?? null;
+  // Likely-eligible owners get the Jo-APPROVED "Save your spot (likely eligible)" email (7 Oct 2026, FINAL).
+  const mail = sendGroup === "likely"
+    ? (() => { const m = renderSaveSpotFromLikelyEmail({
+        estimateUrl: `${base}/estimate/${link.token}`, outcome: "likely", apCount: 2, campaignUrl, campaignOptOutUrl: unsubscribeUrl,
+        estimatedTotal: price.total, veuDiscount: price.discount, grossProjectTotal: price.gross, areaM2: price.areaM2,
+        firstName, address: fullAddress, reference: job.job_number, existingInsulationPresent: (price.insulation ?? est?.insulation_declared) === "present",
+        ...(installation === undefined ? {} : { installationPrice: installation }),
+        ...(assessmentFee === undefined ? {} : { assessmentFee }),
+        ...(apFee === undefined ? {} : { apFee }),
+      }); return { ...m, subject: isTest && testOpts.subjectPrefix ? `${testOpts.subjectPrefix} ${m.subject}` : m.subject }; })()
+    : withUnsubscribe(renderLaunchCampaignEmail({
+    group: sendGroup, campaignUrl, unsubscribeUrl, myJobUrl: `${base}/my-job/${link.token}`, insulation: price.insulation ?? est?.insulation_declared ?? null,
+    firstName, estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
+    address: fullAddress, reference: job.job_number,
     ...(installation === undefined ? {} : { installation }),
     ...(assessmentFee === undefined ? {} : { assessmentFee }),
     ...(apFee === undefined ? {} : { apFee }),
