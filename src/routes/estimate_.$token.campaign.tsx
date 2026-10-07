@@ -38,14 +38,14 @@ function CampaignPage() {
       {isLoading ? <p role="status" className="py-16 text-center text-sm text-muted-foreground">Loading your estimate…</p>
       : isError || !data ? <section className="estimate-offset rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">This link isn't available</h1><p className="mt-2 text-sm">Please contact Home Insulation Victoria and we'll help.</p></section>
       : data.response?.opted_out_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><section className="estimate-offset rounded-[22px] border border-estimate-blue-soft bg-white p-8 text-center"><h1 className="font-display text-3xl font-extrabold text-estimate-navy">You're off the list</h1><p className="mt-3 text-estimate-navy/75">We won't send any more campaign messages about this enquiry.</p></section></div>
-      : data.response?.spot_saved_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><Result group={data.group} videoPriority={data.response.queue_priority === "video"} token={token} rebate={data.response.saved_veu_discount ?? null} customer={data.response.saved_total ?? null} suburb={data.home?.suburb ?? null} home={data.home?.short ?? null} referralUrl={data.referralUrl ?? null} /></div>
+      : data.response?.spot_saved_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><Result group={data.group} videoPriority={data.response.queue_priority === "video"} token={token} rebate={data.response.saved_veu_discount ?? null} customer={data.response.saved_total ?? null} suburb={data.home?.suburb ?? null} home={data.home?.short ?? null} referralUrl={data.referralUrl ?? null} firstName={data.owner.firstName ?? null} /></div>
       : data.pricing ? <CampaignDesign group={data.group} token={token} name={data.owner.firstName} suburb={data.home?.suburb ?? null} p={data.pricing} busy={busy} error={error} onSave={() => void act("save")} onOptOut={() => void act("optout")} />
       : <section className="estimate-offset mx-4 rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">Your estimate is being updated</h1><p className="mt-2 text-sm">Please check back soon.</p></section>}
     </main>
   </div>;
 }
 
-function Result({ group, videoPriority, token, rebate, customer, suburb, home, referralUrl }: { group: "likely" | "onsite"; videoPriority: boolean; token: string; rebate: number | null; customer: number | null; suburb: string | null; home: string | null; referralUrl: string | null }) {
+function Result({ group, videoPriority, token, rebate, customer, suburb, home, referralUrl, firstName }: { group: "likely" | "onsite"; videoPriority: boolean; token: string; rebate: number | null; customer: number | null; suburb: string | null; home: string | null; referralUrl: string | null; firstName: string | null }) {
   const $ = (n: number | null) => (n == null ? "—" : `$${Math.floor(Number(n)).toLocaleString("en-AU")}`);
   const [copied, setCopied] = useState(false);
   const shareChecker = async () => {
@@ -59,10 +59,10 @@ function Result({ group, videoPriority, token, rebate, customer, suburb, home, r
     <OwnerHouse level={1} size="sm" className="mx-auto" />
     <h1 className="mt-4 text-center font-display text-3xl font-extrabold text-estimate-navy">Spot saved. Your <span className="text-estimate-logo-green">{$(rebate)}</span> rebate is waiting.</h1>
     <div className="mt-5 rounded-xl bg-estimate-heads-up p-4 text-estimate-navy">
-      <p className="font-bold">Heads up: the waiting list is huge</p>
-      <p className="mt-1 text-sm">Hundreds of homes have signed up since 1 October, and we book in order. It may be a while before it's your turn. We're teaming up with more installers and electricians across Victoria right now to get through it faster. Your spot is held, so you don't need to do anything.</p>
+      <p className="font-bold">Smart move{firstName ? `, ${firstName}` : ""}. Your spot is saved.</p>
+      <p className="mt-1 text-sm">Demand is high and installer capacity is limited, so we're approving homes in batches, in the order spots were saved. You've locked in your place, so there's nothing more you need to do.</p>
+      <p className="mt-2 text-sm">We're teaming up with more installers and electricians across Victoria, and we'll text you as soon as one is free {suburb ? `in ${suburb}` : "near you"} to book your free Ready Check.</p>
     </div>
-    <p className="mt-4 text-estimate-navy">We'll text you the moment an installer is free in {suburb ?? "your area"} to book your free Ready Check.</p>
     <dl className="mt-4 grid gap-2 rounded-xl border border-estimate-line p-4 text-sm text-estimate-navy">
       <div className="flex justify-between gap-3"><dt>Your rebate</dt><dd className="font-bold text-estimate-logo-green">{$(rebate)}</dd></div>
       <div className="flex justify-between gap-3"><dt>You pay about</dt><dd className="font-bold">{$(customer)}</dd></div>

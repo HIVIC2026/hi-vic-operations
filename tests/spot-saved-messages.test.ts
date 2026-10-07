@@ -5,14 +5,15 @@ const i = { firstName: "Sarah", rebate: 1470.6, suburb: "Ballarat", shortAddress
 describe("spot saved confirmations", () => {
   test("text wording", () => {
     const s = renderSpotSavedSms(i);
-    expect(s.startsWith("Spot saved, Sarah! 🎉 Your $1,470 rebate is waiting.")).toBe(true);
-    expect(s).toContain("an installer's free in Ballarat.");
-    expect(s).toContain("Your job: https://estimate.homeinsulationvictoria.com.au/my-job/abc\n– Home Insulation Victoria");
+    expect(s.startsWith("Spot saved, Sarah! 🎉 Smart move: your $1,470 rebate is waiting.")).toBe(true);
+    expect(s).toContain("an installer is free in Ballarat.");
+    expect(s).toContain("Your job: https://estimate.homeinsulationvictoria.com.au/my-job/abc – Home Insulation Victoria");
   });
   test("email wording, no phone / call us", () => {
     const e = renderSpotSavedEmail(i);
     expect(e.subject).toBe("Spot saved. Your $1,470 rebate is waiting");
-    for (const t of ["/api/public/email-art/", "/spot.png", 'alt="Spot saved, Sarah. Your', "free Ready Check at 12 Smith St, Ballarat", "Heads up: the waiting list is huge.", "See my job →", "No payment · no obligation", "DC Construction Solutions Pty Ltd", "Privacy", "Remove my enquiry", "#07BF61"]) expect(e.html).toContain(t);
+    for (const t of ["/api/public/email-art/", "/spot.png", 'alt="Spot saved, Sarah. Your', "Smart move, Sarah. Your spot is saved.", "approving homes in batches, in the order spots were saved", "one is free in Ballarat to book your free Ready Check", "See my job →", "No payment · no obligation", "DC Construction Solutions Pty Ltd", "Privacy", "Remove my enquiry", "#07BF61"]) expect(e.html).toContain(t);
+    expect(e.html).not.toContain("Heads up");
     expect(/call us|phone|1300|04\d{2}/i.test(e.html + e.text)).toBe(false);
   });
   test("address bits", () => expect(addressBits("12 Smith St", "Ballarat")).toEqual({ suburb: "Ballarat", short: "12 Smith St, Ballarat" }));

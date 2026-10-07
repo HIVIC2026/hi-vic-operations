@@ -20,7 +20,9 @@ export type SpotSavedInput = { firstName: string | null; rebate: number; suburb:
   /** Saved-spot snapshot: when present the email shows the same itemised breakdown as the likely-eligible email. */
   estimate?: { gross: number; customer: number; areaM2: number; address: string | null; calculatorUrl: string } | null };
 
-export const SPOT_SAVED_WAIT_TEXT = "Hundreds of homes have signed up since 1 October, and we book in order. It may be a while before it's your turn. We're teaming up with more installers and electricians across Victoria right now to get through it faster.";
+// Jo's "smart move" wording (7 Oct) replaces the old "waiting list is huge" message.
+export const SPOT_SAVED_BATCH_TEXT = "Demand is high and installer capacity is limited, so we're approving homes in batches, in the order spots were saved. You've locked in your place, so there's nothing more you need to do.";
+export const spotSavedTeamText = (suburb: string | null) => `We're teaming up with more installers and electricians across Victoria, and we'll text you as soon as one is free ${suburb?.trim() ? `in ${suburb.trim()}` : "near you"} to book your free Ready Check.`;
 
 /** "12 Smith St, Ballarat VIC 3350" -> { short: "12 Smith St, Ballarat", suburb: "Ballarat" } */
 export function addressBits(addressLine: string | null, suburb: string | null) {
@@ -31,19 +33,14 @@ export function addressBits(addressLine: string | null, suburb: string | null) {
 
 export function renderSpotSavedSms(i: SpotSavedInput) {
   const name = i.firstName?.trim() ? `, ${i.firstName.trim()}` : "";
-  return `Spot saved${name}! 🎉 Your ${wholeDollars(i.rebate)} rebate is waiting.
-
-Heads up: the waiting list is huge and we book in order, so it may be a while. We're teaming up with more installers and electricians across Victoria to speed it up. Your spot is held. We'll text you the moment an installer's free in ${i.suburb ?? "your area"}.
-
-Your job: ${i.myJobUrl}
-– Home Insulation Victoria`;
+  const where = i.suburb?.trim() ? ` in ${i.suburb.trim()}` : "";
+  return `Spot saved${name}! 🎉 Smart move: your ${wholeDollars(i.rebate)} rebate is waiting. Demand is high and capacity is limited, but your place in line is locked in. We'll text you as soon as an installer is free${where}. Your job: ${i.myJobUrl} – Home Insulation Victoria`;
 }
 
 export function renderSpotSavedEmail(i: SpotSavedInput) {
   const rebate = wholeDollars(i.rebate);
   const name = i.firstName?.trim() || null;
   const subject = `Spot saved. Your ${rebate} rebate is waiting`;
-  const where = i.shortAddress ? ` at ${i.shortAddress}` : "";
   const p = (t: string, extra = "") => `<p style="margin:0 0 14px;${F}color:${INK};font-size:15px;line-height:1.6;${extra}">${t}</p>`;
   const T = V2_THEME, { INK: NAVY } = T.colors;
   const row = (inner: string, pad: string) => `<tr><td class="lx-pad" style="padding:${pad};${T.F}">${inner}</td></tr>`;
@@ -55,11 +52,11 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   const headlinePlain = `Spot saved${name ? `, ${name}` : ""}. Your ${rebate} rebate is waiting.`;
   const jobUrl = new URL(i.myJobUrl); const token = jobUrl.pathname.split("/")[2] ?? "";
   const art = campaignArtImg(emailArtUrl(jobUrl.origin, token, "spot"), headlinePlain);
+  const smartMove = `Smart move${name ? `, ${esc(name)}` : ""}. Your spot is saved.`;
   const hero = ""
-    + p(`Nice work. You're in line for a free Ready Check${esc(where)}.`)
-    + p("Heads up: the waiting list is huge.", "font-weight:800;margin-bottom:6px;")
-    + p(esc(SPOT_SAVED_WAIT_TEXT))
-    + p("Your spot is held. The moment an installer is free near you, we'll text you to pick a time. Nothing to do until then.")
+    + p(smartMove, "font-weight:800;margin-bottom:6px;")
+    + p(esc(SPOT_SAVED_BATCH_TEXT))
+    + p(esc(spotSavedTeamText(i.suburb)))
     + campaignButton(i.myJobUrl, "See my job →")
     + `<p style="margin:10px 0 0;${T.F}font-size:13px;line-height:1.5;text-align:center;color:${NAVY};">No payment · no obligation</p>`;
   // Referral card (Jo, 7 Oct): near the bottom, only when the owner's tracked referral link exists. Text message stays unchanged.
@@ -74,6 +71,6 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   const footer = `<p style="margin:0 0 5px;${T.F}color:${NAVY};font-size:14px;line-height:1.4;font-weight:800;text-align:center;">Home Insulation Victoria</p><p style="margin:0 0 9px;${T.F}color:#5A6785;font-size:12px;line-height:1.5;text-align:center;">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.</p><p style="margin:0;${T.F}font-size:12px;line-height:1.5;text-align:center;">${link(`${PRIVACY_URL}`, "Privacy")}&nbsp;·&nbsp;${link(i.myJobUrl, "See my job")}&nbsp;·&nbsp;${link(i.optOutUrl, "Remove my enquiry")}</p>`;
   const html = T.shell(`${art}${row(hero, "0 36px 24px")}${est ? row(savings, "0 28px 22px") : ""}${referral}${T.footerRow(footer)}`, subject, null);
   void LOGO_GREEN; void CUSTOMER_BRAND;
-  const text = [subject, "", "YOU'RE ON THE LIST", `Spot saved${name ? `, ${name}` : ""}. Your ${rebate} rebate is waiting.`, `Nice work. You're in line for a free Ready Check${where}.`, "", "Heads up: the waiting list is huge.", SPOT_SAVED_WAIT_TEXT, "", "Your spot is held. The moment an installer is free near you, we'll text you to pick a time. Nothing to do until then.", "", `See my job: ${i.myJobUrl}`, "No payment · no obligation", ...(est ? ["", `Price before discount: $${est.gross.toLocaleString("en-AU")}`, `VEU discount (${veecs} VEECs × $70): −${rebate}`, `You pay about: $${est.customer.toLocaleString("en-AU")}`, `Try a different size: ${est.calculatorUrl}`] : []), ...(i.referralUrl ? ["", "HAVE A FRIEND WHO NEEDS A SPOT SAVED?", "Send them our free eligibility checker. It takes a minute.", `Send to a friend: ${i.referralUrl}`] : []), "", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.", `Privacy: ${PRIVACY_URL}`, `Remove my enquiry: ${i.optOutUrl}`].join("\n");
+  const text = [subject, "", "YOU'RE ON THE LIST", `Spot saved${name ? `, ${name}` : ""}. Your ${rebate} rebate is waiting.`, smartMove.replace(/<[^>]+>/g, ""), "", SPOT_SAVED_BATCH_TEXT, "", spotSavedTeamText(i.suburb), "", `See my job: ${i.myJobUrl}`, "No payment · no obligation", ...(est ? ["", `Price before discount: $${est.gross.toLocaleString("en-AU")}`, `VEU discount (${veecs} VEECs × $70): −${rebate}`, `You pay about: $${est.customer.toLocaleString("en-AU")}`, `Try a different size: ${est.calculatorUrl}`] : []), ...(i.referralUrl ? ["", "HAVE A FRIEND WHO NEEDS A SPOT SAVED?", "Send them our free eligibility checker. It takes a minute.", `Send to a friend: ${i.referralUrl}`] : []), "", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.", `Privacy: ${PRIVACY_URL}`, `Remove my enquiry: ${i.optOutUrl}`].join("\n");
   return { subject, html: applyCampaignFonts(html), text };
 }
