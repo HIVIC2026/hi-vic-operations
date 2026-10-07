@@ -481,6 +481,47 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     const twice = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: {}, installer: { site_check: "yes" } }).then(() => "accepted", (e) => (e as Error).message);
     c("confirming again refused (no duplicate)", twice !== "accepted", twice);
   });
+  await step(steps, "C14", "C14 Add one job + card: photo attach/remove, electrician invite (manual email rule), consent required, Home Insulation Victoria arranges", async (c) => {
+    const pi = await import("../src/lib/partner-import.server");
+    const je = await import("../src/lib/job-electrician.server");
+    const { readFileSync } = await import("node:fs");
+    // A real phone-style photo stored in this business's private import folder.
+    const path = `partners/${BIZ}/imports/${crypto.randomUUID()}-ceiling-1.jpg`;
+    const up = await admin.storage.from("job-files").upload(path, readFileSync(`${fixtures}/ceiling-1.jpg`), { contentType: "image/jpeg" });
+    c("photo uploaded privately", !up.error, up.error?.message);
+    const imp = await pi.createImportFor(ownerId, { businessId: BIZ, sourceSystem: "manual_import", text: `TEST ${tag} Photo, 14 Photo St, Fraser Rise VIC 3336, 0412 999 014, qa.owner.${tag.toLowerCase()}.photo@hivic-test.example`, csvRow: 0, files: [] });
+    const added = await pi.addImportFilesFor(ownerId, imp.id, [{ path, name: "ceiling-1.jpg", type: "image/jpeg" }]);
+    c("photo attached to the draft", added.files.length === 1);
+    const { visitedFromEvidence } = await import("../src/lib/job-electrician.core");
+    c("photo means Visited", visitedFromEvidence({ files: added.files }));
+    const removed = await pi.removeImportFileFor(ownerId, imp.id, path);
+    c("photo can be removed", removed.files.length === 0);
+    await pi.addImportFilesFor(ownerId, imp.id, [{ path, name: "ceiling-1.jpg", type: "image/jpeg" }]);
+    // + Add another electrician: nomination + invite email built under the manual-email rule (dry run: no email each run).
+    const { data: nom } = await admin.from("electrician_nominations").insert({ contact_name: `TEST ${tag} Sparky`, business_name: "TEST Sparky Electrical", email: `qa.sparky.${tag.toLowerCase()}@hivic-test.example`, phone: "0412999099", nominating_business_id: BIZ, nominated_by: ownerId, nominated_for: "installer", status: "invite_pending_comms" }).select("id").single();
+    const inv = await je.sendElectricianInvite({ actorId: ownerId, nominationId: nom!.id, installerBusinessId: BIZ, inviteToken: "testtoken_".padEnd(40, "x"), to: `qa.sparky.${tag.toLowerCase()}@hivic-test.example`, name: `TEST ${tag} Sparky`, dryRun: true });
+    c("invite for a TEST business goes only to Jo's test inbox", inv.to === "jolowexo@hotmail.com", inv.to);
+    c("invite links to the electrician application", "message" in inv && String(inv.message).includes("/electrician-onboarding?invite="));
+    const facts = { full_name: `TEST ${tag} Photo`, email: `qa.owner.${tag.toLowerCase()}.photo@hivic-test.example`, phone: "0412999014", address_line: "14 Photo St", suburb: "Fraser Rise", postcode: "3336", measured_area_m2: 96 };
+    const noConsent = await pi.confirmImportFor(ownerId, { importId: imp.id, facts, installer: { site_check: "yes", contact_permission: false }, electrician: { mode: "mine", nomination_id: nom!.id } }).then(() => "accepted", (e) => (e as Error).message);
+    c("job can't be added without the owner consent tick", noConsent !== "accepted" && /permission to contact/.test(noConsent), noConsent);
+    const noPick = await pi.confirmImportFor(ownerId, { importId: imp.id, facts, installer: { site_check: "yes", contact_permission: true }, electrician: { mode: "mine" } }).then(() => "accepted", (e) => (e as Error).message);
+    c("My electrician without a pick is refused", /Choose your electrician/.test(noPick), noPick);
+    const r = await pi.confirmImportFor(ownerId, { importId: imp.id, facts, installer: { site_check: "yes", contact_permission: true }, electrician: { mode: "mine", nomination_id: nom!.id } });
+    madeJobs.push(r.jobId);
+    const s1 = await je.jobElectricianState(r.jobId);
+    const { jobElectricianLabel, ELECTRICIAN_INVITED_LABEL } = await import("../src/lib/job-electrician.core");
+    c("job shows Electrician invited – waiting to onboard", jobElectricianLabel(s1) === ELECTRICIAN_INVITED_LABEL, jobElectricianLabel(s1));
+    const { data: j } = await admin.from("jobs").select("electrician_choice").eq("id", r.jobId).single();
+    c("job choice recorded as nominated", j?.electrician_choice === "nominated", String(j?.electrician_choice));
+    const { count: asg } = await admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", r.jobId).eq("role", "electrician");
+    c("no electrician assigned directly", !asg);
+    await je.switchJobToHivic(r.jobId, ownerId);
+    const s2 = await je.jobElectricianState(r.jobId);
+    c("installer can switch to Home Insulation Victoria arranges", jobElectricianLabel(s2) === "Home Insulation Victoria arranges", jobElectricianLabel(s2));
+    await admin.from("electrician_nominations").update({ ended_at: new Date().toISOString() }).eq("id", nom!.id);
+    await jobsOk(c, [r.jobId]);
+  });
   await step(steps, "C13", "C13 Not quoted: Book a Ready Check (book it myself / ask the owner), never offered to anyone else", async (c) => {
     const pi = await import("../src/lib/partner-import.server");
     const rc = await import("../src/lib/installer-ready-check.server");
@@ -556,6 +597,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("nothing sent to any owner across all uploads", (await outboundFor(madeJobs)) === 0, `${madeJobs.length} TEST job(s) checked`);
   });
   screens.push({ step: "C12", persona: "owner", path: "/partner/bulk-import", mustNotSee: BANNED });
+  screens.push({ step: "C14", persona: "owner", path: "/partner/import", mustSee: ["Add one job", "Take photo"], mustNotSee: BANNED });
 }
 
 // ---------- main ----------
