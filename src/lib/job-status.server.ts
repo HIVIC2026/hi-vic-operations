@@ -11,7 +11,7 @@ type Ctx = { biz: { id: string; name: string }; boss: boolean; kind: "installer"
 export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<string, StatusFacts & { channel: string | null; originating: string | null; jobNumber: string }>> {
   const ids = jobIds.length ? jobIds : none;
   const [{ data: jobs }, { data: books }, { data: ev }, { data: quotes }, { data: invs }, { data: props }, { data: ws }] = await Promise.all([
-    admin.from("jobs").select("id, job_number, stage, channel, originating_installer_business_id").in("id", ids),
+    admin.from("jobs").select("id, job_number, stage, channel, originating_installer_business_id, created_at").in("id", ids),
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end, business_id, businesses(name, trading_name)").in("job_id", ids).in("status", ["confirmed", "completed"]),
     admin.from("workflow_events").select("job_id, event_type, to_stage, created_at").in("job_id", ids).in("event_type", ["stage_changed", "payout_marked_paid"]).order("created_at", { ascending: false }).limit(5000),
     admin.from("quotes").select("job_id, kind, status, sent_at, accepted_at").in("job_id", ids).in("status", ["issued", "accepted"]),
@@ -24,7 +24,7 @@ export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<stri
   const out = new Map<string, StatusFacts & { channel: string | null; originating: string | null; jobNumber: string }>();
   for (const j of jobs ?? []) {
     const e = (ev ?? []).filter((x) => x.job_id === j.id);
-    const stageSince = e.find((x) => x.event_type === "stage_changed" && x.to_stage === j.stage)?.created_at ?? null;
+    const stageSince = e.find((x) => x.event_type === "stage_changed" && x.to_stage === j.stage)?.created_at ?? e.find((x) => x.event_type === "stage_changed")?.created_at ?? j.created_at ?? null; // the latest stage move, else when the job was added
     const apAt = e.find((x) => x.event_type === "stage_changed" && x.to_stage === "ready_for_veec")?.created_at ?? null;
     const paidOut = e.find((x) => x.event_type === "payout_marked_paid")?.created_at ?? null;
     const q = (quotes ?? []).filter((x) => x.job_id === j.id);
