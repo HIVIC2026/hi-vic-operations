@@ -91,11 +91,17 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+// Emailed sign-in/reset links that fall back to the home page (calculator) carry tokens in the address; remember that so we can move on to the portal.
+const ARRIVED_WITH_AUTH = typeof window !== "undefined" && /access_token=|[?&]code=|token_hash=|type=(magiclink|recovery|signup)/.test(window.location.hash + window.location.search);
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event) => {
+      const path = window.location.pathname;
+      if (event === "PASSWORD_RECOVERY" && path !== "/reset-password") { window.location.replace("/reset-password?next=/portal"); return; }
+      if (event === "SIGNED_IN" && ARRIVED_WITH_AUTH && (path === "/" || path === "/calculator")) { window.location.replace("/portal"); return; }
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
