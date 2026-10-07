@@ -16,6 +16,7 @@ import { Route as CalculatorRouteImport } from './routes/calculator'
 import { Route as CampaignPreviewRouteImport } from './routes/campaign-preview'
 import { Route as ElectricianOnboardingRouteImport } from './routes/electrician-onboarding'
 import { Route as InstallerOnboardingRouteImport } from './routes/installer-onboarding'
+import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as QaAccessRouteImport } from './routes/qa-access'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -131,6 +132,11 @@ const ElectricianOnboardingRoute = ElectricianOnboardingRouteImport.update({
 const InstallerOnboardingRoute = InstallerOnboardingRouteImport.update({
   id: '/installer-onboarding',
   path: '/installer-onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortalRoute = PortalRouteImport.update({
+  id: '/portal',
+  path: '/portal',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -594,6 +600,7 @@ export interface FileRoutesByFullPath {
   '/campaign-preview': typeof CampaignPreviewRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
+  '/portal': typeof PortalRoute
   '/privacy': typeof PrivacyRoute
   '/qa-access': typeof QaAccessRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -684,6 +691,7 @@ export interface FileRoutesByTo {
   '/campaign-preview': typeof CampaignPreviewRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
+  '/portal': typeof PortalRoute
   '/privacy': typeof PrivacyRoute
   '/qa-access': typeof QaAccessRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -772,6 +780,7 @@ export interface FileRoutesById {
   '/campaign-preview': typeof CampaignPreviewRoute
   '/electrician-onboarding': typeof ElectricianOnboardingRoute
   '/installer-onboarding': typeof InstallerOnboardingRoute
+  '/portal': typeof PortalRoute
   '/privacy': typeof PrivacyRoute
   '/qa-access': typeof QaAccessRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -864,6 +873,7 @@ export interface FileRouteTypes {
     | '/campaign-preview'
     | '/electrician-onboarding'
     | '/installer-onboarding'
+    | '/portal'
     | '/privacy'
     | '/qa-access'
     | '/reset-password'
@@ -954,6 +964,7 @@ export interface FileRouteTypes {
     | '/campaign-preview'
     | '/electrician-onboarding'
     | '/installer-onboarding'
+    | '/portal'
     | '/privacy'
     | '/qa-access'
     | '/reset-password'
@@ -1041,6 +1052,7 @@ export interface FileRouteTypes {
     | '/campaign-preview'
     | '/electrician-onboarding'
     | '/installer-onboarding'
+    | '/portal'
     | '/privacy'
     | '/qa-access'
     | '/reset-password'
@@ -1133,6 +1145,7 @@ export interface RootRouteChildren {
   CampaignPreviewRoute: typeof CampaignPreviewRoute
   ElectricianOnboardingRoute: typeof ElectricianOnboardingRoute
   InstallerOnboardingRoute: typeof InstallerOnboardingRoute
+  PortalRoute: typeof PortalRoute
   PrivacyRoute: typeof PrivacyRoute
   QaAccessRoute: typeof QaAccessRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -1210,6 +1223,13 @@ declare module '@tanstack/react-router' {
       path: '/installer-onboarding'
       fullPath: '/installer-onboarding'
       preLoaderRoute: typeof InstallerOnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal': {
+      id: '/portal'
+      path: '/portal'
+      fullPath: '/portal'
+      preLoaderRoute: typeof PortalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -1959,6 +1979,7 @@ const rootRouteChildren: RootRouteChildren = {
   CampaignPreviewRoute: CampaignPreviewRoute,
   ElectricianOnboardingRoute: ElectricianOnboardingRoute,
   InstallerOnboardingRoute: InstallerOnboardingRoute,
+  PortalRoute: PortalRoute,
   PrivacyRoute: PrivacyRoute,
   QaAccessRoute: QaAccessRoute,
   ResetPasswordRoute: ResetPasswordRoute,
