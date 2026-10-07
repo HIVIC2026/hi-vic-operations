@@ -29,8 +29,8 @@ function Workers() {
   const done = () => { setEditing(null); refetch(); };
   return (
     <TradeShell installer>
-      <Link to="/partner" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" /> Dashboard</Link>
-      <h1 className="text-2xl font-bold">Your staff</h1>
+      <Link to="/field/business/team" className="inline-flex items-center gap-1 text-sm font-bold text-estimate-blue"><ArrowLeft className="h-4 w-4" />Team</Link>
+      <h1 className="font-display text-3xl font-extrabold">Your staff</h1>
       <p className="mb-4 text-sm text-muted-foreground">One business profile for {data.business?.trading_name || data.business?.name}. Invite each staff member using their own link. They provide their own details and declarations, and our office must approve them before they can access assigned jobs. Staff cannot see business rates or bank details.</p>
       {data.canManage && data.business && <WorkerInvites businessId={data.business.id} sample={sample} />}
       {!sample && data.canManage && editing !== "new" && <Button className="mb-4" size="field" variant="outline" onClick={() => setEditing("new")}>+ Add staff member manually</Button>}
