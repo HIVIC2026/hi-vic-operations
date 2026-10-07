@@ -11,17 +11,23 @@ import { logEvent } from "./workflow.server";
 export const HOT_SEND_BATCH = 10;
 /** Last TEST send detail per job (Resend id), for reporting. */
 export const testSendIds = new Map<string, string>();
-export type HotSendResult = { jobId: string; jobNumber: string | null; outcome: "sent" | "skipped" | "blocked" | "failed"; detail: string };
+export type HotSendResult = { jobId: string; jobNumber: string | null; outcome: "sent" | "skipped" | "blocked" | "failed"; detail: string; preview?: { to: string; subject: string; html: string } };
 
-/** Real customers: only when Jo has approved the copy AND the customer sending switch is on. */
+/** Real customers: ONLY this Save my spot campaign, approved by Jo (8 Oct 2026). The global customer
+ *  comms switch stays off, so every other customer email remains blocked. Contact consent is still checked per lead. */
 export async function realSendingOn() {
-  if (!LAUNCH_COPY_APPROVED) return false;
-  const { customerCommsEnabled } = await import("./comms.server");
-  return customerCommsEnabled();
+  const { SAVE_SPOT_REAL_SEND_APPROVED } = await import("./hot-leads.core");
+  return SAVE_SPOT_REAL_SEND_APPROVED;
 }
+void LAUNCH_COPY_APPROVED;
 
-/** TEST-only overrides (qa_test jobs): link host and group. Ignored for real jobs. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate" };
+/** TEST-only overrides (qa_test jobs): link host and group. Ignored for real jobs.
+ *  mode "preview" renders without sending; "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "test_to_jo" };
+/** Jo's own inbox for "send me a test of this lead". */
+export const JO_TEST_INBOX = "jolowexo@hotmail.com";
+/** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
+export const JO_TEST_LINK_JOB = "HV-1609";
 
 export async function sendSaveMySpot(jobIds: string[], actorId: string, testOpts: TestSendOptions = {}): Promise<HotSendResult[]> {
   if (jobIds.length > HOT_SEND_BATCH) throw new Error(`Send at most ${HOT_SEND_BATCH} at a time.`);
@@ -32,11 +38,12 @@ export async function sendSaveMySpot(jobIds: string[], actorId: string, testOpts
 }
 
 async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts: TestSendOptions): Promise<HotSendResult> {
+  const mode = testOpts.mode ?? "send";
   const { data: job } = await admin.from("jobs").select("id, job_number, source, stage, eligibility_outcome, owners(full_name, email), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle();
   if (!job) return { jobId, jobNumber: null, outcome: "failed", detail: "Job not found" };
   const r = (outcome: HotSendResult["outcome"], detail: string): HotSendResult => ({ jobId, jobNumber: job.job_number, outcome, detail });
   const isTest = job.source === "qa_test";
-  if (!isTest && !realOn) return r("blocked", "Sending is switched off.");
+  if (mode === "send" && !isTest && !realOn) return r("blocked", "Sending is switched off.");
   if (["cancelled", "complete"].includes(job.stage)) return r("skipped", "Job is closed.");
   const owner = job.owners as { full_name: string | null; email: string | null } | null;
   const to = owner?.email?.trim().toLowerCase();
@@ -66,31 +73,42 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
   const sendGroup = isTest ? (testOpts.group ?? group) : "likely";
   const key = `${LAUNCH_CAMPAIGN}:save_my_spot:${jobId}${isTest && sendGroup === "onsite" ? ":b" : ""}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
   const { data: ex } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
-  if (ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
+  if (mode === "send" && ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
   let sendId = ex?.id ?? null;
-  if (ex) await admin.from("customer_email_sends").update({ status: "sending", error: null, created_at: new Date().toISOString() }).eq("id", ex.id);
-  else {
-    const { data, error } = await admin.from("customer_email_sends").insert({ job_id: jobId, estimate_link_id: link.id, purpose: LAUNCH_CAMPAIGN, idempotency_key: key }).select("id").single();
-    if (error || !data) return r("skipped", "Already being sent.");
-    sendId = data.id;
+  if (mode === "send") {
+    if (ex) await admin.from("customer_email_sends").update({ status: "sending", error: null, created_at: new Date().toISOString() }).eq("id", ex.id);
+    else {
+      const { data, error } = await admin.from("customer_email_sends").insert({ job_id: jobId, estimate_link_id: link.id, purpose: LAUNCH_CAMPAIGN, idempotency_key: key }).select("id").single();
+      if (error || !data) return r("skipped", "Already being sent.");
+      sendId = data.id;
+    }
   }
 
+  // Jo's test copy of a real lead: real wording/facts, but every link points at a TEST job.
+  let linkJobId = jobId, linkToken = link.token;
+  if (mode === "test_to_jo") {
+    const { data: tj } = await admin.from("jobs").select("id, source").eq("job_number", JO_TEST_LINK_JOB).maybeSingle();
+    const { data: tl } = tj?.source === "qa_test" ? await admin.from("customer_estimate_links").select("token").eq("job_id", tj.id).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle() : { data: null };
+    if (!tj || !tl?.token) return r("failed", "TEST job links unavailable for the test copy.");
+    linkJobId = tj.id; linkToken = tl.token;
+  }
   const { unsubscribeUrlForJob } = await import("./emailsafety.server");
   const base = CUSTOMER_BASE; // one setting: customer links always use the live domain, never the login-walled preview
-  const unsubscribeUrl = (await unsubscribeUrlForJob(jobId)).replace(CUSTOMER_BASE, base);
+  // Creates the lead's unsubscribe token if it doesn't have one yet.
+  const unsubscribeUrl = (await unsubscribeUrlForJob(linkJobId)).replace(CUSTOMER_BASE, base);
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const snapshot = est?.snapshot as { settings?: { piesa_assessment_inc_gst?: number; ap_management_inc_gst?: number }; scenarios?: { by_access?: { standard?: { installation?: number } } }[] } | null;
   const installation = snapshot?.scenarios?.[0]?.by_access?.standard?.installation;
   const assessmentFee = snapshot?.settings?.piesa_assessment_inc_gst;
   const apFee = snapshot?.settings?.ap_management_inc_gst;
-  const campaignUrl = `${base}/estimate/${link.token}/campaign`;
+  const campaignUrl = `${base}/estimate/${linkToken}/campaign`;
   const fullAddress = (await import("./address")).fullAddress(prop?.address_line, prop?.suburb, prop?.postcode);
   const firstName = owner?.full_name?.trim().split(/\s+/)[0] ?? null;
   // Likely-eligible owners get the Jo-APPROVED "Save your spot (likely eligible)" email (7 Oct 2026, FINAL).
-  const referralUrl = sendGroup === "likely" ? await (await import("./referral.server")).referralUrlForJob(jobId).catch(() => null) : null;
+  const referralUrl = sendGroup === "likely" ? await (await import("./referral.server")).referralUrlForJob(linkJobId).catch(() => null) : null;
   const mail = sendGroup === "likely"
     ? (() => { const m = (isTest && testOpts.variant === "likely_estimate" ? renderStep3Likely : renderStep3SaveSpot)({
-        estimateUrl: `${base}/estimate/${link.token}`, campaignUrl, unsubscribeUrl, referralUrl,
+        estimateUrl: `${base}/estimate/${linkToken}`, campaignUrl, unsubscribeUrl, referralUrl,
         estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
         firstName, address: fullAddress, reference: job.job_number, existingInsulationPresent: (price.insulation ?? est?.insulation_declared) === "present",
         ...(installation === undefined ? {} : { installation }),
@@ -98,13 +116,20 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
         ...(apFee === undefined ? {} : { apFee }),
       }); return { ...m, subject: isTest && testOpts.subjectPrefix ? `${testOpts.subjectPrefix} ${m.subject}` : m.subject }; })()
     : withUnsubscribe(renderLaunchCampaignEmail({
-    group: sendGroup, campaignUrl, unsubscribeUrl, myJobUrl: `${base}/my-job/${link.token}`, insulation: price.insulation ?? est?.insulation_declared ?? null,
+    group: sendGroup, campaignUrl, unsubscribeUrl, myJobUrl: `${base}/my-job/${linkToken}`, insulation: price.insulation ?? est?.insulation_declared ?? null,
     firstName, estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
     address: fullAddress, reference: job.job_number,
     ...(installation === undefined ? {} : { installation }),
     ...(assessmentFee === undefined ? {} : { assessmentFee }),
     ...(apFee === undefined ? {} : { apFee }),
   }), unsubscribeUrl);
+  if (mode === "preview") return { ...r("sent", "Preview only — not sent"), preview: { to, subject: mail.subject, html: mail.html } };
+  if (mode === "test_to_jo") {
+    const subject = `[TEST of ${job.job_number}] ${mail.subject}`;
+    const t = await resendSend(JO_TEST_INBOX, subject, mail.html, mail.plainText, `save-spot-test:${jobId}:${Date.now()}`, null);
+    await admin.from("admin_config_events").insert({ actor_id: actorId, event_type: "save_my_spot_test_to_jo", summary: `Test of ${job.job_number} Save my spot email to ${JO_TEST_INBOX}: ${t.ok ? "sent" : "failed"}`, details: { job_id: jobId, detail: t.detail } as never });
+    return r(t.ok ? "sent" : "failed", t.ok ? `Test sent to ${JO_TEST_INBOX}` : t.detail);
+  }
   const finish = async (status: string, provider: string, error: string | null) => {
     await admin.from("customer_email_sends").update({ status, provider, error, sent_at: status === "sent" ? new Date().toISOString() : null }).eq("id", sendId!);
   };
@@ -116,21 +141,34 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
       await finish("sent", "resend_test", null);
       if (t.detail) testSendIds.set(jobId, t.detail);
     } else {
-      const { configuredDeliveryAdapter } = await import("./delivery.server");
-      const adapter = await configuredDeliveryAdapter();
-      if (!adapter) { await finish("failed", "none", "Email delivery not configured"); return r("blocked", "Email delivery is not set up."); }
-      const d = await adapter.deliver({ to, subject: mail.subject, html: mail.html, text: mail.plainText, idempotencyKey: key, purpose: LAUNCH_CAMPAIGN });
-      await finish("sent", adapter.provider, null);
+      // This one approved campaign sends through the email service directly (the Base44 bridge stays off).
+      const d = await resendSend(to, mail.subject, mail.html, mail.plainText, key, unsubscribeUrl);
+      if (!d.ok) { await finish("failed", "resend", d.detail); return r("failed", d.detail); }
+      await finish("sent", "resend", null);
       const { recordCommunication } = await import("./comms.server");
-      await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: adapter.provider, providerMessageId: d.providerMessageId, visibility: "customer", sourceEvent: LAUNCH_CAMPAIGN, sourceReference: key, createdBy: actorId } as never);
+      await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: "resend", providerMessageId: d.id, visibility: "customer", sourceEvent: LAUNCH_CAMPAIGN, sourceReference: key, createdBy: actorId } as never).catch(() => null);
     }
   } catch (e) {
-    const { statusAfterDeliveryError } = await import("./delivery.core");
-    await finish(isTest ? "failed" : statusAfterDeliveryError(e), isTest ? "resend_test" : "bridge", (e as Error).message.slice(0, 300));
+    await finish("failed", isTest ? "resend_test" : "resend", (e as Error).message.slice(0, 300));
     return r("failed", (e as Error).message);
   }
   await logEvent(jobId, actorId, "save_my_spot_email_sent", `Save my spot email sent from Hot leads${isTest ? " (TEST, allowlist only)" : ""}`, { campaign: LAUNCH_CAMPAIGN, to_test: isTest }, { internal: true }).catch(() => null);
   return r("sent", isTest ? "Sent to Jo's test inbox" : "Sent");
+}
+
+const CAMPAIGN_FROM = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";
+async function resendSend(to: string, subject: string, html: string, text: string, idem: string, unsubscribeUrl: string | null): Promise<{ ok: boolean; id: string | null; detail: string }> {
+  const key = process.env["RESEND_API_KEY"], gw = process.env["LOVABLE_API_KEY"];
+  if (!key || !gw) return { ok: false, id: null, detail: "Email is not connected" };
+  const res = await fetch("https://connector-gateway.lovable.dev/resend/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${gw}`, "X-Connection-Api-Key": key, "Content-Type": "application/json", "Idempotency-Key": idem.slice(0, 250) },
+    body: JSON.stringify({ from: CAMPAIGN_FROM, to: [to], reply_to: "info@homeinsulationvictoria.com.au", subject, html, text, ...(unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` } } : {}) }),
+  });
+  const t = await res.text();
+  if (!res.ok) return { ok: false, id: null, detail: `Email service error ${res.status}: ${t.slice(0, 200)}` };
+  let id: string | null = null; try { id = (JSON.parse(t) as { id?: string }).id ?? null; } catch { /* ignore */ }
+  return { ok: true, id, detail: "Accepted" };
 }
 
 /** Office edits an owner email (Jo-approved fixes only). Audited with a reason. */

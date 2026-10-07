@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { editHotLeadEmail, getHotLeads, getPossibleDuplicates, sendHotLeadsBatch } from "@/lib/hot-leads.functions";
+import { editHotLeadEmail, getHotLeads, getPossibleDuplicates, previewHotLeadEmail, sendHotLeadTestToJo, sendHotLeadsBatch } from "@/lib/hot-leads.functions";
 import { HOT_STATUS_LABEL, hotSelectionBlocker } from "@/lib/hot-leads.core";
 
 const title = "Hot leads – Home Insulation Victoria Operations";
@@ -32,6 +32,7 @@ function HotLeadsPage() {
   const [confirm, setConfirm] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [editing, setEditing] = useState<Row | null>(null);
+  const [previewing, setPreviewing] = useState<Row | null>(null);
   const [initFor, setInitFor] = useState<string | null>(null);
   useEffect(() => {
     if (data && initFor !== tab) { setSelected(new Set(data.list.filter((r) => r.defaultTicked).map((r) => r.id))); setInitFor(tab); }
@@ -68,6 +69,8 @@ function HotLeadsPage() {
         <td className="p-3"><Link to="/admin/jobs/$jobId" params={{ jobId: r.id }} className="font-semibold text-primary underline">{r.jobNumber}</Link></td>
         <td className="p-3"><div className="font-medium">{r.name}</div><div className="text-xs text-muted-foreground">{r.email}</div>
           {r.flags.map((f) => <p key={f} className="mt-1 text-xs font-semibold text-destructive">⚠ {f}</p>)}
+          {r.note && <p className="mt-1 text-xs font-semibold">ℹ {r.note}</p>}
+          {tab !== "warm" && <Button size="sm" variant="outline" className="mt-1" onClick={() => setPreviewing(r)}>Preview email</Button>}
           {r.flags.some((f) => f.includes("typo")) && <Button size="sm" variant="outline" className="mt-1" onClick={() => setEditing(r)}>Edit email</Button>}</td>
         <td className="p-3">{r.address}</td><td className="p-3">{r.region}</td><td className="p-3">{r.area}</td>
         <td className="p-3 font-semibold">{money(r.price)}</td><td className="p-3">{money(r.discount)}</td>
@@ -90,9 +93,15 @@ function HotLeadsPage() {
         {progress && <p role="status" className="mt-2 text-sm">{progress}</p>}
       </div>
       {tab === "likely" ? <>{table(ready, "Ready to send")}{table(hold, "Hold — no local trade confirmed yet")}</> : table(rows, tab === "warm" ? "Warm" : "TEST jobs")}
+      {tab === "likely" && data.skipped.length > 0 && <section className="mt-6"><h2 className="font-display text-xl font-bold">Not on this list ({data.skipped.length})</h2>
+        <p className="text-sm text-muted-foreground">Likely eligible website leads left out, and why.</p>
+        <div className="mt-3 overflow-x-auto rounded-2xl border bg-card"><table className="w-full text-left text-sm"><thead className="bg-muted"><tr><th className="p-3">Job</th><th className="p-3">Name</th><th className="p-3">Why</th></tr></thead>
+          <tbody className="divide-y">{data.skipped.map((x, i) => <tr key={`${x.jobNumber}-${i}`}><td className="p-3">{x.jobNumber}</td><td className="p-3">{x.name ?? "—"}</td><td className="p-3">{x.reason}</td></tr>)}</tbody></table></div></section>}
     </>}
-    <AlertDialog open={confirm} onOpenChange={setConfirm}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Send to {picked.length} homeowners?</AlertDialogTitle><AlertDialogDescription>This can't be undone.</AlertDialogDescription></AlertDialogHeader>
+    <AlertDialog open={confirm} onOpenChange={setConfirm}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Send to {picked.length} homeowners?</AlertDialogTitle><AlertDialogDescription>These are real customers. This can't be undone. Each home is only ever sent this email once.</AlertDialogDescription></AlertDialogHeader>
+      <ul className="max-h-60 overflow-y-auto text-sm">{picked.map((r) => <li key={r.id}>{r.jobNumber} — {r.name} ({r.email})</li>)}</ul>
       <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={runSend}>Send</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    {previewing && <PreviewEmail row={previewing} onClose={() => setPreviewing(null)} />}
     {editing && <EditEmail row={editing} onClose={() => { setEditing(null); qc.invalidateQueries({ queryKey: ["hot-leads"] }); }} />}
   </div></AppShell>;
 }
@@ -120,4 +129,22 @@ function Duplicates() {
     <p className="mt-2 font-semibold">{data.length} possible duplicate groups</p>
     <div className="mt-3 space-y-3">{data.map((g) => <div key={g.jobs[0]!.id} className="rounded-2xl border bg-card p-4 text-sm"><div className="font-semibold">{g.jobs[0]!.name} · {g.jobs[0]!.address}</div>
       <ul className="mt-2 space-y-1">{g.jobs.map((j, i) => <li key={j.id}><Link to="/admin/jobs/$jobId" params={{ jobId: j.id }} className="font-semibold text-primary underline">{j.jobNumber}</Link> · {new Date(j.createdAt).toLocaleDateString("en-AU")} · {j.stage.replace(/_/g, " ")} {i === 0 ? "· newest" : ""}</li>)}</ul></div>)}</div></section>;
+}
+
+function PreviewEmail({ row, onClose }: { row: Row; onClose: () => void }) {
+  const preview = useServerFn(previewHotLeadEmail);
+  const test = useServerFn(sendHotLeadTestToJo);
+  const { data, isPending, error } = useQuery({ queryKey: ["hot-lead-preview", row.id], queryFn: () => preview({ data: { jobId: row.id } }) });
+  const [testMsg, setTestMsg] = useState<string | null>(null);
+  return <Dialog open onOpenChange={(o) => !o && onClose()}><DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>{row.jobNumber} — {row.name}</DialogTitle></DialogHeader>
+    {isPending ? <p role="status">Preparing preview…</p> : error ? <p className="text-destructive">{(error as Error).message}</p> : data?.preview ? <>
+      <p className="text-sm"><strong>To:</strong> {data.preview.to}<br /><strong>Subject:</strong> {data.preview.subject}</p>
+      <iframe title="Email preview" srcDoc={data.preview.html} className="h-[60vh] w-full rounded-xl border bg-background" />
+    </> : <p className="font-semibold text-destructive">Can't be sent: {data?.detail}</p>}
+    <div className="flex flex-wrap items-center gap-2">
+      <Button variant="outline" disabled={!data?.preview || testMsg === "Sending…"} onClick={async () => { setTestMsg("Sending…"); try { const r = await test({ data: { jobId: row.id } }); setTestMsg(r.detail); } catch (e) { setTestMsg((e as Error).message); } }}>Send a test to jolowexo@hotmail.com</Button>
+      {testMsg && <span role="status" className="text-sm">{testMsg}</span>}
+    </div>
+    <p className="text-xs text-muted-foreground">The test copy uses this owner's name, address and prices, but its buttons open TEST job HV-1609, so pressing them won't change this lead.</p>
+  </DialogContent></Dialog>;
 }
