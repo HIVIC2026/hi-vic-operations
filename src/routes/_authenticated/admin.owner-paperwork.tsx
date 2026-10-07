@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
 import { Button } from "@/components/ui/button";
-import { approvePaperworkFn, getResignSwitchFn, paperworkCatalogueFn, setResignSwitchFn } from "@/lib/owner-gates.functions";
+import { approvePaperworkFn, approvePaperworkTemplateFn, getResignSwitchFn, paperworkCatalogueFn, setResignSwitchFn } from "@/lib/owner-gates.functions";
+import { templateEditHref } from "@/lib/owner-paperwork.core";
 
 export const Route = createFileRoute("/_authenticated/admin/owner-paperwork")({
   head: () => ({ meta: [
@@ -17,11 +18,12 @@ export const Route = createFileRoute("/_authenticated/admin/owner-paperwork")({
   component: Page,
 });
 
-type Doc = { key: string; gate: string; title: string; version: string; status: string; approvedBy: string | null; approvedAt: string | null; managedIn: string };
+type Doc = { key: string; gate: string; title: string; version: string; status: string; approvedBy: string | null; approvedAt: string | null; managedIn: string; templateId: string | null };
 
 function Page() {
   const load = useServerFn(paperworkCatalogueFn);
   const approve = useServerFn(approvePaperworkFn);
+  const approveTpl = useServerFn(approvePaperworkTemplateFn);
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["paperwork-catalogue"], queryFn: () => load() });
   const [view, setView] = useState<string | null>(null);
@@ -44,12 +46,18 @@ function Page() {
             <td>{d.version}</td>
             <td><span className={`rounded-full px-2 py-0.5 text-xs font-bold ${d.status === "Approved" ? "bg-success/15 text-success" : "bg-destructive/10 text-destructive"}`}>{d.status}</span></td>
             <td>{d.approvedBy ? `${d.approvedBy}${d.approvedAt ? `, ${d.approvedAt.slice(0, 10)}` : ""}` : "—"}</td>
-            <td>{d.managedIn === "Templates" ? <span className="text-xs text-muted-foreground">Managed in Compliance templates</span>
-              : d.status !== "Approved" && <Button size="sm" variant="outline" onClick={async () => {
+            <td className="space-y-1 py-2">
+              {d.status !== "Approved" && !(d.managedIn === "Templates" && !d.templateId) && <Button size="sm" variant="outline" onClick={async () => {
                 setErr("");
                 if (window.prompt(`Approve "${d.title}" ${d.version} as final wording? Only do this once Jo has approved the exact text. Type APPROVE`) !== "APPROVE") return;
-                try { await approve({ data: { key: d.key as never, version: d.version, confirm: "APPROVE" } }); await qc.invalidateQueries({ queryKey: ["paperwork-catalogue"] }); } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); }
-              }}>Approve</Button>}</td>
+                try {
+                  if (d.managedIn === "Templates") await approveTpl({ data: { id: d.templateId!, confirm: "APPROVE" } });
+                  else await approve({ data: { key: d.key as never, version: d.version, confirm: "APPROVE" } });
+                  await qc.invalidateQueries({ queryKey: ["paperwork-catalogue"] });
+                  await qc.invalidateQueries({ queryKey: ["compliance_templates"] });
+                } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); }
+              }}>Approve</Button>}
+              {d.managedIn === "Templates" && <a href={templateEditHref(d.key)} className="block text-xs font-semibold text-primary underline">Edit wording</a>}</td>
           </tr>))}</tbody>
       </table>
     </AppShell>
