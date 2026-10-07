@@ -254,7 +254,7 @@ describe("Save your spot (likely eligible) duplicate", () => {
     expect(text).toContain(LIKELY_HERO);
     expect(base.html).toContain(LIKELY_HERO);
     expect(base.plainText).toContain(LIKELY_HERO);
-    expect(email.html.replace(card, "")).toBe(base.html.replace(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/, "")));
+    expect(email.html.replace(card, "")).toBe(base.html.replace(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/, ""));
   });
 });
 
