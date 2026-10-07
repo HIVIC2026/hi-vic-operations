@@ -1,31 +1,7 @@
-// Job electrician choice ("Your electrician or ours?") and the new-electrician invite email.
+// Job electrician choice ("Your electrician or ours?"). The invite email lives in job-electrician-invite.server.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { electricianInviteEmail, type ElectricianPlan } from "./job-electrician.core";
-import { SET_PASSWORD_BASE } from "./set-password-link.core";
-
-const isTestBiz = (b: { name?: string | null; onboarding_notes?: string | null } | null) =>
-  /^\s*(\[TEST PARTNER\]|TEST\b)/i.test(b?.name ?? "") || (b?.onboarding_notes ?? "").includes("[TEST PARTNER]");
-
-/** Emails the electrician the onboarding link. A one-off partner email typed on the installer's behalf: follows the
- *  manual-email rule (really sends), TEST businesses only reach Jo's test inbox. `dryRun` builds it without sending. */
-export async function sendElectricianInvite(p: { actorId: string; nominationId: string; installerBusinessId: string; inviteToken: string; to: string; name: string; dryRun?: boolean }) {
-  const { data: b } = await admin.from("businesses").select("name, trading_name, onboarding_notes").eq("id", p.installerBusinessId).maybeSingle();
-  const test = isTestBiz(b);
-  const installerName = ((b?.trading_name || b?.name) ?? "Your installer").replace(/^\[TEST PARTNER\]\s*/, "");
-  const link = `${SET_PASSWORD_BASE}/electrician-onboarding?invite=${p.inviteToken}`;
-  const mail = electricianInviteEmail({ electricianName: p.name, installerName, link });
-  const { officeEmailTo } = await import("./office-email.core");
-  const to = officeEmailTo(p.to, test);
-  if (p.dryRun) return { status: "dry_run" as const, to, subject: mail.subject, message: mail.message, test };
-  const { sendOfficeEmail } = await import("./office-email.server");
-  const r = await sendOfficeEmail({ actorId: p.actorId, recipient: "partner", to, contactName: p.name, subject: mail.subject, message: mail.message, label: "electrician_invite", record: { nominationId: p.nominationId, businessId: p.installerBusinessId, test } as never });
-  if (r.status === "sent") {
-    const now = new Date().toISOString();
-    await admin.from("electrician_nominations").update({ status: "invited", invite_sent_at: now, invite_link_issued_at: now, updated_at: now }).eq("id", p.nominationId);
-  }
-  return { status: r.status, to, detail: r.detail, test };
-}
+import { type ElectricianPlan } from "./job-electrician.core";
 
 /** Records the installer's choice on a new job. A chosen approved electrician is offered the owner's times first
  *  (never assigned directly); an invited one shows "Electrician invited – waiting to onboard". */

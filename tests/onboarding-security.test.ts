@@ -81,7 +81,7 @@ describe("test mode trust", () => {
     }
   });
   test("test applications are excluded from staff queues and approval", () => {
-    for (const f of ["src/lib/coverage.functions.ts", "src/lib/todo.functions.ts"]) {
+    for (const f of ["src/lib/coverage.functions.ts", "src/lib/todo.server.ts"]) {
       expect(readFileSync(f, "utf8")).toContain("portal_rec_onboarding_test,portal_installer_onboarding_test");
     }
     // Admin records keep test applications but flag them (shown in the separate test list).

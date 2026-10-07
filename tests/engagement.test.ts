@@ -156,7 +156,7 @@ describe("delivery configuration", () => {
     expect(base44BridgeConfig(ok)).not.toBeNull();
   });
   test("Resend only in the allowlisted test sender", () => {
-    for (const f of walk("src")) if (/\.(ts|tsx)$/.test(f) && !f.endsWith("lib/test-send.server.ts")) expect(src(f)).not.toMatch(/from ["']resend["']|api\.resend\.com|RESEND_API_KEY|new Resend\(/);
+    for (const f of walk("src")) if (/\.(ts|tsx)$/.test(f) && !f.endsWith("lib/test-send.server.ts") && !f.endsWith("lib/office-email.server.ts") /* Jo 7 Oct: manual office emails really send */) expect(src(f)).not.toMatch(/from ["']resend["']|api\.resend\.com|RESEND_API_KEY|new Resend\(/);
   });
 });
 

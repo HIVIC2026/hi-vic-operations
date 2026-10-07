@@ -2,9 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { greenBtn, ghostBtn, inputCls } from "@/components/trade/TradeShell";
 import { LINK_SENT_SAFE, badLinkMessage, linkErrorMessage, normaliseLoginEmail, safeNextPath, signInErrorMessage } from "@/lib/login.core";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
@@ -76,24 +74,25 @@ export function SignInCard() {
   };
 
   return (
-    <main className="portal-theme relative grid min-h-screen place-items-center overflow-hidden bg-background px-4 py-12 text-foreground">
-      <div className="w-full max-w-sm rounded-[18px] border bg-card p-6 shadow-sm">
-        <div className="mb-6 border-b pb-5 text-center">
-          <img src={logo.url} alt="Home Insulation Victoria" className="mx-auto h-14 w-auto" />
-          <h1 className="mt-4 font-display text-xl font-bold">Home Insulation Victoria</h1>
-          <div className="text-sm text-muted-foreground">Office, installers, electricians and owners</div>
-        </div>
-        {err && <p role="alert" data-login-error className="mb-3 rounded-xl bg-destructive/10 p-3 text-sm font-medium text-destructive">{err}</p>}
-        {sent && <p role="status" className="mb-3 rounded-xl bg-success-soft p-3 text-sm font-medium text-success">{sent}</p>}
-        <form onSubmit={submit} className="space-y-3">
-          <div><Label htmlFor="e">Email</Label><Input id="e" type="text" inputMode="email" autoCapitalize="none" spellCheck={false} autoComplete="email" className="h-12" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-          <div><Label htmlFor="p">Password</Label><Input id="p" type="password" autoComplete="current-password" className="h-12" value={password} onChange={(e) => setPassword(e.target.value)} /></div>
-          <Button type="submit" size="field" className="w-full" disabled={busy}>Sign in</Button>
+    <main className="estimate-brand portal-theme grid min-h-screen place-items-center bg-canvas px-4 py-10 text-ink">
+      <div className="w-full max-w-[420px] rounded-[18px] border border-line bg-paper p-6 shadow-card md:p-8" data-signin>
+        <img src={logo.url} alt="Home Insulation Victoria" className="h-10 w-auto" />
+        <p className="mt-6 text-xs font-bold uppercase tracking-wide text-hiv-blue">Staff & trade portal</p>
+        <h1 className="mt-1 font-display text-[28px] font-bold leading-tight">Welcome back.</h1>
+        <p className="text-sm text-sub">Your jobs, next steps and business records.</p>
+        {err && <p role="alert" data-login-error className="mt-4 rounded-[12px] border border-rose bg-pink p-3 text-sm font-semibold text-ink">{err}</p>}
+        {sent && <p role="status" className="mt-4 rounded-[12px] bg-mint p-3 text-sm font-semibold text-ink">{sent}</p>}
+        <form onSubmit={submit} className="mt-5 space-y-3">
+          <div><label htmlFor="e" className="mb-1 block text-sm font-bold">Email</label><input id="e" type="text" inputMode="email" autoCapitalize="none" spellCheck={false} autoComplete="email" className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+          <div><label htmlFor="p" className="mb-1 block text-sm font-bold">Password</label><input id="p" type="password" autoComplete="current-password" className={inputCls} value={password} onChange={(e) => setPassword(e.target.value)} /></div>
+          <button type="submit" className={greenBtn} disabled={busy}>Sign in</button>
         </form>
-        <button type="button" onClick={forgot} disabled={busy} className="mt-3 w-full text-center text-sm font-semibold text-primary underline">Forgot password?</button>
-        <Button variant="outline" size="field" className="mt-3 w-full" onClick={magic} disabled={busy}>Email me a sign-in link</Button>
-        <Button variant="ghost" size="field" className="mt-2 w-full" onClick={google}>Continue with Google</Button>
-        <p className="mt-4 text-center text-xs text-muted-foreground">Portal access is provided by Home Insulation Victoria.</p>
+        <button type="button" onClick={forgot} disabled={busy} className="mt-3 w-full text-center text-sm font-bold text-estimate-blue">Forgot password?</button>
+        <div className="mt-3 space-y-2">
+          <button type="button" className={ghostBtn} onClick={magic} disabled={busy}>Email me a sign-in link</button>
+          <button type="button" className={ghostBtn} onClick={google}>Continue with Google</button>
+        </div>
+        <p className="mt-5 border-t border-line pt-4 text-xs text-sub">For the office, installers, electricians and owners. Portal access is provided by Home Insulation Victoria.</p>
       </div>
     </main>
   );

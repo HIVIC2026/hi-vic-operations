@@ -499,7 +499,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     await pi.addImportFilesFor(ownerId, imp.id, [{ path, name: "ceiling-1.jpg", type: "image/jpeg" }]);
     // + Add another electrician: nomination + invite email built under the manual-email rule (dry run: no email each run).
     const { data: nom } = await admin.from("electrician_nominations").insert({ contact_name: `TEST ${tag} Sparky`, business_name: "TEST Sparky Electrical", email: `qa.sparky.${tag.toLowerCase()}@hivic-test.example`, phone: "0412999099", nominating_business_id: BIZ, nominated_by: ownerId, nominated_for: "installer", status: "invite_pending_comms" }).select("id").single();
-    const inv = await je.sendElectricianInvite({ actorId: ownerId, nominationId: nom!.id, installerBusinessId: BIZ, inviteToken: "testtoken_".padEnd(40, "x"), to: `qa.sparky.${tag.toLowerCase()}@hivic-test.example`, name: `TEST ${tag} Sparky`, dryRun: true });
+    const inv = await (await import("../src/lib/job-electrician-invite.server")).sendElectricianInvite({ actorId: ownerId, nominationId: nom!.id, installerBusinessId: BIZ, inviteToken: "testtoken_".padEnd(40, "x"), to: `qa.sparky.${tag.toLowerCase()}@hivic-test.example`, name: `TEST ${tag} Sparky`, dryRun: true });
     c("invite for a TEST business goes only to Jo's test inbox", inv.to === "jolowexo@hotmail.com", inv.to);
     c("invite links to the electrician application", "message" in inv && String(inv.message).includes("/electrician-onboarding?invite="));
     const facts = { full_name: `TEST ${tag} Photo`, email: `qa.owner.${tag.toLowerCase()}.photo@hivic-test.example`, phone: "0412999014", address_line: "14 Photo St", suburb: "Fraser Rise", postcode: "3336", measured_area_m2: 96 };
@@ -618,6 +618,22 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
   screens.push({ step: "C14", persona: "owner", path: "/partner/import?mode=later", mustSee: ["Add one job", "Take photo"], mustNotSee: BANNED });
 }
 
+// ---------- saved snapshot: clean-up survives time limits and crashes ----------
+const SNAP_FILE = "/tmp/installer-test/saved-snapshot.json";
+type Snap = Awaited<ReturnType<typeof snapshot>>;
+const saveSnap = (sn: Snap) => { mkdirSync("/tmp/installer-test", { recursive: true }); writeFileSync(SNAP_FILE, JSON.stringify({ ...sn, jobIds: [...sn.jobIds], batchIds: [...sn.batchIds], importIds: [...sn.importIds] })); };
+const loadSnap = (): Snap | null => { if (!existsSync(SNAP_FILE)) return null; const j = JSON.parse(readFileSync(SNAP_FILE, "utf8")); if (!j.biz) return null; return { ...j, jobIds: new Set(j.jobIds), batchIds: new Set(j.batchIds), importIds: new Set(j.importIds) }; };
+const clearSnap = () => { if (existsSync(SNAP_FILE)) writeFileSync(SNAP_FILE, "{}"); };
+// A run that was killed leaves its snapshot behind: put the TEST business back before doing anything else.
+const leftover = loadSnap();
+if (leftover) { console.log("Restoring TEST business left over from an interrupted run:", JSON.stringify(await restore(leftover))); clearSnap(); }
+if (process.argv.includes("--restore-only")) process.exit(0);
+let active: Snap | null = null;
+const emergency = async (why: string) => { if (active) { console.log(`\n${why}: restoring TEST business…`); try { console.log(JSON.stringify(await restore(active))); clearSnap(); } catch (e) { console.log("restore failed, saved snapshot kept for next start:", (e as Error).message); } } process.exit(1); };
+for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"] as const) process.on(sig, () => void emergency(sig));
+process.on("uncaughtException", (e) => void emergency(`crash: ${e.message}`));
+process.on("unhandledRejection", (e) => void emergency(`crash: ${String(e)}`));
+
 // ---------- main ----------
 mkdirSync(root, { recursive: true });
 const ownerId = await userId(OWNER_EMAIL); if (!ownerId) throw new Error("TEST Reinsulate owner login missing");
@@ -627,7 +643,7 @@ for (let run = 1; run <= RUNS; run++) {
   const tag = `IT${stamp.slice(11, 19).replace(/-/g, "")}R${run}`;
   const outDir = `${root}/run-${run}`; mkdirSync(`${outDir}/screens`, { recursive: true });
   console.log(`\n=== Run ${run} (${tag}) ===`);
-  const snap = await snapshot();
+  const snap = await snapshot(); saveSnap(snap); active = snap;
   const steps: Step[] = []; const screens: Screen[] = []; const ctx: { appId?: string; enquiryId?: string; data?: InstData; extraAppIds?: string[] } = {};
   try {
     await sectionA(steps, tag, screens, ctx);
@@ -637,12 +653,19 @@ for (let run = 1; run <= RUNS; run++) {
     await sectionC(steps, tag, ownerId, fx, screens);
     if (!noBrowser) {
       const sessions: Record<string, unknown> = { office: await sessionFor(JOURNEY_ACTOR_EMAIL), owner: await sessionFor(OWNER_EMAIL), staff: await sessionFor(STAFF_EMAIL) };
-      const manifest = `${outDir}/.manifest.json`;
-      writeFileSync(manifest, JSON.stringify({ base: "http://localhost:8080", outDir, storageKey: `sb-${process.env["SUPABASE_PROJECT_ID"] ?? "wvuffpykgnqliikhodzl"}-auth-token`, screens, sessions }));
-      const py = spawnSync("python3", [new URL("../e2e/journey/shoot.py", import.meta.url).pathname, manifest], { encoding: "utf8", timeout: 590_000 });
-      writeFileSync(manifest, "{}");
-      const res = `${outDir}/.browser.json`;
-      const browser: { step: string; ok: boolean; detail: string; shots: string[] }[] = existsSync(res) ? JSON.parse(readFileSync(res, "utf8")) : [{ step: "B2", ok: false, detail: `browser run failed: ${(py.stderr || "").slice(-300)}`, shots: [] }];
+      // Screenshots run in small batches, each with its own time limit, so one slow page can't stop the whole step.
+      const browser: { step: string; ok: boolean; detail: string; shots: string[] }[] = [];
+      const CHUNK = 4;
+      for (let i = 0; i < screens.length; i += CHUNK) {
+        const part = screens.slice(i, i + CHUNK); const manifest = `${outDir}/.manifest-${i}.json`; const res = `${outDir}/.browser.json`;
+        if (existsSync(res)) writeFileSync(res, "[]");
+        writeFileSync(manifest, JSON.stringify({ base: "http://localhost:8080", outDir, storageKey: `sb-${process.env["SUPABASE_PROJECT_ID"] ?? "wvuffpykgnqliikhodzl"}-auth-token`, screens: part, sessions }));
+        const py = spawnSync("python3", [new URL("../e2e/journey/shoot.py", import.meta.url).pathname, manifest], { encoding: "utf8", timeout: 240_000 });
+        writeFileSync(manifest, "{}");
+        const got = existsSync(res) ? JSON.parse(readFileSync(res, "utf8")) as typeof browser : [];
+        if (!got.length) for (const sc of part) browser.push({ step: sc.step, ok: false, detail: `screenshot batch failed for ${sc.path}: ${py.error ? "time limit" : (py.stderr || "").slice(-200)}`, shots: [] });
+        else browser.push(...got);
+      }
       for (const key of [...new Set(browser.map((b) => b.step))]) {
         const b = browser.filter((x) => x.step === key);
         let s = steps.find((x) => x.key === key);
@@ -654,7 +677,7 @@ for (let run = 1; run <= RUNS; run++) {
       }
     }
   } finally {
-    const r = await restore(snap);
+    const r = await restore(snap); active = null; clearSnap();
     allRuns.push({ run, steps, restore: r });
     writeFileSync(`${outDir}/report.json`, JSON.stringify({ run, tag, steps, restore: r }, null, 2));
   }

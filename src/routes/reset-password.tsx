@@ -68,25 +68,25 @@ function ResetPassword() {
   };
   return (
     <TradePublicShell>
-      <h1 className="font-display text-[26px] font-bold leading-tight">Set your password</h1>
+      <div><p className="text-xs font-bold uppercase tracking-wide text-hiv-blue">Staff & trade portal</p><h1 className="font-display text-[26px] font-bold leading-tight">{failed ? "This password link is no longer valid." : "Set your password"}</h1><p className="text-sm text-sub">{failed ? "Request a fresh link for the email on your portal account." : "Secure your approved portal access."}</p></div>
       {failed ? (
-        <form onSubmit={resend} className={`${card} space-y-3`}>
+        <form onSubmit={resend} className="space-y-3 rounded-[18px] border border-rose bg-pink p-5 text-ink">
           <p role="alert" data-link-error className="font-bold">{failed}</p>
           <p>Type your email and we'll send you a new link.</p>
           <label htmlFor="em" className="block font-bold">Email</label>
           <input id="em" type="text" inputMode="email" autoCapitalize="none" autoComplete="email" className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} />
           <button type="submit" className={greenBtn} disabled={busy}>Send me a new link</button>
-          {note && <p role="status" className={note.ok ? "font-medium text-success" : "font-medium text-destructive"}>{note.text}</p>}
-          <a href="/portal" className="block text-center font-semibold text-primary underline">Back to sign in</a>
+          {note && <p role="status" className={note.ok ? "font-semibold text-hiv-green" : "font-semibold text-rose"}>{note.text}</p>}
+          <a href="/portal" className="block text-center text-sm font-bold text-estimate-blue">Back to sign in</a>
         </form>
       ) : !ready ? <p className={card}>Opening your secure link…</p> : (
         <form onSubmit={save} className={`${card} space-y-3`}>
           <p>Choose a password of at least 8 characters. You'll use it with your email to sign in.</p>
           <label htmlFor="p1" className="block font-bold">New password</label>
           <input id="p1" type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={(e) => setPw(e.target.value)} />
-          <label htmlFor="p2" className="block font-bold">Type it again</label>
+          <label htmlFor="p2" className="block font-bold">Confirm password</label>
           <input id="p2" type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={(e) => setPw2(e.target.value)} />
-          <button type="submit" className={greenBtn} disabled={busy}>Save and sign in</button>
+          <button type="submit" className={greenBtn} disabled={busy}>Save password & continue</button>
         </form>
       )}
     </TradePublicShell>
