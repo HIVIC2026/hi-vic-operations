@@ -143,7 +143,7 @@ export function reminderRequestMessage(x: { jobNumber: string; status: string; b
 type PayInvoice = { kind?: string | null; status: string | null; deposit_paid_at: string | null; balance_paid_at: string | null; paid_at: string | null };
 const first = (xs: (string | null | undefined)[]) => xs.filter((x): x is string => !!x).sort()[0] ?? null;
 const last = (xs: (string | null | undefined)[]) => xs.filter((x): x is string => !!x).sort().pop() ?? null;
-/** Payment dates from the existing invoice (Xero-mirrored) and $349 payment records. First 50% = deposit paid; final 50% = balance paid on a fully paid install invoice. */
+/** Payment dates from the existing invoice (Xero-mirrored) and $349 payment records. First half = first instalment paid; final half = balance paid on a fully paid install invoice. */
 export function paymentDates(invoices: PayInvoice[], safetyPayments: { paid_at: string | null }[]) {
   const inst = invoices.filter((x) => (x.kind ?? "installation") === "installation");
   const rect = invoices.filter((x) => x.kind === "rectification");

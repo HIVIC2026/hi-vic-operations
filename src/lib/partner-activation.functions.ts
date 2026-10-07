@@ -148,7 +148,7 @@ export const listCertificationLevels = createServerFn({ method: "POST" }).middle
   });
 
 type PartnerLoginInput = { applicationId: string; email: string };
-async function makePartnerLogin(sb: Parameters<typeof requireAdmin>[0], actorId: string, data: PartnerLoginInput): Promise<{ email: string; link: string; name: string | null; businessId: string }> {
+async function makePartnerLogin(sb: Parameters<typeof requireAdmin>[0], actorId: string, data: PartnerLoginInput): Promise<{ email: string; link: string; name: string | null; businessId: string; businessName: string; role: "installer" | "electrician" }> {
     await requireAdmin(sb);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data: act } = await admin.from("partner_activations").select("business_id").eq("application_id", data.applicationId).maybeSingle();
@@ -180,7 +180,8 @@ async function makePartnerLogin(sb: Parameters<typeof requireAdmin>[0], actorId:
     // generateLink returns the link only; it never emails it.
     const link = await (await import("./set-password-link.server")).issuePartnerLoginLink(data.email, actorId, data.applicationId);
     await admin.from("admin_config_events").insert({ actor_id: actorId, event_type: "partner_login_created", summary: `Office created partner login ${data.email} (nothing sent)`, details: { business_id: act.business_id, user_id: uid, application_id: data.applicationId } });
-    return { email: data.email, link, name, businessId: act.business_id };
+    const { data: bz } = await admin.from("businesses").select("name").eq("id", act.business_id).maybeSingle();
+    return { email: data.email, link, name, businessId: act.business_id, businessName: bz?.name ?? "Your business", role };
 }
 
 /** Office creates the business boss's sign-in. Sends nothing: returns a set-password link for the office to pass on. */
@@ -197,9 +198,9 @@ export const sendPartnerLoginLink = createServerFn({ method: "POST" }).middlewar
   .handler(async ({ data, context }) => {
     const r = await makePartnerLogin(context.supabase, context.userId, data);
     const { sendOfficeEmail } = await import("./office-email.server");
-    const { partnerLoginEmail } = await import("./partner-login-email.core");
-    const m = partnerLoginEmail(r.name, r.link);
-    const res = await sendOfficeEmail({ actorId: context.userId, recipient: "partner", to: r.email, contactName: r.name, subject: m.subject, message: m.message, label: "partner_login_link", record: { applicationId: data.applicationId, businessId: r.businessId } });
+    const { partnerWelcomeEmail } = await import("./partner-email.core");
+    const m = partnerWelcomeEmail({ firstName: r.name?.trim().split(/\s+/)[0] ?? null, businessName: r.businessName, trade: r.role, email: r.email, link: r.link, test: false });
+    const res = await sendOfficeEmail({ actorId: context.userId, recipient: "partner", to: r.email, contactName: r.name, subject: m.subject, message: m.text, html: m.html, text: m.text, label: "partner_login_link", record: { applicationId: data.applicationId, businessId: r.businessId } });
     return { ...res, link: r.link };
   });
 
