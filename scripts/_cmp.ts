@@ -1,0 +1,14 @@
+import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+const { loadTodos } = await import("../src/lib/todo.server");
+const { loadNeedsHivic } = await import("../src/lib/needs.server");
+const { loadOffice } = await import("../src/lib/office.server");
+const [todos, hiv, off] = await Promise.all([loadTodos(admin), loadNeedsHivic(), loadOffice(admin, { includeTest: false })]);
+const nm = off.needs.items;
+console.log("todo", todos.length, "needsHivic", hiv.items.length, "needsMe", nm.length);
+const nmJobs = new Set(nm.map((i) => i.jobId).filter(Boolean));
+console.log("NEEDS-ME rules:", [...new Set(nm.map((i) => i.rule))].join(","), "| non-job:", nm.filter(i=>!i.jobId).map(i=>i.what).join(" ; "));
+console.log("--- todo items whose job is NOT on Needs me (or not a job):");
+for (const t of todos) if (!t.jobId || !nmJobs.has(t.jobId)) console.log(`[${t.category}] ${t.jobNumber ?? "-"} ${t.key.split(":")[0]} | ${t.title} | ${t.action}`.slice(0, 240));
+console.log("--- needs-hivic items whose job is NOT on Needs me:");
+for (const t of hiv.items) if (!t.jobId || !nmJobs.has(t.jobId)) console.log(`${t.jobNumber ?? "-"} ${t.key.split(":")[0]} | ${t.why} | ${t.next}`.slice(0, 240));
+process.exit(0);
