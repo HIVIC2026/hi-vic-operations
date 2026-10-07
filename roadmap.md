@@ -104,10 +104,10 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] All customer email sends/tests/previews render Step 3 renderer; remove differing previews/editors; parity test; one Save my spot test to Jo (HV-1609)
 
 ## Login (Jo, 7 Oct 17:34 UTC) — HIGH
-- [ ] Normalise email (trim, trailing dots, lowercase) + exact invalid messages
-- [ ] One sign-in page (/portal,/auth): password, email link, Google, forgot
-- [ ] Role landing (office/trade owner/staff/owner/welcome/no-access page)
-- [ ] Approve partner → login link sent automatically (manual partner email), expiry + "send new link"
-- [ ] Same email office+trade role switch; plus-addresses
-- [ ] Clear messages; sessions persist; sign-out
-- [ ] Automated login test x3 + screenshots Files login-test, LOGIN READY/NOT READY
+- [x] Normalise email (trim, trailing dots, lowercase) + exact invalid messages
+- [x] One sign-in page (/portal,/auth): password, email link, Google, forgot
+- [x] Role landing (signed-in check blocked: needs TEST sign-in approval) (office/trade owner/staff/owner/welcome/no-access page)
+- [x] Approve partner → login link sent automatically (manual partner email), expiry + "send new link"
+- [x] Same email office+trade role switch; plus-addresses
+- [x] Clear messages; sessions persist; sign-out
+- [~] Automated login test x3 (signed-out half done; signed-in half blocked) + screenshots Files login-test, LOGIN READY/NOT READY
