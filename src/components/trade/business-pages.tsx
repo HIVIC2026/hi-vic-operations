@@ -8,9 +8,9 @@ import { ChevronLeft } from "lucide-react";
 import { TradeShell, card } from "@/components/trade/TradeShell";
 import { getTradeBusinessFile, sendTradeChangeRequest } from "@/lib/trade-view.functions";
 
-export const greenBtn = "flex h-12 w-full items-center justify-center rounded-full bg-estimate-green font-bold text-white disabled:opacity-50";
-export const navyBtn = "flex h-12 w-full items-center justify-center rounded-full bg-estimate-navy font-bold text-estimate-canvas disabled:opacity-50";
-export const field = "h-12 w-full rounded-2xl border border-estimate-line bg-card px-4 text-base";
+export const greenBtn = "flex h-12 w-full items-center justify-center rounded-[10px] bg-action px-4 text-[13px] font-bold text-action-foreground disabled:opacity-45 md:h-[42px] md:w-auto";
+export const navyBtn = "flex h-12 w-full items-center justify-center rounded-[10px] border border-line bg-paper px-4 text-[13px] font-bold text-hiv-blue disabled:opacity-45 md:h-[42px] md:w-auto";
+export const field = "h-12 w-full rounded-[9px] border border-field-line bg-paper px-3 text-base text-ink md:h-[42px] md:text-sm";
 
 export type BizFile = Awaited<ReturnType<typeof getTradeBusinessFile>>;
 
@@ -34,7 +34,7 @@ export function BizPage({ title, intro, children }: { title: string; intro?: str
 export function Rows({ rows }: { rows: [string, React.ReactNode][] }) {
   return (
     <dl className="divide-y divide-line overflow-hidden rounded-[18px] border border-line bg-paper shadow-card">
-      {rows.map(([k, v]) => <div key={k} className="p-4"><dt className="text-xs font-bold uppercase tracking-wide text-sub">{k}</dt><dd className="mt-0.5 font-semibold">{v ?? "—"}</dd></div>)}
+      {rows.map(([k, v]) => <div key={k} className="px-[19px] py-3"><dt className="text-[11px] font-semibold text-sub">{k}</dt><dd className="mt-0.5 font-semibold">{v ?? "—"}</dd></div>)}
     </dl>
   );
 }
@@ -52,7 +52,7 @@ export function AskToChange({ kind, label, placeholder, open, onSent }: { kind: 
       {!show ? <button type="button" className={navyBtn} onClick={() => setShow(true)}>{label}</button> : (
         <div className={`${card} space-y-3`}>
           <label htmlFor={`ask-${kind}`} className="block font-bold">{label}</label>
-          <textarea id={`ask-${kind}`} rows={4} className="w-full rounded-2xl border border-estimate-line bg-card p-3 text-base" placeholder={placeholder} value={msg} onChange={(e) => setMsg(e.target.value)} />
+          <textarea id={`ask-${kind}`} rows={4} className="w-full rounded-[9px] border border-field-line bg-paper p-3 text-base" placeholder={placeholder} value={msg} onChange={(e) => setMsg(e.target.value)} />
           <p className="text-xs text-sub">This goes to the Home Insulation Victoria office. Nothing changes until we've agreed it with you.</p>
           <button type="button" className={greenBtn} disabled={busy || msg.trim().length < 3} onClick={async () => {
             setBusy(true);
