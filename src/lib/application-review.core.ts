@@ -1,6 +1,6 @@
 // Pure rules + DRAFT emails for office "Send back for changes" / "Decline" (Jo, 7 Oct 2026 5:45pm).
 // Both email wordings are DRAFT: real (non-TEST) sends stay blocked until Jo approves them.
-import { simpleEmail } from "./simple-email.core";
+import { partnerEmailLayout } from "./partner-email.core";
 
 export const APPLICATION_REVIEW_WORDING_APPROVED = false as const;
 export type ReviewDecision = "changes_requested" | "declined";
@@ -25,7 +25,7 @@ export function changesEmail(i: { contactName?: string | null; message: string; 
     `Before we can approve your application, we need you to check the following: ${sentence(clean(i.message))}`,
     "Please use the button below to update your application and sign again.",
   ];
-  const { html, text } = simpleEmail(subject, lines, { label: "Update my application", url: i.link }, { testLabel: i.test !== false });
+  const { html, text } = partnerEmailLayout({ subject, heading: "A quick change needed", blocks: [...lines.map((t) => ({ kind: "p" as const, text: t })), { kind: "button", label: "Update my application", url: i.link }], test: i.test !== false });
   return { subject, html, text };
 }
 
@@ -37,9 +37,8 @@ export function declineEmail(i: { contactName?: string | null; reason?: string |
     `Hi ${name ?? "there"}, thank you for applying to work with Home Insulation Victoria.`,
     `Unfortunately we're unable to approve your application at this time.${reason ? ` ${sentence(reason)}` : ""}`,
     "If your circumstances change, you're welcome to apply again.",
-    "Kind regards, Jo",
   ];
-  const { html, text } = simpleEmail(subject, lines, undefined, { testLabel: i.test !== false });
+  const { html, text } = partnerEmailLayout({ subject, heading: "Your application", blocks: [...lines.map((t) => ({ kind: "p" as const, text: t })), { kind: "sign", lines: ["Kind regards,", "Jo", "Home Insulation Victoria"] }], test: i.test !== false });
   return { subject, html, text };
 }
 
