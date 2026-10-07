@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { AppShell } from "@/components/portal/AppShell";
+import { TradeShell } from "@/components/trade/TradeShell";
 import { Section } from "@/components/portal/panels";
 import { useAction } from "@/hooks/use-me";
 import { confirmImport, createImport, discardImport, getPartnerProfile, partnerUploadUrl } from "@/lib/pilot.functions";
@@ -25,12 +25,12 @@ function ImportPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const businessId = (profile?.business as { id?: string } | undefined)?.id;
   return (
-    <AppShell>
+    <TradeShell installer>
       <Link to="/partner" className="mb-3 inline-block text-sm text-muted-foreground">← Partner dashboard</Link>
       <h1 className="mb-1 text-2xl font-bold">Import an existing job</h1>
       <p className="mb-4 text-sm text-muted-foreground">Paste, upload or export what you already have. We'll pull out the details and you just confirm them.</p>
       {!businessId ? <p className="text-sm text-muted-foreground">Loading…</p> : draft ? <Review draft={draft} onBack={() => setDraft(null)} /> : <Source businessId={businessId} onDraft={setDraft} />}
-    </AppShell>
+    </TradeShell>
   );
 }
 

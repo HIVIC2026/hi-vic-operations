@@ -10,8 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, type FileResult, type LeadStage } from "@/lib/bulk-import.core";
-import { AppShell } from "@/components/portal/AppShell";
-import { TradeTabs } from "@/components/portal/trade-work";
+import { TradeShell } from "@/components/trade/TradeShell";
 import { AlertCircle, CheckCircle2, ChevronDown, FileArchive, UploadCloud, Zap } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/partner/bulk-import")({
@@ -320,13 +319,12 @@ function BulkImportPage() {
   }
 
   return (
-    <AppShell wide>
-    <div className="mx-auto max-w-5xl space-y-6 pb-24">
-      <div className="rounded-[22px] bg-workspace-mist p-5 sm:p-7">
-        <p className="mb-2 text-sm font-bold text-primary">Add job</p>
-        <h1 className="font-display text-3xl font-extrabold text-foreground sm:text-4xl">Bulk job upload</h1>
-        <p className="mt-2 max-w-2xl text-muted-foreground">Add a spreadsheet, quotes, emails, notes or photos. We read everything together, then you check each customer before anything is added.</p>
-        <details className="mt-3 max-w-2xl rounded-[22px] border bg-card p-4 text-sm" data-list-guide>
+    <TradeShell installer>
+    <div className="space-y-4">
+      <div>
+        <h1 className="font-display text-3xl font-extrabold">Upload jobs</h1>
+        <p className="mt-1 text-sm text-estimate-navy/70">Add a spreadsheet, quotes, emails, notes or photos. We read everything together, then you check each customer before anything is added.</p>
+        <details className="mt-3 rounded-[22px] bg-card p-4 text-sm shadow-sm" data-list-guide>
           <summary className="cursor-pointer font-bold">How to set out your customer list</summary>
           <p className="mt-2">One row per customer. Column names can be your own (e.g. "Customer" or "Owner name", "Mobile" or "Phone"), and the address can be one column or split into street, suburb and postcode.</p>
           <p className="mt-2"><strong>Needed:</strong> customer name; mobile (or email); full address with suburb and postcode (include unit numbers, e.g. 3/12 Smith St).</p>
@@ -427,10 +425,9 @@ function BulkImportPage() {
         </Card>
       )}
 
-      <section className="space-y-3"><div className="flex items-center gap-2"><FileArchive className="h-5 w-5 text-primary"/><h2 className="font-display text-xl font-bold">Past uploads</h2></div>{(past?.batches ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No previous uploads yet.</p> : <div className="grid gap-2">{(past?.batches ?? []).map((b) => { const s = b.summary as { rows?: number } | null; return <button key={b.id} type="button" className="flex w-full items-center justify-between rounded-lg border bg-card p-3 text-left" onClick={() => setBatchId(b.id)}><span><b>{b.list_filename ?? "Bulk upload"}</b><span className="block text-xs text-muted-foreground">{new Date(b.created_at).toLocaleDateString("en-AU")} · {s?.rows ?? 0} jobs</span></span><span className="flex items-center gap-1 text-sm font-semibold capitalize">{b.status}<ChevronDown className="h-4 w-4"/></span></button>; })}</div>}</section>
-      <TradeTabs installer />
+      <section className="space-y-3"><div className="flex items-center gap-2"><h2 className="font-display text-lg font-extrabold">Past uploads</h2></div>{(past?.batches ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No previous uploads yet.</p> : <div className="grid gap-2">{(past?.batches ?? []).map((b) => { const s = b.summary as { rows?: number } | null; return <button key={b.id} type="button" className="flex min-h-14 w-full items-center justify-between rounded-[18px] bg-card p-4 text-left shadow-sm" onClick={() => setBatchId(b.id)}><span><b>{b.list_filename ?? "Bulk upload"}</b><span className="block text-xs text-muted-foreground">{new Date(b.created_at).toLocaleDateString("en-AU")} · {s?.rows ?? 0} jobs</span></span><span className="flex items-center gap-1 text-sm font-semibold capitalize">{b.status}<ChevronDown className="h-4 w-4"/></span></button>; })}</div>}</section>
     </div>
-    </AppShell>
+    </TradeShell>
   );
 }
 

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { AppShell } from "@/components/portal/AppShell";
+import { TradeShell } from "@/components/trade/TradeShell";
 import { Button } from "@/components/ui/button";
 import { WorkerForm, WorkerRemoveButton, WorkerStatus } from "@/components/portal/workers";
 import { listMyWorkers } from "@/lib/worker-links.functions";
@@ -23,12 +23,12 @@ function Workers() {
   const sampleData = { business: { id: "00000000-0000-0000-0000-000000000000", name: "Sample Electrical", trading_name: "Sample Electrical" }, canManage: true, workers: [] };
   const { data, error, refetch } = useQuery({ queryKey: workerListQueryKey(sample), queryFn: () => sample ? Promise.resolve(sampleData) : load(), initialData: sample ? sampleData : undefined });
   const [editing, setEditing] = useState<string | "new" | null>(null);
-  if (error) return <AppShell><div role="alert" className="rounded-xl border bg-card p-6 text-sm"><p className="text-danger">Your staff could not be loaded.</p><Button className="mt-3" variant="outline" onClick={() => refetch()}>Try again</Button></div></AppShell>;
-  if (data === undefined) return <AppShell><p className="text-muted-foreground">Loading…</p></AppShell>;
-  if (data === null) return <AppShell><p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">Your account isn't linked to a partner business yet.</p></AppShell>;
+  if (error) return <TradeShell installer><div role="alert" className="rounded-xl border bg-card p-6 text-sm"><p className="text-danger">Your staff could not be loaded.</p><Button className="mt-3" variant="outline" onClick={() => refetch()}>Try again</Button></div></TradeShell>;
+  if (data === undefined) return <TradeShell installer><p className="text-muted-foreground">Loading…</p></TradeShell>;
+  if (data === null) return <TradeShell installer><p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">Your account isn't linked to a partner business yet.</p></TradeShell>;
   const done = () => { setEditing(null); refetch(); };
   return (
-    <AppShell>
+    <TradeShell installer>
       <Link to="/partner" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" /> Dashboard</Link>
       <h1 className="text-2xl font-bold">Your staff</h1>
       <p className="mb-4 text-sm text-muted-foreground">One business profile for {data.business?.trading_name || data.business?.name}. Invite each staff member using their own link. They provide their own details and declarations, and our office must approve them before they can access assigned jobs. Staff cannot see business rates or bank details.</p>
@@ -51,6 +51,6 @@ function Workers() {
         ))}
         {!data.workers.length && <li className="text-sm text-muted-foreground">No staff added yet.</li>}
       </ul>
-    </AppShell>
+    </TradeShell>
   );
 }
