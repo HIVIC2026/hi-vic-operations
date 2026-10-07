@@ -54,13 +54,15 @@ const samples = {
     outcome: "likely",
     apCount: 2, // business-owner supplied current figure (1 Oct 2026), not registry-verified
   }), unsubscribeUrl),
-  savespot: withUnsubscribe(renderSaveSpotFromLikelyEmail({
+  // APPROVED by Jo Lowe, 7 Oct 2026 — FINAL Save your spot email.
+  savespot: renderSaveSpotFromLikelyEmail({
     ...quote,
     estimateUrl,
     outcome: "likely",
     apCount: 2,
     campaignUrl: `${estimateUrl}/campaign`,
-  }), unsubscribeUrl),
+    campaignOptOutUrl: unsubscribeUrl,
+  }),
   onsite: withUnsubscribe(renderEstimateEmail({
     ...quote,
     outcome: "onsite",
@@ -74,7 +76,7 @@ const samples = {
   reminder3: withUnsubscribe(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl, referralUrl }), unsubscribeUrl),
   coverage: withUnsubscribe(renderCoverageUnavailableEmail({ firstName: "Alex", suburb: "Fraser Rise", postcode: "3336", missing: ["installer"], reference: "SAMPLE-1001" }), unsubscribeUrl),
 };
-const OUTCOME_LABELS = { likely: "Likely eligible", savespot: "Save your spot (likely eligible)", onsite: "Needs onsite confirmation", ineligible: "Does not appear eligible", reminder3: "Reminder: 3 days, unopened", coverage: "Service availability update" } as const;
+const OUTCOME_LABELS = { likely: "Likely eligible", savespot: "Save your spot (likely eligible) – APPROVED", onsite: "Needs onsite confirmation", ineligible: "Does not appear eligible", reminder3: "Reminder: 3 days, unopened", coverage: "Service availability update" } as const;
 
 export const Route = createFileRoute("/step3-email-preview")({
   headers: () => ({ "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" }),

@@ -47,7 +47,7 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
     admin.from("indicative_estimates").select("id, area_m2, insulation_declared, scenarios, snapshot").eq("job_id", jobId).eq("status", "current").maybeSingle(),
   ]);
   if (opt?.opted_out_at || resp?.opted_out_at) return r("skipped", "Owner opted out.");
-  if (resp?.spot_saved_at) return r("skipped", "Spot already saved.");
+  if (resp?.spot_saved_at && !(isTest && testOpts.subjectPrefix)) return r("skipped", "Spot already saved.");
   if (!link?.token) return r("skipped", "No secure estimate link yet.");
   const price = savedPriceFromEstimate(est ?? null);
   if (!price || !price.areaM2) return r("skipped", "No current preliminary price.");
@@ -63,7 +63,7 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
 
   // Once per home, ever: the idempotency key is the job, not the batch.
   const sendGroup = isTest ? (testOpts.group ?? group) : "likely";
-  const key = `${LAUNCH_CAMPAIGN}:save_my_spot:${jobId}${isTest && sendGroup === "onsite" ? ":b" : ""}`;
+  const key = `${LAUNCH_CAMPAIGN}:save_my_spot:${jobId}${isTest && sendGroup === "onsite" ? ":b" : ""}${isTest && testOpts.subjectPrefix ? `:preview-test:${Date.now()}` : ""}`;
   const { data: ex } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
   if (ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
   let sendId = ex?.id ?? null;
