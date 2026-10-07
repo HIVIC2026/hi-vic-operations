@@ -102,6 +102,13 @@ function CampaignEmailsPage() {
             )}
           </section>
 
+          {group === "likely" ? (
+          <aside className="space-y-2 rounded-[22px] border bg-card p-4 text-sm shadow-sm lg:sticky lg:top-24 lg:self-start">
+            <h2 className="font-display text-lg font-bold">Wording locked</h2>
+            <p className="text-muted-foreground">This is the Jo-approved Save my spot email from the Step 3 email preview. It can't be edited here.</p>
+            <a className="font-semibold text-primary underline" href="/step3-email-preview">Open Step 3 email preview</a>
+          </aside>
+          ) : (
           <aside className="space-y-3 rounded-[22px] border bg-card p-4 shadow-sm lg:sticky lg:top-24 lg:self-start">
             <h2 className="font-display text-lg font-bold">Edit wording</h2>
             <p className="text-xs text-muted-foreground">Blank uses the current wording. Type {"{name}"} for the owner's first name. Saving keeps a draft only.</p>
@@ -122,6 +129,7 @@ function CampaignEmailsPage() {
             </div>
             {data?.[group].draft.savedAt && <p className="text-xs text-muted-foreground">Last saved {new Date(data[group].draft.savedAt).toLocaleString("en-AU")}</p>}
           </aside>
+          )}
         </div>
       </div>
     </AppShell>
