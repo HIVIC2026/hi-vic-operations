@@ -1,3 +1,4 @@
+import { OWNER_AGREED_TICK } from "@/lib/owner-confirm.core";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -102,6 +103,7 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
   const visited = visitedFromEvidence({ files, measuredArea: draft.extracted.measured_area_m2?.value as number | null | undefined });
   const [siteCheck, setSiteCheck] = useState<"yes" | "no" | null>(visited ? "yes" : null);
   const [permission, setPermission] = useState(false);
+  const [ownerAgreed, setOwnerAgreed] = useState(false);
   const [siteDate, setSiteDate] = useState("");
   const [price, setPrice] = useState("");
   const [quoted, setQuoted] = useState<"yes" | "no" | null>(null); // never preset (Jo, 7 Oct)
@@ -143,6 +145,7 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
             <Input className={`mt-1 h-12 ${priceBad ? "border-destructive" : ""}`} inputMode="decimal" placeholder="e.g. 3,450" value={price} onChange={(e) => setPrice(e.target.value)} /></label>}
           {priceNum ? <label className="block text-sm"><span className="font-bold">What the price includes</span><span className="block text-xs text-estimate-navy/70">e.g. R5 batts 120 m², removal of old insulation, tile lift</span>
             <Textarea rows={3} className="mt-1" value={includes} onChange={(e) => setIncludes(e.target.value)} /></label> : null}
+          {quoted === "yes" && <label className="flex items-start gap-3 text-sm" data-owner-agreed><Checkbox className="mt-0.5" checked={ownerAgreed} onCheckedChange={(c) => setOwnerAgreed(c === true)} aria-label={OWNER_AGREED_TICK} /><span>{OWNER_AGREED_TICK}</span></label>}
         </div>
       </Section>
       <Section title="Photos, quotes and job sheets">
@@ -152,7 +155,7 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
       <label className="flex items-start gap-3 rounded-[18px] border border-line bg-paper p-4 text-sm" data-owner-consent><Checkbox className="mt-0.5" checked={permission} onCheckedChange={(c) => setPermission(c === true)} aria-label={OWNER_CONTACT_PERMISSION} /><span>{OWNER_CONTACT_PERMISSION}</span></label>
       {!permission && <p className="-mt-2 text-xs text-sub">Tick this to add the job.</p>}
       <p className="text-xs text-sub">Nothing is sent to the owner when you add the job.</p>
-      <Button size="field" className="w-full" disabled={!siteCheck || priceBad || !permission || (quoted === "yes" && !priceNum) || !!electricianPlanBlocker(plan)} onClick={async () => { const r = await confirm({ importId: draft.id, facts: out(), installer: { quoted, site_check: siteCheck!, site_check_date: siteCheck === "yes" && siteDate ? siteDate : null, quoted_price_inc_gst: priceNum, price_includes: includes.trim() || null, contact_permission: permission }, electrician: plan && plan.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } }, "Job added"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Add this job</Button>
+      <Button size="field" className="w-full" disabled={!siteCheck || priceBad || !permission || (quoted === "yes" && !priceNum) || !!electricianPlanBlocker(plan)} onClick={async () => { const r = await confirm({ importId: draft.id, facts: out(), installer: { quoted, site_check: siteCheck!, site_check_date: siteCheck === "yes" && siteDate ? siteDate : null, quoted_price_inc_gst: priceNum, price_includes: includes.trim() || null, contact_permission: permission, owner_agreed: quoted === "yes" && ownerAgreed }, electrician: plan && plan.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } }, "Job added"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Add this job</Button>
       <div className="grid grid-cols-2 gap-2"><Button variant="outline" onClick={onBack}>Back</Button><Button variant="ghost" onClick={async () => { await discard({ importId: draft.id }, "Draft discarded"); onBack(); }}>Discard draft</Button></div>
     </div>
   );

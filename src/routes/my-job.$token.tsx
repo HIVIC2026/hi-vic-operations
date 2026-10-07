@@ -5,6 +5,7 @@ import { Check, ChevronRight, FileText, MessageSquare, Phone, AlertCircle } from
 import { z } from "zod";
 import { cancelMyJob, getOwnerMyJob } from "@/lib/owner-myjob.functions";
 import { OwnerHouse } from "@/components/owner/OwnerHouse";
+import { PIESA_FIXES_NOTE, agreedWithLabel, ownerPriceTitle } from "@/lib/owner-confirm.core";
 import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
 import { HOUSE_LEVEL } from "@/lib/owner-house.core";
 import { ownerHeadline, quoteKicker } from "@/lib/owner-headlines.core";
@@ -276,7 +277,8 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
     <Hero v={v} level={HOUSE_LEVEL.quote} size="sm" headline={quoteKicker(q?.rebate ?? v.numbers.rebate)} />
     {!q ? <section className="rounded-[22px] bg-card p-5 shadow-sm"><p className="font-bold">Your exact price is being worked out.</p><p className="mt-1 text-sm">We'll let you know as soon as it's ready.</p></section> : <>
       <section className="rounded-[22px] bg-card p-5 shadow-sm">
-        <h2 className="font-display text-xl font-extrabold">Your price</h2>
+        <h2 className="font-display text-xl font-extrabold">{ownerPriceTitle(v.agreed)}</h2>
+        {agreedWithLabel(v.agreed) && <p className="mt-1 text-sm font-semibold" data-agreed-with>{agreedWithLabel(v.agreed)}</p>}
         <ul className="mt-3 divide-y divide-estimate-line text-sm">
           <li className="flex justify-between py-2"><span>Home Insulation Ready Check</span><span className="font-bold text-estimate-green">FREE</span></li>
           {q.lines.map((l: any, i: number) => <li key={i} className="flex justify-between gap-3 py-2"><span>{l.description}</span><span className="font-semibold">{aud(l.amount)}</span></li>)}
@@ -284,6 +286,7 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
           <li className="flex justify-between py-3 font-display text-lg font-extrabold"><span>You pay (inc GST)</span><span>{aud(q.total)}</span></li>
         </ul>
       </section>
+      <FixesNote />
       <section className="rounded-[22px] bg-estimate-mint p-5"><p className="font-display text-lg font-extrabold">You don't lift a finger</p><p className="mt-1 text-sm">We book the safety check, the install and do all the rebate paperwork for you.</p></section>
       <section className="rounded-[22px] bg-card p-5 shadow-sm">
         <h3 className="font-display text-lg font-extrabold">How you can pay</h3>
@@ -301,6 +304,11 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
   </>;
 }
 
+/** Jo insists this is clear and boxed (7 Oct 2026). */
+function FixesNote() {
+  return <section role="note" data-piesa-fixes-note className="rounded-[22px] border-2 border-estimate-navy/40 bg-card p-5 text-sm"><p className="font-bold">About electrical fixes</p><p className="mt-1">{PIESA_FIXES_NOTE}</p></section>;
+}
+
 function BookScreen({ v, token }: { v: View; token: string }) {
   const today = melbourneToday();
   return <>
@@ -312,6 +320,7 @@ function BookScreen({ v, token }: { v: View; token: string }) {
       <p className="mt-2 text-sm">For example, a safety check on {day(today)} means an install between {day(earliestInstall(today, v.piesaInstallGapDays))} and {day(installDeadline(today))}.</p>
       <p className="mt-2 text-sm">Pick 2-hour windows that suit you: {TWO_HOUR_WINDOWS.join(", ")}.</p>
     </section>
+    <FixesNote />
     <BookPickers token={token} />
   </>;
 }
