@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { couldntGetInMessage, dayTile, distanceLine, expiryPill, goneIn, payPill, payState, prestartReady, roughInstallValue, roughValueNote, setupComplete, tradeGreeting } from "../src/lib/trade-view.core";
+import { couldntGetInMessage, dayTile, distanceLine, expiryPill, goneIn, payPill, payState, prestartReady, roughInstallValue, roughValueNote, setupComplete, SETUP_STEPS, PRESTART_CHECKS, tradeGreeting } from "../src/lib/trade-view.core";
 
 describe("trade view presentation", () => {
   test("greeting and quiet week", () => {
