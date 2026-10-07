@@ -178,7 +178,7 @@ async function makePartnerLogin(sb: Parameters<typeof requireAdmin>[0], actorId:
     const bad = steps.find((s) => s.error);
     if (bad?.error) throw new WorkflowError(`Login made but linking failed: ${bad.error.message}`);
     // generateLink returns the link only; it never emails it.
-    const link = await (await import("./set-password-link.server")).issueSetPasswordLink(data.email);
+    const link = await (await import("./set-password-link.server")).issuePartnerLoginLink(data.email, actorId, data.applicationId);
     await admin.from("admin_config_events").insert({ actor_id: actorId, event_type: "partner_login_created", summary: `Office created partner login ${data.email} (nothing sent)`, details: { business_id: act.business_id, user_id: uid, application_id: data.applicationId } });
     return { email: data.email, link, name, businessId: act.business_id };
 }

@@ -7,7 +7,7 @@ export function partnerLoginEmail(_name: string | null, link: string): { subject
       "",
       link,
       "",
-      "The link works once and expires after 1 hour. If it has expired, open it anyway and tap \"Send me a new link\".",
+      "The link works once and expires after 24 hours. If it has expired, open it anyway and tap \"Send me a new link\".",
       "After that, sign in any time at https://estimate.homeinsulationvictoria.com.au/portal",
     ].join("\n"),
   };

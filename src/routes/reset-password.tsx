@@ -2,7 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { afterPasswordPath } from "@/lib/set-password-link.core";
+import { afterPasswordPath, partnerLinkMessage } from "@/lib/set-password-link.core";
+import { redeemPartnerLink } from "@/lib/partner-login-link.functions";
 import { LINK_SENT_SAFE, badLinkMessage, linkErrorMessage, normaliseLoginEmail } from "@/lib/login.core";
 import { TradePublicShell, card, greenBtn, inputCls } from "@/components/trade/TradeShell";
 
@@ -33,7 +34,20 @@ function ResetPassword() {
     if (h.get("error") || q.get("error")) { setFailed(badLinkMessage({ code: h.get("error_code") ?? q.get("error_code") ?? "", message: h.get("error_description") ?? q.get("error_description") ?? "" })); return; }
     const t = window.setTimeout(() => { void supabase.auth.getSession().then(({ data: d }) => { if (!d.session) setFailed((f) => f ?? "This link has expired or was already used."); }); }, 4000);
     const kind = q.get("type");
-    if (th && (kind === "recovery" || kind === "invite")) {
+    const partnerLink = q.get("link");
+    const verify = (hash: string, type: "recovery" | "invite") => supabase.auth.verifyOtp({ token_hash: hash, type }).then(({ data: v, error }) => {
+        if (error || !v.session) { setFailed(badLinkMessage(error)); return; }
+        q.delete("token_hash"); q.delete("type"); q.delete("link");
+        window.history.replaceState(null, "", `${window.location.pathname}?${q.toString()}`);
+        setReady(true);
+      });
+    if (partnerLink) {
+      // 24-hour partner link: claim it once, then sign in with the fresh one-time token.
+      void redeemPartnerLink({ data: { token: partnerLink } }).then((r) => {
+        if (r.outcome !== "ok" || !r.tokenHash) { setFailed(partnerLinkMessage(r.outcome === "ok" ? "invalid" : r.outcome)); return; }
+        void verify(r.tokenHash, "recovery");
+      }, () => setFailed(partnerLinkMessage("invalid")));
+    } else if (th && (kind === "recovery" || kind === "invite")) {
       void supabase.auth.verifyOtp({ token_hash: th, type: kind }).then(({ data: v, error }) => {
         if (error || !v.session) { setFailed(badLinkMessage(error)); return; }
         q.delete("token_hash"); q.delete("type");
