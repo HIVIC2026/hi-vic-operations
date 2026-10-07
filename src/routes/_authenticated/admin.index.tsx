@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { InstallerFactsLine } from "@/components/portal/installer-job-facts";
 import { Badge } from "@/components/ui/badge";
 import { listInterests } from "@/lib/interest.functions";
 import { useQuery } from "@tanstack/react-query";
@@ -324,6 +325,7 @@ function BoardCard({ job, readyCheckAt }: { job: JobRow; readyCheckAt?: string |
       <div className="mt-3 border-t pt-3">
         <p className="text-xs font-semibold text-foreground">{step.next}</p>
         {step.waitingOn && <p className="mt-1 text-[11px] text-muted-foreground">Waiting on {step.waitingOn}</p>}
+        <div className="mt-1"><InstallerFactsLine facts={job.installer_facts} /></div>
       </div>
     </Link>
   );

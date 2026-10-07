@@ -86,6 +86,16 @@ export function siteCheckLabel(check: SiteCheck | null | undefined, date?: strin
   return "Site check: unclear — please answer Yes or No";
 }
 
+export type InstallerJobFacts = { site_check: SiteCheck | null; site_check_date: string | null; quoted_price_inc_gst: number | null; price_includes: string | null };
+/** Short labels for office/partner lists (presentation only). */
+export function installerFactLabels(f: InstallerJobFacts): { siteCheck: string; price: string } {
+  const d = f.site_check_date ? ` (${f.site_check_date.split("-").reverse().join("/")})` : "";
+  return {
+    siteCheck: f.site_check === "yes" ? `Site check done: Yes${d}` : f.site_check === "no" ? "Site check done: No — Ready Check" : "Site check: not recorded",
+    price: f.quoted_price_inc_gst ? `Installer's price $${Number(f.quoted_price_inc_gst).toLocaleString("en-AU")} inc GST` : QUOTE_NEEDED_LABEL,
+  };
+}
+
 export type SortResult = "covers_ready_check" | "needs_visit" | "office_review";
 
 /** Exact wording of the one required tick before upload. */

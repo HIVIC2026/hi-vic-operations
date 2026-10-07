@@ -1198,11 +1198,15 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
   const { commsStatus } = await import("./comms-status.core");
   const now = new Date();
   const archivedQaIds = new Set((await admin.from("jobs").select("id").not("qa_archived_at", "is", null)).data?.map((j) => j.id) ?? []);
+  // Installer-sourced jobs: site check done? and the installer's own price (Jo, 7 Oct).
+  const { data: facts } = await admin.from("jobs").select("id, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes").eq("channel", "installer_sourced");
+  const factBy = new Map((facts ?? []).map((f) => [f.id, { site_check: (f.installer_site_check as "yes" | "no" | null), site_check_date: f.installer_site_check_date, quoted_price_inc_gst: f.installer_quoted_price_inc_gst == null ? null : Number(f.installer_quoted_price_inc_gst), price_includes: f.installer_price_includes }]));
   return (data ?? []).filter((j) => j.id != null && !archivedQaIds.has(j.id)).map((j) => {
     const pays = (rc ?? []).filter((p) => p.job_id === j.id);
     const paid = pays.find((p) => p.status === "paid");
     return {
       ...j,
+      installer_facts: factBy.get(j.id!) ?? null,
       comms_status: commsStatus((asg ?? []).filter((a) => a.job_id === j.id), (msgs ?? []).filter((m) => m.job_id === j.id), new Date()),
       stuck_reasons: stuckReasons({
         stage: j.stage,
@@ -1651,4 +1655,15 @@ export const recordXeroTestPayment = createServerFn({ method: "POST" }).middlewa
     const { data: inv } = await admin.from("invoices").select("job_id").eq("id", data.invoiceId).single();
     if (inv) await advanceAfterDeposit(inv.job_id, context.userId);
     return { ok: true };
+  });
+
+/** Office job page: the installer's own price, what it includes and whether he already did the site check. */
+export const getInstallerJobFacts = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { data: j, error } = await admin.from("jobs").select("channel, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes").eq("id", data.jobId).single();
+    if (error || !j) throw new Error(`Could not load the installer's details: ${error?.message ?? "job not found"}`);
+    if (j.channel !== "installer_sourced") return null;
+    return { site_check: j.installer_site_check as "yes" | "no" | null, site_check_date: j.installer_site_check_date, quoted_price_inc_gst: j.installer_quoted_price_inc_gst == null ? null : Number(j.installer_quoted_price_inc_gst), price_includes: j.installer_price_includes };
   });
