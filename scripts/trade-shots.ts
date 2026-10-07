@@ -12,11 +12,11 @@ async function sessionFor(email: string) {
   const { data: link } = await admin.auth.admin.generateLink({ type: "magiclink", email });
   return (await sb.auth.verifyOtp({ token_hash: link!.properties!.hashed_token, type: "magiclink" })).data.session;
 }
-const { data: offers } = await admin.from("job_offers" as never).select("id,status").eq("business_id" as never, BIZ).order("created_at" as never, { ascending: false }).limit(20);
-const { data: jobs } = await admin.from("jobs").select("id,stage").eq("source", "qa_test").eq("installer_business_id" as never, BIZ).order("created_at", { ascending: false }).limit(3);
+const { data: offers } = await admin.from("partner_offers").select("id,status").eq("business_id", BIZ).order("offered_at", { ascending: false }).limit(20);
+const { data: jobs } = await admin.from("job_assignments").select("job_id").eq("business_id", BIZ).eq("active", true).limit(1);
 const offer = (offers as { id: string; status: string }[] | null) ?? [];
 const pend = offer.find((o) => o.status === "pending"), acc = offer.find((o) => o.status === "accepted"), gone = offer.find((o) => !["pending", "accepted"].includes(o.status));
-const job = (jobs as { id: string }[] | null)?.[0]?.id;
+const job = (jobs as { job_id: string }[] | null)?.[0]?.job_id;
 const pages: [string, string][] = [["my-work", "/field"], ["welcome", "/field/welcome"], ["money", "/field/money"], ["business", "/field/business"], ["business-details", "/field/business/details"], ["business-rates", "/field/business/rates"], ["business-bank", "/field/business/bank"], ["business-insurance", "/field/business/insurance"], ["business-agreement", "/field/business/agreement"], ["business-team", "/field/business/team"], ["staff-and-invites", "/partner/workers"]];
 if (job) pages.push(["job-page", `/field/${job}`], ["todays-job", `/field/day/${job}`]);
 if (pend) pages.push(["offer-new", `/field/offer/${pend.id}`]); if (acc) pages.push(["offer-accepted", `/field/offer/${acc.id}`]); if (gone) pages.push(["offer-closed", `/field/offer/${gone.id}`]);
