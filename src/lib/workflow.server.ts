@@ -201,12 +201,7 @@ async function readyCheckBlockers(jobId: string, to: Stage): Promise<string[]> {
     const { verifiedEligible } = await import("./verified-eligibility.server");
     if (!(await verifiedEligible(jobId))) out.push("Verified eligibility not recorded as eligible by the office for the current Ready Check.");
   }
-  if (to === "piesa_scheduled") {
-    const { checkPiesaWindow } = await import("./readycheck.core");
-    const { data: w } = await admin.from("job_install_windows").select("planned_piesa_date, planned_install_date, piesa_completed_at").eq("job_id", jobId).maybeSingle();
-    const c = checkPiesaWindow({ planned_piesa_date: w?.planned_piesa_date ?? null, planned_install_date: w?.planned_install_date ?? null, piesa_completed_at: null, today: new Date().toISOString() });
-    if (!c.readyForPiesa) out.push(c.hardWarning ?? "Reserve a realistic installation slot before scheduling the PIESA.");
-  }
+  // Jo 7 Oct: a PIESA booking never needs a paired install slot. The 30-day PIESA window is checked when the install is booked (install-days / booking.server).
   if (["rectification_scheduling", "installation_scheduling"].includes(to)) {
     const { data: r } = await admin.from("piesa_reconciliations").select("id, requires_customer_approval").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (r?.requires_customer_approval) {

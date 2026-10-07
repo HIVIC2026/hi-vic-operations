@@ -152,7 +152,7 @@ describe("30-day window", () => {
     expect(checkPiesaWindow({ planned_piesa_date: null, planned_install_date: "2026-11-02", piesa_completed_at: "2026-10-01", today: "2026-10-05" }).hardWarning).toMatch(/new PIESA/);
     expect(checkPiesaWindow({ planned_piesa_date: "2026-10-01", planned_install_date: "2026-10-10", piesa_completed_at: null, today: "2026-09-30" })).toMatchObject({ hardWarning: null, bufferWarning: null, readyForPiesa: true });
     expect(checkPiesaWindow({ planned_piesa_date: "2026-10-01", planned_install_date: "2026-10-03", piesa_completed_at: null, today: "2026-09-30" }).bufferWarning).toMatch(/7–14/);
-    expect(checkPiesaWindow({ planned_piesa_date: "2026-10-01", planned_install_date: null, piesa_completed_at: null, today: "2026-09-30" }).readyForPiesa).toBe(false);
+    expect(checkPiesaWindow({ planned_piesa_date: "2026-10-01", planned_install_date: null, piesa_completed_at: null, today: "2026-09-30" }).readyForPiesa).toBe(true); // Jo 7 Oct: no paired install slot needed
     expect(checkPiesaWindow({ planned_piesa_date: null, planned_install_date: null, piesa_completed_at: "2026-10-01", today: "2026-11-05" }).newPiesaRequired).toBe(true);
   });
 });
