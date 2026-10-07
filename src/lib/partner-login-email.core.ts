@@ -1,11 +1,8 @@
 // Plain partner login email (DRAFT wording — Jo to approve). Link opens our own set-password page; works once.
-export function partnerLoginEmail(name: string | null, link: string): { subject: string; message: string } {
-  const first = (name ?? "").trim().split(/\s+/)[0];
+export function partnerLoginEmail(_name: string | null, link: string): { subject: string; message: string } {
   return {
     subject: "Your Home Insulation Victoria portal login",
     message: [
-      `${first ? `Hi ${first},` : "Hi,"}`,
-      "",
       "You're approved. Tap the link below to set your password and sign in to the Home Insulation Victoria portal:",
       "",
       link,
