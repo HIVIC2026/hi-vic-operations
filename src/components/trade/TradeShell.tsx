@@ -2,8 +2,12 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Briefcase, Building2, PlusCircle, Wallet } from "lucide-react";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
+import { useAccess } from "@/hooks/use-me";
 
-export function TradeShell({ children, installer, boss = true, test = false }: { children: React.ReactNode; installer: boolean; boss?: boolean; test?: boolean }) {
+export function TradeShell({ children, installer, boss: bossProp, test = false }: { children: React.ReactNode; installer: boolean; boss?: boolean | undefined; test?: boolean }) {
+  // Owner-only tabs (Upload jobs, Money, My business) stay hidden until the person is known to be the business owner.
+  const { data: access } = useAccess();
+  const boss = bossProp ?? (!!access?.businessAdmin || !!access?.admin);
   const today = new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", timeZone: "Australia/Melbourne" });
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas font-sans text-estimate-navy">

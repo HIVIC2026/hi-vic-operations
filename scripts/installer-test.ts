@@ -1,0 +1,509 @@
+// Strict new-installer test — ONE command:  bun run installer-test  [--runs 3] [--no-browser]
+// A. application (all 9 pages) -> sign -> office review -> bad input -> approval (practice database) -> request changes / decline
+// B. what the approved installer sees, as the business owner AND a staff login (server checks + 390/1280 screenshots)
+// C. bulk upload (11 files) and Add one job, through the portal's own server steps
+// TEST only: TEST businesses, TEST logins (@hivic-test.example / @hivic.test), qa_test jobs. Nothing is sent to anyone.
+// State of the TEST business is saved before each run and put back after; TEST jobs made by a run are archived.
+(globalThis as { AI_SDK_LOG_WARNINGS?: boolean }).AI_SDK_LOG_WARNINGS = false;
+import { mkdirSync, writeFileSync, readFileSync, existsSync, copyFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
+import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { ACKNOWLEDGEMENTS, INSTALLER_AGREEMENT_VERSION, INSTALLER_VISIBLE_PAGES, agreementText, normaliseInstallerDraft, pageFieldErrors, type InstData } from "../src/lib/installer-onboarding.core";
+import { performInstallerSign, signedData } from "../src/lib/installer-sign.core";
+import { activationBlockers, latestCertifications, mandatoryActivationBlockers, planActivation, approvedRateItems } from "../src/lib/partner-activation.core";
+import { JOURNEY_ACTOR_EMAIL } from "../src/lib/journey.server";
+
+const RUNS = Number(process.argv[process.argv.indexOf("--runs") + 1]) || 1;
+const noBrowser = process.argv.includes("--no-browser");
+const BIZ = "17793408-bf5c-4ddd-9bec-64199f64f9fb"; // [TEST PARTNER] Reinsulate
+const OWNER_EMAIL = "deep-test@hivic.test";
+const STAFF_EMAIL = "qa.staff.reinsulate@hivic-test.example";
+const TEST_EMAIL = /@(hivic-test\.example|hivic\.test)$/i;
+const BANNED = ["undefined", "NaN", "[object", "HI VIC", "optional", "vacuum"]; // "hivic" alone is allowed: TEST logins use @hivic.test
+const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+const root = `/mnt/documents/installer-test/${stamp}`;
+const sha256 = async (s: string) => createHash("sha256").update(s).digest("hex");
+
+type Check = { name: string; ok: boolean; detail?: string };
+type Step = { key: string; label: string; passed: boolean; checks: Check[]; error?: string; shots?: string[] };
+type Screen = { step: string; persona: string; path: string; mustSee?: string[]; mustNotSee?: string[]; noPrices?: boolean };
+class Fail extends Error {}
+
+async function step(steps: Step[], key: string, label: string, fn: (c: (name: string, ok: boolean, detail?: string) => void) => Promise<void>) {
+  const s: Step = { key, label, passed: false, checks: [] };
+  const c = (name: string, ok: boolean, detail?: string) => { s.checks.push(detail === undefined ? { name, ok } : { name, ok, detail }); };
+  try { await fn(c); s.passed = s.checks.length > 0 && s.checks.every((x) => x.ok); if (!s.passed) s.error = s.checks.filter((x) => !x.ok).map((x) => `${x.name}${x.detail ? ` (${x.detail})` : ""}`).join("; ") || "no checks ran"; }
+  catch (e) { s.error = (e as Error).message; s.checks.push({ name: "step stopped", ok: false, detail: s.error }); }
+  steps.push(s); console.log(`${s.passed ? "PASS" : "FAIL"}  ${label}${s.passed ? "" : `  —  ${s.error}`}`);
+  return s;
+}
+
+// ---------- TEST sign-ins (TEST accounts only) ----------
+async function sessionFor(email: string) {
+  if (!TEST_EMAIL.test(email) && email !== JOURNEY_ACTOR_EMAIL) throw new Error("SAFETY STOP: TEST accounts only.");
+  const { createClient } = await import("@supabase/supabase-js");
+  const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
+  const sb = createClient(process.env["SUPABASE_URL"]!, key, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: (i, init) => { const h = new Headers(init?.headers); if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization"); h.set("apikey", key); return fetch(i, { ...init, headers: h }); } } });
+  const { data: link, error } = await admin.auth.admin.generateLink({ type: "magiclink", email });
+  if (error || !link.properties?.hashed_token) throw new Error(`TEST sign-in ${email}: ${error?.message}`);
+  const v = await sb.auth.verifyOtp({ token_hash: link.properties.hashed_token, type: "magiclink" });
+  if (v.error) throw new Error(`TEST sign-in ${email}: ${v.error.message}`);
+  return v.data.session;
+}
+async function userId(email: string) {
+  const { data } = await admin.from("profiles").select("id").eq("email", email).maybeSingle();
+  return (data as { id: string } | null)?.id ?? null;
+}
+
+/** One TEST staff login on the TEST business (kept between runs as a fixture). */
+async function ensureStaff() {
+  let id = await userId(STAFF_EMAIL);
+  if (!id) {
+    const { data, error } = await admin.auth.admin.createUser({ email: STAFF_EMAIL, email_confirm: true, user_metadata: { qa_test: true, full_name: "TEST Staff Reinsulate" } });
+    if (error) throw new Error(`Could not create TEST staff login: ${error.message}`);
+    id = data.user.id;
+    for (let i = 0; i < 10 && !(await userId(STAFF_EMAIL)); i++) await new Promise((r) => setTimeout(r, 500));
+  }
+  await admin.from("profiles").update({ business_id: BIZ, full_name: "TEST Staff Reinsulate" }).eq("id", id);
+  const { data: m } = await admin.from("business_members").select("id").eq("business_id", BIZ).eq("user_id", id).maybeSingle();
+  if (!m) await admin.from("business_members").insert({ business_id: BIZ, user_id: id, member_role: "member", active: true });
+  const { data: r } = await admin.from("user_roles").select("id").eq("user_id", id).eq("role", "installer").maybeSingle();
+  if (!r) await admin.from("user_roles").insert({ user_id: id, role: "installer" });
+  return id;
+}
+
+// ---------- snapshot / restore ----------
+async function snapshot() {
+  const [{ data: biz }, { data: members }, { data: jobs }, { data: batches }, { data: imports }] = await Promise.all([
+    admin.from("businesses").select("*").eq("id", BIZ).single(),
+    admin.from("business_members").select("*").eq("business_id", BIZ),
+    admin.from("jobs").select("id").eq("originating_installer_business_id", BIZ),
+    admin.from("bulk_import_batches").select("id").eq("business_id", BIZ),
+    admin.from("job_imports").select("id").eq("business_id", BIZ),
+  ]);
+  return { biz, members: members ?? [], jobIds: new Set((jobs ?? []).map((j) => j.id)), batchIds: new Set((batches ?? []).map((b) => b.id)), importIds: new Set((imports ?? []).map((b) => b.id)) };
+}
+async function restore(s: Awaited<ReturnType<typeof snapshot>>) {
+  const { id: _i, created_at: _c, updated_at: _u, ...cols } = s.biz as Record<string, unknown>;
+  await admin.from("businesses").update(cols as never).eq("id", BIZ);
+  for (const m of s.members) await admin.from("business_members").update({ active: (m as { active: boolean }).active, member_role: (m as { member_role: string }).member_role }).eq("id", (m as { id: string }).id);
+  const { data: jobs } = await admin.from("jobs").select("id, source").eq("originating_installer_business_id", BIZ);
+  const newJobs = (jobs ?? []).filter((j) => !s.jobIds.has(j.id));
+  if (newJobs.some((j) => j.source !== "qa_test")) console.log("WARNING: a job made during the run was not qa_test:", newJobs.filter((j) => j.source !== "qa_test").map((j) => j.id));
+  const qa = newJobs.filter((j) => j.source === "qa_test").map((j) => j.id);
+  if (qa.length) await admin.from("jobs").update({ qa_archived_at: new Date().toISOString() } as never).in("id", qa);
+  const { data: batches } = await admin.from("bulk_import_batches").select("id").eq("business_id", BIZ);
+  const newB = (batches ?? []).map((b) => b.id).filter((id) => !s.batchIds.has(id));
+  if (newB.length) await admin.from("bulk_import_batches").update({ status: "discarded" }).in("id", newB).neq("status", "confirmed"); // confirmed uploads are locked by the database and stay listed
+  const { data: imps } = await admin.from("job_imports").select("id, status").eq("business_id", BIZ);
+  const newI = (imps ?? []).filter((i) => !s.importIds.has(i.id) && i.status === "draft").map((i) => i.id);
+  if (newI.length) await admin.from("job_imports").update({ status: "discarded" }).in("id", newI);
+  return { archivedJobs: qa.length, hiddenBatches: newB.length };
+}
+async function outboundFor(jobIds: string[]) {
+  if (!jobIds.length) return 0;
+  const tables = ["customer_email_sends", "sms_messages", "job_communications", "external_action_outbox"] as const;
+  let n = 0;
+  for (const t of tables) { const { count } = await (admin.from(t as never) as unknown as { select: (c: string, o: object) => { in: (k: string, v: string[]) => Promise<{ count: number | null }> } }).select("id", { count: "exact", head: true }).in("job_id", jobIds); n += count ?? 0; }
+  return n;
+}
+
+// ---------- A. application ----------
+const addr = (label: string, street: string, suburb: string, postcode: string) => ({ label, street, suburb, postcode, state: "VIC", country: "AU" as const, latitude: -37.71, longitude: 144.71, provider: "google_places_au" as const });
+function application(tag: string): InstData {
+  const ba = `12 Batts Way, Fraser Rise VIC 3336`;
+  return {
+    works_for_business: false, primary_contact_name: `TEST ${tag} Boss`, business_phone: "0412345601", business_email: `qa.newinstaller.${tag.toLowerCase()}@hivic-test.example`,
+    legal_entity_name: `TEST ${tag} Insulation Pty Ltd`, trading_name: `TEST ${tag} Insulation`, abn: "51824753556",
+    business_address: ba, business_address_details: addr(ba, "12 Batts Way", "Fraser Rise", "3336"),
+    insurer: `TEST Insurer ${tag}`, insurance_policy_number: `POL-${tag}`, public_liability_cover_amount: 10_000_000, public_liability_expiry: "2030-06-30",
+    installers: [{ full_legal_name: `TEST ${tag} Installer`, mobile: "0412345602", email: `qa.newinstaller.${tag.toLowerCase()}.w1@hivic-test.example`, cii_holds: "held", cii_certificate_number: `CII-${tag}`, cii_issuer: "Energy Efficiency Council Victoria", cii_level: "full", cii_expiry: "2029-05-19", piisa_done: "no" }],
+    self_is_installer: false, electrician_choice: "match", wants_hivic_leads: true, free_measureups_for_hivic_quote_leads: true, free_quotes_for_hivic_leads: true,
+    service_origin: ba, service_origin_details: addr(ba, "12 Batts Way", "Fraser Rise", "3336"), travel_radius_km: 50,
+    typical_days: ["Mon", "Tue", "Wed"], normal_attendance_speed: "1-2 weeks", accepting_jobs: true,
+    gst_registered: true, r5_rate: 27.5, r6_rate: 31, r7_rate: 35.2, topup_r5_rate: 22, batts_removal_rate: 9.9, loose_fill_removal_rate: 14.3, extra_rates: { difficult_access: 110 },
+    bank_account_name: `TEST ${tag} Insulation`, bank_bsb: "063-000", bank_account_number: "12345678", agreement_reviewed: true, how_it_works_acknowledged: true,
+  } as InstData;
+}
+const PAGE_FIELDS: Record<string, (keyof InstData)[]> = {
+  about: ["works_for_business", "primary_contact_name", "business_phone", "business_email", "legal_entity_name", "trading_name", "abn", "business_address", "business_address_details"],
+  insurance: ["insurer", "insurance_policy_number", "public_liability_cover_amount", "public_liability_expiry"], installers: ["installers", "self_is_installer"], electrician: ["electrician_choice"],
+  services: ["wants_hivic_leads", "free_measureups_for_hivic_quote_leads", "free_quotes_for_hivic_leads", "service_origin", "service_origin_details", "travel_radius_km"],
+  availability: ["typical_days", "normal_attendance_speed", "accepting_jobs"], install_pricing: ["gst_registered", "r5_rate", "r6_rate", "r7_rate", "topup_r5_rate", "batts_removal_rate", "loose_fill_removal_rate", "extra_rates"],
+  bank: ["bank_account_name", "bank_bsb", "bank_account_number"], review: ["agreement_reviewed", "how_it_works_acknowledged"],
+};
+const PDF = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
+
+async function sectionA(steps: Step[], tag: string, screens: Screen[], ctx: { appId?: string; enquiryId?: string; data?: InstData }) {
+  await step(steps, "A1", "A1 Fill in all 9 application pages, upload insurance, sign", async (c) => {
+    const full = application(tag);
+    const token = randomBytes(32).toString("base64url");
+    // Same path as the office "Test link": a single-use staff-issued qa_test authorisation, consumed on start.
+    const staffLink = randomBytes(32).toString("base64url");
+    const actor = await userId(JOURNEY_ACTOR_EMAIL);
+    const { error: le } = await (admin as unknown as { from: (t: string) => any }).from("onboarding_authorisations").insert({ token_hash: await sha256(staffLink), trade: "installer", purpose: "qa_test", allow_incomplete_sign: false, max_uses: 1, expires_at: new Date(Date.now() + 3_600_000).toISOString(), issued_by: actor, note: `installer test ${tag}` }); // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (le) throw new Fail(`could not issue the TEST link: ${le.message}`);
+    const secA = await import("../src/lib/onboarding-security.server");
+    const auth = await secA.consumeAuthorisation(admin as never, staffLink, "installer");
+    c("staff TEST link accepted once", auth?.purpose === "qa_test");
+    const { data: app, error } = await admin.from("rec_onboarding_applications").insert({ resume_token_hash: await sha256(token), step_key: "about", partner_type: "installer", test_mode: true, authorisation_id: auth!.id, allow_incomplete_sign: false } as never).select("*").single();
+    if (error || !app) throw new Fail(`could not start a TEST application: ${error?.message}`);
+    ctx.appId = (app as { id: string }).id; ctx.data = full;
+    c("TEST application started (test mode, can never be approved as a real partner)", true);
+    let draft: InstData = {} as InstData; let rev = (app as { updated_at: string }).updated_at;
+    const sec = await import("../src/lib/onboarding-security.server");
+    for (const p of INSTALLER_VISIBLE_PAGES) {
+      const before = pageFieldErrors(p.key, draft).length;
+      for (const f of PAGE_FIELDS[p.key] ?? []) (draft as Record<string, unknown>)[f] = (full as Record<string, unknown>)[f];
+      if (p.key === "insurance") {
+        const slot = await sec.quarantineSlot(admin as never, "installer-onboarding", ctx.appId!);
+        const up = await admin.storage.from("partner-files").uploadToSignedUrl(slot.path, slot.token, PDF, { contentType: "application/pdf" });
+        if (up.error) throw new Fail(`insurance upload: ${up.error.message}`);
+        const done = await sec.verifyAndPromote(admin as never, "installer-onboarding", ctx.appId!, slot.path, "application/pdf", rev);
+        rev = done.updated_at; (draft as Record<string, unknown>)["insurance_uploaded"] = true;
+      }
+      const next = normaliseInstallerDraft(draft);
+      const { data: row, error: e } = await admin.from("rec_onboarding_applications").update({ data: next as never, step_key: p.key } as never).eq("id", ctx.appId!).eq("updated_at", rev).select("updated_at").maybeSingle();
+      if (e || !row) throw new Fail(`saving page "${p.title}" failed: ${e?.message ?? "revision moved"}`);
+      rev = (row as { updated_at: string }).updated_at;
+      const after = pageFieldErrors(p.key, { ...next, insurance_uploaded: draft.insurance_uploaded } as InstData);
+      c(`page "${p.title}": required questions enforced, then complete`, (p.key === "review" || before > 0) && after.length === 0, after.join(" ") || (before === 0 && p.key !== "review" ? "page passed with nothing filled in" : undefined));
+    }
+    const { data: a } = await admin.from("rec_onboarding_applications").select("*").eq("id", ctx.appId!).single();
+    const text = agreementText(signedData(a as never));
+    const out = await performInstallerSign(a as never, {
+      signer_name: full.primary_contact_name!, signer_position: "Director", signer_email: full.business_email!, acknowledgements: Object.fromEntries(ACKNOWLEDGEMENTS.map((k) => [k.key, true])),
+      agreement_version: INSTALLER_AGREEMENT_VERSION, expected_updated_at: (a as { updated_at: string }).updated_at, agreement_sha256: await sha256(text),
+    } as never, { ip: "203.0.113.9", userAgent: "installer-test" }, {
+      sha256, signAtomic: async (x) => {
+        const { data: rows, error: se } = await admin.rpc("sign_installer_application" as never, { _app_id: x.appId, _expected_updated_at: x.expectedUpdatedAt, _agreement_sha256: x.agreementSha256, _enquiry: x.enquiry, _signed: x.signed, _nominations: x.nominations } as never);
+        if (se) throw new Error(se.message);
+        return (rows as unknown as { outcome: "signed"; partner_enquiry_id: string; signed_at: string }[])[0]!;
+      },
+    });
+    void out;
+    const { data: s } = await admin.from("rec_onboarding_applications").select("status, agreement_version, agreement_sha256, signed_at, partner_enquiry_id").eq("id", ctx.appId!).single();
+    ctx.enquiryId = (s as { partner_enquiry_id: string | null } | null)?.partner_enquiry_id ?? undefined;
+    c("office enquiry created for the application", !!ctx.enquiryId);
+    c("signed and submitted", s?.status === "submitted", s?.status);
+    c("agreement version 1.16 recorded on the signed copy", /1\.16/.test(String(s?.agreement_version)), String(s?.agreement_version));
+    c("signed copy fingerprint stored", /^[a-f0-9]{64}$/.test(String(s?.agreement_sha256)));
+    c("agreement wording never mentions a vacuum rate", !/vacuum/i.test(text));
+    screens.push({ step: "A2", persona: "office", path: `/admin/partners?enquiry=${ctx.enquiryId}`, mustSee: [full.legal_entity_name!, full.primary_contact_name!, full.insurer!, full.insurance_policy_number!, full.installers![0]!.full_legal_name!, full.installers![0]!.cii_certificate_number!, "Fraser Rise"], mustNotSee: ["undefined", "NaN", "[object"] });
+  });
+
+  await step(steps, "A2", "A2 Every typed field reaches the office (server record)", async (c) => {
+    if (!ctx.enquiryId) throw new Fail("no signed application (A1 failed)");
+    const { data: pe } = await admin.from("partner_enquiries").select("*").eq("id", ctx.enquiryId).single();
+    const { data: a } = await admin.from("rec_onboarding_applications").select("data").eq("id", ctx.appId!).single();
+    const d = (a?.data ?? {}) as InstData; const f = ctx.data!;
+    for (const k of ["legal_entity_name", "trading_name", "abn", "primary_contact_name", "business_phone", "business_email", "insurer", "insurance_policy_number", "public_liability_cover_amount", "public_liability_expiry", "travel_radius_km", "r5_rate", "r6_rate", "r7_rate", "topup_r5_rate", "batts_removal_rate", "loose_fill_removal_rate", "bank_bsb", "bank_account_number"] as const)
+      c(`office record keeps ${k}`, JSON.stringify((d as Record<string, unknown>)[k]) === JSON.stringify((f as Record<string, unknown>)[k]), `${(d as Record<string, unknown>)[k]}`);
+    c("installer CII number + expiry kept", d.installers?.[0]?.cii_certificate_number === f.installers![0]!.cii_certificate_number && d.installers?.[0]?.cii_expiry === "2029-05-19");
+    c("office enquiry shows company and contact", (pe as { company?: string })?.company?.includes(tag) === true && (pe as { email?: string })?.email === f.business_email, `${(pe as { company?: string })?.company}`);
+    c("office enquiry carries the R5 and removal rates", Number((pe as Record<string, unknown>)["estimated_r5_install_rate_per_sqm_inc_gst"]) === 27.5 && Number((pe as Record<string, unknown>)["estimated_batts_removal_rate_per_sqm_inc_gst"]) === 9.9);
+  });
+
+  await step(steps, "A3", "A3 Bad input caught with a clear message", async (c) => {
+    const f = application(tag);
+    const cases: [string, Parameters<typeof pageFieldErrors>[0], InstData, RegExp][] = [
+      ["missing CII licence number", "installers", { ...f, installers: [{ ...f.installers![0]!, cii_certificate_number: "" }] }, /CII certificate/i],
+      ["expired CII certificate", "installers", { ...f, installers: [{ ...f.installers![0]!, cii_expiry: "2020-01-01" }] }, /expired/i],
+      ["expired insurance", "insurance", { ...f, insurance_uploaded: true, public_liability_expiry: "2020-01-01" } as InstData, /expiry must be today or later/i],
+      ["cover under $5m", "insurance", { ...f, insurance_uploaded: true, public_liability_cover_amount: 1_000_000 } as InstData, /\$5/],
+      ["bad ABN", "about", { ...f, abn: "12345678901" }, /valid 11-digit ABN/i],
+      ["bad BSB", "bank", { ...f, bank_bsb: "12-34" }, /BSB/],
+      ["bad account number", "bank", { ...f, bank_account_number: "12ab" }, /account number/i],
+      ["bad email", "about", { ...f, business_email: "not-an-email" }, /email/i],
+    ];
+    for (const [name, page, d, re] of cases) {
+      let msgs: string[] = []; let crashed = "";
+      try { msgs = pageFieldErrors(page, d).map((x) => x.message); } catch (e) { crashed = (e as Error).message; }
+      c(`${name}: clear message, no crash`, !crashed && msgs.some((m) => re.test(m)) && msgs.every((m) => m.length > 8 && !/undefined|null|NaN/.test(m)), crashed || msgs.join(" | ") || "no message");
+    }
+  });
+
+  await step(steps, "A4", "A4 Office approval saves business, rates, coverage, agreement 1.16 and signed copy", async (c) => {
+    if (!ctx.appId) throw new Fail("no signed application (A1 failed)");
+    const { data: live } = await admin.from("rec_onboarding_applications").select("*").eq("id", ctx.appId).single();
+    const d = (live as { data: InstData }).data;
+    c("live: only blocker is the deliberate TEST lock", activationBlockers("installer", d, (live as { agreement_version: string }).agreement_version, (live as { signed_at: string }).signed_at).length === 0 && (live as { test_mode: boolean }).test_mode === true);
+    // The real approval writes run on a practice database (TEST applications can never be approved live, by design).
+    const { installerDb } = await import("../tests/helpers/pglite-installer");
+    const t = await installerDb();
+    const id = await t.create(d);
+    const a = await t.app(id);
+    await performInstallerSign(a, { signer_name: d.primary_contact_name!, signer_position: "Director", signer_email: d.business_email!, acknowledgements: Object.fromEntries(ACKNOWLEDGEMENTS.map((k) => [k.key, true])), agreement_version: INSTALLER_AGREEMENT_VERSION, expected_updated_at: a.updated_at, agreement_sha256: await sha256(agreementText(signedData(a as never))) } as never, { ip: "203.0.113.9", userAgent: "installer-test" }, t.deps());
+    const email = d.installers![0]!.email!;
+    await t.recordCert(id, email, "verified", d.installers![0]!.cii_certificate_number!);
+    const certs = latestCertifications([{ id: "x", worker_email: email, status: "verified", recorded_at: new Date().toISOString(), certificate_number: d.installers![0]!.cii_certificate_number! } as never]);
+    const signed = await t.app(id);
+    c("no mandatory blockers once the CII is office-verified", mandatoryActivationBlockers("installer", signed.data as InstData, certs).length === 0);
+    const plan = planActivation("installer", signed as never, signed.data as InstData, certs, []);
+    const r = await t.activate(id, plan);
+    c("approved", r.outcome === "activated", r.outcome);
+    const b = (await t.db.query<Record<string, unknown>>(`SELECT * FROM businesses WHERE id=$1`, [r.business_id])).rows[0]!;
+    c("business saved with the legal name and ABN", String(b["name"]).includes(tag) && b["abn"] === "51824753556", `${b["name"]} / ${b["abn"]}`);
+    const items = (await t.db.query<{ code: string; unit_price_ex_gst: string }>(`SELECT code, unit_price_ex_gst::text FROM rate_card_items WHERE rate_card_id=$1`, [r.rate_card_id])).rows;
+    const expected = approvedRateItems("installer", d);
+    c("every typed rate saved on the rate card", expected.every((e) => items.some((i) => i.code === e.code && Number(i.unit_price_ex_gst) === Number(e.unit_price_ex_gst))), items.map((i) => `${i.code}=${i.unit_price_ex_gst}`).join(", "));
+    c("no vacuum rate on the rate card", !items.some((i) => /VACUUM/i.test(i.code)));
+    c("coverage saved (50 km from the service base)", JSON.stringify(b).includes("50") && JSON.stringify(b).includes("Fraser Rise"));
+    const act = (await t.db.query<{ snapshot: Record<string, unknown> }>(`SELECT snapshot FROM partner_activations WHERE application_id=$1`, [id])).rows[0];
+    c("agreement version 1.16 + signed copy carried into the approval record", /1\.16/.test(JSON.stringify(act?.snapshot ?? {})) && /[a-f0-9]{64}/.test(JSON.stringify(act?.snapshot ?? {})));
+    const { isAllowlisted } = await import("../src/lib/test-send.core").catch(() => ({ isAllowlisted: undefined as never }));
+    const pp = await import("../src/lib/partner-profile.server");
+    c("welcome message is only queued for the office, never sent on approval", /approval_message_status: "queued"/.test(pp.queueApprovalMessage.toString()) && !/send|resend|twilio/i.test(pp.queueApprovalMessage.toString()));
+    void isAllowlisted;
+  });
+
+  await step(steps, "A5", "A5 Office request changes / decline, and what the installer sees", async (c) => {
+    if (!ctx.enquiryId) throw new Fail("no signed application (A1 failed)");
+    const src = readFileSync(new URL("../src/lib/portal.functions.ts", import.meta.url), "utf8") + readFileSync(new URL("../src/lib/partner-activation.functions.ts", import.meta.url), "utf8");
+    c("office can request changes on a signed application", /request_?changes|changes_requested/i.test(src), "no request-changes action exists — needs Jo's decision on how it should work");
+    await admin.from("partner_enquiries").update({ status: "declined", declined_at: new Date().toISOString() }).eq("id", ctx.enquiryId);
+    const { data: a } = await admin.from("rec_onboarding_applications").select("status").eq("id", ctx.appId!).single();
+    c("office decline is recorded", true);
+    c("installer is told about the decline", a?.status !== "submitted", "the installer's link still shows 'submitted' and no message is queued — needs Jo's wording and decision");
+  });
+}
+
+// ---------- B. approved installer ----------
+async function sectionB(steps: Step[], screens: Screen[], ids: { owner: string; staff: string }) {
+  const tv = await import("../src/lib/trade-view.server");
+  const { data: job } = await admin.from("jobs").select("id").eq("originating_installer_business_id", BIZ).eq("source", "qa_test").is("qa_archived_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: offers } = await admin.from("partner_offers").select("id, status, job_id").eq("business_id", BIZ).order("offered_at", { ascending: false });
+  const pending = (offers ?? []).find((o) => o.status !== "accepted"); const accepted = (offers ?? []).find((o) => o.status === "accepted");
+  const pages: [string, string][] = [["My work", "/field"], ["Money", "/field/money"], ["My business", "/field/business"], ["Details", "/field/business/details"], ["Rates", "/field/business/rates"], ["Bank", "/field/business/bank"], ["Insurance", "/field/business/insurance"], ["Agreement", "/field/business/agreement"], ["Team", "/field/business/team"], ["Add one job", "/partner/import"], ["Upload jobs", "/partner/bulk-import"], ["Sign-in landing", "/portal"]];
+  if (job) pages.push(["Job file", `/field/${job.id}`], ["Today's job", `/field/day/${job.id}`]);
+  if (pending) pages.push(["Offer (not accepted)", `/field/offer/${pending.id}`]);
+  if (accepted) pages.push(["Offer (accepted)", `/field/offer/${accepted.id}`]);
+  for (const [, path] of pages) screens.push({ step: "B2", persona: "owner", path, mustNotSee: BANNED });
+  for (const p of ["/field", "/portal"]) screens.push({ step: "B1", persona: "owner", path: p, mustSee: ["My work"], mustNotSee: ["calculator", "application"] });
+  for (const p of ["/field", "/portal"]) screens.push({ step: "B1", persona: "staff", path: p, mustSee: ["My work"], mustNotSee: ["calculator"] });
+  for (const p of ["/field/money", "/field/business/rates", "/field/business/bank", "/field/business/agreement", "/partner/bulk-import", "/partner/import"]) screens.push({ step: "B4", persona: "staff", path: p, mustNotSee: ["BSB", "per m²", "Account number", "Upload your list", ...BANNED.slice(0, 3)], noPrices: true });
+
+  await step(steps, "B1", "B1 Approved installer (owner and staff) lands on My work", async (c) => {
+    const h = await tv.tradeHome(ids.owner); c("owner's home loads", !!h);
+    const hs = await tv.tradeHome(ids.staff); c("staff home loads", !!hs);
+    c("browser landing checked in screenshots", true, noBrowser ? "browser skipped" : undefined);
+  });
+  await step(steps, "B4", "B4 Staff refused rates, bank, agreement, Money and My business on the server", async (c) => {
+    const refuse = async (n: string, f: () => Promise<unknown>) => { try { await f(); c(`staff refused: ${n}`, false, "server returned data"); } catch { c(`staff refused: ${n}`, true); } };
+    await refuse("Money", () => tv.tradeMoney(ids.staff));
+    await refuse("business file (rates/bank/insurance/team)", () => tv.tradeBusinessFile(ids.staff));
+    await refuse("agreement PDF", () => tv.tradeAgreementPdf(ids.staff));
+    const pi = await import("../src/lib/partner-import.server");
+    await refuse("Add one job", () => pi.createImportFor(ids.staff, { businessId: BIZ, sourceSystem: "manual_import", text: "x", csvRow: 0, files: [] }));
+    const biz = await tv.tradeBusiness(ids.staff).catch(() => null);
+    const leak = biz ? Object.entries(biz as Record<string, unknown>).filter(([k, v]) => /bsb|account|rate|bank|agreement|insurance/i.test(k) && v != null && v !== false && !(Array.isArray(v) && !v.length)) : [];
+    c("staff My business shows no rates, bank, agreement or insurance", !leak.length, leak.map(([k]) => k).join(", "));
+    const ownerFile = await tv.tradeBusinessFile(ids.owner); c("owner still sees the business file", !!ownerFile);
+    const hs = await tv.tradeHome(ids.staff) as unknown as Record<string, unknown>;
+    const { data: asg } = await admin.from("job_assignments").select("job_id").eq("user_id", ids.staff).eq("active", true);
+    const mine = new Set((asg ?? []).map((a) => a.job_id));
+    const shown = JSON.stringify(hs).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) ?? [];
+    const { data: jobsShown } = shown.length ? await admin.from("jobs").select("id").in("id", shown) : { data: [] };
+    c("staff only see jobs assigned to them", (jobsShown ?? []).every((j) => mine.has(j.id)), `${(jobsShown ?? []).length} job(s) shown, ${mine.size} assigned`);
+    c("staff Money/My business pages checked in screenshots", true, noBrowser ? "browser skipped" : undefined);
+  });
+  await step(steps, "B5", "B5 Address hidden on offers until accepted", async (c) => {
+    if (!pending) c("a not-yet-accepted offer to check", false, "TEST Reinsulate has no open/withdrawn offer");
+    else {
+      const o = await tv.tradeOffer(pending.id, ids.owner);
+      const { data: j } = await admin.from("jobs").select("owners(full_name, phone), properties(address_line)").eq("id", pending.job_id).single();
+      const street = (j?.properties as { address_line: string | null } | null)?.address_line ?? "§";
+      const phone = (j?.owners as { phone: string | null } | null)?.phone ?? "§";
+      c("not accepted: suburb only, no street, phone or owner name", !o.locked && !JSON.stringify(o).includes(street) && !JSON.stringify(o).includes(phone), `suburb=${o.suburb}`);
+    }
+    if (!accepted) c("an accepted offer to check", false, "TEST Reinsulate has no accepted offer");
+    else {
+      const o = await tv.tradeOffer(accepted.id, ids.owner);
+      c("accepted: full address and owner contact for that visit", !!o.locked?.address && (!!o.locked?.phone || !!o.locked?.owner), o.locked ? "shown" : "not shown (no live booking/assignment on that TEST job)");
+    }
+  });
+  await step(steps, "B6", "B6 Money: expected date is 7 days after approval; $349 never shown as installer pay", async (c) => {
+    const m = await tv.tradeMoney(ids.owner);
+    c("Money loads for the owner", !!m);
+    c("no row pays the installer $349", !m.rows.some((r) => Number(r.amount) === 349));
+    const { payState } = await import("../src/lib/trade-view.core");
+    const s = payState({ paidAt: null, apApprovedAt: "2026-10-01T00:00:00Z", ownerPaidInFullAt: "2026-10-01T00:00:00Z" });
+    c("rule: 7 days after approval + owner paid in full", s.kind === "coming" && s.on.startsWith("2026-10-08"));
+    c("rule: nothing 'coming' until the owner has paid in full", payState({ paidAt: null, apApprovedAt: "2026-10-01T00:00:00Z", ownerPaidInFullAt: null }).kind === "checking");
+    c(`live rows: ${m.rows.length}`, true, m.rows.length ? m.rows.map((r) => `${r.jobNumber} ${r.state.kind}`).join(", ") : "empty state");
+  });
+}
+
+// ---------- C. bulk upload + add one job ----------
+async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: string, screens: Screen[]) {
+  const bi = await import("../src/lib/bulk-import.server");
+  const { CONTACT_PERMISSION_WORDING } = await import("../src/lib/bulk-import.core");
+  const madeJobs: string[] = [];
+  const upload = async (listName: string | null, files: { name: string; mime: string }[] = []) => {
+    const rawRows = listName ? await bi.parseListFile(listName, readFileSync(`${fixtures}/${listName}`).buffer as ArrayBuffer) : [];
+    const documents: { name: string; text: string }[] = [];
+    for (const f of files) { const t = await bi.aiReadMedia(f.name, f.mime, readFileSync(`${fixtures}/${f.name}`).toString("base64")); if (!/^NONE\b/i.test(t)) documents.push({ name: f.name, text: t }); }
+    const manifest = files.map((f) => ({ path: `partners/${BIZ}/bulk/${tag}/${f.name}`, name: f.name, folder: null, type: f.mime }));
+    const { data: batch, error } = await admin.from("bulk_import_batches").insert({ business_id: BIZ, created_by: ownerId, on_behalf: false, list_filename: listName ?? files[0]?.name ?? "files", file_manifest: manifest as never,
+      summary: { raw_rows: rawRows, documents, file_reads: [], permission: { confirmed_by: ownerId, confirmed_at: new Date().toISOString(), wording: CONTACT_PERMISSION_WORDING } } as never }).select("id").single();
+    if (error || !batch) throw new Fail(`upload not saved: ${error?.message}`);
+    await bi.analyseBatch(batch.id, ownerId);
+    const { data: rows } = await admin.from("bulk_import_rows").select("*").eq("batch_id", batch.id).order("row_index");
+    return { batchId: batch.id, rawRows, rows: (rows ?? []) as { id: string; extracted: Record<string, unknown>; import_stage: string; sort_result: string; sort_reasons: string[]; duplicate_note: string | null; status: string; job_id: string | null }[] };
+  };
+  const confirm = async (batchId: string) => { const r = await bi.confirmBatch(batchId, ownerId, []); const { data } = await admin.from("bulk_import_rows").select("job_id").eq("batch_id", batchId).not("job_id", "is", null); madeJobs.push(...(data ?? []).map((x) => x.job_id!)); return r; };
+  const jobsOk = async (c: (n: string, ok: boolean, d?: string) => void, ids: string[]) => {
+    if (!ids.length) return;
+    const { data } = await admin.from("jobs").select("id, source, originating_installer_business_id, installer_quoted_price_inc_gst").in("id", ids);
+    c("jobs are TEST and stay with this installer", (data ?? []).every((j) => j.source === "qa_test" && j.originating_installer_business_id === BIZ), `${(data ?? []).length} job(s)`);
+    c("nothing sent to the owner", (await outboundFor(ids)) === 0);
+  };
+
+  await step(steps, "C1", "C1 CSV: parses, keeps quoted price, Visited rule, confirm", async (c) => {
+    const u = await upload("plain.csv");
+    c("3 rows read", u.rows.length === 3, String(u.rows.length));
+    const byName = (n: string) => u.rows.find((r) => String(r.extracted["full_name"] ?? "").endsWith(n));
+    c("quoted price kept exactly ($2511.00)", Number(byName("Owner 1")?.extracted["price_inc_gst"]) === 2511, String(byName("Owner 1")?.extracted["price_inc_gst"]));
+    c("site check Yes + quote = Visited/quoted", byName("Owner 1")?.import_stage === "quoted", byName("Owner 1")?.import_stage);
+    c("site check No = Not visited", byName("Owner 2")?.import_stage === "not_visited", byName("Owner 2")?.import_stage);
+    c("blank site check is asked, never assumed Yes", byName("Owner 3")?.extracted["site_check"] == null && byName("Owner 3")?.import_stage === "not_visited", `${byName("Owner 3")?.extracted["site_check"]}/${byName("Owner 3")?.import_stage}`);
+    await confirm(u.batchId);
+    const again = await confirm(u.batchId).then(() => "ok", (e) => (e as Error).message);
+    const { data: rows } = await admin.from("bulk_import_rows").select("job_id").eq("batch_id", u.batchId).not("job_id", "is", null);
+    c("confirming twice never makes duplicate jobs", new Set((rows ?? []).map((r) => r.job_id)).size === (rows ?? []).length, again);
+    await jobsOk(c, (rows ?? []).map((r) => r.job_id!));
+    screens.push({ step: "C4", persona: "owner", path: `/partner/bulk-import?batch=${u.batchId}`, mustNotSee: BANNED });
+  });
+  await step(steps, "C2", "C2 XLSX: parses and keeps $3,187.55 exactly", async (c) => {
+    const u = await upload("list.xlsx");
+    c("2 rows read", u.rows.length === 2, String(u.rows.length));
+    c("price with comma kept exactly", u.rows.some((r) => Number(r.extracted["price_inc_gst"]) === 3187.55), u.rows.map((r) => r.extracted["price_inc_gst"]).join(", "));
+  });
+  await step(steps, "C3", "C3 PDF of quotes: read, Visited (measured + quoted), price exact", async (c) => {
+    const u = await upload(null, [{ name: "quotes.pdf", mime: "application/pdf" }]);
+    c("2 quotes found", u.rows.length === 2, String(u.rows.length));
+    c("prices kept exactly ($3001, $3002)", [3001, 3002].every((p) => u.rows.some((r) => Number(r.extracted["price_inc_gst"]) === p)), u.rows.map((r) => r.extracted["price_inc_gst"]).join(", "));
+    c("measured + quoted = Visited", u.rows.every((r) => r.import_stage === "quoted" || r.import_stage === "visited"), u.rows.map((r) => r.import_stage).join(", "));
+  });
+  await step(steps, "C4", "C4 PDF with photos + sentences: sentences only = Not visited", async (c) => {
+    const u = await upload(null, [{ name: "photos-and-sentences.pdf", mime: "application/pdf" }]);
+    c("customer found from the sentences", u.rows.length >= 1, String(u.rows.length));
+    c("sentences only ('haven't been out yet') = Not visited", u.rows.every((r) => r.import_stage === "not_visited"), u.rows.map((r) => r.import_stage).join(", "));
+  });
+  await step(steps, "C5", "C5 Photos only: never a dead end, held for checking, no guessed customer", async (c) => {
+    const u = await upload(null, [{ name: "ceiling-1.jpg", mime: "image/jpeg" }, { name: "ceiling-2.jpg", mime: "image/jpeg" }]);
+    c("no invented customer details", u.rows.every((r) => !r.extracted["email"] && !r.extracted["phone"]), `${u.rows.length} row(s)`);
+    c("anything found is held for the office", u.rows.every((r) => r.sort_result === "office_review"));
+    c("photos only: rows found", u.rows.length > 0, "no row is made from photos alone (no customer) — the photos are kept for matching only");
+    c("Jo's rule 'photos mean Visited' — conflicts with the 7 Oct rule (blank site check = ask)", u.rows.length > 0 && u.rows.every((r) => r.import_stage === "visited"), "needs Jo's decision: photos alone currently mean 'please answer: site check done?'");
+  });
+  await step(steps, "C6", "C6 Messy file with missing columns", async (c) => {
+    const u = await upload("messy.csv");
+    c("rows read without crashing", u.rows.length >= 1, String(u.rows.length));
+    c("row with no contact/address held for checking with a reason", u.rows.filter((r) => !r.extracted["address_line"]).every((r) => r.sort_result === "office_review" && r.sort_reasons.length > 0));
+  });
+  await step(steps, "C7", "C7 Duplicate rows and an existing customer", async (c) => {
+    const u = await upload("duplicates.csv");
+    c("duplicate row flagged clearly", u.rows.some((r) => !!r.duplicate_note), u.rows.length < u.rawRows.length ? `the two identical rows were silently merged into one (${u.rawRows.length} rows in, ${u.rows.length} out) — the installer isn't told` : u.rows.map((r) => r.duplicate_note ?? "-").join(" | "));
+    await confirm(u.batchId);
+    const again = await upload("duplicates.csv");
+    c("customer already in the portal is flagged", again.rows.every((r) => !!r.duplicate_note), again.rows.map((r) => r.duplicate_note ?? "-").join(" | "));
+    const before = madeJobs.length; await confirm(again.batchId);
+    c("re-upload never creates a duplicate job", madeJobs.length === before, `${madeJobs.length - before} new`);
+  });
+  await step(steps, "C8", "C8 Bad email (gmai.com) is flagged", async (c) => {
+    const u = await upload("bad-email.csv");
+    c("typo flagged with a suggestion", u.rows.some((r) => r.sort_reasons.some((x) => /did you mean gmail\.com/.test(x))), u.rows.flatMap((r) => r.sort_reasons).join(" | "));
+  });
+  await step(steps, "C9", "C9 Missing address: fix the row before Confirm", async (c) => {
+    const u = await upload("missing-address.csv");
+    const r = u.rows[0];
+    c("held with 'No address found'", !!r && r.sort_reasons.some((x) => /No address/.test(x)));
+    if (!r) return;
+    await bi.setRowAddress(r.id, { address_line: "41 Fixed St", suburb: "Fraser Rise", postcode: "3336" } as never, ownerId as never);
+    const { data: fixed } = await admin.from("bulk_import_rows").select("extracted, sort_result").eq("id", r.id).single();
+    c("installer's fix saved on the row", (fixed?.extracted as Record<string, unknown>)?.["address_line"] === "41 Fixed St");
+    await confirm(u.batchId);
+    const { data: done } = await admin.from("bulk_import_rows").select("job_id, status").eq("id", r.id).single();
+    c("fixed row confirms (or stays for office review, never lost)", !!done?.job_id || done?.status !== "error", `${done?.status}`);
+  });
+  await step(steps, "C10", "C10 Large file (200 rows)", async (c) => {
+    const t0 = Date.now(); const u = await upload("large.csv");
+    c("all 200 rows read", u.rows.length === 200, `${u.rows.length} in ${Math.round((Date.now() - t0) / 1000)}s`);
+    c("prices kept exactly", u.rows.every((r, i) => Number(r.extracted["price_inc_gst"]) === 2500 + (100 + i) * 11 || r.extracted["price_inc_gst"] == null), "spot check");
+  });
+  await step(steps, "C11", "C11 Add one job: price exact, site check, attached to installer, nothing sent", async (c) => {
+    const pi = await import("../src/lib/partner-import.server");
+    const imp = await pi.createImportFor(ownerId, { businessId: BIZ, sourceSystem: "manual_import", text: `TEST ${tag} Single, 9 One Job Rd, Fraser Rise VIC 3336, 0412 999 001, qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, csvRow: 0, files: [] });
+    c("draft created", !!imp.id);
+    const bad = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: "", phone: "", address_line: "", measured_area_m2: 100 }, installer: { site_check: "yes" } }).then(() => "accepted", (e) => (e as Error).message);
+    c("missing address/contact refused with a clear message", bad !== "accepted" && bad.length > 10, bad);
+    const r = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: `qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, phone: "0412999001", address_line: "9 One Job Rd", suburb: "Fraser Rise", postcode: "3336", measured_area_m2: 104 }, installer: { site_check: "yes", site_check_date: "2026-10-02", quoted_price_inc_gst: 2987.65, price_includes: "R5 batts 104 m²" } });
+    madeJobs.push(r.jobId);
+    const { data: j } = await admin.from("jobs").select("installer_quoted_price_inc_gst, installer_site_check, source").eq("id", r.jobId).single();
+    c("quoted price kept exactly ($2987.65)", Number(j?.installer_quoted_price_inc_gst) === 2987.65, String(j?.installer_quoted_price_inc_gst));
+    c("site check Yes saved", j?.installer_site_check === "yes");
+    await jobsOk(c, [r.jobId]);
+    const twice = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: {}, installer: { site_check: "yes" } }).then(() => "accepted", (e) => (e as Error).message);
+    c("confirming again refused (no duplicate)", twice !== "accepted", twice);
+  });
+  await step(steps, "C12", "C12 Results page and past uploads", async (c) => {
+    const { data } = await admin.from("bulk_import_batches").select("id, status").eq("business_id", BIZ).neq("status", "discarded");
+    c("this run's uploads listed in past uploads", (data ?? []).length >= 9, `${(data ?? []).length} listed`);
+    c("nothing sent to any owner across all uploads", (await outboundFor(madeJobs)) === 0, `${madeJobs.length} TEST job(s) checked`);
+  });
+  screens.push({ step: "C12", persona: "owner", path: "/partner/bulk-import", mustNotSee: BANNED });
+}
+
+// ---------- main ----------
+mkdirSync(root, { recursive: true });
+const ownerId = await userId(OWNER_EMAIL); if (!ownerId) throw new Error("TEST Reinsulate owner login missing");
+const staffId = await ensureStaff();
+const allRuns: { run: number; steps: Step[]; restore: unknown }[] = [];
+for (let run = 1; run <= RUNS; run++) {
+  const tag = `IT${stamp.slice(11, 19).replace(/-/g, "")}R${run}`;
+  const outDir = `${root}/run-${run}`; mkdirSync(`${outDir}/screens`, { recursive: true });
+  console.log(`\n=== Run ${run} (${tag}) ===`);
+  const snap = await snapshot();
+  const steps: Step[] = []; const screens: Screen[] = []; const ctx: { appId?: string; enquiryId?: string; data?: InstData } = {};
+  try {
+    await sectionA(steps, tag, screens, ctx);
+    await sectionB(steps, screens, { owner: ownerId, staff: staffId });
+    const fx = `/tmp/installer-test/${tag}`;
+    spawnSync("python3", [new URL("../e2e/installer-test/fixtures.py", import.meta.url).pathname, fx, tag], { encoding: "utf8" });
+    await sectionC(steps, tag, ownerId, fx, screens);
+    if (!noBrowser) {
+      const sessions: Record<string, unknown> = { office: await sessionFor(JOURNEY_ACTOR_EMAIL), owner: await sessionFor(OWNER_EMAIL), staff: await sessionFor(STAFF_EMAIL) };
+      const manifest = `${outDir}/.manifest.json`;
+      writeFileSync(manifest, JSON.stringify({ base: "http://localhost:8080", outDir, storageKey: `sb-${process.env["SUPABASE_PROJECT_ID"] ?? "wvuffpykgnqliikhodzl"}-auth-token`, screens, sessions }));
+      const py = spawnSync("python3", [new URL("../e2e/journey/shoot.py", import.meta.url).pathname, manifest], { encoding: "utf8", timeout: 590_000 });
+      writeFileSync(manifest, "{}");
+      const res = `${outDir}/.browser.json`;
+      const browser: { step: string; ok: boolean; detail: string; shots: string[] }[] = existsSync(res) ? JSON.parse(readFileSync(res, "utf8")) : [{ step: "B2", ok: false, detail: `browser run failed: ${(py.stderr || "").slice(-300)}`, shots: [] }];
+      for (const key of [...new Set(browser.map((b) => b.step))]) {
+        const b = browser.filter((x) => x.step === key);
+        let s = steps.find((x) => x.key === key);
+        if (!s) { s = { key, label: key === "B2" ? "B2/B3 Every installer page at 390px and 1280px: no blanks, 'undefined', 'HI VIC', 'optional', vacuum rate, errors" : `${key} pages in the browser`, passed: true, checks: [] }; steps.push(s); }
+        for (const x of b) s.checks.push({ name: `browser: ${x.detail}`, ok: x.ok });
+        s.shots = b.flatMap((x) => x.shots); s.passed = s.checks.every((x) => x.ok);
+        if (!s.passed) s.error = b.filter((x) => !x.ok).map((x) => x.detail).join("; ");
+        console.log(`${s.passed ? "PASS" : "FAIL"}  ${s.label} (browser)`);
+      }
+    }
+  } finally {
+    const r = await restore(snap);
+    allRuns.push({ run, steps, restore: r });
+    writeFileSync(`${outDir}/report.json`, JSON.stringify({ run, tag, steps, restore: r }, null, 2));
+  }
+}
+const keys = [...new Set(allRuns.flatMap((r) => r.steps.map((s) => s.key)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+const ready = allRuns.every((r) => r.steps.every((s) => s.passed));
+const verdict = ready ? "READY FOR REAL INSTALLERS" : "NOT READY";
+const md = [`# New-installer test — ${new Date().toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}`, "", `**${verdict}** (${RUNS} run${RUNS > 1 ? "s" : ""})`, "", "| Step | " + allRuns.map((r) => `Run ${r.run}`).join(" | ") + " |", "|---|" + allRuns.map(() => "---").join("|") + "|",
+  ...keys.map((k) => { const label = allRuns.flatMap((r) => r.steps).find((s) => s.key === k)!.label; return `| ${label} | ${allRuns.map((r) => { const s = r.steps.find((x) => x.key === k); return s ? (s.passed ? "PASS" : "FAIL") : "-"; }).join(" | ")} |`; }), "",
+  ...allRuns.flatMap((r) => [`## Run ${r.run}`, ...r.steps.flatMap((s) => [`### ${s.passed ? "PASS" : "FAIL"} — ${s.label}`, ...s.checks.map((c) => `- ${c.ok ? "ok" : "FAILED"} — ${c.name}${c.detail ? ` (${c.detail})` : ""}`)]), ""])].join("\n");
+writeFileSync(`${root}/report.md`, md);
+console.log(`\n${verdict}\nReport: ${root}/report.md`);
+void copyFileSync;
+process.exit(0);

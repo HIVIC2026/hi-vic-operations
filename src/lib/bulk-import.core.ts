@@ -353,12 +353,20 @@ export function normaliseAuPhone(raw: string | null | undefined): { phone: strin
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /** Tidies phone/email/postcode/area on an AI-mapped lead and lists anything the office must check. */
+/** Common misspelt email domains (e.g. gmai.com) -> the likely intended domain; null when it looks fine. */
+const DOMAIN_TYPOS: Record<string, string> = { "gmai.com": "gmail.com", "gmial.com": "gmail.com", "gmal.com": "gmail.com", "gmil.com": "gmail.com", "gamil.com": "gmail.com", "gmail.co": "gmail.com", "gmail.con": "gmail.com", "gmail.cm": "gmail.com",
+  "hotmial.com": "hotmail.com", "hotmai.com": "hotmail.com", "hotmail.con": "hotmail.com", "outlook.con": "outlook.com", "yahoo.con": "yahoo.com", "bigpond.con": "bigpond.com", "bigpond.com.au.au": "bigpond.com.au", "icloud.con": "icloud.com" };
+export function emailDomainTypo(email: string | null | undefined): string | null {
+  const d = (email ?? "").trim().toLowerCase().split("@")[1];
+  return d && DOMAIN_TYPOS[d] ? DOMAIN_TYPOS[d]! : null;
+}
 export function cleanLead<T extends BulkExtracted>(e: T): { lead: T; issues: string[] } {
   const issues: string[] = [];
   const p = normaliseAuPhone(e.phone);
   if (!p.ok) issues.push(`Phone "${e.phone}" doesn't look like an Australian number — please check`);
   const email = e.email?.trim().toLowerCase() || null;
   if (email && !EMAIL_RE.test(email)) issues.push(`Email "${e.email}" doesn't look right — please check`);
+  else if (email) { const fix = emailDomainTypo(email); if (fix) issues.push(`Email "${e.email}" looks like a typo — did you mean ${fix}? Please check`); }
   const pc = e.postcode?.replace(/\D/g, "") || null;
   if (e.postcode && (!pc || pc.length !== 4)) issues.push(`Postcode "${e.postcode}" isn't 4 digits — please check`);
   else if (pc && !/^3\d{3}$/.test(pc) && !/^8\d{3}$/.test(pc)) issues.push(`Postcode ${pc} is outside Victoria — please check`);

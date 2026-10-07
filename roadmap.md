@@ -81,3 +81,5 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Steps 5–8 built; fixed owner payment-choice bug
 - [ ] Step 5 blocked: no code moves a job from "Measured estimate ready" to "Measured quote accepted" when the owner accepts — needs Jo's decision (ties to booking-order plan)
 - [ ] Later: daily check + Today card
+
+- [x] Strict new-installer test (A application/approval, B installer views owner+staff, C uploads/add one job), 3 runs, report + screenshots in Files installer-test

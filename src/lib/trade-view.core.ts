@@ -56,9 +56,13 @@ export function payPill(p: PayState): { label: string; tone: "blue" | "blush" | 
 }
 
 /** Pay state from facts: paid event wins; office AP approval starts the 7-day clock; otherwise it's being checked. */
-export function payState(f: { paidAt: string | null; apApprovedAt: string | null }): PayState {
+/** Jo's terms: the clock starts only once BOTH office AP approval and the owner's payment in full are recorded (later of the two).
+ * `ownerPaidInFullAt` omitted = legacy callers (AP approval only). */
+export function payState(f: { paidAt: string | null; apApprovedAt: string | null; ownerPaidInFullAt?: string | null }): PayState {
   if (f.paidAt) return { kind: "paid", on: f.paidAt };
-  if (f.apApprovedAt) return { kind: "coming", on: new Date(new Date(f.apApprovedAt).getTime() + 7 * 86_400_000).toISOString() };
+  if (f.ownerPaidInFullAt === null) return { kind: "checking" };
+  const start = [f.apApprovedAt, f.ownerPaidInFullAt].filter((x): x is string => !!x).map((x) => new Date(x).getTime());
+  if (f.apApprovedAt) return { kind: "coming", on: new Date(Math.max(...start) + 7 * 86_400_000).toISOString() };
   return { kind: "checking" };
 }
 
