@@ -46,14 +46,23 @@ export async function loadHotLeads(group: HotList = "likely") {
     if (!page || page.length < 500) break;
   }
   const allow: readonly string[] = TEST_ALLOWLIST.email;
+  const skipped: { jobNumber: string | null; name: string | null; reason: string }[] = [];
   const candidates = jobs.flatMap((j) => {
     const owner = j.owners as { full_name: string | null; email: string | null } | null;
     const property = j.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
     const estimate = j.indicative_estimates?.filter((e) => e.status === "current").sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-    if (!owner?.email?.trim() || !owner.full_name || !property?.address_line || !property.postcode || !estimate || Number(estimate.area_m2) < 20) return [];
+    const skip = (reason: string) => { if (group !== "test") skipped.push({ jobNumber: j.job_number, name: owner?.full_name ?? null, reason }); return []; };
+    if (!owner?.email?.trim()) return skip("No owner email");
+    if (!owner.full_name) return skip("No owner name");
+    if (!property?.address_line || !property.postcode) return skip("Address or postcode missing");
+    if (!estimate) return skip("No current estimate");
+    if (Number(estimate.area_m2) < 20) return skip(`Ceiling size not valid (${Number(estimate.area_m2)} m²)`);
     if (group === "test") return allow.includes(owner.email.trim().toLowerCase()) ? [{ j, owner, property, estimate }] : [];
-    if (HOT_EXCLUDED_JOBS.has(j.job_number ?? "") || HOT_HIDDEN_DUPLICATES.has(j.job_number ?? "")) return [];
-    if ((group === "onsite" ? estimate.insulation_declared === "none" : estimate.insulation_declared !== "none") || estimate.area_source !== "owner_estimate" || HOT_EXCLUDE.test(`${owner.full_name} ${owner.email} ${property.address_line} ${property.suburb ?? ""}`)) return [];
+    if (HOT_EXCLUDED_JOBS.has(j.job_number ?? "")) return skip("Excluded by Jo (test or not a real lead)");
+    if (HOT_HIDDEN_DUPLICATES.has(j.job_number ?? "")) return skip("Older duplicate record (newer one kept)");
+    if (group === "onsite" ? estimate.insulation_declared === "none" : estimate.insulation_declared !== "none") return skip(estimate.insulation_declared === "present" ? "Has existing insulation" : "Insulation unknown");
+    if (estimate.area_source !== "owner_estimate") return skip("Ceiling size not from the owner");
+    if (HOT_EXCLUDE.test(`${owner.full_name} ${owner.email} ${property.address_line} ${property.suburb ?? ""}`)) return skip("Looks like a test entry");
     return [{ j, owner, property, estimate }];
   });
   const unique = new Map<string, (typeof candidates)[number]>();
