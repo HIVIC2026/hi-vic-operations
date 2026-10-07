@@ -2,7 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { SAFETY_CHECK_FEE_DEFAULT, balanceSplit } from "./payment-gate.core";
-import { GATE_DOCS, paymentChoices, type PaymentMoney, answerVars, evaluateOwnerGates, fillTemplate, gateDoc, ownerGateBlockers, ownerToSign, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
+import { GATE_DOCS, paymentChoices, type PaymentMoney, answerVars, evaluateOwnerGates, fillTemplate, gateDoc, ownerGateBlockers, ownerToSign, quoteAcceptanceReady, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
 import { agreementSigned, assignmentStatus, logEvent, WorkflowError } from "./workflow.server";
 
 async function sha256(s: string) {
@@ -27,7 +27,7 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
     admin.from("owner_gate_signatures").select("doc_key, doc_version, doc_draft, answers, signed_at").eq("job_id", jobId).order("signed_at"),
     approvedVersions(),
     admin.from("bulk_import_rows").select("import_stage").eq("job_id", jobId).limit(1).maybeSingle(),
-    admin.from("quotes").select("id").eq("job_id", jobId).in("status", ["issued", "accepted"]).limit(1),
+    admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted"]).limit(1),
     agreementSigned(jobId),
     admin.from("compliance_templates").select("template_key").in("template_key", ["customer_agreement", "consumer_rights"]).eq("approved", true).eq("is_active", true),
     admin.from("owner_esc_consents").select("id").eq("job_id", jobId).not("owner_signed_at", "is", null).limit(1),
@@ -102,7 +102,8 @@ async function paymentMoney(jobId: string): Promise<(PaymentMoney & { version: s
 export async function ownerPaperworkToSign(jobId: string) {
   const { facts, gates } = await ownerGates(jobId);
   const { vars, money } = await jobVars(jobId);
-  const todo = ownerToSign(gates).filter((t) => t.gate === "A" || (t.gate === "B" && facts.hasQuote) || (t.gate === "C" && facts.agreementSigned));
+  const quoteReady = quoteAcceptanceReady(vars);
+  const todo = ownerToSign(gates).filter((t) => t.gate === "A" || (t.gate === "B" && facts.hasQuote && quoteReady) || (t.gate === "C" && facts.agreementSigned));
   const { data: pv } = await admin.from("assignment_variations").select("id, reasons").eq("job_id", jobId).eq("status", "pending").order("raised_at", { ascending: false }).limit(1).maybeSingle();
   return {
     pendingVariation: pv ? { id: pv.id, reasons: (Array.isArray(pv.reasons) ? pv.reasons : []).map(String) } : null,

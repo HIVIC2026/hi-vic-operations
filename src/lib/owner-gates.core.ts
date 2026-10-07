@@ -109,6 +109,11 @@ export function fillTemplate(body: string, vars: Record<string, string | null | 
   return body.replace(/\{(\w+)\}/g, (_, k: string) => (vars[k] ?? "").toString().trim() || "—");
 }
 
+/** The quote acceptance line may only be shown when both the real quote version and inc-GST total are known. */
+export function quoteAcceptanceReady(vars: Record<string, string | null | undefined>): boolean {
+  return !!String(vars["quote_version"] ?? "").trim() && /\$\d/.test(String(vars["total"] ?? ""));
+}
+
 export type Signed = { key: string; version: string; draft: boolean };
 export type GateFacts = {
   isTest: boolean;
