@@ -20,7 +20,7 @@ describe("application send back / decline emails (DRAFT)", () => {
     expect(withR.text).toContain("Unfortunately we're unable to approve your application at this time. Your insurance has expired.");
     const without = declineEmail({ contactName: "Deep", reason: "" });
     expect(without.text).toContain("Unfortunately we're unable to approve your application at this time.\n");
-    expect(without.text).toContain("Kind regards, Jo");
+    expect(without.text).toContain("Kind regards,\nJo");
     expect(`${withR.text}${without.html}`.toLowerCase()).not.toContain("optional");
   });
   test("send back needs a message; real send-backs are Jo's own office email (7 Oct)", () => {
