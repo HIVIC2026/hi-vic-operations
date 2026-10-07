@@ -18,4 +18,4 @@ GRANT ALL ON public.partner_change_requests TO service_role;
 ALTER TABLE public.partner_change_requests ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Admins manage partner change requests" ON public.partner_change_requests;
 CREATE POLICY "Admins manage partner change requests" ON public.partner_change_requests
-  FOR ALL TO authenticated USING (public.is_admin(auth.uid())) WITH CHECK (public.is_admin(auth.uid()));
+  FOR ALL TO authenticated USING (public.has_role(auth.uid(), 'admin')) WITH CHECK (public.has_role(auth.uid(), 'admin'));

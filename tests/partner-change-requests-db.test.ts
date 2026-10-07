@@ -9,7 +9,7 @@ describe("0138 partner change requests (practice database)", () => {
       create role authenticated; create role service_role;
       create schema auth; create function auth.uid() returns uuid language sql as $$ select null::uuid $$;
       create table public.businesses (id uuid primary key);
-      create function public.is_admin(u uuid) returns boolean language sql as $$ select false $$;
+      create type public.app_role as enum ('admin'); create function public.has_role(u uuid, r public.app_role) returns boolean language sql as $$ select false $$;
       insert into public.businesses values ('00000000-0000-0000-0000-000000000001');`);
     const sql = readFileSync("docs/pending-migrations/0138_partner_change_requests.sql", "utf8");
     await db.exec(sql);
