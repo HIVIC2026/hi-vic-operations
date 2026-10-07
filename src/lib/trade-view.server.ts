@@ -36,6 +36,13 @@ async function ctxOrThrow(userId: string) {
   return c;
 }
 
+/** Business-owner-only data (rates, bank, agreement, insurance, team). Staff logins are refused here, not just hidden in the page. */
+export async function bossOrThrow(userId: string) {
+  const c = await ctxOrThrow(userId);
+  if (!c.boss) throw new WorkflowError("Only the business owner can see this.");
+  return c;
+}
+
 const VISIT: Record<string, string> = { assessment: "Safety check", rectification: "Fixes", ready_check: "Ready Check", installation: "Install" };
 
 /** My work: open offers, things that need this trade, booked visits, and this month. */
@@ -262,6 +269,8 @@ export async function tradeMoney(userId: string) {
 
 export async function tradeBusiness(userId: string) {
   const c = await ctxOrThrow(userId);
+  // Staff logins get only the business name and job-taking status: no rates, bank, agreement, insurance or team.
+  if (!c.boss) return { kind: c.kind, boss: false, name: c.biz.name, taking: c.biz.accepting_new_jobs !== false, area: null as string | null, licenceExpires: null, liabilityExpires: null, rate: null as number | null, agreementSigned: false, bankSaved: false, team: [] as { id: string | null; name: string; role: string; hasLogin: boolean }[] };
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const [{ data: creds }, { data: workers }, { data: rate }, { data: agr }, { data: bank }] = await Promise.all([
     admin.from("business_credentials").select("kind, label, expires_at, verification").eq("business_id", c.biz.id),
@@ -312,7 +321,7 @@ export async function tradeSetupMark(userId: string, key: SetupKey, done: boolea
 
 /** My business sections (Jo, 7 Oct): read-only facts for the trade-style pages. Partners never edit details or rates here. */
 export async function tradeBusinessFile(userId: string) {
-  const c = await ctxOrThrow(userId);
+  const c = await bossOrThrow(userId);
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const [{ data: b }, { data: creds }, { data: agr }, { data: cards }, { data: erates }, { data: open }] = await Promise.all([
     admin.from("businesses").select("id, name, legal_name, trading_name, abn, phone, email, address, base_suburb, coverage_radius_km, covers_all_victoria, typical_days, lead_time, public_liability_cover_amount, onboarding_status").eq("id", c.biz.id).single(),
@@ -341,7 +350,7 @@ export async function tradeBusinessFile(userId: string) {
 }
 
 export async function tradeAgreementPdf(userId: string) {
-  const c = await ctxOrThrow(userId);
+  const c = await bossOrThrow(userId);
   const { data: a } = await admin.from("partner_agreements").select("version, body, signer_name, signed_at").eq("business_id", c.biz.id).order("signed_at", { ascending: false }).limit(1).maybeSingle();
   if (!a) throw new WorkflowError("There's no signed agreement on file yet.");
   const { textToPdf } = await import("./signed-pdf.server");

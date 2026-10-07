@@ -97,7 +97,7 @@ export const setOnboardingStatus = createServerFn({ method: "POST" }).middleware
 export const addCredential = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ businessId: uuid, profileId: uuid.nullish(), kind: z.enum(["public_liability_insurance", "workers_comp_insurance", "other_insurance", "electrical_licence", "rec_registration", "installer_certification", "business_registration", "other"]), label: z.string().trim().min(2).max(200), number: txt(100), issuer: txt(200), expires_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(), critical: z.boolean().default(true), document_path: txt(500) }).parse(d))
   .handler(async ({ data, context }) => {
-    if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.businessId);
+    if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.businessId, true);
     if (data.document_path && !data.document_path.startsWith(`partners/${data.businessId}/`)) throw new WorkflowError("Invalid document path");
     if (data.document_path) { const { allowedUpload } = await import("./upload-safety.core"); const m = allowedUpload(data.document_path, null); if (!m) throw new WorkflowError("That file type isn't accepted."); const { verifyStoredUpload } = await import("./upload-safety.server"); await verifyStoredUpload("job-files", data.document_path, m); }
     const { error } = await admin.from("business_credentials").insert({ business_id: data.businessId, profile_id: data.profileId ?? null, kind: data.kind, label: data.label, number: data.number ?? null, issuer: data.issuer ?? null, expires_at: data.expires_at ?? null, critical: data.critical, document_path: data.document_path ?? null, created_by: context.userId });
@@ -116,7 +116,7 @@ export const verifyCredential = createServerFn({ method: "POST" }).middleware([r
 export const partnerUploadUrl = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ businessId: uuid, folder: z.enum(["credentials", "imports", "branding"]), fileName: z.string().trim().min(1).max(200) }).parse(d))
   .handler(async ({ data, context }) => {
-    if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.businessId);
+    if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.businessId, true);
     { const { allowedUpload } = await import("./upload-safety.core"); if (!allowedUpload(data.fileName, null, { imports: data.folder === "imports" })) throw new WorkflowError("That file type isn't accepted. Please upload a PDF, photo, video, Word, Excel, CSV, text, email or ZIP file."); }
     const path = `partners/${data.businessId}/${data.folder}/${crypto.randomUUID()}-${data.fileName.replace(/[^\w.\-]+/g, "_")}`;
     const { data: s, error } = await admin.storage.from("job-files").createSignedUploadUrl(path);
@@ -127,7 +127,7 @@ export const partnerUploadUrl = createServerFn({ method: "POST" }).middleware([r
 export const partnerFileUrl = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ businessId: uuid, path: z.string().max(500) }).parse(d))
   .handler(async ({ data, context }) => {
-    if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.businessId);
+    if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.businessId, true);
     if (!data.path.startsWith(`partners/${data.businessId}/`)) throw new WorkflowError("Invalid path");
     const { data: s, error } = await signFile("job-files", data.path, 300);
     if (error) throw new WorkflowError(error.message);
@@ -154,7 +154,7 @@ export const getBankDetails = createServerFn({ method: "POST" }).middleware([req
   .inputValidator((d) => z.object({ businessId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     const adminUser = await isAdmin(context.supabase);
-    if (!adminUser) await requireMember(context.userId, data.businessId);
+    if (!adminUser) await requireMember(context.userId, data.businessId, true);
     const { data: b } = await admin.from("business_bank_details").select("account_name,bsb,account_number,updated_at,review_status,reviewed_at").eq("business_id", data.businessId).maybeSingle();
     if (!b) return null;
     return adminUser ? b : { account_name: b.account_name, bsb: `***-${b.bsb.slice(-3)}`, account_number: `****${b.account_number.slice(-3)}`, updated_at: b.updated_at };
@@ -239,7 +239,7 @@ export const getPartnerProfile = createServerFn({ method: "POST" }).middleware([
     const mine = await myBusinesses(context.userId);
     const id = data.businessId ?? [...mine.keys()][0];
     if (!id) return null;
-    if (!adminUser && !mine.has(id)) throw new WorkflowError("Not your business.");
+    if (!adminUser && mine.get(id) !== "business_admin") throw new WorkflowError(mine.has(id) ? "Only the business owner can see this." : "Not your business.");
     const { business, credentials } = await loadBusiness(id);
     if (!business) return null;
     const [{ data: creds }, { data: members }, { data: workers }, { data: rels }, { data: agreements }, { data: cards }, { data: electricians }] = await Promise.all([
@@ -266,7 +266,7 @@ export const createImport = createServerFn({ method: "POST" }).middleware([requi
     files: z.array(z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100) })).max(30).default([]),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireMember(context.userId, data.businessId);
+    await requireMember(context.userId, data.businessId, true); // business owner only
     await requireApprovedPartner(data.businessId);
     for (const f of data.files) if (!f.path.startsWith(`partners/${data.businessId}/imports/`)) throw new WorkflowError("Invalid file path");
     { const { allowedUpload } = await import("./upload-safety.core"); const { verifyStoredUpload } = await import("./upload-safety.server");
@@ -714,7 +714,7 @@ export const partnerDashboard = createServerFn({ method: "GET" }).middleware([re
 
 export const listDraftImports = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ids = [...(await myBusinesses(context.userId)).keys()];
+    const ids = [...(await myBusinesses(context.userId)).entries()].filter(([, r]) => r === "business_admin").map(([id]) => id); // business owner only
     if (!ids.length) return [];
     const { data } = await admin.from("job_imports").select("id, source_system, method, extracted, files, source_url, external_refs, created_at, status, job_id").in("business_id", ids).order("created_at", { ascending: false }).limit(50);
     return data ?? [];
@@ -772,7 +772,7 @@ export const setMeasurementStandard = createServerFn({ method: "POST" }).middlew
 /** Installer's own approved rate card lines (inc GST) for pricing their own customer. Never another business's rates. */
 export const myInstallerRateItems = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ids = [...(await myBusinesses(context.userId)).keys()];
+    const ids = [...(await myBusinesses(context.userId)).entries()].filter(([, r]) => r === "business_admin").map(([id]) => id); // business owner only
     if (!ids.length) return { businessId: null, items: [] as { code: string; description: string; unit: string; price_inc_gst: number }[] };
     const bizId = ids[0]!;
     const [{ data: card }, { data: biz }] = await Promise.all([
